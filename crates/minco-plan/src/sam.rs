@@ -241,6 +241,8 @@ mod tests {
                 path: "/health".into(),
                 authenticated: false,
             }],
+            application_graph: minco_core::ApplicationGraph::default(),
+            local_aws_services: vec!["ssm".into(), "sts".into()],
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],

@@ -208,6 +208,12 @@ impl std::fmt::Debug for EffectivePlugin {
     }
 }
 
+struct ResolvedGraph {
+    enabled: BTreeMap<PluginId, EffectivePlugin>,
+    ordered: Vec<PluginId>,
+    graph: ApplicationGraph,
+}
+
 #[derive(Default)]
 pub struct PluginManager {
     plugins: BTreeMap<PluginId, RegisteredPlugin>,
@@ -270,6 +276,17 @@ impl PluginManager {
         )
     }
 
+    /// Resolves and validates the configured application graph without installing services.
+    ///
+    /// Deployment planning and other read-only tooling use this method so graph inspection
+    /// cannot construct clients, connect to infrastructure, or trigger plugin lifecycle hooks.
+    pub fn build_graph(
+        &self,
+        selection: &PluginSelection,
+    ) -> Result<ApplicationGraph, PluginError> {
+        Ok(self.resolve_graph(selection)?.graph)
+    }
+
     /// Composes plugins on top of application-provided services and contributions.
     ///
     /// This is the explicit dependency-injection boundary for concrete database pools, AWS
@@ -281,20 +298,13 @@ impl PluginManager {
         mut services: ServiceCollection,
         mut contributions: ContributionCollection,
     ) -> Result<ComposedApplication, PluginError> {
-        self.validate_selection(selection)?;
-        let enabled = self.resolve_enabled(selection)?;
-        let ordered = topological_order(&enabled)?;
-
         // Validate the complete configured application graph before constructing services. This
         // prevents externally backed services from being created for an invalid composition.
-        let mut graph_builder = GraphBuilder::default();
-        for id in &ordered {
-            let effective = enabled
-                .get(id)
-                .ok_or_else(|| PluginError::UnknownPlugin(id.clone()))?;
-            graph_builder.add_plugin(effective.descriptor.clone());
-        }
-        let graph = graph_builder.build()?;
+        let ResolvedGraph {
+            enabled,
+            ordered,
+            graph,
+        } = self.resolve_graph(selection)?;
 
         for id in &ordered {
             let effective = enabled
@@ -324,6 +334,25 @@ impl PluginManager {
             graph,
             services: services.freeze(),
             contributions: contributions.freeze(),
+        })
+    }
+
+    fn resolve_graph(&self, selection: &PluginSelection) -> Result<ResolvedGraph, PluginError> {
+        self.validate_selection(selection)?;
+        let enabled = self.resolve_enabled(selection)?;
+        let ordered = topological_order(&enabled)?;
+        let mut graph_builder = GraphBuilder::default();
+        for id in &ordered {
+            let effective = enabled
+                .get(id)
+                .ok_or_else(|| PluginError::UnknownPlugin(id.clone()))?;
+            graph_builder.add_plugin(effective.descriptor.clone());
+        }
+        let graph = graph_builder.build()?;
+        Ok(ResolvedGraph {
+            enabled,
+            ordered,
+            graph,
         })
     }
 
@@ -426,6 +455,12 @@ fn validate_configuration_descriptor(descriptor: &PluginDescriptor) -> Result<()
             return Err(PluginError::InvalidConfigurationDescriptor {
                 plugin: descriptor.id.clone(),
                 message: format!("duplicate configuration field: {}", field.key),
+            });
+        }
+        if field.secret && field.default.is_some() {
+            return Err(PluginError::InvalidConfigurationDescriptor {
+                plugin: descriptor.id.clone(),
+                message: "secret configuration fields cannot have defaults".into(),
             });
         }
         if let Some(default) = &field.default {
@@ -1095,5 +1130,70 @@ mod tests {
             let error = manager.compose(&selection).unwrap_err().to_string();
             assert!(error.contains(expected), "{error}");
         }
+    }
+
+    #[test]
+    fn graph_planning_never_installs_plugin_services() {
+        #[derive(Debug)]
+        struct PlanningOnly;
+
+        impl Plugin for PlanningOnly {
+            fn descriptor(&self) -> PluginDescriptor {
+                let mut descriptor = PluginDescriptor::new(
+                    PluginId::new("planning-only").unwrap(),
+                    Version::new(1, 0, 0),
+                    "planning only",
+                );
+                descriptor.default_enabled = true;
+                descriptor
+            }
+
+            fn install(&self, _context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+                panic!("planning must not install services");
+            }
+        }
+
+        let mut manager = PluginManager::default();
+        manager.register(PlanningOnly).unwrap();
+
+        let graph = manager.build_graph(&PluginSelection::default()).unwrap();
+
+        assert_eq!(graph.plugins[0].id.as_str(), "planning-only");
+    }
+
+    #[test]
+    fn secret_configuration_fields_cannot_publish_default_values() {
+        #[derive(Debug)]
+        struct UnsafeSecretDefault;
+
+        impl Plugin for UnsafeSecretDefault {
+            fn descriptor(&self) -> PluginDescriptor {
+                let mut descriptor = PluginDescriptor::new(
+                    PluginId::new("unsafe-secret").unwrap(),
+                    Version::new(1, 0, 0),
+                    "unsafe secret",
+                );
+                descriptor.configuration.push(ConfigurationField {
+                    key: "api_token".into(),
+                    kind: ConfigurationValueKind::String,
+                    required: true,
+                    secret: true,
+                    description: "provider API token".into(),
+                    default: Some(serde_json::json!("must-not-leak")),
+                });
+                descriptor
+            }
+
+            fn install(&self, _context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+                Ok(())
+            }
+        }
+
+        let error = PluginManager::default()
+            .register(UnsafeSecretDefault)
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("secret configuration fields cannot have defaults"));
     }
 }

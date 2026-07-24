@@ -118,7 +118,7 @@ uuid = { version = "1", features = ["v4", "v7", "serde"] }
 
 # Every publishable path dependency carries an explicit version. Cargo removes
 # the path when packaging and resolves the version from the target registry.
-minco = { version = "0.2.0", path = "crates/minco" }
+minco = { version = "0.2.0", path = "crates/minco", default-features = false }
 minco-core = { version = "0.2.0", path = "crates/minco-core" }
 minco-contract = { version = "0.2.0", path = "crates/minco-contract" }
 minco-plan = { version = "0.2.0", path = "crates/minco-plan" }

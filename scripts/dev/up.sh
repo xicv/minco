@@ -33,7 +33,10 @@ fi
 while IFS= read -r assignment; do
   [[ -n "$assignment" ]] || continue
   export "${assignment?}"
-done < <(python3 scripts/dev/topology.py --format env)
+done < <(
+  printf '%s' "$topology" |
+    python3 -c 'import json,sys; topology=json.load(sys.stdin); [print(f"{key}={value}") for key,value in sorted(topology["environment"].items())]'
+)
 export MINCO_RUSTACK_SERVICES="$rustack_services"
 # The service list is generated from fixed Compose service identifiers.
 # shellcheck disable=SC2086

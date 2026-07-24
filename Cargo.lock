@@ -694,6 +694,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "minco",
  "minco-contract",
  "minco-core",
  "minco-plan",
@@ -1981,6 +1982,7 @@ name = "minco-plan"
 version = "0.2.0"
 dependencies = [
  "minco-contract",
+ "minco-core",
  "serde",
  "serde_json",
  "thiserror",

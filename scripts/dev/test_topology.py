@@ -12,6 +12,38 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def write_plan(
+    directory: Path,
+    *,
+    plugins: list[str] | None = None,
+    aws_services: list[str] | None = None,
+) -> Path:
+    path = directory / "plan.json"
+    path.write_text(
+        json.dumps(
+            {
+                "application_graph": {
+                    "plugins": [
+                        {"id": plugin}
+                        for plugin in (
+                            plugins
+                            if plugins is not None
+                            else ["health", "idempotency", "observability"]
+                        )
+                    ]
+                },
+                "database": {"kind": "neon_postgres"},
+                "local_aws_services": aws_services
+                if aws_services is not None
+                else ["ssm", "sts"],
+                "region": "ap-southeast-2",
+                "runtime": "lambda_zip_arm64",
+            }
+        )
+    )
+    return path
+
+
 def topology(
     *arguments: str,
     root: Path = ROOT,
@@ -38,42 +70,50 @@ def test_reference_graph_selects_only_declared_local_dependencies() -> None:
 def test_provider_neutral_plugins_do_not_silently_select_aws_providers() -> None:
     with tempfile.TemporaryDirectory(prefix="minco-local-topology-") as temporary:
         root = Path(temporary)
-        (root / "minco.toml").write_text(
-            'deployment_config = "deployment.toml"\n'
-            'plugin_catalog = "catalog.toml"\n'
-            "[plugins]\n"
-            'enabled = ["events", "object-storage"]\n'
-            "disabled = []\n"
-        )
-        (root / "deployment.toml").write_text(
-            'runtime = "lambda_zip_arm64"\n'
-            'region = "ap-southeast-2"\n'
-            "[database]\n"
-            'kind = "neon_postgres"\n'
-        )
-        (root / "catalog.toml").write_text(
-            "schema = 1\n"
-            "[[plugin]]\n"
-            'id = "events"\n'
-            "default_enabled = false\n"
-            "[[plugin]]\n"
-            'id = "object-storage"\n'
-            "default_enabled = false\n"
+        plan = write_plan(
+            root,
+            plugins=["events", "object-storage"],
+            aws_services=["ssm", "sts"],
         )
 
-        result = topology(root=root)
+        result = topology("--plan", str(plan), root=root)
 
     assert result["aws_services"] == ["ssm", "sts"]
     assert result["selected_plugins"] == ["events", "object-storage"]
 
 
+def test_offline_plan_rejects_unsupported_rustack_services() -> None:
+    with tempfile.TemporaryDirectory(prefix="minco-local-topology-") as temporary:
+        root = Path(temporary)
+        plan = write_plan(root, aws_services=["lambda", "ssm"])
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/dev/topology.py",
+                "--root",
+                str(root),
+                "--plan",
+                str(plan),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    assert result.returncode != 0
+    assert "unsupported Rustack service in deployment plan: lambda" in result.stderr
+
+
 def test_up_dry_run_reports_the_exact_selected_services() -> None:
     with tempfile.TemporaryDirectory(prefix="minco-local-docker-") as temporary:
-        executable = Path(temporary) / "docker"
+        directory = Path(temporary)
+        executable = directory / "docker"
         executable.write_text("#!/bin/sh\nprintf 'unexpected docker call: %s\\n' \"$*\"\n")
         executable.chmod(0o755)
         environment = os.environ.copy()
         environment["PATH"] = f"{temporary}:{environment['PATH']}"
+        environment["MINCO_DEPLOYMENT_PLAN"] = str(write_plan(directory))
         result = subprocess.run(
             ["bash", "scripts/dev/up.sh", "--dry-run"],
             cwd=ROOT,
@@ -156,11 +196,13 @@ def test_local_database_override_preserves_the_existing_development_database() -
 
 def test_run_print_env_exposes_the_graph_derived_runtime_configuration() -> None:
     with tempfile.TemporaryDirectory(prefix="minco-local-cargo-") as temporary:
-        executable = Path(temporary) / "cargo"
+        directory = Path(temporary)
+        executable = directory / "cargo"
         executable.write_text("#!/bin/sh\nprintf 'unexpected cargo call: %s\\n' \"$*\"\n")
         executable.chmod(0o755)
         environment = os.environ.copy()
         environment["PATH"] = f"{temporary}:{environment['PATH']}"
+        environment["MINCO_DEPLOYMENT_PLAN"] = str(write_plan(directory))
         result = subprocess.run(
             ["bash", "scripts/dev/run.sh", "--print-env"],
             cwd=ROOT,
@@ -197,6 +239,7 @@ def test_migrate_uses_the_same_graph_derived_database_configuration() -> None:
         environment = os.environ.copy()
         environment["PATH"] = f"{temporary}:{environment['PATH']}"
         environment["MINCO_TEST_LOG"] = str(log)
+        environment["MINCO_DEPLOYMENT_PLAN"] = str(write_plan(directory))
         isolated_url = "postgres://minco:minco@127.0.0.1:55432/minco_migrate_test"
         environment["MINCO_LOCAL_DATABASE_URL"] = isolated_url
 

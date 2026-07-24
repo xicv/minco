@@ -20,6 +20,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use feedback_cmd::FeedbackArgs;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
+use minco_core::{ApplicationGraph, PluginId, PluginSelection};
 use minco_plan::{
     DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
     estimate_database_cost, render_sam,
@@ -138,8 +139,10 @@ enum DeployCommand {
     Plan {
         #[command(flatten)]
         input: PlanInput,
-        #[arg(long, default_value = "infra/aws/generated/plan.json")]
-        output: PathBuf,
+        #[arg(long, conflicts_with = "stdout")]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        stdout: bool,
     },
     RenderSam {
         #[command(flatten)]
@@ -508,9 +511,19 @@ fn deploy(
     as_json: bool,
 ) -> Result<()> {
     match command {
-        DeployCommand::Plan { input, output } => {
+        DeployCommand::Plan {
+            input,
+            output,
+            stdout,
+        } => {
             let plan = load_plan(root, manifest, input.config)?;
             ensure_plan_valid(&plan)?;
+            if stdout {
+                use std::io::Write as _;
+                std::io::stdout().write_all(&canonical_json(&plan)?)?;
+                return Ok(());
+            }
+            let output = output.unwrap_or_else(|| PathBuf::from("infra/aws/generated/plan.json"));
             let output = root.join(output);
             ensure_parent(&output)?;
             fs::write(&output, canonical_json(&plan)?)?;
@@ -924,7 +937,41 @@ fn load_plan(
             .with_context(|| format!("read {}", config_path.display()))?,
     )
     .with_context(|| format!("parse {}", config_path.display()))?;
-    Ok(config.into_plan(&contract.document))
+    let application_graph = load_application_graph(manifest)?;
+    Ok(config.into_plan_with_graph(&contract.document, application_graph))
+}
+
+fn load_application_graph(manifest: &MincoManifest) -> Result<ApplicationGraph> {
+    let manager = minco::default_plugin_manager()?;
+    let registered = manager
+        .descriptors()
+        .into_iter()
+        .map(|descriptor| descriptor.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut selection = PluginSelection::default();
+    for id in &manifest.plugins.enabled {
+        let id = PluginId::new(id.clone())?;
+        if !registered.contains(&id) {
+            bail!("enabled plugin {id} is not statically linked into the deployment planner");
+        }
+        selection.enabled.insert(id);
+    }
+    for id in &manifest.plugins.disabled {
+        let id = PluginId::new(id.clone())?;
+        if registered.contains(&id) {
+            selection.disabled.insert(id);
+        }
+    }
+    for (id, configuration) in &manifest.plugins.configuration {
+        let id = PluginId::new(id.clone())?;
+        if !registered.contains(&id) {
+            bail!("configured plugin {id} is not statically linked into the deployment planner");
+        }
+        selection
+            .configuration
+            .insert(id, serde_json::to_value(configuration)?);
+    }
+    Ok(manager.build_graph(&selection)?)
 }
 
 fn ensure_plan_valid(plan: &DeploymentPlan) -> Result<()> {
@@ -1058,5 +1105,44 @@ mod cli_argument_tests {
             "plugins/minco-plugin-feedback/src/http.rs#create_feedback"
         );
         assert!(value["generated"].is_null());
+    }
+
+    #[test]
+    fn deployment_plan_contains_the_manifest_selected_plugin_graph() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let manifest = MincoManifest::load(&root).expect("workspace manifest");
+
+        let plan = load_plan(&root, &manifest, None).expect("deployment plan");
+        let ids = plan
+            .application_graph
+            .plugins
+            .iter()
+            .map(|plugin| plugin.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, ["health", "idempotency", "observability"]);
+        assert_eq!(plan.local_aws_services, ["ssm", "sts"]);
+    }
+
+    #[test]
+    fn configured_plugin_resources_change_the_plan_service_projection() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let mut manifest = MincoManifest::load(&root).expect("workspace manifest");
+        manifest.plugins.enabled.insert("static-site".into());
+
+        let plan = load_plan(&root, &manifest, None).expect("deployment plan");
+
+        assert!(
+            plan.application_graph
+                .resources
+                .contains_key("static-site-bucket")
+        );
+        assert_eq!(plan.local_aws_services, ["s3", "ssm", "sts"]);
     }
 }

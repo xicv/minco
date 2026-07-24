@@ -1,4 +1,5 @@
 use minco_contract::{ContractDocument, HttpMethod};
+use minco_core::{ApplicationGraph, ResourceKind};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -46,6 +47,15 @@ pub struct DeploymentConfig {
 impl DeploymentConfig {
     #[must_use]
     pub fn into_plan(self, contract: &ContractDocument) -> DeploymentPlan {
+        self.into_plan_with_graph(contract, ApplicationGraph::default())
+    }
+
+    #[must_use]
+    pub fn into_plan_with_graph(
+        self,
+        contract: &ContractDocument,
+        application_graph: ApplicationGraph,
+    ) -> DeploymentPlan {
         let routes = contract
             .operations
             .iter()
@@ -56,6 +66,8 @@ impl DeploymentConfig {
                 authenticated: operation.authenticated,
             })
             .collect();
+        let local_aws_services =
+            local_aws_services(&self.runtime, &self.database, &application_graph);
         DeploymentPlan {
             schema_version: self.schema_version,
             application: self.application,
@@ -67,6 +79,8 @@ impl DeploymentConfig {
             database: self.database,
             functions: self.functions,
             routes,
+            application_graph,
+            local_aws_services,
             scheduled_wakeups: self.scheduled_wakeups,
             uses_nat_gateway: self.uses_nat_gateway,
             allowed_origins: self.allowed_origins,
@@ -89,12 +103,48 @@ pub struct DeploymentPlan {
     pub database: DatabaseDeployment,
     pub functions: Vec<FunctionPlan>,
     pub routes: Vec<RoutePlan>,
+    #[serde(default)]
+    pub application_graph: ApplicationGraph,
+    #[serde(default)]
+    pub local_aws_services: Vec<String>,
     pub scheduled_wakeups: Vec<String>,
     pub uses_nat_gateway: bool,
     pub allowed_origins: Vec<String>,
     pub log_retention_days: u32,
     pub cost_policy: CostPolicy,
     pub performance_policy: PerformancePolicy,
+}
+
+fn local_aws_services(
+    runtime: &RuntimePlan,
+    database: &DatabaseDeployment,
+    graph: &ApplicationGraph,
+) -> Vec<String> {
+    let mut services = std::collections::BTreeSet::new();
+    if matches!(runtime, RuntimePlan::LambdaZipArm64) {
+        services.extend(["ssm".to_owned(), "sts".to_owned()]);
+    }
+    if matches!(database, DatabaseDeployment::DynamoDbOnDemand { .. }) {
+        services.insert("dynamodb".into());
+    }
+    for resource in graph.resources.values() {
+        match resource.kind {
+            ResourceKind::S3Bucket => {
+                services.insert("s3".into());
+            }
+            ResourceKind::SqsQueue => {
+                services.insert("sqs".into());
+            }
+            ResourceKind::SsmParameter => {
+                services.insert("ssm".into());
+            }
+            ResourceKind::DynamoDb => {
+                services.insert("dynamodb".into());
+            }
+            _ => {}
+        }
+    }
+    services.into_iter().collect()
 }
 
 impl DeploymentPlan {
@@ -105,6 +155,14 @@ impl DeploymentPlan {
             diagnostics.push(error(
                 "MINCO-PLAN-001",
                 "unsupported deployment plan schema version",
+            ));
+        }
+        let expected_local_services =
+            local_aws_services(&self.runtime, &self.database, &self.application_graph);
+        if self.local_aws_services != expected_local_services {
+            diagnostics.push(error(
+                "MINCO-PLAN-003",
+                "local_aws_services does not match the configured application graph",
             ));
         }
         if self.routes.iter().any(|route| route.authenticated)
@@ -641,6 +699,9 @@ pub enum PlanError {
 mod tests {
     use super::*;
     use minco_contract::{ContractDocument, OwnedOperation};
+    use minco_core::{
+        GraphBuilder, IdleCostClass, PluginDescriptor, PluginId, ResourceIntent, ResourceKind,
+    };
 
     fn config(database: DatabaseDeployment) -> DeploymentConfig {
         DeploymentConfig {
@@ -699,6 +760,86 @@ mod tests {
         })
         .into_plan(&contract);
         assert_eq!(plan.routes[0].operation_id, "getHealth");
+    }
+
+    #[test]
+    fn plan_serializes_the_selected_graph_and_derives_local_aws_services() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let mut descriptor = PluginDescriptor::new(
+            PluginId::new("aws-provider").unwrap(),
+            "1.0.0".parse().unwrap(),
+            "AWS provider",
+        );
+        descriptor.resources.extend([
+            ResourceIntent {
+                id: "attachments".into(),
+                kind: ResourceKind::S3Bucket,
+                idle_cost: IdleCostClass::StorageOnly,
+                wake_sources: Vec::new(),
+                dependencies: Vec::new(),
+            },
+            ResourceIntent {
+                id: "events".into(),
+                kind: ResourceKind::SqsQueue,
+                idle_cost: IdleCostClass::ZeroCompute,
+                wake_sources: Vec::new(),
+                dependencies: Vec::new(),
+            },
+        ]);
+        let mut builder = GraphBuilder::default();
+        builder.add_plugin(descriptor);
+        let graph = builder.build().unwrap();
+
+        let plan = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        })
+        .into_plan_with_graph(&contract, graph);
+
+        assert_eq!(
+            plan.application_graph.plugins[0].id.as_str(),
+            "aws-provider"
+        );
+        assert_eq!(plan.local_aws_services, ["s3", "sqs", "ssm", "sts"]);
+    }
+
+    #[test]
+    fn plan_rejects_a_tampered_local_service_projection() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let mut plan = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        })
+        .into_plan(&contract);
+        plan.local_aws_services.push("s3".into());
+
+        assert!(
+            plan.validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-PLAN-003")
+        );
     }
 
     #[test]
