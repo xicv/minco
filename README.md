@@ -351,7 +351,7 @@ Minco uses a lock-step 14-package release family. Static metadata and dependency
 validation can run without Cargo:
 
 ```bash
-python3 scripts/validate_publish.py
+uv run --locked python scripts/validate_publish.py
 ```
 
 The authoritative pre-upload gate requires the pinned Cargo toolchain and a

@@ -34,6 +34,16 @@ pub fn check(root: &Path) -> Result<UpdateReport> {
     } else {
         notes.push("cargo is not installed; dependency resolution was not checked".into());
     }
+    if command_available("uv") {
+        actions.push(checked(run_shell(root, "uv lock --check", false)?)?);
+        actions.push(checked(run_shell(
+            root,
+            "uv lock --upgrade --dry-run",
+            false,
+        )?)?);
+    } else {
+        notes.push("uv is not installed; Python dependency resolution was not checked".into());
+    }
     if command_available("jj") {
         actions.push(checked(run_shell(root, "jj version", false)?)?);
     } else {
@@ -100,11 +110,23 @@ pub fn apply(
         if !command_available("cargo") {
             bail!("cargo is required for --dependencies");
         }
+        if !command_available("uv") {
+            bail!("uv is required for --dependencies");
+        }
         let result = checked(run_shell(root, "cargo update", true)?)?;
+        actions.push(result);
+        let result = checked(run_shell(root, "uv lock --upgrade", true)?)?;
         actions.push(result);
     }
     if run_checks {
-        let static_result = checked(run_shell(root, "python3 scripts/validate_static.py", true)?)?;
+        if !command_available("uv") {
+            bail!("uv is required for --run-checks");
+        }
+        let static_result = checked(run_shell(
+            root,
+            "uv run --locked python scripts/validate_static.py",
+            true,
+        )?)?;
         actions.push(static_result);
         if command_available("cargo") {
             let cargo_result = checked(run_shell(root, "cargo minco check --with-cargo", true)?)?;

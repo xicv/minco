@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDED_PARTS = {".git", ".jj", "__pycache__", "node_modules", "target"}
+EXCLUDED_PARTS = {".git", ".jj", ".venv", "__pycache__", "node_modules", "target"}
 
 
 def is_excluded(path: Path, root: Path = ROOT) -> bool:
@@ -22,7 +23,7 @@ def source_files(pattern: str, root: Path = ROOT) -> list[Path]:
 
 def main() -> int:
     static = subprocess.run(
-        ["python3", str(ROOT / "scripts/validate_static.py")],
+        [sys.executable, str(ROOT / "scripts/validate_static.py")],
         cwd=ROOT,
         capture_output=True,
         text=True,

@@ -2,11 +2,11 @@ schema = 1
 
 [gates.static]
 commands = [
-  "python3 scripts/validate_static.py",
-  "python3 scripts/validate_publish.py",
-  "python3 scripts/deep_review.py",
-  "python3 scripts/test/sqlite_schema.py",
-  "python3 scripts/test/scaffold_templates.py",
+  "uv run --locked python scripts/validate_static.py",
+  "uv run --locked python scripts/validate_publish.py",
+  "uv run --locked python scripts/deep_review.py",
+  "uv run --locked python scripts/test/sqlite_schema.py",
+  "uv run --locked python scripts/test/scaffold_templates.py",
 ]
 
 [gates.rust]

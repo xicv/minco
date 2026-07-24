@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-exec python3 scripts/release/publish.py "$@"
+exec uv run --locked python scripts/release/publish.py "$@"

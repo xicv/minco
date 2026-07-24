@@ -11,5 +11,6 @@
 .DS_Store
 
 # Python caches
+/.venv/
 __pycache__/
 *.py[cod]

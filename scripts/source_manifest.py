@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "verification/source-manifest.json"
-EXCLUDED_PARTS = {".git", ".jj", "target", "node_modules", "__pycache__"}
+EXCLUDED_PARTS = {".git", ".jj", ".venv", "target", "node_modules", "__pycache__"}
 EXCLUDED_NAMES = {".env", OUTPUT.name}
 EXCLUDED_SUFFIXES = {".pyc", ".zip", ".db", ".sqlite"}
 

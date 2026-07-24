@@ -3,8 +3,8 @@
 ## 1. Install required tools
 
 Install Rust through Rustup; `rust-toolchain.toml` pins 1.97.1 with Rustfmt and
-Clippy. Install Jujutsu and Git. Docker is optional for SQLite-only development
-and required for the local PostgreSQL/Rustack topology.
+Clippy. Install uv 0.11.32, Jujutsu, and Git. Docker is optional for SQLite-only
+development and required for the local PostgreSQL/Rustack topology.
 
 ```bash
 ./scripts/bootstrap.sh
@@ -36,7 +36,8 @@ API Gateway JWT authorizer claims.
 ## 4. Validate
 
 ```bash
-python3 scripts/validate_static.py
+uv sync --locked --only-dev
+uv run --locked python scripts/validate_static.py
 cargo minco doctor
 cargo minco check --with-cargo
 ```

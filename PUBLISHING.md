@@ -7,7 +7,8 @@ The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:
 
 ```bash
-python3 scripts/validate_publish.py
+uv sync --locked --only-dev
+uv run --locked python scripts/validate_publish.py
 scripts/release/publish.sh
 ```
 

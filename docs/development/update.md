@@ -9,11 +9,11 @@ does not download an unsigned replacement binary.
 cargo minco update check --json
 ```
 
-This reports Rustup/toolchain state, Cargo dependency resolution, lockfile
-metadata, JJ availability, and deferred actions without writing the source
-workspace. Any failed inspection command makes the check fail; locked Cargo
-metadata is summarized rather than embedding the complete package graph in the
-report.
+This reports Rustup/toolchain state, Cargo dependency resolution, Cargo lockfile
+metadata, locked uv/Python dependency resolution, JJ availability, and deferred
+actions without writing the source workspace. Any failed inspection command
+makes the check fail; locked Cargo metadata is summarized rather than embedding
+the complete package graph in the report.
 
 ## Apply mode
 
@@ -28,8 +28,9 @@ cargo minco update apply \
 Apply mode requires a clean JJ working-copy change (or clean colocated Git tree
 when JJ is unavailable), explicit `--yes`, at least one explicitly selected
 action, and the complete requested tools. The example installs the pinned
-toolchain, updates `Cargo.lock`, and runs validation. If neither JJ nor Git is
-available, apply mode fails because it cannot prove workspace cleanliness.
+toolchain, updates `Cargo.lock` and `uv.lock`, and runs validation. If neither
+JJ nor Git is available, apply mode fails because it cannot prove workspace
+cleanliness.
 
 ## Review discipline
 

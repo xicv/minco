@@ -116,9 +116,9 @@ def main() -> int:
         verify_release_ref(expected_tag(data))
 
     if not args.skip_quality:
-        run(["python3", "scripts/validate_static.py"])
-        run(["python3", "scripts/validate_publish.py", "--check-registry", "--require-registry"])
-        run(["python3", "scripts/deep_review.py"])
+        run([sys.executable, "scripts/validate_static.py"])
+        run([sys.executable, "scripts/validate_publish.py", "--check-registry", "--require-registry"])
+        run([sys.executable, "scripts/deep_review.py"])
         run(["cargo", "fmt", "--all", "--", "--check"])
         run(["cargo", "check", "-p", "minco", "--no-default-features", "--locked"])
         run(["cargo", "check", "-p", "minco", "--locked"])

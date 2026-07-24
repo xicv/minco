@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 missing=0
-for command in python3 git jj cargo rustc rustfmt; do
+for command in python3 uv git jj cargo rustc rustfmt; do
   if ! command -v "$command" >/dev/null 2>&1; then
     printf 'missing required development tool: %s\n' "$command" >&2
     missing=1
@@ -21,10 +21,11 @@ if [[ ! -f Cargo.lock ]]; then
   cargo generate-lockfile
   printf 'Generated Cargo.lock; review and commit it before any release.\n'
 fi
+uv sync --locked --only-dev
 if [[ ! -d .jj ]]; then
   cargo minco vcs init
 fi
 cargo minco doctor
 cargo minco contract sync --check
-python3 scripts/validate_publish.py
+uv run --locked python scripts/validate_publish.py
 printf 'Minco development prerequisites are ready.\n'

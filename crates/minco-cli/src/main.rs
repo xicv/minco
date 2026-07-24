@@ -260,6 +260,7 @@ enum VcsCommand {
 struct DoctorCheck {
     name: String,
     available: bool,
+    required: bool,
     required_for: String,
 }
 
@@ -324,6 +325,7 @@ async fn main() -> Result<()> {
 fn doctor(root: &Path, as_json: bool) -> Result<()> {
     let checks = [
         ("python3", true, "static validation and bootstrap"),
+        ("uv", true, "locked Python validation dependencies"),
         ("rustc", true, "Rust compilation"),
         ("cargo", true, "build, test and CLI execution"),
         ("rustfmt", true, "format gate"),
@@ -340,19 +342,17 @@ fn doctor(root: &Path, as_json: bool) -> Result<()> {
         ("aws", false, "real AWS deployment and verification"),
     ]
     .into_iter()
-    .map(|(name, _required, required_for)| DoctorCheck {
+    .map(|(name, required, required_for)| DoctorCheck {
         name: name.into(),
         available: command_available(name),
+        required,
         required_for: required_for.into(),
     })
     .collect::<Vec<_>>();
     print_value(&checks, as_json)?;
     let missing_core = checks
         .iter()
-        .filter(|check| {
-            ["python3", "rustc", "cargo", "jj", "git"].contains(&check.name.as_str())
-                && !check.available
-        })
+        .filter(|check| check.required && !check.available)
         .count();
     if missing_core > 0 {
         bail!("{missing_core} core development tools are unavailable; see the doctor report");
