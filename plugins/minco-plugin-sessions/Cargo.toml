@@ -1,0 +1,38 @@
+[package]
+name = "minco-plugin-sessions"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral, revocable browser and API session primitives for Minco"
+documentation = "https://docs.rs/minco-plugin-sessions"
+readme = "README.md"
+keywords = ["minco", "sessions", "authentication", "cookies", "security"]
+categories = ["web-programming", "authentication"]
+publish = ["crates-io"]
+include = [
+  "src/**",
+  "Cargo.toml",
+  "README.md",
+  "LICENSE-MIT",
+  "LICENSE-APACHE",
+]
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+hmac.workspace = true
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

@@ -17,3 +17,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0011](adrs/0011-jj-first.md) | Use Jujutsu as the default VCS interface with colocated Git for GitHub compatibility. | Accepted |
 | [ADR-0012](adrs/0012-database-portfolio.md) | Treat Neon, self-hosted PostgreSQL, RDS, Aurora, DynamoDB and SQLite as explicit correctness/cost profiles. | Accepted |
 | [ADR-0013](adrs/0013-quality-and-update.md) | Keep local quality gates authoritative and make updates explicit, reviewable and non-self-replacing. | Accepted |
+| [ADR-0014](adrs/0014-plugin-lifecycle-and-feedback.md) | Use typed multi-contributions and deterministic plugin finalization; ship Feedback as an explicit AI-ready review loop. | Accepted |

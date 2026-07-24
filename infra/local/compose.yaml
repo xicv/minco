@@ -13,16 +13,18 @@ services:
       timeout: 3s
       retries: 30
     volumes:
-      - minco-postgres:/var/lib/postgresql/data
+      # PostgreSQL 18+ uses a version-specific data directory under this parent
+      # so pg_upgrade can operate without crossing a mount-point boundary.
+      - minco-postgres:/var/lib/postgresql
 
   rustack:
-    image: ghcr.io/tyrchen/rustack:latest
+    image: ghcr.io/tyrchen/rustack@sha256:18cd91395e17453e2c34b299e45f4679dc2427473dc1db6541bbe212fd70a104
     environment:
-      SERVICES: s3,sqs,ssm,sts
+      SERVICES: ${MINCO_RUSTACK_SERVICES:-ssm,sts}
       DEFAULT_REGION: ap-southeast-2
       LOG_LEVEL: info
     ports:
-      - "127.0.0.1:4566:4566"
+      - "127.0.0.1:${MINCO_RUSTACK_PORT:-4566}:4566"
 
 volumes:
   minco-postgres:

@@ -143,7 +143,7 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
         json: config.environment != "local",
         default_filter: "info,tower_http=info,sqlx=warn".into(),
     }))?;
-    manager.register(IdempotencyPlugin)?;
+    manager.register(IdempotencyPlugin::memory())?;
     let mut selection = PluginSelection::default();
     selection.enabled.insert(PluginId::new("health")?);
     for plugin in &config.disabled_plugins {
@@ -155,11 +155,9 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
     }
     let health = composed.services.get::<HealthRegistry>()?;
     let store = build_store(config).await?;
-    health
-        .register(Arc::new(StoreHealthCheck {
-            store: Arc::clone(&store),
-        }))
-        .await;
+    health.register(Arc::new(StoreHealthCheck {
+        store: Arc::clone(&store),
+    }));
     let state = ApiState::new(
         store,
         Arc::new(SystemClock),
@@ -171,6 +169,7 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
         router,
         &HttpRuntimeConfig {
             allowed_origins: config.allowed_origins.clone(),
+            allow_credentials: false,
             timeout: Duration::from_secs(15),
             max_request_body_bytes: 1024 * 1024,
             compression: true,

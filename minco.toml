@@ -63,3 +63,88 @@ handler = "examples/orders/api/src/lib.rs#get_order"
 application = "examples/orders/application/src/lib.rs#GetOrder"
 adapters = ["memory", "postgres", "sqlite"]
 tests = ["examples/orders/application/src/lib.rs#get_order", "examples/orders/api/src/lib.rs#get_order"]
+
+[operations.feedbackWidget]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#widget_source"
+tests = ["plugins/minco-plugin-feedback/src/http.rs#widget_asset_and_configuration_are_served_without_a_frontend_framework"]
+
+[operations.getFeedbackWidgetConfig]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#widget_config"
+tests = ["plugins/minco-plugin-feedback/src/http.rs#widget_asset_and_configuration_are_served_without_a_frontend_framework"]
+
+[operations.createFeedback]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#create_feedback"
+application = "plugins/minco-plugin-feedback/src/service.rs#create"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.getClientFeedback]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#get_client_feedback"
+application = "plugins/minco-plugin-feedback/src/service.rs#get_for_client"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.replyToFeedback]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#client_reply"
+application = "plugins/minco-plugin-feedback/src/service.rs#reply_as_client"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.getClientFeedbackAttachment]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#client_attachment"
+application = "plugins/minco-plugin-feedback/src/service.rs#attachment_for_client"
+tests = ["plugins/minco-plugin-feedback/src/http.rs"]
+
+[operations.transcribeFeedbackAudio]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#transcribe_audio"
+application = "plugins/minco-plugin-feedback/src/service.rs#transcribe"
+adapters = ["openai-compatible", "audited-command", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/src/transcription.rs"]
+
+[operations.listDeveloperFeedback]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#list_developer_feedback"
+application = "plugins/minco-plugin-feedback/src/service.rs#list"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.getDeveloperFeedback]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#get_developer_feedback"
+application = "plugins/minco-plugin-feedback/src/service.rs#get_for_developer"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.developerReplyToFeedback]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#developer_reply"
+application = "plugins/minco-plugin-feedback/src/service.rs#reply_as_developer"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.transitionFeedback]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#transition_feedback"
+application = "plugins/minco-plugin-feedback/src/service.rs#transition"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.getFeedbackAiContext]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#feedback_ai_context"
+application = "plugins/minco-plugin-feedback/src/service.rs#ai_context"
+adapters = ["memory", "postgres", "sqlite", "application-provided"]
+tests = ["plugins/minco-plugin-feedback/src/http.rs", "plugins/minco-plugin-feedback/tests/persistence.rs"]
+
+[operations.getDeveloperFeedbackAttachment]
+contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+handler = "plugins/minco-plugin-feedback/src/http.rs#developer_attachment"
+application = "plugins/minco-plugin-feedback/src/service.rs#attachment_for_developer"
+tests = ["plugins/minco-plugin-feedback/src/http.rs"]

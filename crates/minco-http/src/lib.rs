@@ -3,8 +3,16 @@
 
 mod error;
 mod middleware;
+mod plugin;
 mod principal;
 
 pub use error::{ApiFailure, ProblemDetails, problem_response};
-pub use middleware::{HttpRuntimeConfig, REQUEST_ID_HEADER, apply_standard_middleware};
+pub use middleware::{
+    CSRF_HEADER, FEEDBACK_PROJECT_KEY_HEADER, FEEDBACK_TOKEN_HEADER, HttpRuntimeConfig,
+    REQUEST_ID_HEADER, apply_standard_middleware,
+};
+pub use plugin::{
+    HttpCompositionError, HttpModule, compose_plugin_http, merge_plugin_http_modules,
+    required_request_body_bytes, validate_plugin_http_modules,
+};
 pub use principal::{Principal, PrincipalError, RequestMetadata, principal_from_headers};

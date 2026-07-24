@@ -44,20 +44,19 @@ The codebase enforces layers through Cargo crates and organizes code within each
 feature. A stable `operationId` is the trace key across contract, generated metadata,
 handler, use case, adapter, tests, and deployment route.
 
-## Static modules
+## Static plugins and modules
 
-A module descriptor declares:
+A plugin descriptor declares identity/version/core compatibility, operations,
+provided and required capabilities, migrations, health checks, data classes,
+configuration fields, and resource intents. The graph builder rejects duplicates,
+missing capabilities, cycles, route conflicts, migration conflicts, and resource
+conflicts before services are constructed.
 
-- identity and version;
-- operations;
-- provided and required capabilities;
-- migrations;
-- health checks;
-- resource intents and dependencies.
-
-The graph builder rejects duplicates, missing capabilities, cycles, route conflicts, and
-migration conflicts before serving traffic. Constructors remain ordinary Rust; there is
-no runtime service lookup.
+Plugins install typed single services and ordered multi-contributions, then a
+side-effect-free finalization pass assembles registries such as readiness. Concrete
+provider dependencies are injected by the composition root through `compose_with`.
+Constructors remain ordinary Rust; there is no runtime service locator or dynamic plugin
+ABI.
 
 ## Source-of-truth map
 

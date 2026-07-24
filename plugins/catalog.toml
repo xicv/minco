@@ -1,12 +1,76 @@
 schema = 1
 
 [[plugin]]
+id = "audit"
+crate = "minco-plugin-audit"
+path = "plugins/minco-plugin-audit"
+default_enabled = false
+stability = "beta"
+description = "Append-only audit history independent of operational logs."
+
+[[plugin]]
+id = "aws-lambda"
+crate = "minco-aws-lambda"
+path = "extensions/minco-aws-lambda"
+default_enabled = false
+stability = "beta"
+description = "Native Lambda HTTP runtime and SSM configuration loading."
+
+[[plugin]]
+id = "events"
+crate = "minco-plugin-events"
+path = "plugins/minco-plugin-events"
+default_enabled = false
+stability = "beta"
+description = "Domain events and explicit transactional-outbox ports without hidden schedules."
+
+[[plugin]]
+id = "feedback"
+crate = "minco-plugin-feedback"
+path = "plugins/minco-plugin-feedback"
+default_enabled = false
+stability = "beta"
+description = "Client feedback widget, screenshots, voice transcription, discussion and AI handoff."
+
+[[plugin]]
 id = "health"
 crate = "minco-plugin-health"
 path = "plugins/minco-plugin-health"
 default_enabled = true
 stability = "stable"
 description = "Liveness, readiness and dependency health registry."
+
+[[plugin]]
+id = "idempotency"
+crate = "minco-plugin-idempotency"
+path = "plugins/minco-plugin-idempotency"
+default_enabled = true
+stability = "stable"
+description = "Idempotency keys, request fingerprints and a storage port."
+
+[[plugin]]
+id = "identity"
+crate = "minco-plugin-identity"
+path = "plugins/minco-plugin-identity"
+default_enabled = false
+stability = "beta"
+description = "Verified claims, provider-neutral identities, scopes and permission mapping."
+
+[[plugin]]
+id = "notifications"
+crate = "minco-plugin-notifications"
+path = "plugins/minco-plugin-notifications"
+default_enabled = false
+stability = "beta"
+description = "Provider-neutral email, webhook, in-app and developer notifications."
+
+[[plugin]]
+id = "object-storage"
+crate = "minco-plugin-object-storage"
+path = "plugins/minco-plugin-object-storage"
+default_enabled = false
+stability = "beta"
+description = "Provider-neutral object storage for uploads, exports and feedback attachments."
 
 [[plugin]]
 id = "observability"
@@ -17,12 +81,12 @@ stability = "stable"
 description = "Structured tracing and CloudWatch-compatible logging."
 
 [[plugin]]
-id = "idempotency"
-crate = "minco-plugin-idempotency"
-path = "plugins/minco-plugin-idempotency"
-default_enabled = true
-stability = "stable"
-description = "Idempotency keys, request fingerprints and a storage port."
+id = "sessions"
+crate = "minco-plugin-sessions"
+path = "plugins/minco-plugin-sessions"
+default_enabled = false
+stability = "beta"
+description = "Provider-neutral session issuance, lookup, expiry, and revocation."
 
 [[plugin]]
 id = "sqlx-postgres"
@@ -41,9 +105,9 @@ stability = "beta"
 description = "SQLite pools with explicit durability constraints."
 
 [[plugin]]
-id = "aws-lambda"
-crate = "minco-aws-lambda"
-path = "extensions/minco-aws-lambda"
+id = "static-site"
+crate = "minco-plugin-static-site"
+path = "plugins/minco-plugin-static-site"
 default_enabled = false
 stability = "beta"
-description = "Native Lambda HTTP runtime and SSM configuration loading."
+description = "Private static assets, CDN caching, SPA fallback, and optional custom-domain deployment intent."

@@ -12,6 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_ROOT = ROOT / "crates/minco-cli/templates/app"
+MINCO_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
 COMMON = [
     "Cargo.toml",
     "README.md",
@@ -58,7 +59,7 @@ def render_profile(destination: Path, database: str) -> None:
         "{{PACKAGE}}": "sample-api",
         "{{CRATE}}": "sample_api",
         "{{TITLE}}": "Sample Api",
-        "{{MINCO_VERSION}}": "0.1.0",
+        "{{MINCO_VERSION}}": MINCO_VERSION,
         "{{DB_FEATURE}}": "sqlx-postgres" if database == "postgres" else "sqlx-sqlite",
         "{{MIGRATION_DIR}}": f"migrations/{database}",
         "{{DATABASE_ENV}}": (
@@ -104,7 +105,7 @@ def check_profile(root: Path, database: str) -> dict[str, object]:
         "services/app",
     }
     assert set(workspace["workspace"]["members"]) == expected_members
-    assert workspace["workspace"]["dependencies"]["minco"]["version"] == "0.1.0"
+    assert workspace["workspace"]["dependencies"]["minco"]["version"] == MINCO_VERSION
     assert (
         "sqlx-postgres" if database == "postgres" else "sqlx-sqlite"
     ) in workspace["workspace"]["dependencies"]["minco"]["features"]

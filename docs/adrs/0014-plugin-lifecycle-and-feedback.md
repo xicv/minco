@@ -1,0 +1,39 @@
+# ADR 0014: Typed plugin finalization and first-class feedback loops
+
+Status: Accepted
+
+## Context
+
+GarmentIQ and CGSP required independently composed health checks, identity,
+sessions, storage, events/outbox, notifications, audit, and client-review
+workflows. A single-binding service registry was insufficient for aggregate
+registries, while runtime plugin discovery or a global service locator would
+weaken Rust's compile-time guarantees.
+
+Client review also depended on external chat and manual screenshot/task handoff,
+which made requirement clarification difficult to trace and slow to turn into
+AI-ready development context.
+
+## Decision
+
+1. Keep plugins statically linked and explicitly registered.
+2. Separate authoritative single services from ordered multi-contributions.
+3. Validate plugin configuration and the full application graph before install.
+4. Run a deterministic, side-effect-free finalization pass after all installs.
+5. Ship Feedback as an official beta plugin with a committed OpenAPI contract,
+   embeddable widget, screenshot/file/voice capture, threaded clarification,
+   explicit workflow states, persistence adapters, notifications/audit/events,
+   and deterministic AI export.
+6. Keep provider adapters explicit; memory implementations are references and
+   must not be represented as production durability.
+
+## Consequences
+
+- Aggregate registries such as readiness can be assembled without load-order
+  hacks or a global locator.
+- Plugin descriptors are more detailed and configuration mistakes fail early.
+- Feedback can be embedded in any frontend without adopting a frontend stack.
+- Larger multipart limits become explicit HTTP-module contributions.
+- Production deployments must select durable storage, notification, audit, and
+  transcription adapters and establish retention/privacy policy.
+- Provider-specific AWS adapters can evolve without changing core or Feedback.

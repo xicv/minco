@@ -1,0 +1,513 @@
+openapi: 3.1.0
+info:
+  title: Minco Feedback Plugin API
+  version: 0.1.0
+  description: >-
+    Contract-first API for browser feedback capture, threaded clarification,
+    attachment retrieval, optional voice transcription, and developer/AI workflows.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /_minco/feedback/widget.js:
+    get:
+      operationId: feedbackWidget
+      summary: Get the dependency-free feedback Web Component
+      security: []
+      responses:
+        '200':
+          description: JavaScript widget source
+          content:
+            application/javascript:
+              schema: {type: string}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/widget-config:
+    get:
+      operationId: getFeedbackWidgetConfig
+      summary: Get browser-safe widget configuration
+      security: []
+      responses:
+        '200':
+          description: Widget configuration
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeedbackWidgetConfig'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/threads:
+    post:
+      operationId: createFeedback
+      summary: Submit a feedback thread with optional attachments
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/ProjectKey'}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [payload]
+              properties:
+                payload:
+                  type: string
+                  contentMediaType: application/json
+                  description: JSON-encoded CreateFeedbackInput
+                screenshot:
+                  type: array
+                  maxItems: 8
+                  items: {type: string, format: binary}
+                audio:
+                  type: array
+                  maxItems: 8
+                  items: {type: string, format: binary}
+                file:
+                  type: array
+                  maxItems: 8
+                  items: {type: string, format: binary}
+      responses:
+        '201':
+          description: Feedback accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClientCreateResponse'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/threads/{id}:
+    get:
+      operationId: getClientFeedback
+      summary: Get one feedback thread using its client access token
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+        - {$ref: '#/components/parameters/ClientToken'}
+      responses:
+        '200':
+          description: Client-safe feedback thread
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClientFeedbackThread'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/threads/{id}/messages:
+    post:
+      operationId: replyToFeedback
+      summary: Add a client reply to a feedback thread
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+        - {$ref: '#/components/parameters/ClientToken'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ClientReplyInput'}
+      responses:
+        '200':
+          description: Updated client-safe feedback thread
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClientMutationResponse'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/threads/{id}/attachments/{attachmentId}:
+    get:
+      operationId: getClientFeedbackAttachment
+      summary: Download an attachment using the client access token
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+        - {$ref: '#/components/parameters/AttachmentId'}
+        - {$ref: '#/components/parameters/ClientToken'}
+      responses:
+        '200':
+          description: Attachment bytes
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/transcriptions:
+    post:
+      operationId: transcribeFeedbackAudio
+      summary: Transcribe one browser voice recording
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/ProjectKey'}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [audio]
+              properties:
+                audio: {type: string, format: binary}
+                language: {type: string, maxLength: 64}
+                prompt: {type: string, maxLength: 2000}
+      responses:
+        '200':
+          description: Transcript
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Transcript'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/developer/threads:
+    get:
+      operationId: listDeveloperFeedback
+      summary: List developer feedback inbox entries
+      parameters:
+        - in: query
+          name: project_id
+          schema: {type: string}
+        - in: query
+          name: status
+          schema: {$ref: '#/components/schemas/FeedbackStatus'}
+        - in: query
+          name: limit
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        '200':
+          description: Feedback inbox
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/FeedbackSummary'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/developer/threads/{id}:
+    get:
+      operationId: getDeveloperFeedback
+      summary: Get the full developer feedback thread
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+      responses:
+        '200':
+          description: Full feedback thread
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeedbackThread'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/developer/threads/{id}/messages:
+    post:
+      operationId: developerReplyToFeedback
+      summary: Add a developer reply or internal note
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeveloperReplyInput'}
+      responses:
+        '200':
+          description: Updated feedback thread
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeedbackMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/developer/threads/{id}/status:
+    patch:
+      operationId: transitionFeedback
+      summary: Move feedback through the clarification and development workflow
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TransitionFeedbackInput'}
+      responses:
+        '200':
+          description: Updated feedback thread
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeedbackMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/developer/threads/{id}/ai-context:
+    get:
+      operationId: getFeedbackAiContext
+      summary: Export deterministic JSON or Markdown context for an AI coding agent
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+      responses:
+        '200':
+          description: AI-ready context
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeedbackAiContext'}
+            text/markdown:
+              schema: {type: string}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/feedback/developer/threads/{id}/attachments/{attachmentId}:
+    get:
+      operationId: getDeveloperFeedbackAttachment
+      summary: Download a feedback attachment as a developer
+      parameters:
+        - {$ref: '#/components/parameters/FeedbackId'}
+        - {$ref: '#/components/parameters/AttachmentId'}
+      responses:
+        '200':
+          description: Attachment bytes
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    FeedbackId:
+      in: path
+      name: id
+      required: true
+      schema: {type: string, format: uuid}
+    AttachmentId:
+      in: path
+      name: attachmentId
+      required: true
+      schema: {type: string, format: uuid}
+    ClientToken:
+      in: header
+      name: X-Minco-Feedback-Token
+      required: true
+      schema: {type: string, format: uuid}
+    ProjectKey:
+      in: header
+      name: X-Minco-Feedback-Project-Key
+      required: false
+      description: Optional browser-visible abuse-control key; not an authentication secret
+      schema: {type: string, maxLength: 500}
+  responses:
+    Problem:
+      description: RFC 9457-style problem response
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+  schemas:
+    ProblemDetails:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail, code, request_id]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        code: {type: string}
+        request_id: {type: string}
+    FeedbackKind:
+      type: string
+      enum: [bug, feature, usability, question, other]
+    FeedbackPriority:
+      type: string
+      enum: [low, normal, high, urgent]
+    FeedbackStatus:
+      type: string
+      enum: [new, acknowledged, needs_clarification, ready_for_development, in_progress, resolved, closed]
+    FeedbackAuthorRole:
+      type: string
+      enum: [client, developer, system]
+    FeedbackMessageSource:
+      type: string
+      enum: [text, voice_transcript, status_change]
+    FeedbackAttachmentKind:
+      type: string
+      enum: [screenshot, audio, file]
+    FeedbackWidgetConfig:
+      type: object
+      additionalProperties: false
+      required: [enabled, project_id, label, position, offset_x_px, offset_y_px, theme, token_storage, screenshot_enabled, voice_enabled, transcription_enabled, max_http_body_bytes, max_screenshot_bytes, max_audio_bytes, max_file_bytes, max_attachments, max_recording_seconds, include_url_query, redact_query_parameters, poll_interval_ms]
+      properties:
+        enabled: {type: boolean}
+        project_id: {type: string}
+        label: {type: string}
+        position: {type: string, enum: [top-left, top-right, bottom-left, bottom-right]}
+        offset_x_px: {type: integer, minimum: 0}
+        offset_y_px: {type: integer, minimum: 0}
+        theme: {type: string, enum: [light, dark, auto]}
+        token_storage: {type: string, enum: [session, local], default: session}
+        screenshot_enabled: {type: boolean}
+        voice_enabled: {type: boolean}
+        transcription_enabled: {type: boolean}
+        max_http_body_bytes: {type: integer, minimum: 262144, maximum: 8388608}
+        max_screenshot_bytes: {type: integer, minimum: 1}
+        max_audio_bytes: {type: integer, minimum: 1}
+        max_file_bytes: {type: integer, minimum: 1}
+        max_attachments: {type: integer, minimum: 1, maximum: 8}
+        max_recording_seconds: {type: integer, minimum: 5, maximum: 300}
+        include_url_query: {type: boolean}
+        redact_query_parameters: {type: array, items: {type: string}}
+        poll_interval_ms: {type: integer, minimum: 1000, maximum: 300000}
+        privacy_notice: {type: [string, 'null']}
+    FeedbackContext:
+      type: object
+      additionalProperties: false
+      required: [page_url]
+      properties:
+        page_url: {type: string, maxLength: 4096}
+        route_name: {type: [string, 'null']}
+        release_id: {type: [string, 'null']}
+        environment: {type: [string, 'null']}
+        request_id: {type: [string, 'null']}
+        user_agent: {type: [string, 'null']}
+        viewport: {type: [string, 'null']}
+        client_subject: {type: [string, 'null']}
+    FeedbackMessage:
+      type: object
+      additionalProperties: false
+      required: [id, author_role, body, source, visible_to_client, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        author_role: {$ref: '#/components/schemas/FeedbackAuthorRole'}
+        author_display: {type: [string, 'null']}
+        body: {type: string}
+        source: {$ref: '#/components/schemas/FeedbackMessageSource'}
+        visible_to_client: {type: boolean, default: true}
+        created_at: {type: string, format: date-time}
+    FeedbackAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, kind, object_key, file_name, content_type, size_bytes, sha256, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: '#/components/schemas/FeedbackAttachmentKind'}
+        object_key: {type: string}
+        file_name: {type: string}
+        content_type: {type: string}
+        size_bytes: {type: integer, minimum: 1}
+        sha256: {type: string}
+        created_at: {type: string, format: date-time}
+        transcript: {type: [string, 'null']}
+    ClientFeedbackAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, kind, file_name, content_type, size_bytes, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: '#/components/schemas/FeedbackAttachmentKind'}
+        file_name: {type: string}
+        content_type: {type: string}
+        size_bytes: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+        transcript: {type: [string, 'null']}
+    FeedbackThread:
+      type: object
+      additionalProperties: false
+      required: [id, project_id, kind, priority, status, title, description, context, tags, messages, attachments, created_at, updated_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        project_id: {type: string}
+        kind: {$ref: '#/components/schemas/FeedbackKind'}
+        priority: {$ref: '#/components/schemas/FeedbackPriority'}
+        status: {$ref: '#/components/schemas/FeedbackStatus'}
+        title: {type: string}
+        description: {type: string}
+        context: {$ref: '#/components/schemas/FeedbackContext'}
+        tags: {type: array, items: {type: string}}
+        messages: {type: array, items: {$ref: '#/components/schemas/FeedbackMessage'}}
+        attachments: {type: array, items: {$ref: '#/components/schemas/FeedbackAttachment'}}
+        resolution: {type: [string, 'null']}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        revision: {type: integer, minimum: 1}
+    ClientFeedbackThread:
+      type: object
+      additionalProperties: false
+      required: [id, kind, priority, status, title, description, context, messages, attachments, created_at, updated_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: '#/components/schemas/FeedbackKind'}
+        priority: {$ref: '#/components/schemas/FeedbackPriority'}
+        status: {$ref: '#/components/schemas/FeedbackStatus'}
+        title: {type: string}
+        description: {type: string}
+        context: {$ref: '#/components/schemas/FeedbackContext'}
+        messages: {type: array, items: {$ref: '#/components/schemas/FeedbackMessage'}}
+        attachments: {type: array, items: {$ref: '#/components/schemas/ClientFeedbackAttachment'}}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        revision: {type: integer, minimum: 1}
+    FeedbackSummary:
+      type: object
+      additionalProperties: false
+      required: [id, project_id, kind, priority, status, title, updated_at, message_count, attachment_count]
+      properties:
+        id: {type: string, format: uuid}
+        project_id: {type: string}
+        kind: {$ref: '#/components/schemas/FeedbackKind'}
+        priority: {$ref: '#/components/schemas/FeedbackPriority'}
+        status: {$ref: '#/components/schemas/FeedbackStatus'}
+        title: {type: string}
+        updated_at: {type: string, format: date-time}
+        message_count: {type: integer, minimum: 0}
+        attachment_count: {type: integer, minimum: 0}
+    FeedbackWarning:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code: {type: string}
+        detail: {type: string}
+    ClientCreateResponse:
+      type: object
+      additionalProperties: false
+      required: [thread, client_token]
+      properties:
+        thread: {$ref: '#/components/schemas/ClientFeedbackThread'}
+        client_token: {type: string, format: uuid}
+        warnings: {type: array, items: {$ref: '#/components/schemas/FeedbackWarning'}}
+    ClientMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [thread]
+      properties:
+        thread: {$ref: '#/components/schemas/ClientFeedbackThread'}
+        warnings: {type: array, items: {$ref: '#/components/schemas/FeedbackWarning'}}
+    FeedbackMutationResult:
+      type: object
+      additionalProperties: false
+      required: [thread]
+      properties:
+        thread: {$ref: '#/components/schemas/FeedbackThread'}
+        warnings: {type: array, items: {$ref: '#/components/schemas/FeedbackWarning'}}
+    ClientReplyInput:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: {type: string, minLength: 1, maxLength: 20000}
+    DeveloperReplyInput:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: {type: string, minLength: 1, maxLength: 20000}
+        visible_to_client: {type: boolean, default: true}
+        author_display: {type: [string, 'null']}
+    TransitionFeedbackInput:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/FeedbackStatus'}
+        resolution: {type: [string, 'null']}
+        author_display: {type: [string, 'null']}
+    Transcript:
+      type: object
+      additionalProperties: false
+      required: [text, provider, model]
+      properties:
+        text: {type: string}
+        provider: {type: string}
+        model: {type: string}
+    FeedbackAiContext:
+      type: object
+      additionalProperties: false
+      required: [schema_version, feedback, unresolved_questions, suggested_next_actions]
+      properties:
+        schema_version: {type: integer, const: 1}
+        feedback: {$ref: '#/components/schemas/FeedbackThread'}
+        unresolved_questions: {type: array, items: {type: string}}
+        suggested_next_actions: {type: array, items: {type: string}}

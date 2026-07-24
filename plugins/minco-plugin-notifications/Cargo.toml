@@ -1,0 +1,33 @@
+[package]
+name = "minco-plugin-notifications"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral notification delivery port and reference memory sink for Minco"
+documentation = "https://docs.rs/minco-plugin-notifications"
+readme = "README.md"
+keywords = ["minco", "notifications", "email", "webhook"]
+categories = ["web-programming"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

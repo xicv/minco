@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignore local Rust build artifacts; source and committed package files remain scanned."
+paths = ['''(?:^|/)target(?:/.*)?$''']

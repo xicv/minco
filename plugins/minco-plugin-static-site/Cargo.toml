@@ -1,0 +1,26 @@
+[package]
+name = "minco-plugin-static-site"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral static-site deployment intent for Minco applications"
+documentation = "https://docs.rs/minco-plugin-static-site"
+readme = "README.md"
+keywords = ["minco", "static-site", "cloudfront", "s3", "deployment"]
+categories = ["web-programming", "development-tools"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

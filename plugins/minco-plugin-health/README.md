@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 # async fn check() {
 let registry = HealthRegistry::default();
-registry.register(Arc::new(StaticHealthCheck::new("database", true, true))).await;
+registry.register(Arc::new(StaticHealthCheck::new("database", true, true)));
 assert!(registry.ready().await);
 # }
 ```

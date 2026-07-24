@@ -52,10 +52,27 @@ cargo run -p orders-service --bin orders-local --features sqlite
 
 ## 6. Run with PostgreSQL and Rustack
 
+Inspect the graph-derived topology before starting it:
+
 ```bash
+python3 scripts/dev/topology.py
+./scripts/dev/up.sh --dry-run
 ./scripts/dev/up.sh
+./scripts/dev/migrate.sh
 ./scripts/dev/run.sh
 ```
+
+The reference graph selects PostgreSQL plus Rustack SSM/STS and configures the
+application through standard AWS endpoint variables. If port 4566 is already
+in use, pass the same override to both scripts:
+
+```bash
+MINCO_RUSTACK_PORT=4567 ./scripts/dev/up.sh
+MINCO_RUSTACK_PORT=4567 ./scripts/dev/run.sh
+```
+
+See [`../../infra/local/README.md`](../../infra/local/README.md) for isolated
+database and Rustack conformance commands.
 
 ## 7. Exercise the contract
 

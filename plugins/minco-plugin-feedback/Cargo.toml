@@ -1,0 +1,73 @@
+[package]
+name = "minco-plugin-feedback"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "AI-ready client feedback loops with screenshots, voice, discussion, persistence, and an embeddable widget for Minco"
+documentation = "https://docs.rs/minco-plugin-feedback"
+readme = "README.md"
+keywords = ["minco", "feedback", "screenshot", "transcription", "widget"]
+categories = ["web-programming", "development-tools"]
+publish = ["crates-io"]
+include = [
+  "/src/**",
+  "/assets/**",
+  "/migrations/**",
+  "/openapi/**",
+  "/tests/persistence.rs",
+  "/Cargo.toml",
+  "/README.md",
+  "/LICENSE-MIT",
+  "/LICENSE-APACHE",
+]
+
+[features]
+default = ["http"]
+http = ["dep:axum", "dep:http", "dep:minco-http", "dep:minco-plugin-health"]
+client = ["dep:reqwest"]
+postgres = ["dep:sqlx"]
+sqlite = ["dep:sqlx"]
+openai-transcription = ["dep:reqwest"]
+command-transcription = ["dep:tempfile"]
+full = ["http", "client", "postgres", "sqlite", "openai-transcription", "command-transcription"]
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+minco-core.workspace = true
+minco-plugin-audit.workspace = true
+minco-plugin-events.workspace = true
+minco-plugin-identity.workspace = true
+minco-plugin-notifications.workspace = true
+minco-plugin-object-storage.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+axum = { workspace = true, optional = true, features = ["multipart"] }
+http = { workspace = true, optional = true }
+minco-http = { workspace = true, optional = true }
+minco-plugin-health = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true, features = ["macros"] }
+tempfile = { workspace = true, optional = true }
+
+[dev-dependencies]
+minco-contract.workspace = true
+tower.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

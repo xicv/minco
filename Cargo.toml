@@ -12,6 +12,14 @@ members = [
   "plugins/minco-plugin-health",
   "plugins/minco-plugin-observability",
   "plugins/minco-plugin-idempotency",
+  "plugins/minco-plugin-sessions",
+  "plugins/minco-plugin-identity",
+  "plugins/minco-plugin-object-storage",
+  "plugins/minco-plugin-events",
+  "plugins/minco-plugin-notifications",
+  "plugins/minco-plugin-audit",
+  "plugins/minco-plugin-feedback",
+  "plugins/minco-plugin-static-site",
   "extensions/minco-sqlx-postgres",
   "extensions/minco-sqlx-sqlite",
   "extensions/minco-aws-lambda",
@@ -33,6 +41,14 @@ default-members = [
   "plugins/minco-plugin-health",
   "plugins/minco-plugin-observability",
   "plugins/minco-plugin-idempotency",
+  "plugins/minco-plugin-sessions",
+  "plugins/minco-plugin-identity",
+  "plugins/minco-plugin-object-storage",
+  "plugins/minco-plugin-events",
+  "plugins/minco-plugin-notifications",
+  "plugins/minco-plugin-audit",
+  "plugins/minco-plugin-feedback",
+  "plugins/minco-plugin-static-site",
   "extensions/minco-sqlx-postgres",
   "extensions/minco-sqlx-sqlite",
   "extensions/minco-aws-lambda",
@@ -44,7 +60,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.97.1"
 license = "MIT OR Apache-2.0"
@@ -62,6 +78,8 @@ chrono = { version = "0.4", features = ["serde", "clock"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 http = "1.3"
 http-body-util = "0.1"
+hmac = "0.12"
+reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "rustls"] }
 lambda_http = { version = "1.3.0", default-features = false, features = ["apigw_http", "tracing"] }
 lambda_runtime = "1.3.0"
 semver = { version = "1.0", features = ["serde"] }
@@ -69,6 +87,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml_ng = "0.10"
 sha2 = "0.10"
+subtle = "2.6"
 sqlx = { version = "0.9.0", default-features = false, features = [
   "runtime-tokio",
   "tls-rustls-ring-webpki",
@@ -80,6 +99,7 @@ sqlx = { version = "0.9.0", default-features = false, features = [
   "migrate",
 ] }
 thiserror = "2.0"
+tempfile = "3.27"
 tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "signal", "time", "sync", "net", "process", "fs"] }
 toml = "1.1"
 tower = { version = "0.5.3", features = ["util", "timeout"] }
@@ -98,20 +118,28 @@ uuid = { version = "1", features = ["v4", "v7", "serde"] }
 
 # Every publishable path dependency carries an explicit version. Cargo removes
 # the path when packaging and resolves the version from the target registry.
-minco = { version = "0.1.1", path = "crates/minco" }
-minco-core = { version = "0.1.1", path = "crates/minco-core" }
-minco-contract = { version = "0.1.1", path = "crates/minco-contract" }
-minco-plan = { version = "0.1.1", path = "crates/minco-plan" }
-minco-release = { version = "0.1.1", path = "crates/minco-release" }
-minco-http = { version = "0.1.1", path = "crates/minco-http" }
-minco-test = { version = "0.1.1", path = "crates/minco-test" }
-minco-plugin-health = { version = "0.1.1", path = "plugins/minco-plugin-health" }
-minco-plugin-observability = { version = "0.1.1", path = "plugins/minco-plugin-observability" }
-minco-plugin-idempotency = { version = "0.1.1", path = "plugins/minco-plugin-idempotency" }
-minco-sqlx-postgres = { version = "0.1.1", path = "extensions/minco-sqlx-postgres" }
-minco-sqlx-sqlite = { version = "0.1.1", path = "extensions/minco-sqlx-sqlite" }
-minco-aws-lambda = { version = "0.1.1", path = "extensions/minco-aws-lambda" }
-cargo-minco = { version = "0.1.1", path = "crates/minco-cli" }
+minco = { version = "0.2.0", path = "crates/minco" }
+minco-core = { version = "0.2.0", path = "crates/minco-core" }
+minco-contract = { version = "0.2.0", path = "crates/minco-contract" }
+minco-plan = { version = "0.2.0", path = "crates/minco-plan" }
+minco-release = { version = "0.2.0", path = "crates/minco-release" }
+minco-http = { version = "0.2.0", path = "crates/minco-http" }
+minco-test = { version = "0.2.0", path = "crates/minco-test" }
+minco-plugin-health = { version = "0.2.0", path = "plugins/minco-plugin-health" }
+minco-plugin-observability = { version = "0.2.0", path = "plugins/minco-plugin-observability" }
+minco-plugin-idempotency = { version = "0.2.0", path = "plugins/minco-plugin-idempotency" }
+minco-plugin-sessions = { version = "0.2.0", path = "plugins/minco-plugin-sessions" }
+minco-plugin-identity = { version = "0.2.0", path = "plugins/minco-plugin-identity" }
+minco-plugin-object-storage = { version = "0.2.0", path = "plugins/minco-plugin-object-storage" }
+minco-plugin-events = { version = "0.2.0", path = "plugins/minco-plugin-events" }
+minco-plugin-notifications = { version = "0.2.0", path = "plugins/minco-plugin-notifications" }
+minco-plugin-audit = { version = "0.2.0", path = "plugins/minco-plugin-audit" }
+minco-plugin-feedback = { version = "0.2.0", path = "plugins/minco-plugin-feedback", default-features = false }
+minco-plugin-static-site = { version = "0.2.0", path = "plugins/minco-plugin-static-site" }
+minco-sqlx-postgres = { version = "0.2.0", path = "extensions/minco-sqlx-postgres" }
+minco-sqlx-sqlite = { version = "0.2.0", path = "extensions/minco-sqlx-sqlite" }
+minco-aws-lambda = { version = "0.2.0", path = "extensions/minco-aws-lambda" }
+cargo-minco = { version = "0.2.0", path = "crates/minco-cli" }
 
 # Private reference-application packages. They remain path-only and cannot be
 # published accidentally.
@@ -153,6 +181,14 @@ publish = [
   "minco-plugin-health",
   "minco-plugin-observability",
   "minco-plugin-idempotency",
+  "minco-plugin-sessions",
+  "minco-plugin-identity",
+  "minco-plugin-object-storage",
+  "minco-plugin-events",
+  "minco-plugin-notifications",
+  "minco-plugin-audit",
+  "minco-plugin-feedback",
+  "minco-plugin-static-site",
   "minco-aws-lambda",
   "minco",
   "cargo-minco",

@@ -5,6 +5,7 @@
 
 mod architecture;
 mod config;
+mod feedback_cmd;
 mod new_cmd;
 mod plugin_cmd;
 mod process;
@@ -17,6 +18,7 @@ use architecture::validate_architecture;
 use chrono::Utc;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
+use feedback_cmd::FeedbackArgs;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
 use minco_plan::{
     DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
@@ -84,6 +86,8 @@ enum Command {
     Update(UpdateCommand),
     #[command(subcommand)]
     Vcs(VcsCommand),
+    /// Inspect and advance the first-class client feedback loop.
+    Feedback(FeedbackArgs),
 }
 
 #[derive(Debug, Args)]
@@ -310,6 +314,7 @@ async fn main() -> Result<()> {
         Command::Release(command) => release_command(&root, &manifest, command, as_json),
         Command::Update(command) => update_command(&root, command, as_json),
         Command::Vcs(command) => vcs_command(&root, command, as_json),
+        Command::Feedback(args) => feedback_cmd::execute(&root, args, as_json).await,
     }
 }
 
@@ -462,25 +467,38 @@ fn inspect(root: &Path, manifest: &MincoManifest, as_json: bool) -> Result<()> {
 }
 
 fn explain(root: &Path, manifest: &MincoManifest, operation_id: &str, as_json: bool) -> Result<()> {
-    let report = load_contract(root.join(&manifest.contract))?;
+    print_value(&explain_value(root, manifest, operation_id)?, as_json)
+}
+
+fn explain_value(
+    root: &Path,
+    manifest: &MincoManifest,
+    operation_id: &str,
+) -> Result<serde_json::Value> {
+    let trace = manifest.operations.get(operation_id);
+    let contract = trace
+        .and_then(|value| value.contract.as_ref())
+        .unwrap_or(&manifest.contract);
+    let report = load_contract(root.join(contract))?;
     let operation = report
         .document
         .operations
         .iter()
         .find(|operation| operation.operation_id == operation_id)
         .with_context(|| format!("operation {operation_id} is not in the contract"))?;
-    let trace = manifest.operations.get(operation_id);
-    let value = json!({
+    let generated = trace
+        .and_then(|value| value.generated.as_ref())
+        .or_else(|| (contract == &manifest.contract).then_some(&manifest.generated));
+    Ok(json!({
         "operation": operation,
-        "contract": manifest.contract,
-        "generated": manifest.generated,
+        "contract": contract,
+        "generated": generated,
         "handler_module": trace.and_then(|value| value.handler.as_deref()),
         "application_module": trace.and_then(|value| value.application.as_deref()),
         "adapters": trace.map_or_else(Vec::new, |value| value.adapters.clone()),
         "tests": trace.map_or_else(Vec::new, |value| value.tests.clone()),
         "deployment_config": manifest.deployment_config,
-    });
-    print_value(&value, as_json)
+    }))
 }
 
 fn deploy(
@@ -495,7 +513,7 @@ fn deploy(
             ensure_plan_valid(&plan)?;
             let output = root.join(output);
             ensure_parent(&output)?;
-            fs::write(&output, serde_json::to_vec_pretty(&plan)?)?;
+            fs::write(&output, canonical_json(&plan)?)?;
             print_value(
                 &json!({"plan": output, "diagnostics": plan.validate()}),
                 as_json,
@@ -938,6 +956,13 @@ fn print_value<T: Serialize + ?Sized>(value: &T, as_json: bool) -> Result<()> {
     Ok(())
 }
 
+fn canonical_json<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>> {
+    let value = serde_json::to_value(value)?;
+    let mut rendered = serde_json::to_vec_pretty(&value)?;
+    rendered.push(b'\n');
+    Ok(rendered)
+}
+
 fn ensure_parent(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -998,5 +1023,40 @@ mod cli_argument_tests {
             values,
             vec![OsString::from("cargo-minco"), OsString::from("doctor")]
         );
+    }
+
+    #[test]
+    fn generated_json_is_key_sorted_and_newline_terminated() {
+        let value = json!({
+            "z": {"b": 1, "a": 2},
+            "a": 3,
+        });
+        let rendered = String::from_utf8(canonical_json(&value).unwrap()).unwrap();
+        assert_eq!(
+            rendered,
+            "{\n  \"a\": 3,\n  \"z\": {\n    \"a\": 2,\n    \"b\": 1\n  }\n}\n"
+        );
+    }
+
+    #[test]
+    fn explain_traces_an_operation_owned_by_a_plugin_contract() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let manifest = MincoManifest::load(&root).expect("workspace manifest");
+        let value =
+            explain_value(&root, &manifest, "createFeedback").expect("Feedback operation trace");
+
+        assert_eq!(value["operation"]["operation_id"], "createFeedback");
+        assert_eq!(
+            value["contract"],
+            "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
+        );
+        assert_eq!(
+            value["handler_module"],
+            "plugins/minco-plugin-feedback/src/http.rs#create_feedback"
+        );
+        assert!(value["generated"].is_null());
     }
 }

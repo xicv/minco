@@ -9,6 +9,8 @@ the optional GitHub workflow merely invokes the same commands.
 |---|---|---|
 | Unit | `./scripts/test/unit.sh` | Domain invariants, graph validation, parsing, cost formulas, plugin ordering. |
 | Feature | `./scripts/test/feature.sh` | Application use cases, HTTP `oneshot`, adapter behavior, generated plan/contract checks. |
+| Local topology | `python3 scripts/dev/test_topology.py` | Graph-derived Compose selection, standard endpoint wiring, and override behavior. |
+| Rustack conformance | `./scripts/dev/rustack-smoke.sh` | Isolated real S3, SQS, SSM SecureString, and STS operations against Rustack. |
 | E2E | `./scripts/test/e2e.sh` | Local service over TCP with contract requests; optional PostgreSQL/Rustack dependencies. |
 | All | `./scripts/test/all.sh` | Runs the three tiers and deep review. |
 | Quality | `./scripts/quality.sh` | Static checks, format, Clippy, all workspace targets, generation freshness, review. |
@@ -30,6 +32,8 @@ The framework's own tests cover:
 - domain and application fail-before-persistence behavior;
 - memory, PostgreSQL, and SQLite adapter semantics;
 - CLI manifest/task/plugin/update helpers.
+- graph-derived local services and standard AWS endpoint configuration;
+- isolated Rustack S3, SQS, SSM, and STS compatibility.
 
 A release additionally requires database-backed conformance, native Lambda build,
 SAM validation, and a bounded real-AWS smoke deployment. Static or unit checks do

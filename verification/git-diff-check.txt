@@ -1,0 +1,1 @@
+Working-tree diff passed git diff --check.
