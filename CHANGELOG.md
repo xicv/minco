@@ -9,7 +9,8 @@ Semantic Versioning once public releases begin.
 
 - Added graph-derived local PostgreSQL/Rustack startup, standard AWS endpoint
   configuration, isolated S3/SQS/SSM/STS conformance, and safe port/database
-  overrides with a pinned multi-platform Rustack 0.9.1 image.
+  overrides with a pinned multi-platform Rustack 0.9.1 image. The conformance
+  gate also proves the real Minco SSM SDK adapter locally and in hosted CI.
 
 ## [0.1.1] - 2026-07-24
 

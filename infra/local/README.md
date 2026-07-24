@@ -38,6 +38,8 @@ Run the isolated Rustack compatibility boundary with:
 ```
 
 The smoke proves real S3, SQS, SSM SecureString and STS operations through
-standard AWS CLI endpoint variables. Provider-neutral plugin selection does
-not imply an AWS provider: future application adapters must declare any
-additional Rustack services explicitly.
+standard AWS endpoint variables. It also loads a SecureString through
+`minco-aws-lambda::load_secure_parameter`, proving the real Rust SDK adapter
+uses the same endpoint path. Provider-neutral plugin selection does not imply
+an AWS provider: future application adapters must declare any additional
+Rustack services explicitly.

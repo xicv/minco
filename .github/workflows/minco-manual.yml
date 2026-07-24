@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_rustack:
+        description: Run Rustack AWS and Minco SSM adapter conformance
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -49,6 +54,9 @@ jobs:
           cargo doc --workspace --all-features --no-deps --locked
       - name: Publish dry run
         run: scripts/release/publish.sh --skip-quality
+      - name: Rustack and Minco SSM adapter conformance
+        if: ${{ inputs.run_rustack }}
+        run: scripts/dev/rustack-smoke.sh
       - name: E2E
         if: ${{ inputs.run_e2e }}
         run: scripts/test/e2e.sh

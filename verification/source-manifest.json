@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 362,
+  "file_count": 363,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -14,8 +14,8 @@
     },
     {
       "path": ".github/workflows/minco-manual.yml",
-      "sha256": "ec3070b4b1a8a60bebb6f3daaefc3ecb46e2440a90d6f4df7d6b01d0c4acd95d",
-      "size_bytes": 1777
+      "sha256": "a45d5f2b843cdfd3aad12a4d8b244682f7c200a115ac05e176a25a5ca48d8e8c",
+      "size_bytes": 2071
     },
     {
       "path": ".github/workflows/publish-crates.yml",
@@ -39,8 +39,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "4231e3330883ce1fe42e30231a7a4b3a0ed3bcf207ba4d376fa70d2036729b84",
-      "size_bytes": 3456
+      "sha256": "3b7ee49cf824d2b5ce49a1a12ad85d49559c67a202a8522ea775c02e5e0151c4",
+      "size_bytes": 3548
     },
     {
       "path": "CODEX_CONTINUATION_PROMPT.md",
@@ -59,8 +59,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "c1242a57cbf74e1291df0d32c476d37a3f4ef7b8b4fb8939e41a8dc7fb074c97",
-      "size_bytes": 97023
+      "sha256": "dd1609d2146a408ad47267b8bf385ac0e2459fdfacfed45ad2855509622aef46",
+      "size_bytes": 97033
     },
     {
       "path": "Cargo.toml",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "c1f43046f2ccf5fd5c946df1c32b1ea320d8048b9096d22a9f109e754349dfac",
-      "size_bytes": 11695
+      "sha256": "b7047d06951720f57d6a54fdad2bac21861f853a6dd95feb9559ff967c94dfca",
+      "size_bytes": 11769
     },
     {
       "path": "config/jj/repo.toml",
@@ -744,8 +744,8 @@
     },
     {
       "path": "docs/deployment/local-parity.md",
-      "sha256": "54d2b28b6bffbb082a7446f11fcb022360eb6cd8276e66be5121ea27f551c212",
-      "size_bytes": 840
+      "sha256": "f793b07d5d5f876912f0b1271b40a7106232e8c01a3ea1cb7fb955d9f4cf600a",
+      "size_bytes": 1154
     },
     {
       "path": "docs/deployment/release.md",
@@ -769,8 +769,8 @@
     },
     {
       "path": "docs/development/testing.md",
-      "sha256": "62d07ca68dae4efee7fe4642e74a405b60c9c58d8cc1b1ce2618c53bdc2b2994",
-      "size_bytes": 2576
+      "sha256": "f359a182486e336f73a399bbe24ee7a9639c73ed75e085b52326498a38750d59",
+      "size_bytes": 2637
     },
     {
       "path": "docs/development/update.md",
@@ -939,8 +939,8 @@
     },
     {
       "path": "extensions/minco-aws-lambda/Cargo.toml",
-      "sha256": "5934ca48da34ed107542b41a6a81a45c96c760bf930280855ff96aff66577a42",
-      "size_bytes": 910
+      "sha256": "128437281b634fec2598f5676203edf085b380121f3f0470e2dfe5044c780c2d",
+      "size_bytes": 953
     },
     {
       "path": "extensions/minco-aws-lambda/LICENSE-APACHE",
@@ -961,6 +961,11 @@
       "path": "extensions/minco-aws-lambda/src/lib.rs",
       "sha256": "e932c556ac15a3768bd8c1a9ffcb07ed358ee6f03f2c708376b7a54c3531ac9b",
       "size_bytes": 2871
+    },
+    {
+      "path": "extensions/minco-aws-lambda/tests/rustack_ssm.rs",
+      "sha256": "229a648e1fdaebbbf1b1ff1f946825963372be4629a6295929d4689ec7eb3330",
+      "size_bytes": 1206
     },
     {
       "path": "extensions/minco-sqlx-postgres/Cargo.toml",
@@ -1024,8 +1029,8 @@
     },
     {
       "path": "infra/local/README.md",
-      "sha256": "98bf7312465b8d52236fd32213f6fffa57f750e78209a3f8a8c9d023ea618229",
-      "size_bytes": 1245
+      "sha256": "321bcc3e6ce74e0be765200d53d693d5313013dd6fcdd376dfd3c6382f017c5c",
+      "size_bytes": 1384
     },
     {
       "path": "infra/local/compose.yaml",
@@ -1494,8 +1499,8 @@
     },
     {
       "path": "scripts/dev/rustack-smoke.sh",
-      "sha256": "7eca9ebf64e565f9ef0a1b70725a12f07f288063a294c0da08cd2f241e6c31f3",
-      "size_bytes": 3554
+      "sha256": "3031c7878edbf6defcc89b2f91bf69756162d599eeb6bb72efbd6561520a083a",
+      "size_bytes": 3734
     },
     {
       "path": "scripts/dev/test_topology.py",
@@ -1669,8 +1674,8 @@
     },
     {
       "path": "tasks/M4/M4-T02-rustack-local.md",
-      "sha256": "db9fdc0be06ff8663eb237253b494c136fb34516d841ed9c20fbaa8bafcb1761",
-      "size_bytes": 1364
+      "sha256": "9f65720fb2052caa96080c0b20453c99d38e95564e1450566cd6105c5c72d3aa",
+      "size_bytes": 1802
     },
     {
       "path": "tasks/M4/M4-T03-update-command.md",
@@ -1744,7 +1749,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "72c54c58fae5fae7080f763ca71186af15916d4654c48de3fb6ee96b278c8bc9",
+      "sha256": "eb8cfbf256833289f6f5346f5d3bfc24fab24d65003c319736866daa0e9accd5",
       "size_bytes": 1574
     },
     {
@@ -1794,7 +1799,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "03cecb2206c52163c0b3137e2014f11cbabf6ecfefd77861d3932b6a70e2f19e",
+      "sha256": "02683c181f942d2460bf7a95dcc1d99c51a70fa4e9a521580ca0a23285bd383f",
       "size_bytes": 751
     },
     {
@@ -1814,6 +1819,6 @@
     }
   ],
   "schema_version": 1,
-  "total_size_bytes": 1596219,
+  "total_size_bytes": 1599070,
   "version": "0.2.0"
 }
