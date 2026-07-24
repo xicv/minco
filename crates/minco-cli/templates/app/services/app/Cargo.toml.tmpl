@@ -1,0 +1,38 @@
+[package]
+name = "{{PACKAGE}}-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = []
+lambda = ["minco/aws-lambda"]
+
+[dependencies]
+axum.workspace = true
+http.workspace = true
+minco.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+{{PACKAGE}}-adapters.workspace = true
+{{PACKAGE}}-api.workspace = true
+{{PACKAGE}}-application.workspace = true
+{{PACKAGE}}-domain.workspace = true
+
+[[bin]]
+name = "{{PACKAGE}}-local"
+path = "src/main.rs"
+
+[[bin]]
+name = "{{PACKAGE}}-lambda"
+path = "src/bin/lambda.rs"
+required-features = ["lambda"]
+
+[[bin]]
+name = "{{PACKAGE}}-migrate"
+path = "src/bin/migrate.rs"
+
+[lints]
+workspace = true

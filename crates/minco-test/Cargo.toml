@@ -1,0 +1,30 @@
+[package]
+name = "minco-test"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "In-process Axum HTTP test clients and deterministic command evidence for Minco applications"
+documentation = "https://docs.rs/minco-test"
+readme = "README.md"
+keywords = ["minco", "testing", "axum", "http"]
+categories = ["development-tools::testing"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+[dependencies]
+axum.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tower.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

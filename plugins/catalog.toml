@@ -1,0 +1,49 @@
+schema = 1
+
+[[plugin]]
+id = "health"
+crate = "minco-plugin-health"
+path = "plugins/minco-plugin-health"
+default_enabled = true
+stability = "stable"
+description = "Liveness, readiness and dependency health registry."
+
+[[plugin]]
+id = "observability"
+crate = "minco-plugin-observability"
+path = "plugins/minco-plugin-observability"
+default_enabled = true
+stability = "stable"
+description = "Structured tracing and CloudWatch-compatible logging."
+
+[[plugin]]
+id = "idempotency"
+crate = "minco-plugin-idempotency"
+path = "plugins/minco-plugin-idempotency"
+default_enabled = true
+stability = "stable"
+description = "Idempotency keys, request fingerprints and a storage port."
+
+[[plugin]]
+id = "sqlx-postgres"
+crate = "minco-sqlx-postgres"
+path = "extensions/minco-sqlx-postgres"
+default_enabled = false
+stability = "beta"
+description = "Bounded PostgreSQL pools and explicit migrations."
+
+[[plugin]]
+id = "sqlx-sqlite"
+crate = "minco-sqlx-sqlite"
+path = "extensions/minco-sqlx-sqlite"
+default_enabled = false
+stability = "beta"
+description = "SQLite pools with explicit durability constraints."
+
+[[plugin]]
+id = "aws-lambda"
+crate = "minco-aws-lambda"
+path = "extensions/minco-aws-lambda"
+default_enabled = false
+stability = "beta"
+description = "Native Lambda HTTP runtime and SSM configuration loading."

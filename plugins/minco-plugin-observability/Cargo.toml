@@ -1,0 +1,29 @@
+[package]
+name = "minco-plugin-observability"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Structured tracing and CloudWatch-compatible JSON logging plugin for Minco applications"
+documentation = "https://docs.rs/minco-plugin-observability"
+readme = "README.md"
+keywords = ["minco", "tracing", "logging", "plugin"]
+categories = ["development-tools::debugging", "web-programming"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+[dependencies]
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

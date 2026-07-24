@@ -1,0 +1,15 @@
+Minco assembly tool availability (2026-07-24)
+python3         available /opt/pyvenv/bin/python3
+bash            available /usr/bin/bash
+git             available /usr/bin/git
+zip             available /usr/bin/zip
+unzip           available /usr/bin/unzip
+rustc           unavailable
+cargo           unavailable
+rustfmt         unavailable
+clippy-driver   unavailable
+jj              unavailable
+docker          unavailable
+cargo-lambda    unavailable
+sam             unavailable
+aws             unavailable

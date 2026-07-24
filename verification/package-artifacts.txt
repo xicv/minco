@@ -1,0 +1,24 @@
+Minco 0.1.0 package artifact review
+Generated: 2026-07-24
+Command: cargo package --locked --package <all 14 release packages>
+Result: 14 packages created and verified without --no-verify or --allow-dirty
+
+package                           files  unpacked  compressed  sha256
+cargo-minco                       45     139.9KiB  37.0KiB     b4608261fa10e5edd4a821e535181fb104361e360cb4f1a32e1ecdf72821b31f
+minco                              7     104.6KiB  28.9KiB     68ea6d300322db39f9a5686280c706277c3716196065242a7ba0f86e7c443dca
+minco-aws-lambda                   7      77.1KiB  22.1KiB     274f6dcab53bcae05d8abd1e4d3db376756a0df771a5e257739834cb3a2b48ea
+minco-contract                    10      55.7KiB  16.2KiB     a564e8fe75907d4c44c5c4e1bd1fcce8ad6bfc704adcd9763d0d5a2b3cd5b2e2
+minco-core                        11      49.2KiB  13.1KiB     2c0f1aa8d99c4cc795f47b26f9bc17eed420b86950a633f6eeabbb658bca4018
+minco-http                        10      45.4KiB  14.2KiB     fbd95a08f1e93a1a58127fe678432177091110cff9b45d499253a7986a687184
+minco-plan                        10      72.7KiB  18.6KiB     d29f0f461fd2ce6446ed2c241a184a08fff0bc13c4bb8ed558ced483da9bfa6d
+minco-plugin-health                7      25.3KiB   8.8KiB     83d96c83f1bc0dc52b72e3d05a6aae0442221dd810fcc291f0f865d6bdcf5644
+minco-plugin-idempotency           7      36.0KiB  11.8KiB     1fb68ad55d616c0b0aa30cd101e8c9f82197c4f78756c78c540e94731bc0fe55
+minco-plugin-observability         7      26.8KiB   9.2KiB     2d3328415f4186e1a57a5e3c9aade32d8717a29532a901d627aebee2da41e7e4
+minco-release                      7      32.2KiB  10.9KiB     c2d35fac093f4c82b4feb6c9178dc5056a63307306b143da4e07dc829a70f2e0
+minco-sqlx-postgres                7      61.3KiB  18.4KiB     db2dfaebb8424b8540fe4fe012e1d6dbadd5a3a567c3f848fad21e1b4a2dae69
+minco-sqlx-sqlite                  7      61.3KiB  18.5KiB     ceaf7e948ed8ca465f77a2bcdd92006dbd037e66d5b12346a8abb23de8ec2c42
+minco-test                         7      33.6KiB  11.1KiB     766a844104b72fcf12d6f89f539333f472b6424d0ef38d11bd2c52645e430a47
+
+The package manifests were reviewed with scripts/release/package-list.sh.
+Every package contains Cargo.lock, normalized and original Cargo manifests,
+both license files, its README, and only the intended source/template files.

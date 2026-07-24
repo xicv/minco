@@ -1,0 +1,22 @@
+schema: 1
+product: {{TITLE}}
+milestones:
+  - id: M0
+    name: Contract-to-local foundation
+    status: active
+    depends_on: []
+    outcome: The first contract operation runs through domain, application, API, and local composition.
+    exit_criteria:
+      - The OpenAPI contract and generated bindings are synchronized.
+      - Unit and feature tests pass.
+      - The development deployment plan has no policy errors.
+
+  - id: M1
+    name: First deployed feature
+    status: planned
+    depends_on: [M0]
+    outcome: One business feature is deployed and verified in the selected environment.
+    exit_criteria:
+      - The feature has contract, application, adapter, and HTTP tests.
+      - Database cost assumptions are reviewed.
+      - Hosted smoke checks pass.

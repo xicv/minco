@@ -1,0 +1,48 @@
+schema_version = 1
+application = "minco-orders-dynamodb-analysis"
+environment = "analysis"
+region = "ap-southeast-2"
+runtime = "lambda_zip_arm64"
+ingress = "api_gateway_http_api"
+allowed_origins = ["https://app.example.invalid"]
+log_retention_days = 14
+scheduled_wakeups = []
+uses_nat_gateway = false
+
+[auth]
+kind = "jwt"
+issuer = "https://issuer.example.invalid"
+audiences = ["minco-orders"]
+
+[database]
+kind = "dynamo_db_on_demand"
+read_request_units_million = 1.0
+write_request_units_million = 0.25
+storage_gb_month = 1.0
+# Supply reviewed regional rates before considering the estimate complete:
+# read_million_rate_usd = 0.0
+# write_million_rate_usd = 0.0
+# storage_rate_usd = 0.0
+
+[[functions]]
+name = "api"
+artifact_path = "target/lambda/orders-lambda/bootstrap.zip"
+memory_mb = 512
+timeout_seconds = 15
+reserved_concurrency = 5
+provisioned_concurrency = 0
+database_connections_per_instance = 0
+
+[cost_policy]
+deny_fixed_compute = true
+deny_nat_gateway = true
+deny_provisioned_concurrency = true
+deny_scheduled_wakeups = true
+max_reserved_concurrency = 5
+max_database_connections = 20
+
+[performance_policy]
+max_lambda_timeout_seconds = 30
+max_lambda_memory_mb = 1024
+max_request_body_bytes = 1048576
+target_artifact_bytes = 26214400

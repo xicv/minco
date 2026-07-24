@@ -1,0 +1,79 @@
+{
+  "allowed_origins": [
+    "https://app.example.invalid"
+  ],
+  "application": "minco-orders",
+  "auth": {
+    "audiences": [
+      "minco-orders"
+    ],
+    "issuer": "https://issuer.example.invalid",
+    "kind": "jwt"
+  },
+  "cost_policy": {
+    "deny_fixed_compute": true,
+    "deny_nat_gateway": true,
+    "deny_provisioned_concurrency": true,
+    "deny_scheduled_wakeups": true,
+    "max_database_connections": 20,
+    "max_reserved_concurrency": 5
+  },
+  "database": {
+    "compute_unit_hours": 20.0,
+    "history_storage_gb_month": 0.0,
+    "kind": "neon_postgres",
+    "plan": "free",
+    "storage_gb_month": 0.25
+  },
+  "environment": "dev",
+  "functions": [
+    {
+      "artifact_path": "target/lambda/orders-lambda/bootstrap.zip",
+      "database_connections_per_instance": 2,
+      "memory_mb": 512,
+      "name": "api",
+      "provisioned_concurrency": 0,
+      "reserved_concurrency": 2,
+      "timeout_seconds": 15
+    }
+  ],
+  "ingress": "api_gateway_http_api",
+  "log_retention_days": 14,
+  "performance_policy": {
+    "max_lambda_memory_mb": 1024,
+    "max_lambda_timeout_seconds": 30,
+    "max_request_body_bytes": 1048576,
+    "target_artifact_bytes": 26214400
+  },
+  "region": "ap-southeast-2",
+  "routes": [
+    {
+      "authenticated": false,
+      "method": "get",
+      "operation_id": "getLive",
+      "path": "/health/live"
+    },
+    {
+      "authenticated": true,
+      "method": "get",
+      "operation_id": "getOrder",
+      "path": "/orders/{orderId}"
+    },
+    {
+      "authenticated": false,
+      "method": "get",
+      "operation_id": "getReady",
+      "path": "/health/ready"
+    },
+    {
+      "authenticated": true,
+      "method": "post",
+      "operation_id": "placeOrder",
+      "path": "/orders"
+    }
+  ],
+  "runtime": "lambda_zip_arm64",
+  "scheduled_wakeups": [],
+  "schema_version": 1,
+  "uses_nat_gateway": false
+}

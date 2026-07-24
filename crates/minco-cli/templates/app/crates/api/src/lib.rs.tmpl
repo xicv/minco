@@ -1,0 +1,72 @@
+//! Axum delivery layer for {{TITLE}}.
+#![forbid(unsafe_code)]
+
+pub mod generated;
+
+use axum::{Json, Router, extract::State, routing::get};
+use minco::http::{HttpRuntimeConfig, apply_standard_middleware};
+use std::sync::Arc;
+use {{CRATE}}_application::GetPlatformInfo;
+
+#[derive(Debug, Clone)]
+pub struct AppState {
+    pub platform: Arc<GetPlatformInfo>,
+}
+
+pub fn build_router(
+    state: AppState,
+) -> Result<Router, http::header::InvalidHeaderValue> {
+    let router = Router::new()
+        .route("/health/live", get(health_live))
+        .route("/platform", get(get_platform))
+        .with_state(state);
+    apply_standard_middleware(router, &HttpRuntimeConfig::default())
+}
+
+async fn health_live() -> Json<generated::HealthResponse> {
+    Json(generated::HealthResponse {
+        ok: true,
+        service: "{{PACKAGE}}".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+    })
+}
+
+async fn get_platform(State(state): State<AppState>) -> Json<generated::PlatformInfo> {
+    let result = state.platform.execute();
+    Json(generated::PlatformInfo {
+        name: result.name,
+        version: result.version,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::StatusCode;
+    use minco::test::TestClient;
+    use {{CRATE}}_domain::ServiceName;
+
+    fn client() -> TestClient {
+        let state = AppState {
+            platform: Arc::new(GetPlatformInfo::new(
+                ServiceName::new("{{TITLE}}").unwrap(),
+                "0.1.0",
+            )),
+        };
+        TestClient::new(build_router(state).unwrap())
+    }
+
+    #[tokio::test]
+    async fn liveness_is_public_and_healthy() {
+        let response = client().get("/health/live").await;
+        response.assert_status(StatusCode::OK);
+        assert!(response.json::<generated::HealthResponse>().unwrap().ok);
+    }
+
+    #[tokio::test]
+    async fn platform_endpoint_uses_the_application_service() {
+        let response = client().get("/platform").await;
+        response.assert_status(StatusCode::OK);
+        assert_eq!(response.json::<generated::PlatformInfo>().unwrap().name, "{{TITLE}}");
+    }
+}

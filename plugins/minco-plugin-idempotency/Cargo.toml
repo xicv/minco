@@ -1,0 +1,32 @@
+[package]
+name = "minco-plugin-idempotency"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Idempotency keys, request fingerprints, and storage ports for Minco applications"
+documentation = "https://docs.rs/minco-plugin-idempotency"
+readme = "README.md"
+keywords = ["minco", "idempotency", "http", "plugin"]
+categories = ["web-programming"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+# Agent instructions
+
+1. `openapi/openapi.yaml` is the HTTP source of truth.
+2. Never edit `crates/api/src/generated.rs` manually; run `cargo minco contract sync`.
+3. Domain code must not depend on Axum, SQLx, AWS, Lambda, or generated contract DTOs.
+4. Application code owns use cases and infrastructure-facing ports.
+5. HTTP handlers map contract DTOs to exactly one application use case and contain no SQL.
+6. Infrastructure implementations belong in `crates/adapters`.
+7. Add a failing application or HTTP test before implementing business behavior.
+8. Use one JJ workspace per task and keep task evidence in `tasks/`.
+9. Run `cargo minco check --with-cargo` before completing a task.
+10. Deployment cost, wake-source, performance, and database-profile changes require explicit review.

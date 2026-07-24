@@ -1,0 +1,29 @@
+//! PostgreSQL infrastructure adapters for {{TITLE}}.
+#![forbid(unsafe_code)]
+
+use minco::sqlx_postgres::{PgPool, PostgresError, PostgresPoolConfig};
+use std::path::Path;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum AdapterError {
+    #[error("DATABASE_URL or DATABASE_MIGRATION_URL is required")]
+    MissingDatabaseUrl,
+    #[error(transparent)]
+    Postgres(#[from] PostgresError),
+}
+
+pub async fn connect_runtime_from_env() -> Result<PgPool, AdapterError> {
+    let url = std::env::var("DATABASE_URL").map_err(|_| AdapterError::MissingDatabaseUrl)?;
+    Ok(minco::sqlx_postgres::connect(&PostgresPoolConfig::serverless(url)).await?)
+}
+
+pub async fn migrate_from_env(path: impl AsRef<Path>) -> Result<(), AdapterError> {
+    let url = std::env::var("DATABASE_MIGRATION_URL")
+        .or_else(|_| std::env::var("DATABASE_URL"))
+        .map_err(|_| AdapterError::MissingDatabaseUrl)?;
+    let pool = minco::sqlx_postgres::connect(&PostgresPoolConfig::serverless(url)).await?;
+    minco::sqlx_postgres::migrate(&pool, path).await?;
+    pool.close().await;
+    Ok(())
+}

@@ -1,0 +1,25 @@
+schema = 1
+
+[gates.static]
+commands = [
+  "cargo minco contract check",
+  "cargo minco contract sync --check",
+  "cargo minco plugin validate",
+  "cargo minco architecture",
+]
+
+[gates.rust]
+commands = [
+  "cargo fmt --all -- --check",
+  "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+  "cargo test --workspace --all-targets --all-features",
+  "cargo doc --workspace --all-features --no-deps",
+]
+
+[gates.security]
+commands = ["cargo deny check advisories bans licenses sources"]
+optional = true
+
+[gates.e2e]
+commands = []
+optional = true

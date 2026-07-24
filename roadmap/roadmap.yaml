@@ -1,0 +1,98 @@
+schema: 1
+product: Minco
+milestones:
+- id: M0
+  name: Constitution and repository foundation
+  status: complete
+  depends_on: []
+  outcome: Architectural invariants, task schema, quality gates, and handoff conventions are committed.
+  exit_criteria:
+  - The contract-first, AI-native, AWS-native constitution is explicit.
+  - Repository-native roadmap and task files validate.
+  - Architecture dependency rules are executable.
+- id: M1
+  name: Contract-to-local vertical slice
+  status: active
+  depends_on:
+  - M0
+  outcome: A complete orders feature runs from OpenAPI through domain, application, adapters, Axum, and local composition.
+  exit_criteria:
+  - OpenAPI operations and generated bindings are bijective.
+  - Application and HTTP tests pass on the pinned toolchain.
+  - The same router is used by local and Lambda entrypoints.
+- id: M2
+  name: Modules and application graph
+  status: active
+  depends_on:
+  - M1
+  outcome: Statically linked modules describe capabilities, operations, migrations, health, resources, and costs.
+  exit_criteria:
+  - Duplicate and missing capabilities fail deterministically.
+  - Dependency cycles and route conflicts fail before serving traffic.
+  - Graph output is machine-readable.
+- id: M3
+  name: PostgreSQL and SQLite foundations
+  status: active
+  depends_on:
+  - M2
+  outcome: Explicit SQLx adapters and migrations support PostgreSQL and SQLite without an ORM.
+  exit_criteria:
+  - Shared behavioral tests pass for supported portable operations.
+  - Database-specific behavior remains explicit.
+  - Migration, seed, and reset operations are separate.
+- id: M4
+  name: Local AWS and deployment Plan IR
+  status: active
+  depends_on:
+  - M2
+  outcome: One graph drives local dependency resolution, Rustack endpoint wiring, deployment planning, and cost
+    diagnostics.
+  exit_criteria:
+  - Plan IR and SAM rendering are deterministic.
+  - Minimal-idle policy rejects fixed compute, NAT, schedules, and provisioned concurrency.
+  - Rustack services are started only when declared.
+- id: M5
+  name: AWS development deployment
+  status: planned
+  depends_on:
+  - M3
+  - M4
+  outcome: A native ARM64 Lambda ZIP is deployed behind API Gateway HTTP API and verified in a real AWS dev environment.
+  exit_criteria:
+  - Build-once release artifact and manifest are produced.
+  - Hosted contract, readiness, authentication, and performance smoke checks pass.
+  - Deployment evidence contains no secrets.
+- id: M6
+  name: Essential official extensions
+  status: planned
+  depends_on:
+  - M5
+  outcome: Optional identity, object storage, queue/outbox, email, and static-site extensions use the same capability
+    model.
+  exit_criteria:
+  - Every extension is independently selectable and testable.
+  - No extension introduces hidden scheduled work or fixed capacity.
+  - IAM permissions derive from declared capabilities.
+- id: M7
+  name: Two-application stabilization
+  status: planned
+  depends_on:
+  - M6
+  outcome: GarmentIQ and CGSP consume Minco vertical slices before public APIs are stabilized.
+  exit_criteria:
+  - At least one real slice from each application uses Minco.
+  - Framework APIs encode no product-specific business concepts.
+  - Upgrade and compatibility policy is documented.
+- id: M8
+  name: Cargo publication and ecosystem bootstrap
+  status: active
+  depends_on:
+  - M0
+  outcome: A versioned Minco crate family, facade crate, Cargo subcommand, and application generator pass crates.io
+    packaging gates and receive a controlled first release.
+  exit_criteria:
+  - Every public package has complete crates.io metadata, license files, versioned internal dependencies, and a
+    reviewed include list.
+  - The facade feature matrix, workspace tests, documentation, and cargo publish dry-run pass on Rust 1.97.1.
+  - The first release is uploaded in dependency order and trusted publishing is configured only after ownership
+    exists.

@@ -1,0 +1,13 @@
+[ui]
+default-command = ["log", "--limit", "12"]
+
+[git]
+colocate = true
+push-new-bookmarks = false
+
+[revsets]
+log = "present(@) | ancestors(immutable_heads().., 8) | present(trunk())"
+
+[aliases]
+ready = ["log", "-r", "mine() & mutable()"]
+tug = ["bookmark", "move", "--from", "heads(::@- & bookmarks())", "--to", "@-"]

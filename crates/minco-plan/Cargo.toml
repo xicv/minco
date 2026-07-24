@@ -1,0 +1,28 @@
+[package]
+name = "minco-plan"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Deployment plans, database cost profiles, structural policy checks, and AWS SAM rendering for Minco"
+documentation = "https://docs.rs/minco-plan"
+readme = "README.md"
+keywords = ["minco", "aws", "serverless", "cost", "infrastructure"]
+categories = ["development-tools", "config"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+[dependencies]
+minco-contract.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

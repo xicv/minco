@@ -1,0 +1,52 @@
+[package]
+name = "orders-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = ["sqlite"]
+sqlite = ["orders-adapters/sqlite"]
+postgres = ["orders-adapters/postgres"]
+lambda = ["dep:minco-aws-lambda", "postgres"]
+all-runtimes = ["sqlite", "postgres", "lambda"]
+
+[lib]
+name = "orders_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "orders-local"
+path = "src/bin/local.rs"
+
+[[bin]]
+name = "orders-lambda"
+path = "src/bin/lambda.rs"
+required-features = ["lambda"]
+
+[[bin]]
+name = "orders-migrate"
+path = "src/bin/migrate.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+minco-aws-lambda = { workspace = true, optional = true }
+minco-core.workspace = true
+minco-http.workspace = true
+minco-plugin-health.workspace = true
+minco-plugin-idempotency.workspace = true
+minco-plugin-observability.workspace = true
+minco-sqlx-postgres.workspace = true
+minco-sqlx-sqlite.workspace = true
+orders-adapters.workspace = true
+orders-api.workspace = true
+orders-application.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

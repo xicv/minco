@@ -1,0 +1,184 @@
+# Publishing Minco to crates.io
+
+Minco is released as a lock-step crate family. The `minco` facade is the normal
+application dependency; the smaller crates remain independently usable for
+applications that need a narrower dependency graph.
+
+## Published packages
+
+| Package | Role |
+|---|---|
+| `minco-core` | Provider-neutral plugins, typed services, capabilities, and application graph. |
+| `minco-contract` | OpenAPI 3.1 validation, operation inventory, hashing, and deterministic bindings. |
+| `minco-http` | Axum/Tower conventions, principals, request metadata, limits, and Problem Details. |
+| `minco-plan` | Deployment Plan IR, database profiles, structural cost/performance policy, and SAM rendering. |
+| `minco-release` | Immutable release manifests and artifact digest verification. |
+| `minco-test` | In-process HTTP and command-evidence test helpers. |
+| `minco-plugin-health` | Official health/readiness plugin. |
+| `minco-plugin-observability` | Official structured tracing plugin. |
+| `minco-plugin-idempotency` | Official idempotency primitives and port. |
+| `minco-sqlx-postgres` | Bounded PostgreSQL pools and migrations. |
+| `minco-sqlx-sqlite` | SQLite pools, WAL policy, and migrations. |
+| `minco-aws-lambda` | Native Lambda HTTP, API Gateway identity, and SSM integration. |
+| `minco` | Ergonomic facade with feature-gated re-exports and official defaults. |
+| `cargo-minco` | Cargo subcommand installed as `cargo minco`. |
+
+The reference Orders application is deliberately marked `publish = false`.
+
+## Version policy
+
+All Minco packages use the same version. During the pre-1.0 period, a minor
+version may contain breaking public-API changes. Patch releases must remain
+compatible within the same minor line.
+
+The version is defined once in `[workspace.package]` in the root `Cargo.toml`.
+Every publishable internal path dependency also carries the same explicit
+version. Cargo removes local `path` keys while packaging and resolves those
+version requirements from crates.io.
+
+## Required release gates
+
+Run from a clean JJ working copy at the release change:
+
+```bash
+python3 scripts/validate_static.py
+python3 scripts/validate_publish.py --check-registry --require-registry
+python3 scripts/deep_review.py
+
+cargo generate-lockfile
+cargo fmt --all -- --check
+cargo check -p minco --no-default-features --locked
+cargo check -p minco --locked
+cargo check -p minco --all-features --locked
+cargo check -p cargo-minco --locked
+cargo test -p minco --no-default-features --locked
+cargo test -p minco --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-targets --all-features --locked
+scripts/test/generated_apps.sh
+cargo doc --workspace --all-features --no-deps --locked
+
+scripts/release/publish.sh
+```
+
+`publish.sh` is a dry run unless `--execute` is supplied. It uses Cargo's
+multi-package publishing support and selects only the crate family declared in
+`[workspace.metadata.minco.release]`.
+
+`scripts/test/generated_apps.sh` generates PostgreSQL and SQLite applications, patches them to the local crate family, and compiles/tests both complete workspaces.
+
+The dry run performs package normalization, extracts each package, and compiles
+what would be uploaded. Inspect packaged files and sizes as an additional review:
+
+```bash
+scripts/release/package-list.sh
+ls -lh target/package/*.crate
+```
+
+No release may use `--no-verify` or `--allow-dirty`.
+
+## First crates.io publication
+
+Crate names are first-come-first-served. Minco's names were checked against the
+crates.io index on **2026-07-24**, but this check is not a reservation. Recheck
+immediately before publication:
+
+```bash
+python3 scripts/validate_publish.py --expect-unpublished --require-registry
+```
+
+For the first release:
+
+1. Sign in to crates.io, verify the publisher account, and create a short-lived
+   API token with the minimum required scope.
+2. Authenticate without placing the token in the repository:
+
+   ```bash
+   cargo login
+   ```
+
+3. Run all required gates and the dry run.
+4. Create the release change and lightweight tag using JJ:
+
+   ```bash
+   jj describe -m 'release: Minco 0.1.0'
+   jj tag set v0.1.0 -r @
+   jj git export
+   git push origin refs/tags/v0.1.0
+   ```
+
+5. Publish the complete selected family:
+
+   ```bash
+   scripts/release/publish.sh --execute
+   ```
+
+Cargo multi-package publication is ordered but not atomic. If crates.io accepts
+some packages before a later upload fails, do not change or overwrite accepted
+versions. Diagnose the failure, verify the registry state, and publish only the
+remaining packages with explicit `--package` arguments.
+
+## Trusted publishing after the first release
+
+The first version of each new crate must be published manually. After ownership
+exists on crates.io, configure a trusted publisher for every Minco package:
+
+- repository: `xicv/minco`
+- workflow: `publish-crates.yml`
+- environment: `crates-io`
+
+The checked-in workflow uses GitHub OIDC to obtain a short-lived crates.io token;
+it does not require a long-lived crates.io secret. Protect the `crates-io`
+GitHub environment with required reviewers. Keep the workflow manual-only unless
+release policy is intentionally changed.
+
+The workflow refuses to publish unless:
+
+- the ref is exactly `refs/tags/v<workspace-version>`;
+- all static and Rust gates pass;
+- the publish dry run passes;
+- the operator explicitly selects `publish=true`.
+
+## Ownership and recovery
+
+After the first publish, add at least one trusted co-maintainer or a restricted
+GitHub team owner to every crate. Enable crates.io publication notifications.
+
+A published version is permanent. A broken release may be yanked, but it cannot
+be replaced. Correct the issue, increment the version, rerun every gate, and
+publish a new version.
+
+## Consumer installation
+
+Most applications should use the facade:
+
+```bash
+cargo add minco
+```
+
+Minimal core only:
+
+```bash
+cargo add minco --no-default-features
+```
+
+AWS Lambda with PostgreSQL, planning, release, and test support:
+
+```bash
+cargo add minco --features sqlx-postgres,aws-lambda,plan,release,test
+```
+
+Install the development control plane independently and generate a layered
+application:
+
+```bash
+cargo install cargo-minco --locked
+cargo minco new example-api --database postgres
+cd example-api
+cargo minco doctor
+```
+
+`cargo minco new` emits ordinary Rust/TOML/YAML source for the domain,
+application, adapter, API, composition, local runtime, Lambda runtime, OpenAPI,
+migrations, tests, roadmap, tasks, and quality gates. JJ with colocated Git is
+the default VCS profile.

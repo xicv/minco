@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "status": "ok",
+  "static_validation": {
+    "schema_version": 1,
+    "status": "ok",
+    "root": "/Users/xicao/Projects/minco-task-m8-t02",
+    "errors": 0,
+    "warnings": 0,
+    "metrics": {
+      "toml_files": 34,
+      "yaml_files": 6,
+      "json_files": 7,
+      "workspace_members": 19,
+      "contract_sha256": "61eeb26a3f1d80216f3e949c7e0da1f4f7c18d9dcaf01839fc943e51cf722350",
+      "contract_operations": 4,
+      "contract_schemas": 10,
+      "plugins": 6,
+      "milestones": 9,
+      "tasks": 18,
+      "rust_files": 47,
+      "python_files": 8,
+      "shell_files": 20,
+      "implementation_files_scanned": 115
+    },
+    "findings": [],
+    "limitations": [
+      "Static validation does not compile Rust or resolve crate APIs.",
+      "Run cargo fmt, cargo clippy, cargo test, Cargo Lambda and SAM validation on the pinned toolchain before release."
+    ]
+  },
+  "metrics": {
+    "rust_files": 47,
+    "rust_lines": 8739,
+    "unsafe_tokens": 1,
+    "production_unwrap_expect": 38,
+    "sql_files": 2
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "code": "REVIEW-RUST-001",
+      "path": "crates/minco-contract/src/generate.rs",
+      "message": "9 unwrap/expect calls before test code"
+    },
+    {
+      "severity": "warning",
+      "code": "REVIEW-RUST-001",
+      "path": "crates/minco-plan/src/sam.rs",
+      "message": "16 unwrap/expect calls before test code"
+    }
+  ],
+  "compiler_verification": {
+    "performed": false,
+    "reason": "set by the invoking environment; see VERIFICATION.md"
+  }
+}

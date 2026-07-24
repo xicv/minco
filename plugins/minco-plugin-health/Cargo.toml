@@ -1,0 +1,28 @@
+[package]
+name = "minco-plugin-health"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Health, readiness, and dependency-check plugin for Minco applications"
+documentation = "https://docs.rs/minco-plugin-health"
+readme = "README.md"
+keywords = ["minco", "health", "readiness", "plugin"]
+categories = ["web-programming"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+[dependencies]
+async-trait.workspace = true
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+tokio.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

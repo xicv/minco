@@ -1,0 +1,41 @@
+flowchart LR
+    NM0T01["M0-T01<br/>Establish Minco architecture constitution"]
+    NM0T02["M0-T02<br/>Make JJ the default development VCS"]
+    NM1T01["M1-T01<br/>Complete the orders contract-to-router vertical slice"]
+    NM1T02["M1-T02<br/>Verify the local SQLite HTTP journey"]
+    NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
+    NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
+    NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
+    NM3T02["M3-T02<br/>Verify SQLite idempotent order persistence"]
+    NM4T01["M4-T01<br/>Validate deployment plan and database cost profiles"]
+    NM4T02["M4-T02<br/>Exercise declared AWS seams through Rustack"]
+    NM4T03["M4-T03<br/>Verify the source-workspace update command"]
+    NM5T01["M5-T01<br/>Build deploy and verify the real AWS development stack"]
+    NM6T01["M6-T01<br/>Design and implement an explicit DynamoDB orders adapter"]
+    NM6T02["M6-T02<br/>Add identity storage queue and email plugins"]
+    NM7T01["M7-T01<br/>Validate Minco with GarmentIQ and CGSP slices"]
+    NM8T01["M8-T01<br/>Prepare the publishable Minco crate family"]
+    NM8T02["M8-T02<br/>Run compiler and crates.io package gates"]
+    NM8T03["M8-T03<br/>Publish Minco 0.1.0 and configure trusted publishing"]
+    NM0T01 --> NM0T02
+    NM0T01 --> NM1T01
+    NM1T01 --> NM1T02
+    NM3T02 --> NM1T02
+    NM0T01 --> NM2T01
+    NM2T01 --> NM2T02
+    NM1T01 --> NM3T01
+    NM1T01 --> NM3T02
+    NM2T01 --> NM4T01
+    NM3T01 --> NM4T01
+    NM4T01 --> NM4T02
+    NM0T02 --> NM4T03
+    NM1T02 --> NM5T01
+    NM3T01 --> NM5T01
+    NM4T01 --> NM5T01
+    NM4T01 --> NM6T01
+    NM5T01 --> NM6T01
+    NM5T01 --> NM6T02
+    NM6T02 --> NM7T01
+    NM0T01 --> NM8T01
+    NM8T01 --> NM8T02
+    NM8T02 --> NM8T03

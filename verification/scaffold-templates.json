@@ -1,0 +1,27 @@
+{
+  "status": "ok",
+  "profiles": [
+    {
+      "database": "postgres",
+      "toml_files": 11,
+      "yaml_files": 2,
+      "rust_files": 8,
+      "workspace_members": 5,
+      "operations": [
+        "getPlatform",
+        "healthLive"
+      ]
+    },
+    {
+      "database": "sqlite",
+      "toml_files": 11,
+      "yaml_files": 2,
+      "rust_files": 8,
+      "workspace_members": 5,
+      "operations": [
+        "getPlatform",
+        "healthLive"
+      ]
+    }
+  ]
+}

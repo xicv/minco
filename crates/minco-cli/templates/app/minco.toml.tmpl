@@ -1,0 +1,40 @@
+schema = 1
+name = "{{PACKAGE}}"
+contract = "openapi/openapi.yaml"
+generated = "crates/api/src/generated.rs"
+deployment_config = "environments/dev.toml"
+roadmap = "roadmap/roadmap.yaml"
+tasks = "tasks"
+plugin_catalog = "plugins/catalog.toml"
+quality = "quality.toml"
+
+[architecture]
+domain_roots = ["crates/domain"]
+application_roots = ["crates/application"]
+api_roots = ["crates/api"]
+
+[migrations]
+roots = ["{{MIGRATION_DIR}}"]
+
+[commands]
+database_migrate = "cargo run -p {{PACKAGE}}-service --bin {{PACKAGE}}-migrate"
+test_unit = ["cargo test --workspace --lib"]
+test_feature = ["cargo test -p {{PACKAGE}}-application -p {{PACKAGE}}-api"]
+test_e2e = []
+test_all = ["cargo test --workspace --all-targets"]
+
+[plugins]
+enabled = ["health", "observability", "idempotency"]
+disabled = []
+
+[operations.healthLive]
+handler = "crates/api/src/lib.rs#health_live"
+tests = ["crates/api/src/lib.rs#liveness_is_public_and_healthy"]
+
+[operations.getPlatform]
+handler = "crates/api/src/lib.rs#get_platform"
+application = "crates/application/src/lib.rs#GetPlatformInfo"
+tests = [
+  "crates/application/src/lib.rs#platform_info_is_derived_from_the_use_case",
+  "crates/api/src/lib.rs#platform_endpoint_uses_the_application_service",
+]

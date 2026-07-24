@@ -1,0 +1,66 @@
+[package]
+name = "minco"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Contract-first, AI-native, AWS-native Rust web framework with static plugins and deployment planning"
+documentation = "https://docs.rs/minco"
+readme = "README.md"
+keywords = ["web", "openapi", "aws", "serverless", "framework"]
+categories = ["web-programming::http-server", "development-tools", "api-bindings"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[features]
+default = ["contract", "http", "default-plugins"]
+contract = ["dep:minco-contract"]
+http = ["dep:minco-http"]
+plan = ["dep:minco-plan", "contract"]
+release = ["dep:minco-release"]
+test = ["dep:minco-test", "http"]
+plugin-health = ["dep:minco-plugin-health"]
+plugin-observability = ["dep:minco-plugin-observability"]
+plugin-idempotency = ["dep:minco-plugin-idempotency"]
+default-plugins = [
+  "plugin-health",
+  "plugin-observability",
+  "plugin-idempotency",
+]
+sqlx-postgres = ["dep:minco-sqlx-postgres"]
+sqlx-sqlite = ["dep:minco-sqlx-sqlite"]
+aws-lambda = ["dep:minco-aws-lambda", "http"]
+full = [
+  "contract",
+  "http",
+  "plan",
+  "release",
+  "test",
+  "default-plugins",
+  "sqlx-postgres",
+  "sqlx-sqlite",
+  "aws-lambda",
+]
+
+[dependencies]
+minco-core.workspace = true
+minco-contract = { workspace = true, optional = true }
+minco-http = { workspace = true, optional = true }
+minco-plan = { workspace = true, optional = true }
+minco-release = { workspace = true, optional = true }
+minco-test = { workspace = true, optional = true }
+minco-plugin-health = { workspace = true, optional = true }
+minco-plugin-observability = { workspace = true, optional = true }
+minco-plugin-idempotency = { workspace = true, optional = true }
+minco-sqlx-postgres = { workspace = true, optional = true }
+minco-sqlx-sqlite = { workspace = true, optional = true }
+minco-aws-lambda = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

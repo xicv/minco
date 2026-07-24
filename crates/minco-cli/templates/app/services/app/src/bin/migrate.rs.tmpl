@@ -1,0 +1,8 @@
+use std::{error::Error, path::Path};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    {{CRATE}}_adapters::migrate_from_env(Path::new("{{MIGRATION_DIR}}")).await?;
+    println!("applied {{MIGRATION_DIR}}");
+    Ok(())
+}

@@ -1,0 +1,244 @@
+openapi: 3.1.0
+info:
+  title: Minco Orders Reference API
+  version: 0.1.0
+  description: >-
+    Contract-first reference application demonstrating Minco's domain,
+    application, adapter, HTTP, local development, release, and AWS deployment path.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+tags:
+  - name: system
+    description: Process health and dependency readiness.
+  - name: orders
+    description: Idempotent order placement and retrieval.
+paths:
+  /health/live:
+    get:
+      operationId: getLive
+      summary: Check whether the API process is alive
+      tags: [system]
+      security: []
+      x-minco-auth: public
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivenessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /health/ready:
+    get:
+      operationId: getReady
+      summary: Check whether required dependencies are ready
+      tags: [system]
+      security: []
+      x-minco-auth: public
+      responses:
+        '200':
+          description: All required dependencies are ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: At least one required dependency is unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        default:
+          $ref: '#/components/responses/Problem'
+  /orders:
+    post:
+      operationId: placeOrder
+      summary: Place an order exactly once
+      tags: [orders]
+      x-minco-idempotent: true
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: Stable key for safe command retries.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceOrderRequest'
+      responses:
+        '201':
+          description: A new order was accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceOrderResponse'
+        '200':
+          description: The original order result was replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceOrderResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      summary: Retrieve one order
+      tags: [orders]
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Problem:
+      description: RFC 9457 problem response
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    DependencyHealth:
+      type: object
+      additionalProperties: false
+      required: [ready]
+      properties:
+        ready:
+          type: boolean
+        detail:
+          type: [string, 'null']
+    LivenessResponse:
+      type: object
+      additionalProperties: false
+      required: [live, service]
+      properties:
+        live:
+          type: boolean
+        service:
+          type: string
+    OrderLineResponse:
+      type: object
+      additionalProperties: false
+      required: [quantity, sku]
+      properties:
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000
+        sku:
+          type: string
+    OrderResponse:
+      type: object
+      additionalProperties: false
+      required: [createdAt, customerReference, id, lines, status]
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        customerReference:
+          type: string
+        id:
+          type: string
+          format: uuid
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLineResponse'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+    OrderStatus:
+      type: string
+      enum: [accepted]
+    PlaceOrderLineRequest:
+      type: object
+      additionalProperties: false
+      required: [quantity, sku]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        sku:
+          type: string
+          minLength: 1
+          maxLength: 80
+    PlaceOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [customerReference, lines]
+      properties:
+        customerReference:
+          type: string
+          minLength: 1
+          maxLength: 64
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PlaceOrderLineRequest'
+    PlaceOrderResponse:
+      type: object
+      additionalProperties: false
+      required: [order, replayed]
+      properties:
+        order:
+          $ref: '#/components/schemas/OrderResponse'
+        replayed:
+          type: boolean
+    ProblemDetails:
+      type: object
+      additionalProperties: false
+      required: [code, detail, requestId, status, title, type]
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+        errors:
+          type: [object, 'null']
+        requestId:
+          type: string
+        status:
+          type: integer
+          format: int32
+        title:
+          type: string
+        type:
+          type: string
+    ReadinessResponse:
+      type: object
+      additionalProperties: false
+      required: [dependencies, ready]
+      properties:
+        dependencies:
+          type: object
+        ready:
+          type: boolean

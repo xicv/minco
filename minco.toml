@@ -1,0 +1,65 @@
+schema = 1
+name = "minco-framework"
+contract = "examples/orders/openapi/openapi.yaml"
+generated = "examples/orders/api/src/generated.rs"
+deployment_config = "examples/orders/config/minco.dev.toml"
+roadmap = "roadmap/roadmap.yaml"
+tasks = "tasks"
+plugin_catalog = "plugins/catalog.toml"
+quality = "quality.toml"
+
+[architecture]
+domain_roots = ["examples/orders/domain"]
+application_roots = ["examples/orders/application"]
+api_roots = ["examples/orders/api"]
+
+[plugins]
+enabled = ["health", "observability", "idempotency"]
+disabled = []
+
+[database]
+default_profile = "neon"
+
+[cost_policy]
+deny_fixed_compute = true
+deny_nat_gateway = true
+deny_provisioned_concurrency = true
+deny_scheduled_wakeups = true
+max_reserved_concurrency = 5
+max_database_connections = 20
+
+[migrations]
+roots = [
+  "examples/orders/migrations/postgres",
+  "examples/orders/migrations/sqlite",
+]
+
+[commands]
+database_migrate = "cargo run -p orders-service --bin orders-migrate --features all-runtimes"
+test_unit = ["cargo test --workspace --lib --all-features"]
+test_feature = ["cargo test -p orders-api -p orders-application -p orders-adapters --all-features"]
+test_e2e = ["scripts/test/e2e.sh"]
+test_all = [
+  "cargo test --workspace --all-targets --all-features",
+  "scripts/test/e2e.sh",
+]
+
+[operations.healthLive]
+handler = "examples/orders/api/src/lib.rs#health_live"
+tests = ["examples/orders/api/src/lib.rs#live_is_public"]
+
+[operations.healthReady]
+handler = "examples/orders/api/src/lib.rs#health_ready"
+tests = ["examples/orders/api/src/lib.rs#ready_reports_dependencies"]
+
+[operations.placeOrder]
+handler = "examples/orders/api/src/lib.rs#place_order"
+application = "examples/orders/application/src/lib.rs#PlaceOrder"
+adapters = ["memory", "postgres", "sqlite"]
+tests = ["examples/orders/application/src/lib.rs#place_order", "examples/orders/api/src/lib.rs#place_order"]
+
+[operations.getOrder]
+handler = "examples/orders/api/src/lib.rs#get_order"
+application = "examples/orders/application/src/lib.rs#GetOrder"
+adapters = ["memory", "postgres", "sqlite"]
+tests = ["examples/orders/application/src/lib.rs#get_order", "examples/orders/api/src/lib.rs#get_order"]
