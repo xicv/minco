@@ -23,7 +23,7 @@ use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract}
 use minco_core::{ApplicationGraph, PluginId, PluginSelection};
 use minco_plan::{
     DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
-    estimate_database_cost, render_sam,
+    estimate_database_cost, render_sam_with_code_uri,
 };
 use minco_release::{FileDigest, ReleaseManifest};
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
@@ -215,6 +215,8 @@ enum ReleaseCommand {
         artifact: PathBuf,
         #[arg(long, default_value = "infra/aws/generated/plan.json")]
         plan: PathBuf,
+        #[arg(long, default_value = "infra/aws/generated/template.yaml")]
+        template: PathBuf,
         #[arg(long, default_value = "target/minco/release.json")]
         output: PathBuf,
     },
@@ -535,8 +537,14 @@ fn deploy(
         DeployCommand::RenderSam { input, output } => {
             let plan = load_plan(root, manifest, input.config)?;
             ensure_plan_valid(&plan)?;
-            let template = render_sam(&plan)?;
             let output = root.join(output);
+            let function = plan
+                .functions
+                .first()
+                .context("deployment plan has no function artifact")?;
+            let code_uri = template_relative_path(root, &output, &function.artifact_path)?;
+            let template =
+                render_sam_with_code_uri(&plan, Some(code_uri.to_string_lossy().as_ref()))?;
             ensure_parent(&output)?;
             fs::write(&output, template)?;
             print_value(
@@ -545,6 +553,45 @@ fn deploy(
             )
         }
     }
+}
+
+fn template_relative_path(root: &Path, template: &Path, artifact: &str) -> Result<PathBuf> {
+    let template_parent = template
+        .parent()
+        .context("deployment template output has no parent directory")?;
+    let template_parent = template_parent
+        .strip_prefix(root)
+        .context("deployment template output must be inside the repository")?;
+    let artifact = Path::new(artifact);
+    let artifact = if artifact.is_absolute() {
+        artifact
+            .strip_prefix(root)
+            .context("deployment artifact must be inside the repository")?
+    } else {
+        artifact
+    };
+    let valid_relative = |path: &Path| {
+        path.components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    };
+    if !valid_relative(template_parent) || !valid_relative(artifact) {
+        bail!("deployment paths must be normalized repository descendants");
+    }
+    let template_components = template_parent.components().collect::<Vec<_>>();
+    let artifact_components = artifact.components().collect::<Vec<_>>();
+    let common = template_components
+        .iter()
+        .zip(&artifact_components)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut relative = PathBuf::new();
+    for _ in common..template_components.len() {
+        relative.push("..");
+    }
+    for component in &artifact_components[common..] {
+        relative.push(component.as_os_str());
+    }
+    Ok(relative)
 }
 
 fn cost(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) -> Result<()> {
@@ -809,15 +856,20 @@ fn release_command(
         ReleaseCommand::Create {
             artifact,
             plan,
+            template,
             output,
         } => {
             let artifact = root.join(artifact);
             let plan = root.join(plan);
+            let template = root.join(template);
             if !artifact.is_file() {
                 bail!("release artifact {} does not exist", artifact.display());
             }
             if !plan.is_file() {
                 bail!("deployment plan {} does not exist", plan.display());
+            }
+            if !template.is_file() {
+                bail!("deployment template {} does not exist", template.display());
             }
             let source_change = vcs::source_change(root)?;
             let short_change = source_change.chars().take(12).collect::<String>();
@@ -845,24 +897,25 @@ fn release_command(
             migration_paths.dedup();
             let migrations = migration_paths
                 .into_iter()
-                .map(FileDigest::from_path)
+                .map(|path| FileDigest::from_rooted_path(root, path))
                 .collect::<Result<Vec<_>, _>>()?;
             let release = ReleaseManifest {
-                schema_version: 1,
+                schema_version: 2,
                 release_id,
                 created_at: Utc::now(),
                 source_change,
                 rust_version,
                 minco_version: env!("CARGO_PKG_VERSION").into(),
-                artifact: FileDigest::from_path(&artifact)?,
-                contract: FileDigest::from_path(root.join(&manifest.contract))?,
+                artifact: FileDigest::from_rooted_path(root, &artifact)?,
+                contract: FileDigest::from_rooted_path(root, root.join(&manifest.contract))?,
                 migration_set: migrations,
                 cargo_lock: root
                     .join("Cargo.lock")
                     .is_file()
-                    .then(|| FileDigest::from_path(root.join("Cargo.lock")))
+                    .then(|| FileDigest::from_rooted_path(root, root.join("Cargo.lock")))
                     .transpose()?,
-                deployment_plan: FileDigest::from_path(&plan)?,
+                deployment_plan: FileDigest::from_rooted_path(root, &plan)?,
+                deployment_template: FileDigest::from_rooted_path(root, &template)?,
             };
             let output = root.join(output);
             ensure_parent(&output)?;
@@ -871,7 +924,7 @@ fn release_command(
         }
         ReleaseCommand::Verify { manifest } => {
             let release = ReleaseManifest::read_json(root.join(manifest))?;
-            release.verify()?;
+            release.verify_at(root)?;
             print_value(
                 &json!({"verified": true, "release_id": release.release_id}),
                 as_json,
@@ -1069,6 +1122,27 @@ mod cli_argument_tests {
         assert_eq!(
             values,
             vec![OsString::from("cargo-minco"), OsString::from("doctor")]
+        );
+    }
+
+    #[test]
+    fn sam_artifact_path_is_relative_to_the_template() {
+        let root = Path::new("/repo");
+        let template = root.join("infra/aws/generated/template.yaml");
+        let relative =
+            template_relative_path(root, &template, "target/lambda/orders-lambda/bootstrap.zip")
+                .expect("relative path");
+        assert_eq!(
+            relative,
+            PathBuf::from("../../../target/lambda/orders-lambda/bootstrap.zip")
+        );
+        assert!(
+            template_relative_path(
+                root,
+                &PathBuf::from("/outside/template.yaml"),
+                "target/lambda/orders-lambda/bootstrap.zip",
+            )
+            .is_err()
         );
     }
 

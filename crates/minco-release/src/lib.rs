@@ -51,6 +51,52 @@ impl FileDigest {
         }
         Ok(())
     }
+
+    pub fn from_rooted_path(
+        root: impl AsRef<Path>,
+        path: impl AsRef<Path>,
+    ) -> Result<Self, ReleaseError> {
+        let root = root.as_ref().canonicalize()?;
+        let path = path.as_ref().canonicalize()?;
+        let relative = path
+            .strip_prefix(&root)
+            .map_err(|_| ReleaseError::PathOutsideRoot(path.display().to_string()))?;
+        let mut digest = Self::from_path(&path)?;
+        digest.path = relative
+            .iter()
+            .map(|component| {
+                component
+                    .to_str()
+                    .ok_or_else(|| ReleaseError::NonUtf8Path(path.display().to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .join("/");
+        Ok(digest)
+    }
+
+    pub fn verify_at(&self, root: impl AsRef<Path>) -> Result<(), ReleaseError> {
+        let root = root.as_ref().canonicalize()?;
+        let path = Path::new(&self.path);
+        if path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            return Err(ReleaseError::InvalidManifestPath(self.path.clone()));
+        }
+        let path = root.join(path).canonicalize()?;
+        path.strip_prefix(&root)
+            .map_err(|_| ReleaseError::PathOutsideRoot(path.display().to_string()))?;
+        let actual = Self::from_path(path)?;
+        if actual.sha256 != self.sha256 || actual.bytes != self.bytes {
+            return Err(ReleaseError::DigestMismatch {
+                path: self.path.clone(),
+                expected: self.sha256.clone(),
+                actual: actual.sha256,
+            });
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,18 +112,28 @@ pub struct ReleaseManifest {
     pub migration_set: Vec<FileDigest>,
     pub cargo_lock: Option<FileDigest>,
     pub deployment_plan: FileDigest,
+    pub deployment_template: FileDigest,
 }
 
 impl ReleaseManifest {
     pub fn verify(&self) -> Result<(), ReleaseError> {
-        self.artifact.verify()?;
-        self.contract.verify()?;
-        self.deployment_plan.verify()?;
+        self.verify_at(".")
+    }
+
+    pub fn verify_at(&self, root: impl AsRef<Path>) -> Result<(), ReleaseError> {
+        if self.schema_version != 2 {
+            return Err(ReleaseError::UnsupportedSchemaVersion(self.schema_version));
+        }
+        let root = root.as_ref();
+        self.artifact.verify_at(root)?;
+        self.contract.verify_at(root)?;
+        self.deployment_plan.verify_at(root)?;
+        self.deployment_template.verify_at(root)?;
         if let Some(lock) = &self.cargo_lock {
-            lock.verify()?;
+            lock.verify_at(root)?;
         }
         for migration in &self.migration_set {
-            migration.verify()?;
+            migration.verify_at(root)?;
         }
         Ok(())
     }
@@ -98,6 +154,14 @@ pub enum ReleaseError {
     Io(#[from] io::Error),
     #[error("release JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("release input is outside the repository root: {0}")]
+    PathOutsideRoot(String),
+    #[error("release manifest path must be a normalized repository-relative UTF-8 path: {0}")]
+    InvalidManifestPath(String),
+    #[error("release input path is not valid UTF-8: {0}")]
+    NonUtf8Path(String),
+    #[error("unsupported release manifest schema version {0}; expected 2")]
+    UnsupportedSchemaVersion(u32),
     #[error("digest mismatch for {path}: expected {expected}, found {actual}")]
     DigestMismatch {
         path: String,
@@ -116,12 +180,49 @@ mod tests {
         std::fs::create_dir_all(&directory).unwrap();
         let path = directory.join("artifact");
         std::fs::write(&path, b"one").unwrap();
-        let digest = FileDigest::from_path(&path).unwrap();
+        let digest = FileDigest::from_rooted_path(&directory, &path).unwrap();
         std::fs::write(&path, b"two").unwrap();
         assert!(matches!(
-            digest.verify(),
+            digest.verify_at(&directory),
             Err(ReleaseError::DigestMismatch { .. })
         ));
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn rooted_digests_are_portable_and_verify_from_the_repository_root() {
+        let directory =
+            std::env::temp_dir().join(format!("minco-release-root-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(directory.join("target")).unwrap();
+        let path = directory.join("target/artifact.zip");
+        std::fs::write(&path, b"artifact").unwrap();
+
+        let digest = FileDigest::from_rooted_path(&directory, &path).unwrap();
+        assert_eq!(digest.path, "target/artifact.zip");
+        digest.verify_at(&directory).unwrap();
+
+        let outside = std::env::temp_dir().join(format!("minco-outside-{}", uuid::Uuid::new_v4()));
+        std::fs::write(&outside, b"outside").unwrap();
+        assert!(matches!(
+            FileDigest::from_rooted_path(&directory, &outside),
+            Err(ReleaseError::PathOutsideRoot(_))
+        ));
+        let outside_digest = FileDigest::from_path(&outside).unwrap();
+        assert!(matches!(
+            outside_digest.verify_at(&directory),
+            Err(ReleaseError::InvalidManifestPath(_))
+        ));
+        let parent_digest = FileDigest {
+            path: "../artifact.zip".into(),
+            sha256: digest.sha256.clone(),
+            bytes: digest.bytes,
+        };
+        assert!(matches!(
+            parent_digest.verify_at(&directory),
+            Err(ReleaseError::InvalidManifestPath(_))
+        ));
+
+        let _ = std::fs::remove_file(outside);
         let _ = std::fs::remove_dir_all(directory);
     }
 }

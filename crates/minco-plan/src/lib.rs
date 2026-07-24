@@ -11,4 +11,4 @@ pub use model::{
     IngressPlan, NeonPlan, PerformancePolicy, PlanDiagnostic, PlanError, RoutePlan, RuntimePlan,
     Severity,
 };
-pub use sam::render_sam;
+pub use sam::{render_sam, render_sam_with_code_uri};

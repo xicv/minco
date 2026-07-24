@@ -6,6 +6,7 @@ A Minco release manifest includes:
 - Lambda ZIP path, size, and SHA-256;
 - OpenAPI path, size, and SHA-256;
 - deployment Plan IR path, size, and SHA-256;
+- rendered deployment template path, size, and SHA-256;
 - Cargo.lock path, size, and SHA-256;
 - ordered migration files and migration-set digest;
 - Rust and Minco toolchain versions.
@@ -15,12 +16,14 @@ Create and verify:
 ```bash
 cargo minco release create \
   --artifact target/lambda/orders-lambda/bootstrap.zip \
-  --deployment-plan infra/aws/generated/plan.json \
-  --migrations examples/orders/migrations/postgres \
+  --plan infra/aws/generated/plan.json \
+  --template infra/aws/generated/template.yaml \
   --output target/minco/release.json
 
 cargo minco release verify target/minco/release.json
 ```
 
-Promotion selects a verified release manifest and deploys the same artifact. It never
-recompiles source in staging or production.
+The manifest stores repository-relative paths, so a clean checkout can verify
+the same release without retaining the builder's absolute filesystem paths.
+Promotion selects a verified manifest and deploys its exact ZIP and rendered
+template. It never replans or recompiles source in staging or production.

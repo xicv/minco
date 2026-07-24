@@ -4,7 +4,39 @@ Description: 'Minco deployment for minco-orders (dev)'
 Parameters:
   DatabaseUrlParameterName:
     Type: String
+    AllowedPattern: '^/[A-Za-z0-9_.\-/]+$'
     Description: Existing SSM SecureString containing the pooled runtime PostgreSQL URL.
+  DatabaseUrlKmsKeyArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'
+    Description: Customer-managed KMS key ARN for the database parameter; leave empty only when the AWS-managed aws/ssm key is used.
+  LambdaSubnetIds:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^subnet-[a-z0-9]+(,subnet-[a-z0-9]+)*$'
+    Description: Optional comma-separated private subnet IDs for an externally provisioned VPC database profile.
+  LambdaSecurityGroupIds:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^sg-[a-z0-9]+(,sg-[a-z0-9]+)*$'
+    Description: Optional comma-separated security group IDs paired with LambdaSubnetIds.
+Rules:
+  VpcParametersArePaired:
+    Assertions:
+      - Assert: !Or
+          - !And
+            - !Equals [!Ref LambdaSubnetIds, '']
+            - !Equals [!Ref LambdaSecurityGroupIds, '']
+          - !And
+            - !Not [!Equals [!Ref LambdaSubnetIds, '']]
+            - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]
+        AssertDescription: LambdaSubnetIds and LambdaSecurityGroupIds must be set together.
+Conditions:
+  UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]
+  UsesVpc: !And
+    - !Not [!Equals [!Ref LambdaSubnetIds, '']]
+    - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]
 Resources:
   HttpApi:
     Type: AWS::Serverless::HttpApi
@@ -28,13 +60,18 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: 'minco-orders-dev-api'
-      CodeUri: 'target/lambda/orders-lambda/bootstrap.zip'
+      CodeUri: '../../../target/lambda/orders-lambda/bootstrap.zip'
       Handler: bootstrap
       Runtime: provided.al2023
       Architectures: [arm64]
       MemorySize: 512
       Timeout: 15
       ReservedConcurrentExecutions: 2
+      VpcConfig: !If
+        - UsesVpc
+        - SubnetIds: !Split [',', !Ref LambdaSubnetIds]
+          SecurityGroupIds: !Split [',', !Ref LambdaSecurityGroupIds]
+        - !Ref AWS::NoValue
       Environment:
         Variables:
           APP_ENV: 'dev'
@@ -48,12 +85,28 @@ Resources:
             - Effect: Allow
               Action: [ssm:GetParameter]
               Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'
-            - Effect: Allow
-              Action: [kms:Decrypt]
-              Resource: '*'
-              Condition:
-                StringEquals:
-                  kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+            - !If
+              - UsesCustomerManagedDatabaseKey
+              - Effect: Allow
+                Action: [kms:Decrypt]
+                Resource: !Ref DatabaseUrlKmsKeyArn
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'
+              - !Ref AWS::NoValue
+            - !If
+              - UsesVpc
+              - Effect: Allow
+                Action:
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSubnets
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: '*'
+              - !Ref AWS::NoValue
       Events:
         GetLiveEvent:
           Type: HttpApi
