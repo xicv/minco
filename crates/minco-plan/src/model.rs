@@ -231,18 +231,40 @@ impl DeploymentPlan {
                 "DynamoDB is an alternate persistence model, not a transparent replacement for relational PostgreSQL adapters",
             ));
         }
+        for field in self.database.invalid_numeric_inputs() {
+            diagnostics.push(error(
+                "MINCO-COST-008",
+                &format!("{field} has an invalid numeric value for its cost profile"),
+            ));
+        }
         if let DatabaseDeployment::AuroraServerlessV2 {
             minimum_acu,
             auto_pause_seconds,
             ..
         } = &self.database
-            && *minimum_acu == 0.0
-            && auto_pause_seconds.is_none()
         {
-            diagnostics.push(warning(
-                "MINCO-DB-003",
-                "Aurora minimum ACU is zero but no auto-pause interval is recorded",
-            ));
+            if *minimum_acu == 0.0 && auto_pause_seconds.is_none() {
+                diagnostics.push(warning(
+                    "MINCO-DB-003",
+                    "Aurora minimum ACU is zero but no auto-pause interval is recorded",
+                ));
+            }
+            if auto_pause_seconds
+                .is_some_and(|seconds| !(300..=86_400).contains(&seconds) || *minimum_acu != 0.0)
+            {
+                diagnostics.push(error(
+                    "MINCO-DB-004",
+                    "Aurora auto-pause must be 300 to 86400 seconds and requires minimum_acu = 0",
+                ));
+            }
+            if minimum_acu.is_finite()
+                && (*minimum_acu > 256.0 || (*minimum_acu * 2.0).fract() != 0.0)
+            {
+                diagnostics.push(error(
+                    "MINCO-DB-005",
+                    "Aurora minimum_acu must use 0.5 ACU increments and not exceed 256",
+                ));
+            }
         }
         diagnostics
     }
@@ -357,6 +379,150 @@ impl DatabaseDeployment {
     #[must_use]
     pub const fn is_relational(&self) -> bool {
         !matches!(self, Self::DynamoDbOnDemand { .. })
+    }
+
+    pub(crate) fn invalid_numeric_inputs(&self) -> Vec<&'static str> {
+        let mut invalid = Vec::new();
+        match self {
+            Self::NeonPostgres {
+                compute_unit_hours,
+                storage_gb_month,
+                history_storage_gb_month,
+                ..
+            } => {
+                check_non_negative(&mut invalid, "compute_unit_hours", *compute_unit_hours);
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_non_negative(
+                    &mut invalid,
+                    "history_storage_gb_month",
+                    *history_storage_gb_month,
+                );
+            }
+            Self::SelfHostedPostgres {
+                host_monthly_usd,
+                storage_gb_month,
+                storage_rate_usd,
+                backup_gb_month,
+                backup_rate_usd,
+                operations_monthly_usd,
+            } => {
+                check_non_negative(&mut invalid, "host_monthly_usd", *host_monthly_usd);
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+                check_non_negative(&mut invalid, "backup_gb_month", *backup_gb_month);
+                check_non_negative(&mut invalid, "backup_rate_usd", *backup_rate_usd);
+                check_non_negative(
+                    &mut invalid,
+                    "operations_monthly_usd",
+                    *operations_monthly_usd,
+                );
+            }
+            Self::RdsPostgres {
+                instance_hours,
+                instance_hour_rate_usd,
+                storage_gb_month,
+                storage_rate_usd,
+                backup_gb_month,
+                backup_rate_usd,
+                multi_az_multiplier,
+            } => {
+                check_non_negative(&mut invalid, "instance_hours", *instance_hours);
+                check_optional_non_negative(
+                    &mut invalid,
+                    "instance_hour_rate_usd",
+                    *instance_hour_rate_usd,
+                );
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+                check_non_negative(&mut invalid, "backup_gb_month", *backup_gb_month);
+                check_optional_non_negative(&mut invalid, "backup_rate_usd", *backup_rate_usd);
+                if !multi_az_multiplier.is_finite() || *multi_az_multiplier < 1.0 {
+                    invalid.push("multi_az_multiplier");
+                }
+            }
+            Self::AuroraServerlessV2 {
+                minimum_acu,
+                acu_hours,
+                acu_hour_rate_usd,
+                storage_gb_month,
+                storage_rate_usd,
+                io_million,
+                io_million_rate_usd,
+                ..
+            } => {
+                check_non_negative(&mut invalid, "minimum_acu", *minimum_acu);
+                check_non_negative(&mut invalid, "acu_hours", *acu_hours);
+                check_optional_non_negative(&mut invalid, "acu_hour_rate_usd", *acu_hour_rate_usd);
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+                check_non_negative(&mut invalid, "io_million", *io_million);
+                check_optional_non_negative(
+                    &mut invalid,
+                    "io_million_rate_usd",
+                    *io_million_rate_usd,
+                );
+            }
+            Self::DynamoDbOnDemand {
+                read_request_units_million,
+                read_million_rate_usd,
+                write_request_units_million,
+                write_million_rate_usd,
+                storage_gb_month,
+                storage_rate_usd,
+            } => {
+                check_non_negative(
+                    &mut invalid,
+                    "read_request_units_million",
+                    *read_request_units_million,
+                );
+                check_optional_non_negative(
+                    &mut invalid,
+                    "read_million_rate_usd",
+                    *read_million_rate_usd,
+                );
+                check_non_negative(
+                    &mut invalid,
+                    "write_request_units_million",
+                    *write_request_units_million,
+                );
+                check_optional_non_negative(
+                    &mut invalid,
+                    "write_million_rate_usd",
+                    *write_million_rate_usd,
+                );
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+            }
+            Self::SqlitePersistentHost {
+                host_monthly_usd,
+                backup_monthly_usd,
+            } => {
+                check_non_negative(&mut invalid, "host_monthly_usd", *host_monthly_usd);
+                check_non_negative(&mut invalid, "backup_monthly_usd", *backup_monthly_usd);
+            }
+            Self::SqliteLambdaMutable {
+                expected_storage_gb,
+            } => {
+                check_non_negative(&mut invalid, "expected_storage_gb", *expected_storage_gb);
+            }
+        }
+        invalid
+    }
+}
+
+fn check_non_negative(invalid: &mut Vec<&'static str>, field: &'static str, value: f64) {
+    if !value.is_finite() || value < 0.0 {
+        invalid.push(field);
+    }
+}
+
+fn check_optional_non_negative(
+    invalid: &mut Vec<&'static str>,
+    field: &'static str,
+    value: Option<f64>,
+) {
+    if value.is_some_and(|value| !value.is_finite() || value < 0.0) {
+        invalid.push(field);
     }
 }
 
@@ -561,6 +727,84 @@ mod tests {
             plan.validate()
                 .iter()
                 .any(|diagnostic| diagnostic.code == "MINCO-COST-007")
+        );
+    }
+
+    #[test]
+    fn negative_cost_inputs_are_rejected() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let plan = config(DatabaseDeployment::SelfHostedPostgres {
+            host_monthly_usd: -1.0,
+            storage_gb_month: 20.0,
+            storage_rate_usd: 0.08,
+            backup_gb_month: 20.0,
+            backup_rate_usd: 0.05,
+            operations_monthly_usd: 50.0,
+        })
+        .into_plan(&contract);
+
+        assert!(
+            plan.validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-COST-008")
+        );
+    }
+
+    #[test]
+    fn aurora_auto_pause_interval_must_match_zero_capacity() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let invalid_timeout = config(DatabaseDeployment::AuroraServerlessV2 {
+            minimum_acu: 0.0,
+            auto_pause_seconds: Some(299),
+            acu_hours: 1.0,
+            acu_hour_rate_usd: Some(0.1),
+            storage_gb_month: 1.0,
+            storage_rate_usd: Some(0.1),
+            io_million: 1.0,
+            io_million_rate_usd: Some(0.1),
+        })
+        .into_plan(&contract);
+        let nonzero_minimum = config(DatabaseDeployment::AuroraServerlessV2 {
+            minimum_acu: 0.5,
+            auto_pause_seconds: Some(300),
+            acu_hours: 1.0,
+            acu_hour_rate_usd: Some(0.1),
+            storage_gb_month: 1.0,
+            storage_rate_usd: Some(0.1),
+            io_million: 1.0,
+            io_million_rate_usd: Some(0.1),
+        })
+        .into_plan(&contract);
+
+        assert!(
+            invalid_timeout
+                .validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-DB-004")
+        );
+        assert!(
+            nonzero_minimum
+                .validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-DB-004")
         );
     }
 }

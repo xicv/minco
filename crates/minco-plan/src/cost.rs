@@ -1,6 +1,13 @@
 use crate::{DatabaseDeployment, NeonPlan};
 use serde::{Deserialize, Serialize};
 
+const NEON_PRICING_CAPTURED_AT: &str = "2026-07-24";
+const NEON_PRICING_SOURCE: &str = "https://neon.com/pricing";
+const NEON_LAUNCH_COMPUTE_UNIT_HOUR_USD: f64 = 0.106;
+const NEON_SCALE_COMPUTE_UNIT_HOUR_USD: f64 = 0.222;
+const NEON_STORAGE_GB_MONTH_USD: f64 = 0.35;
+const NEON_HISTORY_STORAGE_GB_MONTH_USD: f64 = 0.20;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CostComponent {
     pub name: String,
@@ -19,6 +26,20 @@ pub struct DatabaseCostEstimate {
 }
 
 pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEstimate {
+    let invalid_inputs = database.invalid_numeric_inputs();
+    if !invalid_inputs.is_empty() {
+        return DatabaseCostEstimate {
+            provider: database.kind_name().into(),
+            complete: false,
+            monthly_usd: None,
+            components: Vec::new(),
+            missing_rates: Vec::new(),
+            notes: vec![format!(
+                "Invalid numeric inputs must be corrected before estimation: {}.",
+                invalid_inputs.join(", ")
+            )],
+        };
+    }
     match database {
         DatabaseDeployment::NeonPostgres {
             plan,
@@ -208,8 +229,9 @@ fn estimate_neon(plan: NeonPlan, compute: f64, storage: f64, history: f64) -> Da
             Vec::new(),
             vec![
                 "Within the published per-project Free plan allowance supplied by the \
-                 configuration date."
+                 pricing snapshot."
                     .into(),
+                neon_snapshot_note(),
             ],
         ),
         NeonPlan::Free => DatabaseCostEstimate {
@@ -224,6 +246,7 @@ fn estimate_neon(plan: NeonPlan, compute: f64, storage: f64, history: f64) -> Da
                 "Free-plan overage is not extrapolated because plan transitions and \
                  allowances are product policy, not a linear usage rate."
                     .into(),
+                neon_snapshot_note(),
             ],
         },
         NeonPlan::Launch => complete(
@@ -231,52 +254,50 @@ fn estimate_neon(plan: NeonPlan, compute: f64, storage: f64, history: f64) -> Da
             vec![
                 component(
                     "compute",
-                    compute * 0.106,
-                    &format!("{compute} CU-hours × $0.106"),
+                    compute * NEON_LAUNCH_COMPUTE_UNIT_HOUR_USD,
+                    &format!("{compute} CU-hours × ${NEON_LAUNCH_COMPUTE_UNIT_HOUR_USD}"),
                 ),
                 component(
                     "storage",
-                    storage * 0.35,
-                    &format!("{storage} GB-month × $0.35"),
+                    storage * NEON_STORAGE_GB_MONTH_USD,
+                    &format!("{storage} GB-month × ${NEON_STORAGE_GB_MONTH_USD}"),
                 ),
                 component(
                     "history_storage",
-                    history * 0.20,
-                    &format!("{history} GB-month × $0.20"),
+                    history * NEON_HISTORY_STORAGE_GB_MONTH_USD,
+                    &format!("{history} GB-month × ${NEON_HISTORY_STORAGE_GB_MONTH_USD}"),
                 ),
             ],
-            vec![
-                "Rates are the published Neon Launch rates captured in \
-                 docs/research/sources.md; review and refresh the dated rate catalog before financial approval."
-                    .into(),
-            ],
+            vec![neon_snapshot_note()],
         ),
         NeonPlan::Scale => complete(
             "neon_scale",
             vec![
                 component(
                     "compute",
-                    compute * 0.222,
-                    &format!("{compute} CU-hours × $0.222"),
+                    compute * NEON_SCALE_COMPUTE_UNIT_HOUR_USD,
+                    &format!("{compute} CU-hours × ${NEON_SCALE_COMPUTE_UNIT_HOUR_USD}"),
                 ),
                 component(
                     "storage",
-                    storage * 0.35,
-                    &format!("{storage} GB-month × $0.35"),
+                    storage * NEON_STORAGE_GB_MONTH_USD,
+                    &format!("{storage} GB-month × ${NEON_STORAGE_GB_MONTH_USD}"),
                 ),
                 component(
                     "history_storage",
-                    history * 0.20,
-                    &format!("{history} GB-month × $0.20"),
+                    history * NEON_HISTORY_STORAGE_GB_MONTH_USD,
+                    &format!("{history} GB-month × ${NEON_HISTORY_STORAGE_GB_MONTH_USD}"),
                 ),
             ],
-            vec![
-                "Rates are the published Neon Scale rates captured in \
-                 docs/research/sources.md; review and refresh the dated rate catalog before financial approval."
-                    .into(),
-            ],
+            vec![neon_snapshot_note()],
         ),
     }
+}
+
+fn neon_snapshot_note() -> String {
+    format!(
+        "Neon rates captured on {NEON_PRICING_CAPTURED_AT} from {NEON_PRICING_SOURCE}; refresh the dated catalog before financial approval."
+    )
 }
 
 fn with_optional_rates(
@@ -322,8 +343,7 @@ fn complete(
     let monthly_usd = Some(
         components
             .iter()
-            .map(|component| component.monthly_usd)
-            .sum(),
+            .fold(0.0, |total, component| total + component.monthly_usd),
     );
     DatabaseCostEstimate {
         provider: provider.into(),
@@ -360,6 +380,26 @@ mod tests {
     }
 
     #[test]
+    fn neon_free_zero_cost_is_canonical_and_dated() {
+        let estimate = estimate_database_cost(&DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 20.0,
+            storage_gb_month: 0.25,
+            history_storage_gb_month: 0.0,
+        });
+
+        let monthly_usd = estimate.monthly_usd.expect("complete estimate");
+        assert!(monthly_usd.abs() < f64::EPSILON);
+        assert!(monthly_usd.is_sign_positive());
+        assert!(
+            estimate
+                .notes
+                .iter()
+                .any(|note| note.contains(NEON_PRICING_CAPTURED_AT))
+        );
+    }
+
+    #[test]
     fn regional_aws_rate_omissions_are_visible() {
         let estimate = estimate_database_cost(&DatabaseDeployment::DynamoDbOnDemand {
             read_request_units_million: 1.0,
@@ -371,5 +411,20 @@ mod tests {
         });
         assert!(!estimate.complete);
         assert_eq!(estimate.missing_rates.len(), 3);
+    }
+
+    #[test]
+    fn invalid_numeric_inputs_never_produce_a_complete_estimate() {
+        let estimate = estimate_database_cost(&DatabaseDeployment::SelfHostedPostgres {
+            host_monthly_usd: -1.0,
+            storage_gb_month: 20.0,
+            storage_rate_usd: 0.08,
+            backup_gb_month: 20.0,
+            backup_rate_usd: 0.05,
+            operations_monthly_usd: 50.0,
+        });
+
+        assert!(!estimate.complete);
+        assert_eq!(estimate.monthly_usd, None);
     }
 }
