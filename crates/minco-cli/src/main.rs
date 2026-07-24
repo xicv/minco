@@ -229,11 +229,11 @@ enum UpdateCommand {
     Apply {
         #[arg(long)]
         yes: bool,
-        #[arg(long, default_value_t = true)]
+        #[arg(long)]
         toolchain: bool,
-        #[arg(long, default_value_t = true)]
+        #[arg(long)]
         dependencies: bool,
-        #[arg(long, default_value_t = true)]
+        #[arg(long)]
         run_checks: bool,
     },
 }
