@@ -22,7 +22,8 @@ impl SqliteOrderStore {
     }
 
     pub async fn migrate(&self, path: impl AsRef<Path>) -> Result<(), SqliteError> {
-        minco_sqlx_sqlite::migrate(&self.pool, path).await
+        minco_sqlx_sqlite::migrate_with_history_table(&self.pool, path, "_minco_orders_migrations")
+            .await
     }
 
     #[must_use]

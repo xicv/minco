@@ -2190,6 +2190,7 @@ dependencies = [
  "serde",
  "sqlx",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
