@@ -13,4 +13,5 @@ cargo test -p minco --no-default-features --locked
 cargo test -p minco --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-targets --all-features --locked
+cargo rustdoc -p cargo-minco --lib --all-features --locked
 cargo doc --workspace --all-features --no-deps --locked

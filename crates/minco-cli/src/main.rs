@@ -1,5 +1,6 @@
-// This package is binary-only. Public visibility lets sibling command modules
-// share their internal types; it does not create an externally reachable API.
+// The CLI implementation remains in the binary target. Public visibility lets
+// sibling command modules share internal types; it is not part of the library
+// documentation target's API.
 #![allow(unreachable_pub)]
 
 mod architecture;

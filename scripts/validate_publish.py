@@ -350,6 +350,13 @@ class PublishValidator:
                 "cargo-minco package.include must contain templates/** for `cargo minco new`",
                 manifest,
             )
+        library_source = self.root / "crates/minco-cli/src/lib.rs"
+        if not library_source.is_file():
+            self.error(
+                "PUBLISH-068",
+                "cargo-minco lacks a library documentation target required by docs.rs",
+                library_source,
+            )
         new_source = self.root / "crates/minco-cli/src/new_cmd.rs"
         new_text = new_source.read_text() if new_source.is_file() else ""
         if "create_project" not in new_text or "NewProjectOptions" not in new_text or "Command::New" not in text:
