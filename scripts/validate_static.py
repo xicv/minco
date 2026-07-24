@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import py_compile
 import re
 import subprocess
 import tomllib
@@ -441,8 +440,8 @@ class Validator:
                 continue
             count += 1
             try:
-                py_compile.compile(str(path), doraise=True)
-            except py_compile.PyCompileError as exc:
+                compile(path.read_text(), str(path), "exec")
+            except SyntaxError as exc:
                 self.error("STATIC-PYTHON-001", str(exc), path)
         self.metrics["python_files"] = count
 

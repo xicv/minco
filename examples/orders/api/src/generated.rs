@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DependencyHealth {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -17,21 +17,21 @@ pub struct DependencyHealth {
     pub ready: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LivenessResponse {
     pub live: bool,
     pub service: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrderLineResponse {
     pub quantity: i32,
     pub sku: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrderResponse {
     #[serde(rename = "createdAt")]
@@ -49,14 +49,14 @@ pub enum OrderStatus {
     Accepted,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlaceOrderLineRequest {
     pub quantity: i64,
     pub sku: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlaceOrderRequest {
     #[serde(rename = "customerReference")]
@@ -64,14 +64,14 @@ pub struct PlaceOrderRequest {
     pub lines: Vec<PlaceOrderLineRequest>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlaceOrderResponse {
     pub order: OrderResponse,
     pub replayed: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProblemDetails {
     pub code: String,
@@ -86,13 +86,14 @@ pub struct ProblemDetails {
     pub r#type: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReadinessResponse {
     pub dependencies: serde_json::Value,
     pub ready: bool,
 }
 
+#[rustfmt::skip]
 pub const GET_LIVE: ContractOperation = ContractOperation::new(
     "getLive",
     HttpMethod::Get,
@@ -101,6 +102,7 @@ pub const GET_LIVE: ContractOperation = ContractOperation::new(
     false,
 );
 
+#[rustfmt::skip]
 pub const GET_ORDER: ContractOperation = ContractOperation::new(
     "getOrder",
     HttpMethod::Get,
@@ -109,6 +111,7 @@ pub const GET_ORDER: ContractOperation = ContractOperation::new(
     false,
 );
 
+#[rustfmt::skip]
 pub const GET_READY: ContractOperation = ContractOperation::new(
     "getReady",
     HttpMethod::Get,
@@ -117,6 +120,7 @@ pub const GET_READY: ContractOperation = ContractOperation::new(
     false,
 );
 
+#[rustfmt::skip]
 pub const PLACE_ORDER: ContractOperation = ContractOperation::new(
     "placeOrder",
     HttpMethod::Post,
@@ -125,6 +129,7 @@ pub const PLACE_ORDER: ContractOperation = ContractOperation::new(
     true,
 );
 
+#[rustfmt::skip]
 pub static OPERATIONS: &[ContractOperation] = &[
     GET_LIVE,
     GET_ORDER,

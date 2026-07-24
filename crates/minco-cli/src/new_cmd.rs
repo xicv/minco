@@ -41,15 +41,21 @@ impl DatabaseChoice {
 
     const fn adapter_template(self) -> &'static str {
         match self {
-            Self::Postgres => include_str!("../templates/app/crates/adapters/src/lib-postgres.rs.tmpl"),
+            Self::Postgres => {
+                include_str!("../templates/app/crates/adapters/src/lib-postgres.rs.tmpl")
+            }
             Self::Sqlite => include_str!("../templates/app/crates/adapters/src/lib-sqlite.rs.tmpl"),
         }
     }
 
     const fn migration_template(self) -> &'static str {
         match self {
-            Self::Postgres => include_str!("../templates/app/migrations/postgres/0001_foundation.sql.tmpl"),
-            Self::Sqlite => include_str!("../templates/app/migrations/sqlite/0001_foundation.sql.tmpl"),
+            Self::Postgres => {
+                include_str!("../templates/app/migrations/postgres/0001_foundation.sql.tmpl")
+            }
+            Self::Sqlite => {
+                include_str!("../templates/app/migrations/sqlite/0001_foundation.sql.tmpl")
+            }
         }
     }
 
@@ -93,30 +99,102 @@ struct Template {
 }
 
 const COMMON_TEMPLATES: &[Template] = &[
-    Template { path: "Cargo.toml", source: include_str!("../templates/app/Cargo.toml.tmpl") },
-    Template { path: "README.md", source: include_str!("../templates/app/README.md.tmpl") },
-    Template { path: "AGENTS.md", source: include_str!("../templates/app/AGENTS.md.tmpl") },
-    Template { path: ".gitignore", source: include_str!("../templates/app/.gitignore.tmpl") },
-    Template { path: ".env.example", source: include_str!("../templates/app/.env.example.tmpl") },
-    Template { path: "rust-toolchain.toml", source: include_str!("../templates/app/rust-toolchain.toml.tmpl") },
-    Template { path: "minco.toml", source: include_str!("../templates/app/minco.toml.tmpl") },
-    Template { path: "quality.toml", source: include_str!("../templates/app/quality.toml.tmpl") },
-    Template { path: "plugins/catalog.toml", source: include_str!("../templates/app/plugins/catalog.toml.tmpl") },
-    Template { path: "roadmap/roadmap.yaml", source: include_str!("../templates/app/roadmap/roadmap.yaml.tmpl") },
-    Template { path: "tasks/M0/M0-T01-foundation.md", source: include_str!("../templates/app/tasks/M0/M0-T01-foundation.md.tmpl") },
-    Template { path: "openapi/openapi.yaml", source: include_str!("../templates/app/openapi/openapi.yaml.tmpl") },
-    Template { path: "crates/domain/Cargo.toml", source: include_str!("../templates/app/crates/domain/Cargo.toml.tmpl") },
-    Template { path: "crates/domain/src/lib.rs", source: include_str!("../templates/app/crates/domain/src/lib.rs.tmpl") },
-    Template { path: "crates/application/Cargo.toml", source: include_str!("../templates/app/crates/application/Cargo.toml.tmpl") },
-    Template { path: "crates/application/src/lib.rs", source: include_str!("../templates/app/crates/application/src/lib.rs.tmpl") },
-    Template { path: "crates/adapters/Cargo.toml", source: include_str!("../templates/app/crates/adapters/Cargo.toml.tmpl") },
-    Template { path: "crates/api/Cargo.toml", source: include_str!("../templates/app/crates/api/Cargo.toml.tmpl") },
-    Template { path: "crates/api/src/lib.rs", source: include_str!("../templates/app/crates/api/src/lib.rs.tmpl") },
-    Template { path: "services/app/Cargo.toml", source: include_str!("../templates/app/services/app/Cargo.toml.tmpl") },
-    Template { path: "services/app/src/lib.rs", source: include_str!("../templates/app/services/app/src/lib.rs.tmpl") },
-    Template { path: "services/app/src/main.rs", source: include_str!("../templates/app/services/app/src/main.rs.tmpl") },
-    Template { path: "services/app/src/bin/lambda.rs", source: include_str!("../templates/app/services/app/src/bin/lambda.rs.tmpl") },
-    Template { path: "services/app/src/bin/migrate.rs", source: include_str!("../templates/app/services/app/src/bin/migrate.rs.tmpl") },
+    Template {
+        path: "Cargo.toml",
+        source: include_str!("../templates/app/Cargo.toml.tmpl"),
+    },
+    Template {
+        path: "README.md",
+        source: include_str!("../templates/app/README.md.tmpl"),
+    },
+    Template {
+        path: "AGENTS.md",
+        source: include_str!("../templates/app/AGENTS.md.tmpl"),
+    },
+    Template {
+        path: ".gitignore",
+        source: include_str!("../templates/app/.gitignore.tmpl"),
+    },
+    Template {
+        path: ".env.example",
+        source: include_str!("../templates/app/.env.example.tmpl"),
+    },
+    Template {
+        path: "rust-toolchain.toml",
+        source: include_str!("../templates/app/rust-toolchain.toml.tmpl"),
+    },
+    Template {
+        path: "minco.toml",
+        source: include_str!("../templates/app/minco.toml.tmpl"),
+    },
+    Template {
+        path: "quality.toml",
+        source: include_str!("../templates/app/quality.toml.tmpl"),
+    },
+    Template {
+        path: "plugins/catalog.toml",
+        source: include_str!("../templates/app/plugins/catalog.toml.tmpl"),
+    },
+    Template {
+        path: "roadmap/roadmap.yaml",
+        source: include_str!("../templates/app/roadmap/roadmap.yaml.tmpl"),
+    },
+    Template {
+        path: "tasks/M0/M0-T01-foundation.md",
+        source: include_str!("../templates/app/tasks/M0/M0-T01-foundation.md.tmpl"),
+    },
+    Template {
+        path: "openapi/openapi.yaml",
+        source: include_str!("../templates/app/openapi/openapi.yaml.tmpl"),
+    },
+    Template {
+        path: "crates/domain/Cargo.toml",
+        source: include_str!("../templates/app/crates/domain/Cargo.toml.tmpl"),
+    },
+    Template {
+        path: "crates/domain/src/lib.rs",
+        source: include_str!("../templates/app/crates/domain/src/lib.rs.tmpl"),
+    },
+    Template {
+        path: "crates/application/Cargo.toml",
+        source: include_str!("../templates/app/crates/application/Cargo.toml.tmpl"),
+    },
+    Template {
+        path: "crates/application/src/lib.rs",
+        source: include_str!("../templates/app/crates/application/src/lib.rs.tmpl"),
+    },
+    Template {
+        path: "crates/adapters/Cargo.toml",
+        source: include_str!("../templates/app/crates/adapters/Cargo.toml.tmpl"),
+    },
+    Template {
+        path: "crates/api/Cargo.toml",
+        source: include_str!("../templates/app/crates/api/Cargo.toml.tmpl"),
+    },
+    Template {
+        path: "crates/api/src/lib.rs",
+        source: include_str!("../templates/app/crates/api/src/lib.rs.tmpl"),
+    },
+    Template {
+        path: "services/app/Cargo.toml",
+        source: include_str!("../templates/app/services/app/Cargo.toml.tmpl"),
+    },
+    Template {
+        path: "services/app/src/lib.rs",
+        source: include_str!("../templates/app/services/app/src/lib.rs.tmpl"),
+    },
+    Template {
+        path: "services/app/src/main.rs",
+        source: include_str!("../templates/app/services/app/src/main.rs.tmpl"),
+    },
+    Template {
+        path: "services/app/src/bin/lambda.rs",
+        source: include_str!("../templates/app/services/app/src/bin/lambda.rs.tmpl"),
+    },
+    Template {
+        path: "services/app/src/bin/migrate.rs",
+        source: include_str!("../templates/app/services/app/src/bin/migrate.rs.tmpl"),
+    },
 ];
 
 pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
@@ -152,7 +230,10 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
             .status()
             .context("initialize colocated JJ/Git repository")?;
         if !status.success() {
-            bail!("`jj git init --colocate .` failed in {}", directory.display());
+            bail!(
+                "`jj git init --colocate .` failed in {}",
+                directory.display()
+            );
         }
     }
 
@@ -185,7 +266,10 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
     )?;
     write_rendered(
         &directory,
-        &format!("{}/0001_foundation.sql", options.database.migration_directory()),
+        &format!(
+            "{}/0001_foundation.sql",
+            options.database.migration_directory()
+        ),
         options.database.migration_template(),
         &replacements,
     )?;
@@ -202,7 +286,11 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
 
     if options.vcs == VcsChoice::Jj {
         let status = Command::new("jj")
-            .args(["describe", "-m", &format!("chore: initialize {} with Minco", options.name)])
+            .args([
+                "describe",
+                "-m",
+                &format!("chore: initialize {} with Minco", options.name),
+            ])
             .current_dir(&directory)
             .status()
             .context("describe initial JJ change")?;
@@ -223,8 +311,14 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
             "cargo minco doctor".into(),
             "cargo minco contract sync --check".into(),
             "cargo minco check --with-cargo".into(),
-            format!("cargo run -p {}-service --bin {}-migrate", options.name, options.name),
-            format!("cargo run -p {}-service --bin {}-local", options.name, options.name),
+            format!(
+                "cargo run -p {}-service --bin {}-migrate",
+                options.name, options.name
+            ),
+            format!(
+                "cargo run -p {}-service --bin {}-local",
+                options.name, options.name
+            ),
         ],
     })
 }
@@ -237,7 +331,7 @@ fn write_rendered(
 ) -> Result<()> {
     let mut rendered = source.to_owned();
     for (needle, replacement) in replacements {
-        rendered = rendered.replace(*needle, *replacement);
+        rendered = rendered.replace(*needle, replacement);
     }
     if rendered.contains("{{") {
         bail!("template {relative} contains an unresolved placeholder");
@@ -315,13 +409,14 @@ mod tests {
         assert!(destination.join("crates/adapters/Cargo.toml").is_file());
         assert!(destination.join("crates/api/Cargo.toml").is_file());
         assert!(destination.join("services/app/Cargo.toml").is_file());
-        assert!(load_contract(destination.join("openapi/openapi.yaml"))
-            .unwrap()
-            .is_valid());
-        let manifest: toml::Value = toml::from_str(
-            &std::fs::read_to_string(destination.join("minco.toml")).unwrap(),
-        )
-        .unwrap();
+        assert!(
+            load_contract(destination.join("openapi/openapi.yaml"))
+                .unwrap()
+                .is_valid()
+        );
+        let manifest: toml::Value =
+            toml::from_str(&std::fs::read_to_string(destination.join("minco.toml")).unwrap())
+                .unwrap();
         assert_eq!(manifest["name"].as_str(), Some("example-api"));
     }
 }

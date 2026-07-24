@@ -2,7 +2,7 @@
 id: M8-T02
 title: Run compiler and crates.io package gates
 milestone: M8
-status: ready
+status: complete
 priority: critical
 area: release/crates-io
 depends_on: [M8-T01]

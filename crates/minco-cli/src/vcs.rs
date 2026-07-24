@@ -34,7 +34,11 @@ pub fn status(root: &Path) -> Result<String> {
     capture(root, "jj", &["status"])
 }
 
-pub fn start_task(root: &Path, task_id: &str, destination: Option<PathBuf>) -> Result<WorkspaceResult> {
+pub fn start_task(
+    root: &Path,
+    task_id: &str,
+    destination: Option<PathBuf>,
+) -> Result<WorkspaceResult> {
     if !command_available("jj") {
         bail!("Jujutsu (`jj`) is required");
     }
@@ -51,9 +55,16 @@ pub fn start_task(root: &Path, task_id: &str, destination: Option<PathBuf>) -> R
         shell_word(&path.display().to_string())
     );
     require_success(&run_shell(root, &command, true)?)?;
-    let describe = format!("jj describe -m {}", shell_word(&format!("task({task_id}): start")));
+    let describe = format!(
+        "jj describe -m {}",
+        shell_word(&format!("task({task_id}): start"))
+    );
     require_success(&run_shell(&path, &describe, true)?)?;
-    Ok(WorkspaceResult { task_id: task_id.into(), workspace_name, path })
+    Ok(WorkspaceResult {
+        task_id: task_id.into(),
+        workspace_name,
+        path,
+    })
 }
 
 pub fn finish_task(root: &Path, task_id: &str, message: &str, push: bool) -> Result<()> {
@@ -62,18 +73,34 @@ pub fn finish_task(root: &Path, task_id: &str, message: &str, push: bool) -> Res
     }
     validate_task_id(task_id)?;
     require_success(&run_shell(root, "cargo minco check --with-cargo", true)?)?;
-    require_success(&run_shell(root, &format!("jj describe -m {}", shell_word(message)), true)?)?;
+    require_success(&run_shell(
+        root,
+        &format!("jj describe -m {}", shell_word(message)),
+        true,
+    )?)?;
     let bookmark = format!("task/{}", task_id.to_ascii_lowercase());
-    require_success(&run_shell(root, &format!("jj bookmark set {} -r @", shell_word(&bookmark)), true)?)?;
+    require_success(&run_shell(
+        root,
+        &format!("jj bookmark set {} -r @", shell_word(&bookmark)),
+        true,
+    )?)?;
     if push {
-        require_success(&run_shell(root, &format!("jj git push --bookmark {}", shell_word(&bookmark)), true)?)?;
+        require_success(&run_shell(
+            root,
+            &format!("jj git push --bookmark {}", shell_word(&bookmark)),
+            true,
+        )?)?;
     }
     Ok(())
 }
 
 pub fn source_change(root: &Path) -> Result<String> {
     if command_available("jj") && root.join(".jj").exists() {
-        return capture(root, "jj", &["log", "-r", "@", "--no-graph", "-T", "commit_id"]);
+        return capture(
+            root,
+            "jj",
+            &["log", "-r", "@", "--no-graph", "-T", "commit_id"],
+        );
     }
     if command_available("git") && root.join(".git").exists() {
         return capture(root, "git", &["rev-parse", "HEAD"]);
@@ -82,7 +109,11 @@ pub fn source_change(root: &Path) -> Result<String> {
 }
 
 fn validate_task_id(value: &str) -> Result<()> {
-    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-') {
+    if value.is_empty()
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
         bail!("task ID may contain only letters, digits and hyphens");
     }
     Ok(())

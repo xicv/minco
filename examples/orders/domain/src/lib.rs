@@ -80,7 +80,9 @@ impl Quantity {
         if !(1..=1_000).contains(&value) {
             return Err(DomainError::InvalidQuantity(value));
         }
-        Ok(Self(value as u32))
+        u32::try_from(value)
+            .map(Self)
+            .map_err(|_| DomainError::InvalidQuantity(value))
     }
 
     #[must_use]
@@ -163,8 +165,14 @@ mod tests {
         let reference = CustomerReference::parse("PO-42").expect("valid reference");
         let sku = Sku::parse("SKU-1").expect("valid SKU");
         let lines = vec![
-            OrderLine { sku: sku.clone(), quantity: Quantity::new(1).expect("valid quantity") },
-            OrderLine { sku, quantity: Quantity::new(2).expect("valid quantity") },
+            OrderLine {
+                sku: sku.clone(),
+                quantity: Quantity::new(1).expect("valid quantity"),
+            },
+            OrderLine {
+                sku,
+                quantity: Quantity::new(2).expect("valid quantity"),
+            },
         ];
         let result = Order::new(reference, lines, Utc::now());
         assert!(matches!(result, Err(DomainError::DuplicateSku(_))));
@@ -172,6 +180,9 @@ mod tests {
 
     #[test]
     fn rejects_control_characters() {
-        assert_eq!(CustomerReference::parse("PO\n42"), Err(DomainError::InvalidCustomerReference));
+        assert_eq!(
+            CustomerReference::parse("PO\n42"),
+            Err(DomainError::InvalidCustomerReference)
+        );
     }
 }

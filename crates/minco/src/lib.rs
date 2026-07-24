@@ -20,7 +20,7 @@
 pub use minco_core as core;
 
 #[cfg(feature = "contract")]
-/// OpenAPI loading, validation, operation inventory, and deterministic binding generation.
+/// `OpenAPI` loading, validation, operation inventory, and deterministic binding generation.
 pub use minco_contract as contract;
 
 #[cfg(feature = "http")]
@@ -52,11 +52,11 @@ pub use minco_plugin_observability as plugin_observability;
 pub use minco_plugin_idempotency as plugin_idempotency;
 
 #[cfg(feature = "sqlx-postgres")]
-/// Bounded SQLx PostgreSQL pool support.
+/// Bounded `SQLx` `PostgreSQL` pool support.
 pub use minco_sqlx_postgres as sqlx_postgres;
 
 #[cfg(feature = "sqlx-sqlite")]
-/// SQLx SQLite pool support.
+/// `SQLx` `SQLite` pool support.
 pub use minco_sqlx_sqlite as sqlx_sqlite;
 
 #[cfg(feature = "aws-lambda")]
@@ -69,8 +69,8 @@ pub mod prelude {
         ApplicationGraph, CapabilityProvision, CapabilityRequirement, ComposedApplication,
         FrozenServices, GraphBuilder, GraphError, HealthCheckDescriptor, IdleCostClass,
         MigrationSet, OperationDescriptor, Plugin, PluginContext, PluginDescriptor, PluginError,
-        PluginId, PluginManager, PluginSelection, ResourceIntent, ResourceKind,
-        ServiceCollection, ServiceError, WakeSource,
+        PluginId, PluginManager, PluginSelection, ResourceIntent, ResourceKind, ServiceCollection,
+        ServiceError, WakeSource,
     };
 
     #[cfg(feature = "http")]
@@ -87,7 +87,14 @@ pub mod prelude {
 /// [`core::PluginSelection`] or remove it from the binary with
 /// `default-features = false` and explicit features.
 pub fn default_plugin_manager() -> Result<core::PluginManager, core::PluginError> {
-    let mut manager = core::PluginManager::default();
+    let manager = core::PluginManager::default();
+
+    #[cfg(any(
+        feature = "plugin-health",
+        feature = "plugin-observability",
+        feature = "plugin-idempotency"
+    ))]
+    let mut manager = manager;
 
     #[cfg(feature = "plugin-health")]
     manager.register(plugin_health::HealthPlugin)?;

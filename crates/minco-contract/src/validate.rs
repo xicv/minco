@@ -7,7 +7,10 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Severity { Error, Warning }
+pub enum Severity {
+    Error,
+    Warning,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContractFinding {
@@ -25,7 +28,10 @@ pub struct ContractReport {
 
 impl ContractReport {
     pub fn is_valid(&self) -> bool {
-        !self.findings.iter().any(|finding| finding.severity == Severity::Error)
+        !self
+            .findings
+            .iter()
+            .any(|finding| finding.severity == Severity::Error)
     }
 }
 
@@ -41,41 +47,95 @@ pub fn load_contract(path: impl AsRef<Path>) -> Result<ContractReport, ContractE
     let version = string_at(&raw, &["info", "version"]).unwrap_or_default();
     let mut findings = Vec::new();
     if !openapi_version.starts_with("3.1.") {
-        error(&mut findings, "MINCO-CONTRACT-001", "Minco requires OpenAPI 3.1.x", "openapi");
+        error(
+            &mut findings,
+            "MINCO-CONTRACT-001",
+            "Minco requires OpenAPI 3.1.x",
+            "openapi",
+        );
     }
     if title.trim().is_empty() {
-        error(&mut findings, "MINCO-CONTRACT-002", "info.title is required", "info.title");
+        error(
+            &mut findings,
+            "MINCO-CONTRACT-002",
+            "info.title is required",
+            "info.title",
+        );
     }
     let mut seen = BTreeSet::new();
     let mut operations = Vec::new();
     if let Some(paths) = raw.get("paths").and_then(Value::as_object) {
         for (path_key, path_item) in paths {
             let Some(path_object) = path_item.as_object() else {
-                error(&mut findings, "MINCO-CONTRACT-003", "path item must be an object", path_key);
+                error(
+                    &mut findings,
+                    "MINCO-CONTRACT-003",
+                    "path item must be an object",
+                    path_key,
+                );
                 continue;
             };
             for (method_key, operation) in path_object {
-                let Some(method) = HttpMethod::from_openapi(method_key) else { continue; };
-                let location = format!("paths.{path_key}.{method_key}");
-                let Some(operation_object) = operation.as_object() else {
-                    error(&mut findings, "MINCO-CONTRACT-004", "operation must be an object", &location);
+                let Some(method) = HttpMethod::from_openapi(method_key) else {
                     continue;
                 };
-                let operation_id = operation_object.get("operationId").and_then(Value::as_str).unwrap_or_default();
+                let location = format!("paths.{path_key}.{method_key}");
+                let Some(operation_object) = operation.as_object() else {
+                    error(
+                        &mut findings,
+                        "MINCO-CONTRACT-004",
+                        "operation must be an object",
+                        &location,
+                    );
+                    continue;
+                };
+                let operation_id = operation_object
+                    .get("operationId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
                 if !valid_operation_id(operation_id) {
-                    error(&mut findings, "MINCO-CONTRACT-005", "operationId must be lowerCamelCase ASCII", &location);
+                    error(
+                        &mut findings,
+                        "MINCO-CONTRACT-005",
+                        "operationId must be lowerCamelCase ASCII",
+                        &location,
+                    );
                     continue;
                 }
                 if !seen.insert(operation_id.to_owned()) {
-                    error(&mut findings, "MINCO-CONTRACT-006", "operationId must be unique", &location);
+                    error(
+                        &mut findings,
+                        "MINCO-CONTRACT-006",
+                        "operationId must be unique",
+                        &location,
+                    );
                 }
-                validate_responses(operation_id, operation_object.get("responses"), &location, &mut findings);
-                let idempotent = operation_object.get("x-minco-idempotent").and_then(Value::as_bool).unwrap_or(false);
-                if idempotent && !has_required_idempotency_header(operation_object.get("parameters")) {
-                    error(&mut findings, "MINCO-CONTRACT-007", "idempotent operation requires Idempotency-Key", &location);
+                validate_responses(
+                    operation_id,
+                    operation_object.get("responses"),
+                    &location,
+                    &mut findings,
+                );
+                let idempotent = operation_object
+                    .get("x-minco-idempotent")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                if idempotent
+                    && !has_required_idempotency_header(operation_object.get("parameters"))
+                {
+                    error(
+                        &mut findings,
+                        "MINCO-CONTRACT-007",
+                        "idempotent operation requires Idempotency-Key",
+                        &location,
+                    );
                 }
-                let public = operation_object.get("security").and_then(Value::as_array).is_some_and(Vec::is_empty)
-                    || operation_object.get("x-minco-auth").and_then(Value::as_str) == Some("public");
+                let public = operation_object
+                    .get("security")
+                    .and_then(Value::as_array)
+                    .is_some_and(Vec::is_empty)
+                    || operation_object.get("x-minco-auth").and_then(Value::as_str)
+                        == Some("public");
                 operations.push(OwnedOperation {
                     operation_id: operation_id.to_owned(),
                     method,
@@ -86,11 +146,19 @@ pub fn load_contract(path: impl AsRef<Path>) -> Result<ContractReport, ContractE
             }
         }
     } else {
-        error(&mut findings, "MINCO-CONTRACT-008", "paths object is required", "paths");
+        error(
+            &mut findings,
+            "MINCO-CONTRACT-008",
+            "paths object is required",
+            "paths",
+        );
     }
     operations.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
     let mut schema_names = Vec::new();
-    if let Some(schemas) = raw.pointer("/components/schemas").and_then(Value::as_object) {
+    if let Some(schemas) = raw
+        .pointer("/components/schemas")
+        .and_then(Value::as_object)
+    {
         for (name, schema) in schemas {
             schema_names.push(name.clone());
             if !valid_schema_name(name) {
@@ -104,7 +172,12 @@ pub fn load_contract(path: impl AsRef<Path>) -> Result<ContractReport, ContractE
             if schema.get("type").and_then(Value::as_str) == Some("object")
                 && schema.get("additionalProperties") != Some(&Value::Bool(false))
             {
-                error(&mut findings, "MINCO-CONTRACT-009", "top-level object schemas must set additionalProperties: false", &format!("components.schemas.{name}"));
+                error(
+                    &mut findings,
+                    "MINCO-CONTRACT-009",
+                    "top-level object schemas must set additionalProperties: false",
+                    &format!("components.schemas.{name}"),
+                );
             }
         }
     }
@@ -124,27 +197,55 @@ pub fn load_contract(path: impl AsRef<Path>) -> Result<ContractReport, ContractE
     })
 }
 
-fn validate_responses(operation_id: &str, responses: Option<&Value>, location: &str, findings: &mut Vec<ContractFinding>) {
+fn validate_responses(
+    operation_id: &str,
+    responses: Option<&Value>,
+    location: &str,
+    findings: &mut Vec<ContractFinding>,
+) {
     let Some(responses) = responses.and_then(Value::as_object) else {
-        error(findings, "MINCO-CONTRACT-010", &format!("{operation_id} requires responses"), location);
+        error(
+            findings,
+            "MINCO-CONTRACT-010",
+            &format!("{operation_id} requires responses"),
+            location,
+        );
         return;
     };
     if !responses.keys().any(|status| status.starts_with('2')) {
-        error(findings, "MINCO-CONTRACT-011", &format!("{operation_id} requires a 2xx response"), location);
+        error(
+            findings,
+            "MINCO-CONTRACT-011",
+            &format!("{operation_id} requires a 2xx response"),
+            location,
+        );
     }
-    if !responses.keys().any(|status| status == "default" || status.starts_with('4') || status.starts_with('5')) {
-        error(findings, "MINCO-CONTRACT-012", &format!("{operation_id} requires an error response"), location);
+    if !responses
+        .keys()
+        .any(|status| status == "default" || status.starts_with('4') || status.starts_with('5'))
+    {
+        error(
+            findings,
+            "MINCO-CONTRACT-012",
+            &format!("{operation_id} requires an error response"),
+            location,
+        );
     }
 }
 
 fn has_required_idempotency_header(parameters: Option<&Value>) -> bool {
-    parameters.and_then(Value::as_array).is_some_and(|parameters| {
-        parameters.iter().any(|parameter| {
-            parameter.get("in").and_then(Value::as_str) == Some("header")
-                && parameter.get("name").and_then(Value::as_str).is_some_and(|name| name.eq_ignore_ascii_case("Idempotency-Key"))
-                && parameter.get("required").and_then(Value::as_bool) == Some(true)
+    parameters
+        .and_then(Value::as_array)
+        .is_some_and(|parameters| {
+            parameters.iter().any(|parameter| {
+                parameter.get("in").and_then(Value::as_str) == Some("header")
+                    && parameter
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|name| name.eq_ignore_ascii_case("Idempotency-Key"))
+                    && parameter.get("required").and_then(Value::as_bool) == Some(true)
+            })
         })
-    })
 }
 
 fn valid_schema_name(value: &str) -> bool {
@@ -160,7 +261,10 @@ fn valid_operation_id(value: &str) -> bool {
 }
 
 fn string_at(value: &Value, path: &[&str]) -> Option<String> {
-    path.iter().try_fold(value, |current, segment| current.get(*segment)).and_then(Value::as_str).map(str::to_owned)
+    path.iter()
+        .try_fold(value, |current, segment| current.get(*segment))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
 }
 
 fn canonicalize(value: &Value) -> Value {
@@ -180,7 +284,12 @@ fn canonicalize(value: &Value) -> Value {
 }
 
 fn error(findings: &mut Vec<ContractFinding>, code: &str, message: &str, location: &str) {
-    findings.push(ContractFinding { code: code.to_owned(), severity: Severity::Error, message: message.to_owned(), location: location.to_owned() });
+    findings.push(ContractFinding {
+        code: code.to_owned(),
+        severity: Severity::Error,
+        message: message.to_owned(),
+        location: location.to_owned(),
+    });
 }
 
 #[derive(Debug, Error)]

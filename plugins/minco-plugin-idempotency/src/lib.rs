@@ -3,7 +3,9 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use minco_core::{CapabilityProvision, Plugin, PluginContext, PluginDescriptor, PluginError, PluginId};
+use minco_core::{
+    CapabilityProvision, Plugin, PluginContext, PluginDescriptor, PluginError, PluginId,
+};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -16,10 +18,14 @@ pub struct IdempotencyKey(String);
 impl IdempotencyKey {
     pub fn parse(value: impl Into<String>) -> Result<Self, IdempotencyError> {
         let value = value.into();
-        if value.trim().is_empty() || value.len() > 200 || value.chars().any(char::is_control) { return Err(IdempotencyError::InvalidKey); }
+        if value.trim().is_empty() || value.len() > 200 || value.chars().any(char::is_control) {
+            return Err(IdempotencyError::InvalidKey);
+        }
         Ok(Self(value))
     }
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,7 +38,7 @@ impl RequestFingerprint {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdempotencyRecord {
     pub fingerprint: RequestFingerprint,
     pub response: serde_json::Value,
@@ -41,24 +47,53 @@ pub struct IdempotencyRecord {
 
 #[async_trait]
 pub trait IdempotencyStore: Send + Sync + std::fmt::Debug {
-    async fn get(&self, key: &IdempotencyKey) -> Result<Option<IdempotencyRecord>, IdempotencyError>;
-    async fn put_if_absent(&self, key: IdempotencyKey, record: IdempotencyRecord) -> Result<PutOutcome, IdempotencyError>;
+    async fn get(
+        &self,
+        key: &IdempotencyKey,
+    ) -> Result<Option<IdempotencyRecord>, IdempotencyError>;
+    async fn put_if_absent(
+        &self,
+        key: IdempotencyKey,
+        record: IdempotencyRecord,
+    ) -> Result<PutOutcome, IdempotencyError>;
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum PutOutcome { Inserted, Existing(IdempotencyRecord) }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PutOutcome {
+    Inserted,
+    Existing(IdempotencyRecord),
+}
 
 #[derive(Debug, Default)]
-pub struct MemoryIdempotencyStore { records: RwLock<BTreeMap<IdempotencyKey, IdempotencyRecord>> }
+pub struct MemoryIdempotencyStore {
+    records: RwLock<BTreeMap<IdempotencyKey, IdempotencyRecord>>,
+}
 
 #[async_trait]
 impl IdempotencyStore for MemoryIdempotencyStore {
-    async fn get(&self, key: &IdempotencyKey) -> Result<Option<IdempotencyRecord>, IdempotencyError> { Ok(self.records.read().await.get(key).cloned()) }
-    async fn put_if_absent(&self, key: IdempotencyKey, record: IdempotencyRecord) -> Result<PutOutcome, IdempotencyError> {
+    async fn get(
+        &self,
+        key: &IdempotencyKey,
+    ) -> Result<Option<IdempotencyRecord>, IdempotencyError> {
+        Ok(self.records.read().await.get(key).cloned())
+    }
+    async fn put_if_absent(
+        &self,
+        key: IdempotencyKey,
+        record: IdempotencyRecord,
+    ) -> Result<PutOutcome, IdempotencyError> {
         let mut records = self.records.write().await;
-        if let Some(existing) = records.get(&key) { return Ok(PutOutcome::Existing(existing.clone())); }
-        records.insert(key, record);
-        Ok(PutOutcome::Inserted)
+        let outcome = match records.entry(key) {
+            std::collections::btree_map::Entry::Occupied(existing) => {
+                PutOutcome::Existing(existing.get().clone())
+            }
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(record);
+                PutOutcome::Inserted
+            }
+        };
+        drop(records);
+        Ok(outcome)
     }
 }
 
@@ -66,13 +101,22 @@ impl IdempotencyStore for MemoryIdempotencyStore {
 pub struct IdempotencyPlugin;
 impl Plugin for IdempotencyPlugin {
     fn descriptor(&self) -> PluginDescriptor {
-        let mut descriptor = PluginDescriptor::new(PluginId::new("idempotency").expect("static id"), Version::new(1,0,0), "Idempotency keys, fingerprints and storage port");
+        let mut descriptor = PluginDescriptor::new(
+            PluginId::new("idempotency").expect("static id"),
+            Version::new(1, 0, 0),
+            "Idempotency keys, fingerprints and storage port",
+        );
         descriptor.default_enabled = true;
-        descriptor.provides.push(CapabilityProvision { name: "http.idempotency".into(), version: Version::new(1,0,0) });
+        descriptor.provides.push(CapabilityProvision {
+            name: "http.idempotency".into(),
+            version: Version::new(1, 0, 0),
+        });
         descriptor
     }
     fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
-        context.services().insert(Arc::new(MemoryIdempotencyStore::default()))?;
+        context
+            .services()
+            .insert(Arc::new(MemoryIdempotencyStore::default()))?;
         Ok(())
     }
 }
@@ -94,8 +138,22 @@ mod tests {
     async fn put_if_absent_returns_the_original_record() {
         let store = MemoryIdempotencyStore::default();
         let key = IdempotencyKey::parse("request-1").unwrap();
-        let record = IdempotencyRecord { fingerprint: RequestFingerprint::from_serializable(&serde_json::json!({"a":1})).unwrap(), response: serde_json::json!({"ok":true}), created_at: Utc::now() };
-        assert_eq!(store.put_if_absent(key.clone(), record.clone()).await.unwrap(), PutOutcome::Inserted);
-        assert_eq!(store.put_if_absent(key, record.clone()).await.unwrap(), PutOutcome::Existing(record));
+        let record = IdempotencyRecord {
+            fingerprint: RequestFingerprint::from_serializable(&serde_json::json!({"a":1}))
+                .unwrap(),
+            response: serde_json::json!({"ok":true}),
+            created_at: Utc::now(),
+        };
+        assert_eq!(
+            store
+                .put_if_absent(key.clone(), record.clone())
+                .await
+                .unwrap(),
+            PutOutcome::Inserted
+        );
+        assert_eq!(
+            store.put_if_absent(key, record.clone()).await.unwrap(),
+            PutOutcome::Existing(record)
+        );
     }
 }

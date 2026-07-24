@@ -4,7 +4,7 @@
   "static_validation": {
     "schema_version": 1,
     "status": "ok",
-    "root": "/mnt/data/minco-publish-work",
+    "root": "/Users/xicao/Projects/minco-task-m8-t02",
     "errors": 0,
     "warnings": 0,
     "metrics": {
@@ -31,12 +31,25 @@
   },
   "metrics": {
     "rust_files": 47,
-    "rust_lines": 7363,
+    "rust_lines": 8739,
     "unsafe_tokens": 1,
-    "production_unwrap_expect": 9,
+    "production_unwrap_expect": 38,
     "sql_files": 2
   },
-  "findings": [],
+  "findings": [
+    {
+      "severity": "warning",
+      "code": "REVIEW-RUST-001",
+      "path": "crates/minco-contract/src/generate.rs",
+      "message": "9 unwrap/expect calls before test code"
+    },
+    {
+      "severity": "warning",
+      "code": "REVIEW-RUST-001",
+      "path": "crates/minco-plan/src/sam.rs",
+      "message": "16 unwrap/expect calls before test code"
+    }
+  ],
   "compiler_verification": {
     "performed": false,
     "reason": "set by the invoking environment; see VERIFICATION.md"

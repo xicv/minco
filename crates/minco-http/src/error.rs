@@ -1,11 +1,14 @@
-use axum::{Json, response::{IntoResponse, Response}};
+use axum::{
+    Json,
+    response::{IntoResponse, Response},
+};
 use http::{HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::REQUEST_ID_HEADER;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProblemDetails {
     #[serde(rename = "type")]
@@ -30,7 +33,13 @@ pub struct ApiFailure {
 }
 
 impl ApiFailure {
-    pub fn new(status: StatusCode, code: impl Into<String>, title: impl Into<String>, detail: impl Into<String>, request_id: impl Into<String>) -> Self {
+    pub fn new(
+        status: StatusCode,
+        code: impl Into<String>,
+        title: impl Into<String>,
+        detail: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> Self {
         Self {
             status,
             code: code.into(),
@@ -42,11 +51,23 @@ impl ApiFailure {
     }
 
     pub fn validation(detail: impl Into<String>, request_id: impl Into<String>) -> Self {
-        Self::new(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", "Validation failed", detail, request_id)
+        Self::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validation_failed",
+            "Validation failed",
+            detail,
+            request_id,
+        )
     }
 
     pub fn internal(request_id: impl Into<String>) -> Self {
-        Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Internal server error", "The request could not be completed.", request_id)
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "Internal server error",
+            "The request could not be completed.",
+            request_id,
+        )
     }
 }
 
@@ -67,9 +88,14 @@ pub fn problem_response(failure: ApiFailure) -> Response {
         errors: failure.errors,
     };
     let mut response = (failure.status, Json(problem)).into_response();
-    response.headers_mut().insert(http::header::CONTENT_TYPE, HeaderValue::from_static("application/problem+json"));
+    response.headers_mut().insert(
+        http::header::CONTENT_TYPE,
+        HeaderValue::from_static("application/problem+json"),
+    );
     if let Ok(value) = HeaderValue::from_str(&failure.request_id) {
-        response.headers_mut().insert(REQUEST_ID_HEADER.clone(), value);
+        response
+            .headers_mut()
+            .insert(REQUEST_ID_HEADER.clone(), value);
     }
     response
 }
@@ -81,7 +107,10 @@ mod tests {
     fn problem_type_is_stable_and_machine_readable() {
         let response = ApiFailure::validation("bad input", "request-1").into_response();
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(response.headers()[http::header::CONTENT_TYPE], "application/problem+json");
-        assert_eq!(response.headers()[&*REQUEST_ID_HEADER], "request-1");
+        assert_eq!(
+            response.headers()[http::header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+        assert_eq!(response.headers()[&REQUEST_ID_HEADER], "request-1");
     }
 }

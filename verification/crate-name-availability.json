@@ -1,28 +1,60 @@
 {
   "schema_version": 1,
-  "checked_at": "2026-07-24",
-  "registry": "crates.io",
-  "method": "Exact package-path lookup against rust-lang/crates.io-index through the connected GitHub API",
-  "status": "all_names_absent_at_check_time",
-  "names": [
-    "minco",
-    "minco-core",
-    "minco-contract",
-    "minco-http",
-    "minco-plan",
-    "minco-release",
-    "minco-test",
-    "minco-plugin-health",
-    "minco-plugin-observability",
-    "minco-plugin-idempotency",
-    "minco-sqlx-postgres",
-    "minco-sqlx-sqlite",
-    "minco-aws-lambda",
-    "cargo-minco"
-  ],
+  "status": "ok",
+  "errors": 0,
+  "warnings": 0,
+  "metrics": {
+    "publish_order": [
+      "minco-core",
+      "minco-contract",
+      "minco-http",
+      "minco-release",
+      "minco-test",
+      "minco-sqlx-postgres",
+      "minco-sqlx-sqlite",
+      "minco-plan",
+      "minco-plugin-health",
+      "minco-plugin-observability",
+      "minco-plugin-idempotency",
+      "minco-aws-lambda",
+      "minco",
+      "cargo-minco"
+    ],
+    "workspace_version": "0.1.0",
+    "workspace_packages": 19,
+    "publishable_packages": 14,
+    "private_packages": 5,
+    "publishable_names": [
+      "cargo-minco",
+      "minco",
+      "minco-aws-lambda",
+      "minco-contract",
+      "minco-core",
+      "minco-http",
+      "minco-plan",
+      "minco-plugin-health",
+      "minco-plugin-idempotency",
+      "minco-plugin-observability",
+      "minco-release",
+      "minco-sqlx-postgres",
+      "minco-sqlx-sqlite",
+      "minco-test"
+    ],
+    "private_names": [
+      "orders-adapters",
+      "orders-api",
+      "orders-application",
+      "orders-domain",
+      "orders-service"
+    ],
+    "registry_check_performed": true,
+    "registry_checks_succeeded": 14,
+    "expect_unpublished": true,
+    "require_registry": true
+  },
+  "findings": [],
   "limitations": [
-    "A missing index entry is not a name reservation.",
-    "Run scripts/validate_publish.py --expect-unpublished --require-registry immediately before the first upload.",
-    "Future releases expect the crate names to exist and only reject an already-published workspace version."
+    "This validator does not normalize Cargo manifests or compile packaged crates.",
+    "Run cargo publish --dry-run for the complete selected package set before upload."
   ]
 }

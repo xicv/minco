@@ -8,7 +8,9 @@ use minco_http::Principal;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub async fn run_router(router: Router) -> Result<()> {
-    lambda_http::run(router).await.context("Lambda HTTP runtime failed")
+    lambda_http::run(router)
+        .await
+        .map_err(|error| anyhow::anyhow!("Lambda HTTP runtime failed: {error}"))
 }
 
 pub async fn inject_api_gateway_principal(mut request: Request, next: Next) -> Response {
@@ -25,7 +27,10 @@ pub fn principal_from_request_context(context: Option<&RequestContext>) -> Optio
     };
     let authorizer = context.authorizer.as_ref()?;
     let value = serde_json::to_value(authorizer).ok()?;
-    let claims = value.pointer("/jwt/claims").or_else(|| value.get("claims"))?.as_object()?;
+    let claims = value
+        .pointer("/jwt/claims")
+        .or_else(|| value.get("claims"))?
+        .as_object()?;
     let subject = claims.get("sub")?.as_str()?.trim();
     if subject.is_empty() {
         return None;
@@ -46,7 +51,11 @@ pub fn principal_from_request_context(context: Option<&RequestContext>) -> Optio
             );
         }
     }
-    Some(Principal { subject: subject.to_owned(), permissions, claims })
+    Some(Principal {
+        subject: subject.to_owned(),
+        permissions,
+        claims,
+    })
 }
 
 pub async fn load_secure_parameter(name: &str) -> Result<String> {

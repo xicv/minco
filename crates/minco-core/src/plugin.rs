@@ -1,6 +1,12 @@
-use crate::{ApplicationGraph, FrozenServices, GraphBuilder, GraphError, PluginDescriptor, PluginId, ServiceCollection, ServiceError};
+use crate::{
+    ApplicationGraph, FrozenServices, GraphBuilder, GraphError, PluginDescriptor, PluginId,
+    ServiceCollection, ServiceError,
+};
 use serde::{Deserialize, Serialize};
-use std::{collections::{BTreeMap, BTreeSet}, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 use thiserror::Error;
 
 pub trait Plugin: Send + Sync + 'static {
@@ -13,8 +19,8 @@ pub struct PluginContext<'a> {
     services: &'a mut ServiceCollection,
 }
 
-impl<'a> PluginContext<'a> {
-    pub fn services(&mut self) -> &mut ServiceCollection {
+impl PluginContext<'_> {
+    pub const fn services(&mut self) -> &mut ServiceCollection {
         self.services
     }
 }
@@ -36,19 +42,17 @@ impl PluginSelection {
     }
 }
 
+#[derive(Default)]
 pub struct PluginManager {
     plugins: BTreeMap<PluginId, Arc<dyn Plugin>>,
 }
 
 impl std::fmt::Debug for PluginManager {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("PluginManager").field("plugin_ids", &self.plugins.keys()).finish()
-    }
-}
-
-impl Default for PluginManager {
-    fn default() -> Self {
-        Self { plugins: BTreeMap::new() }
+        formatter
+            .debug_struct("PluginManager")
+            .field("plugin_ids", &self.plugins.keys())
+            .finish()
     }
 }
 
@@ -75,9 +79,13 @@ impl PluginManager {
         let mut services = ServiceCollection::default();
         let mut graph = GraphBuilder::default();
         for id in ordered {
-            let plugin = enabled.get(&id).ok_or_else(|| PluginError::UnknownPlugin(id.clone()))?;
+            let plugin = enabled
+                .get(&id)
+                .ok_or_else(|| PluginError::UnknownPlugin(id.clone()))?;
             let descriptor = plugin.descriptor();
-            plugin.install(&mut PluginContext { services: &mut services })?;
+            plugin.install(&mut PluginContext {
+                services: &mut services,
+            })?;
             graph.add_plugin(descriptor);
         }
         Ok(ComposedApplication {
@@ -86,7 +94,10 @@ impl PluginManager {
         })
     }
 
-    fn resolve_enabled(&self, selection: &PluginSelection) -> Result<BTreeMap<PluginId, Arc<dyn Plugin>>, PluginError> {
+    fn resolve_enabled(
+        &self,
+        selection: &PluginSelection,
+    ) -> Result<BTreeMap<PluginId, Arc<dyn Plugin>>, PluginError> {
         for selected in selection.enabled.iter().chain(&selection.disabled) {
             if !self.plugins.contains_key(selected) {
                 return Err(PluginError::UnknownPlugin(selected.clone()));
@@ -104,19 +115,23 @@ impl PluginManager {
             changed = false;
             let descriptors: Vec<_> = enabled.values().map(|plugin| plugin.descriptor()).collect();
             for descriptor in descriptors {
-                for dependency in descriptor.plugin_dependencies {
-                    if selection.disabled.contains(&dependency) {
+                for dependency in &descriptor.plugin_dependencies {
+                    if selection.disabled.contains(dependency) {
                         return Err(PluginError::DisabledRequiredPlugin {
                             plugin: descriptor.id.clone(),
-                            dependency,
+                            dependency: dependency.clone(),
                         });
                     }
-                    if !enabled.contains_key(&dependency) {
-                        let plugin = self.plugins.get(&dependency).ok_or_else(|| PluginError::MissingPluginDependency {
-                            plugin: descriptor.id.clone(),
-                            dependency: dependency.clone(),
+                    if let std::collections::btree_map::Entry::Vacant(entry) =
+                        enabled.entry(dependency.clone())
+                    {
+                        let plugin = self.plugins.get(dependency).ok_or_else(|| {
+                            PluginError::MissingPluginDependency {
+                                plugin: descriptor.id.clone(),
+                                dependency: dependency.clone(),
+                            }
                         })?;
-                        enabled.insert(dependency, Arc::clone(plugin));
+                        entry.insert(Arc::clone(plugin));
                         changed = true;
                     }
                 }
@@ -126,7 +141,9 @@ impl PluginManager {
     }
 }
 
-fn topological_order(plugins: &BTreeMap<PluginId, Arc<dyn Plugin>>) -> Result<Vec<PluginId>, PluginError> {
+fn topological_order(
+    plugins: &BTreeMap<PluginId, Arc<dyn Plugin>>,
+) -> Result<Vec<PluginId>, PluginError> {
     let mut visiting = BTreeSet::new();
     let mut visited = BTreeSet::new();
     let mut ordered = Vec::new();
@@ -149,7 +166,9 @@ fn visit(
     if !visiting.insert(id.clone()) {
         return Err(PluginError::DependencyCycle(id.clone()));
     }
-    let plugin = plugins.get(id).ok_or_else(|| PluginError::UnknownPlugin(id.clone()))?;
+    let plugin = plugins
+        .get(id)
+        .ok_or_else(|| PluginError::UnknownPlugin(id.clone()))?;
     for dependency in plugin.descriptor().plugin_dependencies {
         visit(&dependency, plugins, visiting, visited, ordered)?;
     }
@@ -172,9 +191,15 @@ pub enum PluginError {
     #[error("unknown plugin: {0}")]
     UnknownPlugin(PluginId),
     #[error("plugin {plugin} depends on unregistered plugin {dependency}")]
-    MissingPluginDependency { plugin: PluginId, dependency: PluginId },
+    MissingPluginDependency {
+        plugin: PluginId,
+        dependency: PluginId,
+    },
     #[error("plugin {plugin} requires disabled plugin {dependency}")]
-    DisabledRequiredPlugin { plugin: PluginId, dependency: PluginId },
+    DisabledRequiredPlugin {
+        plugin: PluginId,
+        dependency: PluginId,
+    },
     #[error("plugin dependency cycle includes {0}")]
     DependencyCycle(PluginId),
     #[error(transparent)]
@@ -191,16 +216,24 @@ mod tests {
     use semver::Version;
 
     #[derive(Debug)]
-    struct TestPlugin { descriptor: PluginDescriptor, value: Option<u64> }
+    struct TestPlugin {
+        descriptor: PluginDescriptor,
+        value: Option<u64>,
+    }
     impl Plugin for TestPlugin {
-        fn descriptor(&self) -> PluginDescriptor { self.descriptor.clone() }
+        fn descriptor(&self) -> PluginDescriptor {
+            self.descriptor.clone()
+        }
         fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
-            if let Some(value) = self.value { context.services().insert(Arc::new(value))?; }
+            if let Some(value) = self.value {
+                context.services().insert(Arc::new(value))?;
+            }
             Ok(())
         }
     }
     fn plugin(id: &str, default_enabled: bool, value: Option<u64>) -> TestPlugin {
-        let mut descriptor = PluginDescriptor::new(PluginId::new(id).unwrap(), Version::new(1,0,0), id);
+        let mut descriptor =
+            PluginDescriptor::new(PluginId::new(id).unwrap(), Version::new(1, 0, 0), id);
         descriptor.default_enabled = default_enabled;
         TestPlugin { descriptor, value }
     }
@@ -241,7 +274,9 @@ mod tests {
     #[test]
     fn explicit_plugin_install_exposes_typed_service() {
         let mut manager = PluginManager::default();
-        manager.register(plugin("service", false, Some(42))).unwrap();
+        manager
+            .register(plugin("service", false, Some(42)))
+            .unwrap();
         let mut selection = PluginSelection::default();
         selection.enabled.insert(PluginId::new("service").unwrap());
         let composed = manager.compose(&selection).unwrap();

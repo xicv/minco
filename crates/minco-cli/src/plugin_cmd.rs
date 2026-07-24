@@ -1,6 +1,9 @@
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, path::{Path, PathBuf}};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PluginCatalog {
@@ -24,7 +27,9 @@ pub struct PluginCatalogEntry {
 
 pub fn load_catalog(root: &Path, relative: &Path) -> Result<PluginCatalog> {
     let path = root.join(relative);
-    let catalog: PluginCatalog = toml::from_str(&std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?)?;
+    let catalog: PluginCatalog = toml::from_str(
+        &std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?,
+    )?;
     if catalog.schema != 1 {
         bail!("unsupported plugin catalog schema {}", catalog.schema);
     }
@@ -76,7 +81,9 @@ pub fn scaffold_plugin(root: &Path, plugin_id: &str) -> Result<()> {
         .filter(|part| !part.is_empty())
         .map(|part| {
             let mut chars = part.chars();
-            chars.next().map_or_else(String::new, |first| first.to_ascii_uppercase().to_string() + chars.as_str())
+            chars.next().map_or_else(String::new, |first| {
+                first.to_ascii_uppercase().to_string() + chars.as_str()
+            })
         })
         .collect::<String>();
     std::fs::write(
@@ -189,7 +196,12 @@ fn read_string_set(value: Option<&toml::Value>) -> Result<BTreeSet<String>> {
         .and_then(toml::Value::as_array)
         .into_iter()
         .flatten()
-        .map(|value| value.as_str().map(str::to_owned).context("plugin selection values must be strings"))
+        .map(|value| {
+            value
+                .as_str()
+                .map(str::to_owned)
+                .context("plugin selection values must be strings")
+        })
         .collect()
 }
 
@@ -199,11 +211,13 @@ fn string_array(values: BTreeSet<String>) -> toml::Value {
 
 fn validate_plugin_id(value: &str) -> Result<()> {
     if value.is_empty()
-        || !value.as_bytes().first().is_some_and(|byte| byte.is_ascii_lowercase())
+        || !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
         || value.starts_with('-')
         || value.ends_with('-')
         || value.contains("--")
-        || !value.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
     {
         bail!("plugin ID must be lower-kebab-case");
     }

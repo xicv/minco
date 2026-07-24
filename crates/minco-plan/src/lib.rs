@@ -5,9 +5,10 @@ mod cost;
 mod model;
 mod sam;
 
-pub use cost::{estimate_database_cost, CostComponent, DatabaseCostEstimate};
+pub use cost::{CostComponent, DatabaseCostEstimate, estimate_database_cost};
 pub use model::{
-    AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionPlan, IngressPlan, NeonPlan,
-    PerformancePolicy, PlanDiagnostic, PlanError, RoutePlan, RuntimePlan, Severity,
+    AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionPlan,
+    IngressPlan, NeonPlan, PerformancePolicy, PlanDiagnostic, PlanError, RoutePlan, RuntimePlan,
+    Severity,
 };
 pub use sam::render_sam;

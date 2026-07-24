@@ -1,4 +1,7 @@
-use crate::{CapabilityProvision, CapabilityRequirement, HealthCheckDescriptor, MigrationSet, OperationDescriptor, PluginDescriptor, PluginId, ResourceIntent};
+use crate::{
+    CapabilityRequirement, HealthCheckDescriptor, MigrationSet, OperationDescriptor,
+    PluginDescriptor, PluginId, ResourceIntent,
+};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,16 +41,28 @@ impl GraphBuilder {
                 return Err(GraphError::DuplicatePlugin(plugin.id.clone()));
             }
             for capability in &plugin.provides {
-                if capabilities.insert(capability.name.clone(), capability.version.clone()).is_some() {
+                if capabilities
+                    .insert(capability.name.clone(), capability.version.clone())
+                    .is_some()
+                {
                     return Err(GraphError::DuplicateCapability(capability.name.clone()));
                 }
             }
             for operation in &plugin.operations {
-                if operations.insert(operation.operation_id.clone(), operation.clone()).is_some() {
-                    return Err(GraphError::DuplicateOperation(operation.operation_id.clone()));
+                if operations
+                    .insert(operation.operation_id.clone(), operation.clone())
+                    .is_some()
+                {
+                    return Err(GraphError::DuplicateOperation(
+                        operation.operation_id.clone(),
+                    ));
                 }
-                let route = (operation.method.to_ascii_uppercase(), operation.path.clone());
-                if let Some(existing) = routes.insert(route.clone(), operation.operation_id.clone()) {
+                let route = (
+                    operation.method.to_ascii_uppercase(),
+                    operation.path.clone(),
+                );
+                if let Some(existing) = routes.insert(route.clone(), operation.operation_id.clone())
+                {
                     return Err(GraphError::DuplicateRoute {
                         method: route.0,
                         path: route.1,
@@ -57,17 +72,26 @@ impl GraphBuilder {
                 }
             }
             for migration in &plugin.migrations {
-                if migrations.insert(migration.id.clone(), migration.clone()).is_some() {
+                if migrations
+                    .insert(migration.id.clone(), migration.clone())
+                    .is_some()
+                {
                     return Err(GraphError::DuplicateMigration(migration.id.clone()));
                 }
             }
             for check in &plugin.health_checks {
-                if health_checks.insert(check.id.clone(), check.clone()).is_some() {
+                if health_checks
+                    .insert(check.id.clone(), check.clone())
+                    .is_some()
+                {
                     return Err(GraphError::DuplicateHealthCheck(check.id.clone()));
                 }
             }
             for resource in &plugin.resources {
-                if resources.insert(resource.id.clone(), resource.clone()).is_some() {
+                if resources
+                    .insert(resource.id.clone(), resource.clone())
+                    .is_some()
+                {
                     return Err(GraphError::DuplicateResource(resource.id.clone()));
                 }
             }
@@ -92,7 +116,10 @@ impl GraphBuilder {
     }
 }
 
-fn validate_plugin_dependencies(plugin: &PluginDescriptor, ids: &BTreeSet<PluginId>) -> Result<(), GraphError> {
+fn validate_plugin_dependencies(
+    plugin: &PluginDescriptor,
+    ids: &BTreeSet<PluginId>,
+) -> Result<(), GraphError> {
     for dependency in &plugin.plugin_dependencies {
         if !ids.contains(dependency) {
             return Err(GraphError::MissingPluginDependency {
@@ -109,10 +136,12 @@ fn validate_capability_requirements(
     capabilities: &BTreeMap<String, Version>,
 ) -> Result<(), GraphError> {
     for CapabilityRequirement { name, version } in &plugin.requires {
-        let provided = capabilities.get(name).ok_or_else(|| GraphError::MissingCapability {
-            plugin: plugin.id.clone(),
-            capability: name.clone(),
-        })?;
+        let provided = capabilities
+            .get(name)
+            .ok_or_else(|| GraphError::MissingCapability {
+                plugin: plugin.id.clone(),
+                capability: name.clone(),
+            })?;
         if !version.matches(provided) {
             return Err(GraphError::CapabilityVersionMismatch {
                 plugin: plugin.id.clone(),
@@ -158,7 +187,9 @@ fn visit_plugin(
     Ok(())
 }
 
-fn validate_resource_dependencies(resources: &BTreeMap<String, ResourceIntent>) -> Result<(), GraphError> {
+fn validate_resource_dependencies(
+    resources: &BTreeMap<String, ResourceIntent>,
+) -> Result<(), GraphError> {
     for resource in resources.values() {
         for dependency in &resource.dependencies {
             if !resources.contains_key(dependency) {
@@ -172,7 +203,9 @@ fn validate_resource_dependencies(resources: &BTreeMap<String, ResourceIntent>) 
     Ok(())
 }
 
-fn validate_resource_cycles(resources: &BTreeMap<String, ResourceIntent>) -> Result<(), GraphError> {
+fn validate_resource_cycles(
+    resources: &BTreeMap<String, ResourceIntent>,
+) -> Result<(), GraphError> {
     let mut visiting = BTreeSet::new();
     let mut visited = BTreeSet::new();
     for id in resources.keys() {
@@ -225,15 +258,29 @@ pub enum GraphError {
     #[error("duplicate resource id: {0}")]
     DuplicateResource(String),
     #[error("plugin {plugin} depends on missing plugin {dependency}")]
-    MissingPluginDependency { plugin: PluginId, dependency: PluginId },
+    MissingPluginDependency {
+        plugin: PluginId,
+        dependency: PluginId,
+    },
     #[error("plugin dependency cycle includes {0}")]
     PluginCycle(PluginId),
     #[error("plugin {plugin} requires missing capability {capability}")]
-    MissingCapability { plugin: PluginId, capability: String },
+    MissingCapability {
+        plugin: PluginId,
+        capability: String,
+    },
     #[error("plugin {plugin} requires {capability} {required}, but {provided} is provided")]
-    CapabilityVersionMismatch { plugin: PluginId, capability: String, required: String, provided: String },
+    CapabilityVersionMismatch {
+        plugin: PluginId,
+        capability: String,
+        required: String,
+        provided: String,
+    },
     #[error("resource {resource} depends on missing resource {dependency}")]
-    MissingResourceDependency { resource: String, dependency: String },
+    MissingResourceDependency {
+        resource: String,
+        dependency: String,
+    },
     #[error("resource dependency cycle includes {0}")]
     ResourceCycle(String),
 }
@@ -241,7 +288,7 @@ pub enum GraphError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PluginDescriptor, PluginId};
+    use crate::{CapabilityProvision, PluginDescriptor, PluginId};
     use semver::{Version, VersionReq};
 
     fn descriptor(id: &str) -> PluginDescriptor {
@@ -251,10 +298,16 @@ mod tests {
     #[test]
     fn validates_capabilities_and_dependencies() {
         let mut provider = descriptor("provider");
-        provider.provides.push(CapabilityProvision { name: "clock".into(), version: Version::new(1, 2, 0) });
+        provider.provides.push(CapabilityProvision {
+            name: "clock".into(),
+            version: Version::new(1, 2, 0),
+        });
         let mut consumer = descriptor("consumer");
         consumer.plugin_dependencies.push(provider.id.clone());
-        consumer.requires.push(CapabilityRequirement { name: "clock".into(), version: VersionReq::parse("^1.0").unwrap() });
+        consumer.requires.push(CapabilityRequirement {
+            name: "clock".into(),
+            version: VersionReq::parse("^1.0").unwrap(),
+        });
         let mut builder = GraphBuilder::default();
         builder.add_plugin(provider);
         builder.add_plugin(consumer);
@@ -282,7 +335,10 @@ mod tests {
         let mut builder = GraphBuilder::default();
         builder.add_plugin(first);
         builder.add_plugin(second);
-        assert!(matches!(builder.build(), Err(GraphError::DuplicateRoute { .. })));
+        assert!(matches!(
+            builder.build(),
+            Err(GraphError::DuplicateRoute { .. })
+        ));
     }
 
     #[test]
@@ -310,9 +366,15 @@ mod tests {
     #[test]
     fn rejects_missing_capability() {
         let mut consumer = descriptor("consumer");
-        consumer.requires.push(CapabilityRequirement { name: "clock".into(), version: VersionReq::STAR });
+        consumer.requires.push(CapabilityRequirement {
+            name: "clock".into(),
+            version: VersionReq::STAR,
+        });
         let mut builder = GraphBuilder::default();
         builder.add_plugin(consumer);
-        assert!(matches!(builder.build(), Err(GraphError::MissingCapability { .. })));
+        assert!(matches!(
+            builder.build(),
+            Err(GraphError::MissingCapability { .. })
+        ));
     }
 }

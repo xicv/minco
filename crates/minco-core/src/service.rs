@@ -68,7 +68,7 @@ impl FrozenServices {
         self.services
             .get(&TypeId::of::<T>())
             .cloned()
-            .ok_or(ServiceError::Missing(std::any::type_name::<T>()))?
+            .ok_or_else(|| ServiceError::Missing(std::any::type_name::<T>()))?
             .downcast::<T>()
             .map_err(|_| ServiceError::TypeMismatch(std::any::type_name::<T>()))
     }
@@ -91,9 +91,7 @@ mod tests {
     #[test]
     fn typed_services_are_frozen_and_retrieved_without_string_keys() {
         let mut services = ServiceCollection::default();
-        services
-            .insert(Arc::new(String::from("hello")))
-            .unwrap();
+        services.insert(Arc::new(String::from("hello"))).unwrap();
         let frozen = services.freeze();
         assert_eq!(&*frozen.get::<String>().unwrap(), "hello");
     }

@@ -1,4 +1,4 @@
-//! Bounded SQLx PostgreSQL pools for local servers and serverless runtimes.
+//! Bounded `SQLx` `PostgreSQL` pools for local servers and serverless runtimes.
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
@@ -17,11 +17,22 @@ pub struct PostgresPoolConfig {
 
 impl PostgresPoolConfig {
     pub fn serverless(url: impl Into<String>) -> Self {
-        Self { url: url.into(), max_connections: 2, acquire_timeout_seconds: 5, idle_timeout_seconds: 60 }
+        Self {
+            url: url.into(),
+            max_connections: 2,
+            acquire_timeout_seconds: 5,
+            idle_timeout_seconds: 60,
+        }
     }
     pub fn validate(&self) -> Result<(), PostgresError> {
-        if self.url.trim().is_empty() { return Err(PostgresError::InvalidConfig("database URL is empty".into())); }
-        if self.max_connections == 0 { return Err(PostgresError::InvalidConfig("max_connections must be at least 1".into())); }
+        if self.url.trim().is_empty() {
+            return Err(PostgresError::InvalidConfig("database URL is empty".into()));
+        }
+        if self.max_connections == 0 {
+            return Err(PostgresError::InvalidConfig(
+                "max_connections must be at least 1".into(),
+            ));
+        }
         Ok(())
     }
 }
@@ -54,7 +65,12 @@ pub async fn migrate(pool: &PgPool, path: impl AsRef<Path>) -> Result<(), Postgr
 }
 
 pub async fn ready(pool: &PgPool) -> bool {
-    matches!(sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(pool).await, Ok(1))
+    matches!(
+        sqlx::query_scalar::<_, i32>("SELECT 1")
+            .fetch_one(pool)
+            .await,
+        Ok(1)
+    )
 }
 
 #[derive(Debug, Error)]

@@ -1,4 +1,4 @@
-//! SQLx SQLite pools with explicit file-backed versus in-memory behavior.
+//! `SQLx` `SQLite` pools with explicit file-backed versus in-memory behavior.
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
@@ -15,22 +15,54 @@ pub struct SqlitePoolConfig {
 }
 
 impl SqlitePoolConfig {
-    pub fn file(path: impl AsRef<Path>) -> Self { Self { url: format!("sqlite://{}", path.as_ref().display()), max_connections: 4, acquire_timeout_seconds: 5 } }
-    pub fn memory() -> Self { Self { url: "sqlite::memory:".into(), max_connections: 1, acquire_timeout_seconds: 5 } }
-    pub fn is_memory(&self) -> bool { self.url == "sqlite::memory:" || self.url.contains("mode=memory") }
+    pub fn file(path: impl AsRef<Path>) -> Self {
+        Self {
+            url: format!("sqlite://{}", path.as_ref().display()),
+            max_connections: 4,
+            acquire_timeout_seconds: 5,
+        }
+    }
+    pub fn memory() -> Self {
+        Self {
+            url: "sqlite::memory:".into(),
+            max_connections: 1,
+            acquire_timeout_seconds: 5,
+        }
+    }
+    pub fn is_memory(&self) -> bool {
+        self.url == "sqlite::memory:" || self.url.contains("mode=memory")
+    }
     pub fn validate(&self) -> Result<(), SqliteError> {
-        if self.url.trim().is_empty() { return Err(SqliteError::InvalidConfig("database URL is empty".into())); }
-        if self.max_connections == 0 { return Err(SqliteError::InvalidConfig("max_connections must be at least 1".into())); }
-        if self.is_memory() && self.max_connections != 1 { return Err(SqliteError::InvalidConfig("in-memory SQLite requires exactly one pooled connection".into())); }
+        if self.url.trim().is_empty() {
+            return Err(SqliteError::InvalidConfig("database URL is empty".into()));
+        }
+        if self.max_connections == 0 {
+            return Err(SqliteError::InvalidConfig(
+                "max_connections must be at least 1".into(),
+            ));
+        }
+        if self.is_memory() && self.max_connections != 1 {
+            return Err(SqliteError::InvalidConfig(
+                "in-memory SQLite requires exactly one pooled connection".into(),
+            ));
+        }
         Ok(())
     }
 }
 
 pub async fn connect(config: &SqlitePoolConfig) -> Result<SqlitePool, SqliteError> {
     config.validate()?;
-    let mut options = SqliteConnectOptions::from_str(&config.url)?.create_if_missing(!config.is_memory()).foreign_keys(true);
-    if !config.is_memory() { options = options.journal_mode(SqliteJournalMode::Wal); }
-    Ok(SqlitePoolOptions::new().max_connections(config.max_connections).acquire_timeout(Duration::from_secs(config.acquire_timeout_seconds)).connect_with(options).await?)
+    let mut options = SqliteConnectOptions::from_str(&config.url)?
+        .create_if_missing(!config.is_memory())
+        .foreign_keys(true);
+    if !config.is_memory() {
+        options = options.journal_mode(SqliteJournalMode::Wal);
+    }
+    Ok(SqlitePoolOptions::new()
+        .max_connections(config.max_connections)
+        .acquire_timeout(Duration::from_secs(config.acquire_timeout_seconds))
+        .connect_with(options)
+        .await?)
 }
 
 pub async fn migrate(pool: &SqlitePool, path: impl AsRef<Path>) -> Result<(), SqliteError> {
@@ -39,7 +71,14 @@ pub async fn migrate(pool: &SqlitePool, path: impl AsRef<Path>) -> Result<(), Sq
     Ok(())
 }
 
-pub async fn ready(pool: &SqlitePool) -> bool { matches!(sqlx::query_scalar::<_, i64>("SELECT 1").fetch_one(pool).await, Ok(1)) }
+pub async fn ready(pool: &SqlitePool) -> bool {
+    matches!(
+        sqlx::query_scalar::<_, i64>("SELECT 1")
+            .fetch_one(pool)
+            .await,
+        Ok(1)
+    )
+}
 
 #[derive(Debug, Error)]
 pub enum SqliteError {

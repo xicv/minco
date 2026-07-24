@@ -1,12 +1,17 @@
 use crate::{AuthPlan, DatabaseDeployment, DeploymentPlan, IngressPlan, PlanError, RuntimePlan};
 use minco_contract::HttpMethod;
+use std::fmt::Write as _;
 
 pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     if !matches!(&plan.runtime, RuntimePlan::LambdaZipArm64) {
-        return Err(PlanError::UnsupportedDeployment("SAM rendering requires lambda_zip_arm64".into()));
+        return Err(PlanError::UnsupportedDeployment(
+            "SAM rendering requires lambda_zip_arm64".into(),
+        ));
     }
     if !matches!(&plan.ingress, IngressPlan::ApiGatewayHttpApi) {
-        return Err(PlanError::UnsupportedDeployment("the initial SAM renderer requires api_gateway_http_api".into()));
+        return Err(PlanError::UnsupportedDeployment(
+            "the initial SAM renderer requires api_gateway_http_api".into(),
+        ));
     }
     if !matches!(
         &plan.database,
@@ -23,10 +28,15 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     let mut output = String::new();
     output.push_str("AWSTemplateFormatVersion: '2010-09-09'\n");
     output.push_str("Transform: AWS::Serverless-2016-10-31\n");
-    output.push_str(&format!(
-        "Description: {}\n",
-        yaml_quote(&format!("Minco deployment for {} ({})", plan.application, plan.environment))
-    ));
+    writeln!(
+        output,
+        "Description: {}",
+        yaml_quote(&format!(
+            "Minco deployment for {} ({})",
+            plan.application, plan.environment
+        ))
+    )
+    .expect("writing to String cannot fail");
     output.push_str("Parameters:\n");
     output.push_str("  DatabaseUrlParameterName:\n");
     output.push_str("    Type: String\n");
@@ -38,10 +48,13 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     output.push_str("      StageName: '$default'\n");
     output.push_str("      CorsConfiguration:\n");
     output.push_str("        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]\n");
-    output.push_str("        AllowHeaders: [Authorization, Content-Type, Idempotency-Key, X-Request-Id]\n");
+    output.push_str(
+        "        AllowHeaders: [Authorization, Content-Type, Idempotency-Key, X-Request-Id]\n",
+    );
     output.push_str("        AllowOrigins:\n");
     for origin in &plan.allowed_origins {
-        output.push_str(&format!("          - {}\n", yaml_quote(origin)));
+        writeln!(output, "          - {}", yaml_quote(origin))
+            .expect("writing to String cannot fail");
     }
     if let AuthPlan::Jwt { issuer, audiences } = &plan.auth {
         output.push_str("      Auth:\n");
@@ -50,39 +63,64 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
         output.push_str("          JwtAuthorizer:\n");
         output.push_str("            IdentitySource: '$request.header.Authorization'\n");
         output.push_str("            JwtConfiguration:\n");
-        output.push_str(&format!("              issuer: {}\n", yaml_quote(issuer)));
+        writeln!(output, "              issuer: {}", yaml_quote(issuer))
+            .expect("writing to String cannot fail");
         output.push_str("              audience:\n");
         for audience in audiences {
-            output.push_str(&format!("                - {}\n", yaml_quote(audience)));
+            writeln!(output, "                - {}", yaml_quote(audience))
+                .expect("writing to String cannot fail");
         }
     }
     output.push_str("  ApiFunction:\n");
     output.push_str("    Type: AWS::Serverless::Function\n");
     output.push_str("    Properties:\n");
-    output.push_str(&format!(
-        "      FunctionName: {}\n",
+    writeln!(
+        output,
+        "      FunctionName: {}",
         yaml_quote(&format!("{}-{}-api", plan.application, plan.environment))
-    ));
-    output.push_str(&format!("      CodeUri: {}\n", yaml_quote(&function.artifact_path)));
+    )
+    .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "      CodeUri: {}",
+        yaml_quote(&function.artifact_path)
+    )
+    .expect("writing to String cannot fail");
     output.push_str("      Handler: bootstrap\n");
     output.push_str("      Runtime: provided.al2023\n");
     output.push_str("      Architectures: [arm64]\n");
-    output.push_str(&format!("      MemorySize: {}\n", function.memory_mb));
-    output.push_str(&format!("      Timeout: {}\n", function.timeout_seconds));
-    output.push_str(&format!("      ReservedConcurrentExecutions: {}\n", function.reserved_concurrency));
+    writeln!(output, "      MemorySize: {}", function.memory_mb)
+        .expect("writing to String cannot fail");
+    writeln!(output, "      Timeout: {}", function.timeout_seconds)
+        .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "      ReservedConcurrentExecutions: {}",
+        function.reserved_concurrency
+    )
+    .expect("writing to String cannot fail");
     output.push_str("      Environment:\n");
     output.push_str("        Variables:\n");
-    output.push_str(&format!("          APP_ENV: {}\n", yaml_quote(&plan.environment)));
+    writeln!(
+        output,
+        "          APP_ENV: {}",
+        yaml_quote(&plan.environment)
+    )
+    .expect("writing to String cannot fail");
     output.push_str("          DATABASE_KIND: postgres\n");
     output.push_str("          DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName\n");
-    output.push_str(&format!(
-        "          DATABASE_MAX_CONNECTIONS: {}\n",
+    writeln!(
+        output,
+        "          DATABASE_MAX_CONNECTIONS: {}",
         yaml_quote(&function.database_connections_per_instance.to_string())
-    ));
-    output.push_str(&format!(
-        "          ALLOWED_ORIGINS: {}\n",
+    )
+    .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "          ALLOWED_ORIGINS: {}",
         yaml_quote(&plan.allowed_origins.join(","))
-    ));
+    )
+    .expect("writing to String cannot fail");
     output.push_str("          ALLOW_DEVELOPMENT_HEADERS: 'false'\n");
     output.push_str("      Policies:\n");
     output.push_str("        - Statement:\n");
@@ -97,12 +135,15 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     output.push_str("                  kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'\n");
     output.push_str("      Events:\n");
     for route in &plan.routes {
-        output.push_str(&format!("        {}:\n", event_name(&route.operation_id)));
+        writeln!(output, "        {}:", event_name(&route.operation_id))
+            .expect("writing to String cannot fail");
         output.push_str("          Type: HttpApi\n");
         output.push_str("          Properties:\n");
         output.push_str("            ApiId: !Ref HttpApi\n");
-        output.push_str(&format!("            Path: {}\n", yaml_quote(&route.path)));
-        output.push_str(&format!("            Method: {}\n", method(route.method)));
+        writeln!(output, "            Path: {}", yaml_quote(&route.path))
+            .expect("writing to String cannot fail");
+        writeln!(output, "            Method: {}", method(route.method))
+            .expect("writing to String cannot fail");
         if !route.authenticated && matches!(&plan.auth, AuthPlan::Jwt { .. }) {
             output.push_str("            Auth:\n");
             output.push_str("              Authorizer: NONE\n");
@@ -112,10 +153,13 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     output.push_str("    Type: AWS::Logs::LogGroup\n");
     output.push_str("    Properties:\n");
     output.push_str("      LogGroupName: !Sub '/aws/lambda/${ApiFunction}'\n");
-    output.push_str(&format!("      RetentionInDays: {}\n", plan.log_retention_days));
+    writeln!(output, "      RetentionInDays: {}", plan.log_retention_days)
+        .expect("writing to String cannot fail");
     output.push_str("Outputs:\n");
     output.push_str("  ApiUrl:\n");
-    output.push_str("    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'\n");
+    output.push_str(
+        "    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'\n",
+    );
     output.push_str("  ApiFunctionName:\n");
     output.push_str("    Value: !Ref ApiFunction\n");
     Ok(output)

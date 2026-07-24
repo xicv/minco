@@ -1,6 +1,10 @@
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
-use std::{collections::{BTreeMap, BTreeSet}, path::{Path, PathBuf}};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Roadmap {
@@ -44,7 +48,9 @@ pub struct Task {
 }
 
 pub fn load_roadmap(path: &Path) -> Result<Roadmap> {
-    let roadmap: Roadmap = serde_yaml_ng::from_str(&std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?)?;
+    let roadmap: Roadmap = serde_yaml_ng::from_str(
+        &std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?,
+    )?;
     if roadmap.schema != 1 {
         bail!("unsupported roadmap schema {}", roadmap.schema);
     }
@@ -66,9 +72,10 @@ pub fn load_tasks(root: &Path) -> Result<Vec<Task>> {
         let Some((front, body)) = rest.split_once("\n---\n") else {
             bail!("task {} has unterminated YAML front matter", path.display());
         };
-        let mut task: Task = serde_yaml_ng::from_str(front).with_context(|| format!("parse {}", path.display()))?;
+        let mut task: Task =
+            serde_yaml_ng::from_str(front).with_context(|| format!("parse {}", path.display()))?;
         task.path = path;
-        task.body = body.trim().to_owned();
+        body.trim().clone_into(&mut task.body);
         tasks.push(task);
     }
     Ok(tasks)
@@ -83,23 +90,35 @@ pub fn ready_tasks(tasks: &[Task]) -> Vec<&Task> {
     tasks
         .iter()
         .filter(|task| task.status == "ready" || task.status == "active")
-        .filter(|task| task.depends_on.iter().all(|dependency| complete.contains(dependency.as_str())))
+        .filter(|task| {
+            task.depends_on
+                .iter()
+                .all(|dependency| complete.contains(dependency.as_str()))
+        })
         .collect()
 }
 
 pub fn render_roadmap_mermaid(roadmap: &Roadmap) -> String {
     let mut output = String::from("flowchart LR\n");
     for milestone in &roadmap.milestones {
-        output.push_str(&format!(
-            "    {}[\"{}<br/>{}\"]\n",
+        writeln!(
+            output,
+            "    {}[\"{}<br/>{}\"]",
             safe_id(&milestone.id),
             escape(&milestone.id),
             escape(&milestone.name)
-        ));
+        )
+        .expect("writing to String cannot fail");
     }
     for milestone in &roadmap.milestones {
         for dependency in &milestone.depends_on {
-            output.push_str(&format!("    {} --> {}\n", safe_id(dependency), safe_id(&milestone.id)));
+            writeln!(
+                output,
+                "    {} --> {}",
+                safe_id(dependency),
+                safe_id(&milestone.id)
+            )
+            .expect("writing to String cannot fail");
         }
     }
     output
@@ -108,23 +127,34 @@ pub fn render_roadmap_mermaid(roadmap: &Roadmap) -> String {
 pub fn render_task_mermaid(tasks: &[Task]) -> String {
     let mut output = String::from("flowchart LR\n");
     for task in tasks {
-        output.push_str(&format!(
-            "    {}[\"{}<br/>{}\"]\n",
+        writeln!(
+            output,
+            "    {}[\"{}<br/>{}\"]",
             safe_id(&task.id),
             escape(&task.id),
             escape(&task.title)
-        ));
+        )
+        .expect("writing to String cannot fail");
     }
     for task in tasks {
         for dependency in &task.depends_on {
-            output.push_str(&format!("    {} --> {}\n", safe_id(dependency), safe_id(&task.id)));
+            writeln!(
+                output,
+                "    {} --> {}",
+                safe_id(dependency),
+                safe_id(&task.id)
+            )
+            .expect("writing to String cannot fail");
         }
     }
     output
 }
 
 pub fn validate_task_graph(tasks: &[Task]) -> Result<()> {
-    let by_id = tasks.iter().map(|task| (task.id.as_str(), task)).collect::<BTreeMap<_, _>>();
+    let by_id = tasks
+        .iter()
+        .map(|task| (task.id.as_str(), task))
+        .collect::<BTreeMap<_, _>>();
     if by_id.len() != tasks.len() {
         bail!("duplicate task IDs");
     }
@@ -179,7 +209,13 @@ fn collect_markdown(root: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn safe_id(value: &str) -> String {
-    format!("N{}", value.chars().filter(char::is_ascii_alphanumeric).collect::<String>())
+    format!(
+        "N{}",
+        value
+            .chars()
+            .filter(char::is_ascii_alphanumeric)
+            .collect::<String>()
+    )
 }
 
 fn escape(value: &str) -> String {

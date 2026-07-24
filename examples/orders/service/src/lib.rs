@@ -29,7 +29,9 @@ impl FromStr for DatabaseKind {
             "memory" => Ok(Self::Memory),
             "sqlite" => Ok(Self::Sqlite),
             "postgres" => Ok(Self::Postgres),
-            other => bail!("unsupported DATABASE_KIND {other}; expected memory, sqlite, or postgres"),
+            other => {
+                bail!("unsupported DATABASE_KIND {other}; expected memory, sqlite, or postgres")
+            }
         }
     }
 }
@@ -68,8 +70,7 @@ impl AppConfig {
             .parse()?;
         let database_url = database_url_override.or_else(|| env::var("DATABASE_URL").ok());
         let sqlite_path = env::var("SQLITE_PATH")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("target/minco/orders.db"));
+            .map_or_else(|_| PathBuf::from("target/minco/orders.db"), PathBuf::from);
         let database_max_connections = env::var("DATABASE_MAX_CONNECTIONS")
             .unwrap_or_else(|_| "2".into())
             .parse()
@@ -81,7 +82,8 @@ impl AppConfig {
             .filter(|value| !value.is_empty())
             .map(str::to_owned)
             .collect::<Vec<_>>();
-        let allow_development_headers = parse_bool("ALLOW_DEVELOPMENT_HEADERS", environment == "local")?;
+        let allow_development_headers =
+            parse_bool("ALLOW_DEVELOPMENT_HEADERS", environment == "local")?;
         let disabled_plugins = env::var("MINCO_DISABLED_PLUGINS")
             .unwrap_or_default()
             .split(',')
@@ -115,7 +117,9 @@ impl AppConfig {
         if self.allowed_origins.iter().any(|origin| origin == "*") {
             bail!("wildcard CORS origins are not supported");
         }
-        if self.database_kind == DatabaseKind::Postgres && self.database_url.as_deref().is_none_or(str::is_empty) {
+        if self.database_kind == DatabaseKind::Postgres
+            && self.database_url.as_deref().is_none_or(str::is_empty)
+        {
             bail!("DATABASE_URL is required when DATABASE_KIND=postgres");
         }
         if self.database_max_connections == 0 {
@@ -151,8 +155,17 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
     }
     let health = composed.services.get::<HealthRegistry>()?;
     let store = build_store(config).await?;
-    health.register(Arc::new(StoreHealthCheck { store: Arc::clone(&store) })).await;
-    let state = ApiState::new(store, Arc::new(SystemClock), health, config.allow_development_headers);
+    health
+        .register(Arc::new(StoreHealthCheck {
+            store: Arc::clone(&store),
+        }))
+        .await;
+    let state = ApiState::new(
+        store,
+        Arc::new(SystemClock),
+        health,
+        config.allow_development_headers,
+    );
     let router = orders_api::build_router(state);
     let router = apply_standard_middleware(
         router,
@@ -163,7 +176,10 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
             compression: true,
         },
     )?;
-    Ok(BuiltApplication { router, graph: composed.graph })
+    Ok(BuiltApplication {
+        router,
+        graph: composed.graph,
+    })
 }
 
 async fn build_store(config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
@@ -197,7 +213,12 @@ async fn build_sqlite_store(_config: &AppConfig) -> Result<Arc<dyn OrderStore>> 
 async fn build_postgres_store(config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
     use minco_sqlx_postgres::PostgresPoolConfig;
     use orders_adapters::PostgresOrderStore;
-    let mut database = PostgresPoolConfig::serverless(config.database_url.clone().context("DATABASE_URL is required")?);
+    let mut database = PostgresPoolConfig::serverless(
+        config
+            .database_url
+            .clone()
+            .context("DATABASE_URL is required")?,
+    );
     database.max_connections = config.database_max_connections;
     let store = PostgresOrderStore::connect(&database).await?;
     Ok(Arc::new(store))
@@ -226,13 +247,17 @@ struct StoreHealthCheck {
 
 impl std::fmt::Debug for StoreHealthCheck {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("StoreHealthCheck").finish_non_exhaustive()
+        formatter
+            .debug_struct("StoreHealthCheck")
+            .finish_non_exhaustive()
     }
 }
 
 #[async_trait]
 impl HealthCheck for StoreHealthCheck {
-    fn id(&self) -> &str { "orders-store" }
+    fn id(&self) -> &'static str {
+        "orders-store"
+    }
     async fn check(&self) -> HealthResult {
         let ready = self.store.ready().await;
         HealthResult {

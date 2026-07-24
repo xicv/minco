@@ -1,6 +1,10 @@
 use anyhow::{Context, Result};
 use serde::Serialize;
-use std::{collections::BTreeSet, fs, path::{Path, PathBuf}};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use crate::config::ArchitectureManifest;
 
@@ -70,7 +74,15 @@ pub fn validate_architecture(
         root,
         "api",
         &architecture.api_roots,
-        &["sqlx", "aws-sdk-", "aws-config", "lambda-", "lambda_", "minco-sqlx", "minco-aws"],
+        &[
+            "sqlx",
+            "aws-sdk-",
+            "aws-config",
+            "lambda-",
+            "lambda_",
+            "minco-sqlx",
+            "minco-aws",
+        ],
         &mut inspected,
         &mut findings,
     )?;
@@ -98,10 +110,14 @@ fn inspect_layer(
                 .with_context(|| format!("read architecture manifest {}", manifest.display()))?;
             let document: toml::Value = toml::from_str(&source)
                 .with_context(|| format!("parse architecture manifest {}", manifest.display()))?;
-            let display_path = manifest.strip_prefix(root).unwrap_or(&manifest).to_path_buf();
+            let display_path = manifest
+                .strip_prefix(root)
+                .unwrap_or(&manifest)
+                .to_path_buf();
             inspected.insert(display_path.clone());
             for section in ["dependencies", "build-dependencies"] {
-                let Some(dependencies) = document.get(section).and_then(toml::Value::as_table) else {
+                let Some(dependencies) = document.get(section).and_then(toml::Value::as_table)
+                else {
                     continue;
                 };
                 for (alias, specification) in dependencies {
@@ -142,10 +158,12 @@ fn matches_rule(package: &str, rule: &str) -> bool {
 
 fn find_manifests(root: &Path) -> Result<Vec<PathBuf>> {
     if root.is_file() {
-        return Ok((root.file_name().and_then(|name| name.to_str()) == Some("Cargo.toml"))
-            .then(|| root.to_path_buf())
-            .into_iter()
-            .collect());
+        return Ok(
+            (root.file_name().and_then(|name| name.to_str()) == Some("Cargo.toml"))
+                .then(|| root.to_path_buf())
+                .into_iter()
+                .collect(),
+        );
     }
     if !root.exists() {
         return Ok(Vec::new());

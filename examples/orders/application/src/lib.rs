@@ -17,8 +17,14 @@ pub struct Actor {
 
 impl Actor {
     #[must_use]
-    pub fn service(subject: impl Into<String>, permissions: impl IntoIterator<Item = String>) -> Self {
-        Self { subject: subject.into(), permissions: permissions.into_iter().collect() }
+    pub fn service(
+        subject: impl Into<String>,
+        permissions: impl IntoIterator<Item = String>,
+    ) -> Self {
+        Self {
+            subject: subject.into(),
+            permissions: permissions.into_iter().collect(),
+        }
     }
 
     #[must_use]
@@ -54,7 +60,10 @@ pub struct PlaceOrderTransaction {
 
 #[async_trait]
 pub trait OrderStore: Send + Sync {
-    async fn place_order(&self, transaction: PlaceOrderTransaction) -> Result<PlaceOrderResult, StoreError>;
+    async fn place_order(
+        &self,
+        transaction: PlaceOrderTransaction,
+    ) -> Result<PlaceOrderResult, StoreError>;
     async fn get_order(&self, id: OrderId) -> Result<Option<Order>, StoreError>;
     async fn ready(&self) -> bool;
 }
@@ -84,7 +93,7 @@ where
     C: Clock + ?Sized,
 {
     #[must_use]
-    pub fn new(store: Arc<S>, clock: Arc<C>) -> Self {
+    pub const fn new(store: Arc<S>, clock: Arc<C>) -> Self {
         Self { store, clock }
     }
 
@@ -132,7 +141,7 @@ where
     S: OrderStore + ?Sized,
 {
     #[must_use]
-    pub fn new(store: Arc<S>) -> Self {
+    pub const fn new(store: Arc<S>) -> Self {
         Self { store }
     }
 
@@ -140,20 +149,29 @@ where
         if !actor.has_permission("orders.read") {
             return Err(ApplicationError::Forbidden);
         }
-        self.store.get_order(id).await?.ok_or(ApplicationError::NotFound)
+        self.store
+            .get_order(id)
+            .await?
+            .ok_or(ApplicationError::NotFound)
     }
 }
 
 fn validate_idempotency_key(value: &str) -> Result<String, ApplicationError> {
     let value = value.trim();
     if value.is_empty() || value.chars().count() > 200 || value.chars().any(char::is_control) {
-        return Err(ApplicationError::Validation("Idempotency-Key must contain 1 to 200 visible characters".into()));
+        return Err(ApplicationError::Validation(
+            "Idempotency-Key must contain 1 to 200 visible characters".into(),
+        ));
     }
     Ok(value.to_owned())
 }
 
-fn request_fingerprint(actor: &Actor, command: &PlaceOrderCommand) -> Result<String, ApplicationError> {
-    let canonical = serde_json::to_vec(&(actor.subject.as_str(), command)).map_err(|_| ApplicationError::Internal)?;
+fn request_fingerprint(
+    actor: &Actor,
+    command: &PlaceOrderCommand,
+) -> Result<String, ApplicationError> {
+    let canonical = serde_json::to_vec(&(actor.subject.as_str(), command))
+        .map_err(|_| ApplicationError::Internal)?;
     let mut hasher = Sha256::new();
     hasher.update(canonical);
     Ok(format!("{:x}", hasher.finalize()))
@@ -208,22 +226,44 @@ mod tests {
 
     #[derive(Debug)]
     struct FixedClock(DateTime<Utc>);
-    impl Clock for FixedClock { fn now(&self) -> DateTime<Utc> { self.0 } }
+    impl Clock for FixedClock {
+        fn now(&self) -> DateTime<Utc> {
+            self.0
+        }
+    }
 
     #[derive(Debug, Default)]
-    struct FakeStore { calls: Mutex<usize> }
+    struct FakeStore {
+        calls: Mutex<usize>,
+    }
     #[async_trait]
     impl OrderStore for FakeStore {
-        async fn place_order(&self, transaction: PlaceOrderTransaction) -> Result<PlaceOrderResult, StoreError> {
+        async fn place_order(
+            &self,
+            transaction: PlaceOrderTransaction,
+        ) -> Result<PlaceOrderResult, StoreError> {
             *self.calls.lock().expect("test lock") += 1;
-            Ok(PlaceOrderResult { order: transaction.order, replayed: false })
+            Ok(PlaceOrderResult {
+                order: transaction.order,
+                replayed: false,
+            })
         }
-        async fn get_order(&self, _id: OrderId) -> Result<Option<Order>, StoreError> { Ok(None) }
-        async fn ready(&self) -> bool { true }
+        async fn get_order(&self, _id: OrderId) -> Result<Option<Order>, StoreError> {
+            Ok(None)
+        }
+        async fn ready(&self) -> bool {
+            true
+        }
     }
 
     fn command() -> PlaceOrderCommand {
-        PlaceOrderCommand { customer_reference: "PO-42".into(), lines: vec![PlaceOrderLine { sku: "SKU-1".into(), quantity: 2 }] }
+        PlaceOrderCommand {
+            customer_reference: "PO-42".into(),
+            lines: vec![PlaceOrderLine {
+                sku: "SKU-1".into(),
+                quantity: 2,
+            }],
+        }
     }
 
     #[tokio::test]
@@ -232,7 +272,10 @@ mod tests {
         let clock = Arc::new(FixedClock(Utc::now()));
         let use_case = PlaceOrder::new(Arc::clone(&store), clock);
         let actor = Actor::service("user", Vec::<String>::new());
-        assert_eq!(use_case.execute(&actor, command(), "key-1").await, Err(ApplicationError::Forbidden));
+        assert_eq!(
+            use_case.execute(&actor, command(), "key-1").await,
+            Err(ApplicationError::Forbidden)
+        );
         assert_eq!(*store.calls.lock().expect("test lock"), 0);
     }
 
@@ -242,7 +285,10 @@ mod tests {
         let clock = Arc::new(FixedClock(Utc::now()));
         let use_case = PlaceOrder::new(store, clock);
         let actor = Actor::service("user", ["orders.create".to_owned()]);
-        let result = use_case.execute(&actor, command(), "key-1").await.expect("place order");
+        let result = use_case
+            .execute(&actor, command(), "key-1")
+            .await
+            .expect("place order");
         assert!(!result.replayed);
         assert_eq!(result.order.customer_reference.as_str(), "PO-42");
     }

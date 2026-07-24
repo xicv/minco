@@ -79,9 +79,7 @@ pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEsti
                     "instance",
                     *instance_hour_rate_usd,
                     instance_hours * multi_az_multiplier,
-                    format!(
-                        "{instance_hours} hours × multi-AZ multiplier {multi_az_multiplier}"
-                    ),
+                    format!("{instance_hours} hours × multi-AZ multiplier {multi_az_multiplier}"),
                 ),
                 (
                     "storage",
@@ -179,16 +177,8 @@ pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEsti
         } => complete(
             "sqlite_persistent_host",
             vec![
-                component(
-                    "host",
-                    *host_monthly_usd,
-                    "persistent single-process host",
-                ),
-                component(
-                    "backup",
-                    *backup_monthly_usd,
-                    "backup storage and transfer",
-                ),
+                component("host", *host_monthly_usd, "persistent single-process host"),
+                component("backup", *backup_monthly_usd, "backup storage and transfer"),
             ],
             vec![
                 "Suitable only where a single-writer deployment and persistent filesystem \
@@ -211,12 +201,7 @@ pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEsti
     }
 }
 
-fn estimate_neon(
-    plan: NeonPlan,
-    compute: f64,
-    storage: f64,
-    history: f64,
-) -> DatabaseCostEstimate {
+fn estimate_neon(plan: NeonPlan, compute: f64, storage: f64, history: f64) -> DatabaseCostEstimate {
     match plan {
         NeonPlan::Free if compute <= 100.0 && storage <= 0.5 => complete(
             "neon_free",

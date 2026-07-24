@@ -32,7 +32,10 @@ impl Default for HttpRuntimeConfig {
     }
 }
 
-pub fn apply_standard_middleware(router: Router, config: &HttpRuntimeConfig) -> Result<Router, http::header::InvalidHeaderValue> {
+pub fn apply_standard_middleware(
+    router: Router,
+    config: &HttpRuntimeConfig,
+) -> Result<Router, http::header::InvalidHeaderValue> {
     let origins = config
         .allowed_origins
         .iter()
@@ -40,7 +43,14 @@ pub fn apply_standard_middleware(router: Router, config: &HttpRuntimeConfig) -> 
         .collect::<Result<Vec<_>, _>>()?;
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
@@ -53,16 +63,26 @@ pub fn apply_standard_middleware(router: Router, config: &HttpRuntimeConfig) -> 
 
     let router = router
         .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
-        .layer(TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, config.timeout))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            config.timeout,
+        ))
         .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER.clone()))
-        .layer(SetRequestIdLayer::new(REQUEST_ID_HEADER.clone(), MakeRequestUuid))
+        .layer(SetRequestIdLayer::new(
+            REQUEST_ID_HEADER.clone(),
+            MakeRequestUuid,
+        ))
         .layer(SetSensitiveRequestHeadersLayer::new([
             header::AUTHORIZATION,
             header::COOKIE,
         ]))
         .layer(cors)
         .layer(TraceLayer::new_for_http());
-    Ok(if config.compression { router.layer(CompressionLayer::new()) } else { router })
+    Ok(if config.compression {
+        router.layer(CompressionLayer::new())
+    } else {
+        router
+    })
 }
 
 #[cfg(test)]
@@ -73,8 +93,15 @@ mod tests {
 
     #[tokio::test]
     async fn standard_stack_sets_and_propagates_request_ids() {
-        let app = apply_standard_middleware(Router::new().route("/", get(|| async { "ok" })), &HttpRuntimeConfig::default()).unwrap();
-        let response = app.oneshot(http::Request::get("/").body(Body::empty()).unwrap()).await.unwrap();
-        assert!(response.headers().contains_key(&*REQUEST_ID_HEADER));
+        let app = apply_standard_middleware(
+            Router::new().route("/", get(|| async { "ok" })),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = app
+            .oneshot(http::Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert!(response.headers().contains_key(&REQUEST_ID_HEADER));
     }
 }

@@ -29,6 +29,8 @@ pub struct MincoManifest {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
+// These names mirror the stable `[architecture]` keys in minco.toml.
+#[allow(clippy::struct_field_names)]
 pub struct ArchitectureManifest {
     #[serde(default)]
     pub domain_roots: Vec<PathBuf>,
@@ -79,8 +81,7 @@ impl MincoManifest {
     pub fn load(root: &Path) -> Result<Self> {
         let path = root.join("minco.toml");
         let value: Self = toml::from_str(
-            &std::fs::read_to_string(&path)
-                .with_context(|| format!("read {}", path.display()))?,
+            &std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?,
         )
         .with_context(|| format!("parse {}", path.display()))?;
         if value.schema != 1 {

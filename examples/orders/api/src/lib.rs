@@ -13,7 +13,10 @@ use http::{HeaderMap, StatusCode};
 use minco_contract::ContractOperation;
 use minco_http::{ApiFailure, Principal, RequestMetadata, principal_from_headers};
 use minco_plugin_health::HealthRegistry;
-use orders_application::{Actor, ApplicationError, Clock, GetOrder, OrderStore, PlaceOrder, PlaceOrderCommand, PlaceOrderLine};
+use orders_application::{
+    Actor, ApplicationError, Clock, GetOrder, OrderStore, PlaceOrder, PlaceOrderCommand,
+    PlaceOrderLine,
+};
 use orders_domain::{Order, OrderId, OrderStatus};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -43,7 +46,12 @@ impl ApiState {
         health: Arc<HealthRegistry>,
         allow_development_headers: bool,
     ) -> Self {
-        Self { store, clock, health, allow_development_headers }
+        Self {
+            store,
+            clock,
+            health,
+            allow_development_headers,
+        }
     }
 }
 
@@ -54,7 +62,6 @@ pub static BOUND_OPERATIONS: &[ContractOperation] = &[
     generated::GET_ORDER,
 ];
 
-#[must_use]
 pub fn build_router(state: ApiState) -> Router {
     Router::new()
         .route(generated::GET_LIVE.path, get(live))
@@ -65,7 +72,10 @@ pub fn build_router(state: ApiState) -> Router {
 }
 
 async fn live() -> Json<generated::LivenessResponse> {
-    Json(generated::LivenessResponse { live: true, service: "minco-orders".into() })
+    Json(generated::LivenessResponse {
+        live: true,
+        service: "minco-orders".into(),
+    })
 }
 
 async fn ready(State(state): State<ApiState>) -> Response {
@@ -75,14 +85,20 @@ async fn ready(State(state): State<ApiState>) -> Response {
         .map(|result| {
             (
                 result.id.clone(),
-                generated::DependencyHealth { ready: result.ready, detail: result.detail.clone() },
+                generated::DependencyHealth {
+                    ready: result.ready,
+                    detail: result.detail.clone(),
+                },
             )
         })
         .collect::<std::collections::BTreeMap<_, _>>();
-    let is_ready = results.iter().all(|result| result.ready || !result.critical);
+    let is_ready = results
+        .iter()
+        .all(|result| result.ready || !result.critical);
     if is_ready {
         return Json(generated::ReadinessResponse {
-            dependencies: serde_json::to_value(dependencies).unwrap_or_else(|_| serde_json::json!({})),
+            dependencies: serde_json::to_value(dependencies)
+                .unwrap_or_else(|_| serde_json::json!({})),
             ready: true,
         })
         .into_response();
@@ -103,7 +119,8 @@ async fn place_order(
     headers: HeaderMap,
     Json(request): Json<generated::PlaceOrderRequest>,
 ) -> Result<Response, ApiFailure> {
-    let (metadata, actor) = actor(&headers, principal, state.allow_development_headers)?;
+    let (metadata, actor) =
+        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
     let idempotency_key = headers
         .get("idempotency-key")
         .and_then(|value| value.to_str().ok())
@@ -113,15 +130,29 @@ async fn place_order(
         lines: request
             .lines
             .into_iter()
-            .map(|line| PlaceOrderLine { sku: line.sku, quantity: line.quantity })
+            .map(|line| PlaceOrderLine {
+                sku: line.sku,
+                quantity: line.quantity,
+            })
             .collect(),
     };
     let result = PlaceOrder::new(Arc::clone(&state.store), Arc::clone(&state.clock))
         .execute(&actor, command, idempotency_key)
         .await
         .map_err(|error| map_application_error(error, &metadata.request_id))?;
-    let status = if result.replayed { StatusCode::OK } else { StatusCode::CREATED };
-    Ok((status, Json(generated::PlaceOrderResponse { order: order_response(result.order), replayed: result.replayed })).into_response())
+    let status = if result.replayed {
+        StatusCode::OK
+    } else {
+        StatusCode::CREATED
+    };
+    Ok((
+        status,
+        Json(generated::PlaceOrderResponse {
+            order: order_response(result.order),
+            replayed: result.replayed,
+        }),
+    )
+        .into_response())
 }
 
 async fn get_order(
@@ -130,7 +161,8 @@ async fn get_order(
     headers: HeaderMap,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<generated::OrderResponse>, ApiFailure> {
-    let (metadata, actor) = actor(&headers, principal, state.allow_development_headers)?;
+    let (metadata, actor) =
+        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
     let order = GetOrder::new(Arc::clone(&state.store))
         .execute(&actor, OrderId::from_uuid(order_id))
         .await
@@ -142,24 +174,35 @@ fn actor(
     headers: &HeaderMap,
     principal: Option<Extension<Principal>>,
     allow_development_headers: bool,
-) -> Result<(RequestMetadata, Actor), ApiFailure> {
-    let mut metadata = principal_from_headers(headers, allow_development_headers)
-        .map_err(|_| ApiFailure::new(StatusCode::UNAUTHORIZED, "invalid_principal", "Invalid principal", "The request identity is invalid.", "unknown"))?;
+) -> Result<(RequestMetadata, Actor), Box<ApiFailure>> {
+    let mut metadata =
+        principal_from_headers(headers, allow_development_headers).map_err(|_| {
+            Box::new(ApiFailure::new(
+                StatusCode::UNAUTHORIZED,
+                "invalid_principal",
+                "Invalid principal",
+                "The request identity is invalid.",
+                "unknown",
+            ))
+        })?;
     if let Some(Extension(principal)) = principal {
         metadata.principal = Some(principal);
     }
     let principal = metadata.principal.as_ref().ok_or_else(|| {
-        ApiFailure::new(
+        Box::new(ApiFailure::new(
             StatusCode::UNAUTHORIZED,
             "authentication_required",
             "Authentication required",
             "A valid request principal is required.",
             metadata.request_id.clone(),
-        )
+        ))
     })?;
     Ok((
         metadata.clone(),
-        Actor::service(principal.subject.clone(), principal.permissions.iter().cloned()),
+        Actor::service(
+            principal.subject.clone(),
+            principal.permissions.iter().cloned(),
+        ),
     ))
 }
 
@@ -176,17 +219,43 @@ fn order_response(order: Order) -> generated::OrderResponse {
                 sku: line.sku.as_str().to_owned(),
             })
             .collect(),
-        status: match order.status { OrderStatus::Accepted => generated::OrderStatus::Accepted },
+        status: match order.status {
+            OrderStatus::Accepted => generated::OrderStatus::Accepted,
+        },
     }
 }
 
 fn map_application_error(error: ApplicationError, request_id: &str) -> ApiFailure {
     match error {
-        ApplicationError::Forbidden => ApiFailure::new(StatusCode::FORBIDDEN, "forbidden", "Forbidden", "The caller is not permitted to perform this operation.", request_id),
-        ApplicationError::NotFound => ApiFailure::new(StatusCode::NOT_FOUND, "not_found", "Not found", "The requested order does not exist.", request_id),
+        ApplicationError::Forbidden => ApiFailure::new(
+            StatusCode::FORBIDDEN,
+            "forbidden",
+            "Forbidden",
+            "The caller is not permitted to perform this operation.",
+            request_id,
+        ),
+        ApplicationError::NotFound => ApiFailure::new(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Not found",
+            "The requested order does not exist.",
+            request_id,
+        ),
         ApplicationError::Validation(detail) => ApiFailure::validation(detail, request_id),
-        ApplicationError::IdempotencyConflict => ApiFailure::new(StatusCode::CONFLICT, "idempotency_conflict", "Idempotency conflict", "The Idempotency-Key was already used for a different request.", request_id),
-        ApplicationError::Unavailable => ApiFailure::new(StatusCode::SERVICE_UNAVAILABLE, "dependency_unavailable", "Dependency unavailable", "The order store is unavailable.", request_id),
+        ApplicationError::IdempotencyConflict => ApiFailure::new(
+            StatusCode::CONFLICT,
+            "idempotency_conflict",
+            "Idempotency conflict",
+            "The Idempotency-Key was already used for a different request.",
+            request_id,
+        ),
+        ApplicationError::Unavailable => ApiFailure::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "dependency_unavailable",
+            "Dependency unavailable",
+            "The order store is unavailable.",
+            request_id,
+        ),
         ApplicationError::Internal => ApiFailure::internal(request_id),
     }
 }
@@ -211,8 +280,14 @@ mod tests {
 
     #[test]
     fn installed_operations_match_the_contract_inventory() {
-        let mut contract = generated::OPERATIONS.iter().map(|operation| operation.operation_id).collect::<Vec<_>>();
-        let mut bound = BOUND_OPERATIONS.iter().map(|operation| operation.operation_id).collect::<Vec<_>>();
+        let mut contract = generated::OPERATIONS
+            .iter()
+            .map(|operation| operation.operation_id)
+            .collect::<Vec<_>>();
+        let mut bound = BOUND_OPERATIONS
+            .iter()
+            .map(|operation| operation.operation_id)
+            .collect::<Vec<_>>();
         contract.sort_unstable();
         bound.sort_unstable();
         assert_eq!(contract, bound);
@@ -226,11 +301,18 @@ mod tests {
             .header("idempotency-key", "test-order-1")
             .header("x-minco-subject", "test-user")
             .header("x-minco-permissions", "orders.create,orders.read")
-            .body(Body::from(r#"{"customerReference":"PO-42","lines":[{"sku":"SKU-1","quantity":2}]}"#))
+            .body(Body::from(
+                r#"{"customerReference":"PO-42","lines":[{"sku":"SKU-1","quantity":2}]}"#,
+            ))
             .expect("request");
         let response = app.clone().oneshot(request).await.expect("response");
         assert_eq!(response.status(), StatusCode::CREATED);
-        let body = response.into_body().collect().await.expect("body").to_bytes();
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
         let created: generated::PlaceOrderResponse = serde_json::from_slice(&body).expect("JSON");
 
         let response = app
@@ -249,7 +331,11 @@ mod tests {
     #[tokio::test]
     async fn protected_routes_fail_closed() {
         let response = app()
-            .oneshot(http::Request::get(format!("/orders/{}", Uuid::now_v7())).body(Body::empty()).expect("request"))
+            .oneshot(
+                http::Request::get(format!("/orders/{}", Uuid::now_v7()))
+                    .body(Body::empty())
+                    .expect("request"),
+            )
             .await
             .expect("response");
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);

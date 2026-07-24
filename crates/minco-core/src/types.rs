@@ -180,7 +180,14 @@ mod tests {
     fn plugin_ids_are_strict_lower_kebab_case() {
         assert!(PluginId::new("health").is_ok());
         assert!(PluginId::new("sqlx-postgres").is_ok());
-        for invalid in ["", "1plugin", "Plugin", "plugin_thing", "plugin--thing", "plugin-"] {
+        for invalid in [
+            "",
+            "1plugin",
+            "Plugin",
+            "plugin_thing",
+            "plugin--thing",
+            "plugin-",
+        ] {
             assert!(PluginId::new(invalid).is_err(), "{invalid}");
         }
     }

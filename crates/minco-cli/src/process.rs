@@ -1,6 +1,9 @@
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
-use std::{path::Path, process::{Command, Stdio}};
+use std::{
+    path::Path,
+    process::{Command, Stdio},
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CommandResult {
@@ -75,7 +78,10 @@ pub fn capture(root: &Path, program: &str, args: &[&str]) -> Result<String> {
         .output()
         .with_context(|| format!("run {program}"))?;
     if !output.status.success() {
-        bail!("{program} failed: {}", String::from_utf8_lossy(&output.stderr));
+        bail!(
+            "{program} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }

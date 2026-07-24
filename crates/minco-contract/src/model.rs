@@ -56,7 +56,13 @@ impl ContractOperation {
         authenticated: bool,
         idempotent: bool,
     ) -> Self {
-        Self { operation_id, method, path, authenticated, idempotent }
+        Self {
+            operation_id,
+            method,
+            path,
+            authenticated,
+            idempotent,
+        }
     }
 }
 

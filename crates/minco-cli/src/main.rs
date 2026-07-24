@@ -1,34 +1,49 @@
-mod config;
+// This package is binary-only. Public visibility lets sibling command modules
+// share their internal types; it does not create an externally reachable API.
+#![allow(unreachable_pub)]
+
 mod architecture;
-mod plugin_cmd;
+mod config;
 mod new_cmd;
+mod plugin_cmd;
 mod process;
 mod roadmap;
 mod update;
 mod vcs;
 
 use anyhow::{Context, Result, bail};
+use architecture::validate_architecture;
 use chrono::Utc;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
-use architecture::validate_architecture;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
 use minco_plan::{
     DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
     estimate_database_cost, render_sam,
 };
 use minco_release::{FileDigest, ReleaseManifest};
-use plugin_cmd::{load_catalog, scaffold_plugin, set_plugin_state, validate_catalog};
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
-use process::{command_available, require_success, run_shell};
-use roadmap::{load_roadmap, load_tasks, ready_tasks, render_roadmap_mermaid, render_task_mermaid, validate_task_graph};
+use plugin_cmd::{load_catalog, scaffold_plugin, set_plugin_state, validate_catalog};
+use process::{command_available, run_shell};
+use roadmap::{
+    load_roadmap, load_tasks, ready_tasks, render_roadmap_mermaid, render_task_mermaid,
+    validate_task_graph,
+};
 use serde::Serialize;
 use serde_json::json;
-use std::{ffi::{OsStr, OsString}, fs, path::{Path, PathBuf}};
+use std::{
+    ffi::{OsStr, OsString},
+    fs,
+    path::{Path, PathBuf},
+};
 use uuid::Uuid;
 
 #[derive(Debug, Parser)]
-#[command(name = "minco", version, about = "Contract-first Rust development and deployment control plane")]
+#[command(
+    name = "minco",
+    version,
+    about = "Contract-first Rust development and deployment control plane"
+)]
 struct Cli {
     #[arg(long, global = true)]
     root: Option<PathBuf>,
@@ -70,7 +85,6 @@ enum Command {
     Vcs(VcsCommand),
 }
 
-
 #[derive(Debug, Args)]
 struct NewArgs {
     /// Lower-kebab-case application and package prefix.
@@ -86,7 +100,7 @@ struct NewArgs {
     vcs: VcsChoice,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Copy, Args)]
 struct CheckArgs {
     #[arg(long)]
     with_cargo: bool,
@@ -94,7 +108,7 @@ struct CheckArgs {
     with_optional: bool,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Copy, Subcommand)]
 enum ContractCommand {
     Check,
     Sync {
@@ -152,9 +166,16 @@ enum TaskCommand {
     List,
     Ready,
     Next,
-    Show { id: String },
-    Graph { #[arg(long)] output: Option<PathBuf> },
-    Verify { id: String },
+    Show {
+        id: String,
+    },
+    Graph {
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+    Verify {
+        id: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -166,7 +187,7 @@ enum PluginCommand {
     Validate,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Copy, Subcommand)]
 enum TestCommand {
     Unit,
     Feature,
@@ -174,7 +195,7 @@ enum TestCommand {
     All,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Copy, Subcommand)]
 enum DbCommand {
     Migrate,
 }
@@ -189,10 +210,12 @@ enum ReleaseCommand {
         #[arg(long, default_value = "target/minco/release.json")]
         output: PathBuf,
     },
-    Verify { manifest: PathBuf },
+    Verify {
+        manifest: PathBuf,
+    },
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Copy, Subcommand)]
 enum UpdateCommand {
     Check,
     Apply {
@@ -233,7 +256,10 @@ struct DoctorCheck {
 }
 
 fn normalize_cargo_subcommand_args(mut args: Vec<OsString>) -> Vec<OsString> {
-    if args.get(1).is_some_and(|value| value.as_os_str() == OsStr::new("minco")) {
+    if args
+        .get(1)
+        .is_some_and(|value| value.as_os_str() == OsStr::new("minco"))
+    {
         args.remove(1);
     }
     args
@@ -241,8 +267,14 @@ fn normalize_cargo_subcommand_args(mut args: Vec<OsString>) -> Vec<OsString> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse_from(normalize_cargo_subcommand_args(std::env::args_os().collect()));
-    let Cli { root, json: as_json, command } = cli;
+    let cli = Cli::parse_from(normalize_cargo_subcommand_args(
+        std::env::args_os().collect(),
+    ));
+    let Cli {
+        root,
+        json: as_json,
+        command,
+    } = cli;
     let command = match command {
         Command::New(args) => {
             let report = create_project(&NewProjectOptions {
@@ -291,7 +323,11 @@ fn doctor(root: &Path, as_json: bool) -> Result<()> {
         ("git", true, "GitHub transport in colocated JJ repositories"),
         ("docker", false, "local PostgreSQL and Rustack"),
         ("cargo-lambda", false, "native Lambda ZIP build"),
-        ("sam", false, "AWS template validation and local API emulation"),
+        (
+            "sam",
+            false,
+            "AWS template validation and local API emulation",
+        ),
         ("aws", false, "real AWS deployment and verification"),
     ]
     .into_iter()
@@ -302,7 +338,13 @@ fn doctor(root: &Path, as_json: bool) -> Result<()> {
     })
     .collect::<Vec<_>>();
     print_value(&checks, as_json)?;
-    let missing_core = checks.iter().filter(|check| ["python3", "rustc", "cargo", "jj", "git"].contains(&check.name.as_str()) && !check.available).count();
+    let missing_core = checks
+        .iter()
+        .filter(|check| {
+            ["python3", "rustc", "cargo", "jj", "git"].contains(&check.name.as_str())
+                && !check.available
+        })
+        .count();
     if missing_core > 0 {
         bail!("{missing_core} core development tools are unavailable; see the doctor report");
     }
@@ -337,23 +379,37 @@ fn check(root: &Path, manifest: &MincoManifest, args: CheckArgs, as_json: bool) 
 }
 
 fn quality_commands(value: &toml::Value, gate: &str) -> Result<Vec<String>> {
-    Ok(value
+    value
         .get("gates")
         .and_then(|value| value.get(gate))
         .and_then(|value| value.get("commands"))
         .and_then(toml::Value::as_array)
         .context(format!("quality gate {gate} has no command list"))?
         .iter()
-        .map(|value| value.as_str().context("quality commands must be strings").map(str::to_owned))
-        .collect::<Result<Vec<_>>>()?)
+        .map(|value| {
+            value
+                .as_str()
+                .context("quality commands must be strings")
+                .map(str::to_owned)
+        })
+        .collect::<Result<Vec<_>>>()
 }
 
-fn contract(root: &Path, manifest: &MincoManifest, command: ContractCommand, as_json: bool) -> Result<()> {
+fn contract(
+    root: &Path,
+    manifest: &MincoManifest,
+    command: ContractCommand,
+    as_json: bool,
+) -> Result<()> {
     let report = load_contract(root.join(&manifest.contract))?;
     match command {
         ContractCommand::Check => {
             print_value(&report, as_json)?;
-            if report.findings.iter().any(|finding| finding.severity == ContractSeverity::Error) {
+            if report
+                .findings
+                .iter()
+                .any(|finding| finding.severity == ContractSeverity::Error)
+            {
                 bail!("contract validation failed");
             }
         }
@@ -373,7 +429,10 @@ fn contract(root: &Path, manifest: &MincoManifest, command: ContractCommand, as_
                 ensure_parent(&path)?;
                 fs::write(&path, generated)?;
             }
-            print_value(&json!({"generated": path, "check": check, "contract_sha256": report.document.sha256}), as_json)?;
+            print_value(
+                &json!({"generated": path, "check": check, "contract_sha256": report.document.sha256}),
+                as_json,
+            )?;
         }
     }
     Ok(())
@@ -423,7 +482,12 @@ fn explain(root: &Path, manifest: &MincoManifest, operation_id: &str, as_json: b
     print_value(&value, as_json)
 }
 
-fn deploy(root: &Path, manifest: &MincoManifest, command: DeployCommand, as_json: bool) -> Result<()> {
+fn deploy(
+    root: &Path,
+    manifest: &MincoManifest,
+    command: DeployCommand,
+    as_json: bool,
+) -> Result<()> {
     match command {
         DeployCommand::Plan { input, output } => {
             let plan = load_plan(root, manifest, input.config)?;
@@ -431,7 +495,10 @@ fn deploy(root: &Path, manifest: &MincoManifest, command: DeployCommand, as_json
             let output = root.join(output);
             ensure_parent(&output)?;
             fs::write(&output, serde_json::to_vec_pretty(&plan)?)?;
-            print_value(&json!({"plan": output, "diagnostics": plan.validate()}), as_json)
+            print_value(
+                &json!({"plan": output, "diagnostics": plan.validate()}),
+                as_json,
+            )
         }
         DeployCommand::RenderSam { input, output } => {
             let plan = load_plan(root, manifest, input.config)?;
@@ -440,7 +507,10 @@ fn deploy(root: &Path, manifest: &MincoManifest, command: DeployCommand, as_json
             let output = root.join(output);
             ensure_parent(&output)?;
             fs::write(&output, template)?;
-            print_value(&json!({"template": output, "database_profile": plan.database.kind_name()}), as_json)
+            print_value(
+                &json!({"template": output, "database_profile": plan.database.kind_name()}),
+                as_json,
+            )
         }
     }
 }
@@ -448,13 +518,16 @@ fn deploy(root: &Path, manifest: &MincoManifest, command: DeployCommand, as_json
 fn cost(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) -> Result<()> {
     let plan = load_plan(root, manifest, input.config)?;
     let estimate = estimate_database_cost(&plan.database);
-    print_value(&json!({
-        "database": estimate,
-        "database_profile": plan.database.kind_name(),
-        "structural_diagnostics": plan.validate(),
-        "overall_estimate_complete": estimate.complete,
-        "note": "The 0.1 estimator calculates the selected database profile. Lambda, API Gateway, logs, DNS and data transfer require region-specific usage rates and remain explicit external inputs.",
-    }), as_json)
+    print_value(
+        &json!({
+            "database": estimate,
+            "database_profile": plan.database.kind_name(),
+            "structural_diagnostics": plan.validate(),
+            "overall_estimate_complete": estimate.complete,
+            "note": "The 0.1 estimator calculates the selected database profile. Lambda, API Gateway, logs, DNS and data transfer require region-specific usage rates and remain explicit external inputs.",
+        }),
+        as_json,
+    )
 }
 
 fn perf(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) -> Result<()> {
@@ -463,21 +536,27 @@ fn perf(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) 
     let artifact = root.join(&function.artifact_path);
     let artifact_bytes = artifact.metadata().ok().map(|metadata| metadata.len());
     let mut diagnostics = plan.validate();
-    if let Some(bytes) = artifact_bytes {
-        if bytes > plan.performance_policy.target_artifact_bytes {
-            diagnostics.push(minco_plan::PlanDiagnostic {
-                code: "MINCO-PERF-003".into(),
-                severity: PlanSeverity::Warning,
-                message: format!("artifact is {bytes} bytes; target is {}", plan.performance_policy.target_artifact_bytes),
-            });
-        }
+    if let Some(bytes) = artifact_bytes
+        && bytes > plan.performance_policy.target_artifact_bytes
+    {
+        diagnostics.push(minco_plan::PlanDiagnostic {
+            code: "MINCO-PERF-003".into(),
+            severity: PlanSeverity::Warning,
+            message: format!(
+                "artifact is {bytes} bytes; target is {}",
+                plan.performance_policy.target_artifact_bytes
+            ),
+        });
     }
-    print_value(&json!({
-        "artifact": artifact,
-        "artifact_bytes": artifact_bytes,
-        "policy": plan.performance_policy,
-        "diagnostics": diagnostics,
-    }), as_json)
+    print_value(
+        &json!({
+            "artifact": artifact,
+            "artifact_bytes": artifact_bytes,
+            "policy": plan.performance_policy,
+            "diagnostics": diagnostics,
+        }),
+        as_json,
+    )
 }
 
 fn architecture(root: &Path, manifest: &MincoManifest, as_json: bool) -> Result<()> {
@@ -490,7 +569,12 @@ fn architecture(root: &Path, manifest: &MincoManifest, as_json: bool) -> Result<
     }
 }
 
-fn roadmap_command(root: &Path, manifest: &MincoManifest, command: RoadmapCommand, as_json: bool) -> Result<()> {
+fn roadmap_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    command: RoadmapCommand,
+    as_json: bool,
+) -> Result<()> {
     let roadmap = load_roadmap(&root.join(&manifest.roadmap))?;
     match command {
         RoadmapCommand::Status => print_value(&roadmap, as_json),
@@ -512,18 +596,29 @@ fn roadmap_command(root: &Path, manifest: &MincoManifest, command: RoadmapComman
     }
 }
 
-fn task_command(root: &Path, manifest: &MincoManifest, command: TaskCommand, as_json: bool) -> Result<()> {
+fn task_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    command: TaskCommand,
+    as_json: bool,
+) -> Result<()> {
     let tasks = load_tasks(&root.join(&manifest.tasks))?;
     validate_task_graph(&tasks)?;
     match command {
         TaskCommand::List => print_value(&tasks, as_json),
         TaskCommand::Ready => print_value(&ready_tasks(&tasks), as_json),
         TaskCommand::Next => {
-            let next = ready_tasks(&tasks).into_iter().next().context("no task is currently ready")?;
+            let next = ready_tasks(&tasks)
+                .into_iter()
+                .next()
+                .context("no task is currently ready")?;
             print_value(next, as_json)
         }
         TaskCommand::Show { id } => {
-            let task = tasks.iter().find(|task| task.id == id).with_context(|| format!("unknown task {id}"))?;
+            let task = tasks
+                .iter()
+                .find(|task| task.id == id)
+                .with_context(|| format!("unknown task {id}"))?;
             print_value(task, as_json)
         }
         TaskCommand::Graph { output } => {
@@ -539,12 +634,18 @@ fn task_command(root: &Path, manifest: &MincoManifest, command: TaskCommand, as_
             }
         }
         TaskCommand::Verify { id } => {
-            let task = tasks.iter().find(|task| task.id == id).with_context(|| format!("unknown task {id}"))?;
+            let task = tasks
+                .iter()
+                .find(|task| task.id == id)
+                .with_context(|| format!("unknown task {id}"))?;
             let mut results = Vec::new();
             for command in &task.checks {
                 let result = run_shell(root, command, !as_json)?;
                 if !result.success {
-                    if as_json { results.push(result); print_value(&results, true)?; }
+                    if as_json {
+                        results.push(result);
+                        print_value(&results, true)?;
+                    }
                     bail!("task check failed: {command}");
                 }
                 results.push(result);
@@ -554,11 +655,19 @@ fn task_command(root: &Path, manifest: &MincoManifest, command: TaskCommand, as_
     }
 }
 
-fn plugin_command(root: &Path, manifest: &MincoManifest, command: PluginCommand, as_json: bool) -> Result<()> {
+fn plugin_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    command: PluginCommand,
+    as_json: bool,
+) -> Result<()> {
     match command {
         PluginCommand::List => {
             let catalog = load_catalog(root, &manifest.plugin_catalog)?;
-            print_value(&json!({"catalog": catalog, "selection": manifest.plugins}), as_json)
+            print_value(
+                &json!({"catalog": catalog, "selection": manifest.plugins}),
+                as_json,
+            )
         }
         PluginCommand::Enable { id } => {
             set_plugin_state(root, &id, true)?;
@@ -658,17 +767,35 @@ fn db_command(
     }
 }
 
-fn release_command(root: &Path, manifest: &MincoManifest, command: ReleaseCommand, as_json: bool) -> Result<()> {
+fn release_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    command: ReleaseCommand,
+    as_json: bool,
+) -> Result<()> {
     match command {
-        ReleaseCommand::Create { artifact, plan, output } => {
+        ReleaseCommand::Create {
+            artifact,
+            plan,
+            output,
+        } => {
             let artifact = root.join(artifact);
             let plan = root.join(plan);
-            if !artifact.is_file() { bail!("release artifact {} does not exist", artifact.display()); }
-            if !plan.is_file() { bail!("deployment plan {} does not exist", plan.display()); }
+            if !artifact.is_file() {
+                bail!("release artifact {} does not exist", artifact.display());
+            }
+            if !plan.is_file() {
+                bail!("deployment plan {} does not exist", plan.display());
+            }
             let source_change = vcs::source_change(root)?;
             let short_change = source_change.chars().take(12).collect::<String>();
             let release_suffix = if short_change.is_empty() {
-                Uuid::now_v7().simple().to_string().chars().take(12).collect::<String>()
+                Uuid::now_v7()
+                    .simple()
+                    .to_string()
+                    .chars()
+                    .take(12)
+                    .collect::<String>()
             } else {
                 short_change
             };
@@ -698,7 +825,11 @@ fn release_command(root: &Path, manifest: &MincoManifest, command: ReleaseComman
                 artifact: FileDigest::from_path(&artifact)?,
                 contract: FileDigest::from_path(root.join(&manifest.contract))?,
                 migration_set: migrations,
-                cargo_lock: root.join("Cargo.lock").is_file().then(|| FileDigest::from_path(root.join("Cargo.lock"))).transpose()?,
+                cargo_lock: root
+                    .join("Cargo.lock")
+                    .is_file()
+                    .then(|| FileDigest::from_path(root.join("Cargo.lock")))
+                    .transpose()?,
                 deployment_plan: FileDigest::from_path(&plan)?,
             };
             let output = root.join(output);
@@ -709,7 +840,10 @@ fn release_command(root: &Path, manifest: &MincoManifest, command: ReleaseComman
         ReleaseCommand::Verify { manifest } => {
             let release = ReleaseManifest::read_json(root.join(manifest))?;
             release.verify()?;
-            print_value(&json!({"verified": true, "release_id": release.release_id}), as_json)
+            print_value(
+                &json!({"verified": true, "release_id": release.release_id}),
+                as_json,
+            )
         }
     }
 }
@@ -717,7 +851,12 @@ fn release_command(root: &Path, manifest: &MincoManifest, command: ReleaseComman
 fn update_command(root: &Path, command: UpdateCommand, as_json: bool) -> Result<()> {
     let report = match command {
         UpdateCommand::Check => update::check(root)?,
-        UpdateCommand::Apply { yes, toolchain, dependencies, run_checks } => update::apply(root, yes, toolchain, dependencies, run_checks)?,
+        UpdateCommand::Apply {
+            yes,
+            toolchain,
+            dependencies,
+            run_checks,
+        } => update::apply(root, yes, toolchain, dependencies, run_checks)?,
     };
     print_value(&report, as_json)
 }
@@ -730,7 +869,12 @@ fn vcs_command(root: &Path, command: VcsCommand, as_json: bool) -> Result<()> {
         }
         VcsCommand::Status => {
             let status = vcs::status(root)?;
-            if as_json { print_value(&json!({"status": status}), true) } else { println!("{status}"); Ok(()) }
+            if as_json {
+                print_value(&json!({"status": status}), true)
+            } else {
+                println!("{status}");
+                Ok(())
+            }
         }
         VcsCommand::TaskStart { id, destination } => {
             let result = vcs::start_task(root, &id, destination)?;
@@ -738,28 +882,45 @@ fn vcs_command(root: &Path, command: VcsCommand, as_json: bool) -> Result<()> {
         }
         VcsCommand::TaskFinish { id, message, push } => {
             vcs::finish_task(root, &id, &message, push)?;
-            print_value(&json!({"task": id, "finished": true, "pushed": push}), as_json)
+            print_value(
+                &json!({"task": id, "finished": true, "pushed": push}),
+                as_json,
+            )
         }
     }
 }
 
-fn load_plan(root: &Path, manifest: &MincoManifest, config: Option<PathBuf>) -> Result<DeploymentPlan> {
+fn load_plan(
+    root: &Path,
+    manifest: &MincoManifest,
+    config: Option<PathBuf>,
+) -> Result<DeploymentPlan> {
     let contract = load_contract(root.join(&manifest.contract))?;
     if !contract.is_valid() {
         bail!("the OpenAPI contract is invalid");
     }
     let config_path = root.join(config.unwrap_or_else(|| manifest.deployment_config.clone()));
-    let config: DeploymentConfig = toml::from_str(&fs::read_to_string(&config_path).with_context(|| format!("read {}", config_path.display()))?)
-        .with_context(|| format!("parse {}", config_path.display()))?;
+    let config: DeploymentConfig = toml::from_str(
+        &fs::read_to_string(&config_path)
+            .with_context(|| format!("read {}", config_path.display()))?,
+    )
+    .with_context(|| format!("parse {}", config_path.display()))?;
     Ok(config.into_plan(&contract.document))
 }
 
 fn ensure_plan_valid(plan: &DeploymentPlan) -> Result<()> {
-    let errors = plan.validate().into_iter().filter(|diagnostic| diagnostic.severity == PlanSeverity::Error).collect::<Vec<_>>();
+    let errors = plan
+        .validate()
+        .into_iter()
+        .filter(|diagnostic| diagnostic.severity == PlanSeverity::Error)
+        .collect::<Vec<_>>();
     if errors.is_empty() {
         Ok(())
     } else {
-        bail!("deployment plan failed policy validation: {}", serde_json::to_string_pretty(&errors)?)
+        bail!(
+            "deployment plan failed policy validation: {}",
+            serde_json::to_string_pretty(&errors)?
+        )
     }
 }
 
@@ -801,6 +962,11 @@ fn collect_files(root: &Path, extension: &str) -> Result<Vec<PathBuf>> {
     Ok(output)
 }
 
+#[allow(dead_code)]
+fn _assert_cost_estimate_is_serializable(value: &DatabaseCostEstimate) -> Result<String> {
+    Ok(serde_json::to_string(value)?)
+}
+
 #[cfg(test)]
 mod cli_argument_tests {
     use super::*;
@@ -813,7 +979,10 @@ mod cli_argument_tests {
                 .map(OsString::from)
                 .collect(),
         );
-        assert_eq!(values, vec![OsString::from("cargo-minco"), OsString::from("doctor")]);
+        assert_eq!(
+            values,
+            vec![OsString::from("cargo-minco"), OsString::from("doctor")]
+        );
     }
 
     #[test]
@@ -824,11 +993,9 @@ mod cli_argument_tests {
                 .map(OsString::from)
                 .collect(),
         );
-        assert_eq!(values, vec![OsString::from("cargo-minco"), OsString::from("doctor")]);
+        assert_eq!(
+            values,
+            vec![OsString::from("cargo-minco"), OsString::from("doctor")]
+        );
     }
-}
-
-#[allow(dead_code)]
-fn _assert_cost_estimate_is_serializable(value: &DatabaseCostEstimate) -> Result<String> {
-    Ok(serde_json::to_string(value)?)
 }

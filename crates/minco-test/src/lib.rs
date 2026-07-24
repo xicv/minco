@@ -1,10 +1,10 @@
 //! In-process HTTP test utilities and deterministic command evidence.
 #![forbid(unsafe_code)]
 
-use axum::{body::Body, Router};
-use http::{header, HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode};
+use axum::{Router, body::Body};
+use http::{HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode, header};
 use http_body_util::BodyExt;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, process::Output};
 use tower::ServiceExt;
 
@@ -23,11 +23,8 @@ impl TestClient {
         }
     }
 
-    pub fn with_header(
-        mut self,
-        name: HeaderName,
-        value: HeaderValue,
-    ) -> Self {
+    #[must_use]
+    pub fn with_header(mut self, name: HeaderName, value: HeaderValue) -> Self {
         self.default_headers.insert(name, value);
         self
     }
@@ -37,12 +34,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn json<T: Serialize>(
-        &self,
-        method: Method,
-        uri: &str,
-        body: &T,
-    ) -> TestResponse {
+    pub async fn json<T: Serialize>(&self, method: Method, uri: &str, body: &T) -> TestResponse {
         let body = serde_json::to_vec(body).expect("test request serialization must succeed");
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -139,7 +131,10 @@ impl CommandEvidence {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{extract::Json, routing::{get, post}};
+    use axum::{
+        extract::Json,
+        routing::{get, post},
+    };
 
     #[tokio::test]
     async fn client_exercises_router_without_a_socket() {

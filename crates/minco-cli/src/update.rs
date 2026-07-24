@@ -20,7 +20,11 @@ pub fn check(root: &Path) -> Result<UpdateReport> {
     }
     if command_available("cargo") {
         actions.push(run_shell(root, "cargo update --dry-run", false)?);
-        actions.push(run_shell(root, "cargo metadata --locked --no-deps --format-version 1", false)?);
+        actions.push(run_shell(
+            root,
+            "cargo metadata --locked --no-deps --format-version 1",
+            false,
+        )?);
     } else {
         notes.push("cargo is not installed; dependency resolution was not checked".into());
     }
@@ -30,10 +34,23 @@ pub fn check(root: &Path) -> Result<UpdateReport> {
         notes.push("jj is not installed; version and workspace state were not checked".into());
     }
     notes.push("Minco 0.1 updates source workspaces; binary self-update from a release registry is intentionally deferred until signed releases exist.".into());
-    Ok(UpdateReport { mode: "check".into(), actions, notes })
+    Ok(UpdateReport {
+        mode: "check".into(),
+        actions,
+        notes,
+    })
 }
 
-pub fn apply(root: &Path, yes: bool, toolchain: bool, dependencies: bool, run_checks: bool) -> Result<UpdateReport> {
+// The booleans map one-to-one to explicit CLI flags; grouping them would only
+// move the same independent switches into another internal type.
+#[allow(clippy::fn_params_excessive_bools)]
+pub fn apply(
+    root: &Path,
+    yes: bool,
+    toolchain: bool,
+    dependencies: bool,
+    run_checks: bool,
+) -> Result<UpdateReport> {
     if !yes {
         bail!("update apply requires --yes because it mutates toolchains and/or Cargo.lock");
     }
@@ -43,7 +60,9 @@ pub fn apply(root: &Path, yes: bool, toolchain: bool, dependencies: bool, run_ch
         let diff = run_shell(root, "jj diff --stat", false)?;
         require_success(&diff)?;
         if !diff.stdout.trim().is_empty() {
-            bail!("the JJ working-copy commit has unreviewed changes; describe or split them before updating");
+            bail!(
+                "the JJ working-copy commit has unreviewed changes; describe or split them before updating"
+            );
         }
     } else if command_available("git") {
         let status = run_shell(root, "git status --porcelain", false)?;
@@ -51,7 +70,10 @@ pub fn apply(root: &Path, yes: bool, toolchain: bool, dependencies: bool, run_ch
         if !status.stdout.trim().is_empty() {
             bail!("the Git working tree has uncommitted changes; commit them before updating");
         }
-        notes.push("JJ was unavailable, so cleanliness was checked through the colocated Git repository.".into());
+        notes.push(
+            "JJ was unavailable, so cleanliness was checked through the colocated Git repository."
+                .into(),
+        );
     }
     if toolchain {
         if !command_available("rustup") {
@@ -85,5 +107,9 @@ pub fn apply(root: &Path, yes: bool, toolchain: bool, dependencies: bool, run_ch
             notes.push("cargo checks were skipped because Cargo is unavailable".into());
         }
     }
-    Ok(UpdateReport { mode: "apply".into(), actions, notes })
+    Ok(UpdateReport {
+        mode: "apply".into(),
+        actions,
+        notes,
+    })
 }

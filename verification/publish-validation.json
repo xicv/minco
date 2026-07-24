@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": "ok",
   "errors": 0,
-  "warnings": 1,
+  "warnings": 0,
   "metrics": {
     "publish_order": [
       "minco-core",
@@ -47,19 +47,12 @@
       "orders-domain",
       "orders-service"
     ],
-    "registry_check_performed": false,
-    "registry_checks_succeeded": 0,
+    "registry_check_performed": true,
+    "registry_checks_succeeded": 14,
     "expect_unpublished": false,
-    "require_registry": false
+    "require_registry": true
   },
-  "findings": [
-    {
-      "code": "PUBLISH-067",
-      "severity": "warning",
-      "message": "Cargo.lock is absent; generate, review, and commit it before cargo publish --dry-run",
-      "path": "Cargo.lock"
-    }
-  ],
+  "findings": [],
   "limitations": [
     "This validator does not normalize Cargo manifests or compile packaged crates.",
     "Run cargo publish --dry-run for the complete selected package set before upload."

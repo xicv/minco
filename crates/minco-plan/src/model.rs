@@ -10,7 +10,7 @@ pub enum Severity {
     Information,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanDiagnostic {
     pub code: String,
     pub severity: Severity,
@@ -18,7 +18,7 @@ pub struct PlanDiagnostic {
 }
 
 /// Environment-owned deployment inputs. HTTP routes are deliberately absent: they are
-/// derived from the canonical OpenAPI contract.
+/// derived from the canonical `OpenAPI` contract.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeploymentConfig {
     pub schema_version: u32,
@@ -102,37 +102,61 @@ impl DeploymentPlan {
     pub fn validate(&self) -> Vec<PlanDiagnostic> {
         let mut diagnostics = Vec::new();
         if self.schema_version != 1 {
-            diagnostics.push(error("MINCO-PLAN-001", "unsupported deployment plan schema version"));
+            diagnostics.push(error(
+                "MINCO-PLAN-001",
+                "unsupported deployment plan schema version",
+            ));
         }
-        if self.routes.iter().any(|route| route.authenticated) && matches!(&self.auth, AuthPlan::None) {
+        if self.routes.iter().any(|route| route.authenticated)
+            && matches!(&self.auth, AuthPlan::None)
+        {
             diagnostics.push(error("MINCO-AUTH-001", "the contract contains authenticated operations but no deployment authorizer is configured"));
         }
         if self.functions.len() != 1 {
-            diagnostics.push(error("MINCO-PLAN-002", "the initial Minco AWS profile requires exactly one API function"));
+            diagnostics.push(error(
+                "MINCO-PLAN-002",
+                "the initial Minco AWS profile requires exactly one API function",
+            ));
         }
         if self.allowed_origins.is_empty() {
-            diagnostics.push(error("MINCO-HTTP-001", "at least one exact CORS origin is required"));
+            diagnostics.push(error(
+                "MINCO-HTTP-001",
+                "at least one exact CORS origin is required",
+            ));
         }
         if self.allowed_origins.iter().any(|origin| origin == "*") {
             diagnostics.push(error("MINCO-HTTP-002", "wildcard CORS is forbidden"));
         }
         if self.log_retention_days == 0 {
-            diagnostics.push(error("MINCO-COST-006", "log retention must be explicit and greater than zero"));
+            diagnostics.push(error(
+                "MINCO-COST-006",
+                "log retention must be explicit and greater than zero",
+            ));
         }
         if self.cost_policy.deny_nat_gateway && self.uses_nat_gateway {
-            diagnostics.push(error("MINCO-COST-001", "minimal-idle profile forbids a NAT Gateway"));
+            diagnostics.push(error(
+                "MINCO-COST-001",
+                "minimal-idle profile forbids a NAT Gateway",
+            ));
         }
         if self.cost_policy.deny_scheduled_wakeups && !self.scheduled_wakeups.is_empty() {
-            diagnostics.push(error("MINCO-COST-002", "minimal-idle profile forbids scheduled wakeups"));
+            diagnostics.push(error(
+                "MINCO-COST-002",
+                "minimal-idle profile forbids scheduled wakeups",
+            ));
         }
         if self.cost_policy.deny_fixed_compute && self.database.has_fixed_compute() {
             diagnostics.push(error(
                 "MINCO-COST-007",
-                &format!("database profile {} has fixed provisioned compute", self.database.kind_name()),
+                &format!(
+                    "database profile {} has fixed provisioned compute",
+                    self.database.kind_name()
+                ),
             ));
         }
         for function in &self.functions {
-            if self.cost_policy.deny_provisioned_concurrency && function.provisioned_concurrency > 0 {
+            if self.cost_policy.deny_provisioned_concurrency && function.provisioned_concurrency > 0
+            {
                 diagnostics.push(error(
                     "MINCO-COST-003",
                     &format!("function {} enables provisioned concurrency", function.name),
@@ -143,7 +167,9 @@ impl DeploymentPlan {
                     "MINCO-COST-004",
                     &format!(
                         "function {} reserved concurrency {} exceeds {}",
-                        function.name, function.reserved_concurrency, self.cost_policy.max_reserved_concurrency
+                        function.name,
+                        function.reserved_concurrency,
+                        self.cost_policy.max_reserved_concurrency
                     ),
                 ));
             }
@@ -152,7 +178,9 @@ impl DeploymentPlan {
                     "MINCO-PERF-001",
                     &format!(
                         "function {} timeout {}s exceeds {}s",
-                        function.name, function.timeout_seconds, self.performance_policy.max_lambda_timeout_seconds
+                        function.name,
+                        function.timeout_seconds,
+                        self.performance_policy.max_lambda_timeout_seconds
                     ),
                 ));
             }
@@ -161,7 +189,9 @@ impl DeploymentPlan {
                     "MINCO-PERF-002",
                     &format!(
                         "function {} memory {}MB exceeds {}MB",
-                        function.name, function.memory_mb, self.performance_policy.max_lambda_memory_mb
+                        function.name,
+                        function.memory_mb,
+                        self.performance_policy.max_lambda_memory_mb
                     ),
                 ));
             }
@@ -175,7 +205,9 @@ impl DeploymentPlan {
                     .saturating_mul(function.database_connections_per_instance)
             })
             .sum();
-        if self.database.is_relational() && possible_connections > self.cost_policy.max_database_connections {
+        if self.database.is_relational()
+            && possible_connections > self.cost_policy.max_database_connections
+        {
             diagnostics.push(error(
                 "MINCO-COST-005",
                 &format!(
@@ -184,7 +216,10 @@ impl DeploymentPlan {
                 ),
             ));
         }
-        if matches!(&self.database, DatabaseDeployment::SqliteLambdaMutable { .. }) {
+        if matches!(
+            &self.database,
+            DatabaseDeployment::SqliteLambdaMutable { .. }
+        ) {
             diagnostics.push(error(
                 "MINCO-DB-001",
                 "mutable SQLite is not supported on Lambda ephemeral storage",
@@ -196,25 +231,32 @@ impl DeploymentPlan {
                 "DynamoDB is an alternate persistence model, not a transparent replacement for relational PostgreSQL adapters",
             ));
         }
-        if let DatabaseDeployment::AuroraServerlessV2 { minimum_acu, auto_pause_seconds, .. } = &self.database {
-            if *minimum_acu == 0.0 && auto_pause_seconds.is_none() {
-                diagnostics.push(warning(
-                    "MINCO-DB-003",
-                    "Aurora minimum ACU is zero but no auto-pause interval is recorded",
-                ));
-            }
+        if let DatabaseDeployment::AuroraServerlessV2 {
+            minimum_acu,
+            auto_pause_seconds,
+            ..
+        } = &self.database
+            && *minimum_acu == 0.0
+            && auto_pause_seconds.is_none()
+        {
+            diagnostics.push(warning(
+                "MINCO-DB-003",
+                "Aurora minimum ACU is zero but no auto-pause interval is recorded",
+            ));
         }
         diagnostics
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AuthPlan {
     None,
     DevelopmentHeaders,
-    Jwt { issuer: String, audiences: Vec<String> },
+    Jwt {
+        issuer: String,
+        audiences: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -302,9 +344,13 @@ impl DatabaseDeployment {
     #[must_use]
     pub fn has_fixed_compute(&self) -> bool {
         match self {
-            Self::SelfHostedPostgres { .. } | Self::RdsPostgres { .. } | Self::SqlitePersistentHost { .. } => true,
+            Self::SelfHostedPostgres { .. }
+            | Self::RdsPostgres { .. }
+            | Self::SqlitePersistentHost { .. } => true,
             Self::AuroraServerlessV2 { minimum_acu, .. } => *minimum_acu > 0.0,
-            Self::NeonPostgres { .. } | Self::DynamoDbOnDemand { .. } | Self::SqliteLambdaMutable { .. } => false,
+            Self::NeonPostgres { .. }
+            | Self::DynamoDbOnDemand { .. }
+            | Self::SqliteLambdaMutable { .. } => false,
         }
     }
 
@@ -342,6 +388,8 @@ pub struct RoutePlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// Each independent switch is part of the serialized deployment-policy contract.
+#[allow(clippy::struct_excessive_bools)]
 pub struct CostPolicy {
     pub deny_fixed_compute: bool,
     pub deny_nat_gateway: bool,
@@ -388,15 +436,27 @@ const fn default_log_retention_days() -> u32 {
 }
 
 fn error(code: &str, message: &str) -> PlanDiagnostic {
-    PlanDiagnostic { code: code.into(), severity: Severity::Error, message: message.into() }
+    PlanDiagnostic {
+        code: code.into(),
+        severity: Severity::Error,
+        message: message.into(),
+    }
 }
 
 fn warning(code: &str, message: &str) -> PlanDiagnostic {
-    PlanDiagnostic { code: code.into(), severity: Severity::Warning, message: message.into() }
+    PlanDiagnostic {
+        code: code.into(),
+        severity: Severity::Warning,
+        message: message.into(),
+    }
 }
 
 fn information(code: &str, message: &str) -> PlanDiagnostic {
-    PlanDiagnostic { code: code.into(), severity: Severity::Information, message: message.into() }
+    PlanDiagnostic {
+        code: code.into(),
+        severity: Severity::Information,
+        message: message.into(),
+    }
 }
 
 #[derive(Debug, Error)]
@@ -424,7 +484,10 @@ mod tests {
             region: "ap-southeast-2".into(),
             runtime: RuntimePlan::LambdaZipArm64,
             ingress: IngressPlan::ApiGatewayHttpApi,
-            auth: AuthPlan::Jwt { issuer: "https://issuer.example.invalid".into(), audiences: vec!["orders".into()] },
+            auth: AuthPlan::Jwt {
+                issuer: "https://issuer.example.invalid".into(),
+                audiences: vec!["orders".into()],
+            },
             database,
             functions: vec![FunctionPlan {
                 name: "api".into(),
@@ -494,6 +557,10 @@ mod tests {
             multi_az_multiplier: 1.0,
         })
         .into_plan(&contract);
-        assert!(plan.validate().iter().any(|diagnostic| diagnostic.code == "MINCO-COST-007"));
+        assert!(
+            plan.validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-COST-007")
+        );
     }
 }
