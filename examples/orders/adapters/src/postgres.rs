@@ -22,7 +22,12 @@ impl PostgresOrderStore {
     }
 
     pub async fn migrate(&self, path: impl AsRef<Path>) -> Result<(), PostgresError> {
-        minco_sqlx_postgres::migrate(&self.pool, path).await
+        minco_sqlx_postgres::migrate_with_history_table(
+            &self.pool,
+            path,
+            "_minco_orders_migrations",
+        )
+        .await
     }
 
     #[must_use]
