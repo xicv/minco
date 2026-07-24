@@ -2,7 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-mapfile -t packages < <(
+packages=()
+while IFS= read -r package; do
+  packages+=("$package")
+done < <(
   python3 - <<'PY'
 import tomllib
 from pathlib import Path

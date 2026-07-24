@@ -20,6 +20,7 @@ Key primary sources:
 - Jujutsu working copies/workspaces: https://github.com/jj-vcs/jj/blob/main/docs/working-copy.md
 - Jujutsu Git compatibility: https://github.com/jj-vcs/jj/blob/main/docs/git-compatibility.md
 - Rustack: https://github.com/tyrchen/rustack
+- Feedback browser/transcription/security sources: `feedback-sources.md`.
 - Laravel, Echo, Encore, Easegress, Loco and Pavex repositories cited in
   `open-source-influences.md`.
 

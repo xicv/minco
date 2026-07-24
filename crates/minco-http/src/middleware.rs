@@ -12,10 +12,17 @@ use tower_http::{
 };
 
 pub static REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
+pub static CSRF_HEADER: HeaderName = HeaderName::from_static("x-minco-csrf");
+pub static FEEDBACK_TOKEN_HEADER: HeaderName = HeaderName::from_static("x-minco-feedback-token");
+pub static FEEDBACK_PROJECT_KEY_HEADER: HeaderName =
+    HeaderName::from_static("x-minco-feedback-project-key");
 
 #[derive(Debug, Clone)]
 pub struct HttpRuntimeConfig {
+    /// Exact origins accepted by the browser API. Wildcards are intentionally unsupported.
     pub allowed_origins: Vec<String>,
+    /// Allows cookies and browser authorization credentials for exact configured origins.
+    pub allow_credentials: bool,
     pub timeout: Duration,
     pub max_request_body_bytes: usize,
     pub compression: bool,
@@ -25,6 +32,7 @@ impl Default for HttpRuntimeConfig {
     fn default() -> Self {
         Self {
             allowed_origins: vec!["http://127.0.0.1:3000".into()],
+            allow_credentials: false,
             timeout: Duration::from_secs(15),
             max_request_body_bytes: 1024 * 1024,
             compression: true,
@@ -41,6 +49,7 @@ pub fn apply_standard_middleware(
         .iter()
         .map(|origin| HeaderValue::from_str(origin))
         .collect::<Result<Vec<_>, _>>()?;
+
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([
@@ -57,9 +66,17 @@ pub fn apply_standard_middleware(
             HeaderName::from_static("idempotency-key"),
             HeaderName::from_static("x-minco-subject"),
             HeaderName::from_static("x-minco-permissions"),
+            CSRF_HEADER.clone(),
+            FEEDBACK_TOKEN_HEADER.clone(),
+            FEEDBACK_PROJECT_KEY_HEADER.clone(),
             REQUEST_ID_HEADER.clone(),
         ])
         .expose_headers([REQUEST_ID_HEADER.clone()]);
+    let cors = if config.allow_credentials {
+        cors.allow_credentials(true)
+    } else {
+        cors
+    };
 
     let router = router
         .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
@@ -75,9 +92,14 @@ pub fn apply_standard_middleware(
         .layer(SetSensitiveRequestHeadersLayer::new([
             header::AUTHORIZATION,
             header::COOKIE,
+            HeaderName::from_static("idempotency-key"),
+            CSRF_HEADER.clone(),
+            FEEDBACK_TOKEN_HEADER.clone(),
+            FEEDBACK_PROJECT_KEY_HEADER.clone(),
         ]))
         .layer(cors)
         .layer(TraceLayer::new_for_http());
+
     Ok(if config.compression {
         router.layer(CompressionLayer::new())
     } else {
@@ -103,5 +125,39 @@ mod tests {
             .await
             .unwrap();
         assert!(response.headers().contains_key(&REQUEST_ID_HEADER));
+    }
+
+    #[tokio::test]
+    async fn credentialed_cors_uses_only_the_exact_configured_origin() {
+        let config = HttpRuntimeConfig {
+            allowed_origins: vec!["https://client.example".into()],
+            allow_credentials: true,
+            ..HttpRuntimeConfig::default()
+        };
+        let app =
+            apply_standard_middleware(Router::new().route("/", get(|| async { "ok" })), &config)
+                .unwrap();
+        let response = app
+            .oneshot(
+                http::Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/")
+                    .header(header::ORIGIN, "https://client.example")
+                    .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            Some(&HeaderValue::from_static("https://client.example"))
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_CREDENTIALS),
+            Some(&HeaderValue::from_static("true"))
+        );
     }
 }

@@ -23,8 +23,8 @@ checks:
   - cargo test --workspace --all-targets --all-features --locked
   - scripts/test/generated_apps.sh
   - cargo doc --workspace --all-features --no-deps --locked
+  - scripts/release/package-list.sh
   - scripts/release/publish.sh
-  - scripts/test/generated_apps.sh
 ---
 
 ## Goal
@@ -42,3 +42,9 @@ This task does not upload any crate and does not create a crates.io token.
 Every command succeeds without `--allow-dirty`, `--no-verify`, ignored tests,
 or suppressed meaningful lints. Packaged `.crate` contents and sizes are
 reviewed before this task is marked complete.
+
+## Current evidence
+
+The complete task gate was rerun on Rust/Cargo 1.97.1 against this candidate.
+Package listing and `scripts/release/publish.sh` ran from a clean JJ child and
+completed as dry runs. No crate was uploaded.

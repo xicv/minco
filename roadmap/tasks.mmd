@@ -12,11 +12,15 @@ flowchart LR
     NM4T03["M4-T03<br/>Verify the source-workspace update command"]
     NM5T01["M5-T01<br/>Build deploy and verify the real AWS development stack"]
     NM6T01["M6-T01<br/>Design and implement an explicit DynamoDB orders adapter"]
-    NM6T02["M6-T02<br/>Add identity storage queue and email plugins"]
+    NM6T02["M6-T02<br/>Stabilize provider-neutral essential plugin contracts"]
+    NM6T03["M6-T03<br/>Ship the official Feedback review-loop plugin"]
+    NM6T04["M6-T04<br/>Implement production AWS adapters for official plugin ports"]
     NM7T01["M7-T01<br/>Validate Minco with GarmentIQ and CGSP slices"]
     NM8T01["M8-T01<br/>Prepare the publishable Minco crate family"]
     NM8T02["M8-T02<br/>Run compiler and crates.io package gates"]
     NM8T03["M8-T03<br/>Publish Minco 0.1.0 and configure trusted publishing"]
+    NM8T04["M8-T04<br/>Make cargo-minco documentation build on docs.rs"]
+    NM8T05["M8-T05<br/>Publish Minco 0.1.1 with cargo-minco docs.rs support"]
     NM0T01 --> NM0T02
     NM0T01 --> NM1T01
     NM1T01 --> NM1T02
@@ -35,7 +39,12 @@ flowchart LR
     NM4T01 --> NM6T01
     NM5T01 --> NM6T01
     NM5T01 --> NM6T02
+    NM2T01 --> NM6T03
+    NM5T01 --> NM6T04
+    NM6T02 --> NM6T04
     NM6T02 --> NM7T01
     NM0T01 --> NM8T01
     NM8T01 --> NM8T02
     NM8T02 --> NM8T03
+    NM8T02 --> NM8T04
+    NM8T04 --> NM8T05

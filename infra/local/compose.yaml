@@ -13,7 +13,9 @@ services:
       timeout: 3s
       retries: 30
     volumes:
-      - minco-postgres:/var/lib/postgresql/data
+      # PostgreSQL 18+ uses a version-specific data directory under this parent
+      # so pg_upgrade can operate without crossing a mount-point boundary.
+      - minco-postgres:/var/lib/postgresql
 
   rustack:
     image: ghcr.io/tyrchen/rustack:latest

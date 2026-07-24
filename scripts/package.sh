@@ -16,10 +16,17 @@ find . -type f -name '*.pyc' -delete
 python3 scripts/generate_bootstrap_artifacts.py
 python3 scripts/test/sqlite_schema.py > verification/sqlite-schema.txt
 python3 scripts/test/scaffold_templates.py > verification/scaffold-templates.json
+python3 scripts/test/feedback_contract.py > verification/feedback-contract.json
+node --check plugins/minco-plugin-feedback/assets/widget.js > verification/widget-js.txt 2>&1
 python3 scripts/validate_static.py --output verification/static-validation.json >/dev/null
 python3 scripts/validate_publish.py --output verification/publish-validation.json >/dev/null
 python3 scripts/deep_review.py >/dev/null
 cp target/minco/deep-review.json verification/deep-review.json
+python3 scripts/test/feedback_contract.py > verification/feedback-contract.json
+node --check plugins/minco-plugin-feedback/assets/widget.js
+printf '%s\n' 'Feedback widget JavaScript passed node --check.' > verification/widget-node-check.txt
+git diff --check
+printf '%s\n' 'Working-tree diff passed git diff --check.' > verification/git-diff-check.txt
 python3 -m py_compile $(find scripts -type f -name '*.py' | sort)
 printf '%s
 ' 'All repository Python scripts compiled successfully.' > verification/python-compile.txt

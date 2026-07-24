@@ -4,6 +4,9 @@ cd "$(dirname "$0")/.."
 python3 scripts/validate_static.py
 python3 scripts/validate_publish.py
 python3 scripts/deep_review.py
+python3 scripts/test/deep_review_exclusions.py
+python3 scripts/test/feedback_contract.py
+node --check plugins/minco-plugin-feedback/assets/widget.js
 cargo fmt --all -- --check
 cargo check -p minco --no-default-features --locked
 cargo check -p minco --locked

@@ -1,231 +1,63 @@
-# Minco Codex desktop handoff
+# Minco Feedback draft-PR handoff
 
-## Current objective
+Date: 2026-07-24
+Repository: `xicv/minco`
+Bookmark: `agent/feedback-plugin-and-core-audit`
+PR title: `feat: strengthen plugin architecture and add Feedback review loop`
 
-Finish the compiler-enabled package gate and publish Minco as a lock-step crates.io family. The source has been structurally prepared, but no crate has been uploaded and no Cargo compilation was possible in the assembly environment.
+## State
 
-Minco remains contract-first, AI-native, AWS-native, performance-aware, deployment-oriented, JJ-first, statically extensible, and deliberately small at its core.
+The source snapshot was overlaid onto current `main`, rebased across the prior
+Rust `1.97.1` compiler-hardening change, and hardened until the broad local
+acceptance matrix passed. The resulting change contains the plugin-kernel
+improvements, official provider-neutral plugins, the Feedback vertical slice,
+database/browser tests, security controls and current verification evidence.
 
-## Start here
+Read:
 
-Read in this order:
+1. `AGENTS.md`;
+2. `FEEDBACK_REVIEW_STATUS.md`;
+3. `VERIFICATION.md`;
+4. `docs/architecture/capability-audit.md`;
+5. `docs/architecture/feedback-loop.md`;
+6. `docs/adrs/0014-plugin-lifecycle-and-feedback.md`;
+7. `tasks/M6/` and `tasks/M8/M8-T02-compiler-package-gates.md`.
 
-```text
-AGENTS.md
-README.md
-VERIFICATION.md
-PUBLISHING.md
-docs/development/publishing.md
-docs/development/using-minco-crate.md
-docs/DECISIONS.md
-docs/architecture/overview.md
-docs/architecture/contract-first.md
-docs/architecture/extensions.md
-docs/development/jj-workflow.md
-docs/deployment/database-options.md
-roadmap/roadmap.yaml
-tasks/M8/
-```
+## Verified boundary
 
-## Publication architecture
+Passed locally:
 
-The workspace has 19 packages:
+- full Rust format/check/Clippy/test/doc quality gate;
+- Feedback feature matrix;
+- SQLite and real PostgreSQL store conformance;
+- Chromium/Firefox widget E2E and repeated stability run;
+- Orders generated applications and TCP E2E;
+- plugin validation, contract sync, Plan IR and operation explain traces;
+- cargo-deny, gitleaks and npm audit;
+- ARM64 native Lambda ZIP packaging;
+- SAM linting and read-only CloudFormation/IAM policy validation;
+- clean-tree package contents and crates.io publish dry run.
 
-```text
-14 public crates.io packages
-5 private Orders example packages
-```
+Not performed:
 
-The normal consumer dependency is:
+- real AWS deployment or provider-adapter conformance;
+- repository-wide Codex Security Deep Scan completion because the external
+  scan service terminated two defensive runs before returning an acceptable
+  discovery manifest;
+- crate upload.
 
-```toml
-[dependencies]
-minco = "0.1"
-```
+## Task state
 
-The application-development CLI is installed independently:
+- `M6-T02` remains active because its prerequisite `M5-T01` is planned, although
+  its current provider-neutral implementation checks pass.
+- `M6-T03` remains active because its prerequisite `M2-T01` is active, although
+  its implementation acceptance matrix passes.
+- `M6-T04` remains planned; the concrete AWS adapters are not implemented.
+- `M8-T02` remains complete and its compiler/package gates were rerun against
+  this candidate without publishing.
 
-```bash
-cargo install cargo-minco --locked
-cargo minco new example-api --database postgres
-```
+## Release boundary
 
-Facade feature profiles:
-
-```text
-no default features: provider-neutral plugin/application kernel
-default:             contract + HTTP + official default plugins
-all features:        planning + release + tests + SQLx PostgreSQL/SQLite + Lambda
-```
-
-The canonical publish order lives in:
-
-```text
-Cargo.toml -> workspace.metadata.minco.release.publish
-```
-
-Do not publish packages in a manually improvised order.
-
-## Immediate mandatory task: M8-T02
-
-The assembly runtime had no Rust toolchain and could not resolve dependencies. On the first compiler-enabled machine, run:
-
-```bash
-rustup toolchain install 1.97.1 \
-  --profile minimal \
-  --component rustfmt \
-  --component clippy
-
-cargo generate-lockfile
-```
-
-Review the generated `Cargo.lock`; do not merely accept unexpected dependency or MSRV changes. Commit it in the release change, then run:
-
-```bash
-cargo fmt --all -- --check
-cargo check -p minco --no-default-features --locked
-cargo check -p minco --locked
-cargo check -p minco --all-features --locked
-cargo check -p cargo-minco --locked
-cargo test -p minco --no-default-features --locked
-cargo test -p minco --locked
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo test --workspace --all-targets --all-features --locked
-scripts/test/generated_apps.sh
-cargo doc --workspace --all-features --no-deps --locked
-scripts/release/publish.sh
-scripts/release/package-list.sh
-```
-
-Fix real compiler and Clippy findings rather than weakening the architecture or suppressing meaningful lints. Update `VERIFICATION.md` with command output and package sizes.
-
-## First crates.io release: M8-T03
-
-Only after M8-T02 is green:
-
-1. Recheck all names immediately before upload:
-
-   ```bash
-   python3 scripts/validate_publish.py --expect-unpublished --require-registry
-   ```
-
-2. Use a clean dedicated JJ release workspace.
-3. Confirm `v0.1.0` points at the exact reviewed release change.
-4. Authenticate with a short-lived crates.io credential outside the repository.
-5. Execute:
-
-   ```bash
-   scripts/release/publish.sh --execute
-   ```
-
-6. Verify every crate and docs.rs build.
-7. Add a co-maintainer or restricted GitHub team owner.
-8. Configure the protected `crates-io` GitHub environment and OIDC trusted publisher for every crate.
-
-Cargo multi-package publication is ordered but non-atomic. A partially accepted release must be recovered by publishing only missing packages at the same version; accepted versions cannot be replaced.
-
-## Crate family
-
-```text
-minco-core                  provider-neutral plugin/capability/service graph
-minco-contract              OpenAPI validation, inventory and deterministic generation
-minco-http                  Axum/Tower policy and RFC 9457 errors
-minco-plan                  deployment Plan IR, cost/performance checks and SAM rendering
-minco-release               immutable artifact/release manifests
-minco-test                  in-process HTTP and command evidence helpers
-minco-plugin-health         official readiness plugin
-minco-plugin-observability  official tracing plugin
-minco-plugin-idempotency    official idempotency primitives and port
-minco-sqlx-postgres         bounded PostgreSQL pools and migrations
-minco-sqlx-sqlite           SQLite pools, WAL policy and migrations
-minco-aws-lambda            Lambda HTTP, API Gateway identity and SSM integration
-minco                       feature-gated facade
-cargo-minco                 `cargo minco` control plane and project generator
-```
-
-Orders packages remain private and must never be included in a public package list.
-
-## Generated-project verification
-
-`cargo minco new` creates ordinary source, not an opaque runtime project:
-
-```bash
-cargo minco new example-api --database postgres --vcs jj
-cargo minco new example-local --database sqlite --vcs none
-```
-
-The deterministic template gate is:
-
-```bash
-python3 scripts/test/scaffold_templates.py
-```
-
-After `cargo-minco` compiles, run `scripts/test/generated_apps.sh`; it generates, locks, compiles, and tests both PostgreSQL and SQLite workspaces against the local Minco crate family.
-
-## JJ release workflow
-
-For an extracted source archive:
-
-```bash
-./scripts/jj/init.sh
-```
-
-Create a dedicated release workspace rather than publishing from an active feature workspace:
-
-```bash
-jj workspace add ../minco-release -r main -m 'release: prepare Minco 0.1.0'
-cd ../minco-release
-```
-
-Use JJ for mutations, rebases, conflict resolution and descriptions. Keep Git primarily as the GitHub transport in the colocated repository. Before any dry run or upload, the release script requires a clean JJ or Git working copy and no unresolved JJ conflicts.
-
-## Development and framework verification
-
-After publication work, continue the normal framework gates:
-
-```bash
-cargo minco doctor
-cargo minco contract sync --check
-cargo minco architecture
-cargo minco plugin validate
-cargo minco check --with-cargo
-cargo minco test all
-```
-
-With Docker:
-
-```bash
-scripts/dev/up.sh
-scripts/test/e2e.sh
-scripts/dev/down.sh
-```
-
-For AWS artifacts:
-
-```bash
-scripts/aws/build-lambda.sh
-scripts/aws/plan.sh
-scripts/aws/validate.sh
-```
-
-No real AWS deployment should occur until compiler, database, Lambda, SAM, IAM, cost and hosted verification evidence is green.
-
-## Database decision model
-
-Deployment cost planning includes:
-
-```text
-Neon PostgreSQL
-self-hosted PostgreSQL
-Amazon RDS PostgreSQL
-Aurora Serverless v2
-DynamoDB on-demand
-persistent-host SQLite
-rejected mutable SQLite on Lambda
-```
-
-SQLx PostgreSQL is the relational adapter for Neon, self-hosted PostgreSQL, RDS and Aurora. DynamoDB requires a purpose-built application port and access-pattern adapter; do not pretend it is a relational drop-in. Keep regional rate cards dated and represent missing rates as incomplete estimates rather than zero cost.
-
-## Known verification boundary
-
-See `VERIFICATION.md`. Current static and publication-structure reports are green except for the deliberately absent `Cargo.lock`. Rust compilation, feature-matrix checks, Clippy, tests, docs, `.crate` creation, `cargo publish --dry-run`, JJ execution, Docker integration, Lambda packaging, SAM validation and actual registry upload remain unperformed.
+The only authorized remote mutation for this work is the pushed JJ bookmark and
+draft pull request. Do not merge, deploy, tag or run `scripts/release/publish.sh
+--execute` without a separate approval and exact-head hosted checks.

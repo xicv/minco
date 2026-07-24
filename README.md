@@ -1,6 +1,10 @@
-# Minco
+<p align="center">
+  <img src="docs/assets/minco-icon.svg" width="180" alt="Minco mascot: a cute purple robot cloud" />
+</p>
 
-**Minimal cost, maximum capability.**
+<h1 align="center">Minco</h1>
+
+<p align="center"><strong>Minimal cost, maximum capability.</strong></p>
 
 Minco is a contract-first, AI-native, AWS-native Rust framework for modular API
 backends. Business logic stays in ordinary Rust; OpenAPI is canonical; plugins
@@ -93,9 +97,16 @@ crates/
   minco-test/       in-process HTTP/test evidence helpers
   minco-cli/        `cargo-minco` package: contracts, plugins, tests, JJ and plans
 plugins/
-  minco-plugin-health/
-  minco-plugin-observability/
-  minco-plugin-idempotency/
+  minco-plugin-health/          readiness registry and contributed checks
+  minco-plugin-observability/   structured tracing
+  minco-plugin-idempotency/     key and fingerprint primitives
+  minco-plugin-sessions/        opaque sessions and CSRF primitives
+  minco-plugin-identity/        verified claims, scopes and permissions
+  minco-plugin-object-storage/  objects and direct-access signing ports
+  minco-plugin-events/          publisher and explicit outbox ports
+  minco-plugin-notifications/   email, webhook, in-app and developer notices
+  minco-plugin-audit/           append-only business audit port
+  minco-plugin-feedback/        widget, screenshots, voice, discussion and AI handoff
 extensions/
   minco-sqlx-postgres/
   minco-sqlx-sqlite/
@@ -195,7 +206,10 @@ cargo minco inspect --json
 
 ## Plugins
 
-Default plugins are `health`, `observability` and `idempotency`.
+Default plugins are `health`, `observability` and `idempotency`. The broader
+official set adds sessions, identity, object storage, events/outbox,
+notifications, audit, and the opt-in Feedback vertical slice. They remain
+separate Cargo features and can be linked or omitted independently.
 
 ```bash
 cargo minco plugin list
@@ -209,6 +223,38 @@ Selection is stored in `minco.toml`; code remains explicitly linked and
 constructed. Third-party plugins use the public `minco-core::Plugin`, descriptor,
 `PluginContext` and typed `ServiceCollection` APIs. See
 [`docs/architecture/plugin-authoring.md`](docs/architecture/plugin-authoring.md).
+
+
+### Feedback plugin
+
+The official beta Feedback plugin provides a configurable floating action
+button, browser-authorized screenshots, file attachments, optional voice
+recording/transcription, client/developer discussion, explicit clarification and
+development states, PostgreSQL/SQLite persistence, notifications, audit/events,
+and deterministic AI-ready context.
+
+```html
+<script
+  src="/_minco/feedback/widget.js"
+  data-endpoint="/_minco/feedback"
+  data-position="bottom-right"
+  defer
+></script>
+```
+
+Developer workflow:
+
+```bash
+cargo minco feedback inbox
+cargo minco feedback show <id>
+cargo minco feedback reply <id> --body "Could you clarify the expected result?"
+cargo minco feedback status <id> ready_for_development
+cargo minco feedback pull <id> --output tasks/feedback/<id>.md
+```
+
+See [`plugins/minco-plugin-feedback/README.md`](plugins/minco-plugin-feedback/README.md),
+[`docs/architecture/feedback-loop.md`](docs/architecture/feedback-loop.md), and the
+[cross-project capability audit](docs/architecture/capability-audit.md).
 
 ## Testing and quality
 

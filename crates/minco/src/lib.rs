@@ -51,6 +51,38 @@ pub use minco_plugin_observability as plugin_observability;
 /// Official idempotency primitives and plugin.
 pub use minco_plugin_idempotency as plugin_idempotency;
 
+#[cfg(feature = "plugin-sessions")]
+/// Official provider-neutral session issuance and revocation plugin.
+pub use minco_plugin_sessions as plugin_sessions;
+
+#[cfg(feature = "plugin-identity")]
+/// Official verified-claims identity and permission plugin.
+pub use minco_plugin_identity as plugin_identity;
+
+#[cfg(feature = "plugin-object-storage")]
+/// Official provider-neutral object-storage plugin.
+pub use minco_plugin_object_storage as plugin_object_storage;
+
+#[cfg(feature = "plugin-events")]
+/// Official domain-event and explicit outbox plugin.
+pub use minco_plugin_events as plugin_events;
+
+#[cfg(feature = "plugin-notifications")]
+/// Official provider-neutral notification plugin.
+pub use minco_plugin_notifications as plugin_notifications;
+
+#[cfg(feature = "plugin-audit")]
+/// Official append-only audit plugin.
+pub use minco_plugin_audit as plugin_audit;
+
+#[cfg(feature = "plugin-feedback")]
+/// Official AI-ready client feedback-loop plugin.
+pub use minco_plugin_feedback as plugin_feedback;
+
+#[cfg(feature = "plugin-static-site")]
+/// Official provider-neutral static-site deployment plugin.
+pub use minco_plugin_static_site as plugin_static_site;
+
 #[cfg(feature = "sqlx-postgres")]
 /// Bounded `SQLx` `PostgreSQL` pool support.
 pub use minco_sqlx_postgres as sqlx_postgres;
@@ -67,9 +99,10 @@ pub use minco_aws_lambda as aws_lambda;
 pub mod prelude {
     pub use minco_core::{
         ApplicationGraph, CapabilityProvision, CapabilityRequirement, ComposedApplication,
-        FrozenServices, GraphBuilder, GraphError, HealthCheckDescriptor, IdleCostClass,
-        MigrationSet, OperationDescriptor, Plugin, PluginContext, PluginDescriptor, PluginError,
-        PluginId, PluginManager, PluginSelection, ResourceIntent, ResourceKind, ServiceCollection,
+        ContributionCollection, FrozenContributions, FrozenServices, GraphBuilder, GraphError,
+        HealthCheckDescriptor, IdleCostClass, MigrationSet, OperationDescriptor, Plugin,
+        PluginContext, PluginDescriptor, PluginError, PluginFinalizeContext, PluginId,
+        PluginManager, PluginSelection, ResourceIntent, ResourceKind, ServiceCollection,
         ServiceError, WakeSource,
     };
 
@@ -87,15 +120,12 @@ pub mod prelude {
 /// [`core::PluginSelection`] or remove it from the binary with
 /// `default-features = false` and explicit features.
 pub fn default_plugin_manager() -> Result<core::PluginManager, core::PluginError> {
-    let manager = core::PluginManager::default();
+    let mut manager = core::PluginManager::default();
+    register_enabled_plugins(&mut manager)?;
+    Ok(manager)
+}
 
-    #[cfg(any(
-        feature = "plugin-health",
-        feature = "plugin-observability",
-        feature = "plugin-idempotency"
-    ))]
-    let mut manager = manager;
-
+fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), core::PluginError> {
     #[cfg(feature = "plugin-health")]
     manager.register(plugin_health::HealthPlugin)?;
 
@@ -103,9 +133,36 @@ pub fn default_plugin_manager() -> Result<core::PluginManager, core::PluginError
     manager.register(plugin_observability::ObservabilityPlugin::default())?;
 
     #[cfg(feature = "plugin-idempotency")]
-    manager.register(plugin_idempotency::IdempotencyPlugin)?;
+    manager.register(plugin_idempotency::IdempotencyPlugin::memory())?;
 
-    Ok(manager)
+    #[cfg(feature = "plugin-sessions")]
+    manager.register(plugin_sessions::SessionsPlugin::memory())?;
+
+    #[cfg(feature = "plugin-identity")]
+    manager.register(plugin_identity::IdentityPlugin::default())?;
+
+    #[cfg(feature = "plugin-object-storage")]
+    manager.register(plugin_object_storage::ObjectStoragePlugin::memory())?;
+
+    #[cfg(feature = "plugin-events")]
+    manager.register(plugin_events::EventsPlugin::memory().0)?;
+
+    #[cfg(feature = "plugin-notifications")]
+    manager.register(plugin_notifications::NotificationsPlugin::memory().0)?;
+
+    #[cfg(feature = "plugin-audit")]
+    manager.register(plugin_audit::AuditPlugin::memory().0)?;
+
+    #[cfg(feature = "plugin-feedback")]
+    manager.register(plugin_feedback::FeedbackPlugin::memory())?;
+
+    #[cfg(feature = "plugin-static-site")]
+    manager.register(plugin_static_site::StaticSitePlugin)?;
+
+    // Keep the no-feature build warning-free when every registration above is
+    // compiled out.
+    let _ = manager;
+    Ok(())
 }
 
 /// Composes all compile-time official plugins using the supplied runtime selection.

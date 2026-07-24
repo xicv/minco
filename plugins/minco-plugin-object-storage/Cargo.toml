@@ -1,0 +1,32 @@
+[package]
+name = "minco-plugin-object-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral object storage port and reference memory implementation for Minco"
+documentation = "https://docs.rs/minco-plugin-object-storage"
+readme = "README.md"
+keywords = ["minco", "storage", "s3", "uploads"]
+categories = ["web-programming", "filesystem"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

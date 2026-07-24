@@ -1,0 +1,25 @@
+{
+  "attachment_response_checks": 2,
+  "database_profiles": [
+    "postgres",
+    "sqlite"
+  ],
+  "operation_count": 13,
+  "operations": [
+    "createFeedback",
+    "developerReplyToFeedback",
+    "feedbackWidget",
+    "getClientFeedback",
+    "getClientFeedbackAttachment",
+    "getDeveloperFeedback",
+    "getDeveloperFeedbackAttachment",
+    "getFeedbackAiContext",
+    "getFeedbackWidgetConfig",
+    "listDeveloperFeedback",
+    "replyToFeedback",
+    "transcribeFeedbackAudio",
+    "transitionFeedback"
+  ],
+  "status": "passed",
+  "widget_checks": 11
+}

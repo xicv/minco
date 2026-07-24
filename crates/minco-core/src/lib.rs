@@ -1,18 +1,25 @@
 //! Provider-neutral Minco kernel: plugin composition, capabilities, resources and graph validation.
 #![forbid(unsafe_code)]
 
+/// Semantic version of the public Minco core plugin API.
+pub const CORE_API_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+mod contribution;
 mod graph;
 mod plugin;
 mod service;
 mod types;
 
+pub use contribution::{ContributionCollection, FrozenContributions};
 pub use graph::{ApplicationGraph, GraphBuilder, GraphError};
 pub use plugin::{
-    ComposedApplication, Plugin, PluginContext, PluginError, PluginManager, PluginSelection,
+    ComposedApplication, Plugin, PluginContext, PluginError, PluginFinalizeContext, PluginManager,
+    PluginSelection,
 };
-pub use service::{FrozenServices, ServiceCollection, ServiceError};
+pub use service::{FrozenServices, ServiceCollection, ServiceError, Shared};
 pub use types::{
-    CapabilityProvision, CapabilityRequirement, HealthCheckDescriptor, IdentifierError,
-    IdleCostClass, MigrationSet, OperationDescriptor, PluginDescriptor, PluginId, ResourceIntent,
-    ResourceKind, WakeSource,
+    CapabilityProvision, CapabilityRequirement, ConfigurationField, ConfigurationValueKind,
+    DataClass, HealthCheckDescriptor, IdentifierError, IdleCostClass, MigrationSet,
+    OperationDescriptor, PluginDescriptor, PluginId, PluginStability, ResourceIntent, ResourceKind,
+    WakeSource,
 };

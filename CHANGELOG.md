@@ -45,9 +45,20 @@ Semantic Versioning once public releases begin.
 - crates.io metadata, versioned path dependencies, package content allowlists,
   dual-license files, deterministic publish validation, guarded multi-package
   dry-run/upload scripts, and manual OIDC trusted-publishing workflow.
+- Strengthened plugin lifecycle with core compatibility, typed multi-contributions,
+  strict configuration contracts, graph-before-install validation, deterministic
+  finalization, and application-provided composition dependencies.
+- Official sessions, identity, object-storage, events/outbox, notifications,
+  audit, static-site, and Feedback plugins.
+- Feedback Web Component with configurable FAB placement, browser-authorized
+  screenshots, bounded voice notes, optional transcription, threaded
+  clarification, PostgreSQL/SQLite/memory storage, developer API/CLI, and
+  deterministic AI handoff.
 
-### Known verification gap
+### Verification boundary
 
-The handoff environment did not provide Rust, Cargo, Docker, JJ, Cargo Lambda,
-or SAM CLI. `VERIFICATION.md` records the exact checks that could and could not
-run; this entry must be updated after compiler and real-runtime verification.
+The pinned Rust compiler, Docker-backed persistence, JJ, Cargo Lambda, SAM
+linting, read-only CloudFormation/IAM validation and package publication dry
+runs pass. Real AWS deployment, provider-adapter conformance, crate upload and
+the deferred repository-wide Codex Security Deep Scan remain outside the
+verified boundary; see `VERIFICATION.md`.

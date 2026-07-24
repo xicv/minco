@@ -1,9 +1,39 @@
-# Minco crates.io readiness verification
+# Minco verification and release evidence
 
-Date: 2026-07-24  
-Workspace version: `0.1.1`  
-Purpose: preserve the `M8-T02` compiler/package baseline and record the
-`M8-T05` patch-release boundary for the `cargo-minco` docs.rs fix.
+Date: 2026-07-24
+Current workspace version: `0.2.0`
+Published baseline: `0.1.1`
+Purpose: preserve the published `M8` compiler/package evidence and record the
+current Feedback/plugin-architecture candidate without rewriting release
+history.
+
+## Current `0.2.0` candidate
+
+The `0.2.0` candidate adds the strengthened plugin kernel, official plugins and
+Feedback review loop described in `FEEDBACK_REVIEW_STATUS.md`. It is a pre-1.0
+minor candidate because the immutable `0.1.0` and `0.1.1` releases do not
+contain its public APIs. This work does not tag or upload `0.2.0`.
+
+The candidate verification covers:
+
+- Rust format/check/Clippy/test/Rustdoc gates across all targets and features;
+- generated PostgreSQL and SQLite applications;
+- real SQLite/PostgreSQL Feedback persistence;
+- Chromium/Firefox widget E2E, cargo-deny, gitleaks and npm audit;
+- native ARM64 Lambda ZIP packaging and all-package publication dry runs;
+- deterministic Plan IR and SAM generation;
+- SAM CLI linting plus read-only CloudFormation and IAM Access Analyzer
+  validation.
+
+The AWS checks create no resources. Real AWS deployment and the unimplemented
+`M6-T04` provider-adapter conformance remain outside the verified boundary.
+The repository-wide Codex Security Deep Scan is deferred because the external
+scan service terminated two defensive runs before returning an acceptable
+discovery manifest; the deterministic local deep-review remains green.
+
+Exact commands, results and current limitations are recorded in
+`FEEDBACK_REVIEW_STATUS.md` and `CODEX_HANDOFF.md`. The release history below
+remains authoritative for the published `0.1.x` artifacts.
 
 ## Release history and current boundary
 

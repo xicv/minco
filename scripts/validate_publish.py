@@ -178,7 +178,11 @@ class PublishValidator:
                         f"{name} package does not include {license_name}",
                         manifest,
                     )
-            include = package.get("include", [])
+            include = {
+                value.removeprefix("/")
+                for value in package.get("include", [])
+                if isinstance(value, str)
+            }
             for required in ("src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"):
                 if required not in include:
                     self.error(
@@ -309,6 +313,17 @@ class PublishValidator:
             "release",
             "test",
             "default-plugins",
+            "official-plugins",
+            "plugin-health",
+            "plugin-observability",
+            "plugin-idempotency",
+            "plugin-sessions",
+            "plugin-identity",
+            "plugin-object-storage",
+            "plugin-events",
+            "plugin-notifications",
+            "plugin-audit",
+            "plugin-feedback",
             "sqlx-postgres",
             "sqlx-sqlite",
             "aws-lambda",
@@ -343,7 +358,11 @@ class PublishValidator:
                 "cargo-minco does not normalize Cargo's injected subcommand argument",
                 source,
             )
-        include = package.get("include", [])
+        include = {
+            value.removeprefix("/")
+            for value in package.get("include", [])
+            if isinstance(value, str)
+        }
         if "templates/**" not in include:
             self.error(
                 "PUBLISH-064",

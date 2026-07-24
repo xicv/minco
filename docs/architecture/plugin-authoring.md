@@ -1,38 +1,133 @@
 # Authoring Minco Plugins
 
-Minco plugins are statically linked Rust crates. Static linkage keeps type safety,
-reviewable dependency graphs, predictable startup, and deployment analysis. The
-plugin API is stable Rust source/API—not a dynamic-library ABI.
+Minco plugins are statically linked Rust crates. Static linkage keeps type
+safety, reviewable dependency graphs, predictable startup, and deployment
+analysis. The plugin API is a Rust source/API contract, not a dynamic-library
+ABI and not a runtime package-discovery mechanism.
 
-## Plugin contract
+## Lifecycle
 
-A plugin provides:
+Composition has four deterministic phases:
 
-- a `PluginDescriptor` with ID, semantic version, dependencies, capabilities,
-  operations, migrations, health checks, and resource intents;
-- an `install` implementation that inserts typed services into
-  `ServiceCollection` and contributes graph metadata;
-- configuration validation;
-- unit and conformance tests;
-- cost, wake-source, IAM, local-emulation and health documentation where relevant.
+1. **Registration** reads and validates the immutable `PluginDescriptor`.
+2. **Configuration** applies schema defaults, rejects unknown fields, and allows
+   the plugin to adjust graph metadata through `configure_descriptor`.
+3. **Installation** registers typed single services and ordered multi-provider
+   contributions. It must not make network calls, run migrations, or start
+   background work.
+4. **Finalization** assembles aggregate registries after every plugin has
+   installed. It is also side-effect-free with respect to remote systems.
+
+The complete configured graph is validated before installation. Missing or
+incompatible capabilities, duplicate operations/routes/migrations/resources,
+plugin cycles, and resource cycles therefore fail before concrete clients are
+constructed.
+
+## Minimal plugin
 
 ```rust
-#[async_trait::async_trait]
-impl minco_core::Plugin for ExamplePlugin {
-    fn descriptor(&self) -> minco_core::PluginDescriptor { /* explicit data */ }
+use minco_core::{
+    CapabilityProvision, Plugin, PluginContext, PluginDescriptor, PluginError,
+    PluginId, PluginStability,
+};
+use semver::{Version, VersionReq};
+use std::sync::Arc;
 
-    async fn install(
-        &self,
-        context: &mut minco_core::PluginContext<'_>,
-    ) -> Result<(), minco_core::PluginError> {
-        context.services.insert(std::sync::Arc::new(ExampleService::new()))?;
+#[derive(Debug, Clone)]
+pub struct ExampleService;
+
+#[derive(Debug, Clone, Default)]
+pub struct ExamplePlugin;
+
+impl Plugin for ExamplePlugin {
+    fn descriptor(&self) -> PluginDescriptor {
+        let mut descriptor = PluginDescriptor::new(
+            PluginId::new("example").expect("static plugin ID"),
+            Version::new(1, 0, 0),
+            "Example capability",
+        );
+        descriptor.core_compatibility =
+            VersionReq::parse("^0.1").expect("static compatibility requirement");
+        descriptor.stability = PluginStability::Beta;
+        descriptor.provides.push(CapabilityProvision {
+            name: "example.use".into(),
+            version: Version::new(1, 0, 0),
+        });
+        descriptor
+    }
+
+    fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+        context.services().insert(Arc::new(ExampleService))?;
         Ok(())
     }
 }
 ```
 
-The actual implementation must return real descriptors/services; the snippet
-shows the interface shape only.
+`install` is synchronous by design. It registers runtime objects; those objects
+may expose asynchronous methods. This prevents plugin discovery from silently
+connecting to infrastructure.
+
+## Single services and multi-contributions
+
+Use `ServiceCollection` for one authoritative implementation of a type:
+
+```rust
+context.services().insert(Arc::new(ExampleService))?;
+```
+
+Use `ContributionCollection` when independent plugins may provide multiple
+values, such as HTTP modules, health checks, notification observers, or event
+handlers:
+
+```rust
+context.contributions().push(Arc::new(MyHttpModule));
+context
+    .contributions()
+    .push_shared::<dyn MyObserver>(Arc::new(MyObserverImpl));
+```
+
+Registration order is deterministic. A plugin that owns an aggregate registry
+can read contributions during `finalize` and register the final single service.
+Do not emulate multi-binding by replacing a previously registered service.
+
+## Application-provided dependencies
+
+Concrete database pools, AWS clients, clocks, and product-specific adapters
+belong in the application composition root. Supply them through
+`PluginManager::compose_with` before plugin installation. This keeps provider
+selection explicit and avoids a global service locator.
+
+## Configuration contract
+
+Publish every supported setting in `PluginDescriptor::configuration` with:
+
+- stable key;
+- value kind;
+- required/optional status;
+- secret classification;
+- documented default;
+- user-facing description.
+
+Minco rejects unknown fields and type mismatches and applies descriptor defaults
+before deserializing the plugin's configuration type. Secret values are never
+copied into the application graph or deployment plan.
+
+A configuration-dependent capability or resource belongs in
+`configure_descriptor`, not `install`. The hook may only modify mutable graph
+metadata; plugin ID, version, default selection, namespace, and schema remain
+immutable.
+
+## HTTP contribution
+
+HTTP-capable plugins contribute a `minco_http::HttpModule` containing:
+
+- a fully state-bound Axum router fragment;
+- the exact OpenAPI operation IDs it implements;
+- its maximum request-body requirement.
+
+`compose_plugin_http` merges modules, rejects operation drift, and applies the
+aggregate body budget and standard middleware once. A plugin should not create a
+second independent HTTP server or copy middleware policy.
 
 ## Create and register
 
@@ -42,42 +137,47 @@ cargo minco plugin validate audit-export
 cargo minco plugin enable audit-export
 ```
 
-Add the plugin as a Cargo dependency and register its constructor in the
-application composition root. The catalog controls default selection; it does
-not dynamically download or execute code.
+Add the crate as a normal Cargo dependency and register its constructor in the
+composition root. The catalog controls selection metadata; it does not download
+or execute code at runtime.
 
-## Default plugins
+## Official plugin tiers
 
-- `health`: critical/non-critical health registry and readiness aggregation.
-- `observability`: structured tracing configuration.
-- `idempotency`: typed keys, fingerprints, replay/conflict semantics and memory
-  reference store.
+The bounded default set is:
 
-Applications may disable a default plugin in configuration when its dependencies
-allow it. The plugin manager rejects missing dependencies, duplicate IDs,
-capability version mismatches and cycles before startup.
+- `health`;
+- `observability`;
+- `idempotency`.
 
-## Ecosystem compatibility
+Opt-in official plugins cover sessions, identity/permissions, object storage,
+events/outbox, notifications, audit, static-site deployment intent, and the
+Feedback vertical slice. Memory implementations are deterministic development
+references, not a claim of production durability. Provider adapters must state
+their persistence, delivery, IAM, cost, retry, and local-emulation behavior.
+
+## Ecosystem compatibility checklist
 
 Third-party plugins should publish:
 
-- supported Minco API requirement;
-- plugin/capability semantic versions;
-- exact feature flags and transitive dependencies;
+- supported Minco core requirement;
+- plugin and capability semantic versions;
+- stability level and documentation URL;
 - configuration schema and examples;
+- data sensitivity classes;
+- exact Cargo feature flags and transitive dependencies;
+- operations, migrations, health checks, resources, wake sources, and idle-cost
+  classes;
 - supported runtimes/databases;
-- local and AWS resource behavior;
-- security policy and test evidence.
+- security, privacy, retention, and failure semantics;
+- unit, conformance, and integration evidence.
 
 Minco core must not add product-specific code to accommodate a plugin. New
 cross-cutting extension points require an ADR and a minimal interface proven by
 at least two implementations.
 
-
-## Registry plugins and local plugins
+## Registry and local plugins
 
 Catalog entries without `path` describe crates resolved through Cargo. Local
 workspace plugins declare a repository-relative `path`; `cargo minco plugin
-validate` then verifies the local manifest and package name. This distinction
-lets application repositories consume published plugins while authoring new
-plugins locally without runtime discovery.
+validate` verifies the local manifest and package name. Both use the same public
+API and explicit composition path.

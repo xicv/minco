@@ -25,7 +25,7 @@ pub struct ProblemDetails {
 #[derive(Debug, Clone)]
 pub struct ApiFailure {
     pub status: StatusCode,
-    pub code: String,
+    pub code: Box<str>,
     pub title: String,
     pub detail: String,
     pub request_id: String,
@@ -42,7 +42,7 @@ impl ApiFailure {
     ) -> Self {
         Self {
             status,
-            code: code.into(),
+            code: code.into().into_boxed_str(),
             title: title.into(),
             detail: detail.into(),
             request_id: request_id.into(),
@@ -83,7 +83,7 @@ pub fn problem_response(failure: ApiFailure) -> Response {
         title: failure.title,
         status: failure.status.as_u16(),
         detail: failure.detail,
-        code: failure.code,
+        code: failure.code.into(),
         request_id: failure.request_id.clone(),
         errors: failure.errors,
     };

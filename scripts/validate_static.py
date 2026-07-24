@@ -21,6 +21,12 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head"}
+IGNORED_PARTS = {"target", ".git", ".jj", "__pycache__", "node_modules"}
+
+
+def report_root(root: Path, default_root: Path = ROOT) -> str:
+    """Keep repository-root evidence stable across checkout locations."""
+    return "." if root == default_root else str(root)
 
 
 class CloudFormationLoader(yaml.SafeLoader):
@@ -88,7 +94,7 @@ class Validator:
         return {
             "schema_version": 1,
             "status": "ok" if errors == 0 else "failed",
-            "root": str(self.root),
+            "root": report_root(self.root),
             "errors": errors,
             "warnings": warnings,
             "metrics": self.metrics,
@@ -122,7 +128,7 @@ class Validator:
     def validate_data_files(self) -> None:
         counts = {"toml": 0, "yaml": 0, "json": 0}
         for path in sorted(self.root.rglob("*")):
-            if not path.is_file() or any(part in {"target", ".git", ".jj", "__pycache__"} for part in path.parts):
+            if not path.is_file() or any(part in IGNORED_PARTS for part in path.parts):
                 continue
             try:
                 if path.suffix == ".toml":
@@ -425,7 +431,7 @@ class Validator:
     def validate_rust_lexically(self) -> None:
         count = 0
         for path in sorted(self.root.rglob("*.rs")):
-            if any(part in {"target", ".git", ".jj"} for part in path.parts):
+            if any(part in IGNORED_PARTS for part in path.parts):
                 continue
             count += 1
             issue = balanced_rust(path.read_text())
@@ -436,7 +442,7 @@ class Validator:
     def validate_python(self) -> None:
         count = 0
         for path in sorted(self.root.rglob("*.py")):
-            if any(part in {"target", ".git", ".jj", "__pycache__"} for part in path.parts):
+            if any(part in IGNORED_PARTS for part in path.parts):
                 continue
             count += 1
             try:
@@ -448,7 +454,7 @@ class Validator:
     def validate_shell(self) -> None:
         count = 0
         for path in sorted(self.root.rglob("*.sh")):
-            if any(part in {"target", ".git", ".jj"} for part in path.parts):
+            if any(part in IGNORED_PARTS for part in path.parts):
                 continue
             count += 1
             result = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True)
@@ -467,7 +473,15 @@ class Validator:
         manifest = tomllib.loads(manifest_path.read_text())
         config_path = self.root / manifest["deployment_config"]
         config = tomllib.loads(config_path.read_text())
-        plan = json.loads(plan_path.read_text())
+        plan_source = plan_path.read_text()
+        plan = json.loads(plan_source)
+        canonical_plan = json.dumps(plan, indent=2, sort_keys=True) + "\n"
+        if plan_source != canonical_plan:
+            self.error(
+                "STATIC-PLAN-000",
+                "generated plan must use canonical sorted JSON with a trailing newline",
+                plan_path,
+            )
         for key, value in config.items():
             if key != "routes" and plan.get(key) != value:
                 self.error("STATIC-PLAN-001", f"generated plan differs from deployment config at {key}", plan_path)
@@ -522,7 +536,7 @@ class Validator:
         ]
         count = 0
         for path in sorted(self.root.rglob("*")):
-            if not path.is_file() or any(part in {"target", ".git", ".jj", "__pycache__"} for part in path.parts):
+            if not path.is_file() or any(part in IGNORED_PARTS for part in path.parts):
                 continue
             if path.resolve() in {Path(__file__).resolve(), (self.root / "scripts/deep_review.py").resolve()}:
                 continue

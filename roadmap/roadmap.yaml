@@ -67,8 +67,7 @@ milestones:
   status: planned
   depends_on:
   - M5
-  outcome: Optional identity, object storage, queue/outbox, email, and static-site extensions use the same capability
-    model.
+  outcome: Optional sessions, identity, object storage, queue/outbox, notifications, audit, Feedback, and static-site extensions use the same capability model.
   exit_criteria:
   - Every extension is independently selectable and testable.
   - No extension introduces hidden scheduled work or fixed capacity.

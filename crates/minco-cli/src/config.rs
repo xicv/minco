@@ -42,6 +42,12 @@ pub struct ArchitectureManifest {
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
 pub struct OperationTrace {
+    /// Operation-specific contract for plugin-owned routes. Application
+    /// operations fall back to the manifest-level contract.
+    pub contract: Option<PathBuf>,
+    /// Generated binding source when this operation has one. Plugin-owned
+    /// contracts may intentionally map directly to hand-written typed routes.
+    pub generated: Option<PathBuf>,
     pub handler: Option<String>,
     pub application: Option<String>,
     #[serde(default)]
@@ -75,6 +81,10 @@ pub struct PluginSelectionFile {
     pub enabled: BTreeSet<String>,
     #[serde(default)]
     pub disabled: BTreeSet<String>,
+    /// Plugin-specific values keyed by stable plugin ID. Secret values should
+    /// be injected by the composition root rather than committed here.
+    #[serde(default)]
+    pub configuration: BTreeMap<String, toml::Value>,
 }
 
 impl MincoManifest {

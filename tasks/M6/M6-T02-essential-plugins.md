@@ -1,8 +1,8 @@
 ---
 id: M6-T02
-title: Add identity storage queue and email plugins
+title: Stabilize provider-neutral essential plugin contracts
 milestone: M6
-status: planned
+status: active
 priority: medium
 area: plugins
 depends_on: [M5-T01]
@@ -12,9 +12,16 @@ owned_paths:
   - extensions/**
 checks:
   - cargo minco plugin validate
-  - cargo test --workspace --all-features
+  - cargo test --workspace --all-targets --all-features --locked
 ---
 
 ## Goal
 
-Add independently selectable OIDC/Cognito, S3, SQS/outbox and SES implementations without adding fixed capacity or hidden schedules to the core.
+Stabilize independently selectable sessions, identity, object-storage, events/outbox, notifications, audit, and static-site contracts without adding provider dependencies, fixed capacity, or hidden schedules to the core. Concrete AWS implementations are tracked separately in M6-T04.
+
+## Current evidence
+
+The provider-neutral plugin implementations, catalog validation and full
+all-feature workspace tests pass on Rust 1.97.1. This task remains active
+because prerequisite `M5-T01` is still planned; the concrete AWS adapters remain
+separate in `M6-T04`.
