@@ -44,7 +44,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.97.1"
 license = "MIT OR Apache-2.0"
@@ -98,20 +98,20 @@ uuid = { version = "1", features = ["v4", "v7", "serde"] }
 
 # Every publishable path dependency carries an explicit version. Cargo removes
 # the path when packaging and resolves the version from the target registry.
-minco = { version = "0.1.0", path = "crates/minco" }
-minco-core = { version = "0.1.0", path = "crates/minco-core" }
-minco-contract = { version = "0.1.0", path = "crates/minco-contract" }
-minco-plan = { version = "0.1.0", path = "crates/minco-plan" }
-minco-release = { version = "0.1.0", path = "crates/minco-release" }
-minco-http = { version = "0.1.0", path = "crates/minco-http" }
-minco-test = { version = "0.1.0", path = "crates/minco-test" }
-minco-plugin-health = { version = "0.1.0", path = "plugins/minco-plugin-health" }
-minco-plugin-observability = { version = "0.1.0", path = "plugins/minco-plugin-observability" }
-minco-plugin-idempotency = { version = "0.1.0", path = "plugins/minco-plugin-idempotency" }
-minco-sqlx-postgres = { version = "0.1.0", path = "extensions/minco-sqlx-postgres" }
-minco-sqlx-sqlite = { version = "0.1.0", path = "extensions/minco-sqlx-sqlite" }
-minco-aws-lambda = { version = "0.1.0", path = "extensions/minco-aws-lambda" }
-cargo-minco = { version = "0.1.0", path = "crates/minco-cli" }
+minco = { version = "0.1.1", path = "crates/minco" }
+minco-core = { version = "0.1.1", path = "crates/minco-core" }
+minco-contract = { version = "0.1.1", path = "crates/minco-contract" }
+minco-plan = { version = "0.1.1", path = "crates/minco-plan" }
+minco-release = { version = "0.1.1", path = "crates/minco-release" }
+minco-http = { version = "0.1.1", path = "crates/minco-http" }
+minco-test = { version = "0.1.1", path = "crates/minco-test" }
+minco-plugin-health = { version = "0.1.1", path = "plugins/minco-plugin-health" }
+minco-plugin-observability = { version = "0.1.1", path = "plugins/minco-plugin-observability" }
+minco-plugin-idempotency = { version = "0.1.1", path = "plugins/minco-plugin-idempotency" }
+minco-sqlx-postgres = { version = "0.1.1", path = "extensions/minco-sqlx-postgres" }
+minco-sqlx-sqlite = { version = "0.1.1", path = "extensions/minco-sqlx-sqlite" }
+minco-aws-lambda = { version = "0.1.1", path = "extensions/minco-aws-lambda" }
+cargo-minco = { version = "0.1.1", path = "crates/minco-cli" }
 
 # Private reference-application packages. They remain path-only and cannot be
 # published accidentally.

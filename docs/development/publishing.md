@@ -83,17 +83,16 @@ used by docs.rs. The `cargo-minco` library target renders the CLI README as
 crate-level documentation; executable behavior remains in the `cargo-minco`
 binary target.
 
-## First crates.io publication
+## Authenticated crates.io publication
 
-Crate names are first-come-first-served. Minco's names were checked against the
-crates.io index on **2026-07-24**, but this check is not a reservation. Recheck
-immediately before publication:
+Before each release, verify registry access and confirm the exact version is
+not already published:
 
 ```bash
-python3 scripts/validate_publish.py --expect-unpublished --require-registry
+python3 scripts/validate_publish.py --check-registry --require-registry
 ```
 
-For the first release:
+For an authenticated release:
 
 1. Sign in to crates.io, verify the publisher account, and create a short-lived
    API token with the minimum required scope.
@@ -107,10 +106,10 @@ For the first release:
 4. Create the release change and lightweight tag using JJ:
 
    ```bash
-   jj describe -m 'release: Minco 0.1.0'
-   jj tag set v0.1.0 -r @
+   jj describe -m 'release: Minco 0.1.1'
+   jj tag set v0.1.1 -r @
    jj git export
-   git push origin refs/tags/v0.1.0
+   git push origin refs/tags/v0.1.1
    ```
 
 5. Publish the complete selected family:
@@ -123,6 +122,10 @@ Cargo multi-package publication is ordered but not atomic. If crates.io accepts
 some packages before a later upload fails, do not change or overwrite accepted
 versions. Diagnose the failure, verify the registry state, and publish only the
 remaining packages with explicit `--package` arguments.
+
+The first version of a new crate additionally requires a manual authenticated
+publish because trusted publishing can only be configured after ownership
+exists. The existing Minco crate family has already crossed that boundary.
 
 ## Trusted publishing after the first release
 

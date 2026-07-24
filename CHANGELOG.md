@@ -5,6 +5,18 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-24
+
+### Fixed
+
+- Added a library documentation target to `cargo-minco` so docs.rs can build
+  and publish the CLI documentation while preserving the `cargo-minco`
+  executable and `cargo minco` command behavior.
+- Added a docs.rs-shaped Rustdoc gate to local quality, release dry runs, and
+  hosted manual CI.
+
+## [0.1.0] - 2026-07-24
+
 ### Added
 
 - Provider-neutral plugin kernel, typed service injection, capability graph, and
