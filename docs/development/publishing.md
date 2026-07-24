@@ -56,6 +56,7 @@ cargo test -p minco --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-targets --all-features --locked
 scripts/test/generated_apps.sh
+cargo rustdoc -p cargo-minco --lib --all-features --locked
 cargo doc --workspace --all-features --no-deps --locked
 
 scripts/release/publish.sh
@@ -76,6 +77,11 @@ ls -lh target/package/*.crate
 ```
 
 No release may use `--no-verify` or `--allow-dirty`.
+
+The explicit `cargo rustdoc -p cargo-minco --lib` gate mirrors the target shape
+used by docs.rs. The `cargo-minco` library target renders the CLI README as
+crate-level documentation; executable behavior remains in the `cargo-minco`
+binary target.
 
 ## First crates.io publication
 

@@ -12,7 +12,7 @@ cargo minco doctor
 ```
 
 `cargo minco new` creates a layered, contract-first workspace with a local and
-Lambda composition root, PostgreSQL or SQLite migration path, quality gates,
+Lambda composition root, `PostgreSQL` or `SQLite` migration path, quality gates,
 roadmap/tasks, plugin catalog, and JJ initialization by default.
 
 The remaining commands operate on a repository containing `minco.toml` and provide

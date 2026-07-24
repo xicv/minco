@@ -42,7 +42,9 @@ jobs:
       - name: Tests
         run: cargo test --workspace --all-targets --all-features --locked
       - name: Documentation
-        run: cargo doc --workspace --all-features --no-deps --locked
+        run: |
+          cargo rustdoc -p cargo-minco --lib --all-features --locked
+          cargo doc --workspace --all-features --no-deps --locked
       - name: Publish dry run
         run: scripts/release/publish.sh --skip-quality
       - name: E2E

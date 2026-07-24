@@ -129,6 +129,7 @@ def main() -> int:
         run(["cargo", "clippy", "--workspace", "--all-targets", "--all-features", "--locked", "--", "-D", "warnings"])
         run(["cargo", "test", "--workspace", "--all-targets", "--all-features", "--locked"])
         run(["scripts/test/generated_apps.sh"])
+        run(["cargo", "rustdoc", "-p", "cargo-minco", "--lib", "--all-features", "--locked"])
         run(["cargo", "doc", "--workspace", "--all-features", "--no-deps", "--locked"])
 
     command = ["cargo", "publish", "--registry", args.registry, "--locked"]
