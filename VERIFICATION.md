@@ -22,11 +22,15 @@ The candidate verification covers:
 - Chromium/Firefox widget E2E, cargo-deny, gitleaks and npm audit;
 - native ARM64 Lambda ZIP packaging and all-package publication dry runs;
 - deterministic Plan IR and SAM generation;
+- graph-derived PostgreSQL/Rustack startup and isolated real Rustack
+  S3/SQS/SSM/STS conformance through standard AWS endpoint variables;
 - SAM CLI linting plus read-only CloudFormation and IAM Access Analyzer
   validation.
 
 The AWS checks create no resources. Real AWS deployment and the unimplemented
-`M6-T04` provider-adapter conformance remain outside the verified boundary.
+`M6-T04` application provider-adapter conformance remain outside the verified
+boundary. The Rustack compatibility smoke proves the emulator operations, not
+those future Minco adapters.
 The repository-wide Codex Security Deep Scan is deferred because the external
 scan service terminated two defensive runs before returning an acceptable
 discovery manifest; the deterministic local deep-review remains green.

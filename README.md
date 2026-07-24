@@ -191,9 +191,16 @@ cargo run -p orders-service --bin orders-local --features sqlite
 PostgreSQL and Rustack:
 
 ```bash
+./scripts/dev/up.sh --dry-run
 ./scripts/dev/up.sh
+./scripts/dev/migrate.sh
 ./scripts/dev/run.sh
 ```
+
+The reference graph starts PostgreSQL and only its declared Rustack services.
+Use `MINCO_RUSTACK_PORT=4567` on both scripts if the default port is occupied;
+see [`infra/local/README.md`](infra/local/README.md) for conformance and
+isolated-database options.
 
 Contract-first workflow:
 

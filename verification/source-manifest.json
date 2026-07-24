@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 357,
+  "file_count": 362,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -39,8 +39,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "e28dcffb7ec916fbf4e0778cf8a5c6b91c239abb332b5c409cab0c258a8e188a",
-      "size_bytes": 3227
+      "sha256": "4231e3330883ce1fe42e30231a7a4b3a0ed3bcf207ba4d376fa70d2036729b84",
+      "size_bytes": 3456
     },
     {
       "path": "CODEX_CONTINUATION_PROMPT.md",
@@ -99,8 +99,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "0c8ca90c9c98a0be454c513ad19bb57aa6b95c181593e5813bcd6c499804a595",
-      "size_bytes": 13828
+      "sha256": "5c574cd34b59a18d3282ecd6ee51be1be2b7647f8da4437466e23798bf543184",
+      "size_bytes": 14141
     },
     {
       "path": "REVIEW_STATUS.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "e845e39b6379c1dbb917703536f595fe49d7f10c6ba7bfa344540784d7ac97ce",
-      "size_bytes": 11447
+      "sha256": "c1f43046f2ccf5fd5c946df1c32b1ea320d8048b9096d22a9f109e754349dfac",
+      "size_bytes": 11695
     },
     {
       "path": "config/jj/repo.toml",
@@ -764,13 +764,13 @@
     },
     {
       "path": "docs/development/quickstart.md",
-      "sha256": "a1c6da46eaa662a97442155377ec34467f9bc21869cc3b710d0292f2b890824b",
-      "size_bytes": 1861
+      "sha256": "89b0d4741a23774313f62090e6791b6aa1bff81bc869501aaa996d1ab31a2ad7",
+      "size_bytes": 2433
     },
     {
       "path": "docs/development/testing.md",
-      "sha256": "853a4bf5ed989ec1493a1880e1a62c8a5dcf8df10728d6a9276225a6c358fe4e",
-      "size_bytes": 2166
+      "sha256": "62d07ca68dae4efee7fe4642e74a405b60c9c58d8cc1b1ce2618c53bdc2b2994",
+      "size_bytes": 2576
     },
     {
       "path": "docs/development/update.md",
@@ -1023,9 +1023,14 @@
       "size_bytes": 3040
     },
     {
+      "path": "infra/local/README.md",
+      "sha256": "98bf7312465b8d52236fd32213f6fffa57f750e78209a3f8a8c9d023ea618229",
+      "size_bytes": 1245
+    },
+    {
       "path": "infra/local/compose.yaml",
-      "sha256": "4b450923d57ae17cc1da684e8d14587f3fbcba8c57953a1fb8f477b3e375c32e",
-      "size_bytes": 779
+      "sha256": "d25f55b823f0863ddbf4ef0036e434321bc435173f6bb56b22a337210feaa794",
+      "size_bytes": 887
     },
     {
       "path": "minco.toml",
@@ -1478,14 +1483,34 @@
       "size_bytes": 113
     },
     {
+      "path": "scripts/dev/migrate.sh",
+      "sha256": "b1505e583066bd018091ef2cd6abd24ff34be9031bcfb95a46e75bc0da42b263",
+      "size_bytes": 334
+    },
+    {
       "path": "scripts/dev/run.sh",
-      "sha256": "783e0588fabccb1db900703713925e0e86346a52ccfc67c2fc2ebff6341f33d9",
-      "size_bytes": 186
+      "sha256": "f416143fec6a820ec8ccdb3be847968afb6787e859cb0b0079b61dc35b282142",
+      "size_bytes": 719
+    },
+    {
+      "path": "scripts/dev/rustack-smoke.sh",
+      "sha256": "7eca9ebf64e565f9ef0a1b70725a12f07f288063a294c0da08cd2f241e6c31f3",
+      "size_bytes": 3554
+    },
+    {
+      "path": "scripts/dev/test_topology.py",
+      "sha256": "608870a1f56cc31ef957686ad47a74d2a9e58356200b5efe510663f882882b26",
+      "size_bytes": 10120
+    },
+    {
+      "path": "scripts/dev/topology.py",
+      "sha256": "c1327e88ddb1c8e5b1527f9fc51b361cda03602227a178066eb8453b93bcb903",
+      "size_bytes": 3309
     },
     {
       "path": "scripts/dev/up.sh",
-      "sha256": "e3fe63d5bbd90906664eb3ec45bf009db85d96fe3d2780e0ec9a7bbba01e05bb",
-      "size_bytes": 326
+      "sha256": "67e336584ff36e754e3b9a3fa91ddbe6379f2a6a68ef40c2235a677528cfe721",
+      "size_bytes": 1937
     },
     {
       "path": "scripts/generate_bootstrap_artifacts.py",
@@ -1644,8 +1669,8 @@
     },
     {
       "path": "tasks/M4/M4-T02-rustack-local.md",
-      "sha256": "0c90f1345320cf91cab3a10965510b5dd409c68e7f8e00c7ec89496496d20a3a",
-      "size_bytes": 427
+      "sha256": "db9fdc0be06ff8663eb237253b494c136fb34516d841ed9c20fbaa8bafcb1761",
+      "size_bytes": 1364
     },
     {
       "path": "tasks/M4/M4-T03-update-command.md",
@@ -1719,7 +1744,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "03c6e85c22f4561186782220f2de13a79d79fd3d440f97b9f703911445ffe355",
+      "sha256": "72c54c58fae5fae7080f763ca71186af15916d4654c48de3fb6ee96b278c8bc9",
       "size_bytes": 1574
     },
     {
@@ -1769,7 +1794,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "9f0086c53ca7b1352a54d92689a04bcf25374f1a7f9be42da84a2fcfad76fc8e",
+      "sha256": "03cecb2206c52163c0b3137e2014f11cbabf6ecfefd77861d3932b6a70e2f19e",
       "size_bytes": 751
     },
     {
@@ -1789,6 +1814,6 @@
     }
   ],
   "schema_version": 1,
-  "total_size_bytes": 1572696,
+  "total_size_bytes": 1596219,
   "version": "0.2.0"
 }
