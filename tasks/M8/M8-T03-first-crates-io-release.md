@@ -36,3 +36,7 @@ All 14 Minco packages were published at `0.1.0` on 2026-07-24 under owner
 its docs.rs build exposed the missing library documentation target tracked by
 `M8-T04`. Co-maintainer ownership and protected OIDC trusted publishing remain
 open, so this task stays active.
+
+The follow-up `0.1.1` release completed in `M8-T05`; all 14 documentation
+routes, including the new `cargo_minco` library target, are public. This does
+not close the remaining co-maintainer and trusted-publisher work.

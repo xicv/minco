@@ -19,6 +19,35 @@ exact-head hosted CI, merged-main hosted CI, and tag check must all pass.
 The sections below retain the original `M8-T02` pre-publication evidence. They
 are historical evidence, not claims about the current registry state.
 
+## M8-T05 publication evidence
+
+Minco `0.1.1` was published from remote tag `v0.1.1`, which resolves exactly
+to merge commit `3da298c094ef515a68dcc18ee6a2b867dcd4889e`.
+
+Release gates:
+
+- PR `#5` exact head `23afb15d8b2ec71baa5da203467fca9d7969be01`
+  passed hosted run `30069887615`.
+- The exact merged-main commit passed hosted run `30070145165`.
+- The complete local quality suite, generated PostgreSQL and SQLite consumer
+  compilation/tests, docs.rs-shaped Rustdoc command, and 14-package Cargo
+  publish dry run passed before tagging.
+- Cargo accepted all 14 uploads in dependency order without a partial failure.
+
+Post-publication verification:
+
+- all 14 exact `0.1.1` registry records exist and are not yanked;
+- every downloaded `.crate` archive matches its registry SHA-256 checksum;
+- `cargo owner --list` reports `xicv` for every package;
+- `cargo install cargo-minco --version 0.1.1 --locked` succeeds from crates.io,
+  and the executable reports `minco 0.1.1`;
+- all 14 exact library documentation routes return HTTP 200 without redirect;
+- the `cargo_minco 0.1.1` Rustdoc page renders the README-backed CLI usage from
+  the new library target.
+
+Task `M8-T03` remains active only for adding a trusted co-maintainer and
+configuring the protected GitHub OIDC trusted publisher.
+
 ## Publication shape
 
 The workspace contains 19 Cargo packages:

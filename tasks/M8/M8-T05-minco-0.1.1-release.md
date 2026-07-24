@@ -2,7 +2,7 @@
 id: M8-T05
 title: Publish Minco 0.1.1 with cargo-minco docs.rs support
 milestone: M8
-status: active
+status: complete
 priority: critical
 area: release/crates-io
 depends_on: [M8-T04]
@@ -50,3 +50,19 @@ attempting to replace accepted versions.
 - All 14 versions are accepted by crates.io, not yanked, and owned by `xicv`.
 - The `cargo-minco` docs.rs library route succeeds and a public locked install
   reports version `0.1.1`.
+
+## Evidence
+
+- PR `#5` head `23afb15d8b2ec71baa5da203467fca9d7969be01`
+  passed hosted run `30069887615`.
+- Merge commit `3da298c094ef515a68dcc18ee6a2b867dcd4889e`
+  passed merged-main hosted run `30070145165`.
+- Remote tag `v0.1.1` resolves exactly to that merge commit.
+- Cargo accepted all 14 `0.1.1` packages without a partial failure.
+- Every exact registry record is not yanked, its downloadable archive matches
+  the registry SHA-256 checksum, and `cargo owner --list` reports owner `xicv`.
+- `cargo install cargo-minco --version 0.1.1 --locked` succeeds from crates.io;
+  both direct and Cargo-subcommand argument shapes report `minco 0.1.1`.
+- Every `0.1.1` library documentation route returns directly with HTTP 200.
+  In particular, docs.rs renders `cargo_minco 0.1.1` from the new library
+  target with the README-backed usage documentation.
