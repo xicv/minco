@@ -2,7 +2,7 @@
 id: M8-T03
 title: Publish Minco 0.1.0 and configure trusted publishing
 milestone: M8
-status: planned
+status: active
 priority: critical
 area: release/crates-io
 depends_on: [M8-T02]
@@ -28,3 +28,11 @@ and then configure the protected GitHub OIDC trusted publisher.
 Crates.io uploads are permanent. Recheck name availability immediately before
 the first upload, publish only from the tagged release, and never attempt to
 replace an accepted version after a partial multi-package failure.
+
+## Progress
+
+All 14 Minco packages were published at `0.1.0` on 2026-07-24 under owner
+`xicv`. Public installation succeeds. The `cargo-minco` archive is usable but
+its docs.rs build exposed the missing library documentation target tracked by
+`M8-T04`. Co-maintainer ownership and protected OIDC trusted publishing remain
+open, so this task stays active.

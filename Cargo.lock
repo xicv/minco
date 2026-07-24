@@ -688,7 +688,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-minco"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1797,7 +1797,7 @@ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
 name = "minco"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "minco-aws-lambda",
  "minco-contract",
@@ -1815,7 +1815,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-lambda"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -1829,7 +1829,7 @@ dependencies = [
 
 [[package]]
 name = "minco-contract"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "serde",
@@ -1843,7 +1843,7 @@ dependencies = [
 
 [[package]]
 name = "minco-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "semver",
  "serde",
@@ -1853,7 +1853,7 @@ dependencies = [
 
 [[package]]
 name = "minco-http"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "http 1.4.2",
@@ -1870,7 +1870,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plan"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "minco-contract",
  "serde",
@@ -1881,7 +1881,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-health"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -1892,7 +1892,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-idempotency"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1907,7 +1907,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-observability"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "minco-core",
  "semver",
@@ -1919,7 +1919,7 @@ dependencies = [
 
 [[package]]
 name = "minco-release"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "serde",
@@ -1931,7 +1931,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-postgres"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "sqlx",
@@ -1941,7 +1941,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-sqlite"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "sqlx",
@@ -1950,7 +1950,7 @@ dependencies = [
 
 [[package]]
 name = "minco-test"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "http 1.4.2",
@@ -2035,7 +2035,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "orders-adapters"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2051,7 +2051,7 @@ dependencies = [
 
 [[package]]
 name = "orders-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "chrono",
@@ -2072,7 +2072,7 @@ dependencies = [
 
 [[package]]
 name = "orders-application"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2087,7 +2087,7 @@ dependencies = [
 
 [[package]]
 name = "orders-domain"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "serde",
@@ -2097,7 +2097,7 @@ dependencies = [
 
 [[package]]
 name = "orders-service"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",

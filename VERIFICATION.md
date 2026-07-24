@@ -1,10 +1,23 @@
 # Minco crates.io readiness verification
 
 Date: 2026-07-24  
-Workspace version: `0.1.0`  
-Purpose: record the compiler, generated-application, registry, and Cargo package
-evidence for task `M8-T02` without representing the separate first upload as
-complete.
+Workspace version: `0.1.1`  
+Purpose: preserve the `M8-T02` compiler/package baseline and record the
+`M8-T05` patch-release boundary for the `cargo-minco` docs.rs fix.
+
+## Release history and current boundary
+
+All 14 public packages were accepted by crates.io at version `0.1.0` on
+2026-07-24 and are owned by `xicv`. The published CLI compiles, installs, and
+runs, but its binary-only archive cannot satisfy docs.rs `cargo rustdoc --lib`.
+
+Version `0.1.1` is the lock-step patch candidate containing the `M8-T04`
+library documentation target and the local/hosted Rustdoc regression gate.
+Before publication, the complete quality suite, multi-package dry run,
+exact-head hosted CI, merged-main hosted CI, and tag check must all pass.
+
+The sections below retain the original `M8-T02` pre-publication evidence. They
+are historical evidence, not claims about the current registry state.
 
 ## Publication shape
 
@@ -238,13 +251,13 @@ The driver originally failed closed because JJ 0.43 removed
 `jj resolve --list`; its conflict guard now uses the repository-standard
 `jj log -r 'conflicts()'` query.
 
-## Not performed
+## Not performed by M8-T02
 
 No crate was uploaded. No crates.io token was used. No GitHub release, tag,
 trusted publisher, or owner assignment was created. Those are task `M8-T03`
 actions and remain outside this compiler/package task.
 
-## First-upload boundary
+## Historical first-upload boundary
 
 This read-only preflight also passed on 2026-07-24:
 
@@ -258,7 +271,7 @@ must be repeated immediately before the first upload. Then follow
 published by an authenticated owner. Configure protected OIDC trusted
 publishing only after each crate exists and ownership has been established.
 
-## Current conclusion
+## M8-T02 conclusion
 
 Minco `0.1.0` is **compiler-verified and Cargo dry-run verified** across the
 complete 14-crate family. The generated PostgreSQL and SQLite applications
