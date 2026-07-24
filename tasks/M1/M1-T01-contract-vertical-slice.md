@@ -2,7 +2,7 @@
 id: M1-T01
 title: Complete the orders contract-to-router vertical slice
 milestone: M1
-status: active
+status: complete
 priority: critical
 area: reference-application
 depends_on: [M0-T01]
@@ -21,3 +21,11 @@ checks:
 ## Goal
 
 Prove a complete OpenAPI-first feature through generated DTOs, business rules, use cases, explicit ports, Axum delivery and in-process HTTP tests.
+
+## Evidence
+
+On 2026-07-24, the canonical contract check and deterministic generated-binding
+drift check passed. The scoped domain, application and Axum API suites passed
+with seven tests covering invariants, fail-before-persistence authorization,
+contract/router bijection, protected-route fail-closed behavior and the complete
+place/get journey.
