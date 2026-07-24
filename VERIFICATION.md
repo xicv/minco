@@ -23,7 +23,8 @@ The candidate verification covers:
 - native ARM64 Lambda ZIP packaging and all-package publication dry runs;
 - deterministic Plan IR and SAM generation;
 - graph-derived PostgreSQL/Rustack startup and isolated real Rustack
-  S3/SQS/SSM/STS conformance through standard AWS endpoint variables;
+  S3/SQS/SSM/STS conformance through standard AWS endpoint variables,
+  including `minco-aws-lambda` SecureString loading through the Rust SDK;
 - SAM CLI linting plus read-only CloudFormation and IAM Access Analyzer
   validation.
 

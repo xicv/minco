@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-for command in aws cmp docker python3; do
+for command in aws cargo cmp docker python3; do
   command -v "$command" >/dev/null || {
     printf '%s is required for Rustack conformance\n' "$command" >&2
     exit 1
@@ -86,6 +86,10 @@ parameter_value="$(
 )"
 [[ "$parameter_value" == "rustack-ssm-proof" ]]
 
+cargo test -p minco-aws-lambda --test rustack_ssm --locked \
+  secure_parameter_round_trip_uses_the_standard_sdk_endpoint \
+  -- --ignored --exact
+
 queue_url="$(
   aws_local sqs create-queue \
     --queue-name "$queue_name" \
@@ -119,4 +123,5 @@ aws_local s3api get-object \
   "$download_path" >/dev/null
 cmp "$body_path" "$download_path"
 
-printf 'Rustack conformance passed: s3 sqs ssm sts (account %s)\n' "$account_id"
+printf 'Rustack conformance passed: s3 sqs ssm sts and Minco SSM adapter (account %s)\n' \
+  "$account_id"

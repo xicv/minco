@@ -14,3 +14,9 @@ AWS.
 
 A PostgreSQL production profile should use PostgreSQL locally. SQLite is a separate
 first-class profile, not an invisible development substitute.
+
+`scripts/dev/rustack-smoke.sh` exercises level 3 through standard AWS endpoint
+variables. In addition to direct S3, SQS, SSM and STS compatibility, it creates
+and loads an SSM SecureString through the real
+`minco-aws-lambda::load_secure_parameter` SDK adapter. Disposable real AWS
+remains the fidelity authority.
