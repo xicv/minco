@@ -154,6 +154,13 @@ async fn sqlite_adapter_runs_migrations_and_store_contract_against_sqlite() {
         .migrate()
         .await
         .expect("the SQLite feedback migration must apply");
+    let feedback_history_exists = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '_minco_feedback_migrations'",
+    )
+    .fetch_one(store.pool())
+    .await
+    .expect("the SQLite migration history table must be inspectable");
+    assert_eq!(feedback_history_exists, 1);
     let _ = verify_store(&store).await;
 }
 
@@ -175,6 +182,13 @@ async fn postgres_adapter_runs_migrations_and_store_contract_when_configured() {
         .migrate()
         .await
         .expect("the PostgreSQL feedback migration must apply");
+    let feedback_history_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT to_regclass('_minco_feedback_migrations') IS NOT NULL",
+    )
+    .fetch_one(store.pool())
+    .await
+    .expect("the PostgreSQL migration history table must be inspectable");
+    assert!(feedback_history_exists);
     let ids = verify_store(&store).await;
 
     for id in ids {

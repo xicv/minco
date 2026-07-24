@@ -44,6 +44,12 @@ storage or provide their own client. A same-origin script compromise can read
 browser storage, so Content Security Policy, dependency hygiene, retention, and
 data classification remain part of the application security review.
 
+Anonymous submission is disabled by default. Production deployments should grant
+authenticated principals `feedback.create`. `project_key` is browser-visible and
+provides only a basic abuse-control boundary. Enabling `allow_anonymous` therefore
+also requires ingress rate limits, upload-cost monitoring, and a deliberate data-
+retention policy.
+
 ## Compose the plugin
 
 The plugin declares its dependencies explicitly. They must be registered, but
@@ -113,11 +119,13 @@ contains metadata and stable object keys rather than large blobs.
 
 Feedback persistence is authoritative. Notification, audit, and event-delivery
 failures are returned as warnings after the feedback mutation has committed, so
-a temporary downstream outage does not discard client input. The bundled event
-integration writes to the configured outbox service, but it cannot make the
-feedback-store transaction and an independently configured outbox transaction
-atomic. Applications requiring that guarantee must provide a transaction-integrated
-feedback store/outbox adapter. Minco does not hide a scheduled polling worker.
+a temporary downstream outage does not discard client input. Client responses
+contain stable warning codes and public-safe summaries; provider diagnostics stay
+in access-controlled server logs. The bundled event integration writes to the
+configured outbox service, but it cannot make the feedback-store transaction and
+an independently configured outbox transaction atomic. Applications requiring
+that guarantee must provide a transaction-integrated feedback store/outbox adapter.
+Minco does not hide a scheduled polling worker.
 
 ## Transcription
 

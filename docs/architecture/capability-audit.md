@@ -44,7 +44,7 @@ memory adapter exists.
 | SQS/domain events | `minco-plugin-events` | official plugin contract | Explicit publisher and leased outbox ports; no hidden one-minute poller. |
 | Email/webhook/in-app notification | `minco-plugin-notifications` | official plugin contract | SES/webhook implementations remain provider-adapter tasks. |
 | Durable business audit | `minco-plugin-audit` | official plugin contract | Append-only contract, separate from operational logs. |
-| Feedback and client review | `minco-plugin-feedback` | official vertical slice, compiler verification pending | Widget, screenshots, voice, threads, PostgreSQL/SQLite/memory stores, developer API/CLI, and deterministic AI context. |
+| Feedback and client review | `minco-plugin-feedback` | official vertical slice (beta) | Compiler, HTTP, PostgreSQL, SQLite, memory, CLI, Chromium, and Firefox checks pass; provider-specific AWS dependencies remain tracked separately. |
 | Native Lambda/API Gateway deployment | `minco-aws-lambda`, `minco-plan` | official provider adapter/core | One ARM64 ZIP and HTTP API default. |
 | Build-once release promotion | `minco-release` | core | Contract, migration, plan, source, and artifact hashes. |
 | Rustack-shaped local AWS | endpoint override/local scripts | extension policy | Emulator is replaceable; real AWS remains authoritative. |
@@ -99,6 +99,7 @@ ports make them independently addable without changing Minco core or Feedback.
 ## Conclusion
 
 Minco now has a stable architectural center for the previous applications and a
-credible ecosystem boundary. The remaining risk is implementation maturity, not
-missing core extensibility: compiler, database, browser, Lambda, SAM, and real-AWS
-conformance gates must still run before the new beta plugins are released.
+credible ecosystem boundary. Feedback's compiler, database, and browser gates
+pass. Remaining provider maturity is explicit: Lambda/SAM/IAM derivation,
+provider-adapter conformance, bounded real-AWS smoke, and verified cleanup must
+still pass before the beta plugin can be promoted.

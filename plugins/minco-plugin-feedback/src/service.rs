@@ -122,7 +122,7 @@ pub struct FeedbackConfig {
     pub max_recording_seconds: u32,
     #[serde(default)]
     pub project_key: Option<String>,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub allow_anonymous: bool,
     #[serde(default)]
     pub developer_token: Option<String>,
@@ -183,7 +183,10 @@ impl std::fmt::Debug for FeedbackConfig {
                 &self.developer_token.as_ref().map(|_| "[REDACTED]"),
             )
             .field("developer_recipient", &self.developer_recipient)
-            .field("developer_link_base", &self.developer_link_base)
+            .field(
+                "developer_link_base_configured",
+                &self.developer_link_base.is_some(),
+            )
             .field("notify_client_updates", &self.notify_client_updates)
             .field("publish_events_inline", &self.publish_events_inline)
             .field("transcription_enabled", &self.transcription_enabled)
@@ -215,7 +218,7 @@ impl Default for FeedbackConfig {
             max_attachments: default_max_attachments(),
             max_recording_seconds: default_recording_seconds(),
             project_key: None,
-            allow_anonymous: true,
+            allow_anonymous: false,
             developer_token: None,
             developer_recipient: default_developer_recipient(),
             developer_link_base: None,
@@ -828,9 +831,10 @@ impl FeedbackService {
             {
                 Ok(transcript) => Some(transcript.text),
                 Err(error) => {
-                    warnings.push(FeedbackWarning::new(
+                    warnings.push(downstream_warning(
                         "feedback_transcription_failed",
-                        error.to_string(),
+                        "Audio was stored, but automatic transcription did not complete.",
+                        &error,
                     ));
                     None
                 }
@@ -968,9 +972,10 @@ impl FeedbackService {
             serde_json::Value::String(thread.status.to_string()),
         );
         if let Err(error) = self.audit.append(audit).await {
-            warnings.push(FeedbackWarning::new(
+            warnings.push(downstream_warning(
                 "feedback_audit_failed",
-                error.to_string(),
+                "Feedback was saved, but audit recording did not complete.",
+                &error,
             ));
         }
 
@@ -979,9 +984,10 @@ impl FeedbackService {
         if let Some(notification) = self.notification(thread, event_type, title, audience)
             && let Err(error) = self.notifications.send(notification).await
         {
-            warnings.push(FeedbackWarning::new(
+            warnings.push(downstream_warning(
                 "feedback_notification_failed",
-                error.to_string(),
+                "Feedback was saved, but notification delivery did not complete.",
+                &error,
             ));
         }
 
@@ -997,9 +1003,10 @@ impl FeedbackService {
         let payload = match serde_json::to_value(thread) {
             Ok(value) => value,
             Err(error) => {
-                return vec![FeedbackWarning::new(
+                return vec![downstream_warning(
                     "feedback_event_serialization_failed",
-                    error.to_string(),
+                    "Feedback was saved, but event preparation did not complete.",
+                    &error,
                 )];
             }
         };
@@ -1012,9 +1019,10 @@ impl FeedbackService {
         );
         let record = OutboxRecord::pending(event.clone());
         if let Err(error) = self.events.outbox.enqueue(record).await {
-            return vec![FeedbackWarning::new(
+            return vec![downstream_warning(
                 "feedback_event_enqueue_failed",
-                error.to_string(),
+                "Feedback was saved, but event queuing did not complete.",
+                &error,
             )];
         }
         if !self.config.publish_events_inline {
@@ -1035,9 +1043,10 @@ impl FeedbackService {
                 )];
             }
             Err(error) => {
-                return vec![FeedbackWarning::new(
+                return vec![downstream_warning(
                     "feedback_event_claim_failed",
-                    error.to_string(),
+                    "The feedback event was queued, but immediate publication did not start.",
+                    &error,
                 )];
             }
         };
@@ -1049,9 +1058,10 @@ impl FeedbackService {
                     .mark_published(event.id, &worker_id)
                     .await
                 {
-                    vec![FeedbackWarning::new(
+                    vec![downstream_warning(
                         "feedback_event_mark_published_failed",
-                        error.to_string(),
+                        "The feedback event was published, but its delivery state was not finalized.",
+                        &error,
                     )]
                 } else {
                     Vec::new()
@@ -1069,9 +1079,10 @@ impl FeedbackService {
                         Utc::now() + TimeDelta::seconds(30),
                     )
                     .await;
-                vec![FeedbackWarning::new(
+                vec![downstream_warning(
                     "feedback_event_publish_failed",
-                    detail,
+                    "The feedback event was queued, but immediate publication did not complete.",
+                    &error,
                 )]
             }
         }
@@ -1139,6 +1150,15 @@ fn safe_file_name(value: &str) -> String {
     } else {
         safe
     }
+}
+
+fn downstream_warning(
+    code: &'static str,
+    public_detail: &'static str,
+    error: &impl std::fmt::Display,
+) -> FeedbackWarning {
+    tracing::warn!(warning_code = code, %error, "feedback downstream action failed");
+    FeedbackWarning::new(code, public_detail)
 }
 
 fn validate_config_text(
@@ -1315,6 +1335,25 @@ mod tests {
         let config = FeedbackConfig::default();
         assert_eq!(config.token_storage, FeedbackTokenStorage::Session);
         assert_eq!(config.widget_config().token_storage, "session");
+        assert!(!config.allow_anonymous);
+
+        let deserialized: FeedbackConfig =
+            serde_json::from_value(serde_json::json!({"project_id": "example"})).unwrap();
+        assert!(!deserialized.allow_anonymous);
+    }
+
+    #[test]
+    fn downstream_warning_details_do_not_expose_provider_diagnostics() {
+        let warning = downstream_warning(
+            "feedback_transcription_failed",
+            "Audio transcription did not complete.",
+            &TranscriptionError::Provider(
+                "provider response containing sensitive diagnostics".into(),
+            ),
+        );
+
+        assert_eq!(warning.detail, "Audio transcription did not complete.");
+        assert!(!warning.detail.contains("sensitive diagnostics"));
     }
 
     fn input() -> CreateFeedbackInput {

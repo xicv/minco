@@ -972,6 +972,20 @@ mod tests {
     }
 
     #[test]
+    fn feedback_submission_is_not_anonymous_by_default() {
+        let failure = authorize_submission(
+            &HeaderMap::new(),
+            &FeedbackConfig::default(),
+            None,
+            "request-1",
+        )
+        .expect_err("anonymous feedback must require explicit configuration");
+
+        assert_eq!(failure.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(failure.code.as_ref(), "feedback_authentication_required");
+    }
+
+    #[test]
     fn client_projection_excludes_internal_notes_and_object_keys() {
         let mut thread = FeedbackThread::create(CreateFeedbackInput {
             project_id: "example".into(),

@@ -31,6 +31,15 @@ impl FeedbackApiClient {
     ) -> Result<Self, FeedbackApiClientError> {
         let mut base_url = Url::parse(base_url.as_ref())
             .map_err(|error| FeedbackApiClientError::Url(error.to_string()))?;
+        if !base_url.username().is_empty()
+            || base_url.password().is_some()
+            || base_url.query().is_some()
+            || base_url.fragment().is_some()
+        {
+            return Err(FeedbackApiClientError::Configuration(
+                "feedback API URL must not contain credentials, a query, or a fragment".into(),
+            ));
+        }
         if !base_url.path().ends_with('/') {
             let path = format!("{}/", base_url.path());
             base_url.set_path(&path);
@@ -205,6 +214,20 @@ mod tests {
     #[test]
     fn client_requires_a_nonempty_developer_token() {
         assert!(FeedbackApiClient::new("https://example.test/_minco/feedback/", "").is_err());
+    }
+
+    #[test]
+    fn client_rejects_base_urls_that_can_expose_credentials_or_change_routing() {
+        for base_url in [
+            "https://user:password@example.test/_minco/feedback/",
+            "https://example.test/_minco/feedback/?token=secret",
+            "https://example.test/_minco/feedback/#developer",
+        ] {
+            assert!(
+                FeedbackApiClient::new(base_url, "developer-token").is_err(),
+                "{base_url}"
+            );
+        }
     }
 
     #[test]

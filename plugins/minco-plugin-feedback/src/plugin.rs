@@ -469,8 +469,8 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             ConfigurationValueKind::Boolean,
             false,
             false,
-            Some(serde_json::json!(true)),
-            "Allow feedback without an authenticated principal when no project key is configured",
+            Some(serde_json::json!(false)),
+            "Explicitly allow unauthenticated feedback when neither identity nor a project key is available",
         ),
         field(
             "project_key",

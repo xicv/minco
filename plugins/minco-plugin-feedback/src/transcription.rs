@@ -82,7 +82,7 @@ impl std::fmt::Debug for OpenAiTranscriber {
         formatter
             .debug_struct("OpenAiTranscriber")
             .field("client", &self.client)
-            .field("endpoint", &self.endpoint)
+            .field("endpoint", &"[CONFIGURED]")
             .field("model", &self.model)
             .field("api_key", &"[REDACTED]")
             .finish()
@@ -207,7 +207,7 @@ impl std::fmt::Debug for CommandTranscriber {
         formatter
             .debug_struct("CommandTranscriber")
             .field("program", &self.program)
-            .field("arguments", &self.arguments)
+            .field("argument_count", &self.arguments.len())
             .field("provider", &self.provider)
             .field("model", &self.model)
             .field("timeout", &self.timeout)
