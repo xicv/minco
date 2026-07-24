@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Minco deployment for minco-orders (dev)'
+Parameters:
+  DatabaseUrlParameterName:
+    Type: String
+    Description: Existing SSM SecureString containing the pooled runtime PostgreSQL URL.
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+      CorsConfiguration:
+        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+        AllowHeaders: [Authorization, Content-Type, Idempotency-Key, X-Request-Id]
+        AllowOrigins:
+          - 'https://app.example.invalid'
+      Auth:
+        DefaultAuthorizer: JwtAuthorizer
+        Authorizers:
+          JwtAuthorizer:
+            IdentitySource: '$request.header.Authorization'
+            JwtConfiguration:
+              issuer: 'https://issuer.example.invalid'
+              audience:
+                - 'minco-orders'
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: 'minco-orders-dev-api'
+      CodeUri: 'target/lambda/orders-lambda/bootstrap.zip'
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Architectures: [arm64]
+      MemorySize: 512
+      Timeout: 15
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          APP_ENV: 'dev'
+          DATABASE_KIND: postgres
+          DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName
+          DATABASE_MAX_CONNECTIONS: '2'
+          ALLOWED_ORIGINS: 'https://app.example.invalid'
+          ALLOW_DEVELOPMENT_HEADERS: 'false'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [ssm:GetParameter]
+              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'
+            - Effect: Allow
+              Action: [kms:Decrypt]
+              Resource: '*'
+              Condition:
+                StringEquals:
+                  kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+      Events:
+        GetLiveEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: '/health/live'
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        GetOrderEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: '/orders/{orderId}'
+            Method: GET
+        GetReadyEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: '/health/ready'
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        PlaceOrderEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: '/orders'
+            Method: POST
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ApiFunction}'
+      RetentionInDays: 14
+Outputs:
+  ApiUrl:
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  ApiFunctionName:
+    Value: !Ref ApiFunction

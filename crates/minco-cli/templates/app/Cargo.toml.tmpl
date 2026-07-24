@@ -1,0 +1,52 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/domain",
+  "crates/application",
+  "crates/adapters",
+  "crates/api",
+  "services/app",
+]
+default-members = [
+  "crates/domain",
+  "crates/application",
+  "crates/adapters",
+  "crates/api",
+  "services/app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+axum = { version = "0.8.9", features = ["json", "macros"] }
+http = "1.3"
+minco = { version = "{{MINCO_VERSION}}", features = ["test", "plan", "{{DB_FEATURE}}"] }
+minco-contract = "{{MINCO_VERSION}}"
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread", "signal", "net", "fs"] }
+
+minco-core = "{{MINCO_VERSION}}"
+{{PACKAGE}}-domain = { path = "crates/domain" }
+{{PACKAGE}}-application = { path = "crates/application" }
+{{PACKAGE}}-adapters = { path = "crates/adapters" }
+{{PACKAGE}}-api = { path = "crates/api" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

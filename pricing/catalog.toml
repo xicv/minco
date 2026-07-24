@@ -1,0 +1,20 @@
+schema = 1
+captured_at = "2026-07-23"
+currency = "USD"
+
+[neon.free]
+compute_unit_hours_included_per_project = 100.0
+storage_gb_included_per_project = 0.5
+
+[neon.launch]
+compute_unit_hour = 0.106
+storage_gb_month = 0.35
+history_storage_gb_month = 0.20
+
+[neon.scale]
+compute_unit_hour = 0.222
+storage_gb_month = 0.35
+history_storage_gb_month = 0.20
+
+[aws]
+policy = "AWS prices are region-, engine-, class-, and date-specific. Deployment profiles carry reviewed rates explicitly; omitted rates make the estimate incomplete rather than guessed."

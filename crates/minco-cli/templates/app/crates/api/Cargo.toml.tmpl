@@ -1,0 +1,22 @@
+[package]
+name = "{{PACKAGE}}-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+axum.workspace = true
+http.workspace = true
+minco.workspace = true
+minco-contract.workspace = true
+serde.workspace = true
+{{PACKAGE}}-application.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+{{PACKAGE}}-domain.workspace = true
+
+[lints]
+workspace = true

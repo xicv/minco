@@ -1,0 +1,22 @@
+schema = 1
+
+[[plugin]]
+id = "health"
+crate = "minco-plugin-health"
+default_enabled = true
+stability = "stable"
+description = "Liveness, readiness and dependency health registry."
+
+[[plugin]]
+id = "observability"
+crate = "minco-plugin-observability"
+default_enabled = true
+stability = "stable"
+description = "Structured tracing and CloudWatch-compatible logging."
+
+[[plugin]]
+id = "idempotency"
+crate = "minco-plugin-idempotency"
+default_enabled = true
+stability = "stable"
+description = "Idempotency keys, request fingerprints and a storage port."

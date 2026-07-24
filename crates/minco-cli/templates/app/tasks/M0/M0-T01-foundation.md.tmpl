@@ -1,0 +1,25 @@
+---
+id: M0-T01
+title: Verify the generated Minco foundation
+milestone: M0
+status: ready
+priority: critical
+area: foundation
+depends_on: []
+operations: [healthLive, getPlatform]
+owned_paths:
+  - openapi/**
+  - crates/**
+  - services/**
+checks:
+  - cargo minco contract sync --check
+  - cargo minco check --with-cargo
+---
+
+## Goal
+
+Verify the generated contract, layered workspace, local application, selected database migration, and quality gates before adding business features.
+
+## Non-goals
+
+Adding product-specific entities or deploying production infrastructure.

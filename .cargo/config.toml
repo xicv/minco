@@ -1,0 +1,7 @@
+[alias]
+minco = "run -p cargo-minco --"
+minco-check = "run -p cargo-minco -- check --with-cargo"
+minco-test = "run -p cargo-minco -- test all"
+
+[env]
+RUST_BACKTRACE = "1"

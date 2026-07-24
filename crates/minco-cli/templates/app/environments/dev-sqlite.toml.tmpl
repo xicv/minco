@@ -1,0 +1,41 @@
+schema_version = 1
+application = "{{PACKAGE}}"
+environment = "local"
+region = "local"
+runtime = "local_native"
+ingress = "local_tcp"
+allowed_origins = ["http://127.0.0.1:3000"]
+log_retention_days = 14
+scheduled_wakeups = []
+uses_nat_gateway = false
+
+[auth]
+kind = "none"
+
+[database]
+kind = "sqlite_persistent_host"
+host_monthly_usd = 0.0
+backup_monthly_usd = 0.0
+
+[[functions]]
+name = "api"
+artifact_path = "target/debug/{{PACKAGE}}-local"
+memory_mb = 512
+timeout_seconds = 15
+reserved_concurrency = 1
+provisioned_concurrency = 0
+database_connections_per_instance = 1
+
+[cost_policy]
+deny_fixed_compute = false
+deny_nat_gateway = true
+deny_provisioned_concurrency = true
+deny_scheduled_wakeups = true
+max_reserved_concurrency = 5
+max_database_connections = 4
+
+[performance_policy]
+max_lambda_timeout_seconds = 30
+max_lambda_memory_mb = 1024
+max_request_body_bytes = 1048576
+target_artifact_bytes = 26214400

@@ -1,0 +1,75 @@
+name: Publish Minco crates
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Upload to crates.io after every gate succeeds
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          print(tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version'])
+          PY
+          )"
+          test "$GITHUB_REF" = "refs/tags/v${version}"
+      - name: Static and packaging validation
+        run: |
+          python3 scripts/validate_static.py
+          python3 scripts/validate_publish.py --check-registry
+          python3 scripts/deep_review.py
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Facade feature matrix
+        run: |
+          cargo check -p minco --no-default-features --locked
+          cargo check -p minco --locked
+          cargo check -p minco --all-features --locked
+          cargo check -p cargo-minco --locked
+          cargo test -p minco --no-default-features --locked
+          cargo test -p minco --locked
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --all-targets --all-features --locked
+      - name: Generated application smoke matrix
+        run: scripts/test/generated_apps.sh
+      - name: Documentation
+        run: cargo doc --workspace --all-features --no-deps --locked
+      - name: Publish dry run
+        run: scripts/release/publish.sh --skip-quality
+      - name: Obtain short-lived crates.io token
+        if: ${{ inputs.publish }}
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish selected crate family
+        if: ${{ inputs.publish }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: scripts/release/publish.sh --execute --skip-quality

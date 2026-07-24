@@ -1,0 +1,35 @@
+//! SQLite infrastructure adapters for {{TITLE}}.
+#![forbid(unsafe_code)]
+
+use minco::sqlx_sqlite::{SqliteError, SqlitePool, SqlitePoolConfig};
+use std::path::{Path, PathBuf};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum AdapterError {
+    #[error("failed to create SQLite parent directory: {0}")]
+    CreateDirectory(#[from] std::io::Error),
+    #[error(transparent)]
+    Sqlite(#[from] SqliteError),
+}
+
+fn database_path() -> PathBuf {
+    std::env::var_os("DATABASE_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("var/{{PACKAGE}}.db"))
+}
+
+pub async fn connect_runtime_from_env() -> Result<SqlitePool, AdapterError> {
+    let path = database_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    Ok(minco::sqlx_sqlite::connect(&SqlitePoolConfig::file(path)).await?)
+}
+
+pub async fn migrate_from_env(path: impl AsRef<Path>) -> Result<(), AdapterError> {
+    let pool = connect_runtime_from_env().await?;
+    minco::sqlx_sqlite::migrate(&pool, path).await?;
+    pool.close().await;
+    Ok(())
+}

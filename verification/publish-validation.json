@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "status": "ok",
+  "errors": 0,
+  "warnings": 1,
+  "metrics": {
+    "publish_order": [
+      "minco-core",
+      "minco-contract",
+      "minco-http",
+      "minco-release",
+      "minco-test",
+      "minco-sqlx-postgres",
+      "minco-sqlx-sqlite",
+      "minco-plan",
+      "minco-plugin-health",
+      "minco-plugin-observability",
+      "minco-plugin-idempotency",
+      "minco-aws-lambda",
+      "minco",
+      "cargo-minco"
+    ],
+    "workspace_version": "0.1.0",
+    "workspace_packages": 19,
+    "publishable_packages": 14,
+    "private_packages": 5,
+    "publishable_names": [
+      "cargo-minco",
+      "minco",
+      "minco-aws-lambda",
+      "minco-contract",
+      "minco-core",
+      "minco-http",
+      "minco-plan",
+      "minco-plugin-health",
+      "minco-plugin-idempotency",
+      "minco-plugin-observability",
+      "minco-release",
+      "minco-sqlx-postgres",
+      "minco-sqlx-sqlite",
+      "minco-test"
+    ],
+    "private_names": [
+      "orders-adapters",
+      "orders-api",
+      "orders-application",
+      "orders-domain",
+      "orders-service"
+    ],
+    "registry_check_performed": false,
+    "registry_checks_succeeded": 0,
+    "expect_unpublished": false,
+    "require_registry": false
+  },
+  "findings": [
+    {
+      "code": "PUBLISH-067",
+      "severity": "warning",
+      "message": "Cargo.lock is absent; generate, review, and commit it before cargo publish --dry-run",
+      "path": "Cargo.lock"
+    }
+  ],
+  "limitations": [
+    "This validator does not normalize Cargo manifests or compile packaged crates.",
+    "Run cargo publish --dry-run for the complete selected package set before upload."
+  ]
+}

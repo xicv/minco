@@ -1,0 +1,29 @@
+[package]
+name = "minco-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral application graph, static plugin composition, capabilities, and typed services for Minco"
+documentation = "https://docs.rs/minco-core"
+readme = "README.md"
+keywords = ["minco", "plugins", "architecture", "framework"]
+categories = ["development-tools", "web-programming"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+[dependencies]
+semver.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

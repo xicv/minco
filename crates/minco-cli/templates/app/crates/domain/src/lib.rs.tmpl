@@ -1,0 +1,48 @@
+//! Business values and invariants for {{TITLE}}.
+#![forbid(unsafe_code)]
+
+use std::{error::Error, fmt};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceName(String);
+
+impl ServiceName {
+    pub fn new(value: impl Into<String>) -> Result<Self, DomainError> {
+        let value = value.into();
+        let value = value.trim();
+        if value.is_empty() || value.chars().count() > 100 {
+            return Err(DomainError::InvalidServiceName);
+        }
+        Ok(Self(value.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainError {
+    InvalidServiceName,
+}
+
+impl fmt::Display for DomainError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidServiceName => formatter.write_str("service name must contain 1 to 100 visible characters"),
+        }
+    }
+}
+
+impl Error for DomainError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn service_name_rejects_empty_values() {
+        assert_eq!(ServiceName::new("  ").unwrap_err(), DomainError::InvalidServiceName);
+    }
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-07-24",
+  "registry": "crates.io",
+  "method": "Exact package-path lookup against rust-lang/crates.io-index through the connected GitHub API",
+  "status": "all_names_absent_at_check_time",
+  "names": [
+    "minco",
+    "minco-core",
+    "minco-contract",
+    "minco-http",
+    "minco-plan",
+    "minco-release",
+    "minco-test",
+    "minco-plugin-health",
+    "minco-plugin-observability",
+    "minco-plugin-idempotency",
+    "minco-sqlx-postgres",
+    "minco-sqlx-sqlite",
+    "minco-aws-lambda",
+    "cargo-minco"
+  ],
+  "limitations": [
+    "A missing index entry is not a name reservation.",
+    "Run scripts/validate_publish.py --expect-unpublished --require-registry immediately before the first upload.",
+    "Future releases expect the crate names to exist and only reject an already-published workspace version."
+  ]
+}

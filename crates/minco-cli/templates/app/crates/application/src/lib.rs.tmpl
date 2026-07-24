@@ -1,0 +1,44 @@
+//! Use cases for {{TITLE}}.
+#![forbid(unsafe_code)]
+
+use {{CRATE}}_domain::ServiceName;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlatformInfo {
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GetPlatformInfo {
+    service_name: ServiceName,
+    version: &'static str,
+}
+
+impl GetPlatformInfo {
+    #[must_use]
+    pub const fn new(service_name: ServiceName, version: &'static str) -> Self {
+        Self { service_name, version }
+    }
+
+    #[must_use]
+    pub fn execute(&self) -> PlatformInfo {
+        PlatformInfo {
+            name: self.service_name.as_str().to_owned(),
+            version: self.version.to_owned(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn platform_info_is_derived_from_the_use_case() {
+        let service = GetPlatformInfo::new(ServiceName::new("{{TITLE}}").unwrap(), "0.1.0");
+        let result = service.execute();
+        assert_eq!(result.name, "{{TITLE}}");
+        assert_eq!(result.version, "0.1.0");
+    }
+}

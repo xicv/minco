@@ -1,0 +1,11 @@
+First generation SHA-256
+a4edbdaa981f7e0441b3aaa59662fce9ed834a6480900b1bb6c0d36506a3823e  infra/aws/generated/plan.json
+74fcbdcdb39c9252c1f4c8a85d8a026422941fee9e06a9cde56e2eb6d21e9215  infra/aws/generated/template.yaml
+28d6c6a4bcc8d8e043fa6c21521d1a2e0a090a87b137212017290c26d738d344  roadmap/roadmap.mmd
+36db21ef21ce65b6459e4e8c636e8d4e0a2b65041764bff2fb6c8843e3c41287  roadmap/tasks.mmd
+Second generation SHA-256
+a4edbdaa981f7e0441b3aaa59662fce9ed834a6480900b1bb6c0d36506a3823e  infra/aws/generated/plan.json
+74fcbdcdb39c9252c1f4c8a85d8a026422941fee9e06a9cde56e2eb6d21e9215  infra/aws/generated/template.yaml
+28d6c6a4bcc8d8e043fa6c21521d1a2e0a090a87b137212017290c26d738d344  roadmap/roadmap.mmd
+36db21ef21ce65b6459e4e8c636e8d4e0a2b65041764bff2fb6c8843e3c41287  roadmap/tasks.mmd
+Artifact generation is byte-deterministic across two consecutive passes.

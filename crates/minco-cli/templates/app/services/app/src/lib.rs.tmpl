@@ -1,0 +1,31 @@
+//! Composition root shared by local and Lambda entrypoints.
+#![forbid(unsafe_code)]
+
+use axum::Router;
+use minco::core::PluginError;
+use std::sync::Arc;
+use thiserror::Error;
+use {{CRATE}}_api::AppState;
+use {{CRATE}}_application::GetPlatformInfo;
+use {{CRATE}}_domain::{DomainError, ServiceName};
+
+#[derive(Debug, Error)]
+pub enum BootstrapError {
+    #[error(transparent)]
+    Domain(#[from] DomainError),
+    #[error(transparent)]
+    Plugin(#[from] PluginError),
+    #[error(transparent)]
+    Http(#[from] http::header::InvalidHeaderValue),
+}
+
+pub fn application() -> Result<Router, BootstrapError> {
+    let _plugins = minco::compose_defaults(&minco::core::PluginSelection::default())?;
+    let state = AppState {
+        platform: Arc::new(GetPlatformInfo::new(
+            ServiceName::new("{{TITLE}}").expect("static service name is valid"),
+            env!("CARGO_PKG_VERSION"),
+        )),
+    };
+    Ok({{CRATE}}_api::build_router(state)?)
+}

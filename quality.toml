@@ -1,0 +1,37 @@
+schema = 1
+
+[gates.static]
+commands = [
+  "python3 scripts/validate_static.py",
+  "python3 scripts/validate_publish.py",
+  "python3 scripts/deep_review.py",
+  "python3 scripts/test/sqlite_schema.py",
+  "python3 scripts/test/scaffold_templates.py",
+]
+
+[gates.rust]
+commands = [
+  "cargo fmt --all -- --check",
+  "cargo check -p minco --no-default-features --locked",
+  "cargo check -p minco --locked",
+  "cargo check -p minco --all-features --locked",
+  "cargo check -p cargo-minco --locked",
+  "cargo test -p minco --no-default-features --locked",
+  "cargo test -p minco --locked",
+  "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+  "cargo test --workspace --all-targets --all-features --locked",
+  "scripts/test/generated_apps.sh",
+  "cargo doc --workspace --all-features --no-deps --locked",
+]
+
+[gates.security]
+commands = [
+  "cargo deny check advisories bans licenses sources",
+]
+optional = true
+
+[gates.e2e]
+commands = [
+  "scripts/test/e2e.sh",
+]
+optional = true

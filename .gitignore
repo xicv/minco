@@ -1,0 +1,11 @@
+/target/
+/.env
+/.env.*
+!/.env.example
+/.jj/
+/infra/aws/.aws-sam/
+/infra/aws/generated/*.packaged.yaml
+/verification/local/
+*.swp
+*.tmp
+.DS_Store

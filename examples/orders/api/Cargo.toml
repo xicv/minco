@@ -1,0 +1,29 @@
+[package]
+name = "orders-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+axum.workspace = true
+chrono.workspace = true
+http.workspace = true
+minco-contract.workspace = true
+minco-http.workspace = true
+minco-plugin-health.workspace = true
+orders-application.workspace = true
+orders-domain.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+orders-adapters.workspace = true
+tokio.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

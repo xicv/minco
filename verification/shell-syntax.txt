@@ -1,0 +1,1 @@
+All repository shell scripts passed bash -n.
