@@ -1824,6 +1824,7 @@ dependencies = [
  "lambda_http",
  "minco-http",
  "serde_json",
+ "tokio",
  "tracing",
 ]
 

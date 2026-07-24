@@ -50,11 +50,23 @@ ALLOW_DEVELOPMENT_HEADERS=true \
 cargo run -p orders-service --bin orders-local --features sqlite
 ```
 
-## 6. Run with PostgreSQL and Rustack
+## 6. Run selected local dependencies
+
+`up.sh` reads the enabled plugins in `minco.toml`. It starts PostgreSQL for
+`sqlx-postgres` and Rustack with only SSM enabled for `aws-lambda`; it stops
+unselected Minco containers.
 
 ```bash
+cargo minco plugin enable sqlx-postgres
+cargo minco plugin enable aws-lambda
 ./scripts/dev/up.sh
 ./scripts/dev/run.sh
+```
+
+Exercise the real AWS SDK SSM seam independently:
+
+```bash
+./scripts/dev/test-rustack.sh
 ```
 
 ## 7. Exercise the contract

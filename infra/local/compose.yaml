@@ -16,13 +16,18 @@ services:
       - minco-postgres:/var/lib/postgresql/data
 
   rustack:
-    image: ghcr.io/tyrchen/rustack:latest
+    image: ${MINCO_RUSTACK_IMAGE:-ghcr.io/tyrchen/rustack@sha256:18cd91395e17453e2c34b299e45f4679dc2427473dc1db6541bbe212fd70a104}
     environment:
-      SERVICES: s3,sqs,ssm,sts
+      SERVICES: ${MINCO_RUSTACK_SERVICES:-ssm}
       DEFAULT_REGION: ap-southeast-2
       LOG_LEVEL: info
     ports:
-      - "127.0.0.1:4566:4566"
+      - "127.0.0.1:${MINCO_RUSTACK_PORT:-4566}:4566"
+    healthcheck:
+      test: ["CMD", "/rustack", "--health-check"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
 volumes:
   minco-postgres:

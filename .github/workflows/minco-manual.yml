@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_rustack:
+        description: Exercise the AWS SSM adapter against Rustack
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -45,6 +50,9 @@ jobs:
         run: cargo doc --workspace --all-features --no-deps --locked
       - name: Publish dry run
         run: scripts/release/publish.sh --skip-quality
+      - name: Rustack SSM adapter
+        if: ${{ inputs.run_rustack }}
+        run: scripts/dev/test-rustack.sh
       - name: E2E
         if: ${{ inputs.run_e2e }}
         run: scripts/test/e2e.sh

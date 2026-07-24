@@ -14,3 +14,8 @@ AWS.
 
 A PostgreSQL production profile should use PostgreSQL locally. SQLite is a separate
 first-class profile, not an invisible development substitute.
+
+Run `./scripts/dev/test-rustack.sh` for level 3. The check enables only SSM,
+creates and loads a `SecureString` through the standard AWS SDK endpoint override,
+then removes the parameter. Rustack remains an adapter-behavior check; level 5 is
+the AWS fidelity authority.

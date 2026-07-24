@@ -238,6 +238,25 @@ The driver originally failed closed because JJ 0.43 removed
 `jj resolve --list`; its conflict guard now uses the repository-standard
 `jj log -r 'conflicts()'` query.
 
+### Rustack local AWS adapter gate
+
+M4-T02 pins Rustack 0.9.1 by multi-architecture image digest. That image's
+source revision is the same commit currently referenced by `xicv/rustack`
+master. The local gate passed on Docker Desktop 4.82.0:
+
+```bash
+docker compose -f infra/local/compose.yaml config
+./scripts/dev/up.sh
+./scripts/dev/test-rustack.sh
+```
+
+The default application graph selected no local containers. The Rustack
+fixture selected only the Rustack container and only its SSM service. The test
+then put, loaded through `minco-aws-lambda::load_secure_parameter`, and deleted
+an SSM SecureString using the standard AWS SDK `AWS_ENDPOINT_URL` override.
+The same script is enabled by default in the manually dispatched GitHub quality
+workflow.
+
 ## Not performed
 
 No crate was uploaded. No crates.io token was used. No GitHub release, tag,

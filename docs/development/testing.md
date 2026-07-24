@@ -10,6 +10,7 @@ the optional GitHub workflow merely invokes the same commands.
 | Unit | `./scripts/test/unit.sh` | Domain invariants, graph validation, parsing, cost formulas, plugin ordering. |
 | Feature | `./scripts/test/feature.sh` | Application use cases, HTTP `oneshot`, adapter behavior, generated plan/contract checks. |
 | E2E | `./scripts/test/e2e.sh` | Local service over TCP with contract requests; optional PostgreSQL/Rustack dependencies. |
+| AWS adapter | `./scripts/dev/test-rustack.sh` | Selected-service resolution plus a SecureString round trip through the AWS SDK and Rustack SSM. |
 | All | `./scripts/test/all.sh` | Runs the three tiers and deep review. |
 | Quality | `./scripts/quality.sh` | Static checks, format, Clippy, all workspace targets, generation freshness, review. |
 

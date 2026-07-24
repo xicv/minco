@@ -2,7 +2,9 @@
 
 ## Current objective
 
-Finish the compiler-enabled package gate and publish Minco as a lock-step crates.io family. The source has been structurally prepared, but no crate has been uploaded and no Cargo compilation was possible in the assembly environment.
+Finish M4-T02 by proving graph-selected local dependencies and the real AWS SSM
+adapter against Rustack. The compiler-enabled M8-T02 package gate is complete;
+no crate has been uploaded.
 
 Minco remains contract-first, AI-native, AWS-native, performance-aware, deployment-oriented, JJ-first, statically extensible, and deliberately small at its core.
 
@@ -24,7 +26,7 @@ docs/architecture/extensions.md
 docs/development/jj-workflow.md
 docs/deployment/database-options.md
 roadmap/roadmap.yaml
-tasks/M8/
+tasks/M4/M4-T02-rustack-local.md
 ```
 
 ## Publication architecture
@@ -66,38 +68,40 @@ Cargo.toml -> workspace.metadata.minco.release.publish
 
 Do not publish packages in a manually improvised order.
 
-## Immediate mandatory task: M8-T02
+## Completed compiler and package gate
 
-The assembly runtime had no Rust toolchain and could not resolve dependencies. On the first compiler-enabled machine, run:
+PR #1 was merged to `main` as
+`1a6df4d773e54b868ba631f051a536ef5cd3c5ec`. Local
+`cargo minco check --with-cargo` passed all 16 gates. GitHub Actions run
+`30060878644` passed the exact merge commit, including Rust 1.97.1, strict
+Clippy, workspace tests, docs and the publish dry run. E2E was intentionally not
+requested in that run.
 
-```bash
-rustup toolchain install 1.97.1 \
-  --profile minimal \
-  --component rustfmt \
-  --component clippy
+The lockfile and dry-run packages were reviewed in M8-T02. This is not a
+crates.io publication claim.
 
-cargo generate-lockfile
+## Current Rustack gate
+
+Local dependency selection is derived from `[plugins].enabled`:
+
+```text
+sqlx-postgres -> PostgreSQL
+aws-lambda    -> Rustack with SSM only
 ```
 
-Review the generated `Cargo.lock`; do not merely accept unexpected dependency or MSRV changes. Commit it in the release change, then run:
+Run the behavior proof with Docker:
 
 ```bash
-cargo fmt --all -- --check
-cargo check -p minco --no-default-features --locked
-cargo check -p minco --locked
-cargo check -p minco --all-features --locked
-cargo check -p cargo-minco --locked
-cargo test -p minco --no-default-features --locked
-cargo test -p minco --locked
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo test --workspace --all-targets --all-features --locked
-scripts/test/generated_apps.sh
-cargo doc --workspace --all-features --no-deps --locked
-scripts/release/publish.sh
-scripts/release/package-list.sh
+docker compose -f infra/local/compose.yaml config
+./scripts/dev/up.sh
+./scripts/dev/test-rustack.sh
 ```
 
-Fix real compiler and Clippy findings rather than weakening the architecture or suppressing meaningful lints. Update `VERIFICATION.md` with command output and package sizes.
+The test uses the standard `AWS_ENDPOINT_URL` supported by the AWS SDK. It
+starts a digest-pinned Rustack 0.9.1 image, asserts that only Rustack and SSM are
+selected, then performs a SecureString put/load/delete through
+`minco-aws-lambda::load_secure_parameter`. The same script is a default-on step
+in the manually dispatched `.github/workflows/minco-manual.yml`.
 
 ## First crates.io release: M8-T03
 
@@ -196,6 +200,7 @@ With Docker:
 
 ```bash
 scripts/dev/up.sh
+scripts/dev/test-rustack.sh
 scripts/test/e2e.sh
 scripts/dev/down.sh
 ```
@@ -228,4 +233,8 @@ SQLx PostgreSQL is the relational adapter for Neon, self-hosted PostgreSQL, RDS 
 
 ## Known verification boundary
 
-See `VERIFICATION.md`. Current static and publication-structure reports are green except for the deliberately absent `Cargo.lock`. Rust compilation, feature-matrix checks, Clippy, tests, docs, `.crate` creation, `cargo publish --dry-run`, JJ execution, Docker integration, Lambda packaging, SAM validation and actual registry upload remain unperformed.
+Compiler, feature-matrix, strict Clippy, workspace test, docs, `.crate` dry-run,
+JJ and local Rustack SSM evidence now exist. Database-backed E2E, native Lambda
+packaging, SAM CLI validation, real AWS smoke, crates.io upload, docs.rs
+verification and trusted-publisher configuration remain separate and
+unperformed.

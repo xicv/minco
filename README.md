@@ -177,12 +177,19 @@ SQLite-only:
 cargo run -p orders-service --bin orders-local --features sqlite
 ```
 
-PostgreSQL and Rustack:
+Selected local dependencies:
 
 ```bash
+# Enable only the adapters used by this graph.
+cargo minco plugin enable sqlx-postgres
+cargo minco plugin enable aws-lambda
 ./scripts/dev/up.sh
 ./scripts/dev/run.sh
 ```
+
+`up.sh` derives the Compose services from `[plugins].enabled`; `aws-lambda`
+starts Rustack with only SSM enabled. Run `./scripts/dev/test-rustack.sh` for a
+live SecureString round trip through the AWS SDK adapter.
 
 Contract-first workflow:
 
