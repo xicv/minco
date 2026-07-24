@@ -2,7 +2,7 @@
 id: M0-T02
 title: Make JJ the default development VCS
 milestone: M0
-status: active
+status: complete
 priority: high
 area: developer-experience
 depends_on: [M0-T01]
@@ -23,3 +23,20 @@ Use colocated Jujutsu/Git repositories, native JJ workspaces for parallel tasks,
 ## Non-goals
 
 Replacing GitHub as the forge or requiring contributors who only review changes to use JJ.
+
+## Evidence
+
+On 2026-07-24, the repository configuration parsed under JJ 0.43.0 with
+colocated Git enabled, automatic new-bookmark pushing disabled, and the
+documented log revset and aliases accepted. The three shell entrypoints passed
+Bash syntax and ShellCheck, and static repository validation passed.
+
+The workflow was also exercised rather than inferred: `cargo minco vcs
+task-start M0-T02` created the isolated `task-m0-t02` workspace from the current
+integration parent, `cargo minco --json vcs status` reported that workspace,
+and the repository had no unresolved JJ conflicts. GitHub remains transport
+only; no remote push was performed during this verification.
+
+A focused review of the configuration, wrappers and workflow documentation
+found no remaining correctness, command-injection, conflict-handling or
+recovery issue within the task's declared scope.
