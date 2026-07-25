@@ -95,6 +95,10 @@ pub use minco_sqlx_sqlite as sqlx_sqlite;
 /// Native AWS Lambda HTTP and SSM integration.
 pub use minco_aws_lambda as aws_lambda;
 
+#[cfg(feature = "aws-worker")]
+/// Native AWS Lambda SQS partial-batch worker runtime.
+pub use minco_aws_worker as aws_worker;
+
 #[cfg(feature = "aws-adapters")]
 /// Production S3, SQS, SES, Cognito, webhook, and static-site adapters.
 pub use minco_aws_adapters as aws_adapters;
@@ -112,8 +116,8 @@ pub mod prelude {
 
     #[cfg(feature = "http")]
     pub use minco_http::{
-        ApiFailure, HttpRuntimeConfig, Principal, ProblemDetails, RequestMetadata,
-        apply_standard_middleware, problem_response,
+        ApiFailure, HttpConfigurationError, HttpHeaderPolicy, HttpRuntimeConfig, Principal,
+        ProblemDetails, RequestMetadata, apply_standard_middleware, problem_response,
     };
 }
 

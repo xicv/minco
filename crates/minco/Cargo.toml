@@ -63,6 +63,7 @@ sqlx-postgres = ["dep:minco-sqlx-postgres"]
 sqlx-sqlite = ["dep:minco-sqlx-sqlite"]
 aws-adapters = ["dep:minco-aws-adapters", "minco-aws-adapters/full"]
 aws-lambda = ["dep:minco-aws-lambda", "http"]
+aws-worker = ["dep:minco-aws-worker"]
 full = [
   "contract",
   "http",
@@ -74,6 +75,7 @@ full = [
   "sqlx-sqlite",
   "aws-adapters",
   "aws-lambda",
+  "aws-worker",
 ]
 
 [dependencies]
@@ -98,6 +100,7 @@ minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
 minco-aws-adapters = { workspace = true, optional = true }
 minco-aws-lambda = { workspace = true, optional = true }
+minco-aws-worker = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 all-features = true

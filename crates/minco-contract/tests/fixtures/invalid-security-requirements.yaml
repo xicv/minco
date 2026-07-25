@@ -1,0 +1,40 @@
+openapi: 3.1.0
+info: {title: Invalid security requirements, version: 1.0.0}
+paths:
+  /null:
+    get:
+      operationId: getNullRequirement
+      security: [null]
+      responses:
+        '200': {description: ok}
+        default: {$ref: '#/components/responses/Problem'}
+  /string:
+    get:
+      operationId: getStringRequirement
+      security: [bearerAuth]
+      responses:
+        '200': {description: ok}
+        default: {$ref: '#/components/responses/Problem'}
+  /array:
+    get:
+      operationId: getArrayRequirement
+      security: [[]]
+      responses:
+        '200': {description: ok}
+        default: {$ref: '#/components/responses/Problem'}
+  /scope:
+    get:
+      operationId: getMalformedScopes
+      security:
+        - bearerAuth: not-an-array
+      responses:
+        '200': {description: ok}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  responses:
+    Problem:
+      description: RFC 9457 problem
+      content:
+        application/problem+json:
+          schema: {type: string}
+  schemas: {}

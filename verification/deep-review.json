@@ -8,20 +8,20 @@
     "errors": 0,
     "warnings": 0,
     "metrics": {
-      "toml_files": 44,
-      "yaml_files": 7,
-      "json_files": 11,
-      "workspace_members": 27,
-      "contract_sha256": "61eeb26a3f1d80216f3e949c7e0da1f4f7c18d9dcaf01839fc943e51cf722350",
+      "toml_files": 48,
+      "yaml_files": 18,
+      "json_files": 13,
+      "workspace_members": 29,
+      "contract_sha256": "84e48fb8460a6000e4055de391b8cb00f0e17f60df465967207a50bd7d7b910e",
       "contract_operations": 4,
       "contract_schemas": 10,
-      "plugins": 14,
+      "plugins": 16,
       "milestones": 9,
-      "tasks": 22,
-      "rust_files": 71,
-      "python_files": 13,
-      "shell_files": 22,
-      "implementation_files_scanned": 159
+      "tasks": 27,
+      "rust_files": 91,
+      "python_files": 15,
+      "shell_files": 33,
+      "implementation_files_scanned": 209
     },
     "findings": [],
     "limitations": [
@@ -30,11 +30,11 @@
     ]
   },
   "metrics": {
-    "rust_files": 71,
-    "rust_lines": 19640,
-    "unsafe_tokens": 1,
-    "production_unwrap_expect": 63,
-    "sql_files": 4
+    "rust_files": 91,
+    "rust_lines": 28373,
+    "unsafe_tokens": 3,
+    "production_unwrap_expect": 76,
+    "sql_files": 6
   },
   "findings": [
     {
@@ -47,7 +47,13 @@
       "severity": "warning",
       "code": "REVIEW-RUST-001",
       "path": "crates/minco-plan/src/sam.rs",
-      "message": "16 unwrap/expect calls before test code"
+      "message": "17 unwrap/expect calls before test code"
+    },
+    {
+      "severity": "information",
+      "code": "REVIEW-RUST-003",
+      "path": "extensions/minco-aws-adapters/examples/render_smoke_assets.rs",
+      "message": "dynamic error type in production path; confirm boundary use"
     }
   ],
   "compiler_verification": {

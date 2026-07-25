@@ -44,7 +44,11 @@ Resources:
       StageName: '$default'
       CorsConfiguration:
         AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
-        AllowHeaders: [Authorization, Content-Type, Idempotency-Key, X-Request-Id]
+        AllowHeaders:
+          - 'authorization'
+          - 'content-type'
+          - 'idempotency-key'
+          - 'x-request-id'
         AllowOrigins:
           - 'https://app.example.invalid'
       Auth:

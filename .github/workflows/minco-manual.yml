@@ -33,31 +33,19 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - name: Static and packaging validation
+      - name: Install security and dependency tools
         run: |
-          uv run --locked python scripts/validate_static.py
-          uv run --locked python scripts/validate_publish.py
-          uv run --locked python scripts/deep_review.py
-          uv run --locked python scripts/test/feedback_contract.py
-          node --check plugins/minco-plugin-feedback/assets/widget.js
-      - name: Format
-        run: cargo fmt --all -- --check
-      - name: Facade feature matrix
+          cargo install --locked cargo-deny --version 0.19.5
+          cargo install --locked cargo-audit --version 0.22.2
+          go install github.com/gitleaks/gitleaks/v8@v8.30.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Authoritative quality gate
+        run: ./scripts/quality.sh
+      - name: Feedback browser matrix
         run: |
-          cargo check -p minco --no-default-features --locked
-          cargo check -p minco --locked
-          cargo check -p minco --all-features --locked
-          cargo check -p cargo-minco --locked
-          cargo test -p minco --no-default-features --locked
-          cargo test -p minco --locked
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - name: Tests
-        run: cargo test --workspace --all-targets --all-features --locked
-      - name: Documentation
-        run: |
-          cargo rustdoc -p cargo-minco --lib --all-features --locked
-          cargo doc --workspace --all-features --no-deps --locked
+          npm ci --prefix plugins/minco-plugin-feedback
+          npx --prefix plugins/minco-plugin-feedback playwright install --with-deps chromium firefox
+          npm run --prefix plugins/minco-plugin-feedback test:browser
       - name: Publish dry run
         run: scripts/release/publish.sh --skip-quality
       - name: Rustack and Minco SSM adapter conformance

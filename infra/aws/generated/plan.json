@@ -1,4 +1,10 @@
 {
+  "allowed_headers": [
+    "authorization",
+    "content-type",
+    "idempotency-key",
+    "x-request-id"
+  ],
   "allowed_origins": [
     "https://app.example.invalid"
   ],

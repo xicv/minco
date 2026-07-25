@@ -12,7 +12,7 @@ milestones:
   - Architecture dependency rules are executable.
 - id: M1
   name: Contract-to-local vertical slice
-  status: active
+  status: complete
   depends_on:
   - M0
   outcome: A complete orders feature runs from OpenAPI through domain, application, adapters, Axum, and local composition.
@@ -22,7 +22,7 @@ milestones:
   - The same router is used by local and Lambda entrypoints.
 - id: M2
   name: Modules and application graph
-  status: active
+  status: complete
   depends_on:
   - M1
   outcome: Statically linked modules describe capabilities, operations, migrations, health, resources, and costs.
@@ -32,7 +32,7 @@ milestones:
   - Graph output is machine-readable.
 - id: M3
   name: PostgreSQL and SQLite foundations
-  status: active
+  status: complete
   depends_on:
   - M2
   outcome: Explicit SQLx adapters and migrations support PostgreSQL and SQLite without an ORM.
@@ -42,7 +42,7 @@ milestones:
   - Migration, seed, and reset operations are separate.
 - id: M4
   name: Local AWS and deployment Plan IR
-  status: active
+  status: complete
   depends_on:
   - M2
   outcome: One graph drives local dependency resolution, Rustack endpoint wiring, deployment planning, and cost
@@ -53,7 +53,7 @@ milestones:
   - Rustack services are started only when declared.
 - id: M5
   name: AWS development deployment
-  status: planned
+  status: complete
   depends_on:
   - M3
   - M4
@@ -64,7 +64,7 @@ milestones:
   - Deployment evidence contains no secrets.
 - id: M6
   name: Essential official extensions
-  status: planned
+  status: active
   depends_on:
   - M5
   outcome: Optional sessions, identity, object storage, queue/outbox, notifications, audit, Feedback, and static-site extensions use the same capability model.

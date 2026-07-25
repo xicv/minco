@@ -14,9 +14,9 @@ It provides:
 
 ```rust
 use axum::{Router, routing::get};
-use minco_http::{HttpRuntimeConfig, apply_standard_middleware};
+use minco_http::{HttpConfigurationError, HttpRuntimeConfig, apply_standard_middleware};
 
 let router = Router::new().route("/health/live", get(|| async { "ok" }));
 let router = apply_standard_middleware(router, &HttpRuntimeConfig::default())?;
-# Ok::<(), http::header::InvalidHeaderValue>(())
+# Ok::<(), HttpConfigurationError>(())
 ```

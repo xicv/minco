@@ -18,6 +18,13 @@ ROOT = Path(__file__).resolve().parents[1]
 HTTP_METHODS = ("get", "post", "put", "patch", "delete", "options", "head")
 
 
+def allows_anonymous(security: object) -> bool:
+    return security is None or (
+        isinstance(security, list)
+        and (not security or any(requirement == {} for requirement in security))
+    )
+
+
 def main() -> None:
     manifest = tomllib.loads((ROOT / "minco.toml").read_text())
     contract = yaml.safe_load((ROOT / manifest["contract"]).read_text())
@@ -28,12 +35,13 @@ def main() -> None:
             if method not in item:
                 continue
             operation = item[method]
+            security = operation.get("security", contract.get("security"))
             routes.append(
                 {
                     "operation_id": operation["operationId"],
                     "method": method,
                     "path": path,
-                    "authenticated": not (operation.get("security") == [] or operation.get("x-minco-auth") == "public"),
+                    "authenticated": not allows_anonymous(security),
                 }
             )
     routes.sort(key=lambda route: route["operation_id"])
@@ -67,8 +75,12 @@ def render_sam(plan: dict) -> str:
         "      StageName: '$default'",
         "      CorsConfiguration:",
         "        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]",
-        "        AllowHeaders: [Authorization, Content-Type, Idempotency-Key, X-Request-Id]",
+        "        AllowHeaders:",
         "        AllowOrigins:",
+    ]
+    lines[-1:-1] = [
+        f"          - {quote(header)}"
+        for header in plan["allowed_headers"]
     ]
     lines.extend(f"          - {quote(origin)}" for origin in plan["allowed_origins"])
     auth = plan["auth"]

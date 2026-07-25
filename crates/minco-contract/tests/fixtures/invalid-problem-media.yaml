@@ -1,0 +1,16 @@
+openapi: 3.1.0
+info: {title: Invalid problem media, version: 1.0.0}
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      responses:
+        '200': {description: ok}
+        '503':
+          description: unavailable
+          content:
+            application/json:
+              schema: {type: string}
+components:
+  schemas: {}

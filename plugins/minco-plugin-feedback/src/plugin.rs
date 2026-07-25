@@ -10,7 +10,7 @@ use minco_core::{
     DataClass, HealthCheckDescriptor, IdleCostClass, OperationDescriptor, Plugin, PluginContext,
     PluginDescriptor, PluginError, PluginId, PluginStability, ResourceIntent, ResourceKind,
 };
-use minco_http::HttpModule;
+use minco_http::{HttpHeaderPolicy, HttpModule};
 use minco_plugin_audit::AuditService;
 use minco_plugin_events::EventServices;
 use minco_plugin_health::{HealthCheck, HealthResult};
@@ -231,6 +231,13 @@ impl Plugin for FeedbackPlugin {
             .contributions()
             .push_shared::<dyn HealthCheck>(Arc::new(FeedbackHealthCheck(service.clone())));
         let request_body_budget = feedback_request_body_budget(service.config());
+        let mut header_policy = HttpHeaderPolicy::empty();
+        for name in ["x-minco-feedback-token", "x-minco-feedback-project-key"] {
+            header_policy
+                .allow_request_header_name(name)
+                .and_then(|()| header_policy.mark_request_header_name_sensitive(name))
+                .map_err(|error| PluginError::Installation(error.to_string()))?;
+        }
         HttpModule::new(context.plugin_id().clone(), feedback_router(service))
             .with_operations(
                 feedback_operations()
@@ -238,6 +245,7 @@ impl Plugin for FeedbackPlugin {
                     .map(|operation| operation.operation_id),
             )
             .with_max_request_body_bytes(request_body_budget)
+            .with_header_policy(header_policy)
             .contribute(context);
         Ok(())
     }
@@ -694,6 +702,21 @@ mod tests {
         let application = manager.compose(&selection).unwrap();
         assert!(application.services.get::<FeedbackService>().is_ok());
         assert_eq!(application.contributions.get::<HttpModule>().len(), 1);
+        let module = application
+            .contributions
+            .get::<HttpModule>()
+            .into_iter()
+            .next()
+            .unwrap();
+        assert_eq!(
+            module
+                .header_policy
+                .allowed_request_headers()
+                .iter()
+                .map(http::HeaderName::as_str)
+                .collect::<Vec<_>>(),
+            ["x-minco-feedback-project-key", "x-minco-feedback-token"]
+        );
         assert_eq!(
             application
                 .contributions

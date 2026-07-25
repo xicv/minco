@@ -16,11 +16,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 KNOWN_ROOTS = {
-    "anyhow", "async_trait", "aws_config", "aws_sdk_ssm", "axum", "base64",
-    "bytes", "chrono", "clap", "hmac", "http", "http_body_util", "lambda_http",
-    "lambda_runtime", "reqwest", "semver", "serde", "serde_json", "serde_yaml_ng",
-    "sha2", "sqlx", "subtle", "tempfile", "thiserror", "tokio", "toml", "tower",
-    "tower_http", "tracing", "tracing_subscriber", "uuid",
+    "anyhow", "async_trait", "aws_config", "aws_lambda_events", "aws_sdk_ssm",
+    "axum", "base64", "bytes", "chrono", "clap", "futures", "hmac", "http",
+    "http_body_util", "lambda_http", "lambda_runtime", "reqwest", "semver",
+    "serde", "serde_json", "serde_yaml_ng", "sha2", "sqlx", "subtle", "tempfile",
+    "thiserror", "tokio", "toml", "tower", "tower_http", "tracing",
+    "tracing_subscriber", "uuid",
 }
 ROOT_PATTERN = re.compile(r"(?<![A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)::")
 

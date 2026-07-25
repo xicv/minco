@@ -1,0 +1,32 @@
+{
+  "revision": "6fe9121ea9284e2fa4e2dbfd76f21bd8a13e263a",
+  "facade": {
+    "no_default_features": {
+      "normal_dependency_packages": 16,
+      "feature_tree_lines": 81
+    },
+    "default_features": {
+      "normal_dependency_packages": 105,
+      "feature_tree_lines": 820
+    },
+    "official_plugins": {
+      "normal_dependency_packages": 118,
+      "feature_tree_lines": 1040
+    },
+    "all_features": {
+      "normal_dependency_packages": 290,
+      "feature_tree_lines": 3351
+    }
+  },
+  "build_timings_seconds": {
+    "default_features": 10.23,
+    "all_features_incremental_after_default": 48.87
+  },
+  "native_arm64_artifacts": {
+    "orders_lambda": {
+      "compressed_bytes": 5013002,
+      "uncompressed_bytes": 11000744,
+      "cold_build_seconds": 115.55
+    }
+  }
+}

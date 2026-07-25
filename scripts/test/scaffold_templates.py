@@ -133,6 +133,8 @@ def check_profile(root: Path, database: str) -> dict[str, object]:
     assert "{{" not in source
     assert "examples/orders" not in source
     assert "sample_api_application::GetPlatformInfo" in source
+    assert "HttpConfigurationError" in source
+    assert "InvalidHeaderValue" not in source
     assert (root / f"migrations/{database}/0001_foundation.sql").is_file()
     return {
         "database": database,

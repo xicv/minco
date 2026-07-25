@@ -1,0 +1,17 @@
+openapi: 3.1.0
+info: {title: Invalid security shape, version: 1.0.0}
+paths:
+  /private:
+    get:
+      operationId: getPrivate
+      security: bearerAuth
+      x-minco-auth: authenticated
+      responses:
+        '200': {description: ok}
+        default:
+          description: problem
+          content:
+            application/problem+json:
+              schema: {type: string}
+components:
+  schemas: {}

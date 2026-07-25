@@ -165,6 +165,13 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
         config.allow_development_headers,
     );
     let router = orders_api::build_router(state);
+    let mut header_policy = minco_http::HttpHeaderPolicy::default();
+    if config.allow_development_headers {
+        for name in ["x-minco-subject", "x-minco-permissions"] {
+            header_policy.allow_request_header_name(name)?;
+            header_policy.mark_request_header_name_sensitive(name)?;
+        }
+    }
     let router = apply_standard_middleware(
         router,
         &HttpRuntimeConfig {
@@ -173,6 +180,7 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
             timeout: Duration::from_secs(15),
             max_request_body_bytes: 1024 * 1024,
             compression: true,
+            header_policy,
         },
     )?;
     Ok(BuiltApplication {

@@ -91,7 +91,7 @@ Tower policy at the delivery boundary:
 use axum::{Router, routing::get};
 use minco::http::{HttpRuntimeConfig, apply_standard_middleware};
 
-fn router() -> Result<Router, http::header::InvalidHeaderValue> {
+fn router() -> Result<Router, minco::http::HttpConfigurationError> {
     let app = Router::new().route("/health/live", get(|| async { "ok" }));
     apply_standard_middleware(app, &HttpRuntimeConfig::default())
 }
@@ -100,6 +100,12 @@ fn router() -> Result<Router, http::header::InvalidHeaderValue> {
 Business use cases should live in application/domain crates. HTTP handlers map
 contract DTOs to a use case and map the result back to the contract. SQLx and
 AWS SDK calls stay in adapters.
+
+Applications extend `HttpRuntimeConfig::header_policy` with exact
+application-owned headers. Installed HTTP plugins contribute their own exact
+request, exposed and sensitive headers through `HttpModule`; plugin-specific
+headers are absent when that plugin is not selected. Wildcard origins and
+headers fail configuration.
 
 ## 4. Add a project manifest for `cargo minco`
 
@@ -177,8 +183,14 @@ Build one `Router` in a library crate. The local binary binds it with
 `minco::aws_lambda`. This keeps request behavior shared while leaving runtime
 assembly explicit.
 
+SQS-triggered functions use the separate `aws-worker` feature. It does not
+depend on the AWS SDK and does not create queues, event-source mappings or
+schedules. The mapping must enable `ReportBatchItemFailures`.
+
 ## API stability
 
-Minco 0.1 is pre-1.0. Pin the minor line in production applications and read the
-changelog before upgrading. The framework follows lock-step versions across the
-published crate family during the initial stabilization period.
+The published baseline is `0.1.1`; the workspace is a `0.2.0` candidate. Pin
+the minor line in production applications and follow
+`docs/adoption/incremental-adoption.md` before upgrading. The framework follows
+lock-step versions across the publishable crate family during the initial
+stabilization period.

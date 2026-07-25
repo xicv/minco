@@ -1,0 +1,153 @@
+# Incrementally adopting Minco
+
+Published baseline: `0.1.1`
+Current workspace candidate: `0.2.0`
+
+Minco is designed so an application can adopt one boundary at a time. Do not
+start with `features = ["full"]`; select the smallest capability that closes a
+real application problem and retain ordinary Rust composition around it.
+
+## Recommended sequence
+
+### 1. Contract tooling only
+
+```toml
+[dependencies]
+minco = { version = "0.2.0", default-features = false, features = ["contract"] }
+```
+
+Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
+bindings without changing the runtime. Run contract check/sync in CI.
+
+### 2. Provider-neutral composition
+
+Use `minco-core` directly or the no-default facade to register a small static
+plugin graph. Keep product use cases and ports in application crates. Start
+with fake/memory implementations only for tests and local development.
+
+### 3. Exact HTTP policy
+
+```rust
+use minco::http::{HttpHeaderPolicy, HttpRuntimeConfig};
+
+let mut headers = HttpHeaderPolicy::default();
+headers.allow_request_header_name("x-application-tenant")?;
+headers.mark_request_header_name_sensitive("x-application-tenant")?;
+
+let config = HttpRuntimeConfig {
+    header_policy: headers,
+    ..HttpRuntimeConfig::default()
+};
+# Ok::<(), minco::http::HttpConfigurationError>(())
+```
+
+Minco's built-ins allow `Authorization`, `Content-Type`, `Idempotency-Key` and
+`X-Request-Id`, expose the request ID, and redact authorization/cookie/
+idempotency values. Cookie-backed sessions call `enable_cookie_csrf`.
+HTTP-capable plugins contribute their own exact additions through `HttpModule`;
+Feedback headers do not exist when Feedback is absent.
+
+Deployment configuration owns the corresponding ingress projection. Add the
+same exact request-header set to `allowed_headers`; Plan validation rejects
+wildcards, invalid names and duplicates, then renders the normalized set into
+SAM. Runtime and ingress policy should therefore be reviewed together whenever
+a plugin changes its header contribution.
+
+### 4. One persistence adapter
+
+Enable exactly one of `sqlx-postgres` or `sqlx-sqlite`. Keep migrations explicit
+and use application-owned ports. Do not treat DynamoDB as a relational drop-in.
+For Lambda/PostgreSQL, record:
+
+```text
+maximum function concurrency × pool maximum <= database connection budget
+```
+
+### 5. Select one runtime
+
+For HTTP Lambda:
+
+```toml
+features = ["contract", "http", "aws-lambda"]
+```
+
+For an SQS worker:
+
+```toml
+features = ["aws-worker"]
+```
+
+The worker returns partial-batch failures, defaults to sequential processing,
+bounds optional concurrency, and fails forward for FIFO ordering. The
+event-source mapping must explicitly set
+`FunctionResponseTypes: [ReportBatchItemFailures]`; Minco does not create a
+queue or schedule.
+
+### 6. Add plugins only with provider and failure policy
+
+For every selected plugin, record its stability, implementation, persistence,
+IAM, retention, cost, retry/DLQ, health and conformance evidence. Memory
+implementations are reference/test adapters, not production durability.
+
+## Facade compatibility matrix
+
+| Need | Feature | Default | Provider/runtime dependencies |
+|---|---|---:|---|
+| Typed plugin graph | always present | yes | none |
+| OpenAPI tools | `contract` | yes | none |
+| Axum/Tower conventions | `http` | yes | Axum/Tower only |
+| Health/observability/idempotency | `default-plugins` | yes | none |
+| All official plugin contracts | `official-plugins` | no | provider-neutral |
+| PostgreSQL | `sqlx-postgres` | no | SQLx/PostgreSQL |
+| SQLite | `sqlx-sqlite` | no | SQLx/SQLite |
+| AWS provider adapters | `aws-adapters` | no | selected AWS SDK clients |
+| HTTP Lambda | `aws-lambda` | no | Lambda HTTP plus SSM SDK |
+| SQS Lambda worker | `aws-worker` | no | Lambda runtime/events, no AWS SDK |
+| Plan/release/test support | `plan`, `release`, `test` | no | selected tooling |
+
+Static validation rejects SQLx, Lambda and AWS feature leakage into the default
+facade. Verify the resolved graph in the consuming application with
+`cargo tree -e features`.
+
+## Stability policy
+
+- `stable`: the declared bounded contract and required gates pass. Pre-1.0
+  minor releases may still contain documented breaking changes.
+- `beta`: opt-in, usable with pinned versions, but provider or API boundaries
+  may change after measured adoption.
+- `planned`: do not depend on it; the task exists to make scope and acceptance
+  explicit.
+
+Catalog `kind` distinguishes true plugins from adapters and runtimes. Catalog
+stability is validated against runtime descriptors for true plugins.
+
+## Upgrade notes: `0.1.1` to the `0.2.0` candidate
+
+- `apply_standard_middleware` and generated router helpers now return
+  `HttpConfigurationError`, not only `InvalidHeaderValue`.
+- `HttpRuntimeConfig` adds `header_policy`; use `..Default::default()` or set it
+  explicitly.
+- Feedback request headers moved from global middleware to the installed
+  Feedback `HttpModule`.
+- OpenAPI object schemas must be closed, or explicitly declare both an
+  `additionalProperties` value policy and
+  `x-minco-open-object.rationale`.
+- A required `Idempotency-Key` and `x-minco-idempotent: true` must agree in both
+  directions for mutating operations. Path-level and locally referenced
+  parameters are effective. `x-minco-auth` must agree with effective OpenAPI
+  `security`; permission-scoped metadata never replaces use-case authorization.
+- Error/default responses must resolve to `application/problem+json`.
+- Catalog entries now include `kind` and facade `feature`.
+- The candidate contains 24 publishable packages versus the immutable
+  14-package `0.1.1` baseline. `minco-aws-worker` is new and opt-in.
+
+Run contract checks before compiling, then the facade no-default/default/
+all-feature matrix and application tests. Promotion still uses the exact built
+artifact; it never rebuilds source.
+
+## Operational boundary
+
+Local compiler, contract, Rustack, package and SAM evidence is not a live
+deployment. AWS deployment, SES delivery, CloudFront creation, load/soak,
+product data migration, rollback rehearsal and physical operational proof
+remain separate approvals and evidence.

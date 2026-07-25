@@ -46,7 +46,15 @@ def main() -> int:
     assert VALIDATE_STATIC.report_root(ROOT, ROOT) == "."
     assert VALIDATE_STATIC.report_root(ROOT / "nested", ROOT) == str(ROOT / "nested")
     assert ".venv" in VALIDATE_STATIC.IGNORED_PARTS
-    assert not SOURCE_MANIFEST.included(ROOT / ".venv" / "lib" / "dependency.py")
+    assert not SOURCE_MANIFEST.included(
+        ROOT,
+        ROOT / ".venv" / "lib" / "dependency.py",
+    )
+    assert not SOURCE_MANIFEST.included(
+        ROOT,
+        ROOT / "verification/adoption-measurements.json",
+    )
+    assert SOURCE_MANIFEST.included(ROOT, ROOT / "crates/minco/src/lib.rs")
 
     print("deep-review source exclusions: passed")
     return 0

@@ -4,9 +4,16 @@ Minco is released as a lock-step crate family. The `minco` facade is the normal
 application dependency; the smaller crates remain independently usable for
 applications that need a narrower dependency graph.
 
-## Published packages
+## Published baseline and current candidate
 
-| Package | Role |
+The immutable `0.1.1` release contains 14 packages. The current `0.2.0`
+workspace candidate contains 24 publishable packages; it is not published and
+must not be described as a registry release until the independent release
+workflow completes. The candidate inventory is derived from
+`[workspace.metadata.minco.release]` and checked against every publishable
+workspace member by `scripts/validate_publish.py`.
+
+| Candidate package | Role |
 |---|---|
 | `minco-core` | Provider-neutral plugins, typed services, capabilities, and application graph. |
 | `minco-contract` | OpenAPI 3.1 validation, operation inventory, hashing, and deterministic bindings. |
@@ -17,9 +24,19 @@ applications that need a narrower dependency graph.
 | `minco-plugin-health` | Official health/readiness plugin. |
 | `minco-plugin-observability` | Official structured tracing plugin. |
 | `minco-plugin-idempotency` | Official idempotency primitives and port. |
+| `minco-plugin-sessions` | Session contracts and bounded providers. |
+| `minco-plugin-identity` | Identity contracts and explicit providers. |
+| `minco-plugin-object-storage` | Object-storage contracts and provider boundaries. |
+| `minco-plugin-events` | Transactional event/outbox contracts and dispatch primitives. |
+| `minco-plugin-notifications` | Notification contracts and bounded delivery providers. |
+| `minco-plugin-audit` | Durable audit contracts and adapters. |
+| `minco-plugin-feedback` | Feedback capture, persistence, administration, and widget contract. |
+| `minco-plugin-static-site` | Static-site runtime integration. |
 | `minco-sqlx-postgres` | Bounded PostgreSQL pools and migrations. |
 | `minco-sqlx-sqlite` | SQLite pools, WAL policy, and migrations. |
+| `minco-aws-adapters` | Opt-in AWS provider adapters. |
 | `minco-aws-lambda` | Native Lambda HTTP, API Gateway identity, and SSM integration. |
+| `minco-aws-worker` | Opt-in SQS Lambda worker with partial-batch responses. |
 | `minco` | Ergonomic facade with feature-gated re-exports and official defaults. |
 | `cargo-minco` | Cargo subcommand installed as `cargo minco`. |
 
@@ -127,7 +144,8 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The existing Minco crate family has already crossed that boundary.
+exists. The 14-package `0.1.1` family has crossed that boundary; candidate-only
+packages, including `minco-aws-worker`, have not.
 
 ## Trusted publishing after the first release
 

@@ -1,0 +1,46 @@
+[package]
+name = "minco-aws-worker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Explicit AWS Lambda SQS partial-batch worker runtime for Minco"
+documentation = "https://docs.rs/minco-aws-worker"
+readme = "README.md"
+keywords = ["minco", "aws", "lambda", "sqs", "worker"]
+categories = ["web-programming", "asynchronous"]
+publish = ["crates-io"]
+include = [
+  "src/**",
+  "examples/**",
+  "Cargo.toml",
+  "README.md",
+  "LICENSE-MIT",
+  "LICENSE-APACHE",
+]
+
+[features]
+default = []
+events = ["dep:chrono", "dep:minco-plugin-events"]
+
+[dependencies]
+async-trait.workspace = true
+aws_lambda_events.workspace = true
+chrono = { workspace = true, optional = true }
+futures.workspace = true
+lambda_runtime.workspace = true
+minco-plugin-events = { workspace = true, optional = true }
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

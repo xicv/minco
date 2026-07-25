@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info: {title: Invalid auth, version: 1.0.0}
+security:
+  - bearerAuth: []
+paths:
+  /private:
+    get:
+      operationId: getPrivate
+      x-minco-auth: public
+      responses:
+        '200': {description: ok}
+        default:
+          description: problem
+          content:
+            application/problem+json:
+              schema: {type: string}
+components:
+  schemas: {}

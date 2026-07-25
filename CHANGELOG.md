@@ -7,10 +7,37 @@ Semantic Versioning once public releases begin.
 
 ### Added
 
+- Added a typed, deterministic HTTP header policy that merges exact
+  application and installed-plugin requirements without wildcard broadening;
+  Feedback-specific headers are no longer global defaults.
+- Added the opt-in publishable `minco-aws-worker` crate for SQS Lambda
+  partial-batch responses, bounded concurrency, FIFO fail-forward ordering,
+  payload limits and optional one-pass outbox dispatch.
+- Added stricter OpenAPI object, idempotency, authentication and RFC 9457 media
+  policy with positive/negative fixtures, effective path/reference parameters,
+  OpenAPI-correct anonymous security alternatives and explicit
+  permission-scoped metadata.
+- Added deterministic repository-truth validation across versions, package
+  inventory, catalog/facade/descriptor metadata, generated plans and
+  roadmap/task status.
 - Added graph-derived local PostgreSQL/Rustack startup, standard AWS endpoint
   configuration, isolated S3/SQS/SSM/STS conformance, and safe port/database
   overrides with a pinned multi-platform Rustack 0.9.1 image. The conformance
   gate also proves the real Minco SSM SDK adapter locally and in hosted CI.
+
+### Changed
+
+- `HttpRuntimeConfig` now carries `HttpHeaderPolicy`, and
+  `apply_standard_middleware` returns `HttpConfigurationError`.
+- Plugin catalog entries now identify their `kind` and facade `feature`.
+- Plan/SAM request headers are normalized and sorted deterministically.
+- Generated-consumer quality checks share the repository target cache while
+  retaining fresh PostgreSQL and SQLite workspaces.
+
+### Release boundary
+
+These are `0.2.0` candidate notes, not a publication record. No crate is
+uploaded and no release tag is created by M6-T06.
 
 ## [0.1.1] - 2026-07-24
 

@@ -15,7 +15,7 @@ pub struct AppState {
 
 pub fn build_router(
     state: AppState,
-) -> Result<Router, http::header::InvalidHeaderValue> {
+) -> Result<Router, minco::http::HttpConfigurationError> {
     let router = Router::new()
         .route("/health/live", get(health_live))
         .route("/platform", get(get_platform))
