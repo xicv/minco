@@ -1,4 +1,6 @@
-use super::{decode_thread, encode_thread, revision_from_i64, revision_to_i64};
+use super::{
+    MIGRATION_HISTORY_TABLE, decode_thread, encode_thread, revision_from_i64, revision_to_i64,
+};
 use crate::{
     FeedbackId, FeedbackListFilter, FeedbackStore, FeedbackStoreError, FeedbackSummary,
     FeedbackThread,
@@ -21,7 +23,9 @@ impl PostgresFeedbackStore {
     }
 
     pub async fn migrate(&self) -> Result<(), FeedbackStoreError> {
-        sqlx::migrate!("migrations/postgres")
+        let mut migrator = sqlx::migrate!("migrations/postgres");
+        migrator.dangerous_set_table_name(MIGRATION_HISTORY_TABLE);
+        migrator
             .run(&self.pool)
             .await
             .map_err(|error| FeedbackStoreError::Infrastructure(error.to_string()))

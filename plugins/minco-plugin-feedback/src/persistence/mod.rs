@@ -10,6 +10,8 @@ pub use sqlite::SqliteFeedbackStore;
 
 use crate::{FeedbackStoreError, FeedbackThread};
 
+const MIGRATION_HISTORY_TABLE: &str = "_minco_feedback_migrations";
+
 fn encode_thread(thread: &FeedbackThread) -> Result<serde_json::Value, FeedbackStoreError> {
     serde_json::to_value(thread)
         .map_err(|error| FeedbackStoreError::Infrastructure(error.to_string()))

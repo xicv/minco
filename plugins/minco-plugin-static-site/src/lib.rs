@@ -1,6 +1,7 @@
 //! Provider-neutral static-site deployment intent for Minco applications.
 #![forbid(unsafe_code)]
 
+use async_trait::async_trait;
 use minco_core::{
     CapabilityProvision, ConfigurationField, ConfigurationValueKind, IdleCostClass, Plugin,
     PluginContext, PluginDescriptor, PluginError, PluginId, PluginStability, ResourceIntent,
@@ -8,7 +9,10 @@ use minco_core::{
 };
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -119,8 +123,135 @@ impl From<StaticSiteConfig> for StaticSitePlan {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct StaticSitePlugin;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StaticSitePublication {
+    pub url: String,
+    pub uploaded: usize,
+    pub removed: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invalidation_id: Option<String>,
+}
+
+#[async_trait]
+pub trait StaticSitePublisher: Send + Sync + std::fmt::Debug {
+    async fn publish(
+        &self,
+        plan: &StaticSitePlan,
+        repository_root: &Path,
+    ) -> Result<StaticSitePublication, StaticSiteError>;
+}
+
+#[derive(Clone)]
+pub struct StaticSitePublisherService(pub Arc<dyn StaticSitePublisher>);
+
+impl std::fmt::Debug for StaticSitePublisherService {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("StaticSitePublisherService").finish()
+    }
+}
+
+impl StaticSitePublisherService {
+    pub fn new(publisher: Arc<dyn StaticSitePublisher>) -> Self {
+        Self(publisher)
+    }
+
+    pub async fn publish(
+        &self,
+        plan: &StaticSitePlan,
+        repository_root: &Path,
+    ) -> Result<StaticSitePublication, StaticSiteError> {
+        plan.validate()?;
+        self.0.publish(plan, repository_root).await
+    }
+}
+
+impl StaticSitePlan {
+    pub fn validate(&self) -> Result<(), StaticSiteError> {
+        self.clone().try_into_config()?.validate()
+    }
+
+    fn try_into_config(self) -> Result<StaticSiteConfig, StaticSiteError> {
+        let price_class = match self.price_class.as_str() {
+            "PriceClass_100" => CloudFrontPriceClass::PriceClass100,
+            "PriceClass_200" => CloudFrontPriceClass::PriceClass200,
+            "PriceClass_All" => CloudFrontPriceClass::PriceClassAll,
+            _ => {
+                return Err(StaticSiteError::InvalidConfiguration(
+                    "price_class is not a supported CloudFront price class".into(),
+                ));
+            }
+        };
+        Ok(StaticSiteConfig {
+            source_directory: self.source_directory,
+            index_document: self.index_document,
+            spa_fallback: self.spa_fallback,
+            immutable_cache_seconds: self.immutable_cache_seconds,
+            html_cache_seconds: self.html_cache_seconds,
+            price_class,
+            ipv6_enabled: self.ipv6_enabled,
+            custom_domain: self.custom_domain,
+            manage_dns_alias: self.manage_dns_alias,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct MemoryStaticSitePublisher {
+    public_url: String,
+    publications: Mutex<Vec<StaticSitePlan>>,
+}
+
+impl Default for MemoryStaticSitePublisher {
+    fn default() -> Self {
+        Self {
+            public_url: "http://localhost/static".into(),
+            publications: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl MemoryStaticSitePublisher {
+    pub fn published(&self) -> Result<Vec<StaticSitePlan>, StaticSiteError> {
+        Ok(self
+            .publications
+            .lock()
+            .map_err(|_| StaticSiteError::Publish("static-site memory lock was poisoned".into()))?
+            .clone())
+    }
+}
+
+#[async_trait]
+impl StaticSitePublisher for MemoryStaticSitePublisher {
+    async fn publish(
+        &self,
+        plan: &StaticSitePlan,
+        _repository_root: &Path,
+    ) -> Result<StaticSitePublication, StaticSiteError> {
+        self.publications
+            .lock()
+            .map_err(|_| StaticSiteError::Publish("static-site memory lock was poisoned".into()))?
+            .push(plan.clone());
+        Ok(StaticSitePublication {
+            url: self.public_url.clone(),
+            uploaded: 0,
+            removed: 0,
+            invalidation_id: None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StaticSitePlugin {
+    publisher: Option<StaticSitePublisherService>,
+}
+
+impl StaticSitePlugin {
+    #[must_use]
+    pub fn with_publisher(mut self, publisher: Arc<dyn StaticSitePublisher>) -> Self {
+        self.publisher = Some(StaticSitePublisherService::new(publisher));
+        self
+    }
+}
 
 impl Plugin for StaticSitePlugin {
     fn descriptor(&self) -> PluginDescriptor {
@@ -137,6 +268,12 @@ impl Plugin for StaticSitePlugin {
             name: "static-site.publish".into(),
             version: Version::new(1, 0, 0),
         });
+        if self.publisher.is_some() {
+            descriptor.provides.push(CapabilityProvision {
+                name: "static-site.provider".into(),
+                version: Version::new(1, 0, 0),
+            });
+        }
         descriptor.configuration = configuration_fields();
         descriptor
     }
@@ -173,6 +310,9 @@ impl Plugin for StaticSitePlugin {
         context
             .services()
             .insert(Arc::new(StaticSitePlan::from(configuration)))?;
+        if let Some(publisher) = &self.publisher {
+            context.services().insert(Arc::new(publisher.clone()))?;
+        }
         Ok(())
     }
 }
@@ -310,10 +450,10 @@ fn validate_relative_path(field: &str, value: &str) -> Result<(), StaticSiteErro
         || path.is_absolute()
         || path
             .components()
-            .any(|component| matches!(component, std::path::Component::ParentDir))
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
     {
         return Err(StaticSiteError::InvalidConfiguration(format!(
-            "{field} must be a non-empty relative path without parent traversal"
+            "{field} must contain only normal relative path components"
         )));
     }
     Ok(())
@@ -362,6 +502,8 @@ const fn default_immutable_cache_seconds() -> u32 {
 pub enum StaticSiteError {
     #[error("invalid static-site configuration: {0}")]
     InvalidConfiguration(String),
+    #[error("static-site publication failed: {0}")]
+    Publish(String),
 }
 
 #[cfg(test)]
@@ -372,7 +514,7 @@ mod tests {
     #[test]
     fn default_profile_declares_private_storage_and_cdn() {
         let mut manager = PluginManager::default();
-        manager.register(StaticSitePlugin).unwrap();
+        manager.register(StaticSitePlugin::default()).unwrap();
         let mut selection = PluginSelection::default();
         selection
             .enabled
@@ -391,7 +533,7 @@ mod tests {
     #[test]
     fn custom_domain_configuration_changes_the_validated_resource_graph() {
         let mut manager = PluginManager::default();
-        manager.register(StaticSitePlugin).unwrap();
+        manager.register(StaticSitePlugin::default()).unwrap();
         let id = PluginId::new("static-site").unwrap();
         let mut selection = PluginSelection::default();
         selection.enabled.insert(id.clone());
@@ -419,5 +561,43 @@ mod tests {
             ..StaticSiteConfig::default()
         };
         assert!(configuration.validate().is_err());
+    }
+
+    #[test]
+    fn provider_neutral_paths_reject_components_the_publisher_cannot_accept() {
+        for source_directory in [".", "./dist", "../dist"] {
+            let configuration = StaticSiteConfig {
+                source_directory: source_directory.into(),
+                ..StaticSiteConfig::default()
+            };
+            assert!(configuration.validate().is_err(), "{source_directory}");
+        }
+    }
+
+    #[tokio::test]
+    async fn publisher_is_an_explicit_injected_service() {
+        let publisher = Arc::new(MemoryStaticSitePublisher::default());
+        let mut manager = PluginManager::default();
+        manager
+            .register(StaticSitePlugin::default().with_publisher(publisher.clone()))
+            .unwrap();
+        let mut selection = PluginSelection::default();
+        selection
+            .enabled
+            .insert(PluginId::new("static-site").unwrap());
+        let application = manager.compose(&selection).unwrap();
+        assert!(
+            application
+                .graph
+                .capabilities
+                .contains_key("static-site.provider")
+        );
+        let service = application
+            .services
+            .get::<StaticSitePublisherService>()
+            .unwrap();
+        let plan = application.services.get::<StaticSitePlan>().unwrap();
+        service.publish(&plan, Path::new(".")).await.unwrap();
+        assert_eq!(publisher.published().unwrap().len(), 1);
     }
 }

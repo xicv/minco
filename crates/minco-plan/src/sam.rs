@@ -3,6 +3,13 @@ use minco_contract::HttpMethod;
 use std::fmt::Write as _;
 
 pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
+    render_sam_with_code_uri(plan, None)
+}
+
+pub fn render_sam_with_code_uri(
+    plan: &DeploymentPlan,
+    code_uri: Option<&str>,
+) -> Result<String, PlanError> {
     if !matches!(&plan.runtime, RuntimePlan::LambdaZipArm64) {
         return Err(PlanError::UnsupportedDeployment(
             "SAM rendering requires lambda_zip_arm64".into(),
@@ -40,7 +47,45 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     output.push_str("Parameters:\n");
     output.push_str("  DatabaseUrlParameterName:\n");
     output.push_str("    Type: String\n");
+    output.push_str("    AllowedPattern: '^/[A-Za-z0-9_.\\-/]+$'\n");
     output.push_str("    Description: Existing SSM SecureString containing the pooled runtime PostgreSQL URL.\n");
+    output.push_str("  DatabaseUrlKmsKeyArn:\n");
+    output.push_str("    Type: String\n");
+    output.push_str("    Default: ''\n");
+    output.push_str(
+        "    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'\n",
+    );
+    output.push_str("    Description: Customer-managed KMS key ARN for the database parameter; leave empty only when the AWS-managed aws/ssm key is used.\n");
+    output.push_str("  LambdaSubnetIds:\n");
+    output.push_str("    Type: String\n");
+    output.push_str("    Default: ''\n");
+    output.push_str("    AllowedPattern: '^$|^subnet-[a-z0-9]+(,subnet-[a-z0-9]+)*$'\n");
+    output.push_str("    Description: Optional comma-separated private subnet IDs for an externally provisioned VPC database profile.\n");
+    output.push_str("  LambdaSecurityGroupIds:\n");
+    output.push_str("    Type: String\n");
+    output.push_str("    Default: ''\n");
+    output.push_str("    AllowedPattern: '^$|^sg-[a-z0-9]+(,sg-[a-z0-9]+)*$'\n");
+    output.push_str("    Description: Optional comma-separated security group IDs paired with LambdaSubnetIds.\n");
+    output.push_str("Rules:\n");
+    output.push_str("  VpcParametersArePaired:\n");
+    output.push_str("    Assertions:\n");
+    output.push_str("      - Assert: !Or\n");
+    output.push_str("          - !And\n");
+    output.push_str("            - !Equals [!Ref LambdaSubnetIds, '']\n");
+    output.push_str("            - !Equals [!Ref LambdaSecurityGroupIds, '']\n");
+    output.push_str("          - !And\n");
+    output.push_str("            - !Not [!Equals [!Ref LambdaSubnetIds, '']]\n");
+    output.push_str("            - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]\n");
+    output.push_str(
+        "        AssertDescription: LambdaSubnetIds and LambdaSecurityGroupIds must be set together.\n",
+    );
+    output.push_str("Conditions:\n");
+    output.push_str(
+        "  UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]\n",
+    );
+    output.push_str("  UsesVpc: !And\n");
+    output.push_str("    - !Not [!Equals [!Ref LambdaSubnetIds, '']]\n");
+    output.push_str("    - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]\n");
     output.push_str("Resources:\n");
     output.push_str("  HttpApi:\n");
     output.push_str("    Type: AWS::Serverless::HttpApi\n");
@@ -83,7 +128,7 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     writeln!(
         output,
         "      CodeUri: {}",
-        yaml_quote(&function.artifact_path)
+        yaml_quote(code_uri.unwrap_or(&function.artifact_path))
     )
     .expect("writing to String cannot fail");
     output.push_str("      Handler: bootstrap\n");
@@ -99,6 +144,11 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
         function.reserved_concurrency
     )
     .expect("writing to String cannot fail");
+    output.push_str("      VpcConfig: !If\n");
+    output.push_str("        - UsesVpc\n");
+    output.push_str("        - SubnetIds: !Split [',', !Ref LambdaSubnetIds]\n");
+    output.push_str("          SecurityGroupIds: !Split [',', !Ref LambdaSecurityGroupIds]\n");
+    output.push_str("        - !Ref AWS::NoValue\n");
     output.push_str("      Environment:\n");
     output.push_str("        Variables:\n");
     writeln!(
@@ -127,12 +177,29 @@ pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
     output.push_str("            - Effect: Allow\n");
     output.push_str("              Action: [ssm:GetParameter]\n");
     output.push_str("              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'\n");
-    output.push_str("            - Effect: Allow\n");
-    output.push_str("              Action: [kms:Decrypt]\n");
-    output.push_str("              Resource: '*'\n");
-    output.push_str("              Condition:\n");
-    output.push_str("                StringEquals:\n");
-    output.push_str("                  kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'\n");
+    output.push_str("            - !If\n");
+    output.push_str("              - UsesCustomerManagedDatabaseKey\n");
+    output.push_str("              - Effect: Allow\n");
+    output.push_str("                Action: [kms:Decrypt]\n");
+    output.push_str("                Resource: !Ref DatabaseUrlKmsKeyArn\n");
+    output.push_str("                Condition:\n");
+    output.push_str("                  StringEquals:\n");
+    output
+        .push_str("                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'\n");
+    output.push_str("                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'\n");
+    output.push_str("              - !Ref AWS::NoValue\n");
+    output.push_str("            - !If\n");
+    output.push_str("              - UsesVpc\n");
+    output.push_str("              - Effect: Allow\n");
+    output.push_str("                Action:\n");
+    output.push_str("                  - ec2:AssignPrivateIpAddresses\n");
+    output.push_str("                  - ec2:CreateNetworkInterface\n");
+    output.push_str("                  - ec2:DeleteNetworkInterface\n");
+    output.push_str("                  - ec2:DescribeNetworkInterfaces\n");
+    output.push_str("                  - ec2:DescribeSubnets\n");
+    output.push_str("                  - ec2:UnassignPrivateIpAddresses\n");
+    output.push_str("                Resource: '*'\n");
+    output.push_str("              - !Ref AWS::NoValue\n");
     output.push_str("      Events:\n");
     for route in &plan.routes {
         writeln!(output, "        {}:", event_name(&route.operation_id))
@@ -241,6 +308,8 @@ mod tests {
                 path: "/health".into(),
                 authenticated: false,
             }],
+            application_graph: minco_core::ApplicationGraph::default(),
+            local_aws_services: vec!["ssm".into(), "sts".into()],
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],
@@ -253,5 +322,23 @@ mod tests {
         assert!(yaml.contains("GetHealthEvent"));
         assert!(yaml.contains("Authorizer: NONE"));
         assert!(!yaml.contains("AllowOrigins: ['*']"));
+        assert!(yaml.contains("UsesCustomerManagedDatabaseKey"));
+        assert!(yaml.contains("Resource: !Ref DatabaseUrlKmsKeyArn"));
+        assert!(yaml.contains("mrk-[A-Fa-f0-9]+"));
+        assert!(yaml.contains("kms:EncryptionContext:PARAMETER_ARN"));
+        assert!(!yaml.contains("Action: [kms:Decrypt]\n              Resource: '*'"));
+        assert!(yaml.contains("UsesVpc: !And"));
+        assert!(yaml.contains("VpcParametersArePaired"));
+        assert!(yaml.contains(
+            "AssertDescription: LambdaSubnetIds and LambdaSecurityGroupIds must be set together."
+        ));
+        assert!(yaml.contains("VpcConfig: !If"));
+        assert!(yaml.contains("SubnetIds: !Split [',', !Ref LambdaSubnetIds]"));
+        assert!(yaml.contains("ec2:CreateNetworkInterface"));
+        assert!(!yaml.contains("AWS::EC2::NatGateway"));
+
+        let relocated =
+            render_sam_with_code_uri(&plan, Some("../../../artifact.zip")).expect("SAM");
+        assert!(relocated.contains("CodeUri: '../../../artifact.zip'"));
     }
 }

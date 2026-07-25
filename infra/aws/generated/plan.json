@@ -3,6 +3,147 @@
     "https://app.example.invalid"
   ],
   "application": "minco-orders",
+  "application_graph": {
+    "capabilities": {
+      "health.registry": "1.0.0",
+      "http.idempotency": "1.0.0",
+      "idempotency.claim": "1.0.0",
+      "idempotency.store": "1.0.0",
+      "observability.tracing": "1.0.0"
+    },
+    "health_checks": {
+      "minco-core": {
+        "critical": true,
+        "id": "minco-core"
+      }
+    },
+    "migrations": {},
+    "operations": {},
+    "plugins": [
+      {
+        "configuration": [],
+        "configuration_namespace": "plugins.health",
+        "core_compatibility": "^0.2.0",
+        "data_classes": [],
+        "default_enabled": true,
+        "description": "Liveness, readiness, and dependency health registry",
+        "documentation": "https://docs.rs/minco-plugin-health",
+        "health_checks": [
+          {
+            "critical": true,
+            "id": "minco-core"
+          }
+        ],
+        "id": "health",
+        "migrations": [],
+        "operations": [],
+        "plugin_dependencies": [],
+        "provides": [
+          {
+            "name": "health.registry",
+            "version": "1.0.0"
+          }
+        ],
+        "requires": [],
+        "resources": [],
+        "stability": "stable",
+        "version": "1.0.0"
+      },
+      {
+        "configuration": [
+          {
+            "default": 300,
+            "description": "Time after which an abandoned in-progress claim may be recovered",
+            "key": "claim_timeout_seconds",
+            "kind": "integer",
+            "required": false,
+            "secret": false
+          }
+        ],
+        "configuration_namespace": "plugins.idempotency",
+        "core_compatibility": "^0.2.0",
+        "data_classes": [
+          "internal"
+        ],
+        "default_enabled": true,
+        "description": "Atomic idempotency claims, conflict detection, replay, and storage port",
+        "documentation": "https://docs.rs/minco-plugin-idempotency",
+        "health_checks": [],
+        "id": "idempotency",
+        "migrations": [],
+        "operations": [],
+        "plugin_dependencies": [],
+        "provides": [
+          {
+            "name": "http.idempotency",
+            "version": "1.0.0"
+          },
+          {
+            "name": "idempotency.store",
+            "version": "1.0.0"
+          },
+          {
+            "name": "idempotency.claim",
+            "version": "1.0.0"
+          }
+        ],
+        "requires": [],
+        "resources": [],
+        "stability": "stable",
+        "version": "1.0.0"
+      },
+      {
+        "configuration": [
+          {
+            "default": "minco-app",
+            "description": "Stable service name included in operational telemetry",
+            "key": "service_name",
+            "kind": "string",
+            "required": false,
+            "secret": false
+          },
+          {
+            "default": true,
+            "description": "Emit structured JSON suitable for CloudWatch Logs",
+            "key": "json",
+            "kind": "boolean",
+            "required": false,
+            "secret": false
+          },
+          {
+            "default": "info,tower_http=info",
+            "description": "Fallback tracing filter when RUST_LOG is unset",
+            "key": "default_filter",
+            "kind": "string",
+            "required": false,
+            "secret": false
+          }
+        ],
+        "configuration_namespace": "plugins.observability",
+        "core_compatibility": "^0.2.0",
+        "data_classes": [],
+        "default_enabled": true,
+        "description": "Structured tracing and CloudWatch-compatible JSON logging",
+        "documentation": "https://docs.rs/minco-plugin-observability",
+        "health_checks": [],
+        "id": "observability",
+        "migrations": [],
+        "operations": [],
+        "plugin_dependencies": [],
+        "provides": [
+          {
+            "name": "observability.tracing",
+            "version": "1.0.0"
+          }
+        ],
+        "requires": [],
+        "resources": [],
+        "stability": "stable",
+        "version": "1.0.0"
+      }
+    ],
+    "resources": {}
+  },
   "auth": {
     "audiences": [
       "minco-orders"
@@ -38,6 +179,10 @@
     }
   ],
   "ingress": "api_gateway_http_api",
+  "local_aws_services": [
+    "ssm",
+    "sts"
+  ],
   "log_retention_days": 14,
   "performance_policy": {
     "max_lambda_memory_mb": 1024,

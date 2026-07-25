@@ -49,11 +49,7 @@ pub fn start_task(
     if path.exists() {
         bail!("workspace destination {} already exists", path.display());
     }
-    let command = format!(
-        "jj workspace add --name {} {}",
-        shell_word(&workspace_name),
-        shell_word(&path.display().to_string())
-    );
+    let command = workspace_add_command(&workspace_name, &path);
     require_success(&run_shell(root, &command, true)?)?;
     let describe = format!(
         "jj describe -m {}",
@@ -121,4 +117,25 @@ fn validate_task_id(value: &str) -> Result<()> {
 
 fn shell_word(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn workspace_add_command(workspace_name: &str, path: &Path) -> String {
+    format!(
+        "jj workspace add --name {} -r @ {}",
+        shell_word(workspace_name),
+        shell_word(&path.display().to_string())
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn task_workspace_is_created_on_the_current_change() {
+        assert_eq!(
+            workspace_add_command("task-m6-t04", Path::new("/tmp/minco task")),
+            "jj workspace add --name 'task-m6-t04' -r @ '/tmp/minco task'"
+        );
+    }
 }

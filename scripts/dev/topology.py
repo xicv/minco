@@ -5,33 +5,45 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import tomllib
+import subprocess
 from pathlib import Path
 
-
-def load_toml(path: Path) -> dict:
-    with path.open("rb") as source:
-        return tomllib.load(source)
+SUPPORTED_RUSTACK_SERVICES = {"dynamodb", "s3", "sqs", "ssm", "sts"}
 
 
-def local_topology(root: Path) -> dict:
-    manifest = load_toml(root / "minco.toml")
-    deployment = load_toml(root / manifest["deployment_config"])
-    catalog = load_toml(root / manifest["plugin_catalog"])
-    plugin_selection = manifest.get("plugins", {})
-    enabled = set(plugin_selection.get("enabled", []))
-    disabled = set(plugin_selection.get("disabled", []))
+def load_plan(root: Path, plan_path: Path | None) -> dict:
+    if plan_path is not None:
+        with plan_path.open(encoding="utf-8") as source:
+            return json.load(source)
+    result = subprocess.run(
+        [
+            "cargo",
+            "minco",
+            "--root",
+            str(root),
+            "--json",
+            "deploy",
+            "plan",
+            "--stdout",
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
+
+
+def local_topology(root: Path, plan_path: Path | None = None) -> dict:
+    deployment = load_plan(root, plan_path)
     selected_plugins = {
-        entry["id"]
-        for entry in catalog.get("plugin", [])
-        if entry.get("default_enabled", False)
+        plugin["id"] for plugin in deployment["application_graph"]["plugins"]
     }
-    selected_plugins.update(enabled)
-    selected_plugins.difference_update(disabled)
-
-    aws_services: set[str] = set()
-    if deployment["runtime"] == "lambda_zip_arm64":
-        aws_services.update(("ssm", "sts"))
+    aws_services = set(deployment["local_aws_services"])
+    unsupported_services = aws_services - SUPPORTED_RUSTACK_SERVICES
+    if unsupported_services:
+        unsupported = ", ".join(sorted(unsupported_services))
+        raise ValueError(f"unsupported Rustack service in deployment plan: {unsupported}")
 
     database_kind = deployment["database"]["kind"]
     compose_services = []
@@ -84,9 +96,19 @@ def local_topology(root: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument(
+        "--plan",
+        type=Path,
+        default=Path(os.environ["MINCO_DEPLOYMENT_PLAN"])
+        if os.environ.get("MINCO_DEPLOYMENT_PLAN")
+        else None,
+    )
     parser.add_argument("--format", choices=("json", "env"), default="json")
     args = parser.parse_args()
-    topology = local_topology(args.root.resolve())
+    topology = local_topology(
+        args.root.resolve(),
+        args.plan.resolve() if args.plan is not None else None,
+    )
     if args.format == "env":
         for key, value in sorted(topology["environment"].items()):
             print(f"{key}={value}")

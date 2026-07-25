@@ -104,3 +104,6 @@ cargo minco vcs status
 cargo minco vcs task-start <id> [--destination PATH]
 cargo minco vcs task-finish <id> --message TEXT [--push]
 ```
+
+`task-start` creates the new task change on top of the current change. Run it
+from the reviewed prerequisite workspace when tasks must remain ordered.

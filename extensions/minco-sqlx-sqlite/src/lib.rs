@@ -7,6 +7,8 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use std::{path::Path, str::FromStr, time::Duration};
 use thiserror::Error;
 
+pub mod plugin_adapters;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SqlitePoolConfig {
     pub url: String,
@@ -54,7 +56,8 @@ pub async fn connect(config: &SqlitePoolConfig) -> Result<SqlitePool, SqliteErro
     config.validate()?;
     let mut options = SqliteConnectOptions::from_str(&config.url)?
         .create_if_missing(!config.is_memory())
-        .foreign_keys(true);
+        .foreign_keys(true)
+        .busy_timeout(Duration::from_secs(config.acquire_timeout_seconds));
     if !config.is_memory() {
         options = options.journal_mode(SqliteJournalMode::Wal);
     }
@@ -71,6 +74,18 @@ pub async fn migrate(pool: &SqlitePool, path: impl AsRef<Path>) -> Result<(), Sq
     Ok(())
 }
 
+pub async fn migrate_with_history_table(
+    pool: &SqlitePool,
+    path: impl AsRef<Path>,
+    history_table: &'static str,
+) -> Result<(), SqliteError> {
+    validate_identifier(history_table, "migration history table")?;
+    let mut migrator = sqlx::migrate::Migrator::new(path.as_ref()).await?;
+    migrator.dangerous_set_table_name(history_table);
+    migrator.run(pool).await?;
+    Ok(())
+}
+
 pub async fn ready(pool: &SqlitePool) -> bool {
     matches!(
         sqlx::query_scalar::<_, i64>("SELECT 1")
@@ -78,6 +93,22 @@ pub async fn ready(pool: &SqlitePool) -> bool {
             .await,
         Ok(1)
     )
+}
+
+fn validate_identifier(value: &str, description: &str) -> Result<(), SqliteError> {
+    let mut bytes = value.bytes();
+    let valid_start = bytes
+        .next()
+        .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_');
+    if !valid_start
+        || value.len() > 63
+        || !bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        return Err(SqliteError::InvalidConfig(format!(
+            "{description} must be a SQLite identifier of at most 63 ASCII characters"
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Error)]
@@ -98,5 +129,15 @@ mod tests {
         let mut config = SqlitePoolConfig::memory();
         config.max_connections = 2;
         assert!(config.validate().is_err());
+    }
+
+    #[tokio::test]
+    async fn migration_history_table_rejects_dynamic_sql_tokens() {
+        let pool = connect(&SqlitePoolConfig::memory())
+            .await
+            .expect("in-memory pool");
+        let result =
+            migrate_with_history_table(&pool, Path::new("missing"), "_migrations;DROP").await;
+        assert!(matches!(result, Err(SqliteError::InvalidConfig(_))));
     }
 }

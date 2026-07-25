@@ -7,12 +7,26 @@ use sqlx::postgres::PgPoolOptions;
 use std::{path::Path, time::Duration};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub mod plugin_adapters;
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PostgresPoolConfig {
     pub url: String,
     pub max_connections: u32,
     pub acquire_timeout_seconds: u64,
     pub idle_timeout_seconds: u64,
+}
+
+impl std::fmt::Debug for PostgresPoolConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PostgresPoolConfig")
+            .field("url", &"[REDACTED DATABASE URL]")
+            .field("max_connections", &self.max_connections)
+            .field("acquire_timeout_seconds", &self.acquire_timeout_seconds)
+            .field("idle_timeout_seconds", &self.idle_timeout_seconds)
+            .finish()
+    }
 }
 
 impl PostgresPoolConfig {
@@ -64,6 +78,18 @@ pub async fn migrate(pool: &PgPool, path: impl AsRef<Path>) -> Result<(), Postgr
     Ok(())
 }
 
+pub async fn migrate_with_history_table(
+    pool: &PgPool,
+    path: impl AsRef<Path>,
+    history_table: &'static str,
+) -> Result<(), PostgresError> {
+    validate_identifier(history_table, "migration history table")?;
+    let mut migrator = sqlx::migrate::Migrator::new(path.as_ref()).await?;
+    migrator.dangerous_set_table_name(history_table);
+    migrator.run(pool).await?;
+    Ok(())
+}
+
 pub async fn ready(pool: &PgPool) -> bool {
     matches!(
         sqlx::query_scalar::<_, i32>("SELECT 1")
@@ -71,6 +97,22 @@ pub async fn ready(pool: &PgPool) -> bool {
             .await,
         Ok(1)
     )
+}
+
+fn validate_identifier(value: &str, description: &str) -> Result<(), PostgresError> {
+    let mut bytes = value.bytes();
+    let valid_start = bytes
+        .next()
+        .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_');
+    if !valid_start
+        || value.len() > 63
+        || !bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        return Err(PostgresError::InvalidConfig(format!(
+            "{description} must be a PostgreSQL identifier of at most 63 ASCII characters"
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Error)]
@@ -91,5 +133,23 @@ mod tests {
         let config = PostgresPoolConfig::serverless("postgres://example.invalid/db");
         assert_eq!(config.max_connections, 2);
         assert_eq!(config.acquire_timeout_seconds, 5);
+    }
+
+    #[test]
+    fn pool_configuration_debug_redacts_database_credentials() {
+        let config =
+            PostgresPoolConfig::serverless("postgres://minco:secret-password@example.invalid/db");
+        let debug = format!("{config:?}");
+        assert!(!debug.contains("secret-password"));
+        assert!(!debug.contains("postgres://"));
+    }
+
+    #[tokio::test]
+    async fn migration_history_table_rejects_dynamic_sql_tokens() {
+        let config = PostgresPoolConfig::serverless("postgres://example.invalid/db");
+        let pool = connect_lazy(&config).expect("lazy pool");
+        let result =
+            migrate_with_history_table(&pool, Path::new("missing"), "_migrations;DROP").await;
+        assert!(matches!(result, Err(PostgresError::InvalidConfig(_))));
     }
 }

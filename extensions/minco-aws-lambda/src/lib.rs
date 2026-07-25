@@ -31,6 +31,10 @@ pub fn principal_from_request_context(context: Option<&RequestContext>) -> Optio
         .pointer("/jwt/claims")
         .or_else(|| value.get("claims"))?
         .as_object()?;
+    principal_from_claims(claims)
+}
+
+fn principal_from_claims(claims: &serde_json::Map<String, serde_json::Value>) -> Option<Principal> {
     let subject = claims.get("sub")?.as_str()?.trim();
     if subject.is_empty() {
         return None;
@@ -40,7 +44,7 @@ pub fn principal_from_request_context(context: Option<&RequestContext>) -> Optio
         .filter_map(|(key, value)| value.as_str().map(|value| (key.clone(), value.to_owned())))
         .collect::<BTreeMap<_, _>>();
     let mut permissions = BTreeSet::new();
-    for claim in ["scope", "permissions"] {
+    for claim in ["scope", "permissions", "custom:permissions"] {
         if let Some(value) = claims.get(claim) {
             permissions.extend(
                 value
@@ -84,5 +88,19 @@ mod tests {
     #[test]
     fn absent_gateway_context_is_anonymous() {
         assert!(principal_from_request_context(None).is_none());
+    }
+
+    #[test]
+    fn maps_locked_cognito_permission_attributes() {
+        let claims = serde_json::json!({
+            "sub": "smoke-user",
+            "custom:permissions": "orders.create orders.read",
+            "aud": "client-id"
+        });
+        let principal =
+            principal_from_claims(claims.as_object().expect("claims")).expect("principal");
+        assert_eq!(principal.subject, "smoke-user");
+        assert!(principal.permissions.contains("orders.create"));
+        assert!(principal.permissions.contains("orders.read"));
     }
 }

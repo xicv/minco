@@ -21,7 +21,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head"}
-IGNORED_PARTS = {"target", ".git", ".jj", "__pycache__", "node_modules"}
+IGNORED_PARTS = {"target", ".git", ".jj", ".venv", "__pycache__", "node_modules"}
 
 
 def report_root(root: Path, default_root: Path = ROOT) -> str:
@@ -108,6 +108,7 @@ class Validator:
     def validate_required_files(self) -> None:
         required = [
             "Cargo.toml", "rust-toolchain.toml", "minco.toml", "quality.toml",
+            "pyproject.toml", "uv.lock",
             "README.md", "AGENTS.md", "CODEX_HANDOFF.md", "VERIFICATION.md",
             "PUBLISHING.md",
             "SECURITY.md", "CONTRIBUTING.md", "LICENSE-MIT", "LICENSE-APACHE",
@@ -427,6 +428,26 @@ class Validator:
                 self.error("STATIC-QUALITY-001", f"quality gate {required} has no commands", path)
             if not all(isinstance(command, str) and command.strip() for command in commands):
                 self.error("STATIC-QUALITY-002", f"quality gate {required} has an invalid command", path)
+        for command in gates.get("static", {}).get("commands", []):
+            if ".py" in command and not command.startswith("uv run --locked python "):
+                self.error(
+                    "STATIC-QUALITY-003",
+                    f"Python quality command does not use the locked uv environment: {command}",
+                    path,
+                )
+        workflow_root = self.root / ".github/workflows"
+        for workflow in sorted(workflow_root.glob("*.y*ml")):
+            for action, reference in re.findall(
+                r"^\s*(?:-\s*)?uses:\s*([^@\s]+)@([^\s#]+)",
+                workflow.read_text(),
+                flags=re.MULTILINE,
+            ):
+                if not re.fullmatch(r"[0-9a-f]{40}", reference):
+                    self.error(
+                        "STATIC-QUALITY-004",
+                        f"GitHub action is not pinned to an immutable commit: {action}@{reference}",
+                        workflow,
+                    )
 
     def validate_rust_lexically(self) -> None:
         count = 0

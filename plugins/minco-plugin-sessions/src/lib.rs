@@ -75,6 +75,14 @@ impl SessionTokenHash {
     pub fn constant_time_eq(&self, other: &Self) -> bool {
         bool::from(self.0.ct_eq(&other.0))
     }
+
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
 }
 
 impl std::fmt::Debug for SessionTokenHash {
@@ -265,11 +273,14 @@ impl SessionService {
         }
         let token = SessionToken::generate();
         let now = Utc::now();
+        let expires_at = now
+            .checked_add_signed(command.ttl)
+            .ok_or(SessionError::InvalidSession)?;
         let session = SessionRecord {
             id: SessionId::new(),
             subject: command.subject,
             created_at: now,
-            expires_at: now + command.ttl,
+            expires_at,
             revoked_at: None,
             attributes: command.attributes,
         };
@@ -449,7 +460,7 @@ impl Plugin for SessionsPlugin {
 pub enum SessionError {
     #[error("session token is malformed")]
     InvalidToken,
-    #[error("session subject and positive TTL are required")]
+    #[error("session subject and a positive, representable TTL are required")]
     InvalidSession,
     #[error("session is not authenticated")]
     Unauthenticated,
@@ -486,6 +497,21 @@ mod tests {
         assert!(matches!(
             service.resolve(&issued.token).await,
             Err(SessionError::Unauthenticated)
+        ));
+    }
+
+    #[tokio::test]
+    async fn session_expiry_overflow_fails_without_panicking() {
+        let service = SessionService::new(Arc::new(MemorySessionStore::default()));
+        assert!(matches!(
+            service
+                .issue(CreateSession {
+                    subject: "client-1".into(),
+                    ttl: TimeDelta::MAX,
+                    attributes: BTreeMap::new(),
+                })
+                .await,
+            Err(SessionError::InvalidSession)
         ));
     }
 

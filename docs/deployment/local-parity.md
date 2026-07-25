@@ -20,3 +20,10 @@ variables. In addition to direct S3, SQS, SSM and STS compatibility, it creates
 and loads an SSM SecureString through the real
 `minco-aws-lambda::load_secure_parameter` SDK adapter. Disposable real AWS
 remains the fidelity authority.
+
+`scripts/dev/topology.py` consumes canonical Plan IR from
+`cargo minco deploy plan --stdout --json`; it does not independently infer
+plugin selection from `minco.toml` or `plugins/catalog.toml`. Set
+`MINCO_DEPLOYMENT_PLAN` to a reviewed plan file for deterministic offline CI.
+The plan contains descriptor metadata and derived local AWS service names, but
+never plugin secret values.

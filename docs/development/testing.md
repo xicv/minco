@@ -3,6 +3,10 @@
 Minco tests itself at several boundaries. The local runner is authoritative;
 the optional GitHub workflow merely invokes the same commands.
 
+Repository Python dependencies are declared in `pyproject.toml` and pinned in
+`uv.lock`. Run `uv sync --locked --only-dev` after checkout; quality commands
+use `uv run --locked` and fail rather than rewriting the lock.
+
 ## Test tiers
 
 | Tier | Command | Purpose |
@@ -43,7 +47,8 @@ not substitute for those gates.
 ## Optional GitHub Actions
 
 `.github/workflows/minco-manual.yml` is deliberately `workflow_dispatch` only.
-It does not run until a maintainer explicitly enables/invokes it. This avoids
+It does not run until a maintainer explicitly invokes it. The workflow installs
+the exact uv release and locked Python dependency group used locally. This avoids
 making hosted CI a prerequisite while retaining a reproducible runner config.
 
 ## Evidence

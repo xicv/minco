@@ -122,7 +122,7 @@ pub struct FeedbackConfig {
     pub max_recording_seconds: u32,
     #[serde(default)]
     pub project_key: Option<String>,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub allow_anonymous: bool,
     #[serde(default)]
     pub developer_token: Option<String>,
@@ -183,7 +183,10 @@ impl std::fmt::Debug for FeedbackConfig {
                 &self.developer_token.as_ref().map(|_| "[REDACTED]"),
             )
             .field("developer_recipient", &self.developer_recipient)
-            .field("developer_link_base", &self.developer_link_base)
+            .field(
+                "developer_link_base_configured",
+                &self.developer_link_base.is_some(),
+            )
             .field("notify_client_updates", &self.notify_client_updates)
             .field("publish_events_inline", &self.publish_events_inline)
             .field("transcription_enabled", &self.transcription_enabled)
@@ -215,7 +218,7 @@ impl Default for FeedbackConfig {
             max_attachments: default_max_attachments(),
             max_recording_seconds: default_recording_seconds(),
             project_key: None,
-            allow_anonymous: true,
+            allow_anonymous: false,
             developer_token: None,
             developer_recipient: default_developer_recipient(),
             developer_link_base: None,
@@ -290,6 +293,11 @@ impl FeedbackConfig {
         if self.auto_transcribe_audio && !self.transcription_enabled {
             return Err(FeedbackServiceError::Configuration(
                 "auto_transcribe_audio requires transcription_enabled".into(),
+            ));
+        }
+        if self.transcription_enabled && (self.allow_anonymous || self.project_key.is_some()) {
+            return Err(FeedbackServiceError::Configuration(
+                "transcription_enabled requires authenticated feedback.create submissions; it cannot be combined with allow_anonymous or project_key".into(),
             ));
         }
         if self.redact_query_parameters.iter().any(|value| {
@@ -578,30 +586,40 @@ impl FeedbackService {
         id: FeedbackId,
         token: &FeedbackAccessToken,
     ) -> Result<FeedbackThread, FeedbackServiceError> {
-        self.store
-            .get_for_client(id, &hash_access_token(token))
-            .await?
-            .map(|thread| thread.client_view())
-            .ok_or(FeedbackServiceError::ClientAccessDenied)
+        Ok(self.client_thread(id, token).await?.client_view())
     }
 
     pub async fn get_for_developer(
         &self,
         id: FeedbackId,
     ) -> Result<FeedbackThread, FeedbackServiceError> {
-        self.store
+        let thread = self
+            .store
             .get(id)
             .await?
-            .ok_or(FeedbackServiceError::NotFound(id))
+            .ok_or(FeedbackServiceError::NotFound(id))?;
+        if thread.project_id != self.config.project_id {
+            return Err(FeedbackServiceError::NotFound(id));
+        }
+        Ok(thread)
     }
 
     pub async fn list(
         &self,
         mut filter: FeedbackListFilter,
     ) -> Result<Vec<FeedbackSummary>, FeedbackServiceError> {
-        if filter.project_id.is_none() {
-            filter.project_id = Some(self.config.project_id.clone());
+        if filter
+            .project_id
+            .as_deref()
+            .is_some_and(|project_id| project_id != self.config.project_id)
+        {
+            return Err(FeedbackValidationError::InvalidField {
+                field: "project_id",
+                detail: "does not match the configured feedback project".into(),
+            }
+            .into());
         }
+        filter.project_id = Some(self.config.project_id.clone());
         Ok(self.store.list(filter).await?)
     }
 
@@ -612,11 +630,7 @@ impl FeedbackService {
         body: impl Into<String>,
         correlation_id: Uuid,
     ) -> Result<FeedbackMutationResult, FeedbackServiceError> {
-        let mut thread = self
-            .store
-            .get_for_client(id, &hash_access_token(token))
-            .await?
-            .ok_or(FeedbackServiceError::ClientAccessDenied)?;
+        let mut thread = self.client_thread(id, token).await?;
         let expected_revision = thread.revision;
         thread.append_message(FeedbackMessage::client(body)?);
         if thread.status == FeedbackStatus::NeedsClarification {
@@ -629,6 +643,7 @@ impl FeedbackService {
                 "feedback.client_replied",
                 "Client replied to feedback",
                 NotificationAudience::Developer,
+                thread.context.client_subject.clone(),
                 correlation_id,
             )
             .await;
@@ -642,6 +657,7 @@ impl FeedbackService {
         &self,
         id: FeedbackId,
         input: DeveloperReplyInput,
+        actor_subject: String,
         correlation_id: Uuid,
     ) -> Result<FeedbackMutationResult, FeedbackServiceError> {
         let mut thread = self.get_for_developer(id).await?;
@@ -672,6 +688,7 @@ impl FeedbackService {
                 } else {
                     NotificationAudience::None
                 },
+                Some(actor_subject),
                 correlation_id,
             )
             .await;
@@ -682,6 +699,7 @@ impl FeedbackService {
         &self,
         id: FeedbackId,
         input: TransitionFeedbackInput,
+        actor_subject: String,
         correlation_id: Uuid,
     ) -> Result<FeedbackMutationResult, FeedbackServiceError> {
         let mut thread = self.get_for_developer(id).await?;
@@ -706,6 +724,7 @@ impl FeedbackService {
                 } else {
                     NotificationAudience::None
                 },
+                Some(actor_subject),
                 correlation_id,
             )
             .await;
@@ -753,12 +772,24 @@ impl FeedbackService {
         token: &FeedbackAccessToken,
         attachment_id: Uuid,
     ) -> Result<StoredObject, FeedbackServiceError> {
+        let thread = self.client_thread(id, token).await?;
+        self.load_attachment(&thread, attachment_id).await
+    }
+
+    async fn client_thread(
+        &self,
+        id: FeedbackId,
+        token: &FeedbackAccessToken,
+    ) -> Result<FeedbackThread, FeedbackServiceError> {
         let thread = self
             .store
             .get_for_client(id, &hash_access_token(token))
             .await?
             .ok_or(FeedbackServiceError::ClientAccessDenied)?;
-        self.load_attachment(&thread, attachment_id).await
+        if thread.project_id != self.config.project_id {
+            return Err(FeedbackServiceError::ClientAccessDenied);
+        }
+        Ok(thread)
     }
 
     async fn load_attachment(
@@ -828,9 +859,10 @@ impl FeedbackService {
             {
                 Ok(transcript) => Some(transcript.text),
                 Err(error) => {
-                    warnings.push(FeedbackWarning::new(
+                    warnings.push(downstream_warning(
                         "feedback_transcription_failed",
-                        error.to_string(),
+                        "Audio was stored, but automatic transcription did not complete.",
+                        &error,
                     ));
                     None
                 }
@@ -935,6 +967,7 @@ impl FeedbackService {
             "feedback.created",
             "New client feedback",
             NotificationAudience::Developer,
+            thread.context.client_subject.clone(),
             correlation_id,
         )
         .await
@@ -946,6 +979,7 @@ impl FeedbackService {
         event_type: &str,
         title: &str,
         audience: NotificationAudience,
+        actor_subject: Option<String>,
         correlation_id: Uuid,
     ) -> Vec<FeedbackWarning> {
         let mut warnings = Vec::new();
@@ -956,9 +990,7 @@ impl FeedbackService {
             thread.id.to_string(),
             correlation_id,
         );
-        audit
-            .actor_subject
-            .clone_from(&thread.context.client_subject);
+        audit.actor_subject = actor_subject;
         audit.metadata.insert(
             "project_id".into(),
             serde_json::Value::String(thread.project_id.clone()),
@@ -968,9 +1000,10 @@ impl FeedbackService {
             serde_json::Value::String(thread.status.to_string()),
         );
         if let Err(error) = self.audit.append(audit).await {
-            warnings.push(FeedbackWarning::new(
+            warnings.push(downstream_warning(
                 "feedback_audit_failed",
-                error.to_string(),
+                "Feedback was saved, but audit recording did not complete.",
+                &error,
             ));
         }
 
@@ -979,9 +1012,10 @@ impl FeedbackService {
         if let Some(notification) = self.notification(thread, event_type, title, audience)
             && let Err(error) = self.notifications.send(notification).await
         {
-            warnings.push(FeedbackWarning::new(
+            warnings.push(downstream_warning(
                 "feedback_notification_failed",
-                error.to_string(),
+                "Feedback was saved, but notification delivery did not complete.",
+                &error,
             ));
         }
 
@@ -997,9 +1031,10 @@ impl FeedbackService {
         let payload = match serde_json::to_value(thread) {
             Ok(value) => value,
             Err(error) => {
-                return vec![FeedbackWarning::new(
+                return vec![downstream_warning(
                     "feedback_event_serialization_failed",
-                    error.to_string(),
+                    "Feedback was saved, but event preparation did not complete.",
+                    &error,
                 )];
             }
         };
@@ -1012,9 +1047,10 @@ impl FeedbackService {
         );
         let record = OutboxRecord::pending(event.clone());
         if let Err(error) = self.events.outbox.enqueue(record).await {
-            return vec![FeedbackWarning::new(
+            return vec![downstream_warning(
                 "feedback_event_enqueue_failed",
-                error.to_string(),
+                "Feedback was saved, but event queuing did not complete.",
+                &error,
             )];
         }
         if !self.config.publish_events_inline {
@@ -1035,9 +1071,10 @@ impl FeedbackService {
                 )];
             }
             Err(error) => {
-                return vec![FeedbackWarning::new(
+                return vec![downstream_warning(
                     "feedback_event_claim_failed",
-                    error.to_string(),
+                    "The feedback event was queued, but immediate publication did not start.",
+                    &error,
                 )];
             }
         };
@@ -1049,9 +1086,10 @@ impl FeedbackService {
                     .mark_published(event.id, &worker_id)
                     .await
                 {
-                    vec![FeedbackWarning::new(
+                    vec![downstream_warning(
                         "feedback_event_mark_published_failed",
-                        error.to_string(),
+                        "The feedback event was published, but its delivery state was not finalized.",
+                        &error,
                     )]
                 } else {
                     Vec::new()
@@ -1069,9 +1107,10 @@ impl FeedbackService {
                         Utc::now() + TimeDelta::seconds(30),
                     )
                     .await;
-                vec![FeedbackWarning::new(
+                vec![downstream_warning(
                     "feedback_event_publish_failed",
-                    detail,
+                    "The feedback event was queued, but immediate publication did not complete.",
+                    &error,
                 )]
             }
         }
@@ -1139,6 +1178,15 @@ fn safe_file_name(value: &str) -> String {
     } else {
         safe
     }
+}
+
+fn downstream_warning(
+    code: &'static str,
+    public_detail: &'static str,
+    error: &impl std::fmt::Display,
+) -> FeedbackWarning {
+    tracing::warn!(warning_code = code, %error, "feedback downstream action failed");
+    FeedbackWarning::new(code, public_detail)
 }
 
 fn validate_config_text(
@@ -1315,6 +1363,48 @@ mod tests {
         let config = FeedbackConfig::default();
         assert_eq!(config.token_storage, FeedbackTokenStorage::Session);
         assert_eq!(config.widget_config().token_storage, "session");
+        assert!(!config.allow_anonymous);
+
+        let deserialized: FeedbackConfig =
+            serde_json::from_value(serde_json::json!({"project_id": "example"})).unwrap();
+        assert!(!deserialized.allow_anonymous);
+    }
+
+    #[test]
+    fn public_submission_modes_cannot_enable_transcription() {
+        for config in [
+            FeedbackConfig {
+                project_id: "example".into(),
+                transcription_enabled: true,
+                allow_anonymous: true,
+                ..FeedbackConfig::default()
+            },
+            FeedbackConfig {
+                project_id: "example".into(),
+                transcription_enabled: true,
+                project_key: Some("browser-visible-key".into()),
+                ..FeedbackConfig::default()
+            },
+        ] {
+            assert!(matches!(
+                config.validate(),
+                Err(FeedbackServiceError::Configuration(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn downstream_warning_details_do_not_expose_provider_diagnostics() {
+        let warning = downstream_warning(
+            "feedback_transcription_failed",
+            "Audio transcription did not complete.",
+            &TranscriptionError::Provider(
+                "provider response containing sensitive diagnostics".into(),
+            ),
+        );
+
+        assert_eq!(warning.detail, "Audio transcription did not complete.");
+        assert!(!warning.detail.contains("sensitive diagnostics"));
     }
 
     fn input() -> CreateFeedbackInput {
@@ -1389,11 +1479,23 @@ mod tests {
                     visible_to_client: true,
                     author_display: Some("developer".into()),
                 },
+                "developer-1".into(),
                 Uuid::now_v7(),
             )
             .await
             .unwrap();
         assert_eq!(result.thread.status, FeedbackStatus::NeedsClarification);
+        assert_eq!(
+            harness
+                .audit
+                .all()
+                .await
+                .last()
+                .unwrap()
+                .actor_subject
+                .as_deref(),
+            Some("developer-1")
+        );
     }
 
     #[tokio::test]
@@ -1418,6 +1520,56 @@ mod tests {
                 .await
                 .is_ok()
         );
+    }
+
+    #[tokio::test]
+    async fn developer_access_is_scoped_to_the_configured_project() {
+        let store = Arc::new(MemoryFeedbackStore::default());
+        let foreign_token = FeedbackAccessToken::generate();
+        let foreign_thread = FeedbackThread::create(CreateFeedbackInput {
+            project_id: "foreign".into(),
+            ..input()
+        })
+        .unwrap();
+        let foreign_id = foreign_thread.id;
+        store
+            .create(foreign_thread, hash_access_token(&foreign_token))
+            .await
+            .unwrap();
+        let harness = harness_with_store(
+            FeedbackStoreService::new(store),
+            FeedbackConfig {
+                project_id: "example".into(),
+                ..FeedbackConfig::default()
+            },
+        );
+
+        assert!(matches!(
+            harness.service.get_for_developer(foreign_id).await,
+            Err(FeedbackServiceError::NotFound(id)) if id == foreign_id
+        ));
+        assert!(matches!(
+            harness
+                .service
+                .get_for_client(foreign_id, &foreign_token)
+                .await,
+            Err(FeedbackServiceError::ClientAccessDenied)
+        ));
+        assert!(matches!(
+            harness
+                .service
+                .list(FeedbackListFilter {
+                    project_id: Some("foreign".into()),
+                    ..FeedbackListFilter::default()
+                })
+                .await,
+            Err(FeedbackServiceError::Validation(
+                FeedbackValidationError::InvalidField {
+                    field: "project_id",
+                    ..
+                }
+            ))
+        ));
     }
 
     #[tokio::test]

@@ -22,3 +22,8 @@ manifests, roadmap/task views, updates, and JJ-first task workflows.
 
 Publishing and mutating deployment actions remain explicit; the CLI does not
 silently upload crates or change cloud resources.
+
+`cargo minco deploy plan --stdout --json` emits canonical Plan IR without
+writing a repository artifact. Local topology tooling uses this mode so plugin
+selection and Rustack service startup consume the same validated graph as
+deployment planning.

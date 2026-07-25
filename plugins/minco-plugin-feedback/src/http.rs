@@ -87,16 +87,10 @@ async fn create_feedback(
     multipart: Multipart,
 ) -> Result<(StatusCode, Json<ClientCreateResponse>), ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_submission(
-        &headers,
-        &state.config,
-        principal.as_ref().map(|Extension(value)| value),
-        &request_id,
-    )?;
+    let principal = principal.as_ref().map(|Extension(value)| value);
+    authorize_submission(&headers, &state.config, principal, &request_id)?;
     let (mut input, attachments) = read_submission(multipart, &state.config, &request_id).await?;
-    if let Some(Extension(principal)) = principal {
-        input.context.client_subject = Some(principal.subject);
-    }
+    bind_client_subject(&mut input, principal);
     let result = state
         .service
         .create(input, attachments, Uuid::now_v7())
@@ -169,7 +163,7 @@ async fn transcribe_audio(
     mut multipart: Multipart,
 ) -> Result<Json<Transcript>, ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_submission(
+    authorize_transcription(
         &headers,
         &state.config,
         principal.as_ref().map(|Extension(value)| value),
@@ -260,7 +254,7 @@ async fn list_developer_feedback(
     headers: HeaderMap,
 ) -> Result<Json<Vec<crate::FeedbackSummary>>, ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_developer(
+    let _developer_actor = authorize_developer(
         &headers,
         &state.config,
         principal.as_ref().map(|Extension(value)| value),
@@ -282,7 +276,7 @@ async fn get_developer_feedback(
     headers: HeaderMap,
 ) -> Result<Json<FeedbackThread>, ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_developer(
+    let _developer_actor = authorize_developer(
         &headers,
         &state.config,
         principal.as_ref().map(|Extension(value)| value),
@@ -306,22 +300,20 @@ async fn developer_reply(
     Json(mut input): Json<DeveloperReplyInput>,
 ) -> Result<Json<FeedbackMutationResult>, ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_developer(
+    let developer_actor = authorize_developer(
         &headers,
         &state.config,
         principal.as_ref().map(|Extension(value)| value),
         &request_id,
     )?;
-    if input.author_display.is_none()
-        && let Some(Extension(principal)) = principal
-    {
+    if let Some(Extension(principal)) = principal {
         input.author_display = Some(principal.subject);
     }
     let id = parse_feedback_id(&id, &request_id)?;
     Ok(Json(
         state
             .service
-            .reply_as_developer(id, input, Uuid::now_v7())
+            .reply_as_developer(id, input, developer_actor, Uuid::now_v7())
             .await
             .map_err(|error| map_error(error, &request_id))?,
     ))
@@ -335,22 +327,20 @@ async fn transition_feedback(
     Json(mut input): Json<TransitionFeedbackInput>,
 ) -> Result<Json<FeedbackMutationResult>, ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_developer(
+    let developer_actor = authorize_developer(
         &headers,
         &state.config,
         principal.as_ref().map(|Extension(value)| value),
         &request_id,
     )?;
-    if input.author_display.is_none()
-        && let Some(Extension(principal)) = principal
-    {
+    if let Some(Extension(principal)) = principal {
         input.author_display = Some(principal.subject);
     }
     let id = parse_feedback_id(&id, &request_id)?;
     Ok(Json(
         state
             .service
-            .transition(id, input, Uuid::now_v7())
+            .transition(id, input, developer_actor, Uuid::now_v7())
             .await
             .map_err(|error| map_error(error, &request_id))?,
     ))
@@ -363,7 +353,7 @@ async fn feedback_ai_context(
     headers: HeaderMap,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_developer(
+    let _developer_actor = authorize_developer(
         &headers,
         &state.config,
         principal.as_ref().map(|Extension(value)| value),
@@ -397,7 +387,7 @@ async fn developer_attachment(
     headers: HeaderMap,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
-    authorize_developer(
+    let _developer_actor = authorize_developer(
         &headers,
         &state.config,
         principal.as_ref().map(|Extension(value)| value),
@@ -586,15 +576,38 @@ fn authorize_submission(
     }
 }
 
-fn authorize_developer(
+fn authorize_transcription(
     headers: &HeaderMap,
     config: &FeedbackConfig,
     principal: Option<&Principal>,
     request_id: &str,
 ) -> Result<(), ApiFailure> {
+    authorize_submission(headers, config, principal, request_id)?;
+    if principal.is_some() {
+        return Ok(());
+    }
+    Err(ApiFailure::new(
+        StatusCode::FORBIDDEN,
+        "feedback_transcription_authentication_required",
+        "Voice transcription requires authentication",
+        "Sign in with feedback.create permission before requesting voice transcription.",
+        request_id,
+    ))
+}
+
+fn bind_client_subject(input: &mut CreateFeedbackInput, principal: Option<&Principal>) {
+    input.context.client_subject = principal.map(|principal| principal.subject.clone());
+}
+
+fn authorize_developer(
+    headers: &HeaderMap,
+    config: &FeedbackConfig,
+    principal: Option<&Principal>,
+    request_id: &str,
+) -> Result<String, ApiFailure> {
     if let Some(principal) = principal {
         if principal.has_permission("feedback.manage") {
-            return Ok(());
+            return Ok(principal.subject.clone());
         }
         return Err(ApiFailure::new(
             StatusCode::FORBIDDEN,
@@ -619,7 +632,7 @@ fn authorize_developer(
         .and_then(|value| value.strip_prefix("Bearer "))
         .unwrap_or_default();
     if constant_time_equals(expected, supplied) {
-        Ok(())
+        Ok("feedback-developer-token".into())
     } else {
         Err(ApiFailure::new(
             StatusCode::UNAUTHORIZED,
@@ -969,6 +982,62 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
+    fn feedback_submission_is_not_anonymous_by_default() {
+        let failure = authorize_submission(
+            &HeaderMap::new(),
+            &FeedbackConfig::default(),
+            None,
+            "request-1",
+        )
+        .expect_err("anonymous feedback must require explicit configuration");
+
+        assert_eq!(failure.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(failure.code.as_ref(), "feedback_authentication_required");
+    }
+
+    #[test]
+    fn anonymous_submission_cannot_choose_an_audit_or_notification_subject() {
+        let mut input = CreateFeedbackInput {
+            project_id: "example".into(),
+            kind: FeedbackKind::Bug,
+            priority: FeedbackPriority::Normal,
+            title: "Example".into(),
+            description: "Example problem".into(),
+            context: crate::FeedbackContext {
+                page_url: "https://example.test".into(),
+                route_name: None,
+                release_id: None,
+                environment: None,
+                request_id: None,
+                user_agent: None,
+                viewport: None,
+                client_subject: Some("spoofed-subject".into()),
+            },
+            tags: BTreeSet::new(),
+        };
+
+        bind_client_subject(&mut input, None);
+
+        assert!(input.context.client_subject.is_none());
+    }
+
+    #[test]
+    fn transcription_requires_an_authenticated_principal() {
+        let config = FeedbackConfig {
+            allow_anonymous: true,
+            ..FeedbackConfig::default()
+        };
+        let failure = authorize_transcription(&HeaderMap::new(), &config, None, "request-1")
+            .expect_err("anonymous transcription must fail closed");
+
+        assert_eq!(failure.status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            failure.code.as_ref(),
+            "feedback_transcription_authentication_required"
+        );
     }
 
     #[test]

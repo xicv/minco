@@ -1,4 +1,5 @@
 use minco_contract::{ContractDocument, HttpMethod};
+use minco_core::{ApplicationGraph, ResourceKind};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -46,6 +47,15 @@ pub struct DeploymentConfig {
 impl DeploymentConfig {
     #[must_use]
     pub fn into_plan(self, contract: &ContractDocument) -> DeploymentPlan {
+        self.into_plan_with_graph(contract, ApplicationGraph::default())
+    }
+
+    #[must_use]
+    pub fn into_plan_with_graph(
+        self,
+        contract: &ContractDocument,
+        application_graph: ApplicationGraph,
+    ) -> DeploymentPlan {
         let routes = contract
             .operations
             .iter()
@@ -56,6 +66,8 @@ impl DeploymentConfig {
                 authenticated: operation.authenticated,
             })
             .collect();
+        let local_aws_services =
+            local_aws_services(&self.runtime, &self.database, &application_graph);
         DeploymentPlan {
             schema_version: self.schema_version,
             application: self.application,
@@ -67,6 +79,8 @@ impl DeploymentConfig {
             database: self.database,
             functions: self.functions,
             routes,
+            application_graph,
+            local_aws_services,
             scheduled_wakeups: self.scheduled_wakeups,
             uses_nat_gateway: self.uses_nat_gateway,
             allowed_origins: self.allowed_origins,
@@ -89,12 +103,48 @@ pub struct DeploymentPlan {
     pub database: DatabaseDeployment,
     pub functions: Vec<FunctionPlan>,
     pub routes: Vec<RoutePlan>,
+    #[serde(default)]
+    pub application_graph: ApplicationGraph,
+    #[serde(default)]
+    pub local_aws_services: Vec<String>,
     pub scheduled_wakeups: Vec<String>,
     pub uses_nat_gateway: bool,
     pub allowed_origins: Vec<String>,
     pub log_retention_days: u32,
     pub cost_policy: CostPolicy,
     pub performance_policy: PerformancePolicy,
+}
+
+fn local_aws_services(
+    runtime: &RuntimePlan,
+    database: &DatabaseDeployment,
+    graph: &ApplicationGraph,
+) -> Vec<String> {
+    let mut services = std::collections::BTreeSet::new();
+    if matches!(runtime, RuntimePlan::LambdaZipArm64) {
+        services.extend(["ssm".to_owned(), "sts".to_owned()]);
+    }
+    if matches!(database, DatabaseDeployment::DynamoDbOnDemand { .. }) {
+        services.insert("dynamodb".into());
+    }
+    for resource in graph.resources.values() {
+        match resource.kind {
+            ResourceKind::S3Bucket => {
+                services.insert("s3".into());
+            }
+            ResourceKind::SqsQueue => {
+                services.insert("sqs".into());
+            }
+            ResourceKind::SsmParameter => {
+                services.insert("ssm".into());
+            }
+            ResourceKind::DynamoDb => {
+                services.insert("dynamodb".into());
+            }
+            _ => {}
+        }
+    }
+    services.into_iter().collect()
 }
 
 impl DeploymentPlan {
@@ -105,6 +155,14 @@ impl DeploymentPlan {
             diagnostics.push(error(
                 "MINCO-PLAN-001",
                 "unsupported deployment plan schema version",
+            ));
+        }
+        let expected_local_services =
+            local_aws_services(&self.runtime, &self.database, &self.application_graph);
+        if self.local_aws_services != expected_local_services {
+            diagnostics.push(error(
+                "MINCO-PLAN-003",
+                "local_aws_services does not match the configured application graph",
             ));
         }
         if self.routes.iter().any(|route| route.authenticated)
@@ -231,18 +289,40 @@ impl DeploymentPlan {
                 "DynamoDB is an alternate persistence model, not a transparent replacement for relational PostgreSQL adapters",
             ));
         }
+        for field in self.database.invalid_numeric_inputs() {
+            diagnostics.push(error(
+                "MINCO-COST-008",
+                &format!("{field} has an invalid numeric value for its cost profile"),
+            ));
+        }
         if let DatabaseDeployment::AuroraServerlessV2 {
             minimum_acu,
             auto_pause_seconds,
             ..
         } = &self.database
-            && *minimum_acu == 0.0
-            && auto_pause_seconds.is_none()
         {
-            diagnostics.push(warning(
-                "MINCO-DB-003",
-                "Aurora minimum ACU is zero but no auto-pause interval is recorded",
-            ));
+            if *minimum_acu == 0.0 && auto_pause_seconds.is_none() {
+                diagnostics.push(warning(
+                    "MINCO-DB-003",
+                    "Aurora minimum ACU is zero but no auto-pause interval is recorded",
+                ));
+            }
+            if auto_pause_seconds
+                .is_some_and(|seconds| !(300..=86_400).contains(&seconds) || *minimum_acu != 0.0)
+            {
+                diagnostics.push(error(
+                    "MINCO-DB-004",
+                    "Aurora auto-pause must be 300 to 86400 seconds and requires minimum_acu = 0",
+                ));
+            }
+            if minimum_acu.is_finite()
+                && (*minimum_acu > 256.0 || (*minimum_acu * 2.0).fract() != 0.0)
+            {
+                diagnostics.push(error(
+                    "MINCO-DB-005",
+                    "Aurora minimum_acu must use 0.5 ACU increments and not exceed 256",
+                ));
+            }
         }
         diagnostics
     }
@@ -357,6 +437,150 @@ impl DatabaseDeployment {
     #[must_use]
     pub const fn is_relational(&self) -> bool {
         !matches!(self, Self::DynamoDbOnDemand { .. })
+    }
+
+    pub(crate) fn invalid_numeric_inputs(&self) -> Vec<&'static str> {
+        let mut invalid = Vec::new();
+        match self {
+            Self::NeonPostgres {
+                compute_unit_hours,
+                storage_gb_month,
+                history_storage_gb_month,
+                ..
+            } => {
+                check_non_negative(&mut invalid, "compute_unit_hours", *compute_unit_hours);
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_non_negative(
+                    &mut invalid,
+                    "history_storage_gb_month",
+                    *history_storage_gb_month,
+                );
+            }
+            Self::SelfHostedPostgres {
+                host_monthly_usd,
+                storage_gb_month,
+                storage_rate_usd,
+                backup_gb_month,
+                backup_rate_usd,
+                operations_monthly_usd,
+            } => {
+                check_non_negative(&mut invalid, "host_monthly_usd", *host_monthly_usd);
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+                check_non_negative(&mut invalid, "backup_gb_month", *backup_gb_month);
+                check_non_negative(&mut invalid, "backup_rate_usd", *backup_rate_usd);
+                check_non_negative(
+                    &mut invalid,
+                    "operations_monthly_usd",
+                    *operations_monthly_usd,
+                );
+            }
+            Self::RdsPostgres {
+                instance_hours,
+                instance_hour_rate_usd,
+                storage_gb_month,
+                storage_rate_usd,
+                backup_gb_month,
+                backup_rate_usd,
+                multi_az_multiplier,
+            } => {
+                check_non_negative(&mut invalid, "instance_hours", *instance_hours);
+                check_optional_non_negative(
+                    &mut invalid,
+                    "instance_hour_rate_usd",
+                    *instance_hour_rate_usd,
+                );
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+                check_non_negative(&mut invalid, "backup_gb_month", *backup_gb_month);
+                check_optional_non_negative(&mut invalid, "backup_rate_usd", *backup_rate_usd);
+                if !multi_az_multiplier.is_finite() || *multi_az_multiplier < 1.0 {
+                    invalid.push("multi_az_multiplier");
+                }
+            }
+            Self::AuroraServerlessV2 {
+                minimum_acu,
+                acu_hours,
+                acu_hour_rate_usd,
+                storage_gb_month,
+                storage_rate_usd,
+                io_million,
+                io_million_rate_usd,
+                ..
+            } => {
+                check_non_negative(&mut invalid, "minimum_acu", *minimum_acu);
+                check_non_negative(&mut invalid, "acu_hours", *acu_hours);
+                check_optional_non_negative(&mut invalid, "acu_hour_rate_usd", *acu_hour_rate_usd);
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+                check_non_negative(&mut invalid, "io_million", *io_million);
+                check_optional_non_negative(
+                    &mut invalid,
+                    "io_million_rate_usd",
+                    *io_million_rate_usd,
+                );
+            }
+            Self::DynamoDbOnDemand {
+                read_request_units_million,
+                read_million_rate_usd,
+                write_request_units_million,
+                write_million_rate_usd,
+                storage_gb_month,
+                storage_rate_usd,
+            } => {
+                check_non_negative(
+                    &mut invalid,
+                    "read_request_units_million",
+                    *read_request_units_million,
+                );
+                check_optional_non_negative(
+                    &mut invalid,
+                    "read_million_rate_usd",
+                    *read_million_rate_usd,
+                );
+                check_non_negative(
+                    &mut invalid,
+                    "write_request_units_million",
+                    *write_request_units_million,
+                );
+                check_optional_non_negative(
+                    &mut invalid,
+                    "write_million_rate_usd",
+                    *write_million_rate_usd,
+                );
+                check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
+                check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+            }
+            Self::SqlitePersistentHost {
+                host_monthly_usd,
+                backup_monthly_usd,
+            } => {
+                check_non_negative(&mut invalid, "host_monthly_usd", *host_monthly_usd);
+                check_non_negative(&mut invalid, "backup_monthly_usd", *backup_monthly_usd);
+            }
+            Self::SqliteLambdaMutable {
+                expected_storage_gb,
+            } => {
+                check_non_negative(&mut invalid, "expected_storage_gb", *expected_storage_gb);
+            }
+        }
+        invalid
+    }
+}
+
+fn check_non_negative(invalid: &mut Vec<&'static str>, field: &'static str, value: f64) {
+    if !value.is_finite() || value < 0.0 {
+        invalid.push(field);
+    }
+}
+
+fn check_optional_non_negative(
+    invalid: &mut Vec<&'static str>,
+    field: &'static str,
+    value: Option<f64>,
+) {
+    if value.is_some_and(|value| !value.is_finite() || value < 0.0) {
+        invalid.push(field);
     }
 }
 
@@ -475,6 +699,9 @@ pub enum PlanError {
 mod tests {
     use super::*;
     use minco_contract::{ContractDocument, OwnedOperation};
+    use minco_core::{
+        GraphBuilder, IdleCostClass, PluginDescriptor, PluginId, ResourceIntent, ResourceKind,
+    };
 
     fn config(database: DatabaseDeployment) -> DeploymentConfig {
         DeploymentConfig {
@@ -536,6 +763,86 @@ mod tests {
     }
 
     #[test]
+    fn plan_serializes_the_selected_graph_and_derives_local_aws_services() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let mut descriptor = PluginDescriptor::new(
+            PluginId::new("aws-provider").unwrap(),
+            "1.0.0".parse().unwrap(),
+            "AWS provider",
+        );
+        descriptor.resources.extend([
+            ResourceIntent {
+                id: "attachments".into(),
+                kind: ResourceKind::S3Bucket,
+                idle_cost: IdleCostClass::StorageOnly,
+                wake_sources: Vec::new(),
+                dependencies: Vec::new(),
+            },
+            ResourceIntent {
+                id: "events".into(),
+                kind: ResourceKind::SqsQueue,
+                idle_cost: IdleCostClass::ZeroCompute,
+                wake_sources: Vec::new(),
+                dependencies: Vec::new(),
+            },
+        ]);
+        let mut builder = GraphBuilder::default();
+        builder.add_plugin(descriptor);
+        let graph = builder.build().unwrap();
+
+        let plan = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        })
+        .into_plan_with_graph(&contract, graph);
+
+        assert_eq!(
+            plan.application_graph.plugins[0].id.as_str(),
+            "aws-provider"
+        );
+        assert_eq!(plan.local_aws_services, ["s3", "sqs", "ssm", "sts"]);
+    }
+
+    #[test]
+    fn plan_rejects_a_tampered_local_service_projection() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let mut plan = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        })
+        .into_plan(&contract);
+        plan.local_aws_services.push("s3".into());
+
+        assert!(
+            plan.validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-PLAN-003")
+        );
+    }
+
+    #[test]
     fn fixed_compute_is_rejected_by_minimal_idle_policy() {
         let contract = ContractDocument {
             source: "inline".into(),
@@ -561,6 +868,84 @@ mod tests {
             plan.validate()
                 .iter()
                 .any(|diagnostic| diagnostic.code == "MINCO-COST-007")
+        );
+    }
+
+    #[test]
+    fn negative_cost_inputs_are_rejected() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let plan = config(DatabaseDeployment::SelfHostedPostgres {
+            host_monthly_usd: -1.0,
+            storage_gb_month: 20.0,
+            storage_rate_usd: 0.08,
+            backup_gb_month: 20.0,
+            backup_rate_usd: 0.05,
+            operations_monthly_usd: 50.0,
+        })
+        .into_plan(&contract);
+
+        assert!(
+            plan.validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-COST-008")
+        );
+    }
+
+    #[test]
+    fn aurora_auto_pause_interval_must_match_zero_capacity() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let invalid_timeout = config(DatabaseDeployment::AuroraServerlessV2 {
+            minimum_acu: 0.0,
+            auto_pause_seconds: Some(299),
+            acu_hours: 1.0,
+            acu_hour_rate_usd: Some(0.1),
+            storage_gb_month: 1.0,
+            storage_rate_usd: Some(0.1),
+            io_million: 1.0,
+            io_million_rate_usd: Some(0.1),
+        })
+        .into_plan(&contract);
+        let nonzero_minimum = config(DatabaseDeployment::AuroraServerlessV2 {
+            minimum_acu: 0.5,
+            auto_pause_seconds: Some(300),
+            acu_hours: 1.0,
+            acu_hour_rate_usd: Some(0.1),
+            storage_gb_month: 1.0,
+            storage_rate_usd: Some(0.1),
+            io_million: 1.0,
+            io_million_rate_usd: Some(0.1),
+        })
+        .into_plan(&contract);
+
+        assert!(
+            invalid_timeout
+                .validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-DB-004")
+        );
+        assert!(
+            nonzero_minimum
+                .validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-DB-004")
         );
     }
 }

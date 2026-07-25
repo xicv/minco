@@ -21,18 +21,24 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          enable-cache: false
+      - name: Sync locked Python validation dependencies
+        run: uv sync --locked --only-dev
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: 1.97.1
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: Static and packaging validation
         run: |
-          python3 scripts/validate_static.py
-          python3 scripts/validate_publish.py
-          python3 scripts/deep_review.py
-          python3 scripts/test/feedback_contract.py
+          uv run --locked python scripts/validate_static.py
+          uv run --locked python scripts/validate_publish.py
+          uv run --locked python scripts/deep_review.py
+          uv run --locked python scripts/test/feedback_contract.py
           node --check plugins/minco-plugin-feedback/assets/widget.js
       - name: Format
         run: cargo fmt --all -- --check

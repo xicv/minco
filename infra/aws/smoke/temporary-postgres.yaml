@@ -1,0 +1,256 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Disposable PostgreSQL and private Lambda networking for the bounded Minco AWS smoke.
+
+Parameters:
+  RunId:
+    Type: String
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$'
+  DatabaseInstanceIdentifier:
+    Type: String
+    AllowedPattern: '^[a-z][a-z0-9-]{0,62}$'
+  DatabaseEngineVersion:
+    Type: String
+    AllowedPattern: '^[0-9]+\.[0-9]+$'
+  LocalMigrationCidr:
+    Type: String
+    AllowedPattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}/32$'
+  DatabaseParameterName:
+    Type: String
+    AllowedPattern: '^/[A-Za-z0-9_.\-/]+$'
+
+Resources:
+  SmokeVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.77.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref SmokeVpc
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.77.1.0/24
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref SmokeVpc
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.77.2.0/24
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref SmokeVpc
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SmokeVpc
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Minco bounded-smoke Lambda egress
+      SecurityGroupEgress: []
+      VpcId: !Ref SmokeVpc
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Minco bounded-smoke PostgreSQL ingress
+      SecurityGroupEgress: []
+      VpcId: !Ref SmokeVpc
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  SsmEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Minco bounded-smoke SSM endpoint ingress
+      SecurityGroupEgress: []
+      VpcId: !Ref SmokeVpc
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  LambdaToDatabaseEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      DestinationSecurityGroupId: !Ref DatabaseSecurityGroup
+      FromPort: 5432
+      GroupId: !Ref LambdaSecurityGroup
+      IpProtocol: tcp
+      ToPort: 5432
+
+  LambdaToSsmEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      DestinationSecurityGroupId: !Ref SsmEndpointSecurityGroup
+      FromPort: 443
+      GroupId: !Ref LambdaSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+
+  DatabaseFromLambdaIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      FromPort: 5432
+      GroupId: !Ref DatabaseSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      ToPort: 5432
+
+  DatabaseFromLocalMigrationIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      CidrIp: !Ref LocalMigrationCidr
+      Description: Removed immediately after the explicit migration.
+      FromPort: 5432
+      GroupId: !Ref DatabaseSecurityGroup
+      IpProtocol: tcp
+      ToPort: 5432
+
+  SsmEndpointFromLambdaIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      FromPort: 443
+      GroupId: !Ref SsmEndpointSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      ToPort: 443
+
+  SsmEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: ssm:GetParameter
+            Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseParameterName}
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref SsmEndpointSecurityGroup]
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      SubnetIds: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      VpcEndpointType: Interface
+      VpcId: !Ref SmokeVpc
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Minco bounded-smoke PostgreSQL subnets
+      SubnetIds: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - DatabaseFromLambdaIngress
+      - DatabaseFromLocalMigrationIngress
+      - InternetRoute
+    Properties:
+      AllocatedStorage: '20'
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 0
+      CopyTagsToSnapshot: false
+      DBInstanceClass: db.t4g.micro
+      DBInstanceIdentifier: !Ref DatabaseInstanceIdentifier
+      DBName: minco
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
+      EnablePerformanceInsights: false
+      Engine: postgres
+      EngineLifecycleSupport: open-source-rds-extended-support-disabled
+      EngineVersion: !Ref DatabaseEngineVersion
+      ManageMasterUserPassword: true
+      MasterUsername: mincoadmin
+      MonitoringInterval: 0
+      MultiAZ: false
+      PubliclyAccessible: true
+      StorageEncrypted: true
+      StorageType: gp3
+      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
+      Tags:
+        - {Key: minco:managed, Value: 'true'}
+        - {Key: minco:purpose, Value: bounded-smoke}
+        - {Key: minco:run-id, Value: !Ref RunId}
+
+Outputs:
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+  DatabaseInstanceIdentifier:
+    Value: !Ref Database
+  DatabaseSecurityGroupId:
+    Value: !Ref DatabaseSecurityGroup
+  LambdaSecurityGroupId:
+    Value: !Ref LambdaSecurityGroup
+  LambdaSubnetIds:
+    Value: !Join [',', [!Ref PublicSubnetA, !Ref PublicSubnetB]]
+  MasterUserSecretArn:
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
+  SmokeVpcId:
+    Value: !Ref SmokeVpc

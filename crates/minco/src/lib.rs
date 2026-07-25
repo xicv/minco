@@ -95,6 +95,10 @@ pub use minco_sqlx_sqlite as sqlx_sqlite;
 /// Native AWS Lambda HTTP and SSM integration.
 pub use minco_aws_lambda as aws_lambda;
 
+#[cfg(feature = "aws-adapters")]
+/// Production S3, SQS, SES, Cognito, webhook, and static-site adapters.
+pub use minco_aws_adapters as aws_adapters;
+
 /// Common imports for application composition.
 pub mod prelude {
     pub use minco_core::{
@@ -157,7 +161,7 @@ fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), cor
     manager.register(plugin_feedback::FeedbackPlugin::memory())?;
 
     #[cfg(feature = "plugin-static-site")]
-    manager.register(plugin_static_site::StaticSitePlugin)?;
+    manager.register(plugin_static_site::StaticSitePlugin::default())?;
 
     // Keep the no-feature build warning-free when every registration above is
     // compiled out.

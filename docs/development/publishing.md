@@ -41,9 +41,11 @@ version requirements from crates.io.
 Run from a clean JJ working copy at the release change:
 
 ```bash
-python3 scripts/validate_static.py
-python3 scripts/validate_publish.py --check-registry --require-registry
-python3 scripts/deep_review.py
+uv sync --locked --only-dev
+uv lock --check
+uv run --locked python scripts/validate_static.py
+uv run --locked python scripts/validate_publish.py --check-registry --require-registry
+uv run --locked python scripts/deep_review.py
 
 cargo generate-lockfile
 cargo fmt --all -- --check
@@ -89,7 +91,7 @@ Before each release, verify registry access and confirm the exact version is
 not already published:
 
 ```bash
-python3 scripts/validate_publish.py --check-registry --require-registry
+uv run --locked python scripts/validate_publish.py --check-registry --require-registry
 ```
 
 For an authenticated release:

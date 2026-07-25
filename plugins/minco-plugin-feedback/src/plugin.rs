@@ -107,7 +107,7 @@ impl Plugin for FeedbackPlugin {
         );
         descriptor.core_compatibility =
             VersionReq::parse(concat!("^", env!("CARGO_PKG_VERSION"))).expect("package version");
-        descriptor.stability = PluginStability::Beta;
+        descriptor.stability = PluginStability::Stable;
         descriptor.default_enabled = false;
         descriptor.documentation = Some("https://docs.rs/minco-plugin-feedback".into());
         descriptor.data_classes.extend([
@@ -469,8 +469,8 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             ConfigurationValueKind::Boolean,
             false,
             false,
-            Some(serde_json::json!(true)),
-            "Allow feedback without an authenticated principal when no project key is configured",
+            Some(serde_json::json!(false)),
+            "Explicitly allow unauthenticated feedback when neither identity nor a project key is available",
         ),
         field(
             "project_key",
@@ -575,7 +575,7 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             false,
             false,
             Some(serde_json::json!(false)),
-            "Expose voice transcription when a TranscriptionService is configured",
+            "Expose voice transcription for authenticated feedback.create principals when a TranscriptionService is configured",
         ),
         field(
             "auto_transcribe_audio",
@@ -637,6 +637,7 @@ mod tests {
     #[test]
     fn feedback_declares_every_foundational_dependency() {
         let descriptor = FeedbackPlugin::default().descriptor();
+        assert_eq!(descriptor.stability, PluginStability::Stable);
         let dependencies = descriptor
             .plugin_dependencies
             .iter()

@@ -13,12 +13,30 @@ readme = "README.md"
 keywords = ["minco", "postgresql", "sqlx", "database"]
 categories = ["database"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = [
+  "src/**",
+  "migrations/plugins/**",
+  "Cargo.toml",
+  "README.md",
+  "LICENSE-MIT",
+  "LICENSE-APACHE",
+]
 [dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+minco-plugin-audit.workspace = true
+minco-plugin-events.workspace = true
+minco-plugin-idempotency.workspace = true
+minco-plugin-sessions.workspace = true
 serde.workspace = true
-sqlx.workspace = true
+serde_json.workspace = true
+sqlx = { workspace = true, features = ["macros"] }
 thiserror.workspace = true
 tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

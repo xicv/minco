@@ -20,7 +20,11 @@ client opens widget
 
 - Feedback persistence is authoritative; notification/audit/event failures are
   surfaced as warnings and never erase client input.
+- Warning responses expose stable codes and public-safe summaries; raw downstream
+  diagnostics remain in access-controlled server logs.
 - Client tokens are random bearer credentials and only their hashes are stored.
+- Anonymous submission is disabled by default. Production uses a principal with
+  `feedback.create`; explicit anonymous mode requires ingress abuse controls.
 - Developer endpoints require `feedback.manage` or an explicitly configured
   operator-token fallback.
 - Every mutation uses optimistic revision checking.

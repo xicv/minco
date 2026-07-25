@@ -19,6 +19,12 @@ assert STATIC_SPEC is not None and STATIC_SPEC.loader is not None
 VALIDATE_STATIC = importlib.util.module_from_spec(STATIC_SPEC)
 sys.modules[STATIC_SPEC.name] = VALIDATE_STATIC
 STATIC_SPEC.loader.exec_module(VALIDATE_STATIC)
+MANIFEST_SPEC = importlib.util.spec_from_file_location(
+    "source_manifest", ROOT / "scripts/source_manifest.py"
+)
+assert MANIFEST_SPEC is not None and MANIFEST_SPEC.loader is not None
+SOURCE_MANIFEST = importlib.util.module_from_spec(MANIFEST_SPEC)
+MANIFEST_SPEC.loader.exec_module(SOURCE_MANIFEST)
 
 
 def main() -> int:
@@ -29,6 +35,7 @@ def main() -> int:
             root / "target" / "package" / "001_packaged.sql",
             root / "node_modules" / "fixture" / "001_dependency.sql",
             root / ".jj" / "repo" / "001_metadata.sql",
+            root / ".venv" / "lib" / "001_dependency.sql",
         ]
         for path in [expected, *excluded]:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -38,6 +45,8 @@ def main() -> int:
 
     assert VALIDATE_STATIC.report_root(ROOT, ROOT) == "."
     assert VALIDATE_STATIC.report_root(ROOT / "nested", ROOT) == str(ROOT / "nested")
+    assert ".venv" in VALIDATE_STATIC.IGNORED_PARTS
+    assert not SOURCE_MANIFEST.included(ROOT / ".venv" / "lib" / "dependency.py")
 
     print("deep-review source exclusions: passed")
     return 0

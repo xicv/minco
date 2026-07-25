@@ -46,7 +46,7 @@ cleanup() {
     aws_local sqs delete-queue --queue-url "$queue_url" >/dev/null 2>&1
   fi
   aws_local ssm delete-parameter --name "$parameter_name" >/dev/null 2>&1
-  aws_local s3api delete-object --bucket "$bucket_name" --key proof.txt >/dev/null 2>&1
+  aws_local s3 rm "s3://$bucket_name" --recursive >/dev/null 2>&1
   aws_local s3api delete-bucket --bucket "$bucket_name" >/dev/null 2>&1
   docker compose -f infra/local/compose.yaml down --remove-orphans >/dev/null 2>&1
   rm -f "$body_path" "$download_path"
@@ -96,6 +96,7 @@ queue_url="$(
     --query QueueUrl \
     --output text
 )"
+export MINCO_RUSTACK_QUEUE_URL="$queue_url"
 aws_local sqs send-message \
   --queue-url "$queue_url" \
   --message-body "rustack-sqs-proof" >/dev/null
@@ -113,6 +114,7 @@ printf '%s\n' "rustack-s3-proof" >"$body_path"
 aws_local s3api create-bucket \
   --bucket "$bucket_name" \
   --create-bucket-configuration "LocationConstraint=$AWS_DEFAULT_REGION" >/dev/null
+export MINCO_RUSTACK_BUCKET="$bucket_name"
 aws_local s3api put-object \
   --bucket "$bucket_name" \
   --key proof.txt \
@@ -123,5 +125,9 @@ aws_local s3api get-object \
   "$download_path" >/dev/null
 cmp "$body_path" "$download_path"
 
-printf 'Rustack conformance passed: s3 sqs ssm sts and Minco SSM adapter (account %s)\n' \
+cargo test -p minco-aws-adapters --all-features --test rustack --locked \
+  s3_and_sqs_adapters_use_standard_sdk_endpoints \
+  -- --ignored --exact
+
+printf 'Rustack conformance passed: s3 sqs ssm sts and Minco S3/SQS/SSM adapters (account %s)\n' \
   "$account_id"

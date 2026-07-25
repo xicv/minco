@@ -20,9 +20,10 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use feedback_cmd::FeedbackArgs;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
+use minco_core::{ApplicationGraph, PluginId, PluginSelection};
 use minco_plan::{
     DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
-    estimate_database_cost, render_sam,
+    estimate_database_cost, render_sam_with_code_uri,
 };
 use minco_release::{FileDigest, ReleaseManifest};
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
@@ -138,8 +139,10 @@ enum DeployCommand {
     Plan {
         #[command(flatten)]
         input: PlanInput,
-        #[arg(long, default_value = "infra/aws/generated/plan.json")]
-        output: PathBuf,
+        #[arg(long, conflicts_with = "stdout")]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        stdout: bool,
     },
     RenderSam {
         #[command(flatten)]
@@ -212,6 +215,8 @@ enum ReleaseCommand {
         artifact: PathBuf,
         #[arg(long, default_value = "infra/aws/generated/plan.json")]
         plan: PathBuf,
+        #[arg(long, default_value = "infra/aws/generated/template.yaml")]
+        template: PathBuf,
         #[arg(long, default_value = "target/minco/release.json")]
         output: PathBuf,
     },
@@ -226,11 +231,11 @@ enum UpdateCommand {
     Apply {
         #[arg(long)]
         yes: bool,
-        #[arg(long, default_value_t = true)]
+        #[arg(long)]
         toolchain: bool,
-        #[arg(long, default_value_t = true)]
+        #[arg(long)]
         dependencies: bool,
-        #[arg(long, default_value_t = true)]
+        #[arg(long)]
         run_checks: bool,
     },
 }
@@ -257,6 +262,7 @@ enum VcsCommand {
 struct DoctorCheck {
     name: String,
     available: bool,
+    required: bool,
     required_for: String,
 }
 
@@ -321,6 +327,7 @@ async fn main() -> Result<()> {
 fn doctor(root: &Path, as_json: bool) -> Result<()> {
     let checks = [
         ("python3", true, "static validation and bootstrap"),
+        ("uv", true, "locked Python validation dependencies"),
         ("rustc", true, "Rust compilation"),
         ("cargo", true, "build, test and CLI execution"),
         ("rustfmt", true, "format gate"),
@@ -337,19 +344,17 @@ fn doctor(root: &Path, as_json: bool) -> Result<()> {
         ("aws", false, "real AWS deployment and verification"),
     ]
     .into_iter()
-    .map(|(name, _required, required_for)| DoctorCheck {
+    .map(|(name, required, required_for)| DoctorCheck {
         name: name.into(),
         available: command_available(name),
+        required,
         required_for: required_for.into(),
     })
     .collect::<Vec<_>>();
     print_value(&checks, as_json)?;
     let missing_core = checks
         .iter()
-        .filter(|check| {
-            ["python3", "rustc", "cargo", "jj", "git"].contains(&check.name.as_str())
-                && !check.available
-        })
+        .filter(|check| check.required && !check.available)
         .count();
     if missing_core > 0 {
         bail!("{missing_core} core development tools are unavailable; see the doctor report");
@@ -508,9 +513,19 @@ fn deploy(
     as_json: bool,
 ) -> Result<()> {
     match command {
-        DeployCommand::Plan { input, output } => {
+        DeployCommand::Plan {
+            input,
+            output,
+            stdout,
+        } => {
             let plan = load_plan(root, manifest, input.config)?;
             ensure_plan_valid(&plan)?;
+            if stdout {
+                use std::io::Write as _;
+                std::io::stdout().write_all(&canonical_json(&plan)?)?;
+                return Ok(());
+            }
+            let output = output.unwrap_or_else(|| PathBuf::from("infra/aws/generated/plan.json"));
             let output = root.join(output);
             ensure_parent(&output)?;
             fs::write(&output, canonical_json(&plan)?)?;
@@ -522,8 +537,14 @@ fn deploy(
         DeployCommand::RenderSam { input, output } => {
             let plan = load_plan(root, manifest, input.config)?;
             ensure_plan_valid(&plan)?;
-            let template = render_sam(&plan)?;
             let output = root.join(output);
+            let function = plan
+                .functions
+                .first()
+                .context("deployment plan has no function artifact")?;
+            let code_uri = template_relative_path(root, &output, &function.artifact_path)?;
+            let template =
+                render_sam_with_code_uri(&plan, Some(code_uri.to_string_lossy().as_ref()))?;
             ensure_parent(&output)?;
             fs::write(&output, template)?;
             print_value(
@@ -532,6 +553,45 @@ fn deploy(
             )
         }
     }
+}
+
+fn template_relative_path(root: &Path, template: &Path, artifact: &str) -> Result<PathBuf> {
+    let template_parent = template
+        .parent()
+        .context("deployment template output has no parent directory")?;
+    let template_parent = template_parent
+        .strip_prefix(root)
+        .context("deployment template output must be inside the repository")?;
+    let artifact = Path::new(artifact);
+    let artifact = if artifact.is_absolute() {
+        artifact
+            .strip_prefix(root)
+            .context("deployment artifact must be inside the repository")?
+    } else {
+        artifact
+    };
+    let valid_relative = |path: &Path| {
+        path.components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    };
+    if !valid_relative(template_parent) || !valid_relative(artifact) {
+        bail!("deployment paths must be normalized repository descendants");
+    }
+    let template_components = template_parent.components().collect::<Vec<_>>();
+    let artifact_components = artifact.components().collect::<Vec<_>>();
+    let common = template_components
+        .iter()
+        .zip(&artifact_components)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut relative = PathBuf::new();
+    for _ in common..template_components.len() {
+        relative.push("..");
+    }
+    for component in &artifact_components[common..] {
+        relative.push(component.as_os_str());
+    }
+    Ok(relative)
 }
 
 fn cost(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) -> Result<()> {
@@ -796,15 +856,20 @@ fn release_command(
         ReleaseCommand::Create {
             artifact,
             plan,
+            template,
             output,
         } => {
             let artifact = root.join(artifact);
             let plan = root.join(plan);
+            let template = root.join(template);
             if !artifact.is_file() {
                 bail!("release artifact {} does not exist", artifact.display());
             }
             if !plan.is_file() {
                 bail!("deployment plan {} does not exist", plan.display());
+            }
+            if !template.is_file() {
+                bail!("deployment template {} does not exist", template.display());
             }
             let source_change = vcs::source_change(root)?;
             let short_change = source_change.chars().take(12).collect::<String>();
@@ -832,24 +897,25 @@ fn release_command(
             migration_paths.dedup();
             let migrations = migration_paths
                 .into_iter()
-                .map(FileDigest::from_path)
+                .map(|path| FileDigest::from_rooted_path(root, path))
                 .collect::<Result<Vec<_>, _>>()?;
             let release = ReleaseManifest {
-                schema_version: 1,
+                schema_version: 2,
                 release_id,
                 created_at: Utc::now(),
                 source_change,
                 rust_version,
                 minco_version: env!("CARGO_PKG_VERSION").into(),
-                artifact: FileDigest::from_path(&artifact)?,
-                contract: FileDigest::from_path(root.join(&manifest.contract))?,
+                artifact: FileDigest::from_rooted_path(root, &artifact)?,
+                contract: FileDigest::from_rooted_path(root, root.join(&manifest.contract))?,
                 migration_set: migrations,
                 cargo_lock: root
                     .join("Cargo.lock")
                     .is_file()
-                    .then(|| FileDigest::from_path(root.join("Cargo.lock")))
+                    .then(|| FileDigest::from_rooted_path(root, root.join("Cargo.lock")))
                     .transpose()?,
-                deployment_plan: FileDigest::from_path(&plan)?,
+                deployment_plan: FileDigest::from_rooted_path(root, &plan)?,
+                deployment_template: FileDigest::from_rooted_path(root, &template)?,
             };
             let output = root.join(output);
             ensure_parent(&output)?;
@@ -858,7 +924,7 @@ fn release_command(
         }
         ReleaseCommand::Verify { manifest } => {
             let release = ReleaseManifest::read_json(root.join(manifest))?;
-            release.verify()?;
+            release.verify_at(root)?;
             print_value(
                 &json!({"verified": true, "release_id": release.release_id}),
                 as_json,
@@ -924,7 +990,41 @@ fn load_plan(
             .with_context(|| format!("read {}", config_path.display()))?,
     )
     .with_context(|| format!("parse {}", config_path.display()))?;
-    Ok(config.into_plan(&contract.document))
+    let application_graph = load_application_graph(manifest)?;
+    Ok(config.into_plan_with_graph(&contract.document, application_graph))
+}
+
+fn load_application_graph(manifest: &MincoManifest) -> Result<ApplicationGraph> {
+    let manager = minco::default_plugin_manager()?;
+    let registered = manager
+        .descriptors()
+        .into_iter()
+        .map(|descriptor| descriptor.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut selection = PluginSelection::default();
+    for id in &manifest.plugins.enabled {
+        let id = PluginId::new(id.clone())?;
+        if !registered.contains(&id) {
+            bail!("enabled plugin {id} is not statically linked into the deployment planner");
+        }
+        selection.enabled.insert(id);
+    }
+    for id in &manifest.plugins.disabled {
+        let id = PluginId::new(id.clone())?;
+        if registered.contains(&id) {
+            selection.disabled.insert(id);
+        }
+    }
+    for (id, configuration) in &manifest.plugins.configuration {
+        let id = PluginId::new(id.clone())?;
+        if !registered.contains(&id) {
+            bail!("configured plugin {id} is not statically linked into the deployment planner");
+        }
+        selection
+            .configuration
+            .insert(id, serde_json::to_value(configuration)?);
+    }
+    Ok(manager.build_graph(&selection)?)
 }
 
 fn ensure_plan_valid(plan: &DeploymentPlan) -> Result<()> {
@@ -1026,6 +1126,27 @@ mod cli_argument_tests {
     }
 
     #[test]
+    fn sam_artifact_path_is_relative_to_the_template() {
+        let root = Path::new("/repo");
+        let template = root.join("infra/aws/generated/template.yaml");
+        let relative =
+            template_relative_path(root, &template, "target/lambda/orders-lambda/bootstrap.zip")
+                .expect("relative path");
+        assert_eq!(
+            relative,
+            PathBuf::from("../../../target/lambda/orders-lambda/bootstrap.zip")
+        );
+        assert!(
+            template_relative_path(
+                root,
+                &PathBuf::from("/outside/template.yaml"),
+                "target/lambda/orders-lambda/bootstrap.zip",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn generated_json_is_key_sorted_and_newline_terminated() {
         let value = json!({
             "z": {"b": 1, "a": 2},
@@ -1058,5 +1179,44 @@ mod cli_argument_tests {
             "plugins/minco-plugin-feedback/src/http.rs#create_feedback"
         );
         assert!(value["generated"].is_null());
+    }
+
+    #[test]
+    fn deployment_plan_contains_the_manifest_selected_plugin_graph() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let manifest = MincoManifest::load(&root).expect("workspace manifest");
+
+        let plan = load_plan(&root, &manifest, None).expect("deployment plan");
+        let ids = plan
+            .application_graph
+            .plugins
+            .iter()
+            .map(|plugin| plugin.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, ["health", "idempotency", "observability"]);
+        assert_eq!(plan.local_aws_services, ["ssm", "sts"]);
+    }
+
+    #[test]
+    fn configured_plugin_resources_change_the_plan_service_projection() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let mut manifest = MincoManifest::load(&root).expect("workspace manifest");
+        manifest.plugins.enabled.insert("static-site".into());
+
+        let plan = load_plan(&root, &manifest, None).expect("deployment plan");
+
+        assert!(
+            plan.application_graph
+                .resources
+                .contains_key("static-site-bucket")
+        );
+        assert_eq!(plan.local_aws_services, ["s3", "ssm", "sts"]);
     }
 }
