@@ -308,7 +308,7 @@ impl Plugin for IdempotencyPlugin {
         );
         descriptor.core_compatibility =
             VersionReq::parse(concat!("^", env!("CARGO_PKG_VERSION"))).expect("package version");
-        descriptor.stability = PluginStability::Beta;
+        descriptor.stability = PluginStability::Stable;
         descriptor.documentation = Some("https://docs.rs/minco-plugin-idempotency".into());
         descriptor.default_enabled = true;
         descriptor.data_classes.push(DataClass::Internal);
@@ -439,5 +439,13 @@ mod tests {
         let service = application.services.get::<IdempotencyService>().unwrap();
         let key = IdempotencyKey::parse("request-3").unwrap();
         assert!(service.get(&key).await.unwrap().is_none());
+    }
+
+    #[test]
+    fn descriptor_matches_the_stable_catalog_contract() {
+        assert_eq!(
+            IdempotencyPlugin::memory().descriptor().stability,
+            PluginStability::Stable
+        );
     }
 }
