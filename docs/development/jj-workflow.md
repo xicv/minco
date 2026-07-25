@@ -33,8 +33,10 @@ cargo minco task ready
 ```
 
 The command creates a sibling workspace such as `../minco-task-m3-t01`, gives it
-a dedicated working-copy change, and describes the task. A second task can use a
-second workspace while tests run in the first.
+a dedicated working-copy change on top of the current change, and describes the
+task. Start a dependent task from its completed prerequisite workspace so the
+new task inherits that exact reviewed change. A second independent task can use
+a second workspace while tests run in the first.
 
 Suggested workflow inside the task workspace:
 
