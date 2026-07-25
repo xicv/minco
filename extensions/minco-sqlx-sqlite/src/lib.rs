@@ -7,6 +7,8 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use std::{path::Path, str::FromStr, time::Duration};
 use thiserror::Error;
 
+pub mod plugin_adapters;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SqlitePoolConfig {
     pub url: String,
@@ -54,7 +56,8 @@ pub async fn connect(config: &SqlitePoolConfig) -> Result<SqlitePool, SqliteErro
     config.validate()?;
     let mut options = SqliteConnectOptions::from_str(&config.url)?
         .create_if_missing(!config.is_memory())
-        .foreign_keys(true);
+        .foreign_keys(true)
+        .busy_timeout(Duration::from_secs(config.acquire_timeout_seconds));
     if !config.is_memory() {
         options = options.journal_mode(SqliteJournalMode::Wal);
     }

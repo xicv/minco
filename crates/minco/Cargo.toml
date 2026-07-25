@@ -61,6 +61,7 @@ default-plugins = [
 ]
 sqlx-postgres = ["dep:minco-sqlx-postgres"]
 sqlx-sqlite = ["dep:minco-sqlx-sqlite"]
+aws-adapters = ["dep:minco-aws-adapters", "minco-aws-adapters/full"]
 aws-lambda = ["dep:minco-aws-lambda", "http"]
 full = [
   "contract",
@@ -71,6 +72,7 @@ full = [
   "official-plugins",
   "sqlx-postgres",
   "sqlx-sqlite",
+  "aws-adapters",
   "aws-lambda",
 ]
 
@@ -94,6 +96,7 @@ minco-plugin-feedback = { workspace = true, optional = true }
 minco-plugin-static-site = { workspace = true, optional = true }
 minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
+minco-aws-adapters = { workspace = true, optional = true }
 minco-aws-lambda = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]

@@ -20,10 +20,10 @@ core-version checks, graph validation before construction, and a deterministic
 second finalization pass for aggregate registries. It remains statically linked
 and contains no runtime shared-library loading or global service locator.
 
-The official plugin surface now covers the reusable application capabilities
-used by both products. Provider-specific production adapters are intentionally
-tracked separately and must not be described as implemented when only a port or
-memory adapter exists.
+The official plugin surface covers the reusable application capabilities used
+by both products. SQLx and AWS production adapters are separate crates and
+remain explicit composition-root choices; memory adapters are still references,
+not production durability.
 
 ## Coverage matrix
 
@@ -35,40 +35,41 @@ memory adapter exists.
 | PostgreSQL | `minco-sqlx-postgres` | official provider adapter | Bounded pools and explicit migrations; domain ports stay application-owned. |
 | SQLite | `minco-sqlx-sqlite` | official provider adapter | Local/single-process profile with explicit durability constraints. |
 | Database deployment choices | `minco-plan` | core | Neon, self-hosted PostgreSQL, RDS, Aurora, DynamoDB, and SQLite cost profiles. |
-| Idempotent commands | `minco-plugin-idempotency` | official plugin contract | Memory reference store; products may keep transaction-integrated command stores. |
+| Idempotent commands | `minco-plugin-idempotency`, SQLx adapters | official plugin contract + provider adapters | Memory plus persistent PostgreSQL and SQLite lease/replay stores with concurrent-owner tests. |
 | Liveness/readiness | `minco-plugin-health` | official plugin contract | Other plugins contribute async checks during deterministic finalization. |
 | Structured logging | `minco-plugin-observability` | official plugin contract | CloudWatch-compatible JSON through `tracing`. |
 | Browser/API identity | `minco-plugin-identity`, `minco-aws-lambda` | plugin contract + provider adapter | Verified claims map to permissions; API Gateway JWT context is supported. |
-| Server-side sessions and CSRF | `minco-plugin-sessions` | official plugin contract | Opaque hashed tokens, expiry, revocation, and HMAC CSRF primitives. |
-| S3-style object storage | `minco-plugin-object-storage` | official plugin contract | Server-side object and direct-access signing ports; S3 implementation remains an AWS-adapter task. |
-| SQS/domain events | `minco-plugin-events` | official plugin contract | Explicit publisher and leased outbox ports; no hidden one-minute poller. |
-| Email/webhook/in-app notification | `minco-plugin-notifications` | official plugin contract | SES/webhook implementations remain provider-adapter tasks. |
-| Durable business audit | `minco-plugin-audit` | official plugin contract | Append-only contract, separate from operational logs. |
-| Feedback and client review | `minco-plugin-feedback` | official vertical slice (beta) | Compiler, HTTP, PostgreSQL, SQLite, memory, CLI, Chromium, and Firefox checks pass; provider-specific AWS dependencies remain tracked separately. |
+| Server-side sessions and CSRF | `minco-plugin-sessions`, SQLx adapters | official plugin contract + provider adapters | Opaque hashed tokens, expiry, revocation, HMAC CSRF, and persistent PostgreSQL/SQLite stores. |
+| S3-style object storage | `minco-plugin-object-storage`, `minco-aws-adapters` | official plugin contract + provider adapter | Server-side storage, signed POST size enforcement, signed GET, exact-prefix IAM, Rustack proof, and bounded real-S3 proof. |
+| SQS/domain events | `minco-plugin-events`, `minco-aws-adapters`, `minco-sqlx-postgres` | official plugin contract + provider adapters | SQS publication and transaction-integrated leased PostgreSQL outbox; no hidden poller. |
+| Email/webhook/in-app notification | `minco-plugin-notifications`, `minco-aws-adapters` | official plugin contract + provider adapters | SES and DNS-pinned signed-webhook delivery exist; SES live send is externally blocked by the absence of a verified account identity. |
+| Durable business audit | `minco-plugin-audit`, SQLx adapters | official plugin contract + provider adapters | Append-only memory, PostgreSQL, and SQLite sinks, separate from operational logs. |
+| Feedback and client review | `minco-plugin-feedback` | official vertical slice (beta) | Compiler, HTTP, PostgreSQL, SQLite, memory, CLI, Chromium, and Firefox gates pass. Its separate AWS dependencies now exist; stability promotion remains a reviewed release decision. |
 | Native Lambda/API Gateway deployment | `minco-aws-lambda`, `minco-plan` | official provider adapter/core | One ARM64 ZIP and HTTP API default. |
 | Build-once release promotion | `minco-release` | core | Contract, migration, plan, source, and artifact hashes. |
-| Rustack-shaped local AWS | endpoint override/local scripts | extension policy | Emulator is replaceable; real AWS remains authoritative. |
-| Static web delivery | `minco-plugin-static-site` | official plugin contract | Build-directory, SPA fallback, cache, custom-domain, and deployment intents; S3/CloudFront rendering remains an AWS-adapter task. |
-| Cognito user administration/invitations | identity/application ports | planned provider adapter/application policy | Authentication is reusable; invitation workflow and role policy remain product-aware. |
+| Rustack-shaped local AWS | endpoint override/local scripts | extension policy | Pinned local S3/SQS/SSM/STS and compiled adapter proof pass; real AWS remains authoritative. |
+| Static web delivery | `minco-plugin-static-site`, `minco-aws-adapters` | official plugin contract + provider adapter | Safe build traversal, S3 publication, private CloudFront OAC rendering, custom-domain inputs, invalidation, and exact-prefix IAM. |
+| Cognito user administration/invitations | `minco-plugin-identity`, `minco-aws-adapters` | official plugin contract + provider adapter/application policy | Bounded real-AWS create/get/disable/delete passes; invitation message and role policy remain product-aware. |
 | Mapbox, ERP, courier, reports | application adapters | application policy | External integrations and business reports are not framework concepts. |
 
 ## Gaps that remain explicit
 
-The following are not blockers in the core/plugin design, but concrete official
-provider adapters are still required before Minco can claim turnkey production
-coverage for every AWS deployment used by the two applications:
+The remaining boundaries are operational or adoption gates, not missing adapter
+implementations:
 
-1. S3 `ObjectStore` and `ObjectAccessSigner` adapters.
-2. SQS `EventPublisher` plus a transaction-integrated PostgreSQL outbox adapter.
-3. SES notification delivery and a signed webhook notification adapter.
-4. Persistent PostgreSQL/SQLite session, idempotency, and audit adapters where a
-   product does not already own the transaction boundary.
-5. Cognito administrative user/invitation adapter.
-6. S3/CloudFront renderer for the static-site plugin, including OAC, custom-domain, and invalidation policy.
-7. Real-AWS conformance tests and IAM derivation for each selected adapter.
-
-These are tracked work, not silently filled by memory implementations. The public
-ports make them independently addable without changing Minco core or Feedback.
+1. SES delivery has compile/unit coverage but no live send because the approved
+   account currently has zero verified email and domain identities. Minco does
+   not create an unverifiable identity or weaken SES policy to manufacture a
+   pass.
+2. CloudFormation validates the private S3/CloudFront OAC template, and S3
+   publication passes in real AWS. Creating a live distribution and exercising
+   invalidation remains a separately approved, slower/cost-bearing release
+   rehearsal.
+3. Applications must still select exact providers, supply retention/privacy
+   policy, configure verified domains and certificates, and own any business
+   invitation or role workflow.
+4. Repository-wide Deep Security Scan and exact-head release checks remain
+   required before the Feedback beta stability label is reconsidered.
 
 ## Plugin-system review
 
@@ -98,8 +99,9 @@ ports make them independently addable without changing Minco core or Feedback.
 
 ## Conclusion
 
-Minco now has a stable architectural center for the previous applications and a
-credible ecosystem boundary. Feedback's compiler, database, and browser gates
-pass. Remaining provider maturity is explicit: Lambda/SAM/IAM derivation,
-provider-adapter conformance, bounded real-AWS smoke, and verified cleanup must
-still pass before the beta plugin can be promoted.
+Minco now has a stable architectural center and concrete SQLx/AWS adapter
+boundary. Feedback's compiler, database, and browser gates pass; Lambda/SAM,
+exact-resource IAM, Rustack, bounded real AWS, and verified cleanup also pass
+within the recorded scope. The beta label remains until the repository-wide
+security and exact-head release review completes and deliberately decides
+whether the two external operational rehearsals above are promotion blockers.

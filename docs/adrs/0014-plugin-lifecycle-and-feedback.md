@@ -26,6 +26,10 @@ AI-ready development context.
    and deterministic AI export.
 6. Keep provider adapters explicit; memory implementations are references and
    must not be represented as production durability.
+7. Identity administration and static-site publication are provider-neutral
+   typed ports. Their memory implementations exist only for deterministic
+   composition tests and local orchestration; `minco-aws-adapters` supplies
+   Cognito and S3/CloudFront as explicit production selections.
 
 ## Consequences
 

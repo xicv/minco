@@ -22,6 +22,7 @@ members = [
   "plugins/minco-plugin-static-site",
   "extensions/minco-sqlx-postgres",
   "extensions/minco-sqlx-sqlite",
+  "extensions/minco-aws-adapters",
   "extensions/minco-aws-lambda",
   "examples/orders/domain",
   "examples/orders/application",
@@ -51,6 +52,7 @@ default-members = [
   "plugins/minco-plugin-static-site",
   "extensions/minco-sqlx-postgres",
   "extensions/minco-sqlx-sqlite",
+  "extensions/minco-aws-adapters",
   "extensions/minco-aws-lambda",
   "examples/orders/domain",
   "examples/orders/application",
@@ -71,9 +73,16 @@ homepage = "https://github.com/xicv/minco"
 [workspace.dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-aws-config = { version = "1.9", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-config = { version = "1.9", default-features = false, features = ["credentials-process", "default-https-client", "rt-tokio"] }
+aws-credential-types = "1.3"
+aws-sdk-cloudfront = { version = "1.126.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-cognitoidentityprovider = { version = "1.127.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-s3 = { version = "1.140.0", default-features = false, features = ["default-https-client", "http-1x", "rt-tokio"] }
+aws-sdk-sesv2 = { version = "1.128.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-sqs = { version = "1.105.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aws-sdk-ssm = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
 axum = { version = "0.8.9", features = ["json", "macros"] }
+base64 = "0.22"
 chrono = { version = "0.4", features = ["serde", "clock"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 http = "1.3"
@@ -82,6 +91,7 @@ hmac = "0.12"
 reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "rustls"] }
 lambda_http = { version = "1.3.0", default-features = false, features = ["apigw_http", "tracing"] }
 lambda_runtime = "1.3.0"
+mime_guess = "2.0"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -115,6 +125,7 @@ tower-http = { version = "0.7.0", features = [
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
+walkdir = "2.5"
 
 # Every publishable path dependency carries an explicit version. Cargo removes
 # the path when packaging and resolves the version from the target registry.
@@ -138,6 +149,7 @@ minco-plugin-feedback = { version = "0.2.0", path = "plugins/minco-plugin-feedba
 minco-plugin-static-site = { version = "0.2.0", path = "plugins/minco-plugin-static-site" }
 minco-sqlx-postgres = { version = "0.2.0", path = "extensions/minco-sqlx-postgres" }
 minco-sqlx-sqlite = { version = "0.2.0", path = "extensions/minco-sqlx-sqlite" }
+minco-aws-adapters = { version = "0.2.0", path = "extensions/minco-aws-adapters" }
 minco-aws-lambda = { version = "0.2.0", path = "extensions/minco-aws-lambda" }
 cargo-minco = { version = "0.2.0", path = "crates/minco-cli" }
 
@@ -189,6 +201,7 @@ publish = [
   "minco-plugin-audit",
   "minco-plugin-feedback",
   "minco-plugin-static-site",
+  "minco-aws-adapters",
   "minco-aws-lambda",
   "minco",
   "cargo-minco",

@@ -10,7 +10,7 @@ use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 /// Claims supplied only after signature, issuer, audience, expiry, and other
@@ -78,6 +78,164 @@ impl IdentityService {
 
     pub async fn resolve(&self, claims: VerifiedClaims) -> Result<Identity, IdentityError> {
         self.0.resolve(claims).await
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InviteIdentity {
+    pub username: String,
+    pub email: String,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+    /// When false, the provider creates the account without delivering an
+    /// invitation. This is useful for bounded conformance tests and products
+    /// with an application-owned invitation channel.
+    pub send_invitation: bool,
+}
+
+impl InviteIdentity {
+    pub fn validate(&self) -> Result<(), IdentityError> {
+        validate_managed_username(&self.username)?;
+        validate_email(&self.email)?;
+        validate_managed_attributes(&self.attributes)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManagedIdentity {
+    pub username: String,
+    pub enabled: bool,
+    pub status: String,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+}
+
+#[async_trait]
+pub trait IdentityAdministrator: Send + Sync + std::fmt::Debug {
+    async fn invite(&self, command: InviteIdentity) -> Result<ManagedIdentity, IdentityError>;
+    async fn get(&self, username: &str) -> Result<Option<ManagedIdentity>, IdentityError>;
+    async fn disable(&self, username: &str) -> Result<bool, IdentityError>;
+    async fn delete(&self, username: &str) -> Result<bool, IdentityError>;
+}
+
+#[derive(Clone)]
+pub struct IdentityAdministrationService(pub Arc<dyn IdentityAdministrator>);
+
+impl std::fmt::Debug for IdentityAdministrationService {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_tuple("IdentityAdministrationService")
+            .finish()
+    }
+}
+
+impl IdentityAdministrationService {
+    pub fn new(administrator: Arc<dyn IdentityAdministrator>) -> Self {
+        Self(administrator)
+    }
+
+    pub async fn invite(&self, command: InviteIdentity) -> Result<ManagedIdentity, IdentityError> {
+        command.validate()?;
+        self.0.invite(command).await
+    }
+
+    pub async fn get(&self, username: &str) -> Result<Option<ManagedIdentity>, IdentityError> {
+        validate_managed_username(username)?;
+        self.0.get(username).await
+    }
+
+    pub async fn disable(&self, username: &str) -> Result<bool, IdentityError> {
+        validate_managed_username(username)?;
+        self.0.disable(username).await
+    }
+
+    pub async fn delete(&self, username: &str) -> Result<bool, IdentityError> {
+        validate_managed_username(username)?;
+        self.0.delete(username).await
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MemoryIdentityAdministrator {
+    identities: Mutex<BTreeMap<String, ManagedIdentity>>,
+}
+
+impl MemoryIdentityAdministrator {
+    pub fn all(&self) -> Result<Vec<ManagedIdentity>, IdentityError> {
+        Ok(self
+            .identities
+            .lock()
+            .map_err(|_| IdentityError::Provider("identity memory lock was poisoned".into()))?
+            .values()
+            .cloned()
+            .collect())
+    }
+}
+
+#[async_trait]
+impl IdentityAdministrator for MemoryIdentityAdministrator {
+    async fn invite(&self, command: InviteIdentity) -> Result<ManagedIdentity, IdentityError> {
+        command.validate()?;
+        let mut identities = self
+            .identities
+            .lock()
+            .map_err(|_| IdentityError::Provider("identity memory lock was poisoned".into()))?;
+        if identities.contains_key(&command.username) {
+            return Err(IdentityError::Provider(
+                "managed identity already exists".into(),
+            ));
+        }
+        let mut attributes = command.attributes;
+        attributes.insert("email".into(), command.email);
+        let identity = ManagedIdentity {
+            username: command.username.clone(),
+            enabled: true,
+            status: if command.send_invitation {
+                "INVITED"
+            } else {
+                "CREATED"
+            }
+            .into(),
+            attributes,
+        };
+        identities.insert(command.username, identity.clone());
+        drop(identities);
+        Ok(identity)
+    }
+
+    async fn get(&self, username: &str) -> Result<Option<ManagedIdentity>, IdentityError> {
+        validate_managed_username(username)?;
+        Ok(self
+            .identities
+            .lock()
+            .map_err(|_| IdentityError::Provider("identity memory lock was poisoned".into()))?
+            .get(username)
+            .cloned())
+    }
+
+    async fn disable(&self, username: &str) -> Result<bool, IdentityError> {
+        validate_managed_username(username)?;
+        let mut identities = self
+            .identities
+            .lock()
+            .map_err(|_| IdentityError::Provider("identity memory lock was poisoned".into()))?;
+        let Some(identity) = identities.get_mut(username) else {
+            return Ok(false);
+        };
+        identity.enabled = false;
+        identity.status = "DISABLED".into();
+        drop(identities);
+        Ok(true)
+    }
+
+    async fn delete(&self, username: &str) -> Result<bool, IdentityError> {
+        validate_managed_username(username)?;
+        Ok(self
+            .identities
+            .lock()
+            .map_err(|_| IdentityError::Provider("identity memory lock was poisoned".into()))?
+            .remove(username)
+            .is_some())
     }
 }
 
@@ -174,6 +332,7 @@ enum IdentityPluginSource {
 #[derive(Debug, Clone)]
 pub struct IdentityPlugin {
     source: IdentityPluginSource,
+    administrator: Option<IdentityAdministrationService>,
 }
 
 impl IdentityPlugin {
@@ -182,13 +341,21 @@ impl IdentityPlugin {
     pub fn new(provider: Arc<dyn IdentityProvider>) -> Self {
         Self {
             source: IdentityPluginSource::Custom(IdentityService::new(provider)),
+            administrator: None,
         }
     }
 
     pub const fn claims(mapping: ClaimsMapping) -> Self {
         Self {
             source: IdentityPluginSource::Claims(mapping),
+            administrator: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_administrator(mut self, administrator: Arc<dyn IdentityAdministrator>) -> Self {
+        self.administrator = Some(IdentityAdministrationService::new(administrator));
+        self
     }
 }
 
@@ -222,6 +389,12 @@ impl Plugin for IdentityPlugin {
                 version: Version::new(1, 0, 0),
             },
         ]);
+        if self.administrator.is_some() {
+            descriptor.provides.push(CapabilityProvision {
+                name: "identity.admin".into(),
+                version: Version::new(1, 0, 0),
+            });
+        }
 
         if let IdentityPluginSource::Claims(mapping) = &self.source {
             descriptor
@@ -268,8 +441,76 @@ impl Plugin for IdentityPlugin {
             }
         };
         context.services().insert(Arc::new(service))?;
+        if let Some(administrator) = &self.administrator {
+            context.services().insert(Arc::new(administrator.clone()))?;
+        }
         Ok(())
     }
+}
+
+pub fn validate_managed_username(value: &str) -> Result<(), IdentityError> {
+    if value.trim().is_empty() || value.len() > 128 || value.chars().any(char::is_control) {
+        Err(IdentityError::InvalidAdministrationRequest(
+            "username must contain 1-128 non-control characters".into(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_email(value: &str) -> Result<(), IdentityError> {
+    let Some((local, domain)) = value.split_once('@') else {
+        return Err(IdentityError::InvalidAdministrationRequest(
+            "email address is malformed".into(),
+        ));
+    };
+    if local.is_empty()
+        || domain.is_empty()
+        || domain.starts_with('.')
+        || domain.ends_with('.')
+        || value.matches('@').count() != 1
+        || value.len() > 320
+        || !value.is_ascii()
+        || value
+            .chars()
+            .any(|character| character.is_control() || character.is_ascii_whitespace())
+        || domain.split('.').any(|label| {
+            label.is_empty()
+                || label.len() > 63
+                || label.starts_with('-')
+                || label.ends_with('-')
+                || !label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
+    {
+        return Err(IdentityError::InvalidAdministrationRequest(
+            "email address is malformed".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_managed_attributes(attributes: &BTreeMap<String, String>) -> Result<(), IdentityError> {
+    if attributes.len() > 32
+        || attributes.iter().any(|(key, value)| {
+            key.trim().is_empty()
+                || key.len() > 128
+                || value.len() > 2048
+                || key.chars().any(char::is_control)
+                || value.chars().any(char::is_control)
+                || matches!(
+                    key.as_str(),
+                    "sub" | "username" | "email" | "email_verified"
+                )
+                || key.starts_with("cognito:")
+        })
+    {
+        return Err(IdentityError::InvalidAdministrationRequest(
+            "managed identity attributes are invalid or contain reserved provider fields".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn claims_configuration(mapping: &ClaimsMapping) -> Vec<ConfigurationField> {
@@ -346,6 +587,8 @@ pub enum IdentityError {
     InvalidSubject,
     #[error("permission denied: {0}")]
     PermissionDenied(String),
+    #[error("identity administration request is invalid: {0}")]
+    InvalidAdministrationRequest(String),
     #[error("identity provider failed: {0}")]
     Provider(String),
 }
@@ -407,5 +650,71 @@ mod tests {
             .unwrap();
         assert!(identity.has_permission("feedback.manage"));
         assert!(identity.scopes.contains("profile"));
+    }
+
+    #[tokio::test]
+    async fn administration_is_injected_and_validated_before_the_provider() {
+        let administrator = Arc::new(MemoryIdentityAdministrator::default());
+        let mut manager = PluginManager::default();
+        manager
+            .register(IdentityPlugin::default().with_administrator(administrator.clone()))
+            .unwrap();
+        let mut selection = PluginSelection::default();
+        selection.enabled.insert(PluginId::new("identity").unwrap());
+        let application = manager.compose(&selection).unwrap();
+        assert!(
+            application
+                .graph
+                .capabilities
+                .contains_key("identity.admin")
+        );
+        let service = application
+            .services
+            .get::<IdentityAdministrationService>()
+            .unwrap();
+        let identity = service
+            .invite(InviteIdentity {
+                username: "reviewer-1".into(),
+                email: "reviewer@example.test".into(),
+                attributes: BTreeMap::from([("custom:team".into(), "review".into())]),
+                send_invitation: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(identity.status, "CREATED");
+        assert!(
+            service
+                .invite(InviteIdentity {
+                    username: "reviewer-2".into(),
+                    email: "reviewer@example.test".into(),
+                    attributes: BTreeMap::from([("sub".into(), "reserved".into())]),
+                    send_invitation: false,
+                })
+                .await
+                .is_err()
+        );
+        assert_eq!(administrator.all().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn administration_rejects_ambiguous_email_addresses() {
+        for email in [
+            "reviewer @example.test",
+            "reviewer@example.test@attacker.test",
+            "reviewer@example..test",
+            "reviewer@-example.test",
+        ] {
+            assert!(
+                InviteIdentity {
+                    username: "reviewer".into(),
+                    email: email.into(),
+                    attributes: BTreeMap::new(),
+                    send_invitation: false,
+                }
+                .validate()
+                .is_err(),
+                "{email}"
+            );
+        }
     }
 }

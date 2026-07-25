@@ -45,6 +45,14 @@ impl RequestFingerprint {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn parse(value: impl Into<String>) -> Result<Self, IdempotencyError> {
+        let value = value.into();
+        if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(IdempotencyError::InvalidFingerprint);
+        }
+        Ok(Self(value.to_ascii_lowercase()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,9 +121,7 @@ impl IdempotencyService {
         store: Arc<dyn IdempotencyStore>,
         stale_after: TimeDelta,
     ) -> Result<Self, IdempotencyError> {
-        if stale_after <= TimeDelta::zero() || stale_after > TimeDelta::hours(24) {
-            return Err(IdempotencyError::InvalidClaimTimeout);
-        }
+        validate_claim_timeout(stale_after)?;
         Ok(Self { store, stale_after })
     }
 
@@ -179,6 +185,7 @@ impl IdempotencyStore for MemoryIdempotencyStore {
         now: DateTime<Utc>,
         stale_after: TimeDelta,
     ) -> Result<BeginOutcome, IdempotencyError> {
+        validate_claim_timeout(stale_after)?;
         let mut records = self.records.write().await;
         let existing = records.get(&key).cloned();
         let outcome = match existing {
@@ -349,10 +356,20 @@ impl Plugin for IdempotencyPlugin {
     }
 }
 
+pub fn validate_claim_timeout(stale_after: TimeDelta) -> Result<(), IdempotencyError> {
+    if stale_after <= TimeDelta::zero() || stale_after > TimeDelta::hours(24) {
+        Err(IdempotencyError::InvalidClaimTimeout)
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum IdempotencyError {
     #[error("idempotency key must contain 1-200 visible characters")]
     InvalidKey,
+    #[error("request fingerprint must be a 64-character hexadecimal SHA-256 digest")]
+    InvalidFingerprint,
     #[error("idempotency claim timeout must be greater than zero and no more than 24 hours")]
     InvalidClaimTimeout,
     #[error("idempotency lease is stale, missing, or belongs to another worker")]
@@ -367,6 +384,13 @@ pub enum IdempotencyError {
 mod tests {
     use super::*;
     use minco_core::{PluginManager, PluginSelection};
+
+    #[test]
+    fn claim_timeout_boundary_is_shared_by_services_and_stores() {
+        assert!(validate_claim_timeout(TimeDelta::seconds(1)).is_ok());
+        assert!(validate_claim_timeout(TimeDelta::zero()).is_err());
+        assert!(validate_claim_timeout(TimeDelta::hours(24) + TimeDelta::seconds(1)).is_err());
+    }
 
     #[tokio::test]
     async fn claim_protocol_prevents_concurrent_side_effects_and_replays_completion() {

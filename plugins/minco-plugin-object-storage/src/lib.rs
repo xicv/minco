@@ -103,16 +103,39 @@ impl ObjectStoreService {
 pub enum PresignedMethod {
     Get,
     Put,
+    Post,
 }
 
 /// Browser- or client-usable request produced by a provider adapter such as S3.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// `form_fields` is populated for multipart POST uploads. This is required for
+/// providers such as S3 where the signed POST policy, rather than a presigned
+/// PUT URL, enforces an upload-size range.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PresignedObjectRequest {
     pub method: PresignedMethod,
     pub url: String,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub form_fields: BTreeMap<String, String>,
     pub expires_at: DateTime<Utc>,
+}
+
+impl std::fmt::Debug for PresignedObjectRequest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PresignedObjectRequest")
+            .field("method", &self.method)
+            .field("url", &"[REDACTED PRESIGNED URL]")
+            .field("header_names", &self.headers.keys().collect::<Vec<_>>())
+            .field(
+                "form_field_names",
+                &self.form_fields.keys().collect::<Vec<_>>(),
+            )
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -353,6 +376,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn presigned_request_debug_redacts_capability_values() {
+        let request = PresignedObjectRequest {
+            method: PresignedMethod::Post,
+            url: "https://objects.example/key?X-Amz-Signature=secret-signature".into(),
+            headers: BTreeMap::from([("authorization".into(), "secret-header".into())]),
+            form_fields: BTreeMap::from([
+                ("x-amz-security-token".into(), "secret-token".into()),
+                ("x-amz-signature".into(), "secret-signature".into()),
+            ]),
+            expires_at: Utc::now() + TimeDelta::minutes(5),
+        };
+        let debug = format!("{request:?}");
+        assert!(!debug.contains("secret-token"));
+        assert!(!debug.contains("secret-signature"));
+        assert!(!debug.contains("secret-header"));
+        assert!(debug.contains("x-amz-security-token"));
+    }
+
     #[derive(Debug)]
     struct TestSigner;
 
@@ -366,6 +408,7 @@ mod tests {
                 method: PresignedMethod::Put,
                 url: format!("https://objects.example/{}", request.key.as_str()),
                 headers: BTreeMap::from([("content-type".into(), request.content_type)]),
+                form_fields: BTreeMap::new(),
                 expires_at: Utc::now() + request.expires_in,
             })
         }
@@ -378,6 +421,7 @@ mod tests {
                 method: PresignedMethod::Get,
                 url: format!("https://objects.example/{}", request.key.as_str()),
                 headers: BTreeMap::new(),
+                form_fields: BTreeMap::new(),
                 expires_at: Utc::now() + request.expires_in,
             })
         }
