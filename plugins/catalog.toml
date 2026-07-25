@@ -29,7 +29,7 @@ id = "feedback"
 crate = "minco-plugin-feedback"
 path = "plugins/minco-plugin-feedback"
 default_enabled = false
-stability = "beta"
+stability = "stable"
 description = "Client feedback widget, screenshots, voice transcription, discussion and AI handoff."
 
 [[plugin]]

@@ -44,7 +44,7 @@ not production durability.
 | SQS/domain events | `minco-plugin-events`, `minco-aws-adapters`, `minco-sqlx-postgres` | official plugin contract + provider adapters | SQS publication and transaction-integrated leased PostgreSQL outbox; no hidden poller. |
 | Email/webhook/in-app notification | `minco-plugin-notifications`, `minco-aws-adapters` | official plugin contract + provider adapters | SES and DNS-pinned signed-webhook delivery exist; SES live send is externally blocked by the absence of a verified account identity. |
 | Durable business audit | `minco-plugin-audit`, SQLx adapters | official plugin contract + provider adapters | Append-only memory, PostgreSQL, and SQLite sinks, separate from operational logs. |
-| Feedback and client review | `minco-plugin-feedback` | official vertical slice (beta) | Compiler, HTTP, PostgreSQL, SQLite, memory, CLI, Chromium, and Firefox gates pass. Its separate AWS dependencies now exist; stability promotion remains a reviewed release decision. |
+| Feedback and client review | `minco-plugin-feedback` | official vertical slice (stable) | Compiler, HTTP, PostgreSQL, SQLite, memory, CLI, Chromium, and Firefox gates pass. Project isolation, authenticated transcription, public error redaction, and HTTPS developer transport are regression-tested. |
 | Native Lambda/API Gateway deployment | `minco-aws-lambda`, `minco-plan` | official provider adapter/core | One ARM64 ZIP and HTTP API default. |
 | Build-once release promotion | `minco-release` | core | Contract, migration, plan, source, and artifact hashes. |
 | Rustack-shaped local AWS | endpoint override/local scripts | extension policy | Pinned local S3/SQS/SSM/STS and compiled adapter proof pass; real AWS remains authoritative. |
@@ -68,8 +68,12 @@ implementations:
 3. Applications must still select exact providers, supply retention/privacy
    policy, configure verified domains and certificates, and own any business
    invitation or role workflow.
-4. Repository-wide Deep Security Scan and exact-head release checks remain
-   required before the Feedback beta stability label is reconsidered.
+4. The external repository-wide Deep Security Scan repeatedly failed to produce
+   canonical artifacts for the authorized defensive review. M6-T05 records a
+   one-release owner waiver, manual validation and remediation of the partial
+   Feedback candidates, and independent exact-head controls. This is not a
+   successful scan or a reusable exception; a later release must retry an
+   available scanner or make a new explicit risk decision.
 
 ## Plugin-system review
 
@@ -100,8 +104,9 @@ implementations:
 ## Conclusion
 
 Minco now has a stable architectural center and concrete SQLx/AWS adapter
-boundary. Feedback's compiler, database, and browser gates pass; Lambda/SAM,
-exact-resource IAM, Rustack, bounded real AWS, and verified cleanup also pass
-within the recorded scope. The beta label remains until the repository-wide
-security and exact-head release review completes and deliberately decides
-whether the two external operational rehearsals above are promotion blockers.
+boundary. Feedback's compiler, database, browser, security-regression, and
+exact-head local gates pass; Lambda/SAM, exact-resource IAM, Rustack, bounded
+real AWS, and verified cleanup also pass within the recorded scope. Feedback is
+stable under the release-scoped M6-T05 risk decision. The unrun SES delivery and
+live CloudFront distribution remain explicit deployment rehearsals rather than
+silent passes or blockers for the provider-neutral Feedback contract.

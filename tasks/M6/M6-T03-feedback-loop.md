@@ -81,8 +81,11 @@ The focused task review also closed fail-open anonymous deserialization, public
 provider-error disclosure, configuration/debug credential exposure, and the
 stale compiler-verification audit statement. Anonymous submission now requires
 explicit opt-in, and regression tests cover both struct defaults and
-deserialized plugin configuration. The plugin remains beta until the separate
-provider-adapter and bounded real-AWS gates pass.
+deserialized plugin configuration. The separate provider-adapter, bounded
+real-AWS, and cleanup gates subsequently passed in M6-T04. M6-T05 then completed
+the exact-head release review, remediated the available partial security-scan
+leads, recorded the one-release scanner waiver, and made the explicit stable
+decision.
 
 The system `python3 scripts/test/feedback_contract.py` command initially exposed
 an undeclared PyYAML prerequisite. This task now records the isolated passing

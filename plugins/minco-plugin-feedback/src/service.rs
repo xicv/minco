@@ -295,6 +295,11 @@ impl FeedbackConfig {
                 "auto_transcribe_audio requires transcription_enabled".into(),
             ));
         }
+        if self.transcription_enabled && (self.allow_anonymous || self.project_key.is_some()) {
+            return Err(FeedbackServiceError::Configuration(
+                "transcription_enabled requires authenticated feedback.create submissions; it cannot be combined with allow_anonymous or project_key".into(),
+            ));
+        }
         if self.redact_query_parameters.iter().any(|value| {
             value.trim().is_empty() || value.len() > 100 || value.chars().any(char::is_control)
         }) {
@@ -581,30 +586,40 @@ impl FeedbackService {
         id: FeedbackId,
         token: &FeedbackAccessToken,
     ) -> Result<FeedbackThread, FeedbackServiceError> {
-        self.store
-            .get_for_client(id, &hash_access_token(token))
-            .await?
-            .map(|thread| thread.client_view())
-            .ok_or(FeedbackServiceError::ClientAccessDenied)
+        Ok(self.client_thread(id, token).await?.client_view())
     }
 
     pub async fn get_for_developer(
         &self,
         id: FeedbackId,
     ) -> Result<FeedbackThread, FeedbackServiceError> {
-        self.store
+        let thread = self
+            .store
             .get(id)
             .await?
-            .ok_or(FeedbackServiceError::NotFound(id))
+            .ok_or(FeedbackServiceError::NotFound(id))?;
+        if thread.project_id != self.config.project_id {
+            return Err(FeedbackServiceError::NotFound(id));
+        }
+        Ok(thread)
     }
 
     pub async fn list(
         &self,
         mut filter: FeedbackListFilter,
     ) -> Result<Vec<FeedbackSummary>, FeedbackServiceError> {
-        if filter.project_id.is_none() {
-            filter.project_id = Some(self.config.project_id.clone());
+        if filter
+            .project_id
+            .as_deref()
+            .is_some_and(|project_id| project_id != self.config.project_id)
+        {
+            return Err(FeedbackValidationError::InvalidField {
+                field: "project_id",
+                detail: "does not match the configured feedback project".into(),
+            }
+            .into());
         }
+        filter.project_id = Some(self.config.project_id.clone());
         Ok(self.store.list(filter).await?)
     }
 
@@ -615,11 +630,7 @@ impl FeedbackService {
         body: impl Into<String>,
         correlation_id: Uuid,
     ) -> Result<FeedbackMutationResult, FeedbackServiceError> {
-        let mut thread = self
-            .store
-            .get_for_client(id, &hash_access_token(token))
-            .await?
-            .ok_or(FeedbackServiceError::ClientAccessDenied)?;
+        let mut thread = self.client_thread(id, token).await?;
         let expected_revision = thread.revision;
         thread.append_message(FeedbackMessage::client(body)?);
         if thread.status == FeedbackStatus::NeedsClarification {
@@ -632,6 +643,7 @@ impl FeedbackService {
                 "feedback.client_replied",
                 "Client replied to feedback",
                 NotificationAudience::Developer,
+                thread.context.client_subject.clone(),
                 correlation_id,
             )
             .await;
@@ -645,6 +657,7 @@ impl FeedbackService {
         &self,
         id: FeedbackId,
         input: DeveloperReplyInput,
+        actor_subject: String,
         correlation_id: Uuid,
     ) -> Result<FeedbackMutationResult, FeedbackServiceError> {
         let mut thread = self.get_for_developer(id).await?;
@@ -675,6 +688,7 @@ impl FeedbackService {
                 } else {
                     NotificationAudience::None
                 },
+                Some(actor_subject),
                 correlation_id,
             )
             .await;
@@ -685,6 +699,7 @@ impl FeedbackService {
         &self,
         id: FeedbackId,
         input: TransitionFeedbackInput,
+        actor_subject: String,
         correlation_id: Uuid,
     ) -> Result<FeedbackMutationResult, FeedbackServiceError> {
         let mut thread = self.get_for_developer(id).await?;
@@ -709,6 +724,7 @@ impl FeedbackService {
                 } else {
                     NotificationAudience::None
                 },
+                Some(actor_subject),
                 correlation_id,
             )
             .await;
@@ -756,12 +772,24 @@ impl FeedbackService {
         token: &FeedbackAccessToken,
         attachment_id: Uuid,
     ) -> Result<StoredObject, FeedbackServiceError> {
+        let thread = self.client_thread(id, token).await?;
+        self.load_attachment(&thread, attachment_id).await
+    }
+
+    async fn client_thread(
+        &self,
+        id: FeedbackId,
+        token: &FeedbackAccessToken,
+    ) -> Result<FeedbackThread, FeedbackServiceError> {
         let thread = self
             .store
             .get_for_client(id, &hash_access_token(token))
             .await?
             .ok_or(FeedbackServiceError::ClientAccessDenied)?;
-        self.load_attachment(&thread, attachment_id).await
+        if thread.project_id != self.config.project_id {
+            return Err(FeedbackServiceError::ClientAccessDenied);
+        }
+        Ok(thread)
     }
 
     async fn load_attachment(
@@ -939,6 +967,7 @@ impl FeedbackService {
             "feedback.created",
             "New client feedback",
             NotificationAudience::Developer,
+            thread.context.client_subject.clone(),
             correlation_id,
         )
         .await
@@ -950,6 +979,7 @@ impl FeedbackService {
         event_type: &str,
         title: &str,
         audience: NotificationAudience,
+        actor_subject: Option<String>,
         correlation_id: Uuid,
     ) -> Vec<FeedbackWarning> {
         let mut warnings = Vec::new();
@@ -960,9 +990,7 @@ impl FeedbackService {
             thread.id.to_string(),
             correlation_id,
         );
-        audit
-            .actor_subject
-            .clone_from(&thread.context.client_subject);
+        audit.actor_subject = actor_subject;
         audit.metadata.insert(
             "project_id".into(),
             serde_json::Value::String(thread.project_id.clone()),
@@ -1343,6 +1371,29 @@ mod tests {
     }
 
     #[test]
+    fn public_submission_modes_cannot_enable_transcription() {
+        for config in [
+            FeedbackConfig {
+                project_id: "example".into(),
+                transcription_enabled: true,
+                allow_anonymous: true,
+                ..FeedbackConfig::default()
+            },
+            FeedbackConfig {
+                project_id: "example".into(),
+                transcription_enabled: true,
+                project_key: Some("browser-visible-key".into()),
+                ..FeedbackConfig::default()
+            },
+        ] {
+            assert!(matches!(
+                config.validate(),
+                Err(FeedbackServiceError::Configuration(_))
+            ));
+        }
+    }
+
+    #[test]
     fn downstream_warning_details_do_not_expose_provider_diagnostics() {
         let warning = downstream_warning(
             "feedback_transcription_failed",
@@ -1428,11 +1479,23 @@ mod tests {
                     visible_to_client: true,
                     author_display: Some("developer".into()),
                 },
+                "developer-1".into(),
                 Uuid::now_v7(),
             )
             .await
             .unwrap();
         assert_eq!(result.thread.status, FeedbackStatus::NeedsClarification);
+        assert_eq!(
+            harness
+                .audit
+                .all()
+                .await
+                .last()
+                .unwrap()
+                .actor_subject
+                .as_deref(),
+            Some("developer-1")
+        );
     }
 
     #[tokio::test]
@@ -1457,6 +1520,56 @@ mod tests {
                 .await
                 .is_ok()
         );
+    }
+
+    #[tokio::test]
+    async fn developer_access_is_scoped_to_the_configured_project() {
+        let store = Arc::new(MemoryFeedbackStore::default());
+        let foreign_token = FeedbackAccessToken::generate();
+        let foreign_thread = FeedbackThread::create(CreateFeedbackInput {
+            project_id: "foreign".into(),
+            ..input()
+        })
+        .unwrap();
+        let foreign_id = foreign_thread.id;
+        store
+            .create(foreign_thread, hash_access_token(&foreign_token))
+            .await
+            .unwrap();
+        let harness = harness_with_store(
+            FeedbackStoreService::new(store),
+            FeedbackConfig {
+                project_id: "example".into(),
+                ..FeedbackConfig::default()
+            },
+        );
+
+        assert!(matches!(
+            harness.service.get_for_developer(foreign_id).await,
+            Err(FeedbackServiceError::NotFound(id)) if id == foreign_id
+        ));
+        assert!(matches!(
+            harness
+                .service
+                .get_for_client(foreign_id, &foreign_token)
+                .await,
+            Err(FeedbackServiceError::ClientAccessDenied)
+        ));
+        assert!(matches!(
+            harness
+                .service
+                .list(FeedbackListFilter {
+                    project_id: Some("foreign".into()),
+                    ..FeedbackListFilter::default()
+                })
+                .await,
+            Err(FeedbackServiceError::Validation(
+                FeedbackValidationError::InvalidField {
+                    field: "project_id",
+                    ..
+                }
+            ))
+        ));
     }
 
     #[tokio::test]

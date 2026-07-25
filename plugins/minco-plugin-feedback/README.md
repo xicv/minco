@@ -50,6 +50,12 @@ provides only a basic abuse-control boundary. Enabling `allow_anonymous` therefo
 also requires ingress rate limits, upload-cost monitoring, and a deliberate data-
 retention policy.
 
+Voice transcription can invoke a paid provider or a local process, so it is
+available only to authenticated principals with `feedback.create`. A deployment
+cannot combine `transcription_enabled` with `project_key` or `allow_anonymous`.
+Ingress rate limits and provider spend alerts remain required defense in depth
+for authenticated callers.
+
 ## Compose the plugin
 
 The plugin declares its dependencies explicitly. They must be registered, but

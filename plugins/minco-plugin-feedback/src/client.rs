@@ -4,7 +4,7 @@ use crate::{
 };
 use reqwest::{StatusCode, Url};
 use serde::de::DeserializeOwned;
-use std::time::Duration;
+use std::{net::IpAddr, time::Duration};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -38,6 +38,12 @@ impl FeedbackApiClient {
         {
             return Err(FeedbackApiClientError::Configuration(
                 "feedback API URL must not contain credentials, a query, or a fragment".into(),
+            ));
+        }
+        if base_url.scheme() != "https" && !is_loopback_http(&base_url) {
+            return Err(FeedbackApiClientError::Configuration(
+                "feedback API URL must use HTTPS; HTTP is allowed only for loopback development"
+                    .into(),
             ));
         }
         if !base_url.path().ends_with('/') {
@@ -174,6 +180,22 @@ impl FeedbackApiClient {
     }
 }
 
+fn is_loopback_http(url: &Url) -> bool {
+    if url.scheme() != "http" {
+        return false;
+    }
+    url.host_str().is_some_and(|host| {
+        let host = host
+            .strip_prefix('[')
+            .and_then(|host| host.strip_suffix(']'))
+            .unwrap_or(host);
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<IpAddr>()
+                .is_ok_and(|address| address.is_loopback())
+    })
+}
+
 async fn response_error(status: StatusCode, response: reqwest::Response) -> FeedbackApiClientError {
     let detail = match response.json::<serde_json::Value>().await {
         Ok(value) => value
@@ -222,9 +244,25 @@ mod tests {
             "https://user:password@example.test/_minco/feedback/",
             "https://example.test/_minco/feedback/?token=secret",
             "https://example.test/_minco/feedback/#developer",
+            "http://example.test/_minco/feedback/",
+            "ftp://example.test/_minco/feedback/",
         ] {
             assert!(
                 FeedbackApiClient::new(base_url, "developer-token").is_err(),
+                "{base_url}"
+            );
+        }
+    }
+
+    #[test]
+    fn client_allows_plaintext_only_for_loopback_development() {
+        for base_url in [
+            "http://localhost:3000/_minco/feedback/",
+            "http://127.0.0.1:3000/_minco/feedback/",
+            "http://[::1]:3000/_minco/feedback/",
+        ] {
+            assert!(
+                FeedbackApiClient::new(base_url, "developer-token").is_ok(),
                 "{base_url}"
             );
         }
