@@ -797,7 +797,7 @@ mod tests {
     }
 
     #[test]
-    fn openapi_contract_matches_the_plugin_operation_inventory() {
+    fn openapi_contract_obeys_minco_policy_and_matches_the_plugin_operation_inventory() {
         let path =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("openapi/feedback.openapi.yaml");
         let report = minco_contract::load_contract(path).unwrap();

@@ -287,7 +287,8 @@ class PublishValidator:
 
     def validate_publish_order(self) -> None:
         metadata = self.workspace["workspace"].get("metadata", {})
-        order = metadata.get("minco", {}).get("release", {}).get("publish", [])
+        release = metadata.get("minco", {}).get("release", {})
+        order = release.get("publish", [])
         publishable = {
             name for name, (_, package) in self.packages.items() if package.get("publish") is not False
         }
@@ -311,7 +312,27 @@ class PublishValidator:
                         f"{package} is ordered before internal dependency {dependency}",
                         self.root / "Cargo.toml",
                     )
+        package_tests = release.get("package_tests", [])
+        if (
+            not isinstance(package_tests, list)
+            or not all(isinstance(package, str) for package in package_tests)
+            or len(package_tests) != len(set(package_tests))
+        ):
+            self.error(
+                "PUBLISH-043",
+                "workspace.metadata.minco.release.package_tests must be a unique string array",
+                self.root / "Cargo.toml",
+            )
+            package_tests = []
+        unknown_package_tests = sorted(set(package_tests) - publishable)
+        if unknown_package_tests:
+            self.error(
+                "PUBLISH-044",
+                f"packaged-test packages are not publishable: {unknown_package_tests}",
+                self.root / "Cargo.toml",
+            )
         self.metrics["publish_order"] = order
+        self.metrics["package_test_packages"] = package_tests
 
     def validate_facade(self) -> None:
         if "minco" not in self.packages:

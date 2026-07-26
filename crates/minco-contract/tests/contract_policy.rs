@@ -94,11 +94,3 @@ fn path_level_referenced_idempotency_parameters_are_effective() {
 fn error_responses_use_problem_details_media_type() {
     assert!(codes("invalid-problem-media.yaml").contains(&"MINCO-CONTRACT-017".to_owned()));
 }
-
-#[test]
-fn official_feedback_contract_obeys_the_same_policy() {
-    let contract = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml");
-    let report = load_contract(contract).expect("Feedback contract parses");
-    assert!(report.is_valid(), "{:?}", report.findings);
-}

@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.toml",
-      "sha256": "235593194a52e6007f97b6d63a3b418445c12ce7afd6314161eccc9513274541",
-      "size_bytes": 8268
+      "sha256": "4ed3042796ce2808d3ad75e8c249049b4d474e2276aac7f7d668762d6899ad56",
+      "size_bytes": 8303
     },
     {
       "path": "FEEDBACK_REVIEW_STATUS.md",
@@ -414,8 +414,8 @@
     },
     {
       "path": "crates/minco-contract/tests/contract_policy.rs",
-      "sha256": "b7ea804398fee864525b42b2799617573833ba2cde4c7a5b329ffd2c73665f31",
-      "size_bytes": 3199
+      "sha256": "7db1f01dc4272b90d8e180d823d66d2a29134db1444366d5636e7e9ee90f08ab",
+      "size_bytes": 2857
     },
     {
       "path": "crates/minco-contract/tests/fixtures/invalid-auth.yaml",
@@ -854,8 +854,8 @@
     },
     {
       "path": "docs/development/publishing.md",
-      "sha256": "0508e89f7043f290b252c3f8679738b2c4453f8d908023786e03812778ef16a3",
-      "size_bytes": 8407
+      "sha256": "f68808bbbd47bdf70335bf816c696a0a7526860ff537a34f2a41213e2eebb1a8",
+      "size_bytes": 8607
     },
     {
       "path": "docs/development/quickstart.md",
@@ -1444,8 +1444,8 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/src/plugin.rs",
-      "sha256": "adf955186a2fbeefc55b4dab49f5c946d80f7feb7ffb08092d379b51abe580e5",
-      "size_bytes": 27567
+      "sha256": "598f7c6c089fd4ab59c9ae4b2879dbfed943e4d4737d74cd3c60210bb0ba1dbf",
+      "size_bytes": 27590
     },
     {
       "path": "plugins/minco-plugin-feedback/src/service.rs",
@@ -1869,8 +1869,8 @@
     },
     {
       "path": "scripts/release/publish.py",
-      "sha256": "07382618851dd50601ce18b9b2d6c537721f6b362d577c9b91de1caa912885b2",
-      "size_bytes": 6284
+      "sha256": "979ac95b8501c83b6c3e6d4d8e9c0c6b3cf679df472c0a4d167f37ddc597b5c9",
+      "size_bytes": 7271
     },
     {
       "path": "scripts/release/publish.sh",
@@ -1944,8 +1944,8 @@
     },
     {
       "path": "scripts/validate_publish.py",
-      "sha256": "be19f13955940e3085a4ee63ad0794928777f5afa5ad22ac74255cf6a0c67d08",
-      "size_bytes": 21611
+      "sha256": "82480cf8cd2fb61346ec88212b3ff2c84b0908bc0b3a380899ae1b8306abf8c8",
+      "size_bytes": 22511
     },
     {
       "path": "scripts/validate_static.py",
@@ -2109,7 +2109,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "b20468dd666ba87f1c9402fd891894751b9d90d4cbf6d4580f3b4747acf1c24e",
+      "sha256": "0dc9e0f66699c547c6117dc3d354a2e1ecd2a71131b4f7ddf28d515bb6ce3c75",
       "size_bytes": 1812
     },
     {
@@ -2129,8 +2129,8 @@
     },
     {
       "path": "verification/publish-validation.json",
-      "sha256": "04ccb237fce70ce280250b63f0be9c120470968ef45f841b389904271d44ae39",
-      "size_bytes": 2092
+      "sha256": "569183965adead0b383a1165ee08ff0c0eecad2a62070b88f071946127e5bdad",
+      "size_bytes": 2153
     },
     {
       "path": "verification/python-compile.txt",
@@ -2188,7 +2188,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "38c432baadb163521a4296106e3d173c2cac96c5db739e0eeedbfc760202ccb6",
-  "total_size_bytes": 2320713,
+  "source_tree_sha256": "dbed3995c1c150ed48b369f8014b71ee66590137c7e6c9b1b08c50ba73f544b0",
+  "total_size_bytes": 2322577,
   "version": "0.2.0"
 }

@@ -30,6 +30,9 @@
       "minco",
       "cargo-minco"
     ],
+    "package_test_packages": [
+      "minco-contract"
+    ],
     "workspace_version": "0.2.0",
     "workspace_packages": 29,
     "publishable_packages": 24,

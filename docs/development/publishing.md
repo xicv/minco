@@ -88,7 +88,10 @@ multi-package publishing support and selects only the crate family declared in
 `scripts/test/generated_apps.sh` generates PostgreSQL and SQLite applications, patches them to the local crate family, and compiles/tests both complete workspaces.
 
 The dry run performs package normalization, extracts each package, and compiles
-what would be uploaded. Inspect packaged files and sizes as an additional review:
+what would be uploaded. Packages listed in
+`workspace.metadata.minco.release.package_tests` are also tested from Cargo's
+unpacked archive before any dry run or upload; this catches tests that depend on
+workspace-only files. Inspect packaged files and sizes as an additional review:
 
 ```bash
 scripts/release/package-list.sh

@@ -186,6 +186,7 @@ too_many_lines = "allow"
 [workspace.metadata.minco.release]
 # Initial crates.io publication order. Dependencies must be visible in the
 # registry before dependent crates are uploaded.
+package_tests = ["minco-contract"]
 publish = [
   "minco-core",
   "minco-contract",
