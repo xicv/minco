@@ -1,7 +1,7 @@
 # Incrementally adopting Minco
 
-Published baseline: `0.2.0`
-Current workspace candidate: `0.3.0`
+Published baseline: `0.3.0`
+Current workspace version: `0.3.0`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -126,7 +126,7 @@ facade. Verify the resolved graph in the consuming application with
 Catalog `kind` distinguishes true plugins from adapters and runtimes. Catalog
 stability is validated against runtime descriptors for true plugins.
 
-## Upgrade notes: `0.2.0` to the `0.3.0` candidate
+## Upgrade notes: `0.2.0` to `0.3.0`
 
 - Plugin registration provenance is retained after composition. Normal chained
   `context.services().insert(...)` and

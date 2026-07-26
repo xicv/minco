@@ -49,15 +49,15 @@ class RepositoryTruthTests(unittest.TestCase):
     def test_current_repository_truth_is_consistent(self) -> None:
         self.assertEqual(self.truth_codes(), set())
 
-    def test_candidate_version_drift_has_a_stable_code(self) -> None:
+    def test_workspace_version_drift_has_a_stable_code(self) -> None:
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text().replace(
-                'workspace_candidate = "0.3.0"',
-                'workspace_candidate = "9.9.9"',
+                'workspace_version = "0.3.0"',
+                'workspace_version = "9.9.9"',
             )
         )
-        self.assertIn("STATIC-TRUTH-CANDIDATE-001", self.truth_codes())
+        self.assertIn("STATIC-TRUTH-VERSION-001", self.truth_codes())
 
     def test_catalog_workspace_drift_has_a_stable_code(self) -> None:
         catalog = self.root / "plugins/catalog.toml"

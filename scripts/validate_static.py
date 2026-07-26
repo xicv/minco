@@ -210,11 +210,11 @@ class Validator:
         cargo = tomllib.loads(cargo_path.read_text())
         facade = tomllib.loads(facade_path.read_text())
         catalog = tomllib.loads(catalog_path.read_text())
-        candidate = cargo["workspace"]["package"]["version"]
-        if truth.get("workspace_candidate") != candidate:
+        workspace_version = cargo["workspace"]["package"]["version"]
+        if truth.get("workspace_version") != workspace_version:
             self.error(
-                "STATIC-TRUTH-CANDIDATE-001",
-                "repository truth candidate differs from workspace.package.version",
+                "STATIC-TRUTH-VERSION-001",
+                "repository truth version differs from workspace.package.version",
                 truth_path,
             )
         if not re.fullmatch(r"\d+\.\d+\.\d+", str(truth.get("published_baseline", ""))):
@@ -371,11 +371,11 @@ class Validator:
             if package.get("publish") is not False:
                 publishable.append(name)
         release_packages = cargo["workspace"]["metadata"]["minco"]["release"]["publish"]
-        expected_candidate_count = truth.get("candidate_publishable_package_count")
-        if expected_candidate_count != len(publishable):
+        expected_package_count = truth.get("publishable_package_count")
+        if expected_package_count != len(publishable):
             self.error(
                 "STATIC-TRUTH-PACKAGES-001",
-                f"repository truth expects {expected_candidate_count} publishable packages; found {len(publishable)}",
+                f"repository truth expects {expected_package_count} publishable packages; found {len(publishable)}",
                 truth_path,
             )
         if set(release_packages) != set(publishable) or len(release_packages) != len(publishable):
@@ -577,10 +577,10 @@ class Validator:
         markers = {
             self.root / "README.md": [
                 f"Published baseline: `{truth['published_baseline']}`",
-                f"Current workspace candidate: `{candidate}`",
+                f"Current workspace version: `{workspace_version}`",
             ],
             self.root / "VERIFICATION.md": [
-                f"Current workspace version: `{candidate}`",
+                f"Current workspace version: `{workspace_version}`",
                 f"Published baseline: `{truth['published_baseline']}`",
             ],
         }

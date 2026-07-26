@@ -1,12 +1,12 @@
 schema = 1
-workspace_candidate = "0.3.0"
-published_baseline = "0.2.0"
+workspace_version = "0.3.0"
+published_baseline = "0.3.0"
 published_package_count = 24
 adoption_gate_task = "M6-T07"
 
-# The published 0.2.0 family is immutable. The 0.3.0 candidate changes public
-# plugin-registration APIs and retains the same 24-package dry-run graph.
-candidate_publishable_package_count = 24
+# The 0.3.0 release changes public plugin-registration APIs from 0.2.0 and
+# retains the same 24-package graph.
+publishable_package_count = 24
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760

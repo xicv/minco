@@ -5,6 +5,8 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-27
+
 ### Added
 
 - Added metadata-only ownership and deterministic installation provenance for
@@ -20,11 +22,11 @@ Semantic Versioning once public releases begin.
   remain source-compatible; explicit mutable-collection annotations must
   accept the registrar type.
 
-### Release boundary
+### Compatibility boundary
 
-These are `0.3.0` candidate notes, not a publication record. All 24 `0.2.0`
-packages are already immutable on crates.io; M6-T07 does not tag or upload
-`0.3.0`.
+This is a pre-1.0 minor release because the registrar return types and
+`ServiceError::Duplicate` payload are public API changes. The lock-step package
+inventory remains 24 crates.
 
 ## [0.2.0] - 2026-07-26
 
