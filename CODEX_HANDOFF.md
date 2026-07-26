@@ -63,5 +63,6 @@ publish dry run. Preserve unavailable live/provider evidence as explicit gaps.
 - Package publication remains dry-run only; no AWS, registry or tag mutation is
   authorized.
 
-The draft PR and hosted exact-head run are intentionally absent until the
-reviewed JJ change is clean, pushed and dispatchable.
+The draft PR and hosted exact-head run are recorded on the PR after the
+immutable source is pushed; they are not embedded here because doing so would
+change the head they qualify.

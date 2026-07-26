@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 435,
+  "file_count": 436,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -49,8 +49,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "d2d618c46119a34d9e6a462b645b697734d6a36188cd782f85cf3532c2787cf8",
-      "size_bytes": 2849
+      "sha256": "de34c190f279df743b1ed64560033cc5813f33b3df446eac039cdaaf1fc68dd4",
+      "size_bytes": 2901
     },
     {
       "path": "CONTRIBUTING.md",
@@ -374,8 +374,8 @@
     },
     {
       "path": "crates/minco-contract/Cargo.toml",
-      "sha256": "7ca32b1f4b2d7c5900703f1e465dacf5053f40f19d3b1c91e9d834b231964c3b",
-      "size_bytes": 934
+      "sha256": "a49f23e3b1c8c8fbce596443c56e2d370493c4ed8031a968acdf0f5d0a5f4d0e",
+      "size_bytes": 946
     },
     {
       "path": "crates/minco-contract/LICENSE-APACHE",
@@ -1684,8 +1684,8 @@
     },
     {
       "path": "quality.toml",
-      "sha256": "d5d9d62adae078785541feb7c5d5898755cccf0143fe3bb81b184209d8667b1c",
-      "size_bytes": 1921
+      "sha256": "0e3177182b3d1252bf22cf15934b4721bf9b4d67353221d175d48b1ea9655f69",
+      "size_bytes": 1984
     },
     {
       "path": "roadmap/roadmap.mmd",
@@ -1859,8 +1859,8 @@
     },
     {
       "path": "scripts/quality.sh",
-      "sha256": "3384d470037ae3d57c30388e8683b16b92eb2b1b23c2acb2844f03ba5c1bed9b",
-      "size_bytes": 1754
+      "sha256": "33015897825eecefcc34a93ff242532348956112a01e7627798ea30091c40020",
+      "size_bytes": 1812
     },
     {
       "path": "scripts/release/package-list.sh",
@@ -1913,6 +1913,11 @@
       "size_bytes": 1394
     },
     {
+      "path": "scripts/test/publish_validation.py",
+      "sha256": "3f1e62ec07b4d3aa8e3c79ce013691669332ff718bce25d69e900498b1b634f3",
+      "size_bytes": 1377
+    },
+    {
       "path": "scripts/test/repository_truth.py",
       "sha256": "6bc16ac957ea975d2bdb2487988d78f3dd398dd2266c27ce6dbbdaeee0eb6180",
       "size_bytes": 6765
@@ -1939,8 +1944,8 @@
     },
     {
       "path": "scripts/validate_publish.py",
-      "sha256": "7bc26370b8216ba81a372988ac23c2ccd8493be6a2705f6a161ac87778538b59",
-      "size_bytes": 20814
+      "sha256": "be19f13955940e3085a4ee63ad0794928777f5afa5ad22ac74255cf6a0c67d08",
+      "size_bytes": 21611
     },
     {
       "path": "scripts/validate_static.py",
@@ -2044,8 +2049,8 @@
     },
     {
       "path": "tasks/M6/M6-T06-adoption-readiness.md",
-      "sha256": "1ebdbcbbea348db5c20133ff8b822f404954f4999fc821d4723e1d35180c7965",
-      "size_bytes": 4809
+      "sha256": "531cb62c42c9f112cac75cc6ea5390edf1eff6da07e50b1e5321b0258ea3fba3",
+      "size_bytes": 4901
     },
     {
       "path": "tasks/M6/M6-T07-plugin-provenance.md",
@@ -2104,7 +2109,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "f3f8c19671ab68eb155b681fc65cb31859579d6168d1a59988c5e265accf3acf",
+      "sha256": "b20468dd666ba87f1c9402fd891894751b9d90d4cbf6d4580f3b4747acf1c24e",
       "size_bytes": 1812
     },
     {
@@ -2159,7 +2164,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "4cb23f30000082c15a40b3a64d6c63897ee58c208a57c47f9436928b1aeaee8b",
+      "sha256": "d72ed61938c0319615a61e30c2aec317356fb9760a02f9b328e6daba5d28a9bd",
       "size_bytes": 752
     },
     {
@@ -2183,7 +2188,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "02836dfe6708d0eb0eb0abc2f8c5f8dd3bcc933d0147651fdce71a0a5dbb3161",
-  "total_size_bytes": 2318262,
+  "source_tree_sha256": "38c432baadb163521a4296106e3d173c2cac96c5db739e0eeedbfc760202ccb6",
+  "total_size_bytes": 2320713,
   "version": "0.2.0"
 }

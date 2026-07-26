@@ -9,6 +9,7 @@ multi-package publication order. It complements, but never replaces,
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import re
 import sys
@@ -190,6 +191,26 @@ class PublishValidator:
                         f"{name} package.include lacks {required}",
                         manifest,
                     )
+            integration_test_dir = manifest.parent / "tests"
+            integration_tests = (
+                sorted(
+                    str(path.relative_to(manifest.parent))
+                    for path in integration_test_dir.glob("*.rs")
+                )
+                if integration_test_dir.is_dir()
+                else []
+            )
+            omitted_tests = [
+                path
+                for path in integration_tests
+                if not any(fnmatch.fnmatchcase(path, pattern) for pattern in include)
+            ]
+            if omitted_tests:
+                self.error(
+                    "PUBLISH-021",
+                    f"{name} package.include omits integration test sources: {omitted_tests}",
+                    manifest,
+                )
             description = str(package.get("description", ""))
             if len(description) > 255:
                 self.error("PUBLISH-017", f"{name} description exceeds 255 characters", manifest)

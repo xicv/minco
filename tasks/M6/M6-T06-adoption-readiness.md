@@ -117,4 +117,5 @@ attempts are not counted as evidence.
 Local Docker-backed PostgreSQL/Rustack refresh is environment-blocked because
 the shared daemon did not answer read-only status calls. No restart, AWS
 mutation, crate upload, release tag or product-repository change occurred.
-Draft PR and hosted exact-head evidence are pending push.
+Draft PR and hosted exact-head evidence are recorded on the PR after push and
+are not embedded here because doing so would change the qualified head.
