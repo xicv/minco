@@ -21,6 +21,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head"}
+MUTATING_METHODS = {"post", "put", "patch", "delete"}
 IGNORED_PARTS = {"target", ".git", ".jj", ".venv", "__pycache__", "node_modules"}
 
 
@@ -79,6 +80,7 @@ class Validator:
         self.validate_required_files()
         self.validate_data_files()
         self.validate_workspace()
+        self.validate_repository_truth()
         self.validate_contract()
         self.validate_architecture()
         self.validate_plugins()
@@ -120,6 +122,9 @@ class Validator:
             "config/jj/repo.toml", "examples/orders/openapi/openapi.yaml",
             "examples/orders/config/minco.dev.toml", "roadmap/roadmap.yaml",
             "infra/aws/generated/plan.json", "infra/aws/generated/template.yaml",
+            "verification/adoption-measurements.json",
+            "verification/adoption-baseline.json",
+            "verification/source-manifest.json",
         ]
         for item in required:
             path = self.root / item
@@ -188,6 +193,407 @@ class Validator:
                 if component not in toolchain.get("components", []):
                     self.error("STATIC-CARGO-008", f"toolchain lacks required component {component}", toolchain_path)
 
+    def validate_repository_truth(self) -> None:
+        truth_path = self.root / "verification/repository-truth.toml"
+        measurements_path = self.root / "verification/adoption-measurements.json"
+        source_manifest_path = self.root / "verification/source-manifest.json"
+        cargo_path = self.root / "Cargo.toml"
+        facade_path = self.root / "crates/minco/Cargo.toml"
+        catalog_path = self.root / "plugins/catalog.toml"
+        roadmap_path = self.root / "roadmap/roadmap.yaml"
+        task_root = self.root / "tasks"
+        required = [truth_path, cargo_path, facade_path, catalog_path, roadmap_path]
+        if not all(path.is_file() for path in required) or not task_root.is_dir():
+            return
+
+        truth = tomllib.loads(truth_path.read_text())
+        cargo = tomllib.loads(cargo_path.read_text())
+        facade = tomllib.loads(facade_path.read_text())
+        catalog = tomllib.loads(catalog_path.read_text())
+        candidate = cargo["workspace"]["package"]["version"]
+        if truth.get("workspace_candidate") != candidate:
+            self.error(
+                "STATIC-TRUTH-CANDIDATE-001",
+                "repository truth candidate differs from workspace.package.version",
+                truth_path,
+            )
+        if not re.fullmatch(r"\d+\.\d+\.\d+", str(truth.get("published_baseline", ""))):
+            self.error(
+                "STATIC-TRUTH-PUBLISHED-001",
+                "published_baseline must be an exact semantic version",
+                truth_path,
+            )
+        worker_source_path = self.root / "extensions/minco-aws-worker/src/lib.rs"
+        worker_source = worker_source_path.read_text() if worker_source_path.is_file() else ""
+        worker_manifest_path = self.root / "extensions/minco-aws-worker/Cargo.toml"
+        if worker_manifest_path.is_file():
+            worker_dependencies = tomllib.loads(worker_manifest_path.read_text()).get(
+                "dependencies", {}
+            )
+            worker_sdks = sorted(
+                dependency
+                for dependency in worker_dependencies
+                if dependency.startswith("aws-sdk-") or dependency == "aws-config"
+            )
+            if worker_sdks:
+                self.error(
+                    "STATIC-BUDGET-003",
+                    f"minco-aws-worker must not depend on AWS SDK clients: {worker_sdks}",
+                    worker_manifest_path,
+                )
+        budgets = truth.get("budgets", {})
+        artifact_budget = budgets.get("native_lambda_zip_max_bytes")
+        if not isinstance(artifact_budget, int) or artifact_budget <= 0:
+            self.error(
+                "STATIC-BUDGET-007",
+                "native_lambda_zip_max_bytes must be a positive integer",
+                truth_path,
+            )
+        if measurements_path.is_file():
+            measurements = json.loads(measurements_path.read_text())
+            baseline_snapshot_path = self.root / "verification/adoption-baseline.json"
+            if (
+                baseline_snapshot_path.is_file()
+                and measurements.get("baseline")
+                != json.loads(baseline_snapshot_path.read_text())
+            ):
+                self.error(
+                    "STATIC-MEASURE-001",
+                    "adoption report baseline differs from the immutable baseline snapshot",
+                    measurements_path,
+                )
+            candidate_revision = measurements.get("candidate", {}).get("revision")
+            if not isinstance(candidate_revision, str) or not re.fullmatch(
+                r"source-tree-sha256:[0-9a-f]{64}",
+                candidate_revision,
+            ):
+                self.error(
+                    "STATIC-MEASURE-002",
+                    "adoption report candidate requires an immutable source-tree-sha256 revision",
+                    measurements_path,
+                )
+            if source_manifest_path.is_file():
+                source_manifest = json.loads(source_manifest_path.read_text())
+                source_tree_sha256 = source_manifest.get("source_tree_sha256")
+                expected_revision = f"source-tree-sha256:{source_tree_sha256}"
+                if (
+                    not isinstance(source_tree_sha256, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", source_tree_sha256)
+                    or candidate_revision != expected_revision
+                ):
+                    self.error(
+                        "STATIC-MEASURE-004",
+                        "adoption report candidate revision differs from the qualified source manifest",
+                        measurements_path,
+                    )
+            baseline_facade = measurements.get("baseline", {}).get("facade", {})
+            candidate_facade = measurements.get("candidate", {}).get("facade", {})
+            for profile in ["no_default_features", "default_features", "official_plugins"]:
+                baseline_packages = baseline_facade.get(profile, {}).get(
+                    "normal_dependency_packages"
+                )
+                candidate_packages = candidate_facade.get(profile, {}).get(
+                    "normal_dependency_packages"
+                )
+                if baseline_packages != candidate_packages:
+                    self.error(
+                        "STATIC-BUDGET-004",
+                        f"{profile} dependency package count grew from {baseline_packages} to {candidate_packages}",
+                        measurements_path,
+                    )
+            for label, artifact in (
+                measurements.get("candidate", {})
+                .get("native_arm64_artifacts", {})
+                .items()
+            ):
+                compressed = artifact.get("compressed_bytes")
+                uncompressed = artifact.get("uncompressed_bytes")
+                artifact_sha256 = artifact.get("sha256")
+                if not isinstance(compressed, int) or compressed <= 0:
+                    self.error(
+                        "STATIC-BUDGET-005",
+                        f"{label} has no positive compressed-byte measurement",
+                        measurements_path,
+                    )
+                elif isinstance(artifact_budget, int) and compressed > artifact_budget:
+                    self.error(
+                        "STATIC-BUDGET-006",
+                        f"{label} ZIP is {compressed} bytes; budget is {artifact_budget}",
+                        measurements_path,
+                    )
+                if not isinstance(uncompressed, int) or uncompressed <= 0:
+                    self.error(
+                        "STATIC-MEASURE-003",
+                        f"{label} has no positive uncompressed-byte measurement",
+                        measurements_path,
+                    )
+                if not isinstance(artifact_sha256, str) or not re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    artifact_sha256,
+                ):
+                    self.error(
+                        "STATIC-MEASURE-005",
+                        f"{label} requires an exact artifact SHA-256",
+                        measurements_path,
+                    )
+        constant_budgets = {
+            "MAX_BATCH_SIZE": budgets.get("worker_max_batch_size"),
+            "MAX_MESSAGE_BYTES": budgets.get("worker_max_message_bytes"),
+        }
+        for constant, expected in constant_budgets.items():
+            match = re.search(
+                rf"const {constant}: usize = ([0-9_ *]+);",
+                worker_source,
+            )
+            actual = parse_usize_product(match.group(1)) if match is not None else None
+            if actual != expected:
+                self.error(
+                    "STATIC-BUDGET-002",
+                    f"{constant} is {actual}; repository budget requires {expected}",
+                    worker_source_path,
+                )
+
+        members = cargo["workspace"].get("members", [])
+        package_by_name: dict[str, dict[str, Any]] = {}
+        path_by_name: dict[str, str] = {}
+        publishable: list[str] = []
+        for member in members:
+            manifest_path = self.root / member / "Cargo.toml"
+            if not manifest_path.is_file():
+                continue
+            manifest = tomllib.loads(manifest_path.read_text())
+            package = manifest.get("package", {})
+            name = package.get("name")
+            if not isinstance(name, str):
+                continue
+            package_by_name[name] = manifest
+            path_by_name[name] = member
+            if package.get("publish") is not False:
+                publishable.append(name)
+        release_packages = cargo["workspace"]["metadata"]["minco"]["release"]["publish"]
+        expected_candidate_count = truth.get("candidate_publishable_package_count")
+        if expected_candidate_count != len(publishable):
+            self.error(
+                "STATIC-TRUTH-PACKAGES-001",
+                f"repository truth expects {expected_candidate_count} publishable packages; found {len(publishable)}",
+                truth_path,
+            )
+        if set(release_packages) != set(publishable) or len(release_packages) != len(publishable):
+            self.error(
+                "STATIC-TRUTH-PACKAGES-002",
+                "release package inventory differs from publishable workspace packages",
+                cargo_path,
+            )
+
+        features = facade.get("features", {})
+        dependencies = facade.get("dependencies", {})
+        catalog_entries = catalog.get("plugin", [])
+        catalog_by_id = {entry.get("id"): entry for entry in catalog_entries}
+        ids = [entry.get("id") for entry in catalog_entries]
+        crates = [entry.get("crate") for entry in catalog_entries]
+        catalog_features = [entry.get("feature") for entry in catalog_entries]
+        if len(ids) != len(set(ids)):
+            self.error("STATIC-TRUTH-CATALOG-003", "catalog contains duplicate IDs", catalog_path)
+        if len(crates) != len(set(crates)):
+            self.error("STATIC-TRUTH-CATALOG-004", "catalog contains duplicate crates", catalog_path)
+        if len(catalog_features) != len(set(catalog_features)):
+            self.error("STATIC-TRUTH-CATALOG-005", "catalog contains duplicate facade features", catalog_path)
+        for entry in catalog_entries:
+            plugin_id = entry.get("id")
+            package = entry.get("crate")
+            path = entry.get("path")
+            kind = entry.get("kind")
+            feature = entry.get("feature")
+            if kind not in {"plugin", "adapter", "runtime"}:
+                self.error(
+                    "STATIC-TRUTH-CATALOG-001",
+                    f"catalog entry {plugin_id} has invalid kind {kind!r}",
+                    catalog_path,
+                )
+            if package not in package_by_name or path_by_name.get(package) != path:
+                self.error(
+                    "STATIC-TRUTH-CATALOG-002",
+                    f"catalog entry {plugin_id} path/package differs from the workspace",
+                    catalog_path,
+                )
+            if feature not in features:
+                self.error(
+                    "STATIC-TRUTH-FACADE-001",
+                    f"catalog entry {plugin_id} references missing facade feature {feature}",
+                    facade_path,
+                )
+            elif package not in dependencies or f"dep:{package}" not in feature_closure_tokens(features, [feature]):
+                self.error(
+                    "STATIC-TRUTH-FACADE-002",
+                    f"facade feature {feature} does not select {package}",
+                    facade_path,
+                )
+            if kind == "plugin" and isinstance(path, str):
+                source = "\n".join(
+                    source_path.read_text()
+                    for source_path in sorted((self.root / path / "src").glob("*.rs"))
+                )
+                expected_stability = str(entry.get("stability", "")).title()
+                if f'PluginId::new("{plugin_id}")' not in source:
+                    self.error(
+                        "STATIC-TRUTH-DESCRIPTOR-001",
+                        f"catalog plugin {plugin_id} has no matching runtime descriptor ID",
+                        self.root / path,
+                    )
+                if f"PluginStability::{expected_stability}" not in source:
+                    self.error(
+                        "STATIC-TRUTH-DESCRIPTOR-002",
+                        f"catalog plugin {plugin_id} stability differs from its runtime descriptor",
+                        self.root / path,
+                    )
+                runtime_default = "descriptor.default_enabled = true" in source
+                if bool(entry.get("default_enabled")) != runtime_default:
+                    self.error(
+                        "STATIC-TRUTH-DESCRIPTOR-003",
+                        f"catalog plugin {plugin_id} default selection differs from its runtime descriptor",
+                        self.root / path,
+                    )
+
+        facade_extension_crates = {
+            dependency
+            for dependency, specification in dependencies.items()
+            if isinstance(specification, dict)
+            and specification.get("optional") is True
+            and path_by_name.get(dependency, "").startswith(("plugins/", "extensions/"))
+        }
+        missing_catalog_crates = sorted(facade_extension_crates - set(crates))
+        if missing_catalog_crates:
+            self.error(
+                "STATIC-TRUTH-CATALOG-006",
+                f"facade plugin/extension dependencies absent from catalog: {missing_catalog_crates}",
+                catalog_path,
+            )
+
+        default_plugin_features = {
+            entry["feature"]
+            for entry in catalog_entries
+            if entry.get("kind") == "plugin" and entry.get("default_enabled") is True
+        }
+        selected_by_default = {
+            token
+            for token in feature_closure_tokens(features, features.get("default", []))
+            if token.startswith("plugin-")
+        }
+        if selected_by_default != default_plugin_features:
+            self.error(
+                "STATIC-TRUTH-FACADE-003",
+                "facade default plugin features differ from catalog defaults",
+                facade_path,
+            )
+        official_plugin_features = {
+            entry["feature"] for entry in catalog_entries if entry.get("kind") == "plugin"
+        }
+        selected_official = {
+            token
+            for token in feature_closure_tokens(features, ["official-plugins"])
+            if token.startswith("plugin-")
+        }
+        if selected_official != official_plugin_features:
+            self.error(
+                "STATIC-TRUTH-FACADE-004",
+                "official-plugins feature differs from the official plugin catalog",
+                facade_path,
+            )
+        default_tokens = feature_closure_tokens(features, features.get("default", []))
+        forbidden_default = sorted(
+            token
+            for token in default_tokens
+            if any(fragment in token for fragment in ["aws-", "sqlx", "lambda"])
+        )
+        if forbidden_default:
+            self.error(
+                "STATIC-BUDGET-001",
+                f"default facade enables provider/runtime features: {forbidden_default}",
+                facade_path,
+            )
+
+        tasks_by_milestone: dict[str, list[str]] = {}
+        task_status: dict[str, str] = {}
+        for task_path in sorted(task_root.rglob("*.md")):
+            source = task_path.read_text()
+            if not source.startswith("---\n") or "\n---\n" not in source[4:]:
+                continue
+            task = yaml.safe_load(source[4:].split("\n---\n", 1)[0])
+            tasks_by_milestone.setdefault(task.get("milestone"), []).append(task.get("status"))
+            task_status[task.get("id")] = task.get("status")
+        roadmap = yaml.safe_load(roadmap_path.read_text())
+        milestones = {
+            milestone["id"]: milestone for milestone in roadmap.get("milestones", [])
+        }
+        for milestone in milestones.values():
+            statuses = tasks_by_milestone.get(milestone["id"], [])
+            status = milestone.get("status")
+            incomplete_tasks = [task_status for task_status in statuses if task_status != "complete"]
+            incomplete_dependencies = [
+                dependency
+                for dependency in milestone.get("depends_on", [])
+                if milestones.get(dependency, {}).get("status") != "complete"
+            ]
+            if status == "complete" and (incomplete_tasks or incomplete_dependencies):
+                self.error(
+                    "STATIC-TRUTH-ROADMAP-001",
+                    f"complete milestone {milestone['id']} has incomplete tasks or prerequisites",
+                    roadmap_path,
+                )
+            if status == "planned" and any(
+                task_status in {"active", "complete"} for task_status in statuses
+            ):
+                self.error(
+                    "STATIC-TRUTH-ROADMAP-002",
+                    f"planned milestone {milestone['id']} has active or completed task evidence",
+                    roadmap_path,
+                )
+        gate_task = truth.get("adoption_gate_task")
+        if gate_task not in task_status:
+            self.error(
+                "STATIC-TRUTH-ADOPTION-001",
+                f"adoption gate task {gate_task!r} does not exist",
+                truth_path,
+            )
+
+        plan_path = self.root / "infra/aws/generated/plan.json"
+        if plan_path.is_file():
+            plan = json.loads(plan_path.read_text())
+            for descriptor in plan.get("application_graph", {}).get("plugins", []):
+                entry = catalog_by_id.get(descriptor.get("id"))
+                if entry is None:
+                    self.error(
+                        "STATIC-TRUTH-PLAN-001",
+                        f"generated plan plugin {descriptor.get('id')} is absent from the catalog",
+                        plan_path,
+                    )
+                elif descriptor.get("stability") != entry.get("stability"):
+                    self.error(
+                        "STATIC-TRUTH-PLAN-002",
+                        f"generated plan plugin {descriptor.get('id')} stability differs from the catalog",
+                        plan_path,
+                    )
+
+        markers = {
+            self.root / "README.md": [
+                f"Published baseline: `{truth['published_baseline']}`",
+                f"Current workspace candidate: `{candidate}`",
+            ],
+            self.root / "VERIFICATION.md": [
+                f"Current workspace version: `{candidate}`",
+                f"Published baseline: `{truth['published_baseline']}`",
+            ],
+        }
+        for document, expected_markers in markers.items():
+            source = document.read_text() if document.is_file() else ""
+            for marker in expected_markers:
+                if marker not in source:
+                    self.error(
+                        "STATIC-TRUTH-DOCS-001",
+                        f"current truth document lacks marker: {marker}",
+                        document,
+                    )
+
     def validate_contract(self) -> None:
         manifest_path = self.root / "minco.toml"
         if not manifest_path.is_file():
@@ -225,19 +631,66 @@ class Validator:
                     self.error("STATIC-CONTRACT-005", f"{operation_id} has no 2xx response", contract_path)
                 if not any(str(status) == "default" or str(status).startswith(("4", "5")) for status in responses):
                     self.error("STATIC-CONTRACT-006", f"{operation_id} has no error response", contract_path)
-                idempotent = bool(operation.get("x-minco-idempotent"))
-                if idempotent:
-                    parameters = operation.get("parameters") or []
-                    header = any(
-                        isinstance(parameter, dict)
-                        and parameter.get("in") == "header"
-                        and str(parameter.get("name", "")).lower() == "idempotency-key"
-                        and parameter.get("required") is True
-                        for parameter in parameters
+                for status, response in responses.items():
+                    if (
+                        str(status) == "default"
+                        or str(status).startswith(("4", "5"))
+                    ) and not response_has_problem_media(raw, response):
+                        self.error(
+                            "STATIC-CONTRACT-017",
+                            f"{operation_id} error response {status} must use application/problem+json",
+                            contract_path,
+                        )
+                idempotency_value = operation.get("x-minco-idempotent")
+                if idempotency_value is not None and not isinstance(idempotency_value, bool):
+                    self.error(
+                        "STATIC-CONTRACT-014",
+                        f"{operation_id} x-minco-idempotent must be boolean",
+                        contract_path,
                     )
-                    if not header:
+                idempotent = idempotency_value is True
+                parameters, parameter_error = effective_parameters(
+                    raw,
+                    item.get("parameters"),
+                    operation.get("parameters"),
+                )
+                if parameter_error:
+                    self.error(
+                        "STATIC-CONTRACT-021",
+                        f"{operation_id} has a non-local or unresolved parameter reference",
+                        contract_path,
+                    )
+                has_idempotency_header = any(
+                    isinstance(parameter, dict)
+                    and parameter.get("in") == "header"
+                    and str(parameter.get("name", "")).lower() == "idempotency-key"
+                    and parameter.get("required") is True
+                    for parameter in parameters
+                )
+                if idempotent:
+                    if not has_idempotency_header:
                         self.error("STATIC-CONTRACT-007", f"{operation_id} lacks required Idempotency-Key", contract_path)
-                public = operation.get("security") == [] or operation.get("x-minco-auth") == "public"
+                elif method in MUTATING_METHODS and has_idempotency_header:
+                    self.error(
+                        "STATIC-CONTRACT-015",
+                        f"{operation_id} Idempotency-Key requires x-minco-idempotent: true",
+                        contract_path,
+                    )
+                security = operation.get("security", raw.get("security"))
+                public, valid_security = security_allows_anonymous(security)
+                if not valid_security:
+                    self.error(
+                        "STATIC-CONTRACT-020",
+                        f"{operation_id} effective OpenAPI security must be an array of objects whose scheme values are string arrays",
+                        contract_path,
+                    )
+                auth = operation.get("x-minco-auth")
+                if not valid_auth_policy(auth, public):
+                    self.error(
+                        "STATIC-CONTRACT-016",
+                        f"{operation_id} x-minco-auth contradicts effective OpenAPI security or has an invalid permission policy",
+                        contract_path,
+                    )
                 operations.append({
                     "operation_id": operation_id,
                     "method": method,
@@ -246,9 +699,29 @@ class Validator:
                     "idempotent": idempotent,
                 })
         schemas = ((raw.get("components") or {}).get("schemas") or {})
-        for name, schema in schemas.items():
-            if isinstance(schema, dict) and schema.get("type") == "object" and schema.get("additionalProperties") is not False:
-                self.error("STATIC-CONTRACT-008", f"object schema {name} must set additionalProperties: false", contract_path)
+        for location, schema in walk_openapi_schema_objects(raw):
+            additional = schema.get("additionalProperties")
+            open_policy = schema.get("x-minco-open-object")
+            if additional is False:
+                if open_policy is not None:
+                    self.error(
+                        "STATIC-CONTRACT-019",
+                        f"closed object {location} declares x-minco-open-object",
+                        contract_path,
+                    )
+                continue
+            rationale = (
+                open_policy.get("rationale")
+                if isinstance(open_policy, dict)
+                else None
+            )
+            explicit_open = additional is True or isinstance(additional, dict)
+            if not explicit_open or not isinstance(rationale, str) or not rationale.strip():
+                self.error(
+                    "STATIC-CONTRACT-008",
+                    f"object {location} must be closed or declare explicit additionalProperties and x-minco-open-object.rationale",
+                    contract_path,
+                )
         self.contract_operations = sorted(operations, key=lambda item: item["operation_id"])
         self.metrics["contract_operations"] = len(operations)
         self.metrics["contract_schemas"] = len(schemas)
@@ -535,6 +1008,21 @@ class Validator:
         origins = plan.get("allowed_origins", [])
         if not origins or "*" in origins:
             self.error("STATIC-HTTP-001", "plan requires non-wildcard exact origins", plan_path)
+        headers = plan.get("allowed_headers", [])
+        if (
+            not headers
+            or "*" in headers
+            or len(headers) != len({str(header).lower() for header in headers})
+            or any(
+                not re.fullmatch(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+", str(header))
+                for header in headers
+            )
+        ):
+            self.error(
+                "STATIC-HTTP-002",
+                "plan requires unique non-wildcard valid exact request headers",
+                plan_path,
+            )
         database = plan.get("database", {})
         if database.get("kind") != "neon_postgres":
             self.warning("STATIC-DB-001", "default minimal-idle plan is not using the expected Neon profile", plan_path)
@@ -549,6 +1037,13 @@ class Validator:
             for origin in origins:
                 if origin not in text:
                     self.error("STATIC-SAM-003", f"template omits exact origin {origin}", template_path)
+            for configured_header in headers:
+                if configured_header not in text:
+                    self.error(
+                        "STATIC-SAM-004",
+                        f"template omits exact request header {configured_header}",
+                        template_path,
+                    )
 
     def validate_no_placeholders(self) -> None:
         patterns = [
@@ -569,6 +1064,288 @@ class Validator:
                 if re.search(pattern, source, flags=re.IGNORECASE):
                     self.error("STATIC-PLACEHOLDER-001", f"placeholder implementation matches {pattern}", path)
         self.metrics["implementation_files_scanned"] = count
+
+
+def response_has_problem_media(document: dict[str, Any], response: Any) -> bool:
+    if not isinstance(response, dict):
+        return False
+    reference = response.get("$ref")
+    if isinstance(reference, str) and reference.startswith("#/"):
+        current: Any = document
+        for segment in reference[2:].split("/"):
+            if not isinstance(current, dict) or segment not in current:
+                return False
+            current = current[segment]
+        response = current
+    return (
+        isinstance(response, dict)
+        and isinstance(response.get("content"), dict)
+        and "application/problem+json" in response["content"]
+    )
+
+
+def feature_closure_tokens(
+    features: dict[str, list[str]],
+    roots: list[str],
+) -> set[str]:
+    seen: set[str] = set()
+
+    def visit(token: str) -> None:
+        if token in seen:
+            return
+        seen.add(token)
+        if token in features:
+            for child in features[token]:
+                visit(child)
+
+    for root in roots:
+        visit(root)
+    return seen
+
+
+def derive_milestone_status(statuses: list[str]) -> str:
+    if statuses and all(status == "complete" for status in statuses):
+        return "complete"
+    if any(status in {"active", "complete"} for status in statuses):
+        return "active"
+    return "planned"
+
+
+def parse_usize_product(expression: str) -> int:
+    result = 1
+    for factor in expression.split("*"):
+        result *= int(factor.strip().replace("_", ""))
+    return result
+
+
+def security_allows_anonymous(security: Any) -> tuple[bool, bool]:
+    if security is None:
+        return True, True
+    if not isinstance(security, list):
+        return False, False
+    allows_anonymous = not security
+    for requirement in security:
+        if not isinstance(requirement, dict):
+            return False, False
+        allows_anonymous = allows_anonymous or not requirement
+        for scopes in requirement.values():
+            if not isinstance(scopes, list) or not all(
+                isinstance(scope, str) for scope in scopes
+            ):
+                return False, False
+    return allows_anonymous, True
+
+
+def valid_auth_policy(auth: Any, public: bool) -> bool:
+    if auth is None:
+        return True
+    if auth == "public":
+        return public
+    if auth == "authenticated":
+        return not public
+    if not isinstance(auth, dict) or public or auth.get("mode") != "permission_scoped":
+        return False
+    permissions = auth.get("permissions")
+    return (
+        isinstance(permissions, list)
+        and bool(permissions)
+        and all(
+            isinstance(permission, str)
+            and re.fullmatch(r"[a-z0-9._:-]{1,128}", permission)
+            for permission in permissions
+        )
+        and len(permissions) == len(set(permissions))
+    )
+
+
+def resolve_local_reference(document: dict[str, Any], value: Any) -> Any | None:
+    if not isinstance(value, dict):
+        return value
+    reference = value.get("$ref")
+    if reference is None:
+        return value
+    if not isinstance(reference, str) or not reference.startswith("#/"):
+        return None
+    current: Any = document
+    for segment in reference[2:].split("/"):
+        segment = segment.replace("~1", "/").replace("~0", "~")
+        if not isinstance(current, dict) or segment not in current:
+            return None
+        current = current[segment]
+    return current
+
+
+def effective_parameters(
+    document: dict[str, Any],
+    path_parameters: Any,
+    operation_parameters: Any,
+) -> tuple[list[dict[str, Any]], bool]:
+    effective: dict[tuple[str, str], dict[str, Any]] = {}
+    invalid_reference = False
+    for parameters in (path_parameters, operation_parameters):
+        if not isinstance(parameters, list):
+            continue
+        for value in parameters:
+            parameter = resolve_local_reference(document, value)
+            if parameter is None:
+                invalid_reference = True
+                continue
+            if not isinstance(parameter, dict):
+                continue
+            name = parameter.get("name")
+            parameter_in = parameter.get("in")
+            if isinstance(name, str) and isinstance(parameter_in, str):
+                effective[(name.lower(), parameter_in.lower())] = parameter
+    return list(effective.values()), invalid_reference
+
+
+def walk_openapi_schema_objects(document: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    objects: list[tuple[str, dict[str, Any]]] = []
+
+    def visit_schema(value: Any, location: str) -> None:
+        if not isinstance(value, dict):
+            return
+        schema_type = value.get("type")
+        if schema_type == "object" or (
+            isinstance(schema_type, list) and "object" in schema_type
+        ):
+            objects.append((location, value))
+        for keyword in ("properties", "patternProperties", "dependentSchemas", "$defs"):
+            children = value.get(keyword)
+            if isinstance(children, dict):
+                for name, child in children.items():
+                    visit_schema(child, f"{location}.{keyword}.{name}")
+        for keyword in ("allOf", "anyOf", "oneOf", "prefixItems"):
+            children = value.get(keyword)
+            if isinstance(children, list):
+                for index, child in enumerate(children):
+                    visit_schema(child, f"{location}.{keyword}[{index}]")
+        for keyword in (
+            "items",
+            "contains",
+            "not",
+            "if",
+            "then",
+            "else",
+            "propertyNames",
+            "additionalProperties",
+            "unevaluatedProperties",
+        ):
+            child = value.get(keyword)
+            if isinstance(child, dict):
+                visit_schema(child, f"{location}.{keyword}")
+
+    def visit_content(value: Any, location: str) -> None:
+        if not isinstance(value, dict):
+            return
+        for media_type, media in value.items():
+            if isinstance(media, dict) and "schema" in media:
+                visit_schema(media["schema"], f"{location}.{media_type}.schema")
+            encodings = media.get("encoding") if isinstance(media, dict) else None
+            if isinstance(encodings, dict):
+                for property_name, encoding in encodings.items():
+                    headers = encoding.get("headers") if isinstance(encoding, dict) else None
+                    if isinstance(headers, dict):
+                        for name, header in headers.items():
+                            visit_parameter(
+                                header,
+                                f"{location}.{media_type}.encoding.{property_name}.headers.{name}",
+                            )
+
+    def visit_parameter(value: Any, location: str) -> None:
+        if not isinstance(value, dict):
+            return
+        if "schema" in value:
+            visit_schema(value["schema"], f"{location}.schema")
+        visit_content(value.get("content"), f"{location}.content")
+
+    def visit_request_body(value: Any, location: str) -> None:
+        if isinstance(value, dict):
+            visit_content(value.get("content"), f"{location}.content")
+
+    def visit_response(value: Any, location: str) -> None:
+        if not isinstance(value, dict):
+            return
+        visit_content(value.get("content"), f"{location}.content")
+        headers = value.get("headers")
+        if isinstance(headers, dict):
+            for name, header in headers.items():
+                visit_parameter(header, f"{location}.headers.{name}")
+
+    def visit_parameters(value: Any, location: str) -> None:
+        if isinstance(value, list):
+            for index, parameter in enumerate(value):
+                visit_parameter(parameter, f"{location}[{index}]")
+
+    def visit_callback(value: Any, location: str) -> None:
+        if not isinstance(value, dict) or "$ref" in value:
+            return
+        for expression, path_item in value.items():
+            visit_path_item(path_item, f"{location}.{expression}")
+
+    def visit_path_item(value: Any, location: str) -> None:
+        if not isinstance(value, dict):
+            return
+        visit_parameters(value.get("parameters"), f"{location}.parameters")
+        for method in ("get", "put", "post", "delete", "options", "head", "patch", "trace"):
+            operation = value.get(method)
+            if not isinstance(operation, dict):
+                continue
+            operation_location = f"{location}.{method}"
+            visit_parameters(
+                operation.get("parameters"),
+                f"{operation_location}.parameters",
+            )
+            visit_request_body(
+                operation.get("requestBody"),
+                f"{operation_location}.requestBody",
+            )
+            responses = operation.get("responses")
+            if isinstance(responses, dict):
+                for status, response in responses.items():
+                    visit_response(
+                        response,
+                        f"{operation_location}.responses.{status}",
+                    )
+            callbacks = operation.get("callbacks")
+            if isinstance(callbacks, dict):
+                for name, callback in callbacks.items():
+                    visit_callback(
+                        callback,
+                        f"{operation_location}.callbacks.{name}",
+                    )
+
+    components = document.get("components") or {}
+    schemas = components.get("schemas") or {}
+    if isinstance(schemas, dict):
+        for name, schema in schemas.items():
+            visit_schema(schema, f"$.components.schemas.{name}")
+    component_visitors = {
+        "parameters": visit_parameter,
+        "headers": visit_parameter,
+        "requestBodies": visit_request_body,
+        "responses": visit_response,
+    }
+    if isinstance(components, dict):
+        for section, visitor in component_visitors.items():
+            entries = components.get(section)
+            if isinstance(entries, dict):
+                for name, value in entries.items():
+                    visitor(value, f"$.components.{section}.{name}")
+        callbacks = components.get("callbacks")
+        if isinstance(callbacks, dict):
+            for name, callback in callbacks.items():
+                visit_callback(callback, f"$.components.callbacks.{name}")
+        path_items = components.get("pathItems")
+        if isinstance(path_items, dict):
+            for name, path_item in path_items.items():
+                visit_path_item(path_item, f"$.components.pathItems.{name}")
+    for root in ("paths", "webhooks"):
+        items = document.get(root)
+        if isinstance(items, dict):
+            for name, path_item in items.items():
+                visit_path_item(path_item, f"$.{root}.{name}")
+    return objects
 
 
 def screaming_snake(value: str) -> str:

@@ -17,9 +17,13 @@ ZIP. It contains no provisioned concurrency, NAT Gateway, scheduled poller or
 always-on compute. Storage, retained logs, DNS, secrets and database providers
 can still incur idle charges, so the precise promise is **minimal idle cost**.
 
-> Minco 0.1 is a pre-release API. The repository contains real implementations
-> and executable validation scripts; [`VERIFICATION.md`](VERIFICATION.md) records
-> which release gates have actually run and which still require a Rust-enabled machine.
+> Published baseline: `0.1.1`
+>
+> Current workspace candidate: `0.2.0`
+>
+> Minco is pre-1.0. The published baseline is immutable; this repository
+> candidate contains additive plugins/extensions and public API changes that
+> are not available from crates.io until a separately approved release.
 
 
 ## Use Minco as a dependency
@@ -41,6 +45,9 @@ cargo add minco --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Local or single-process SQLite API
 cargo add minco --features sqlx-sqlite,test
+
+# SQS Lambda worker without AWS SDK clients
+cargo add minco --no-default-features --features aws-worker
 ```
 
 Install the development control plane and generate a layered application:
@@ -58,8 +65,9 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The crate family is prepared for crates.io but has not been represented as
-published by this repository. See
+The original 14-package family is published at `0.1.1`. The current `0.2.0`
+candidate contains 24 publishable packages, including additions that have only
+passed local packaging gates. See
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
 first-publish, dry-run, ownership, and trusted-publishing process.
 
@@ -344,11 +352,17 @@ cargo minco task verify M1-T01
 The repository is the planning source of truth. `roadmap/roadmap.mmd` and
 `roadmap/tasks.mmd` are generated visualisations.
 
+Existing applications should begin with the reversible, contract-first steps in
+[`docs/development/adopting-existing-application.md`](docs/development/adopting-existing-application.md),
+then use the facade/stability matrix in
+[`docs/adoption/incremental-adoption.md`](docs/adoption/incremental-adoption.md).
+
 
 ## Crates.io release preparation
 
-Minco uses a lock-step 14-package release family. Static metadata and dependency
-validation can run without Cargo:
+Minco uses a lock-step release family. The published `0.1.1` baseline contains
+14 packages; the current `0.2.0` candidate contains 24 publishable packages.
+Static metadata and dependency validation can run without Cargo:
 
 ```bash
 uv run --locked python scripts/validate_publish.py

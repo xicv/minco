@@ -51,6 +51,27 @@ def release_packages(data: dict) -> list[str]:
     return values
 
 
+def packaged_test_packages(data: dict) -> list[str]:
+    values = data["workspace"]["metadata"]["minco"]["release"].get("package_tests", [])
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        raise SystemExit(
+            "workspace.metadata.minco.release.package_tests must be a string array"
+        )
+    return values
+
+
+def verify_packaged_tests(data: dict, selected: list[str]) -> None:
+    version = data["workspace"]["package"]["version"]
+    for package in packaged_test_packages(data):
+        if package not in selected:
+            continue
+        run(["cargo", "package", "--locked", "--package", package])
+        manifest = ROOT / "target" / "package" / f"{package}-{version}" / "Cargo.toml"
+        if not manifest.is_file():
+            raise SystemExit(f"packaged manifest is missing: {manifest}")
+        run(["cargo", "test", "--manifest-path", str(manifest), "--locked"])
+
+
 def clean_workspace() -> None:
     if (ROOT / ".jj").exists() and shutil.which("jj"):
         result = run(["jj", "diff", "--summary"], capture=True)
@@ -131,6 +152,8 @@ def main() -> int:
         run(["scripts/test/generated_apps.sh"])
         run(["cargo", "rustdoc", "-p", "cargo-minco", "--lib", "--all-features", "--locked"])
         run(["cargo", "doc", "--workspace", "--all-features", "--no-deps", "--locked"])
+
+    verify_packaged_tests(data, selected)
 
     command = ["cargo", "publish", "--registry", args.registry, "--locked"]
     if not args.execute:

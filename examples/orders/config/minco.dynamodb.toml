@@ -5,6 +5,7 @@ region = "ap-southeast-2"
 runtime = "lambda_zip_arm64"
 ingress = "api_gateway_http_api"
 allowed_origins = ["https://app.example.invalid"]
+allowed_headers = ["authorization", "content-type", "idempotency-key", "x-request-id"]
 log_retention_days = 14
 scheduled_wakeups = []
 uses_nat_gateway = false

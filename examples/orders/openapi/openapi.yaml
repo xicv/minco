@@ -224,6 +224,12 @@ components:
           type: string
         errors:
           type: [object, 'null']
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          x-minco-open-object:
+            rationale: Validation field names are application-defined and each value is a list of public-safe messages.
         requestId:
           type: string
         status:
@@ -240,5 +246,9 @@ components:
       properties:
         dependencies:
           type: object
+          additionalProperties:
+            $ref: '#/components/schemas/DependencyHealth'
+          x-minco-open-object:
+            rationale: Dependency check IDs are supplied by the selected plugin graph.
         ready:
           type: boolean

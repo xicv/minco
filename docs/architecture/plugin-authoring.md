@@ -124,10 +124,13 @@ HTTP-capable plugins contribute a `minco_http::HttpModule` containing:
 - a fully state-bound Axum router fragment;
 - the exact OpenAPI operation IDs it implements;
 - its maximum request-body requirement.
+- exact allowed request, exposed response, and sensitive request header
+  additions.
 
 `compose_plugin_http` merges modules, rejects operation drift, and applies the
-aggregate body budget and standard middleware once. A plugin should not create a
-second independent HTTP server or copy middleware policy.
+aggregate body/header policy and standard middleware once. Header names are
+normalized and de-duplicated; wildcard headers fail composition. A plugin
+should not create a second independent HTTP server or copy middleware policy.
 
 ## Create and register
 

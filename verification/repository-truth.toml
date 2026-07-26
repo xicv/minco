@@ -1,0 +1,14 @@
+schema = 1
+workspace_candidate = "0.2.0"
+published_baseline = "0.1.1"
+published_package_count = 14
+adoption_gate_task = "M6-T06"
+
+# The published 0.1.1 family is immutable. This candidate adds one new
+# publishable crate and includes all post-0.1.1 packages in the dry-run graph.
+candidate_publishable_package_count = 24
+
+[budgets]
+native_lambda_zip_max_bytes = 10485760
+worker_max_batch_size = 10000
+worker_max_message_bytes = 1048576

@@ -1,0 +1,65 @@
+openapi: 3.1.0
+info: {title: Valid policy, version: 1.0.0}
+security:
+  - bearerAuth: []
+paths:
+  /widgets:
+    parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+    post:
+      operationId: createWidget
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: [widgets.create]
+      x-minco-idempotent: true
+      responses:
+        '201': {description: created}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  pathItems:
+    CallbackPayload:
+      post:
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+        responses:
+          '204': {description: accepted}
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: {type: string}
+  responses:
+    Problem:
+      description: RFC 9457 problem
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          encoding:
+            payload:
+              headers:
+                X-Encoded-Metadata:
+                  schema:
+                    type: object
+                    additionalProperties: false
+  schemas:
+    Metadata:
+      type: object
+      additionalProperties: {type: string}
+      x-minco-open-object:
+        rationale: Metadata keys are application-defined and values are bounded strings.
+      example:
+        schema:
+          type: object
+      x-example-metadata:
+        schema:
+          type: object
+    Problem:
+      type: object
+      additionalProperties: false
+      properties:
+        type: {type: string}

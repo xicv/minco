@@ -39,9 +39,9 @@ for database in postgres sqlite; do
     --vcs none
   append_local_patches "$project"
   cargo generate-lockfile --manifest-path "$project/Cargo.toml"
-  CARGO_TARGET_DIR="$root/target/generated-apps" \
+  CARGO_TARGET_DIR="$root/target" \
     cargo check --locked --manifest-path "$project/Cargo.toml" --workspace --all-targets --all-features
-  CARGO_TARGET_DIR="$root/target/generated-apps" \
+  CARGO_TARGET_DIR="$root/target" \
     cargo test --locked --manifest-path "$project/Cargo.toml" --workspace --all-targets --all-features
   printf 'generated %s application compiled and tested successfully\n' "$database"
 done

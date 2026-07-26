@@ -16,7 +16,7 @@ pub enum BootstrapError {
     #[error(transparent)]
     Plugin(#[from] PluginError),
     #[error(transparent)]
-    Http(#[from] http::header::InvalidHeaderValue),
+    Http(#[from] minco::http::HttpConfigurationError),
 }
 
 pub fn application() -> Result<Router, BootstrapError> {

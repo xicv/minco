@@ -8,10 +8,18 @@ for deterministic generation, clear diagnostics, and reliable AI reasoning.
 - Every operation has a globally unique lowerCamelCase `operationId`.
 - Every operation declares at least one 2xx response and a Problem response.
 - JSON is the initial request/response body format.
-- Mutating operations marked `x-minco-idempotent: true` declare a required
-  `Idempotency-Key` header.
-- Public operations set `security: []` and `x-minco-auth: public`.
-- Top-level object schemas set `additionalProperties: false`.
+- Operations marked `x-minco-idempotent: true` declare an effective required
+  `Idempotency-Key` header. On mutating operations, the required header also
+  requires the extension. Path-level parameters, operation overrides and local
+  parameter references participate in the check.
+- OpenAPI's absent `security`, `security: []`, and any security alternative
+  containing `{}` allow anonymous access. `x-minco-auth` may be `public`,
+  `authenticated`, or a `permission_scoped` object with a non-empty permission
+  list, and must agree with that effective security. Permission metadata is
+  descriptive; application use cases still authorize verified principals.
+- Object schemas set `additionalProperties: false`, or explicitly declare an
+  `additionalProperties` value policy and a non-empty
+  `x-minco-open-object.rationale`.
 - Unsupported schema constructs fail; they are never silently approximated.
 
 ## Deterministic generation

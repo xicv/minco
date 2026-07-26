@@ -1,63 +1,68 @@
-# Minco Feedback draft-PR handoff
+# Minco adoption-readiness handoff
 
-Date: 2026-07-24
-Repository: `xicv/minco`
-Bookmark: `agent/feedback-plugin-and-core-audit`
-PR title: `feat: strengthen plugin architecture and add Feedback review loop`
+Date: 2026-07-26
+Task: `M6-T06`
+Published baseline: `0.1.1`
+Workspace candidate: `0.2.0`
 
-## State
+## Objective
 
-The source snapshot was overlaid onto current `main`, rebased across the prior
-Rust `1.97.1` compiler-hardening change, and hardened until the broad local
-acceptance matrix passed. The resulting change contains the plugin-kernel
-improvements, official provider-neutral plugins, the Feedback vertical slice,
-database/browser tests, security controls and current verification evidence.
+Harden Minco before any GarmentIQ or CGSP migration by making duplicated
+repository truth executable, moving HTTP header ownership to applications and
+installed plugins, adding an opt-in SQS Lambda worker, strengthening OpenAPI
+policy, measuring facade/artifact cost, and documenting incremental adoption.
 
-Read:
+## Working boundary
 
-1. `AGENTS.md`;
-2. `FEEDBACK_REVIEW_STATUS.md`;
-3. `VERIFICATION.md`;
-4. `docs/architecture/capability-audit.md`;
-5. `docs/architecture/feedback-loop.md`;
-6. `docs/adrs/0014-plugin-lifecycle-and-feedback.md`;
-7. `tasks/M6/` and `tasks/M8/M8-T02-compiler-package-gates.md`.
+- repository only; no GarmentIQ or CGSP edits;
+- JJ workspace `minco-adoption-readiness`;
+- no AWS deployment or mutation;
+- no crates.io upload, release tag, or `publish.sh --execute`;
+- dry-run publication only;
+- no runtime plugin scanning, dynamic loading, global locator, ORM, or hidden
+  worker schedule.
 
-## Verified boundary
+## Canonical reading order
 
-Passed locally:
+1. `AGENTS.md`
+2. `tasks/M6/M6-T06-adoption-readiness.md`
+3. `verification/repository-truth.toml`
+4. `VERIFICATION.md`
+5. `docs/architecture/adoption-readiness-review.md`
+6. `docs/adoption/incremental-adoption.md`
+7. `docs/development/adopting-existing-application.md`
 
-- full Rust format/check/Clippy/test/doc quality gate;
-- Feedback feature matrix;
-- SQLite and real PostgreSQL store conformance;
-- Chromium/Firefox widget E2E and repeated stability run;
-- Orders generated applications and TCP E2E;
-- plugin validation, contract sync, Plan IR and operation explain traces;
-- cargo-deny, gitleaks and npm audit;
-- ARM64 native Lambda ZIP packaging;
-- SAM linting and read-only CloudFormation/IAM policy validation;
-- clean-tree package contents and crates.io publish dry run.
+## Completion rule
 
-Not performed:
+Do not call the candidate ready or open a non-draft pull request unless the
+exact final source passes static truth/contract checks, format, all-feature
+check/Clippy/tests/docs, generated consumer checks, security/dependency gates,
+native artifact review, package inventory, and the complete multi-package Cargo
+publish dry run. Preserve unavailable live/provider evidence as explicit gaps.
 
-- real AWS deployment or provider-adapter conformance;
-- repository-wide Codex Security Deep Scan completion because the external
-  scan service terminated two defensive runs before returning an acceptable
-  discovery manifest;
-- crate upload.
+## Current evidence
 
-## Task state
+- Base Git SHA: `6fe9121ea9284e2fa4e2dbfd76f21bd8a13e263a`.
+- Candidate identity: immutable `source-tree-sha256` in
+  `verification/source-manifest.json`, cross-checked against
+  `verification/adoption-measurements.json`; record the final pushed Git SHA
+  separately after transport.
+- Repository truth: 29 workspace packages, 24 publishable packages, 16 catalog
+  entries, 4 reference operations, 10 schemas, zero static errors/warnings.
+- `./scripts/quality.sh`: passed after an earlier storage-exhaustion failure was
+  corrected by sharing the Cargo target cache; that failed attempt is not
+  evidence.
+- Generated PostgreSQL and SQLite consumers: both compiled and tested.
+- Browser: 38 Chromium/Firefox tests passed.
+- Orders HTTP E2E, Plan generation, SAM rendering/lint, native Orders/worker
+  ARM64 packaging, cargo-deny, cargo-audit, npm audit and Gitleaks: passed.
+- Docker-backed PostgreSQL/Rustack refresh: environment-blocked because the
+  local shared Docker daemon did not answer read-only status calls.
+- Context7 current-doc lookup: quota-blocked; local resolved source/CLI help was
+  used instead.
+- Package publication remains dry-run only; no AWS, registry or tag mutation is
+  authorized.
 
-- `M6-T02` remains active because its prerequisite `M5-T01` is planned, although
-  its current provider-neutral implementation checks pass.
-- `M6-T03` remains active because its prerequisite `M2-T01` is active, although
-  its implementation acceptance matrix passes.
-- `M6-T04` remains planned; the concrete AWS adapters are not implemented.
-- `M8-T02` remains complete and its compiler/package gates were rerun against
-  this candidate without publishing.
-
-## Release boundary
-
-The only authorized remote mutation for this work is the pushed JJ bookmark and
-draft pull request. Do not merge, deploy, tag or run `scripts/release/publish.sh
---execute` without a separate approval and exact-head hosted checks.
+The draft PR and hosted exact-head run are recorded on the PR after the
+immutable source is pushed; they are not embedded here because doing so would
+change the head they qualify.

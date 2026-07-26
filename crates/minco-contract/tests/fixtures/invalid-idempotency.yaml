@@ -1,0 +1,20 @@
+openapi: 3.1.0
+info: {title: Invalid idempotency, version: 1.0.0}
+paths:
+  /widgets:
+    post:
+      operationId: createWidget
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: {type: string}
+      responses:
+        '201': {description: created}
+        default:
+          description: problem
+          content:
+            application/problem+json:
+              schema: {type: string}
+components:
+  schemas: {}

@@ -1,0 +1,99 @@
+{
+  "baseline": {
+    "build_timings_seconds": {
+      "all_features_incremental_after_default": 48.87,
+      "default_features": 10.23
+    },
+    "facade": {
+      "all_features": {
+        "feature_tree_lines": 3351,
+        "normal_dependency_packages": 290
+      },
+      "default_features": {
+        "feature_tree_lines": 820,
+        "normal_dependency_packages": 105
+      },
+      "no_default_features": {
+        "feature_tree_lines": 81,
+        "normal_dependency_packages": 16
+      },
+      "official_plugins": {
+        "feature_tree_lines": 1040,
+        "normal_dependency_packages": 118
+      }
+    },
+    "native_arm64_artifacts": {
+      "orders_lambda": {
+        "cold_build_seconds": 115.55,
+        "compressed_bytes": 5013002,
+        "uncompressed_bytes": 11000744
+      }
+    },
+    "revision": "6fe9121ea9284e2fa4e2dbfd76f21bd8a13e263a"
+  },
+  "candidate": {
+    "build_timings_seconds": {
+      "all_features_incremental_after_default": 49.23,
+      "default_features": 8.88
+    },
+    "facade": {
+      "all_features": {
+        "feature_tree_lines": 3426,
+        "normal_dependency_packages": 298
+      },
+      "default_features": {
+        "feature_tree_lines": 820,
+        "normal_dependency_packages": 105
+      },
+      "no_default_features": {
+        "feature_tree_lines": 81,
+        "normal_dependency_packages": 16
+      },
+      "official_plugins": {
+        "feature_tree_lines": 1040,
+        "normal_dependency_packages": 118
+      }
+    },
+    "native_arm64_artifacts": {
+      "orders_lambda": {
+        "cold_build_seconds": 111.55,
+        "compressed_bytes": 5018591,
+        "path": "target/lambda/orders-lambda/bootstrap.zip",
+        "sha256": "ac05270505b03f74583c2c8e4d58155f366ae95782d0c0613339a74b3b8bab44",
+        "uncompressed_bytes": 11011000
+      },
+      "sqs_worker": {
+        "cold_build_seconds": 13.45,
+        "compressed_bytes": 573418,
+        "path": "target/lambda/sqs_worker/bootstrap.zip",
+        "sha256": "3c51c1dcb7ffb3c002f9cfd8204594c6b1d2011e0b140190792caaa6fae13236",
+        "uncompressed_bytes": 1203520
+      }
+    },
+    "revision": "source-tree-sha256:95b29e2e2bc50e08f826f1c2fc8f8bd29e29a09e55ebf410b2d8a9bc45442632"
+  },
+  "comparison": {
+    "all_feature_dependency_package_delta": 8,
+    "default_dependency_package_delta": 0,
+    "no_default_dependency_package_delta": 0,
+    "official_plugin_dependency_package_delta": 0,
+    "orders_lambda_compressed_byte_delta": 5589,
+    "orders_lambda_compressed_percent_delta": 0.1115
+  },
+  "limitations": [
+    "Single local wall-clock samples are observational evidence, not CI budgets.",
+    "cargo-bloat available: False; cargo-llvm-lines available: False.",
+    "The SQS worker is new in the candidate, so no baseline worker artifact exists."
+  ],
+  "method": {
+    "artifacts": "ZIP stat plus uncompressed member-size sum; artifacts are built by cargo lambda build --release --arm64 --output-format zip",
+    "command": "scripts/measure_adoption.py --revision REVISION --baseline verification/adoption-baseline.json [--timing LABEL=SECONDS] [--artifact LABEL=PATH --artifact-timing LABEL=SECONDS]",
+    "dependency_shape": "cargo tree --locked -p minco --prefix none with no-default, default, official-plugins, and all-features selections",
+    "timings": "caller-supplied wall-clock observations from the documented isolated-target commands; not a CI budget",
+    "toolchain": {
+      "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+      "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+    }
+  },
+  "schema_version": 1
+}

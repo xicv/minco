@@ -36,6 +36,8 @@ pub struct DeploymentConfig {
     #[serde(default)]
     pub uses_nat_gateway: bool,
     pub allowed_origins: Vec<String>,
+    #[serde(default = "default_allowed_headers")]
+    pub allowed_headers: Vec<String>,
     #[serde(default = "default_log_retention_days")]
     pub log_retention_days: u32,
     #[serde(default)]
@@ -68,6 +70,15 @@ impl DeploymentConfig {
             .collect();
         let local_aws_services =
             local_aws_services(&self.runtime, &self.database, &application_graph);
+        let mut allowed_headers = self
+            .allowed_headers
+            .into_iter()
+            .map(|configured| match configured.parse::<http::HeaderName>() {
+                Ok(header) => header.as_str().to_owned(),
+                Err(_) => configured,
+            })
+            .collect::<Vec<_>>();
+        allowed_headers.sort();
         DeploymentPlan {
             schema_version: self.schema_version,
             application: self.application,
@@ -84,6 +95,7 @@ impl DeploymentConfig {
             scheduled_wakeups: self.scheduled_wakeups,
             uses_nat_gateway: self.uses_nat_gateway,
             allowed_origins: self.allowed_origins,
+            allowed_headers,
             log_retention_days: self.log_retention_days,
             cost_policy: self.cost_policy,
             performance_policy: self.performance_policy,
@@ -110,6 +122,7 @@ pub struct DeploymentPlan {
     pub scheduled_wakeups: Vec<String>,
     pub uses_nat_gateway: bool,
     pub allowed_origins: Vec<String>,
+    pub allowed_headers: Vec<String>,
     pub log_retention_days: u32,
     pub cost_policy: CostPolicy,
     pub performance_policy: PerformancePolicy,
@@ -184,6 +197,33 @@ impl DeploymentPlan {
         }
         if self.allowed_origins.iter().any(|origin| origin == "*") {
             diagnostics.push(error("MINCO-HTTP-002", "wildcard CORS is forbidden"));
+        }
+        if self.allowed_headers.is_empty() {
+            diagnostics.push(error(
+                "MINCO-HTTP-003",
+                "at least one exact CORS request header is required",
+            ));
+        }
+        let mut seen_headers = std::collections::BTreeSet::new();
+        for configured in &self.allowed_headers {
+            let Ok(header) = configured.parse::<http::HeaderName>() else {
+                diagnostics.push(error(
+                    "MINCO-HTTP-004",
+                    &format!("invalid CORS request header: {configured}"),
+                ));
+                continue;
+            };
+            if header.as_str() == "*" {
+                diagnostics.push(error(
+                    "MINCO-HTTP-005",
+                    "wildcard CORS request headers are forbidden",
+                ));
+            } else if !seen_headers.insert(header.as_str().to_owned()) {
+                diagnostics.push(error(
+                    "MINCO-HTTP-006",
+                    &format!("duplicate CORS request header: {}", header.as_str()),
+                ));
+            }
         }
         if self.log_retention_days == 0 {
             diagnostics.push(error(
@@ -659,6 +699,18 @@ const fn default_log_retention_days() -> u32 {
     14
 }
 
+fn default_allowed_headers() -> Vec<String> {
+    [
+        "authorization",
+        "content-type",
+        "idempotency-key",
+        "x-request-id",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
 fn error(code: &str, message: &str) -> PlanDiagnostic {
     PlanDiagnostic {
         code: code.into(),
@@ -728,6 +780,7 @@ mod tests {
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],
+            allowed_headers: default_allowed_headers(),
             log_retention_days: 14,
             cost_policy: CostPolicy::default(),
             performance_policy: PerformancePolicy::default(),
@@ -760,6 +813,29 @@ mod tests {
         })
         .into_plan(&contract);
         assert_eq!(plan.routes[0].operation_id, "getHealth");
+    }
+
+    #[test]
+    fn request_headers_are_normalized_and_sorted_in_the_plan() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let mut deployment = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        });
+        deployment.allowed_headers = vec!["X-Request-ID".into(), "Authorization".into()];
+        let plan = deployment.into_plan(&contract);
+        assert_eq!(plan.allowed_headers, ["authorization", "x-request-id"]);
     }
 
     #[test]

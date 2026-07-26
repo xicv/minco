@@ -1,4 +1,6 @@
-use crate::middleware::{HttpRuntimeConfig, apply_standard_middleware};
+use crate::middleware::{
+    HttpConfigurationError, HttpHeaderPolicy, HttpRuntimeConfig, apply_standard_middleware,
+};
 use axum::Router;
 use minco_core::{ApplicationGraph, FrozenContributions, PluginContext, PluginId};
 use std::{
@@ -28,6 +30,8 @@ pub struct HttpModule {
     /// Tower body limit from accidentally rejecting a route-specific upload
     /// limit. Individual routes must still configure their own smaller limits.
     pub max_request_body_bytes: Option<usize>,
+    /// Exact header policy required only when this module is installed.
+    pub header_policy: HttpHeaderPolicy,
 }
 
 impl HttpModule {
@@ -37,6 +41,7 @@ impl HttpModule {
             router,
             operation_ids: BTreeSet::new(),
             max_request_body_bytes: None,
+            header_policy: HttpHeaderPolicy::empty(),
         }
     }
 
@@ -57,6 +62,12 @@ impl HttpModule {
         self
     }
 
+    #[must_use]
+    pub fn with_header_policy(mut self, policy: HttpHeaderPolicy) -> Self {
+        self.header_policy = policy;
+        self
+    }
+
     /// Registers this module in deterministic plugin-installation order.
     pub fn contribute(self, context: &mut PluginContext<'_>) {
         context.contributions().push(Arc::new(self));
@@ -70,6 +81,7 @@ impl std::fmt::Debug for HttpModule {
             .field("plugin_id", &self.plugin_id)
             .field("operation_ids", &self.operation_ids)
             .field("max_request_body_bytes", &self.max_request_body_bytes)
+            .field("header_policy", &self.header_policy)
             .finish_non_exhaustive()
     }
 }
@@ -177,6 +189,18 @@ pub fn required_request_body_bytes(baseline: usize, contributions: &FrozenContri
         .fold(baseline, usize::max)
 }
 
+/// Returns the application policy plus the exact requirements of installed HTTP modules.
+pub fn required_header_policy(
+    baseline: &HttpHeaderPolicy,
+    contributions: &FrozenContributions,
+) -> Result<HttpHeaderPolicy, HttpConfigurationError> {
+    let mut policy = baseline.clone();
+    for module in contributions.get::<HttpModule>() {
+        policy.merge(&module.header_policy)?;
+    }
+    Ok(policy)
+}
+
 /// Validates and merges plugin routes, then applies Minco's standard middleware
 /// with an automatically expanded global body ceiling.
 pub fn compose_plugin_http(
@@ -189,8 +213,9 @@ pub fn compose_plugin_http(
     let mut effective = configuration.clone();
     effective.max_request_body_bytes =
         required_request_body_bytes(configuration.max_request_body_bytes, contributions);
+    effective.header_policy = required_header_policy(&configuration.header_policy, contributions)?;
     apply_standard_middleware(merge_plugin_http_modules(router, contributions), &effective)
-        .map_err(HttpCompositionError::InvalidHeaderValue)
+        .map_err(HttpCompositionError::InvalidConfiguration)
 }
 
 #[derive(Debug, Error)]
@@ -216,8 +241,8 @@ pub enum HttpCompositionError {
         missing: BTreeSet<String>,
         undeclared: BTreeSet<String>,
     },
-    #[error("invalid HTTP middleware header configuration: {0}")]
-    InvalidHeaderValue(#[source] http::header::InvalidHeaderValue),
+    #[error("invalid HTTP middleware configuration: {0}")]
+    InvalidConfiguration(#[from] HttpConfigurationError),
 }
 
 #[cfg(test)]
@@ -320,5 +345,93 @@ mod tests {
             required_request_body_bytes(16 * 1024 * 1024, &frozen),
             16 * 1024 * 1024
         );
+    }
+
+    #[test]
+    fn plugin_header_requirements_merge_and_deduplicate_exact_names() {
+        let mut first = HttpHeaderPolicy::empty();
+        first.allow_request_header_name("x-example-token").unwrap();
+        first
+            .mark_request_header_name_sensitive("x-example-token")
+            .unwrap();
+        let mut second = HttpHeaderPolicy::empty();
+        second.allow_request_header_name("X-Example-Token").unwrap();
+        second
+            .expose_response_header_name("x-example-result")
+            .unwrap();
+        let mut contributions = ContributionCollection::default();
+        contributions.push(Arc::new(
+            HttpModule::new(PluginId::new("first").unwrap(), Router::new())
+                .with_header_policy(first),
+        ));
+        contributions.push(Arc::new(
+            HttpModule::new(PluginId::new("second").unwrap(), Router::new())
+                .with_header_policy(second),
+        ));
+
+        let policy =
+            required_header_policy(&HttpHeaderPolicy::default(), &contributions.freeze()).unwrap();
+        let allowed = policy
+            .allowed_request_headers()
+            .into_iter()
+            .map(|name| name.as_str().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            allowed
+                .iter()
+                .filter(|name| name.as_str() == "x-example-token")
+                .count(),
+            1
+        );
+        assert!(
+            policy
+                .exposed_response_headers()
+                .iter()
+                .any(|name| name == "x-example-result")
+        );
+    }
+
+    #[tokio::test]
+    async fn installed_plugin_header_is_allowed_by_preflight() {
+        let mut policy = HttpHeaderPolicy::empty();
+        policy
+            .allow_request_header_name("x-minco-feedback-token")
+            .unwrap();
+        let mut contributions = ContributionCollection::default();
+        contributions.push(Arc::new(
+            HttpModule::new(PluginId::new("feedback").unwrap(), Router::new())
+                .with_header_policy(policy),
+        ));
+        let frozen = contributions.freeze();
+        let graph = graph_with_operations("feedback", &[]);
+        let router = compose_plugin_http(
+            Router::new(),
+            &HttpRuntimeConfig::default(),
+            &graph,
+            &frozen,
+        )
+        .unwrap();
+        let response = router
+            .oneshot(
+                http::Request::builder()
+                    .method(http::Method::OPTIONS)
+                    .uri("/")
+                    .header(http::header::ORIGIN, "http://127.0.0.1:3000")
+                    .header(http::header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                    .header(
+                        http::header::ACCESS_CONTROL_REQUEST_HEADERS,
+                        "x-minco-feedback-token",
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let allowed = response
+            .headers()
+            .get(http::header::ACCESS_CONTROL_ALLOW_HEADERS)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        assert!(allowed.contains("x-minco-feedback-token"), "{allowed}");
     }
 }

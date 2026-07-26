@@ -13,7 +13,7 @@ readme = "README.md"
 keywords = ["minco", "openapi", "contract", "codegen", "api"]
 categories = ["api-bindings", "development-tools"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 [dependencies]
 chrono.workspace = true
 serde.workspace = true

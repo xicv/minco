@@ -1,0 +1,20 @@
+openapi: 3.1.0
+info: {title: Invalid permission metadata, version: 1.0.0}
+security:
+  - bearerAuth: []
+paths:
+  /private:
+    get:
+      operationId: getPrivate
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: []
+      responses:
+        '200': {description: ok}
+        default:
+          description: problem
+          content:
+            application/problem+json:
+              schema: {type: string}
+components:
+  schemas: {}

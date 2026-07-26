@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info: {title: Security variants, version: 1.0.0}
+paths:
+  /implicit-public:
+    get:
+      operationId: getImplicitPublic
+      x-minco-auth: public
+      responses:
+        '200': {description: ok}
+        default: {$ref: '#/components/responses/Problem'}
+  /empty-alternative:
+    get:
+      operationId: getEmptyAlternative
+      security:
+        - {}
+      x-minco-auth: public
+      responses:
+        '200': {description: ok}
+        default: {$ref: '#/components/responses/Problem'}
+  /mixed-alternative:
+    get:
+      operationId: getMixedAlternative
+      security:
+        - bearerAuth: []
+        - {}
+      x-minco-auth: public
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': {description: ok}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: {type: string}
+  responses:
+    Problem:
+      description: RFC 9457 problem
+      content:
+        application/problem+json:
+          schema: {type: string}
+  schemas: {}

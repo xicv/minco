@@ -15,6 +15,7 @@ categories = ["development-tools", "config"]
 publish = ["crates-io"]
 include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 [dependencies]
+http.workspace = true
 minco-contract.workspace = true
 minco-core.workspace = true
 serde.workspace = true

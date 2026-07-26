@@ -93,9 +93,11 @@ pub fn render_sam_with_code_uri(
     output.push_str("      StageName: '$default'\n");
     output.push_str("      CorsConfiguration:\n");
     output.push_str("        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]\n");
-    output.push_str(
-        "        AllowHeaders: [Authorization, Content-Type, Idempotency-Key, X-Request-Id]\n",
-    );
+    output.push_str("        AllowHeaders:\n");
+    for header in &plan.allowed_headers {
+        writeln!(output, "          - {}", yaml_quote(header))
+            .expect("writing to String cannot fail");
+    }
     output.push_str("        AllowOrigins:\n");
     for origin in &plan.allowed_origins {
         writeln!(output, "          - {}", yaml_quote(origin))
@@ -313,6 +315,12 @@ mod tests {
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],
+            allowed_headers: vec![
+                "authorization".into(),
+                "content-type".into(),
+                "idempotency-key".into(),
+                "x-request-id".into(),
+            ],
             log_retention_days: 14,
             cost_policy: CostPolicy::default(),
             performance_policy: PerformancePolicy::default(),
