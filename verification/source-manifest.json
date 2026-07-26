@@ -14,8 +14,8 @@
     },
     {
       "path": ".github/workflows/minco-manual.yml",
-      "sha256": "9a5f10cc0a737cac1adfba9b3c6eb4c4f371021040053ec0064d9ef06b55f0b0",
-      "size_bytes": 2001
+      "sha256": "d2d5623bdd46ba87e5d24124747c0eab3d7f43c4a098a01a9eb4f9055d28c9b6",
+      "size_bytes": 2004
     },
     {
       "path": ".github/workflows/publish-crates.yml",
@@ -2183,7 +2183,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "bb45e0e3706e1386b51d3eefc9dfd8a6da6b5b41c3317f2c4428ec41cedf9a81",
-  "total_size_bytes": 2318259,
+  "source_tree_sha256": "02836dfe6708d0eb0eb0abc2f8c5f8dd3bcc933d0147651fdce71a0a5dbb3161",
+  "total_size_bytes": 2318262,
   "version": "0.2.0"
 }
