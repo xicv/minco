@@ -1,20 +1,20 @@
 # Minco verification and release evidence
 
-Date: 2026-07-26
+Date: 2026-07-27
 Current workspace version: `0.3.0`
-Published baseline: `0.2.0`
-Purpose: preserve the published `M8` compiler/package evidence and record the
-current Feedback/plugin-architecture candidate without rewriting release
-history.
+Published baseline: `0.3.0`
+Purpose: preserve the published `M8` compiler/package evidence and define the
+`0.3.0` plugin-provenance release boundary without rewriting release history.
 
-## Current `0.3.0` candidate
+## `0.3.0` release boundary
 
-The `0.3.0` candidate adds bounded registration provenance to the strengthened
-plugin kernel published in `0.2.0`. It is a pre-1.0 minor candidate because it
+The `0.3.0` release adds bounded registration provenance to the strengthened
+plugin kernel published in `0.2.0`. It is a pre-1.0 minor release because it
 changes public registrar return types and the `ServiceError::Duplicate`
-payload. This work does not tag or upload `0.3.0`.
+payload. Publication is proven separately by the exact remote tag and
+independent crates.io records; source metadata alone is not publication proof.
 
-The candidate verification covers:
+The release verification covers:
 
 - Rust format/check/Clippy/test/Rustdoc gates across all targets and features;
 - generated PostgreSQL and SQLite applications;

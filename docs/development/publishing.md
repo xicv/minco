@@ -4,16 +4,16 @@ Minco is released as a lock-step crate family. The `minco` facade is the normal
 application dependency; the smaller crates remain independently usable for
 applications that need a narrower dependency graph.
 
-## Published baseline and current candidate
+## Published releases and current workspace
 
-The immutable `0.2.0` release contains 24 packages. The current `0.3.0`
-workspace candidate retains those 24 packages; it is not published and must
-not be described as a registry release until the independent release workflow
-completes. The candidate inventory is derived from
+The `0.3.0` release contains the same lock-step 24-package inventory as
+`0.2.0`. A workspace version or source tag is not registry proof: release
+status must be verified independently against the exact crates.io records. The
+package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-| Candidate package | Role |
+| Package | Role |
 |---|---|
 | `minco-core` | Provider-neutral plugins, typed services, capabilities, and application graph. |
 | `minco-contract` | OpenAPI 3.1 validation, operation inventory, hashing, and deterministic bindings. |
@@ -125,16 +125,18 @@ For an authenticated release:
    ```
 
 3. Run all required gates and the dry run.
-4. Create the release change and lightweight tag using JJ:
+4. Merge the release change, rerun the hosted qualification workflow against
+   the exact resulting `main` SHA, then create the lightweight tag at that
+   qualified SHA using JJ:
 
    ```bash
-   jj describe -m 'release: Minco 0.3.0'
-   jj tag set v0.3.0 -r @
+   jj tag set v0.3.0 -r <qualified-main-sha>
    jj git export
    git push origin refs/tags/v0.3.0
    ```
 
-5. Publish the complete selected family:
+5. Confirm the remote tag resolves to the qualified `main` SHA, then publish
+   the complete selected family:
 
    ```bash
    scripts/release/publish.sh --execute

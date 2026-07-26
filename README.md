@@ -17,13 +17,12 @@ ZIP. It contains no provisioned concurrency, NAT Gateway, scheduled poller or
 always-on compute. Storage, retained logs, DNS, secrets and database providers
 can still incur idle charges, so the precise promise is **minimal idle cost**.
 
-> Published baseline: `0.2.0`
+> Published baseline: `0.3.0`
 >
-> Current workspace candidate: `0.3.0`
+> Current workspace version: `0.3.0`
 >
-> Minco is pre-1.0. The published baseline is immutable; this repository
-> candidate contains public plugin-registration API changes that are not
-> available from crates.io until a separately approved release.
+> Minco is pre-1.0. Version `0.3.0` contains documented public
+> plugin-registration API changes from `0.2.0`.
 
 
 ## Use Minco as a dependency
@@ -65,9 +64,8 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The current 24-package family is published at `0.2.0`. The `0.3.0` candidate
-retains that inventory while adding the documented plugin-registration
-provenance API. See
+The current 24-package family is published at `0.3.0`, including the documented
+plugin-registration provenance API. See
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
 first-publish, dry-run, ownership, and trusted-publishing process.
 
@@ -365,8 +363,8 @@ then use the facade/stability matrix in
 
 ## Crates.io release preparation
 
-Minco uses a lock-step release family. The published `0.2.0` baseline and the
-current `0.3.0` candidate each contain 24 publishable packages.
+Minco uses a lock-step release family. The published `0.3.0` release contains
+24 publishable packages.
 Static metadata and dependency validation can run without Cargo:
 
 ```bash
