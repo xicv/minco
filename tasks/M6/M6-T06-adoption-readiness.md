@@ -2,7 +2,7 @@
 id: M6-T06
 title: Harden Minco for incremental adoption and plugin-driven worker workloads
 milestone: M6
-status: active
+status: complete
 priority: critical
 area: stabilization/adoption
 depends_on: [M6-T05, M8-T05]

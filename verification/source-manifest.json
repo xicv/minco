@@ -2049,8 +2049,8 @@
     },
     {
       "path": "tasks/M6/M6-T06-adoption-readiness.md",
-      "sha256": "531cb62c42c9f112cac75cc6ea5390edf1eff6da07e50b1e5321b0258ea3fba3",
-      "size_bytes": 4901
+      "sha256": "0dbdf4707b4dabe1e1b74f94f5a011237277a4534527b1c1537a068937643989",
+      "size_bytes": 4903
     },
     {
       "path": "tasks/M6/M6-T07-plugin-provenance.md",
@@ -2188,7 +2188,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "dbed3995c1c150ed48b369f8014b71ee66590137c7e6c9b1b08c50ba73f544b0",
-  "total_size_bytes": 2322577,
+  "source_tree_sha256": "95b29e2e2bc50e08f826f1c2fc8f8bd29e29a09e55ebf410b2d8a9bc45442632",
+  "total_size_bytes": 2322579,
   "version": "0.2.0"
 }
