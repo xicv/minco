@@ -2,16 +2,30 @@
 id: M6-T07
 title: Add bounded provenance to typed plugin registrations
 milestone: M6
-status: planned
+status: complete
 priority: high
 area: core/plugins
 depends_on: [M6-T06]
 operations: []
 owned_paths:
+  - Cargo.toml
+  - Cargo.lock
+  - README.md
+  - CHANGELOG.md
+  - CODEX_HANDOFF.md
+  - VERIFICATION.md
+  - roadmap/roadmap.yaml
+  - scripts/test/repository_truth.py
+  - verification/**
+  - crates/minco/**
   - crates/minco-core/**
   - crates/minco-cli/**
+  - docs/DECISIONS.md
+  - docs/adoption/incremental-adoption.md
+  - docs/architecture/extensions.md
   - docs/architecture/plugin-authoring.md
   - docs/adrs/**
+  - docs/reference/cli.md
   - tasks/M6/M6-T07-plugin-provenance.md
 checks:
   - cargo test -p minco-core -p cargo-minco --all-features --locked
@@ -48,6 +62,49 @@ locator.
   third-party plugin examples remain source-compatible where practical;
 - an ADR records any unavoidable pre-1.0 public API break;
 - tests prove ownership cannot be spoofed through `PluginContext`.
+
+## Evidence
+
+Base Git SHA:
+`c5b7749cec295fddd795827733e2889d6f1f896b`.
+
+Implemented:
+
+- opaque application/plugin owners created only by the composition boundary;
+- owner-bound service and contribution registrar views;
+- structured duplicate diagnostics containing Rust type, first owner and
+  attempted owner;
+- metadata-only frozen summaries with deterministic type grouping and global
+  contribution installation indices;
+- `ComposedApplication::registration_provenance()` and bounded
+  `cargo minco inspect --json` output;
+- ADR and pre-1.0 compatibility notes.
+
+Review-time registry validation found all 24 lock-step `0.2.0` packages already
+published from exact tag `v0.2.0`. The workspace and internal dependency
+requirements therefore advance to the unpublished `0.3.0` candidate; placing
+these public API changes in a `0.2.x` patch would incorrectly advertise Cargo
+compatibility with the immutable `0.2.0` archives.
+
+Focused and workspace Rust gates pass, including 37 `minco-core` tests and 15
+`cargo-minco` tests. The first focused strict-Clippy run failed because two
+manual registry `Debug` implementations omitted newly added fields; they now
+emit counts/next-index metadata only, and the exact Clippy gate passes. Native
+ARM64 Orders and SQS-worker builds pass; exact refreshed artifact measurements
+are recorded in `verification/adoption-measurements.json`.
+
+The authoritative `./scripts/quality.sh` gate, bounded inspection assertion,
+official-plugin validation, generated PostgreSQL and SQLite consumers,
+24-package inventory and 24-package publication dry run pass. The publication
+driver ran without `--execute`; Cargo verified every package tarball and
+aborted every upload because of `--dry-run`. The reverse-apply whitespace
+check, source-manifest check and JJ conflict query also pass.
+
+The first publication dry run reached all 24 package archives, then failed
+while verifying `minco-http` because the isolated Cargo target exhausted the
+local disk. Clearing only generated target outputs and retrying the unchanged
+clean JJ source produced a complete pass. No registry, tag, deployment,
+database or product repository was modified.
 
 ## Reason for separate task
 

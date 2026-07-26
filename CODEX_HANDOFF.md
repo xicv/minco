@@ -1,68 +1,73 @@
-# Minco adoption-readiness handoff
+# Minco plugin-registration provenance handoff
 
 Date: 2026-07-26
-Task: `M6-T06`
-Published baseline: `0.1.1`
-Workspace candidate: `0.2.0`
+Task: `M6-T07`
+Published baseline: `0.2.0`
+Workspace candidate: `0.3.0`
+Base Git SHA: `c5b7749cec295fddd795827733e2889d6f1f896b`
 
 ## Objective
 
-Harden Minco before any GarmentIQ or CGSP migration by making duplicated
-repository truth executable, moving HTTP header ownership to applications and
-installed plugins, adding an opt-in SQS Lambda worker, strengthening OpenAPI
-policy, measuring facade/artifact cost, and documenting incremental adoption.
+Make typed singleton-service and ordered-contribution ownership diagnosable
+before the formal GarmentIQ/CGSP adoption pilot, without adding a service
+locator, serializing values, or changing runtime provider ownership.
 
-## Working boundary
+## Design
 
-- repository only; no GarmentIQ or CGSP edits;
-- JJ workspace `minco-adoption-readiness`;
-- no AWS deployment or mutation;
-- no crates.io upload, release tag, or `publish.sh --execute`;
-- dry-run publication only;
-- no runtime plugin scanning, dynamic loading, global locator, ORM, or hidden
-  worker schedule.
+- Direct `ServiceCollection`/`ContributionCollection` registrations are
+  application-owned.
+- `PluginContext` and `PluginFinalizeContext` return owner-bound registrars.
+  The opaque plugin owner is created from the effective descriptor by
+  `PluginManager`; plugins cannot pass or forge an owner.
+- Duplicate singletons retain the first value and report Rust type, first
+  owner and attempted owner.
+- Contributions retain a global deterministic installation index and are
+  summarized by Rust type in deterministic order.
+- Provenance is available only after successful composition through frozen
+  registries and `ComposedApplication::registration_provenance()`.
+- `cargo minco inspect --json` emits types, owners and contribution indices
+  only. Service values, configuration, URLs, credentials and provider
+  diagnostics are not serialized.
 
-## Canonical reading order
+## Compatibility boundary
 
-1. `AGENTS.md`
-2. `tasks/M6/M6-T06-adoption-readiness.md`
-3. `verification/repository-truth.toml`
-4. `VERIFICATION.md`
-5. `docs/architecture/adoption-readiness-review.md`
-6. `docs/adoption/incremental-adoption.md`
-7. `docs/development/adopting-existing-application.md`
+Normal chained plugin registrations remain source-compatible. The context
+accessors now return `ServiceRegistrar`/`ContributionRegistrar`, so third-party
+code that explicitly annotated the old mutable collection reference must adapt.
+`ServiceError::Duplicate` retains its variant name but now carries
+`DuplicateServiceRegistration`. ADR 0017 records the pre-1.0 impact.
 
-## Completion rule
+The review found that all 24 `0.2.0` packages had already been accepted by
+crates.io from tag `v0.2.0`. Because Cargo treats `0.2.x` releases as one
+compatible line, this public API change advances the workspace candidate to
+`0.3.0`; it does not attempt to overwrite the immutable `0.2.0` archives.
 
-Do not call the candidate ready or open a non-draft pull request unless the
-exact final source passes static truth/contract checks, format, all-feature
-check/Clippy/tests/docs, generated consumer checks, security/dependency gates,
-native artifact review, package inventory, and the complete multi-package Cargo
-publish dry run. Preserve unavailable live/provider evidence as explicit gaps.
+## Validation boundary
 
-## Current evidence
+Passed on the completed task source:
 
-- Base Git SHA: `6fe9121ea9284e2fa4e2dbfd76f21bd8a13e263a`.
-- Candidate identity: immutable `source-tree-sha256` in
-  `verification/source-manifest.json`, cross-checked against
-  `verification/adoption-measurements.json`; record the final pushed Git SHA
-  separately after transport.
-- Repository truth: 29 workspace packages, 24 publishable packages, 16 catalog
-  entries, 4 reference operations, 10 schemas, zero static errors/warnings.
-- `./scripts/quality.sh`: passed after an earlier storage-exhaustion failure was
-  corrected by sharing the Cargo target cache; that failed attempt is not
-  evidence.
-- Generated PostgreSQL and SQLite consumers: both compiled and tested.
-- Browser: 38 Chromium/Firefox tests passed.
-- Orders HTTP E2E, Plan generation, SAM rendering/lint, native Orders/worker
-  ARM64 packaging, cargo-deny, cargo-audit, npm audit and Gitleaks: passed.
-- Docker-backed PostgreSQL/Rustack refresh: environment-blocked because the
-  local shared Docker daemon did not answer read-only status calls.
-- Context7 current-doc lookup: quota-blocked; local resolved source/CLI help was
-  used instead.
-- Package publication remains dry-run only; no AWS, registry or tag mutation is
-  authorized.
+- focused `minco-core` and `cargo-minco` checks, strict Clippy and tests;
+- workspace all-target/all-feature check, strict Clippy, tests and Rustdoc;
+- bounded JSON inspection;
+- native ARM64 Orders Lambda and SQS worker builds;
+- authoritative `./scripts/quality.sh`, including generated PostgreSQL and
+  SQLite consumers, dependency/advisory/license checks and Gitleaks;
+- `cargo minco plugin validate`, the 24-package inventory and the complete
+  24-package publication dry run;
+- reverse-apply whitespace, source-manifest and JJ conflict checks.
 
-The draft PR and hosted exact-head run are recorded on the PR after the
-immutable source is pushed; they are not embedded here because doing so would
-change the head they qualify.
+The first publication dry run failed during packaged `minco-http` verification
+with `No space left on device`. It had already packaged all 24 crates. Only the
+isolated workspace's generated Cargo target was cleared; retrying the unchanged
+clean source passed and Cargo aborted every upload because of `--dry-run`.
+
+No AWS resource, database, product repository, crate registry, release tag or
+deployment is modified by this task. The publication command remains dry-run
+only.
+
+## Next boundary
+
+`M7-T01` remains planned and depends on this task. The next migration-program
+workstream is the bounded CGSP adoption plan, but product work must wait for the
+draft M6-T07 PR to be reviewed and merged unless an exact unmerged dependency
+is explicitly authorized.

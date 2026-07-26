@@ -7,6 +7,29 @@ Semantic Versioning once public releases begin.
 
 ### Added
 
+- Added metadata-only ownership and deterministic installation provenance for
+  typed singleton services and ordered contributions, including bounded
+  `cargo minco inspect --json` output and duplicate diagnostics naming the
+  first and attempted owners.
+
+### Changed
+
+- `PluginContext` service/contribution accessors now return owner-bound
+  registrar views, and `ServiceError::Duplicate` carries a structured
+  first-owner/attempted-owner payload. Ordinary chained registration call sites
+  remain source-compatible; explicit mutable-collection annotations must
+  accept the registrar type.
+
+### Release boundary
+
+These are `0.3.0` candidate notes, not a publication record. All 24 `0.2.0`
+packages are already immutable on crates.io; M6-T07 does not tag or upload
+`0.3.0`.
+
+## [0.2.0] - 2026-07-26
+
+### Added
+
 - Added a typed, deterministic HTTP header policy that merges exact
   application and installed-plugin requirements without wildcard broadening;
   Feedback-specific headers are no longer global defaults.
@@ -33,11 +56,6 @@ Semantic Versioning once public releases begin.
 - Plan/SAM request headers are normalized and sorted deterministically.
 - Generated-consumer quality checks share the repository target cache while
   retaining fresh PostgreSQL and SQLite workspaces.
-
-### Release boundary
-
-These are `0.2.0` candidate notes, not a publication record. No crate is
-uploaded and no release tag is created by M6-T06.
 
 ## [0.1.1] - 2026-07-24
 

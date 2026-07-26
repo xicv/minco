@@ -6,10 +6,10 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and current candidate
 
-The immutable `0.1.1` release contains 14 packages. The current `0.2.0`
-workspace candidate contains 24 publishable packages; it is not published and
-must not be described as a registry release until the independent release
-workflow completes. The candidate inventory is derived from
+The immutable `0.2.0` release contains 24 packages. The current `0.3.0`
+workspace candidate retains those 24 packages; it is not published and must
+not be described as a registry release until the independent release workflow
+completes. The candidate inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
@@ -128,10 +128,10 @@ For an authenticated release:
 4. Create the release change and lightweight tag using JJ:
 
    ```bash
-   jj describe -m 'release: Minco 0.1.1'
-   jj tag set v0.1.1 -r @
+   jj describe -m 'release: Minco 0.3.0'
+   jj tag set v0.3.0 -r @
    jj git export
-   git push origin refs/tags/v0.1.1
+   git push origin refs/tags/v0.3.0
    ```
 
 5. Publish the complete selected family:
@@ -147,8 +147,8 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The 14-package `0.1.1` family has crossed that boundary; candidate-only
-packages, including `minco-aws-worker`, have not.
+exists. Every package in the current 24-package family crossed that boundary
+with the `0.2.0` release.
 
 ## Trusted publishing after the first release
 

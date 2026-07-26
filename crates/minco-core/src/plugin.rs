@@ -1,7 +1,8 @@
 use crate::{
     ApplicationGraph, CORE_API_VERSION, ConfigurationField, ConfigurationValueKind,
-    ContributionCollection, FrozenContributions, FrozenServices, GraphBuilder, GraphError,
-    PluginDescriptor, PluginId, ServiceCollection, ServiceError,
+    ContributionCollection, ContributionRegistrar, FrozenContributions, FrozenServices,
+    GraphBuilder, GraphError, PluginDescriptor, PluginId, RegistrationOwner,
+    RegistrationProvenance, ServiceCollection, ServiceError, ServiceRegistrar,
 };
 use semver::Version;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -72,8 +73,11 @@ impl PluginFinalizeContext<'_> {
         self.plugin_id
     }
 
-    pub const fn services(&mut self) -> &mut ServiceCollection {
-        self.services
+    pub fn services(&mut self) -> ServiceRegistrar<'_> {
+        ServiceRegistrar {
+            services: self.services,
+            owner: RegistrationOwner::plugin(self.plugin_id.clone()),
+        }
     }
 
     pub const fn contributions(&self) -> &ContributionCollection {
@@ -97,12 +101,18 @@ impl PluginContext<'_> {
         self.plugin_id
     }
 
-    pub const fn services(&mut self) -> &mut ServiceCollection {
-        self.services
+    pub fn services(&mut self) -> ServiceRegistrar<'_> {
+        ServiceRegistrar {
+            services: self.services,
+            owner: RegistrationOwner::plugin(self.plugin_id.clone()),
+        }
     }
 
-    pub const fn contributions(&mut self) -> &mut ContributionCollection {
-        self.contributions
+    pub fn contributions(&mut self) -> ContributionRegistrar<'_> {
+        ContributionRegistrar {
+            contributions: self.contributions,
+            owner: RegistrationOwner::plugin(self.plugin_id.clone()),
+        }
     }
 
     pub const fn raw_configuration(&self) -> Option<&serde_json::Value> {
@@ -637,6 +647,16 @@ pub struct ComposedApplication {
     pub contributions: FrozenContributions,
 }
 
+impl ComposedApplication {
+    /// Returns deterministic composition metadata without serializing registered values.
+    pub fn registration_provenance(&self) -> RegistrationProvenance {
+        RegistrationProvenance {
+            services: self.services.registrations().to_vec(),
+            contributions: self.contributions.registrations().to_vec(),
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum PluginError {
     #[error("duplicate plugin registration: {0}")]
@@ -705,6 +725,7 @@ pub enum PluginError {
 mod tests {
     use super::*;
     use semver::{Version, VersionReq};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Debug)]
     struct TestPlugin {
@@ -738,6 +759,14 @@ mod tests {
             value,
             contribution: None,
         }
+    }
+
+    fn owner_ids(provenance: &RegistrationProvenance) -> Vec<String> {
+        provenance
+            .services
+            .iter()
+            .map(|registration| registration.owner.to_string())
+            .collect()
     }
 
     #[test]
@@ -779,6 +808,420 @@ mod tests {
             .map(|value| (*value).clone())
             .collect::<Vec<_>>();
         assert_eq!(values, ["one", "two"]);
+        let provenance = composed.registration_provenance();
+        assert_eq!(provenance.contributions.len(), 1);
+        assert_eq!(
+            provenance.contributions[0].rust_type,
+            std::any::type_name::<String>()
+        );
+        assert_eq!(
+            provenance.contributions[0]
+                .registrations
+                .iter()
+                .map(|registration| (
+                    registration.owner.to_string(),
+                    registration.installation_index
+                ))
+                .collect::<Vec<_>>(),
+            [("plugin:first".into(), 0), ("plugin:second".into(), 1)]
+        );
+    }
+
+    #[test]
+    fn application_seeded_service_duplicate_names_both_owners_and_type() {
+        let mut manager = PluginManager::default();
+        manager
+            .register(plugin("plugin-owner", true, Some(2)))
+            .unwrap();
+        let mut services = ServiceCollection::default();
+        services.insert(Arc::new(1_u64)).unwrap();
+
+        let error = manager
+            .compose_with(
+                &PluginSelection::default(),
+                services,
+                ContributionCollection::default(),
+            )
+            .unwrap_err();
+
+        let PluginError::Service(ServiceError::Duplicate(duplicate)) = error else {
+            panic!("expected duplicate service error");
+        };
+        assert_eq!(duplicate.rust_type, std::any::type_name::<u64>());
+        assert_eq!(duplicate.first_owner.to_string(), "application");
+        assert_eq!(duplicate.attempted_owner.to_string(), "plugin:plugin-owner");
+        assert_eq!(
+            duplicate.to_string(),
+            "u64 (first owner: application, attempted owner: plugin:plugin-owner)"
+        );
+    }
+
+    #[test]
+    fn plugin_duplicate_names_first_and_attempted_plugin_owners() {
+        let mut manager = PluginManager::default();
+        manager.register(plugin("first", true, Some(1))).unwrap();
+        manager.register(plugin("second", true, Some(2))).unwrap();
+
+        let error = manager.compose(&PluginSelection::default()).unwrap_err();
+
+        let PluginError::Service(ServiceError::Duplicate(duplicate)) = error else {
+            panic!("expected duplicate service error");
+        };
+        assert_eq!(duplicate.rust_type, std::any::type_name::<u64>());
+        assert_eq!(duplicate.first_owner.to_string(), "plugin:first");
+        assert_eq!(duplicate.attempted_owner.to_string(), "plugin:second");
+    }
+
+    trait ProvenanceTrait: Send + Sync {
+        fn value(&self) -> u64;
+    }
+
+    #[derive(Debug)]
+    struct ProvenanceTraitValue(u64);
+
+    impl ProvenanceTrait for ProvenanceTraitValue {
+        fn value(&self) -> u64 {
+            self.0
+        }
+    }
+
+    #[derive(Debug)]
+    struct TraitServicePlugin {
+        id: &'static str,
+        value: u64,
+    }
+
+    impl Plugin for TraitServicePlugin {
+        fn descriptor(&self) -> PluginDescriptor {
+            let mut descriptor = PluginDescriptor::new(
+                PluginId::new(self.id).unwrap(),
+                Version::new(1, 0, 0),
+                self.id,
+            );
+            descriptor.default_enabled = true;
+            descriptor
+        }
+
+        fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+            context
+                .services()
+                .insert_shared::<dyn ProvenanceTrait>(Arc::new(ProvenanceTraitValue(self.value)))?;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn trait_object_singleton_duplicates_preserve_typed_shared_ownership() {
+        let mut manager = PluginManager::default();
+        manager
+            .register(TraitServicePlugin {
+                id: "first-trait",
+                value: 1,
+            })
+            .unwrap();
+        manager
+            .register(TraitServicePlugin {
+                id: "second-trait",
+                value: 2,
+            })
+            .unwrap();
+
+        let error = manager.compose(&PluginSelection::default()).unwrap_err();
+
+        let PluginError::Service(ServiceError::Duplicate(duplicate)) = error else {
+            panic!("expected duplicate service error");
+        };
+        assert_eq!(
+            duplicate.rust_type,
+            std::any::type_name::<crate::Shared<dyn ProvenanceTrait>>()
+        );
+        assert_eq!(duplicate.first_owner.to_string(), "plugin:first-trait");
+        assert_eq!(duplicate.attempted_owner.to_string(), "plugin:second-trait");
+    }
+
+    #[derive(Debug)]
+    struct TraitContributionPlugin {
+        id: &'static str,
+        value: u64,
+    }
+
+    impl Plugin for TraitContributionPlugin {
+        fn descriptor(&self) -> PluginDescriptor {
+            let mut descriptor = PluginDescriptor::new(
+                PluginId::new(self.id).unwrap(),
+                Version::new(1, 0, 0),
+                self.id,
+            );
+            descriptor.default_enabled = true;
+            descriptor
+        }
+
+        fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+            context
+                .contributions()
+                .push_shared::<dyn ProvenanceTrait>(Arc::new(ProvenanceTraitValue(self.value)));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn trait_object_contribution_summaries_preserve_owner_and_global_installation_index() {
+        let mut manager = PluginManager::default();
+        manager
+            .register(TraitContributionPlugin {
+                id: "first-trait",
+                value: 1,
+            })
+            .unwrap();
+        manager
+            .register(TraitContributionPlugin {
+                id: "second-trait",
+                value: 2,
+            })
+            .unwrap();
+        let mut contributions = ContributionCollection::default();
+        contributions.push(Arc::new(String::from("application")));
+
+        let composed = manager
+            .compose_with(
+                &PluginSelection::default(),
+                ServiceCollection::default(),
+                contributions,
+            )
+            .unwrap();
+        let values = composed
+            .contributions
+            .get_shared::<dyn ProvenanceTrait>()
+            .into_iter()
+            .map(|value| value.value())
+            .collect::<Vec<_>>();
+        assert_eq!(values, [1, 2]);
+
+        let provenance = composed.registration_provenance();
+        let trait_metadata = provenance
+            .contributions
+            .iter()
+            .find(|registration| {
+                registration.rust_type
+                    == std::any::type_name::<crate::Shared<dyn ProvenanceTrait>>()
+            })
+            .unwrap();
+        assert_eq!(
+            trait_metadata
+                .registrations
+                .iter()
+                .map(|registration| (
+                    registration.owner.to_string(),
+                    registration.installation_index
+                ))
+                .collect::<Vec<_>>(),
+            [
+                ("plugin:first-trait".into(), 1),
+                ("plugin:second-trait".into(), 2)
+            ]
+        );
+    }
+
+    #[test]
+    fn registration_provenance_is_deterministic_across_repeated_composition() {
+        let mut manager = PluginManager::default();
+        let mut first = plugin("first", true, Some(1));
+        first.contribution = Some("one".into());
+        manager.register(first).unwrap();
+
+        let first = manager.compose(&PluginSelection::default()).unwrap();
+        let second = manager.compose(&PluginSelection::default()).unwrap();
+        assert_eq!(
+            serde_json::to_string(&first.registration_provenance()).unwrap(),
+            serde_json::to_string(&second.registration_provenance()).unwrap()
+        );
+    }
+
+    #[test]
+    fn graph_planning_has_no_registration_provenance_before_composition() {
+        #[derive(Debug)]
+        struct CountedInstall(Arc<AtomicUsize>);
+
+        impl Plugin for CountedInstall {
+            fn descriptor(&self) -> PluginDescriptor {
+                let mut descriptor = PluginDescriptor::new(
+                    PluginId::new("counted").unwrap(),
+                    Version::new(1, 0, 0),
+                    "counted",
+                );
+                descriptor.default_enabled = true;
+                descriptor
+            }
+
+            fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                context.services().insert(Arc::new(7_u16))?;
+                Ok(())
+            }
+        }
+
+        let installs = Arc::new(AtomicUsize::new(0));
+        let mut manager = PluginManager::default();
+        manager
+            .register(CountedInstall(Arc::clone(&installs)))
+            .unwrap();
+        let graph = manager.build_graph(&PluginSelection::default()).unwrap();
+        assert_eq!(graph.plugins.len(), 1);
+        assert_eq!(installs.load(Ordering::SeqCst), 0);
+
+        let composed = manager.compose(&PluginSelection::default()).unwrap();
+        assert_eq!(installs.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            owner_ids(&composed.registration_provenance()),
+            ["plugin:counted"]
+        );
+    }
+
+    #[test]
+    fn provenance_json_never_serializes_service_values_or_debug_output() {
+        struct SensitiveValue(&'static str);
+
+        impl std::fmt::Debug for SensitiveValue {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str(self.0)
+            }
+        }
+
+        #[derive(Debug)]
+        struct SensitivePlugin;
+
+        impl Plugin for SensitivePlugin {
+            fn descriptor(&self) -> PluginDescriptor {
+                let mut descriptor = PluginDescriptor::new(
+                    PluginId::new("sensitive").unwrap(),
+                    Version::new(1, 0, 0),
+                    "sensitive",
+                );
+                descriptor.default_enabled = true;
+                descriptor
+            }
+
+            fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+                context
+                    .services()
+                    .insert(Arc::new(SensitiveValue("DO_NOT_SERIALIZE")))?;
+                Ok(())
+            }
+        }
+
+        let mut manager = PluginManager::default();
+        manager.register(SensitivePlugin).unwrap();
+        let composed = manager.compose(&PluginSelection::default()).unwrap();
+        let json = serde_json::to_string_pretty(&composed.registration_provenance()).unwrap();
+
+        assert!(json.contains("SensitiveValue"));
+        assert!(json.contains("\"plugin_id\": \"sensitive\""));
+        assert!(!json.contains("DO_NOT_SERIALIZE"));
+    }
+
+    #[test]
+    fn plugin_context_cannot_forge_registration_owner_from_service_content() {
+        #[derive(Debug)]
+        struct ClaimedOwner(&'static str);
+
+        #[derive(Debug)]
+        struct ClaimingPlugin;
+
+        impl Plugin for ClaimingPlugin {
+            fn descriptor(&self) -> PluginDescriptor {
+                let mut descriptor = PluginDescriptor::new(
+                    PluginId::new("actual-owner").unwrap(),
+                    Version::new(1, 0, 0),
+                    "actual owner",
+                );
+                descriptor.default_enabled = true;
+                descriptor
+            }
+
+            fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+                context
+                    .services()
+                    .insert(Arc::new(ClaimedOwner("forged-owner")))?;
+                Ok(())
+            }
+        }
+
+        let mut manager = PluginManager::default();
+        manager.register(ClaimingPlugin).unwrap();
+        let composed = manager.compose(&PluginSelection::default()).unwrap();
+        let provenance = composed.registration_provenance();
+        let json = serde_json::to_string(&provenance).unwrap();
+
+        assert_eq!(owner_ids(&provenance), ["plugin:actual-owner"]);
+        assert!(!json.contains("forged-owner"));
+        assert_eq!(
+            composed.services.get::<ClaimedOwner>().unwrap().0,
+            "forged-owner"
+        );
+    }
+
+    #[test]
+    fn disabled_plugins_produce_no_registration_provenance() {
+        let mut manager = PluginManager::default();
+        let mut disabled = plugin("disabled", true, Some(1));
+        disabled.contribution = Some("hidden".into());
+        manager.register(disabled).unwrap();
+        let mut selection = PluginSelection::default();
+        selection
+            .disabled
+            .insert(PluginId::new("disabled").unwrap());
+
+        let composed = manager.compose(&selection).unwrap();
+
+        assert!(composed.registration_provenance().services.is_empty());
+        assert!(composed.registration_provenance().contributions.is_empty());
+    }
+
+    #[test]
+    fn dependency_auto_enabled_plugin_owns_its_registrations() {
+        let mut provider = plugin("provider", false, Some(1));
+        provider.contribution = Some("provider".into());
+        let mut consumer = plugin("consumer", true, None);
+        consumer
+            .descriptor
+            .plugin_dependencies
+            .push(PluginId::new("provider").unwrap());
+        let mut manager = PluginManager::default();
+        manager.register(provider).unwrap();
+        manager.register(consumer).unwrap();
+
+        let composed = manager.compose(&PluginSelection::default()).unwrap();
+        let provenance = composed.registration_provenance();
+
+        assert_eq!(owner_ids(&provenance), ["plugin:provider"]);
+        assert_eq!(
+            provenance.contributions[0].registrations[0]
+                .owner
+                .to_string(),
+            "plugin:provider"
+        );
+    }
+
+    #[test]
+    fn failed_composition_does_not_retain_a_partially_frozen_application() {
+        #[derive(Debug)]
+        struct ApplicationProbe;
+
+        let probe = Arc::new(ApplicationProbe);
+        let mut services = ServiceCollection::default();
+        services.insert(Arc::clone(&probe)).unwrap();
+        let mut manager = PluginManager::default();
+        manager.register(plugin("first", true, Some(1))).unwrap();
+        manager.register(plugin("second", true, Some(2))).unwrap();
+
+        let result = manager.compose_with(
+            &PluginSelection::default(),
+            services,
+            ContributionCollection::default(),
+        );
+
+        assert!(result.is_err());
+        assert_eq!(Arc::strong_count(&probe), 1);
     }
 
     #[test]

@@ -165,9 +165,9 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "aws-config"
-version = "1.10.0"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "701418aa459dac33e50a0f8e818e5662a16bc018a6ac7423659b70f3799d67a8"
+checksum = "1b180a3c8b55960db3426d8964b8745e652466a1a49fe1a2eda828046d30b5e4"
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -395,9 +395,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-ssm"
-version = "1.117.0"
+version = "1.118.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0faaf12de81354ce20b0eaa528baa7e02440feca7033f7bc22b50e10ac20310a"
+checksum = "2d5bd0c0ae0fc69f63b9beb68a28beba71617070d504444944e97bbfb0851d8a"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -421,9 +421,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-sts"
-version = "1.109.0"
+version = "1.110.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32d214cdfa5bbe17f117e76a7643fadf32a5234fb597322ef8b1fb4b2f17dbbd"
+checksum = "dd8b14781dfbff48984017d57167b6ea0b6471c6920ec52b44a2677c7feb3c13"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -877,7 +877,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-minco"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -899,9 +899,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c89588d05638b5b4594a3348a2d6c20277e43a7f5c5202b05cc56888475a47b8"
+checksum = "5add81bb678e6cb321aff7fa0dc7689ad82b112dbc032cea19f91d6b8e3582b9"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1257,9 +1257,9 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "either"
-version = "1.16.0"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
+checksum = "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d"
 dependencies = [
  "serde",
 ]
@@ -2170,7 +2170,7 @@ dependencies = [
 
 [[package]]
 name = "minco"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "minco-aws-adapters",
  "minco-aws-lambda",
@@ -2198,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-adapters"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2233,7 +2233,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-lambda"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -2248,7 +2248,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-worker"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "aws_lambda_events",
@@ -2263,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "minco-contract"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "serde",
@@ -2277,7 +2277,7 @@ dependencies = [
 
 [[package]]
 name = "minco-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "semver",
  "serde",
@@ -2287,7 +2287,7 @@ dependencies = [
 
 [[package]]
 name = "minco-http"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "http 1.4.2",
@@ -2306,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plan"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "http 1.4.2",
  "minco-contract",
@@ -2319,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-audit"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2334,7 +2334,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-events"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2349,7 +2349,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-feedback"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2381,7 +2381,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-health"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2392,7 +2392,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-idempotency"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2408,7 +2408,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-identity"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2422,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-notifications"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2437,7 +2437,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-object-storage"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2451,7 +2451,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-observability"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "minco-core",
  "semver",
@@ -2464,7 +2464,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-sessions"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2481,7 +2481,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-static-site"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2494,7 +2494,7 @@ dependencies = [
 
 [[package]]
 name = "minco-release"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "serde",
@@ -2506,7 +2506,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-postgres"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2525,7 +2525,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-sqlite"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2542,7 +2542,7 @@ dependencies = [
 
 [[package]]
 name = "minco-test"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "http 1.4.2",
@@ -2644,7 +2644,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "orders-adapters"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2660,7 +2660,7 @@ dependencies = [
 
 [[package]]
 name = "orders-api"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "chrono",
@@ -2681,7 +2681,7 @@ dependencies = [
 
 [[package]]
 name = "orders-application"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2696,7 +2696,7 @@ dependencies = [
 
 [[package]]
 name = "orders-domain"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "serde",
@@ -2706,7 +2706,7 @@ dependencies = [
 
 [[package]]
 name = "orders-service"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",

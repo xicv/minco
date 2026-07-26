@@ -17,13 +17,13 @@ ZIP. It contains no provisioned concurrency, NAT Gateway, scheduled poller or
 always-on compute. Storage, retained logs, DNS, secrets and database providers
 can still incur idle charges, so the precise promise is **minimal idle cost**.
 
-> Published baseline: `0.1.1`
+> Published baseline: `0.2.0`
 >
-> Current workspace candidate: `0.2.0`
+> Current workspace candidate: `0.3.0`
 >
 > Minco is pre-1.0. The published baseline is immutable; this repository
-> candidate contains additive plugins/extensions and public API changes that
-> are not available from crates.io until a separately approved release.
+> candidate contains public plugin-registration API changes that are not
+> available from crates.io until a separately approved release.
 
 
 ## Use Minco as a dependency
@@ -65,9 +65,9 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The original 14-package family is published at `0.1.1`. The current `0.2.0`
-candidate contains 24 publishable packages, including additions that have only
-passed local packaging gates. See
+The current 24-package family is published at `0.2.0`. The `0.3.0` candidate
+retains that inventory while adding the documented plugin-registration
+provenance API. See
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
 first-publish, dry-run, ownership, and trusted-publishing process.
 
@@ -219,6 +219,11 @@ cargo minco explain placeOrder --json
 cargo minco inspect --json
 ```
 
+Inspection includes metadata-only singleton and contribution provenance so
+duplicate or unexpected providers can be traced to the application or exact
+plugin owner. Concrete service values, configuration, credentials and provider
+diagnostics are never serialized.
+
 ## Plugins
 
 Default plugins are `health`, `observability` and `idempotency`. The broader
@@ -360,8 +365,8 @@ then use the facade/stability matrix in
 
 ## Crates.io release preparation
 
-Minco uses a lock-step release family. The published `0.1.1` baseline contains
-14 packages; the current `0.2.0` candidate contains 24 publishable packages.
+Minco uses a lock-step release family. The published `0.2.0` baseline and the
+current `0.3.0` candidate each contain 24 publishable packages.
 Static metadata and dependency validation can run without Cargo:
 
 ```bash

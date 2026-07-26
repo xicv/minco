@@ -1,11 +1,11 @@
 schema = 1
-workspace_candidate = "0.2.0"
-published_baseline = "0.1.1"
-published_package_count = 14
-adoption_gate_task = "M6-T06"
+workspace_candidate = "0.3.0"
+published_baseline = "0.2.0"
+published_package_count = 24
+adoption_gate_task = "M6-T07"
 
-# The published 0.1.1 family is immutable. This candidate adds one new
-# publishable crate and includes all post-0.1.1 packages in the dry-run graph.
+# The published 0.2.0 family is immutable. The 0.3.0 candidate changes public
+# plugin-registration APIs and retains the same 24-package dry-run graph.
 candidate_publishable_package_count = 24
 
 [budgets]
