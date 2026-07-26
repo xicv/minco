@@ -20,7 +20,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use feedback_cmd::FeedbackArgs;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
-use minco_core::{ApplicationGraph, PluginId, PluginSelection};
+use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
 use minco_plan::{
     DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
     estimate_database_cost, render_sam_with_code_uri,
@@ -450,12 +450,19 @@ fn contract(
 }
 
 fn inspect(root: &Path, manifest: &MincoManifest, as_json: bool) -> Result<()> {
+    print_value(&inspect_value(root, manifest)?, as_json)
+}
+
+fn inspect_value(root: &Path, manifest: &MincoManifest) -> Result<serde_json::Value> {
     let contract = load_contract(root.join(&manifest.contract))?;
     let catalog = load_catalog(root, &manifest.plugin_catalog)?;
     let deployment = load_plan(root, manifest, None)?;
     let roadmap = load_roadmap(&root.join(&manifest.roadmap))?;
     let tasks = load_tasks(&root.join(&manifest.tasks))?;
-    let value = json!({
+    let manager = minco::default_plugin_manager()?;
+    let selection = load_plugin_selection(manifest, &manager)?;
+    let composed = manager.compose(&selection)?;
+    Ok(json!({
         "application": manifest.name,
         "contract": {
             "title": contract.document.title,
@@ -464,11 +471,11 @@ fn inspect(root: &Path, manifest: &MincoManifest, as_json: bool) -> Result<()> {
             "operations": contract.document.operations,
         },
         "plugins": catalog.plugin,
+        "registrations": composed.registration_provenance(),
         "deployment": deployment,
         "roadmap": roadmap,
         "tasks": tasks,
-    });
-    print_value(&value, as_json)
+    }))
 }
 
 fn explain(root: &Path, manifest: &MincoManifest, operation_id: &str, as_json: bool) -> Result<()> {
@@ -996,6 +1003,14 @@ fn load_plan(
 
 fn load_application_graph(manifest: &MincoManifest) -> Result<ApplicationGraph> {
     let manager = minco::default_plugin_manager()?;
+    let selection = load_plugin_selection(manifest, &manager)?;
+    Ok(manager.build_graph(&selection)?)
+}
+
+fn load_plugin_selection(
+    manifest: &MincoManifest,
+    manager: &PluginManager,
+) -> Result<PluginSelection> {
     let registered = manager
         .descriptors()
         .into_iter()
@@ -1024,7 +1039,7 @@ fn load_application_graph(manifest: &MincoManifest) -> Result<ApplicationGraph> 
             .configuration
             .insert(id, serde_json::to_value(configuration)?);
     }
-    Ok(manager.build_graph(&selection)?)
+    Ok(selection)
 }
 
 fn ensure_plan_valid(plan: &DeploymentPlan) -> Result<()> {
@@ -1218,5 +1233,39 @@ mod cli_argument_tests {
                 .contains_key("static-site-bucket")
         );
         assert_eq!(plan.local_aws_services, ["s3", "ssm", "sts"]);
+    }
+
+    #[test]
+    fn inspection_contains_only_bounded_registration_metadata() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let manifest = MincoManifest::load(&root).expect("workspace manifest");
+
+        let value = inspect_value(&root, &manifest).expect("inspection value");
+        let registrations = &value["registrations"];
+        let services = registrations["services"]
+            .as_array()
+            .expect("service registrations");
+
+        assert_eq!(
+            services
+                .iter()
+                .map(|service| service["owner"]["plugin_id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["health", "idempotency", "observability"]
+        );
+        assert!(services.iter().all(|service| {
+            service
+                .as_object()
+                .is_some_and(|value| value.keys().eq(["owner", "rust_type"].iter().copied()))
+        }));
+        assert_eq!(registrations["contributions"], json!([]));
+
+        let serialized = serde_json::to_string(registrations).unwrap();
+        assert!(!serialized.contains("service_count"));
+        assert!(!serialized.contains("configuration"));
+        assert!(!serialized.contains("Debug"));
     }
 }

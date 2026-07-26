@@ -90,12 +90,26 @@ Registration order is deterministic. A plugin that owns an aggregate registry
 can read contributions during `finalize` and register the final single service.
 Do not emulate multi-binding by replacing a previously registered service.
 
+`PluginContext` binds both registrars to the current effective plugin ID.
+Plugins never supply an owner string or token. If two plugins register the same
+singleton type, composition fails with a diagnostic naming the first owner,
+attempted owner and Rust type. Contributions retain deterministic installation
+indices and remain ordered within their Rust type.
+
+Successful composition exposes metadata-only summaries through
+`ComposedApplication::registration_provenance()` and `cargo minco inspect
+--json`. The summaries contain types, owners and indices only. Do not add
+configuration, service values, URLs, credentials or concrete `Debug` output to
+inspection.
+
 ## Application-provided dependencies
 
 Concrete database pools, AWS clients, clocks, and product-specific adapters
 belong in the application composition root. Supply them through
 `PluginManager::compose_with` before plugin installation. This keeps provider
-selection explicit and avoids a global service locator.
+selection explicit and avoids a global service locator. Direct
+`ServiceCollection::insert` and `ContributionCollection::push` registrations
+are identified as `application`; plugin registrations remain distinct.
 
 ## Configuration contract
 

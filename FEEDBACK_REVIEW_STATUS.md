@@ -1,8 +1,8 @@
 # Feedback production status
 
 Date: 2026-07-26
-Workspace candidate: `0.2.0`
-Published baseline: `0.1.1`
+Workspace candidate: `0.3.0`
+Published baseline: `0.2.0`
 Runtime/catalog stability: `stable`
 
 ## Current decision

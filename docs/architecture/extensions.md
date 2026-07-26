@@ -36,6 +36,14 @@ migration conflicts, or resource conflicts.
 There is no global service locator. Runtime code receives concrete services or
 narrow application ports through constructors.
 
+After successful composition, frozen registries retain bounded provenance:
+singleton summaries contain the Rust type and authoritative application/plugin
+owner; contribution summaries are grouped by Rust type and retain owner plus a
+global deterministic installation index. `RegistrationOwner` has no public
+constructor, so a plugin cannot claim another plugin's identity. These
+summaries are inspection metadata only: values, configuration, URLs,
+credentials and provider diagnostics are never serialized.
+
 ## Selection model
 
 Cargo features decide what code is present in the binary. `PluginSelection`

@@ -1,19 +1,18 @@
 # Minco verification and release evidence
 
 Date: 2026-07-26
-Current workspace version: `0.2.0`
-Published baseline: `0.1.1`
+Current workspace version: `0.3.0`
+Published baseline: `0.2.0`
 Purpose: preserve the published `M8` compiler/package evidence and record the
 current Feedback/plugin-architecture candidate without rewriting release
 history.
 
-## Current `0.2.0` candidate
+## Current `0.3.0` candidate
 
-The `0.2.0` candidate adds the strengthened plugin kernel, official plugins,
-Feedback review loop, typed plugin-driven HTTP header policy, stronger OpenAPI
-validation, and the opt-in `minco-aws-worker` SQS Lambda runtime. It is a
-pre-1.0 minor candidate because the immutable `0.1.0` and `0.1.1` releases do
-not contain these public APIs. This work does not tag or upload `0.2.0`.
+The `0.3.0` candidate adds bounded registration provenance to the strengthened
+plugin kernel published in `0.2.0`. It is a pre-1.0 minor candidate because it
+changes public registrar return types and the `ServiceError::Duplicate`
+payload. This work does not tag or upload `0.3.0`.
 
 The candidate verification covers:
 
@@ -40,9 +39,78 @@ completed report for the Feedback release; M6-T05 records the release-scoped
 waiver and compensating checks. That waiver is not a scan pass and does not
 automatically apply to a later release.
 
+## M6-T07 plugin-registration provenance evidence
+
+Base Git SHA:
+`c5b7749cec295fddd795827733e2889d6f1f896b`.
+
+The candidate now retains authoritative application/plugin ownership for
+typed singleton services and ordered contributions. Plugin owners are opaque
+and created only by `PluginManager`; direct application collections retain a
+distinct application owner. Duplicate singleton diagnostics include the Rust
+type, first owner and attempted owner. Frozen contribution summaries retain
+global deterministic installation indices.
+
+`ComposedApplication::registration_provenance()` and `cargo minco inspect
+--json` serialize metadata only. Focused tests use service values with
+deliberately sensitive `Debug` output and prove that neither values nor debug
+content enter JSON. A compile-fail public API example plus runtime ownership
+tests prove a plugin cannot supply another plugin's identity.
+
+Passed:
+
+```text
+cargo fmt --all -- --check
+cargo check -p minco-core -p cargo-minco --all-targets --all-features --locked
+cargo clippy -p minco-core -p cargo-minco --all-targets --all-features --locked -- -D warnings
+cargo test -p minco-core -p cargo-minco --all-features --locked
+cargo check --workspace --all-targets --all-features --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-targets --all-features --locked
+cargo doc --workspace --all-features --no-deps --locked
+cargo minco inspect --json
+scripts/aws/build-lambda.sh
+cargo lambda build --release --arm64 --output-format zip -p minco-aws-worker --example sqs_worker --locked
+```
+
+The first focused strict-Clippy run failed because the manual `Debug`
+implementations for the two mutable registries omitted newly added metadata
+fields. They now report only counts and the next installation index; the exact
+focused and workspace Clippy commands pass. No concrete registration values
+were added to `Debug`.
+
+The refreshed Orders ARM64 ZIP is 5,028,504 compressed / 11,043,648
+uncompressed bytes. That is 15,502 bytes (0.3092%) above the immutable M6-T06
+baseline and remains below the 10 MiB policy. The SQS worker remains 573,418 /
+1,203,520 bytes. Cold local observations were 10.15 seconds for default facade
+compilation, another 40.72 seconds for the all-feature increment, 110.28 seconds
+for Orders Lambda and 12.78 seconds for the worker. These are single local
+samples, not CI budgets. Both Cargo Lambda builds emitted the existing macOS
+linker warning that deprecated optimization setting `1` was ignored; packaging
+still succeeded.
+
+Real-AWS, Rustack and PostgreSQL tests requiring explicitly configured external
+environments remained ignored in the ordinary workspace test command. This
+task does not refresh those provider proofs and does not create remote
+resources.
+
+The authoritative `./scripts/quality.sh` command passes, including generated
+PostgreSQL and SQLite consumers, Rustdoc/docs, cargo-deny, RustSec audit,
+Feedback npm audit and Gitleaks. The separate bounded inspection assertion,
+official-plugin validation, package inventory, reverse-apply whitespace check,
+source-manifest check and JJ conflict query pass. The 24-package publication
+driver passes without `--execute`; Cargo verified every package tarball and
+aborted every upload because of `--dry-run`.
+
+The first publication dry run packaged all 24 crates and then failed during
+packaged `minco-http` verification with `No space left on device`. Only this
+isolated workspace's generated Cargo target was cleared; the unchanged
+clean-source retry passed. No upload, tag, deployment, database or product
+repository mutation occurred.
+
 Exact commands, results and current limitations are recorded in
 `FEEDBACK_REVIEW_STATUS.md` and `CODEX_HANDOFF.md`. The release history below
-remains authoritative for the published `0.1.x` artifacts.
+preserves the `0.1.x` evidence and records the current `0.2.0` boundary.
 
 ## Adoption footprint measurements
 
@@ -59,13 +127,13 @@ same pinned Rust/Cargo toolchain from isolated cold targets.
 
 The no-default, default and official-plugin surfaces do not grow. The
 all-feature graph adds eight packages for the opt-in SQS Lambda runtime. Cold
-default builds measured 10.23 seconds at baseline and 8.88 seconds for the
-candidate; the all-feature increments measured 48.87 and 49.23 seconds. These
+default builds measured 10.23 seconds at baseline and 10.15 seconds for the
+candidate; the all-feature increments measured 48.87 and 40.72 seconds. These
 single local wall-clock samples are observational and are not CI budgets.
 
 The baseline Orders ARM64 Lambda ZIP was 5,013,002 compressed bytes and
-11,000,744 uncompressed bytes. The candidate ZIP measured 5,018,591 compressed
-bytes and 11,011,000 uncompressed bytes, a 5,589-byte (0.1115%) compressed
+11,000,744 uncompressed bytes. The candidate ZIP measured 5,028,504 compressed
+bytes and 11,043,648 uncompressed bytes, a 15,502-byte (0.3092%) compressed
 increase. The new opt-in SQS worker ZIP measured 573,418 compressed and
 1,203,520 uncompressed bytes. The candidate report records exact SHA-256
 digests for both ZIPs in addition to their compressed/uncompressed sizes.
@@ -122,14 +190,27 @@ crate sources and installed CLI help were used as the documented fallback.
 
 ## Release history and current boundary
 
+### 0.2.0 publication boundary
+
+Remote tag `v0.2.0` resolves exactly to
+`c5b7749cec295fddd795827733e2889d6f1f896b`. A review-time
+`scripts/validate_publish.py --require-registry` lookup succeeded for all 24
+package names and reported each exact `0.2.0` version as already present on
+crates.io. This proves the version is immutable and cannot contain M6-T07.
+
+That lookup did not refresh downloaded archive checksums, ownership, docs.rs,
+installation, or a GitHub release object. Those remain separate evidence. The
+M6-T07 workspace is therefore `0.3.0`; no tag, upload, release, or deployment
+is performed by this change.
+
+### 0.1.x release history
+
 All 14 public packages were accepted by crates.io at version `0.1.0` on
 2026-07-24 and are owned by `xicv`. The published CLI compiles, installs, and
 runs, but its binary-only archive cannot satisfy docs.rs `cargo rustdoc --lib`.
 
-Version `0.1.1` is the lock-step patch candidate containing the `M8-T04`
+Version `0.1.1` was the lock-step patch release containing the `M8-T04`
 library documentation target and the local/hosted Rustdoc regression gate.
-Before publication, the complete quality suite, multi-package dry run,
-exact-head hosted CI, merged-main hosted CI, and tag check must all pass.
 
 The sections below retain the original `M8-T02` pre-publication evidence. They
 are historical evidence, not claims about the current registry state.

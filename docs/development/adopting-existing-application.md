@@ -32,7 +32,7 @@ until each Minco seam proves parity.
 
 Start with the `contract` facade feature, then add only the HTTP, adapter,
 runtime or plugin feature needed by the selected slice. The detailed feature
-matrix and `0.1.1` to `0.2.0` candidate notes are in
+matrix and version-specific upgrade notes are in
 [`../adoption/incremental-adoption.md`](../adoption/incremental-adoption.md).
 
 The first real pilot must be a separate task with application ownership,

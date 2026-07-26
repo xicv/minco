@@ -24,6 +24,12 @@ cargo minco inspect
 cargo minco explain <operationId>
 ```
 
+`cargo minco inspect --json` includes bounded registration provenance for the
+manifest-selected, statically linked plugin graph. Service records contain only
+Rust type and application/plugin owner; contribution records add deterministic
+installation indices. Registered values, configuration values and provider
+diagnostics are not emitted.
+
 ## Contract
 
 ```text

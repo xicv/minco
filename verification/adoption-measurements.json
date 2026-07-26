@@ -33,8 +33,8 @@
   },
   "candidate": {
     "build_timings_seconds": {
-      "all_features_incremental_after_default": 49.23,
-      "default_features": 8.88
+      "all_features_incremental_after_default": 40.72,
+      "default_features": 10.15
     },
     "facade": {
       "all_features": {
@@ -56,29 +56,29 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 111.55,
-        "compressed_bytes": 5018591,
+        "cold_build_seconds": 110.28,
+        "compressed_bytes": 5028504,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "ac05270505b03f74583c2c8e4d58155f366ae95782d0c0613339a74b3b8bab44",
-        "uncompressed_bytes": 11011000
+        "sha256": "3482e8ec240fa69135c62b8b89bf779de348daaeb81139b93c709f705c023e1f",
+        "uncompressed_bytes": 11043648
       },
       "sqs_worker": {
-        "cold_build_seconds": 13.45,
+        "cold_build_seconds": 12.78,
         "compressed_bytes": 573418,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "3c51c1dcb7ffb3c002f9cfd8204594c6b1d2011e0b140190792caaa6fae13236",
+        "sha256": "bb9552b108898bb45c4ba6ed5e36fcfeff7b5ff8c104379e2fbb2f1a284b3dbe",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:95b29e2e2bc50e08f826f1c2fc8f8bd29e29a09e55ebf410b2d8a9bc45442632"
+    "revision": "source-tree-sha256:3c0aff6a56ab0ca8a31fc86779bd80a976c264c446c112d71bcdb7e568856a74"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 8,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 0,
-    "orders_lambda_compressed_byte_delta": 5589,
-    "orders_lambda_compressed_percent_delta": 0.1115
+    "orders_lambda_compressed_byte_delta": 15502,
+    "orders_lambda_compressed_percent_delta": 0.3092
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",

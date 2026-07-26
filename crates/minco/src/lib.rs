@@ -107,11 +107,13 @@ pub use minco_aws_adapters as aws_adapters;
 pub mod prelude {
     pub use minco_core::{
         ApplicationGraph, CapabilityProvision, CapabilityRequirement, ComposedApplication,
-        ContributionCollection, FrozenContributions, FrozenServices, GraphBuilder, GraphError,
-        HealthCheckDescriptor, IdleCostClass, MigrationSet, OperationDescriptor, Plugin,
-        PluginContext, PluginDescriptor, PluginError, PluginFinalizeContext, PluginId,
-        PluginManager, PluginSelection, ResourceIntent, ResourceKind, ServiceCollection,
-        ServiceError, WakeSource,
+        ContributionCollection, ContributionRegistrar, ContributionRegistration,
+        ContributionTypeRegistration, DuplicateServiceRegistration, FrozenContributions,
+        FrozenServices, GraphBuilder, GraphError, HealthCheckDescriptor, IdleCostClass,
+        MigrationSet, OperationDescriptor, Plugin, PluginContext, PluginDescriptor, PluginError,
+        PluginFinalizeContext, PluginId, PluginManager, PluginSelection, RegistrationOwner,
+        RegistrationProvenance, ResourceIntent, ResourceKind, ServiceCollection, ServiceError,
+        ServiceRegistrar, ServiceRegistration, WakeSource,
     };
 
     #[cfg(feature = "http")]

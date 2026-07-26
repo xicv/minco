@@ -1,7 +1,7 @@
 # Incrementally adopting Minco
 
-Published baseline: `0.1.1`
-Current workspace candidate: `0.2.0`
+Published baseline: `0.2.0`
+Current workspace candidate: `0.3.0`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -13,7 +13,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "0.2.0", default-features = false, features = ["contract"] }
+minco = { version = "0.3.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -24,6 +24,11 @@ bindings without changing the runtime. Run contract check/sync in CI.
 Use `minco-core` directly or the no-default facade to register a small static
 plugin graph. Keep product use cases and ports in application crates. Start
 with fake/memory implementations only for tests and local development.
+
+After composition, inspect `ComposedApplication::registration_provenance()` or
+`cargo minco inspect --json` to confirm which application/plugin owner supplied
+each singleton and ordered contribution. The output is bounded metadata; it
+does not serialize the registered adapters or their configuration.
 
 ### 3. Exact HTTP policy
 
@@ -121,7 +126,17 @@ facade. Verify the resolved graph in the consuming application with
 Catalog `kind` distinguishes true plugins from adapters and runtimes. Catalog
 stability is validated against runtime descriptors for true plugins.
 
-## Upgrade notes: `0.1.1` to the `0.2.0` candidate
+## Upgrade notes: `0.2.0` to the `0.3.0` candidate
+
+- Plugin registration provenance is retained after composition. Normal chained
+  `context.services().insert(...)` and
+  `context.contributions().push(...)` call sites are unchanged, but the
+  context accessors now return owner-bound registrar views. Code with explicit
+  mutable-collection type annotations must accept the registrar type.
+- `ServiceError::Duplicate` now carries a
+  `DuplicateServiceRegistration` payload with the Rust type and both owners.
+
+## Earlier upgrade notes: `0.1.1` to `0.2.0`
 
 - `apply_standard_middleware` and generated router helpers now return
   `HttpConfigurationError`, not only `InvalidHeaderValue`.
@@ -138,8 +153,8 @@ stability is validated against runtime descriptors for true plugins.
   `security`; permission-scoped metadata never replaces use-case authorization.
 - Error/default responses must resolve to `application/problem+json`.
 - Catalog entries now include `kind` and facade `feature`.
-- The candidate contains 24 publishable packages versus the immutable
-  14-package `0.1.1` baseline. `minco-aws-worker` is new and opt-in.
+- The published `0.2.0` family contains 24 packages versus the immutable
+  14-package `0.1.1` family. `minco-aws-worker` is new and opt-in.
 
 Run contract checks before compiling, then the facade no-default/default/
 all-feature matrix and application tests. Promotion still uses the exact built
