@@ -6,6 +6,67 @@ Published baseline: `0.3.1`
 Purpose: preserve published `M8` evidence and the independently qualified
 `0.3.1` patch-release boundary without rewriting release history.
 
+## M8-T03 trusted-publishing closure
+
+On 2026-07-28, an authenticated crates.io preflight found no existing trusted
+publisher and no conflicting configuration for any of the 24 packages already
+published at `0.3.1`. Each package was then configured with the same exact
+GitHub identity:
+
+- repository: `xicv/minco`;
+- workflow: `publish-crates.yml`;
+- environment: `crates-io`.
+
+The created crates.io configuration IDs are the contiguous range
+`14327..=14350`. A separate authenticated read-back returned exactly one
+matching configuration for each of the 24 packages and no errors. The
+unpublished `minco-config` candidate was deliberately excluded: crates.io
+requires its first release before a trusted publisher can be configured, and
+M8-T03 does not authorize an upload.
+
+The sole `xicv` owner remains intentional under the explicit single-maintainer
+policy. There is no co-maintainer or required environment reviewer. Agent review
+and the pinned, least-privilege, manual-only workflow controls documented in
+`docs/development/publishing.md` are the release boundary.
+
+The workflow change was developed with behavior-level red/green checks. The
+initial check failed because no `authenticate` input or authentication-only job
+existed. A second red check rejected the unnecessary `contents: read`
+permission. The final structured YAML check proves that:
+
+- `authenticate` defaults to false;
+- authentication-only routing requires `authenticate=true` and
+  `publish=false`;
+- the authentication-only job has only `id-token: write`, contains no shell
+  step, and uses the action pinned at
+  `c6f97d42243bad5fab37ca0427f495c86d5b1a18`;
+- the upload command remains separately gated by explicit `publish=true`.
+
+Hosted workflow-dispatch run
+[`30313972544`](https://github.com/xicv/minco/actions/runs/30313972544)
+qualified commit `0a5dfb1397b240c5e1a92fdd64d34960a01b5f9c`. The
+authentication action and its token-revocation post-step passed; the complete
+release job was skipped. An independent post-run crates.io lookup found all 24
+published packages still at maximum version `0.3.1` and `minco-config` still
+returned HTTP 404. No crate upload occurred.
+
+The task's registry command,
+`uv run --locked python scripts/validate_publish.py --check-registry
+--require-registry`, completed all 25 registry lookups and returned the expected
+24 `PUBLISH-072` errors because every existing package version `0.3.1` is
+immutable and already published. `minco-config` was the sole unpublished
+candidate. This is an expected release-state rejection, not a passing
+pre-release validator.
+
+The final local `./scripts/quality.sh` suite passed. It covered repository
+truth, static and deep review, publish metadata, formatting, the complete
+feature matrix, strict workspace Clippy and tests, generated PostgreSQL and
+SQLite consumer workspaces, Rustdoc and documentation, `cargo deny`,
+`cargo audit`, npm audit, Gitleaks, and the final source-manifest check. The
+required clean-workspace `scripts/release/publish.sh --skip-quality` command
+also passed for all 25 current source candidates. It used Cargo's `--dry-run`
+path; `--execute` was not supplied and every upload was aborted.
+
 ## `0.3.1` publication evidence
 
 The patch release contains the text-only Feedback boundary merged in PR #15
@@ -282,8 +343,9 @@ Post-publication verification:
 - the `cargo_minco 0.1.1` Rustdoc page renders the README-backed CLI usage from
   the new library target.
 
-Task `M8-T03` remains active only for adding a trusted co-maintainer and
-configuring the protected GitHub OIDC trusted publisher.
+At the time of the `0.1.1` evidence capture, task `M8-T03` remained active for
+ownership and GitHub OIDC trusted-publisher work. The 2026-07-28 closure section
+above records the later single-maintainer decision and completed configuration.
 
 ## Publication shape
 
