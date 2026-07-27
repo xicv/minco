@@ -53,21 +53,21 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 113.0,
+        "cold_build_seconds": 111.0,
         "compressed_bytes": 5031262,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "8a0c995e96da2d53a7769ba0e2190ec43dac3ab28076610f3f39ddc19c204efb",
+        "sha256": "5e4763e8258c4053d085bd90aa0d6f3f6544fb58e481c6710623c2e2c69ea29e",
         "uncompressed_bytes": 11047520
       },
       "sqs_worker": {
-        "cold_build_seconds": 14.0,
+        "cold_build_seconds": 13.0,
         "compressed_bytes": 573415,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "2a219cf7c13a7cc1ee5b663d380bd61f65bc693426df07399917e79789666ac7",
+        "sha256": "94f6354f48107dedf6f020f4d0f10a742bf6efb259882df530256cc61c35398c",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:238445f401b4ffbea8d44c8b726aa49fe1f50f6fde29c5ff8e44dc750f478d06"
+    "revision": "source-tree-sha256:e1cd52e65d524064c71d74a6d790a209c5b208c4cc9d225402953dda52c96ab1"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 9,

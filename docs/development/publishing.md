@@ -116,7 +116,8 @@ not already published:
 uv run --locked python scripts/validate_publish.py --check-registry --require-registry
 ```
 
-For an authenticated release:
+For the first release of a new crate, or an explicitly approved recovery when
+trusted publishing is unavailable:
 
 1. Sign in to crates.io, verify the publisher account, and create a short-lived
    API token with the minimum required scope.
@@ -138,10 +139,10 @@ For an authenticated release:
    ```
 
 5. Confirm the remote tag resolves to the qualified `main` SHA, then publish
-   the complete selected family:
+   only the new crate or explicitly selected recovery set:
 
    ```bash
-   scripts/release/publish.sh --execute
+   scripts/release/publish.sh --execute --package <crate>
    ```
 
 Cargo multi-package publication is ordered but not atomic. If crates.io accepts
@@ -157,16 +158,43 @@ with the `0.2.0` release.
 ## Trusted publishing after the first release
 
 The first version of each new crate must be published manually. After ownership
-exists on crates.io, configure a trusted publisher for every Minco package:
+exists on crates.io, configure a trusted publisher for that package:
 
 - repository: `xicv/minco`
 - workflow: `publish-crates.yml`
 - environment: `crates-io`
 
+The 24 packages published in `0.3.1` have this configuration. `minco-config`
+does not: its first publication and subsequent trusted-publisher configuration
+belong to a separate release task.
+
 The checked-in workflow uses GitHub OIDC to obtain a short-lived crates.io token;
-it does not require a long-lived crates.io secret. Protect the `crates-io`
-GitHub environment with required reviewers. Keep the workflow manual-only unless
-release policy is intentionally changed.
+it does not require a long-lived crates.io secret. Keep the workflow manual-only
+unless release policy is intentionally changed.
+
+Minco currently has one maintainer and one crates.io owner. The `crates-io`
+GitHub environment therefore has no required-reviewer rule by explicit
+single-maintainer policy. Agent review and the following technical controls are
+the release boundary:
+
+- the publishing action is pinned to an exact commit;
+- the authentication-only job has only `id-token: write`, performs no checkout
+  or shell command, does not consume the token, and relies on the action's
+  post-step revocation;
+- the publication job has only `contents: read` and `id-token: write`;
+- uploads remain manual, exact-tag-only, and require an explicit
+  `publish=true` selection;
+- the complete static, compiler, test, documentation, and package dry-run gates
+  run before the upload step;
+- publication and independent registry verification remain a separate release
+  task.
+
+To verify the OIDC configuration without uploading, manually dispatch
+`publish-crates.yml` with `authenticate=true` and `publish=false`. That dispatch
+runs only the authentication action. The normal dry-run path leaves both inputs
+false and uses the exact workspace-version tag. A release dispatch uses that
+same exact tag, leaves `authenticate=false`, and explicitly selects
+`publish=true`.
 
 The workflow refuses to publish unless:
 
@@ -177,8 +205,11 @@ The workflow refuses to publish unless:
 
 ## Ownership and recovery
 
-After the first publish, add at least one trusted co-maintainer or a restricted
-GitHub team owner to every crate. Enable crates.io publication notifications.
+The `xicv` account is the sole owner of the current crate family by explicit
+single-maintainer policy. Keep crates.io publication notifications and GitHub
+account recovery controls enabled. If a co-maintainer is added later, add an
+environment reviewer or an equivalently scoped approval rule before granting
+that maintainer release access.
 
 A published version is permanent. A broken release may be yanked, but it cannot
 be replaced. Correct the issue, increment the version, rerun every gate, and

@@ -19,8 +19,8 @@
     },
     {
       "path": ".github/workflows/publish-crates.yml",
-      "sha256": "20a4e14a21efdd8824fbb6119e8cffcdd03ced9337943d7a4bc93b19b84cfb9c",
-      "size_bytes": 3097
+      "sha256": "2eb5ab3dc3b1fddbe138e45bcfce2d48b1329aa290741dd68dfd6cbe14ba793b",
+      "size_bytes": 3650
     },
     {
       "path": ".gitignore",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "2125f7e16f2e5ce93e22135e5beedeb2f80ca1b4ce3da60124cee905c410efc7",
-      "size_bytes": 22239
+      "sha256": "d8cf7a550546cb698458018d6b13881bbb821bb3a774cc93cac0c45bb1ed72c1",
+      "size_bytes": 24924
     },
     {
       "path": "config/jj/repo.toml",
@@ -989,8 +989,8 @@
     },
     {
       "path": "docs/development/publishing.md",
-      "sha256": "f1f4cc43fdd5123c679b45d570100126e8bae79bf60d0714b01c432ada6bff68",
-      "size_bytes": 8930
+      "sha256": "32aca3f5b3b89bc00021516f3398c55cc03a8202b07ea82ca05dfcb9331f5afa",
+      "size_bytes": 10593
     },
     {
       "path": "docs/development/quickstart.md",
@@ -2523,7 +2523,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "238445f401b4ffbea8d44c8b726aa49fe1f50f6fde29c5ff8e44dc750f478d06",
-  "total_size_bytes": 2693446,
+  "source_tree_sha256": "e1cd52e65d524064c71d74a6d790a209c5b208c4cc9d225402953dda52c96ab1",
+  "total_size_bytes": 2698347,
   "version": "0.3.1"
 }
