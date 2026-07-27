@@ -916,7 +916,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use tower::ServiceExt;
 
-    fn service() -> FeedbackService {
+    fn service_with_config(config: FeedbackConfig) -> FeedbackService {
         let events = Arc::new(MemoryEventBus::default());
         FeedbackService::new(
             FeedbackStoreService::new(Arc::new(MemoryFeedbackStore::default())),
@@ -928,13 +928,17 @@ mod tests {
                 outbox: events,
             },
             None,
-            FeedbackConfig {
-                project_id: "example".into(),
-                developer_token: Some("developer-token-with-enough-entropy".into()),
-                ..FeedbackConfig::default()
-            },
+            config,
         )
         .unwrap()
+    }
+
+    fn service() -> FeedbackService {
+        service_with_config(FeedbackConfig {
+            project_id: "example".into(),
+            developer_token: Some("developer-token-with-enough-entropy".into()),
+            ..FeedbackConfig::default()
+        })
     }
 
     #[tokio::test]
@@ -951,6 +955,47 @@ mod tests {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::OK, "{path}");
         }
+    }
+
+    #[tokio::test]
+    async fn zero_attachment_profile_rejects_multipart_files() {
+        let app = feedback_router(service_with_config(FeedbackConfig {
+            project_id: "text-only".into(),
+            max_attachments: 0,
+            screenshot_enabled: false,
+            voice_enabled: false,
+            allow_anonymous: true,
+            ..FeedbackConfig::default()
+        }));
+        let boundary = "MINCO_ZERO_ATTACHMENT_BOUNDARY";
+        let body = format!(
+            "--{boundary}\r\n\
+             Content-Disposition: form-data; name=\"payload\"\r\n\
+             Content-Type: application/json\r\n\r\n\
+             {{\"project_id\":\"text-only\",\"kind\":\"bug\",\"priority\":\"normal\",\
+             \"title\":\"Example\",\"description\":\"Example description\",\
+             \"context\":{{\"page_url\":\"https://example.test\"}},\"tags\":[]}}\r\n\
+             --{boundary}\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"private.txt\"\r\n\
+             Content-Type: text/plain\r\n\r\n\
+             must-not-persist\r\n\
+             --{boundary}--\r\n"
+        );
+
+        let response = app
+            .oneshot(
+                http::Request::post("/_minco/feedback/threads")
+                    .header(
+                        header::CONTENT_TYPE,
+                        format!("multipart/form-data; boundary={boundary}"),
+                    )
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[tokio::test]

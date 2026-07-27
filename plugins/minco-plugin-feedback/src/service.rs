@@ -275,9 +275,9 @@ impl FeedbackConfig {
                 "feedback attachment limits must be greater than zero and no larger than max_http_body_bytes".into(),
             ));
         }
-        if !(1..=8).contains(&self.max_attachments) {
+        if self.max_attachments > 8 {
             return Err(FeedbackServiceError::Configuration(
-                "max_attachments must be between 1 and 8".into(),
+                "max_attachments must be between 0 and 8".into(),
             ));
         }
         if !(5..=300).contains(&self.max_recording_seconds) {
@@ -1368,6 +1368,20 @@ mod tests {
         let deserialized: FeedbackConfig =
             serde_json::from_value(serde_json::json!({"project_id": "example"})).unwrap();
         assert!(!deserialized.allow_anonymous);
+    }
+
+    #[test]
+    fn text_only_profile_can_disable_all_attachments() {
+        let config = FeedbackConfig {
+            project_id: "text-only".into(),
+            max_attachments: 0,
+            screenshot_enabled: false,
+            voice_enabled: false,
+            ..FeedbackConfig::default()
+        };
+
+        config.validate().expect("zero-attachment profile");
+        assert_eq!(config.widget_config().max_attachments, 0);
     }
 
     #[test]

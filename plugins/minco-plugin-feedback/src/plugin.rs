@@ -470,7 +470,7 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             false,
             false,
             Some(serde_json::json!(3)),
-            "Maximum number of screenshot, audio, and file attachments per submission",
+            "Maximum screenshot, audio, and file attachments per submission; zero disables all attachments",
         ),
         field(
             "allow_anonymous",

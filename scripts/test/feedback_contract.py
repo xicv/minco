@@ -82,6 +82,9 @@ def main() -> int:
     token_schema = widget_schema["properties"].get("token_storage")
     if token_schema != {"type": "string", "enum": ["session", "local"], "default": "session"}:
         fail("FeedbackWidgetConfig token_storage schema is not the reviewed contract")
+    attachment_count_schema = widget_schema["properties"].get("max_attachments")
+    if attachment_count_schema != {"type": "integer", "minimum": 0, "maximum": 8}:
+        fail("FeedbackWidgetConfig max_attachments must permit a zero-attachment profile")
 
     widget = WIDGET.read_text()
     required_fragments = [

@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 438,
+  "file_count": 439,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1379,13 +1379,13 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/README.md",
-      "sha256": "be8d6afc5a1d9364128182ff9bf63a8c2e14d08df0e5ac3b1de5822945a0b400",
-      "size_bytes": 7302
+      "sha256": "93aab381d93f641de3a135efde352a380057781b314ec7e791a79da833fa91be",
+      "size_bytes": 7472
     },
     {
       "path": "plugins/minco-plugin-feedback/assets/widget.js",
-      "sha256": "a9d2b4e60a4f1efba7fed922bfc9d7b661f480fe9210bfdc0edbbc70d7667c32",
-      "size_bytes": 36085
+      "sha256": "d2933a31efc469c5d17a93ef6aea3236b9f79c5e38bc2220824a507f0224e1f5",
+      "size_bytes": 36327
     },
     {
       "path": "plugins/minco-plugin-feedback/migrations/postgres/0001_feedback.sql",
@@ -1399,7 +1399,7 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml",
-      "sha256": "773da8ef9813e138b51f95b0b690fc1d2c38bb408b7633be0a8fe73a68d70c0e",
+      "sha256": "e30656e42f06d460307bce85df164918bb360422ce319ded97a92f9357bd2c39",
       "size_bytes": 19580
     },
     {
@@ -1424,8 +1424,8 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/src/http.rs",
-      "sha256": "ed292a8b31bf0e85c82f1cae883c8327e9e883afa284dcde94d5991cf1622aac",
-      "size_bytes": 40195
+      "sha256": "68d9c4838b2d93567690ed00cb6f74d31bdc3a6803d4e9ebea4cfdfc0942a216",
+      "size_bytes": 41919
     },
     {
       "path": "plugins/minco-plugin-feedback/src/lib.rs",
@@ -1454,13 +1454,13 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/src/plugin.rs",
-      "sha256": "598f7c6c089fd4ab59c9ae4b2879dbfed943e4d4737d74cd3c60210bb0ba1dbf",
-      "size_bytes": 27590
+      "sha256": "e66a4140179fe0f68ebf194a1397e9b53d95f165bc28b56b0813bc80fee94ca1",
+      "size_bytes": 27611
     },
     {
       "path": "plugins/minco-plugin-feedback/src/service.rs",
-      "sha256": "1c7873f14a256dff21ebd1c59f512ccbda63e89e5b7816348f25f6789cd3f550",
-      "size_bytes": 58818
+      "sha256": "1165a0eaab8112eea4fcea467740e97a55cda8b74313c3b32dc6b1577a91a00d",
+      "size_bytes": 59241
     },
     {
       "path": "plugins/minco-plugin-feedback/src/store.rs",
@@ -1474,8 +1474,8 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/tests/browser/widget.spec.cjs",
-      "sha256": "d1427ea955eb4508b8cb336a83c1d293c67251d7f3c3a980d7502bd5e607aa83",
-      "size_bytes": 30973
+      "sha256": "b36381948cfc3805db81ee94c53255d5ef9195a6317a4b045458435f15fde0de",
+      "size_bytes": 31626
     },
     {
       "path": "plugins/minco-plugin-feedback/tests/persistence.rs",
@@ -1914,8 +1914,8 @@
     },
     {
       "path": "scripts/test/feedback_contract.py",
-      "sha256": "8bac6be8512e4e719b43131a31edf996c0e9e23347de686a35242137dbf962d2",
-      "size_bytes": 5938
+      "sha256": "36f1a294dfddc0887d4138f87abaece6ddeb1078e104e7a4ca1c3096831c112a",
+      "size_bytes": 6193
     },
     {
       "path": "scripts/test/generated_apps.sh",
@@ -2068,6 +2068,11 @@
       "size_bytes": 4783
     },
     {
+      "path": "tasks/M6/M6-T08-feedback-zero-attachments.md",
+      "sha256": "73eb0a87c44d9d14b0d57f04dd74801fc04c4ab43439c35f9aac9cae2efc97c8",
+      "size_bytes": 2177
+    },
+    {
       "path": "tasks/M7/M7-T01-two-app-validation.md",
       "sha256": "aa5c0212315447969747b0e901a1c7df57d0d61c5d37e3e98b544fe7e609d1c7",
       "size_bytes": 381
@@ -2119,7 +2124,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "95e799314fa02b314a4e967b0b4bc8c08d0f523dd1e4deeeaf672935d0e49a6d",
+      "sha256": "40919a2b38c1d2e1cba45bf193f47bfa8fdeb9abbdd42d9dfa586410cc90c132",
       "size_bytes": 1812
     },
     {
@@ -2174,7 +2179,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "e664b7014d32ee8dc3cd6fc9ddf4307e34b209d511be8384c5c4157cb2fc89f3",
+      "sha256": "182d1f4242ae2a9136ca65037cc1d1a08fd33e6bfaf053a71ecf66af18bf5cbd",
       "size_bytes": 752
     },
     {
@@ -2198,7 +2203,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "9b2506af74c0f4beee478302910e13d32653da37e58dd7b573ef7a7b5b9587d0",
-  "total_size_bytes": 2367488,
+  "source_tree_sha256": "c2366b5cd5b3cc4ec0431f05425b0af88229c07132ee186230f8cced87a69bd9",
+  "total_size_bytes": 2373153,
   "version": "0.3.0"
 }
