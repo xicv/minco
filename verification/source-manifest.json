@@ -99,8 +99,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "3a8f7e21daef033af693886830cc0dcbafc3ad3fa2edaab6b506eace458e90f6",
-      "size_bytes": 14882
+      "sha256": "aac7e1438febfaf712ddcc06f3dc15f3f728ea6c3c1a3a1bd6485cc12b4713c5",
+      "size_bytes": 14820
     },
     {
       "path": "REVIEW_STATUS.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "39ad57452a828560246e3118af2669ecd598ae73f40221b9eadbfce7078f1916",
-      "size_bytes": 21190
+      "sha256": "d21e3fd78cbe4e50e4b76600ab0812e5072b3a30c65e228a4b0f9eeebbd98edb",
+      "size_bytes": 22068
     },
     {
       "path": "config/jj/repo.toml",
@@ -669,7 +669,7 @@
     },
     {
       "path": "docs/adoption/incremental-adoption.md",
-      "sha256": "fd31ef0e109b65ae37c366f86879509199ced89d955772db426420b3985664e4",
+      "sha256": "a99f97ff07fb667a8a8b8ebef3f7d0f028666276a6b91db2d62f55d6e5e26bd8",
       "size_bytes": 7466
     },
     {
@@ -864,8 +864,8 @@
     },
     {
       "path": "docs/development/publishing.md",
-      "sha256": "a255430fa5138addd2fc91732d9d81160f771673aeda36ecad20ef1451638425",
-      "size_bytes": 8750
+      "sha256": "74648422b58a29d4c92eea4b312e712b0d9cb64617caab3da7bb328e519f62b8",
+      "size_bytes": 8724
     },
     {
       "path": "docs/development/quickstart.md",
@@ -884,8 +884,8 @@
     },
     {
       "path": "docs/development/using-minco-crate.md",
-      "sha256": "2513d353f1781eb37dab680b6b91ab3059740a1aab6620d1cc43e0e58250cf3e",
-      "size_bytes": 5888
+      "sha256": "5314731a9ca438052c8e9a248ef3198ace6a11410e9865d12deea7ae58c472c8",
+      "size_bytes": 5865
     },
     {
       "path": "docs/reference/cli.md",
@@ -2119,8 +2119,8 @@
     },
     {
       "path": "tasks/M8/M8-T06-minco-0.3.1-release.md",
-      "sha256": "f125e8ea1c200da25eb183fccb2f0dca45f0f05fe17fff86adb9ba94956fea56",
-      "size_bytes": 2450
+      "sha256": "6542db1afeb2b1311b3808ac6939de85bd1302888ed28bcf86ff17b42ccbee94",
+      "size_bytes": 3836
     },
     {
       "path": "uv.lock",
@@ -2174,8 +2174,8 @@
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "a36da6c5c806040a293494431d8cea4f77ff1b113355c0142bbb771d85856ae7",
-      "size_bytes": 468
+      "sha256": "cd326b29cd44763fa82b8dc4b2ffa78024ebb84ae0dc01abe01f8102dff66f55",
+      "size_bytes": 389
     },
     {
       "path": "verification/rust-dependency-hygiene.json",
@@ -2223,7 +2223,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "947d9cce9e85c7e377840383b5ff1b9bb76c9c91753d0dd796dc3de01c9b8267",
-  "total_size_bytes": 2394623,
+  "source_tree_sha256": "192803847ccb6519e5e3dc8f23b70e3828571fef213a035c4ff2e7fd6be97eac",
+  "total_size_bytes": 2396697,
   "version": "0.3.1"
 }

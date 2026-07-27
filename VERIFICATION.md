@@ -2,13 +2,13 @@
 
 Date: 2026-07-27
 Current workspace version: `0.3.1`
-Published baseline: `0.3.0`
-Purpose: preserve published `M8` evidence and define the separately qualified
+Published baseline: `0.3.1`
+Purpose: preserve published `M8` evidence and the independently qualified
 `0.3.1` patch-release boundary without rewriting release history.
 
-## `0.3.1` release candidate
+## `0.3.1` publication evidence
 
-The patch candidate contains the text-only Feedback boundary merged in PR #15
+The patch release contains the text-only Feedback boundary merged in PR #15
 and exact SQLx backend feature isolation merged in PR #16. It changes no public
 Rust API or serialized contract shape and retains the same 24-package release
 inventory as `0.3.0`. The larger multi-runtime Plan IR redesign remains outside
@@ -20,11 +20,29 @@ The source-fix merge commit is
 matrix, all-package publication dry run, Rustack/SSM conformance, and Orders
 E2E on that exact merged `main` source before this release change began.
 
-Workspace version, versioned internal dependencies, Cargo.lock, changelog,
-release instructions, repository truth, task evidence, and deterministic
-source evidence are advanced together in M8-T06. Registry publication remains
-separate proof: `0.3.1` is not considered published until the exact tag and all
-24 independent crates.io records are verified.
+Release PR #17 exact head
+`36b52a18893aded72284601503272fa0b444a403` passed hosted run
+`30249418058`. Merge commit
+`33719376b634e995c0bfdbe6c215f1c304cd6b5d` passed merged-main hosted run
+`30249977158`. Both runs passed authoritative quality, the Chromium/Firefox
+Feedback matrix, the 24-package publish dry run, Rustack/SSM conformance, and
+Orders E2E. Remote tag `v0.3.1` resolves exactly to that merge commit.
+
+Trusted-publisher run `30250487113` passed every source and packaging gate but
+stopped before upload because crates.io had no trusted-publisher configuration
+for `xicv/minco`. The documented authenticated fallback then published all 24
+packages from a clean detached worktree at the exact tag without a partial
+failure.
+
+Independent post-publication verification downloaded every exact `.crate`
+archive, matched all 24 crates.io SHA-256 checksums, confirmed every record is
+not yanked, and confirmed owner `xicv`. A fresh locked
+`cargo-minco 0.3.1` installation reports `minco 0.3.1`; a fresh external
+consumer resolves and checks `minco = "=0.3.1"` with the declared Rust 1.97.1
+toolchain.
+
+All 24 exact docs.rs library routes return HTTP 200 directly. The final
+`minco` facade build reports that all builds succeeded.
 
 ## `0.3.0` release boundary
 

@@ -17,11 +17,11 @@ ZIP. It contains no provisioned concurrency, NAT Gateway, scheduled poller or
 always-on compute. Storage, retained logs, DNS, secrets and database providers
 can still incur idle charges, so the precise promise is **minimal idle cost**.
 
-> Published baseline: `0.3.0`
+> Published baseline: `0.3.1`
 >
 > Current workspace version: `0.3.1`
 >
-> Minco is pre-1.0. The `0.3.1` patch candidate preserves the public Rust and
+> Minco is pre-1.0. The `0.3.1` patch release preserves the public Rust and
 > serialized-contract boundaries of `0.3.0`.
 
 
@@ -64,8 +64,7 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The current 24-package family is published at `0.3.0`; the workspace is the
-separately qualified `0.3.1` patch candidate. See
+The current 24-package family and workspace are published at `0.3.1`. See
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
 first-publish, dry-run, ownership, and trusted-publishing process.
 
@@ -363,8 +362,8 @@ then use the facade/stability matrix in
 
 ## Crates.io release preparation
 
-Minco uses a lock-step release family. The published `0.3.0` release and
-`0.3.1` patch candidate each contain 24 publishable packages.
+Minco uses a lock-step release family. The published `0.3.1` release contains
+24 publishable packages, unchanged from `0.3.0`.
 Static metadata and dependency validation can run without Cargo:
 
 ```bash

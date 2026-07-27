@@ -2,7 +2,7 @@
 id: M8-T06
 title: Publish Minco 0.3.1 text-only and SQLx isolation patch
 milestone: M8
-status: active
+status: complete
 priority: critical
 area: release/crates-io
 depends_on: [M6-T08, M6-T09]
@@ -65,3 +65,29 @@ without attempting to replace accepted versions.
   match the registry archive checksums.
 - A fresh locked `cargo-minco 0.3.1` install succeeds from crates.io and all
   exact docs.rs routes become available.
+
+## Evidence
+
+- Source-fix PR `#16` head
+  `75690770cbd38fc96784add6076d14084d81d176` passed hosted run
+  `30247184469`; merge commit
+  `cd679c74d44e04abe1655b71c8ca9b9381aa6f6b` passed merged-main run
+  `30247725599`.
+- Release PR `#17` exact head
+  `36b52a18893aded72284601503272fa0b444a403` passed hosted run
+  `30249418058`; merge commit
+  `33719376b634e995c0bfdbe6c215f1c304cd6b5d` passed merged-main run
+  `30249977158`.
+- Remote tag `v0.3.1` resolves exactly to the release merge commit. Cargo
+  accepted all 24 uploads in dependency order without a partial failure.
+- Trusted-publisher run `30250487113` passed through the complete publish dry
+  run, then failed before upload because crates.io had no trusted-publisher
+  configuration for `xicv/minco`. Publication used the documented authenticated
+  fallback from a clean detached worktree at the exact tag.
+- Every exact registry record is not yanked, every downloaded archive matches
+  its crates.io SHA-256 checksum, and every package includes owner `xicv`.
+- A fresh locked `cargo-minco 0.3.1` install reports `minco 0.3.1`. A fresh
+  external `minco = "=0.3.1"` consumer checks successfully on the declared
+  Rust 1.97.1 toolchain; Rust 1.91.0 is correctly rejected by package metadata.
+- All 24 exact docs.rs library routes return HTTP 200 directly. The final
+  `minco` facade build reports that all builds succeeded.
