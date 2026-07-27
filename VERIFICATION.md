@@ -58,6 +58,15 @@ immutable and already published. `minco-config` was the sole unpublished
 candidate. This is an expected release-state rejection, not a passing
 pre-release validator.
 
+The final local `./scripts/quality.sh` suite passed. It covered repository
+truth, static and deep review, publish metadata, formatting, the complete
+feature matrix, strict workspace Clippy and tests, generated PostgreSQL and
+SQLite consumer workspaces, Rustdoc and documentation, `cargo deny`,
+`cargo audit`, npm audit, Gitleaks, and the final source-manifest check. The
+required clean-workspace `scripts/release/publish.sh --skip-quality` command
+also passed for all 25 current source candidates. It used Cargo's `--dry-run`
+path; `--execute` was not supplied and every upload was aborted.
+
 ## `0.3.1` publication evidence
 
 The patch release contains the text-only Feedback boundary merged in PR #15
