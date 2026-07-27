@@ -14,6 +14,12 @@ CORS configuration, SSM parameter-name reference and optional JWT authorizer.
 The default profile does not create a VPC, NAT Gateway, RDS Proxy, ECR,
 CloudFront, Cognito, queue, scheduler or provisioned concurrency.
 
+Plan IR schema 2 can add workers, queues, mappings, DLQs and schedules, but only
+when each is explicitly declared. Queues use server-side encryption, mappings
+use partial-batch responses and bounded concurrency, and schedules render as
+explicit EventBridge Scheduler events. The default
+`deny_scheduled_wakeups = true` policy still rejects an enabled schedule.
+
 ## Authentication
 
 The generated HTTP API supports a generic JWT authorizer. API Gateway verifies
@@ -106,3 +112,6 @@ The SAM renderer accepts externally provisioned PostgreSQL-compatible profiles
 PostgreSQL. DynamoDB and mutable SQLite are rejected by this renderer until an
 appropriate runtime adapter/deployment plugin is selected. See
 [`database-options.md`](database-options.md).
+
+The schema 2 compatibility and migration procedure is documented in
+[`plan-schema-v2-migration.md`](plan-schema-v2-migration.md).

@@ -13,7 +13,7 @@ readme = "README.md"
 keywords = ["minco", "aws", "serverless", "cost", "infrastructure"]
 categories = ["development-tools", "config"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 [dependencies]
 http.workspace = true
 minco-contract.workspace = true

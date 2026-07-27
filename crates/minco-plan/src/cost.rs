@@ -1,4 +1,4 @@
-use crate::{DatabaseDeployment, NeonPlan};
+use crate::{DatabaseDeployment, DeploymentPlan, FunctionRole, NeonPlan, TriggerPlan};
 use serde::{Deserialize, Serialize};
 
 const NEON_PRICING_CAPTURED_AT: &str = "2026-07-24";
@@ -23,6 +23,192 @@ pub struct DatabaseCostEstimate {
     pub components: Vec<CostComponent>,
     pub missing_rates: Vec<String>,
     pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeCostEstimate {
+    pub complete: bool,
+    pub schedules: Vec<ScheduleCostDimension>,
+    pub workers: Vec<WorkerCostDimension>,
+    pub queues: Vec<QueueCostDimension>,
+    pub fixed_cost_resources: Vec<String>,
+    pub request_based_resources: Vec<String>,
+    pub missing_rates: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleCostDimension {
+    pub trigger_id: String,
+    pub function_id: String,
+    pub expression: String,
+    pub enabled: bool,
+    pub estimated_monthly_invocations: Option<u64>,
+    pub can_wake_scale_to_zero_database: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkerCostDimension {
+    pub function_id: String,
+    pub reserved_concurrency: u32,
+    pub database_connections_per_instance: u32,
+    pub maximum_database_connections: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueueCostDimension {
+    pub queue_id: String,
+    pub fifo: bool,
+    pub mappings: Vec<SqsMappingCostDimension>,
+    pub regional_request_rate_required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SqsMappingCostDimension {
+    pub trigger_id: String,
+    pub function_id: String,
+    pub batch_size: u32,
+    pub maximum_concurrency: u32,
+}
+
+#[must_use]
+pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
+    let schedules: Vec<ScheduleCostDimension> = plan
+        .triggers
+        .iter()
+        .filter_map(|trigger| {
+            let TriggerPlan::Schedule {
+                id,
+                function_id,
+                expression,
+                enabled,
+                ..
+            } = trigger
+            else {
+                return None;
+            };
+            Some(ScheduleCostDimension {
+                trigger_id: id.clone(),
+                function_id: function_id.clone(),
+                expression: expression.clone(),
+                enabled: *enabled,
+                estimated_monthly_invocations: enabled
+                    .then(|| monthly_schedule_invocations(expression))
+                    .flatten(),
+                can_wake_scale_to_zero_database: *enabled && plan.database.can_scale_to_zero(),
+            })
+        })
+        .collect();
+    let workers = plan
+        .functions
+        .iter()
+        .filter(|function| matches!(function.role, FunctionRole::Worker))
+        .map(|function| WorkerCostDimension {
+            function_id: function.name.clone(),
+            reserved_concurrency: function.reserved_concurrency,
+            database_connections_per_instance: function.database_connections_per_instance,
+            maximum_database_connections: function
+                .reserved_concurrency
+                .saturating_mul(function.database_connections_per_instance),
+        })
+        .collect();
+    let queues = plan
+        .queues
+        .iter()
+        .map(|queue| {
+            let mappings = plan
+                .triggers
+                .iter()
+                .filter_map(|trigger| {
+                    let TriggerPlan::Sqs {
+                        id,
+                        function_id,
+                        queue_id,
+                        batch_size,
+                        maximum_concurrency,
+                        ..
+                    } = trigger
+                    else {
+                        return None;
+                    };
+                    (queue_id == &queue.id).then(|| SqsMappingCostDimension {
+                        trigger_id: id.clone(),
+                        function_id: function_id.clone(),
+                        batch_size: *batch_size,
+                        maximum_concurrency: *maximum_concurrency,
+                    })
+                })
+                .collect();
+            QueueCostDimension {
+                queue_id: queue.id.clone(),
+                fifo: queue.fifo,
+                mappings,
+                regional_request_rate_required: true,
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut fixed_cost_resources = Vec::new();
+    if plan.database.has_fixed_compute() {
+        fixed_cost_resources.push(format!("database:{}", plan.database.kind_name()));
+    }
+    fixed_cost_resources.extend(
+        plan.functions
+            .iter()
+            .filter(|function| function.provisioned_concurrency > 0)
+            .map(|function| format!("provisioned_concurrency:{}", function.name)),
+    );
+    let mut request_based_resources = vec!["http_api".into()];
+    request_based_resources.extend(
+        plan.functions
+            .iter()
+            .map(|function| format!("lambda:{}", function.name)),
+    );
+    request_based_resources.extend(plan.queues.iter().map(|queue| format!("sqs:{}", queue.id)));
+    request_based_resources.extend(
+        schedules
+            .iter()
+            .map(|schedule| format!("schedule:{}", schedule.trigger_id)),
+    );
+
+    let mut missing_rates = vec![
+        "regional_api_gateway_request_rate".into(),
+        "regional_lambda_request_and_duration_rates".into(),
+    ];
+    if !queues.is_empty() {
+        missing_rates.push("regional_sqs_request_rate".into());
+    }
+    if !schedules.is_empty() {
+        missing_rates.push("regional_scheduler_invocation_rate".into());
+    }
+
+    RuntimeCostEstimate {
+        complete: false,
+        schedules,
+        workers,
+        queues,
+        fixed_cost_resources,
+        request_based_resources,
+        missing_rates,
+    }
+}
+
+fn monthly_schedule_invocations(expression: &str) -> Option<u64> {
+    if expression.starts_with("at(") && expression.ends_with(')') {
+        return Some(1);
+    }
+    let body = expression.strip_prefix("rate(")?.strip_suffix(')')?.trim();
+    let mut parts = body.split_whitespace();
+    let value = parts.next()?.parse::<u64>().ok()?;
+    let unit = parts.next()?;
+    if value == 0 || parts.next().is_some() {
+        return None;
+    }
+    let minutes = match unit {
+        "minute" | "minutes" => value,
+        "hour" | "hours" => value.checked_mul(60)?,
+        "day" | "days" => value.checked_mul(24 * 60)?,
+        _ => return None,
+    };
+    Some(43_830_u64.div_ceil(minutes))
 }
 
 pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEstimate {

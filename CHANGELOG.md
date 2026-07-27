@@ -5,6 +5,21 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+### Added
+
+- Added Plan IR schema 2 for one HTTP API function plus explicit worker
+  functions, SQS queues, DLQs, event-source mappings, partial-batch behavior
+  and reviewed schedules, with deterministic local-service, IAM, cost,
+  performance and SAM projections.
+- Added generic API-only, standard/FIFO worker, redrive, schedule and DynamoDB
+  fixtures with stable validation and migration-rejection coverage.
+
+### Changed
+
+- `cargo minco explain --json` now identifies an operation's deployment
+  function/trigger, `cost --json` includes runtime resource dimensions, and
+  `perf --json` reports every function artifact and available SHA-256.
+
 ### Documentation
 
 - Defined Minco's five-plane contract-to-cloud product identity, developer and
@@ -17,6 +32,15 @@ Semantic Versioning once public releases begin.
   SQS worker runtime.
 - Reconciled the adoption-measurement narrative with the authoritative current
   dependency, timing, and Lambda artifact report.
+- Documented the trigger-aware Plan decision, schema 2 migration, explicit SQS
+  worker constraints and unchanged minimal-idle default.
+
+### Compatibility boundary
+
+The new public plan types and schema 2 serialized fields are a likely Minco
+`0.4.0` boundary. API-only schema 1 configurations remain supported and their
+generated output is preserved where practical. No package version is changed
+or published by this implementation.
 
 ## [0.3.1] - 2026-07-27
 

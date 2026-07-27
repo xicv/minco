@@ -46,6 +46,27 @@ cargo minco cost [--config PATH]
 cargo minco perf [--config PATH]
 ```
 
+`deploy plan` validates the selected configuration and emits canonical Plan IR.
+Schema 1 retains the API-only topology. Schema 2 requires one explicit
+`http_api` function/trigger and can add worker functions, queues, SQS mappings,
+DLQs and reviewed schedules. `render-sam` assigns the artifact URI for every
+function and emits only resources present in the plan.
+
+`inspect --json` includes the full deployment projection. `explain
+<operationId> --json` identifies the HTTP deployment function and trigger for
+the operation.
+
+`cost --json` reports database cost separately from runtime dimensions:
+schedules and derivable monthly invocations, worker connection pressure, every
+SQS mapping, fixed/request-based resources and missing regional rates. `perf
+--json` reports every function artifact with its relative path, byte size and
+SHA-256 when the file exists. Missing rates or artifacts stay explicit; the CLI
+does not guess them.
+
+See
+[`plan-schema-v2-migration.md`](../deployment/plan-schema-v2-migration.md) for
+schema compatibility and upgrade examples.
+
 ## Plugins
 
 ```text

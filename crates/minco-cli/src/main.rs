@@ -23,7 +23,7 @@ use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract}
 use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
 use minco_plan::{
     DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
-    estimate_database_cost, render_sam_with_code_uri,
+    estimate_database_cost, estimate_runtime_cost, render_sam_with_code_uris,
 };
 use minco_release::{FileDigest, ReleaseManifest};
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
@@ -501,6 +501,9 @@ fn explain_value(
     let generated = trace
         .and_then(|value| value.generated.as_ref())
         .or_else(|| (contract == &manifest.contract).then_some(&manifest.generated));
+    let deployment = load_plan(root, manifest, None)?;
+    let deployment_function = deployment.http_api_function_id();
+    let deployment_trigger = deployment.http_api_trigger_id();
     Ok(json!({
         "operation": operation,
         "contract": contract,
@@ -510,6 +513,8 @@ fn explain_value(
         "adapters": trace.map_or_else(Vec::new, |value| value.adapters.clone()),
         "tests": trace.map_or_else(Vec::new, |value| value.tests.clone()),
         "deployment_config": manifest.deployment_config,
+        "deployment_function": deployment_function,
+        "deployment_trigger": deployment_trigger,
     }))
 }
 
@@ -545,13 +550,18 @@ fn deploy(
             let plan = load_plan(root, manifest, input.config)?;
             ensure_plan_valid(&plan)?;
             let output = root.join(output);
-            let function = plan
+            let code_uris = plan
                 .functions
-                .first()
-                .context("deployment plan has no function artifact")?;
-            let code_uri = template_relative_path(root, &output, &function.artifact_path)?;
-            let template =
-                render_sam_with_code_uri(&plan, Some(code_uri.to_string_lossy().as_ref()))?;
+                .iter()
+                .map(|function| {
+                    let code_uri = template_relative_path(root, &output, &function.artifact_path)?;
+                    Ok((
+                        function.name.clone(),
+                        code_uri.to_string_lossy().into_owned(),
+                    ))
+                })
+                .collect::<Result<std::collections::BTreeMap<_, _>>>()?;
+            let template = render_sam_with_code_uris(&plan, &code_uris)?;
             ensure_parent(&output)?;
             fs::write(&output, template)?;
             print_value(
@@ -604,13 +614,15 @@ fn template_relative_path(root: &Path, template: &Path, artifact: &str) -> Resul
 fn cost(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) -> Result<()> {
     let plan = load_plan(root, manifest, input.config)?;
     let estimate = estimate_database_cost(&plan.database);
+    let runtime = estimate_runtime_cost(&plan);
     print_value(
         &json!({
             "database": estimate,
+            "runtime": runtime,
             "database_profile": plan.database.kind_name(),
             "structural_diagnostics": plan.validate(),
-            "overall_estimate_complete": estimate.complete,
-            "note": "The 0.1 estimator calculates the selected database profile. Lambda, API Gateway, logs, DNS and data transfer require region-specific usage rates and remain explicit external inputs.",
+            "overall_estimate_complete": estimate.complete && runtime.complete,
+            "note": "The estimate exposes selected fixed/request-based resources, schedule wakes, worker connection pressure, and missing regional rates. It does not guess a complete cloud bill.",
         }),
         as_json,
     )
@@ -618,26 +630,39 @@ fn cost(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) 
 
 fn perf(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) -> Result<()> {
     let plan = load_plan(root, manifest, input.config)?;
-    let function = plan.functions.first().context("plan has no function")?;
-    let artifact = root.join(&function.artifact_path);
-    let artifact_bytes = artifact.metadata().ok().map(|metadata| metadata.len());
     let mut diagnostics = plan.validate();
-    if let Some(bytes) = artifact_bytes
-        && bytes > plan.performance_policy.target_artifact_bytes
-    {
-        diagnostics.push(minco_plan::PlanDiagnostic {
-            code: "MINCO-PERF-003".into(),
-            severity: PlanSeverity::Warning,
-            message: format!(
-                "artifact is {bytes} bytes; target is {}",
-                plan.performance_policy.target_artifact_bytes
-            ),
-        });
+    let mut artifacts = Vec::new();
+    for function in &plan.functions {
+        let artifact = root.join(&function.artifact_path);
+        let digest = artifact
+            .is_file()
+            .then(|| FileDigest::from_rooted_path(root, &artifact))
+            .transpose()?;
+        if let Some(digest) = &digest
+            && digest.bytes > plan.performance_policy.target_artifact_bytes
+        {
+            diagnostics.push(minco_plan::PlanDiagnostic {
+                code: "MINCO-PERF-003".into(),
+                severity: PlanSeverity::Warning,
+                message: format!(
+                    "function {} artifact is {} bytes; target is {}",
+                    function.name, digest.bytes, plan.performance_policy.target_artifact_bytes
+                ),
+            });
+        }
+        artifacts.push(json!({
+            "function_id": function.name,
+            "role": function.role,
+            "artifact": artifact,
+            "digest": digest,
+        }));
     }
+    let primary_artifact = artifacts.first().context("plan has no function")?;
     print_value(
         &json!({
-            "artifact": artifact,
-            "artifact_bytes": artifact_bytes,
+            "artifact": primary_artifact["artifact"],
+            "artifact_bytes": primary_artifact["digest"]["bytes"],
+            "artifacts": artifacts,
             "policy": plan.performance_policy,
             "diagnostics": diagnostics,
         }),
@@ -1194,6 +1219,7 @@ mod cli_argument_tests {
             "plugins/minco-plugin-feedback/src/http.rs#create_feedback"
         );
         assert!(value["generated"].is_null());
+        assert_eq!(value["deployment_function"], "api");
     }
 
     #[test]

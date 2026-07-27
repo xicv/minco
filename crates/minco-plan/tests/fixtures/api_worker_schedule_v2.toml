@@ -1,0 +1,62 @@
+schema_version = 2
+application = "orders"
+environment = "test"
+region = "ap-southeast-2"
+runtime = "lambda_zip_arm64"
+ingress = "api_gateway_http_api"
+allowed_origins = ["https://app.example.invalid"]
+scheduled_wakeups = []
+uses_nat_gateway = false
+
+[auth]
+kind = "jwt"
+issuer = "https://issuer.example.invalid"
+audiences = ["orders"]
+
+[database]
+kind = "neon_postgres"
+plan = "free"
+compute_unit_hours = 0.0
+storage_gb_month = 0.0
+history_storage_gb_month = 0.0
+
+[[functions]]
+name = "api"
+role = "http_api"
+artifact_path = "target/lambda/orders-lambda/bootstrap.zip"
+memory_mb = 512
+timeout_seconds = 15
+reserved_concurrency = 2
+provisioned_concurrency = 0
+database_connections_per_instance = 2
+
+[[functions]]
+name = "recovery-worker"
+role = "worker"
+artifact_path = "target/lambda/sqs_worker/bootstrap.zip"
+memory_mb = 256
+timeout_seconds = 30
+reserved_concurrency = 2
+provisioned_concurrency = 0
+database_connections_per_instance = 1
+
+[[triggers]]
+kind = "http_api"
+id = "api"
+function_id = "api"
+
+[[triggers]]
+kind = "schedule"
+id = "outbox-recovery"
+function_id = "recovery-worker"
+expression = "rate(15 minutes)"
+enabled = true
+purpose = "recover stranded outbox records"
+
+[cost_policy]
+deny_fixed_compute = true
+deny_nat_gateway = true
+deny_provisioned_concurrency = true
+deny_scheduled_wakeups = false
+max_reserved_concurrency = 5
+max_database_connections = 20

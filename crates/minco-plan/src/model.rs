@@ -1,3 +1,4 @@
+use crate::sam_logical_id;
 use minco_contract::{ContractDocument, HttpMethod};
 use minco_core::{ApplicationGraph, ResourceKind};
 use serde::{Deserialize, Serialize};
@@ -31,6 +32,10 @@ pub struct DeploymentConfig {
     pub auth: AuthPlan,
     pub database: DatabaseDeployment,
     pub functions: Vec<FunctionPlan>,
+    #[serde(default)]
+    pub queues: Vec<QueuePlan>,
+    #[serde(default)]
+    pub triggers: Vec<TriggerPlan>,
     #[serde(default)]
     pub scheduled_wakeups: Vec<String>,
     #[serde(default)]
@@ -68,8 +73,19 @@ impl DeploymentConfig {
                 authenticated: operation.authenticated,
             })
             .collect();
-        let local_aws_services =
-            local_aws_services(&self.runtime, &self.database, &application_graph);
+        let local_aws_services = local_aws_services(
+            &self.runtime,
+            &self.database,
+            &application_graph,
+            &self.queues,
+        );
+        let iam_intents = derive_iam_intents(
+            self.schema_version,
+            &self.runtime,
+            &self.database,
+            &self.functions,
+            &self.triggers,
+        );
         let mut allowed_headers = self
             .allowed_headers
             .into_iter()
@@ -89,6 +105,9 @@ impl DeploymentConfig {
             auth: self.auth,
             database: self.database,
             functions: self.functions,
+            queues: self.queues,
+            triggers: self.triggers,
+            iam_intents,
             routes,
             application_graph,
             local_aws_services,
@@ -114,6 +133,12 @@ pub struct DeploymentPlan {
     pub auth: AuthPlan,
     pub database: DatabaseDeployment,
     pub functions: Vec<FunctionPlan>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub queues: Vec<QueuePlan>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub triggers: Vec<TriggerPlan>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub iam_intents: Vec<IamIntent>,
     pub routes: Vec<RoutePlan>,
     #[serde(default)]
     pub application_graph: ApplicationGraph,
@@ -132,6 +157,7 @@ fn local_aws_services(
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,
     graph: &ApplicationGraph,
+    queues: &[QueuePlan],
 ) -> Vec<String> {
     let mut services = std::collections::BTreeSet::new();
     if matches!(runtime, RuntimePlan::LambdaZipArm64) {
@@ -139,6 +165,9 @@ fn local_aws_services(
     }
     if matches!(database, DatabaseDeployment::DynamoDbOnDemand { .. }) {
         services.insert("dynamodb".into());
+    }
+    if !queues.is_empty() {
+        services.insert("sqs".into());
     }
     for resource in graph.resources.values() {
         match resource.kind {
@@ -162,16 +191,110 @@ fn local_aws_services(
 
 impl DeploymentPlan {
     #[must_use]
+    pub fn http_api_function_id(&self) -> Option<&str> {
+        if self.schema_version == 1 {
+            return self
+                .functions
+                .first()
+                .map(|function| function.name.as_str());
+        }
+        self.triggers.iter().find_map(|trigger| {
+            let TriggerPlan::HttpApi { function_id, .. } = trigger else {
+                return None;
+            };
+            Some(function_id.as_str())
+        })
+    }
+
+    #[must_use]
+    pub fn http_api_trigger_id(&self) -> Option<&str> {
+        (self.schema_version == 2)
+            .then(|| {
+                self.triggers.iter().find_map(|trigger| {
+                    let TriggerPlan::HttpApi { id, .. } = trigger else {
+                        return None;
+                    };
+                    Some(id.as_str())
+                })
+            })
+            .flatten()
+    }
+
+    #[must_use]
+    pub fn operation_function_id(&self, operation_id: &str) -> Option<&str> {
+        self.routes
+            .iter()
+            .any(|route| route.operation_id == operation_id)
+            .then(|| self.http_api_function_id())
+            .flatten()
+    }
+
+    /// Converts the legacy API-only schema into the explicit trigger schema.
+    ///
+    /// Legacy scheduled strings cannot be migrated safely because they do not
+    /// identify a function or carry enablement and purpose, so they fail with
+    /// a stable rejection instead of being guessed.
+    pub fn migrate_to_latest(mut self) -> Result<Self, PlanError> {
+        match self.schema_version {
+            2 => Ok(self),
+            1 => {
+                if !self.queues.is_empty()
+                    || !self.triggers.is_empty()
+                    || !self.scheduled_wakeups.is_empty()
+                {
+                    return Err(PlanError::SchemaMigration(
+                        "MINCO-PLAN-MIGRATE-001: schema 1 can migrate only an API-only plan \
+                         without queue, trigger, or scheduled-wakeup fields"
+                            .into(),
+                    ));
+                }
+                let [function] = self.functions.as_mut_slice() else {
+                    return Err(PlanError::SchemaMigration(
+                        "MINCO-PLAN-MIGRATE-002: schema 1 must contain exactly one API function"
+                            .into(),
+                    ));
+                };
+                if !matches!(function.role, FunctionRole::HttpApi) {
+                    return Err(PlanError::SchemaMigration(
+                        "MINCO-PLAN-MIGRATE-002: schema 1 must contain exactly one API function"
+                            .into(),
+                    ));
+                }
+                self.triggers.push(TriggerPlan::HttpApi {
+                    id: "http-api".into(),
+                    function_id: function.name.clone(),
+                });
+                self.schema_version = 2;
+                self.iam_intents = derive_iam_intents(
+                    self.schema_version,
+                    &self.runtime,
+                    &self.database,
+                    &self.functions,
+                    &self.triggers,
+                );
+                Ok(self)
+            }
+            version => Err(PlanError::SchemaMigration(format!(
+                "MINCO-PLAN-MIGRATE-003: unsupported source schema version {version}"
+            ))),
+        }
+    }
+
+    #[must_use]
     pub fn validate(&self) -> Vec<PlanDiagnostic> {
         let mut diagnostics = Vec::new();
-        if self.schema_version != 1 {
+        if !matches!(self.schema_version, 1 | 2) {
             diagnostics.push(error(
                 "MINCO-PLAN-001",
                 "unsupported deployment plan schema version",
             ));
         }
-        let expected_local_services =
-            local_aws_services(&self.runtime, &self.database, &self.application_graph);
+        let expected_local_services = local_aws_services(
+            &self.runtime,
+            &self.database,
+            &self.application_graph,
+            &self.queues,
+        );
         if self.local_aws_services != expected_local_services {
             diagnostics.push(error(
                 "MINCO-PLAN-003",
@@ -183,11 +306,53 @@ impl DeploymentPlan {
         {
             diagnostics.push(error("MINCO-AUTH-001", "the contract contains authenticated operations but no deployment authorizer is configured"));
         }
-        if self.functions.len() != 1 {
-            diagnostics.push(error(
-                "MINCO-PLAN-002",
-                "the initial Minco AWS profile requires exactly one API function",
-            ));
+        if self.schema_version == 1 {
+            if self.functions.len() != 1 {
+                diagnostics.push(error(
+                    "MINCO-PLAN-002",
+                    "the initial Minco AWS profile requires exactly one API function",
+                ));
+            }
+            if !self.queues.is_empty() || !self.triggers.is_empty() || !self.iam_intents.is_empty()
+            {
+                diagnostics.push(error(
+                    "MINCO-PLAN-004",
+                    "queues, typed IAM intent, and structured triggers require schema version 2",
+                ));
+            }
+            if self
+                .functions
+                .iter()
+                .any(|function| !matches!(function.role, FunctionRole::HttpApi))
+            {
+                diagnostics.push(error(
+                    "MINCO-PLAN-005",
+                    "schema version 1 supports only its single HTTP API function",
+                ));
+            }
+        }
+        if self.schema_version == 2 {
+            if !self.scheduled_wakeups.is_empty() {
+                diagnostics.push(error(
+                    "MINCO-SCHEDULE-003",
+                    "schema version 2 rejects unstructured scheduled_wakeups; use a schedule trigger",
+                ));
+            }
+            validate_multi_runtime_topology(self, &mut diagnostics);
+            if self.iam_intents
+                != derive_iam_intents(
+                    self.schema_version,
+                    &self.runtime,
+                    &self.database,
+                    &self.functions,
+                    &self.triggers,
+                )
+            {
+                diagnostics.push(error(
+                    "MINCO-IAM-001",
+                    "iam_intents does not match the selected functions and triggers",
+                ));
+            }
         }
         if self.allowed_origins.is_empty() {
             diagnostics.push(error(
@@ -237,11 +402,46 @@ impl DeploymentPlan {
                 "minimal-idle profile forbids a NAT Gateway",
             ));
         }
-        if self.cost_policy.deny_scheduled_wakeups && !self.scheduled_wakeups.is_empty() {
+        let enabled_schedules = self
+            .triggers
+            .iter()
+            .filter(|trigger| matches!(trigger, TriggerPlan::Schedule { enabled: true, .. }))
+            .map(TriggerPlan::id)
+            .collect::<Vec<_>>();
+        if self.cost_policy.deny_scheduled_wakeups
+            && (!self.scheduled_wakeups.is_empty() || !enabled_schedules.is_empty())
+        {
             diagnostics.push(error(
                 "MINCO-COST-002",
-                "minimal-idle profile forbids scheduled wakeups",
+                &if enabled_schedules.is_empty() {
+                    "minimal-idle profile forbids scheduled wakeups".to_owned()
+                } else {
+                    format!(
+                        "minimal-idle profile forbids enabled schedules: {}",
+                        enabled_schedules.join(", ")
+                    )
+                },
             ));
+        } else if !self.cost_policy.deny_scheduled_wakeups {
+            for trigger in &self.triggers {
+                if let TriggerPlan::Schedule {
+                    id,
+                    function_id,
+                    expression,
+                    enabled: true,
+                    ..
+                } = trigger
+                {
+                    diagnostics.push(information(
+                        "MINCO-COST-009",
+                        &format!(
+                            "enabled schedule {id} invokes {function_id} with {expression}; it \
+                             is a request-based wake source and can wake a scale-to-zero database: {}",
+                            self.database.can_scale_to_zero()
+                        ),
+                    ));
+                }
+            }
         }
         if self.cost_policy.deny_fixed_compute && self.database.has_fixed_compute() {
             diagnostics.push(error(
@@ -253,6 +453,28 @@ impl DeploymentPlan {
             ));
         }
         for function in &self.functions {
+            if self.schema_version == 2
+                && (function.memory_mb == 0
+                    || function.timeout_seconds == 0
+                    || function.reserved_concurrency == 0)
+            {
+                diagnostics.push(error(
+                    "MINCO-PERF-004",
+                    &format!(
+                        "function {} requires non-zero memory, timeout, and reserved concurrency",
+                        function.name
+                    ),
+                ));
+            }
+            if function.provisioned_concurrency > function.reserved_concurrency {
+                diagnostics.push(error(
+                    "MINCO-COST-010",
+                    &format!(
+                        "function {} provisioned concurrency exceeds reserved concurrency",
+                        function.name
+                    ),
+                ));
+            }
             if self.cost_policy.deny_provisioned_concurrency && function.provisioned_concurrency > 0
             {
                 diagnostics.push(error(
@@ -302,7 +524,7 @@ impl DeploymentPlan {
                     .reserved_concurrency
                     .saturating_mul(function.database_connections_per_instance)
             })
-            .sum();
+            .fold(0, u32::saturating_add);
         if self.database.is_relational()
             && possible_connections > self.cost_policy.max_database_connections
         {
@@ -366,6 +588,503 @@ impl DeploymentPlan {
         }
         diagnostics
     }
+}
+
+fn validate_multi_runtime_topology(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiagnostic>) {
+    let mut functions = std::collections::BTreeMap::new();
+    for function in &plan.functions {
+        if !is_stable_id(&function.name) {
+            diagnostics.push(error(
+                "MINCO-PLAN-010",
+                &format!(
+                    "function {} does not use a stable identifier",
+                    function.name
+                ),
+            ));
+        }
+        if functions.insert(function.name.as_str(), function).is_some() {
+            diagnostics.push(error(
+                "MINCO-PLAN-011",
+                &format!("duplicate function identifier: {}", function.name),
+            ));
+        }
+    }
+    let api_functions = plan
+        .functions
+        .iter()
+        .filter(|function| matches!(function.role, FunctionRole::HttpApi))
+        .count();
+    if api_functions != 1 {
+        diagnostics.push(error(
+            "MINCO-PLAN-012",
+            "schema version 2 requires exactly one HTTP API function",
+        ));
+    }
+
+    let mut queues = std::collections::BTreeMap::new();
+    for queue in &plan.queues {
+        if !is_stable_id(&queue.id) {
+            diagnostics.push(error(
+                "MINCO-PLAN-010",
+                &format!("queue {} does not use a stable identifier", queue.id),
+            ));
+        }
+        if queues.insert(queue.id.as_str(), queue).is_some() {
+            diagnostics.push(error(
+                "MINCO-PLAN-013",
+                &format!("duplicate queue identifier: {}", queue.id),
+            ));
+        }
+        if queue.visibility_timeout_seconds > 43_200 {
+            diagnostics.push(error(
+                "MINCO-SQS-010",
+                &format!(
+                    "queue {} visibility timeout exceeds 43200 seconds",
+                    queue.id
+                ),
+            ));
+        }
+        if !(60..=1_209_600).contains(&queue.retention_seconds) {
+            diagnostics.push(error(
+                "MINCO-SQS-011",
+                &format!(
+                    "queue {} retention must be between 60 and 1209600 seconds",
+                    queue.id
+                ),
+            ));
+        }
+    }
+    for queue in &plan.queues {
+        match (&queue.dead_letter_queue_id, queue.max_receive_count) {
+            (Some(dead_letter_queue_id), Some(max_receive_count)) => {
+                if dead_letter_queue_id == &queue.id {
+                    diagnostics.push(error(
+                        "MINCO-SQS-004",
+                        &format!("queue {} cannot be its own dead-letter queue", queue.id),
+                    ));
+                }
+                match queues.get(dead_letter_queue_id.as_str()) {
+                    Some(dead_letter_queue) if dead_letter_queue.fifo != queue.fifo => {
+                        diagnostics.push(error(
+                            "MINCO-SQS-003",
+                            &format!(
+                                "queue {} and dead-letter queue {dead_letter_queue_id} must \
+                                 use the same FIFO setting",
+                                queue.id
+                            ),
+                        ));
+                    }
+                    Some(_) => {}
+                    None => diagnostics.push(error(
+                        "MINCO-PLAN-015",
+                        &format!(
+                            "queue {} references missing dead-letter queue \
+                             {dead_letter_queue_id}",
+                            queue.id
+                        ),
+                    )),
+                }
+                if !(1..=1_000).contains(&max_receive_count) {
+                    diagnostics.push(error(
+                        "MINCO-SQS-005",
+                        &format!(
+                            "queue {} max_receive_count must be between 1 and 1000",
+                            queue.id
+                        ),
+                    ));
+                }
+            }
+            (None, None) => {}
+            _ => diagnostics.push(error(
+                "MINCO-SQS-004",
+                &format!(
+                    "queue {} must configure dead_letter_queue_id and max_receive_count together",
+                    queue.id
+                ),
+            )),
+        }
+    }
+    if let Some(queue_id) = redrive_cycle_start(&queues) {
+        diagnostics.push(error(
+            "MINCO-SQS-006",
+            &format!("dead-letter queue references contain a cycle from {queue_id}"),
+        ));
+    }
+
+    let mut trigger_ids = std::collections::BTreeSet::new();
+    let mut http_triggers = 0;
+    for trigger in &plan.triggers {
+        if !is_stable_id(trigger.id()) {
+            diagnostics.push(error(
+                "MINCO-PLAN-010",
+                &format!("trigger {} does not use a stable identifier", trigger.id()),
+            ));
+        }
+        if !trigger_ids.insert(trigger.id()) {
+            diagnostics.push(error(
+                "MINCO-PLAN-014",
+                &format!("duplicate trigger identifier: {}", trigger.id()),
+            ));
+        }
+        match trigger {
+            TriggerPlan::HttpApi { function_id, .. } => {
+                http_triggers += 1;
+                match functions.get(function_id.as_str()) {
+                    Some(function) if matches!(function.role, FunctionRole::HttpApi) => {}
+                    Some(_) => diagnostics.push(error(
+                        "MINCO-PLAN-016",
+                        &format!(
+                            "HTTP API trigger {} must target an HTTP API function",
+                            trigger.id()
+                        ),
+                    )),
+                    None => diagnostics.push(error(
+                        "MINCO-PLAN-015",
+                        &format!(
+                            "trigger {} references missing function {function_id}",
+                            trigger.id()
+                        ),
+                    )),
+                }
+            }
+            TriggerPlan::Sqs {
+                function_id,
+                queue_id,
+                batch_size,
+                batching_window_seconds,
+                report_batch_item_failures,
+                maximum_concurrency,
+                ..
+            } => {
+                let function = functions.get(function_id.as_str()).copied();
+                match function {
+                    Some(function) if matches!(function.role, FunctionRole::Worker) => {}
+                    Some(_) => diagnostics.push(error(
+                        "MINCO-PLAN-016",
+                        &format!("SQS trigger {} must target a worker function", trigger.id()),
+                    )),
+                    None => diagnostics.push(error(
+                        "MINCO-PLAN-015",
+                        &format!(
+                            "trigger {} references missing function {function_id}",
+                            trigger.id()
+                        ),
+                    )),
+                }
+                let queue = queues.get(queue_id.as_str()).copied();
+                if queue.is_none() {
+                    diagnostics.push(error(
+                        "MINCO-PLAN-015",
+                        &format!(
+                            "trigger {} references missing queue {queue_id}",
+                            trigger.id()
+                        ),
+                    ));
+                }
+                if let (Some(function), Some(queue)) = (function, queue) {
+                    let required_visibility = function
+                        .timeout_seconds
+                        .saturating_mul(6)
+                        .saturating_add(*batching_window_seconds);
+                    if queue.visibility_timeout_seconds < required_visibility {
+                        diagnostics.push(error(
+                            "MINCO-SQS-002",
+                            &format!(
+                                "queue {queue_id} visibility timeout must be at least \
+                                 {required_visibility}s for trigger {}",
+                                trigger.id()
+                            ),
+                        ));
+                    }
+                    if !(2..=1_000).contains(maximum_concurrency)
+                        || *maximum_concurrency > function.reserved_concurrency
+                        || *maximum_concurrency > plan.cost_policy.max_reserved_concurrency
+                    {
+                        diagnostics.push(error(
+                            "MINCO-SQS-007",
+                            &format!(
+                                "SQS trigger {} maximum concurrency must be 2 to 1000 and \
+                                 cannot exceed worker or cost-policy concurrency",
+                                trigger.id()
+                            ),
+                        ));
+                    }
+                    let maximum_batch_size = if queue.fifo { 10 } else { 10_000 };
+                    if !(1..=maximum_batch_size).contains(batch_size) {
+                        diagnostics.push(error(
+                            "MINCO-SQS-008",
+                            &format!(
+                                "SQS trigger {} batch size must be 1 to {maximum_batch_size}",
+                                trigger.id()
+                            ),
+                        ));
+                    }
+                    if *batching_window_seconds > 300
+                        || (queue.fifo && *batching_window_seconds != 0)
+                        || (!queue.fifo && *batch_size > 10 && *batching_window_seconds == 0)
+                    {
+                        diagnostics.push(error(
+                            "MINCO-SQS-009",
+                            &format!(
+                                "SQS trigger {} uses an invalid batching window",
+                                trigger.id()
+                            ),
+                        ));
+                    }
+                }
+                if !report_batch_item_failures {
+                    diagnostics.push(error(
+                        "MINCO-SQS-001",
+                        &format!(
+                            "SQS trigger {} must enable ReportBatchItemFailures",
+                            trigger.id()
+                        ),
+                    ));
+                }
+            }
+            TriggerPlan::Schedule {
+                function_id,
+                expression,
+                purpose,
+                ..
+            } => {
+                if !functions.contains_key(function_id.as_str()) {
+                    diagnostics.push(error(
+                        "MINCO-PLAN-015",
+                        &format!(
+                            "trigger {} references missing function {function_id}",
+                            trigger.id()
+                        ),
+                    ));
+                }
+                if purpose.trim().is_empty() {
+                    diagnostics.push(error(
+                        "MINCO-SCHEDULE-001",
+                        &format!("schedule {} requires a reviewable purpose", trigger.id()),
+                    ));
+                }
+                if !is_schedule_expression(expression) {
+                    diagnostics.push(error(
+                        "MINCO-SCHEDULE-002",
+                        &format!(
+                            "schedule {} must use an EventBridge at(...), rate(...), or \
+                             cron(...) expression",
+                            trigger.id()
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+    for function in plan
+        .functions
+        .iter()
+        .filter(|function| matches!(function.role, FunctionRole::Worker))
+    {
+        let mapping_concurrency = plan
+            .triggers
+            .iter()
+            .filter_map(|trigger| {
+                let TriggerPlan::Sqs {
+                    function_id,
+                    maximum_concurrency,
+                    ..
+                } = trigger
+                else {
+                    return None;
+                };
+                (function_id == &function.name).then_some(*maximum_concurrency)
+            })
+            .fold(0, u32::saturating_add);
+        if mapping_concurrency > function.reserved_concurrency {
+            diagnostics.push(error(
+                "MINCO-SQS-012",
+                &format!(
+                    "worker {} has aggregate SQS maximum concurrency {mapping_concurrency}, exceeding reserved concurrency {}",
+                    function.name, function.reserved_concurrency
+                ),
+            ));
+        }
+    }
+    if http_triggers != 1 {
+        diagnostics.push(error(
+            "MINCO-PLAN-017",
+            "schema version 2 requires exactly one explicit HTTP API trigger",
+        ));
+    }
+    validate_sam_resource_identifiers(plan, diagnostics);
+}
+
+fn validate_sam_resource_identifiers(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiagnostic>) {
+    let mut resources = std::collections::BTreeMap::from([
+        ("ApiFunction".to_owned(), "HTTP API function".to_owned()),
+        ("ApiLogGroup".to_owned(), "HTTP API log group".to_owned()),
+    ]);
+    let mut insert_resource = |logical_id: String, owner: String| {
+        if let Some(existing) = resources.insert(logical_id.clone(), owner.clone()) {
+            diagnostics.push(error(
+                "MINCO-PLAN-018",
+                &format!(
+                    "{owner} and {existing} collapse to the same SAM logical identifier {logical_id}"
+                ),
+            ));
+        }
+    };
+    for function in plan
+        .functions
+        .iter()
+        .filter(|function| matches!(function.role, FunctionRole::Worker))
+    {
+        let prefix = sam_logical_id(&function.name);
+        insert_resource(
+            format!("{prefix}Function"),
+            format!("worker function {}", function.name),
+        );
+        insert_resource(
+            format!("{prefix}LogGroup"),
+            format!("worker log group {}", function.name),
+        );
+    }
+    for queue in &plan.queues {
+        insert_resource(
+            format!("{}Queue", sam_logical_id(&queue.id)),
+            format!("queue {}", queue.id),
+        );
+    }
+
+    let mut events = std::collections::BTreeMap::new();
+    for route in &plan.routes {
+        let event_id = format!("{}Event", sam_logical_id(&route.operation_id));
+        let key = ("__http_api", event_id.clone());
+        if let Some(existing) = events.insert(key, route.operation_id.as_str()) {
+            diagnostics.push(error(
+                "MINCO-PLAN-018",
+                &format!(
+                    "operations {} and {} collapse to the same SAM event identifier {event_id}",
+                    route.operation_id, existing
+                ),
+            ));
+        }
+    }
+    for trigger in &plan.triggers {
+        let function_id = match trigger {
+            TriggerPlan::Sqs { function_id, .. } | TriggerPlan::Schedule { function_id, .. } => {
+                function_id
+            }
+            TriggerPlan::HttpApi { .. } => continue,
+        };
+        let event_id = format!("{}Event", sam_logical_id(trigger.id()));
+        let key = (function_id.as_str(), event_id.clone());
+        if let Some(existing) = events.insert(key, trigger.id()) {
+            diagnostics.push(error(
+                "MINCO-PLAN-018",
+                &format!(
+                    "triggers {} and {} on function {function_id} collapse to the same SAM event identifier {event_id}",
+                    trigger.id(),
+                    existing
+                ),
+            ));
+        }
+    }
+
+    if matches!(plan.runtime, RuntimePlan::LambdaZipArm64) {
+        for function in &plan.functions {
+            let name = if matches!(function.role, FunctionRole::HttpApi) {
+                format!("{}-{}-api", plan.application, plan.environment)
+            } else {
+                format!(
+                    "{}-{}-{}",
+                    plan.application, plan.environment, function.name
+                )
+            };
+            if !valid_lambda_function_name(&name) {
+                diagnostics.push(error(
+                    "MINCO-AWS-001",
+                    &format!(
+                        "function {} derives invalid Lambda FunctionName {name}",
+                        function.name
+                    ),
+                ));
+            }
+        }
+        for queue in &plan.queues {
+            let suffix = if queue.fifo { ".fifo" } else { "" };
+            let name = format!(
+                "{}-{}-{}{}",
+                plan.application, plan.environment, queue.id, suffix
+            );
+            if !valid_sqs_queue_name(&name, queue.fifo) {
+                diagnostics.push(error(
+                    "MINCO-AWS-002",
+                    &format!("queue {} derives invalid SQS QueueName {name}", queue.id),
+                ));
+            }
+        }
+    }
+}
+
+fn valid_lambda_function_name(value: &str) -> bool {
+    (1..=64).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn valid_sqs_queue_name(value: &str, fifo: bool) -> bool {
+    if !(1..=80).contains(&value.len()) {
+        return false;
+    }
+    let body = if fifo {
+        let Some(body) = value.strip_suffix(".fifo") else {
+            return false;
+        };
+        body
+    } else {
+        value
+    };
+    !body.is_empty()
+        && body
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn redrive_cycle_start<'a>(
+    queues: &std::collections::BTreeMap<&'a str, &'a QueuePlan>,
+) -> Option<&'a str> {
+    for start in queues.keys().copied() {
+        let mut visited = std::collections::BTreeSet::new();
+        let mut current = start;
+        loop {
+            if !visited.insert(current) {
+                return Some(start);
+            }
+            let next = queues
+                .get(current)
+                .and_then(|queue| queue.dead_letter_queue_id.as_deref());
+            match next {
+                Some(next) if queues.contains_key(next) => current = next,
+                _ => break,
+            }
+        }
+    }
+    None
+}
+
+fn is_stable_id(value: &str) -> bool {
+    let mut characters = value.chars();
+    matches!(characters.next(), Some(first) if first.is_ascii_lowercase())
+        && characters.all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        })
+}
+
+fn is_schedule_expression(value: &str) -> bool {
+    (1..=256).contains(&value.len())
+        && !value.contains(['\r', '\n'])
+        && value.ends_with(')')
+        && ["at(", "rate(", "cron("]
+            .iter()
+            .any(|prefix| value.starts_with(prefix) && value.len() > prefix.len() + 1)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -477,6 +1196,22 @@ impl DatabaseDeployment {
     #[must_use]
     pub const fn is_relational(&self) -> bool {
         !matches!(self, Self::DynamoDbOnDemand { .. })
+    }
+
+    #[must_use]
+    pub fn can_scale_to_zero(&self) -> bool {
+        match self {
+            Self::NeonPostgres { .. } | Self::DynamoDbOnDemand { .. } => true,
+            Self::AuroraServerlessV2 {
+                minimum_acu,
+                auto_pause_seconds,
+                ..
+            } => *minimum_acu == 0.0 && auto_pause_seconds.is_some(),
+            Self::SelfHostedPostgres { .. }
+            | Self::RdsPostgres { .. }
+            | Self::SqlitePersistentHost { .. }
+            | Self::SqliteLambdaMutable { .. } => false,
+        }
     }
 
     pub(crate) fn invalid_numeric_inputs(&self) -> Vec<&'static str> {
@@ -635,12 +1370,179 @@ pub enum NeonPlan {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FunctionPlan {
     pub name: String,
+    #[serde(default, skip_serializing_if = "FunctionRole::is_http_api")]
+    pub role: FunctionRole,
     pub artifact_path: String,
     pub memory_mb: u32,
     pub timeout_seconds: u32,
     pub reserved_concurrency: u32,
     pub provisioned_concurrency: u32,
     pub database_connections_per_instance: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FunctionRole {
+    #[default]
+    HttpApi,
+    Worker,
+}
+
+impl FunctionRole {
+    // Serde's `skip_serializing_if` contract passes this field by reference.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    const fn is_http_api(&self) -> bool {
+        matches!(self, Self::HttpApi)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueuePlan {
+    pub id: String,
+    pub fifo: bool,
+    pub visibility_timeout_seconds: u32,
+    pub retention_seconds: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dead_letter_queue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_receive_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TriggerPlan {
+    HttpApi {
+        id: String,
+        function_id: String,
+    },
+    Sqs {
+        id: String,
+        function_id: String,
+        queue_id: String,
+        batch_size: u32,
+        batching_window_seconds: u32,
+        report_batch_item_failures: bool,
+        maximum_concurrency: u32,
+    },
+    Schedule {
+        id: String,
+        function_id: String,
+        expression: String,
+        enabled: bool,
+        purpose: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IamIntent {
+    pub function_id: String,
+    pub actions: Vec<String>,
+    pub resource: IamResource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IamResource {
+    DatabaseUrlParameter,
+    DatabaseUrlKmsKey,
+    Queue { queue_id: String },
+    Function { function_id: String },
+}
+
+fn derive_iam_intents(
+    schema_version: u32,
+    runtime: &RuntimePlan,
+    database: &DatabaseDeployment,
+    functions: &[FunctionPlan],
+    triggers: &[TriggerPlan],
+) -> Vec<IamIntent> {
+    if schema_version != 2 {
+        return Vec::new();
+    }
+    let mut intents = Vec::new();
+    if matches!(runtime, RuntimePlan::LambdaZipArm64)
+        && matches!(
+            database,
+            DatabaseDeployment::NeonPostgres { .. }
+                | DatabaseDeployment::SelfHostedPostgres { .. }
+                | DatabaseDeployment::RdsPostgres { .. }
+                | DatabaseDeployment::AuroraServerlessV2 { .. }
+        )
+    {
+        for function in functions
+            .iter()
+            .filter(|function| function.database_connections_per_instance > 0)
+        {
+            intents.push(IamIntent {
+                function_id: function.name.clone(),
+                actions: vec!["ssm:GetParameter".into()],
+                resource: IamResource::DatabaseUrlParameter,
+            });
+            intents.push(IamIntent {
+                function_id: function.name.clone(),
+                actions: vec!["kms:Decrypt".into()],
+                resource: IamResource::DatabaseUrlKmsKey,
+            });
+        }
+    }
+    for trigger in triggers {
+        match trigger {
+            TriggerPlan::Sqs {
+                function_id,
+                queue_id,
+                ..
+            } => {
+                intents.push(IamIntent {
+                    function_id: function_id.clone(),
+                    actions: [
+                        "sqs:ChangeMessageVisibility",
+                        "sqs:DeleteMessage",
+                        "sqs:GetQueueAttributes",
+                        "sqs:ReceiveMessage",
+                    ]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                    resource: IamResource::Queue {
+                        queue_id: queue_id.clone(),
+                    },
+                });
+            }
+            TriggerPlan::Schedule { function_id, .. } => {
+                intents.push(IamIntent {
+                    function_id: function_id.clone(),
+                    actions: vec!["lambda:InvokeFunction".into()],
+                    resource: IamResource::Function {
+                        function_id: function_id.clone(),
+                    },
+                });
+            }
+            TriggerPlan::HttpApi { .. } => {}
+        }
+    }
+    intents.sort_by(|left, right| {
+        left.function_id
+            .cmp(&right.function_id)
+            .then_with(|| iam_resource_key(&left.resource).cmp(&iam_resource_key(&right.resource)))
+    });
+    intents
+}
+
+fn iam_resource_key(resource: &IamResource) -> (&str, &str) {
+    match resource {
+        IamResource::DatabaseUrlParameter => ("database_url_parameter", ""),
+        IamResource::DatabaseUrlKmsKey => ("database_url_kms_key", ""),
+        IamResource::Queue { queue_id } => ("queue", queue_id),
+        IamResource::Function { function_id } => ("function", function_id),
+    }
+}
+
+impl TriggerPlan {
+    fn id(&self) -> &str {
+        match self {
+            Self::HttpApi { id, .. } | Self::Sqs { id, .. } | Self::Schedule { id, .. } => id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -745,6 +1647,8 @@ pub enum PlanError {
     MissingFunction,
     #[error("unsupported deployment combination: {0}")]
     UnsupportedDeployment(String),
+    #[error("deployment plan schema migration failed: {0}")]
+    SchemaMigration(String),
 }
 
 #[cfg(test)]
@@ -770,6 +1674,7 @@ mod tests {
             database,
             functions: vec![FunctionPlan {
                 name: "api".into(),
+                role: FunctionRole::HttpApi,
                 artifact_path: "target/lambda/orders-lambda/bootstrap.zip".into(),
                 memory_mb: 512,
                 timeout_seconds: 15,
@@ -777,6 +1682,8 @@ mod tests {
                 provisioned_concurrency: 0,
                 database_connections_per_instance: 2,
             }],
+            queues: Vec::new(),
+            triggers: Vec::new(),
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],
