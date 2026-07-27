@@ -5,6 +5,15 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+### Fixed
+
+- Isolated SQLx PostgreSQL and SQLite backend features so a PostgreSQL-only
+  Feedback or Orders consumer no longer compiles `sqlx-sqlite` or
+  `libsqlite3-sys`, while SQLite-only consumers no longer compile
+  `sqlx-postgres`.
+- Added a deterministic Cargo-tree regression to keep official SQLx extensions,
+  Feedback persistence, and the Orders reference adapter backend-specific.
+
 ## [0.3.0] - 2026-07-27
 
 ### Added
