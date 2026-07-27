@@ -1,14 +1,29 @@
-use crate::{AuthPlan, DatabaseDeployment, DeploymentPlan, IngressPlan, PlanError, RuntimePlan};
+use crate::{
+    AuthPlan, DatabaseDeployment, DeploymentPlan, FunctionPlan, FunctionRole, IngressPlan,
+    PlanError, QueuePlan, RuntimePlan, TriggerPlan, sam_logical_id,
+};
 use minco_contract::HttpMethod;
-use std::fmt::Write as _;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 pub fn render_sam(plan: &DeploymentPlan) -> Result<String, PlanError> {
-    render_sam_with_code_uri(plan, None)
+    render_sam_with_code_uris(plan, &BTreeMap::new())
 }
 
 pub fn render_sam_with_code_uri(
     plan: &DeploymentPlan,
     code_uri: Option<&str>,
+) -> Result<String, PlanError> {
+    let mut code_uris = BTreeMap::new();
+    if let Some(code_uri) = code_uri {
+        let function = api_function(plan).ok_or(PlanError::MissingFunction)?;
+        code_uris.insert(function.name.clone(), code_uri.to_owned());
+    }
+    render_sam_with_code_uris(plan, &code_uris)
+}
+
+pub fn render_sam_with_code_uris(
+    plan: &DeploymentPlan,
+    code_uris: &BTreeMap<String, String>,
 ) -> Result<String, PlanError> {
     if !matches!(&plan.runtime, RuntimePlan::LambdaZipArm64) {
         return Err(PlanError::UnsupportedDeployment(
@@ -31,7 +46,7 @@ pub fn render_sam_with_code_uri(
             "this renderer requires an externally provisioned PostgreSQL-compatible database; DynamoDB needs a dedicated adapter/rendering plugin and mutable SQLite is rejected on Lambda".into(),
         ));
     }
-    let function = plan.functions.first().ok_or(PlanError::MissingFunction)?;
+    let function = api_function(plan).ok_or(PlanError::MissingFunction)?;
     let mut output = String::new();
     output.push_str("AWSTemplateFormatVersion: '2010-09-09'\n");
     output.push_str("Transform: AWS::Serverless-2016-10-31\n");
@@ -44,6 +59,146 @@ pub fn render_sam_with_code_uri(
         ))
     )
     .expect("writing to String cannot fail");
+    let uses_database_parameter = plan
+        .functions
+        .iter()
+        .any(|function| function.database_connections_per_instance > 0);
+    if uses_database_parameter {
+        render_database_parameters(&mut output);
+    }
+    output.push_str("Resources:\n");
+    output.push_str("  HttpApi:\n");
+    output.push_str("    Type: AWS::Serverless::HttpApi\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      StageName: '$default'\n");
+    output.push_str("      CorsConfiguration:\n");
+    output.push_str("        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]\n");
+    output.push_str("        AllowHeaders:\n");
+    for header in &plan.allowed_headers {
+        writeln!(output, "          - {}", yaml_quote(header))
+            .expect("writing to String cannot fail");
+    }
+    output.push_str("        AllowOrigins:\n");
+    for origin in &plan.allowed_origins {
+        writeln!(output, "          - {}", yaml_quote(origin))
+            .expect("writing to String cannot fail");
+    }
+    if let AuthPlan::Jwt { issuer, audiences } = &plan.auth {
+        output.push_str("      Auth:\n");
+        output.push_str("        DefaultAuthorizer: JwtAuthorizer\n");
+        output.push_str("        Authorizers:\n");
+        output.push_str("          JwtAuthorizer:\n");
+        output.push_str("            IdentitySource: '$request.header.Authorization'\n");
+        output.push_str("            JwtConfiguration:\n");
+        writeln!(output, "              issuer: {}", yaml_quote(issuer))
+            .expect("writing to String cannot fail");
+        output.push_str("              audience:\n");
+        for audience in audiences {
+            writeln!(output, "                - {}", yaml_quote(audience))
+                .expect("writing to String cannot fail");
+        }
+    }
+    for queue in &plan.queues {
+        render_queue(&mut output, plan, queue);
+    }
+    output.push_str("  ApiFunction:\n");
+    output.push_str("    Type: AWS::Serverless::Function\n");
+    output.push_str("    Properties:\n");
+    writeln!(
+        output,
+        "      FunctionName: {}",
+        yaml_quote(&format!("{}-{}-api", plan.application, plan.environment))
+    )
+    .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "      CodeUri: {}",
+        yaml_quote(
+            code_uris
+                .get(&function.name)
+                .map_or(&function.artifact_path, String::as_str)
+        )
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("      Handler: bootstrap\n");
+    output.push_str("      Runtime: provided.al2023\n");
+    output.push_str("      Architectures: [arm64]\n");
+    writeln!(output, "      MemorySize: {}", function.memory_mb)
+        .expect("writing to String cannot fail");
+    writeln!(output, "      Timeout: {}", function.timeout_seconds)
+        .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "      ReservedConcurrentExecutions: {}",
+        function.reserved_concurrency
+    )
+    .expect("writing to String cannot fail");
+    if function.database_connections_per_instance > 0 {
+        render_vpc_config(&mut output);
+    }
+    output.push_str("      Environment:\n");
+    output.push_str("        Variables:\n");
+    writeln!(
+        output,
+        "          APP_ENV: {}",
+        yaml_quote(&plan.environment)
+    )
+    .expect("writing to String cannot fail");
+    if function.database_connections_per_instance > 0 {
+        render_database_environment(&mut output, function);
+    }
+    writeln!(
+        output,
+        "          ALLOWED_ORIGINS: {}",
+        yaml_quote(&plan.allowed_origins.join(","))
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("          ALLOW_DEVELOPMENT_HEADERS: 'false'\n");
+    if function.database_connections_per_instance > 0 {
+        output.push_str("      Policies:\n");
+        output.push_str("        - Statement:\n");
+        render_database_policy_statements(&mut output);
+    }
+    output.push_str("      Events:\n");
+    for route in &plan.routes {
+        writeln!(output, "        {}:", event_name(&route.operation_id))
+            .expect("writing to String cannot fail");
+        output.push_str("          Type: HttpApi\n");
+        output.push_str("          Properties:\n");
+        output.push_str("            ApiId: !Ref HttpApi\n");
+        writeln!(output, "            Path: {}", yaml_quote(&route.path))
+            .expect("writing to String cannot fail");
+        writeln!(output, "            Method: {}", method(route.method))
+            .expect("writing to String cannot fail");
+        if !route.authenticated && matches!(&plan.auth, AuthPlan::Jwt { .. }) {
+            output.push_str("            Auth:\n");
+            output.push_str("              Authorizer: NONE\n");
+        }
+    }
+    for worker in plan
+        .functions
+        .iter()
+        .filter(|function| matches!(function.role, FunctionRole::Worker))
+    {
+        render_worker_function(&mut output, plan, worker, code_uris);
+    }
+    output.push_str("  ApiLogGroup:\n");
+    output.push_str("    Type: AWS::Logs::LogGroup\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      LogGroupName: !Sub '/aws/lambda/${ApiFunction}'\n");
+    writeln!(output, "      RetentionInDays: {}", plan.log_retention_days)
+        .expect("writing to String cannot fail");
+    output.push_str("Outputs:\n");
+    output.push_str("  ApiUrl:\n");
+    output.push_str(
+        "    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'\n",
+    );
+    output.push_str("  ApiFunctionName:\n");
+    output.push_str("    Value: !Ref ApiFunction\n");
+    Ok(output)
+}
+
+fn render_database_parameters(output: &mut String) {
     output.push_str("Parameters:\n");
     output.push_str("  DatabaseUrlParameterName:\n");
     output.push_str("    Type: String\n");
@@ -86,79 +241,17 @@ pub fn render_sam_with_code_uri(
     output.push_str("  UsesVpc: !And\n");
     output.push_str("    - !Not [!Equals [!Ref LambdaSubnetIds, '']]\n");
     output.push_str("    - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]\n");
-    output.push_str("Resources:\n");
-    output.push_str("  HttpApi:\n");
-    output.push_str("    Type: AWS::Serverless::HttpApi\n");
-    output.push_str("    Properties:\n");
-    output.push_str("      StageName: '$default'\n");
-    output.push_str("      CorsConfiguration:\n");
-    output.push_str("        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]\n");
-    output.push_str("        AllowHeaders:\n");
-    for header in &plan.allowed_headers {
-        writeln!(output, "          - {}", yaml_quote(header))
-            .expect("writing to String cannot fail");
-    }
-    output.push_str("        AllowOrigins:\n");
-    for origin in &plan.allowed_origins {
-        writeln!(output, "          - {}", yaml_quote(origin))
-            .expect("writing to String cannot fail");
-    }
-    if let AuthPlan::Jwt { issuer, audiences } = &plan.auth {
-        output.push_str("      Auth:\n");
-        output.push_str("        DefaultAuthorizer: JwtAuthorizer\n");
-        output.push_str("        Authorizers:\n");
-        output.push_str("          JwtAuthorizer:\n");
-        output.push_str("            IdentitySource: '$request.header.Authorization'\n");
-        output.push_str("            JwtConfiguration:\n");
-        writeln!(output, "              issuer: {}", yaml_quote(issuer))
-            .expect("writing to String cannot fail");
-        output.push_str("              audience:\n");
-        for audience in audiences {
-            writeln!(output, "                - {}", yaml_quote(audience))
-                .expect("writing to String cannot fail");
-        }
-    }
-    output.push_str("  ApiFunction:\n");
-    output.push_str("    Type: AWS::Serverless::Function\n");
-    output.push_str("    Properties:\n");
-    writeln!(
-        output,
-        "      FunctionName: {}",
-        yaml_quote(&format!("{}-{}-api", plan.application, plan.environment))
-    )
-    .expect("writing to String cannot fail");
-    writeln!(
-        output,
-        "      CodeUri: {}",
-        yaml_quote(code_uri.unwrap_or(&function.artifact_path))
-    )
-    .expect("writing to String cannot fail");
-    output.push_str("      Handler: bootstrap\n");
-    output.push_str("      Runtime: provided.al2023\n");
-    output.push_str("      Architectures: [arm64]\n");
-    writeln!(output, "      MemorySize: {}", function.memory_mb)
-        .expect("writing to String cannot fail");
-    writeln!(output, "      Timeout: {}", function.timeout_seconds)
-        .expect("writing to String cannot fail");
-    writeln!(
-        output,
-        "      ReservedConcurrentExecutions: {}",
-        function.reserved_concurrency
-    )
-    .expect("writing to String cannot fail");
+}
+
+fn render_vpc_config(output: &mut String) {
     output.push_str("      VpcConfig: !If\n");
     output.push_str("        - UsesVpc\n");
     output.push_str("        - SubnetIds: !Split [',', !Ref LambdaSubnetIds]\n");
     output.push_str("          SecurityGroupIds: !Split [',', !Ref LambdaSecurityGroupIds]\n");
     output.push_str("        - !Ref AWS::NoValue\n");
-    output.push_str("      Environment:\n");
-    output.push_str("        Variables:\n");
-    writeln!(
-        output,
-        "          APP_ENV: {}",
-        yaml_quote(&plan.environment)
-    )
-    .expect("writing to String cannot fail");
+}
+
+fn render_database_environment(output: &mut String, function: &FunctionPlan) {
     output.push_str("          DATABASE_KIND: postgres\n");
     output.push_str("          DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName\n");
     writeln!(
@@ -167,15 +260,9 @@ pub fn render_sam_with_code_uri(
         yaml_quote(&function.database_connections_per_instance.to_string())
     )
     .expect("writing to String cannot fail");
-    writeln!(
-        output,
-        "          ALLOWED_ORIGINS: {}",
-        yaml_quote(&plan.allowed_origins.join(","))
-    )
-    .expect("writing to String cannot fail");
-    output.push_str("          ALLOW_DEVELOPMENT_HEADERS: 'false'\n");
-    output.push_str("      Policies:\n");
-    output.push_str("        - Statement:\n");
+}
+
+fn render_database_policy_statements(output: &mut String) {
     output.push_str("            - Effect: Allow\n");
     output.push_str("              Action: [ssm:GetParameter]\n");
     output.push_str("              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'\n");
@@ -202,36 +289,247 @@ pub fn render_sam_with_code_uri(
     output.push_str("                  - ec2:UnassignPrivateIpAddresses\n");
     output.push_str("                Resource: '*'\n");
     output.push_str("              - !Ref AWS::NoValue\n");
-    output.push_str("      Events:\n");
-    for route in &plan.routes {
-        writeln!(output, "        {}:", event_name(&route.operation_id))
+}
+
+fn render_queue(output: &mut String, plan: &DeploymentPlan, queue: &QueuePlan) {
+    let resource = format!("{}Queue", sam_logical_id(&queue.id));
+    writeln!(output, "  {resource}:").expect("writing to String cannot fail");
+    output.push_str("    Type: AWS::SQS::Queue\n");
+    output.push_str("    Properties:\n");
+    let suffix = if queue.fifo { ".fifo" } else { "" };
+    writeln!(
+        output,
+        "      QueueName: {}",
+        yaml_quote(&format!(
+            "{}-{}-{}{}",
+            plan.application, plan.environment, queue.id, suffix
+        ))
+    )
+    .expect("writing to String cannot fail");
+    writeln!(output, "      FifoQueue: {}", queue.fifo).expect("writing to String cannot fail");
+    output.push_str("      SqsManagedSseEnabled: true\n");
+    writeln!(
+        output,
+        "      VisibilityTimeout: {}",
+        queue.visibility_timeout_seconds
+    )
+    .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "      MessageRetentionPeriod: {}",
+        queue.retention_seconds
+    )
+    .expect("writing to String cannot fail");
+    if let (Some(dead_letter_queue_id), Some(max_receive_count)) =
+        (&queue.dead_letter_queue_id, queue.max_receive_count)
+    {
+        output.push_str("      RedrivePolicy:\n");
+        writeln!(
+            output,
+            "        deadLetterTargetArn: !GetAtt {}Queue.Arn",
+            sam_logical_id(dead_letter_queue_id)
+        )
+        .expect("writing to String cannot fail");
+        writeln!(output, "        maxReceiveCount: {max_receive_count}")
             .expect("writing to String cannot fail");
-        output.push_str("          Type: HttpApi\n");
-        output.push_str("          Properties:\n");
-        output.push_str("            ApiId: !Ref HttpApi\n");
-        writeln!(output, "            Path: {}", yaml_quote(&route.path))
-            .expect("writing to String cannot fail");
-        writeln!(output, "            Method: {}", method(route.method))
-            .expect("writing to String cannot fail");
-        if !route.authenticated && matches!(&plan.auth, AuthPlan::Jwt { .. }) {
-            output.push_str("            Auth:\n");
-            output.push_str("              Authorizer: NONE\n");
+    }
+}
+
+fn render_worker_function(
+    output: &mut String,
+    plan: &DeploymentPlan,
+    function: &FunctionPlan,
+    code_uris: &BTreeMap<String, String>,
+) {
+    let function_resource = format!("{}Function", sam_logical_id(&function.name));
+    writeln!(output, "  {function_resource}:").expect("writing to String cannot fail");
+    output.push_str("    Type: AWS::Serverless::Function\n");
+    output.push_str("    Properties:\n");
+    writeln!(
+        output,
+        "      FunctionName: {}",
+        yaml_quote(&format!(
+            "{}-{}-{}",
+            plan.application, plan.environment, function.name
+        ))
+    )
+    .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "      CodeUri: {}",
+        yaml_quote(
+            code_uris
+                .get(&function.name)
+                .map_or(&function.artifact_path, String::as_str)
+        )
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("      Handler: bootstrap\n");
+    output.push_str("      Runtime: provided.al2023\n");
+    output.push_str("      Architectures: [arm64]\n");
+    writeln!(output, "      MemorySize: {}", function.memory_mb)
+        .expect("writing to String cannot fail");
+    writeln!(output, "      Timeout: {}", function.timeout_seconds)
+        .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "      ReservedConcurrentExecutions: {}",
+        function.reserved_concurrency
+    )
+    .expect("writing to String cannot fail");
+    if function.database_connections_per_instance > 0 {
+        render_vpc_config(output);
+    }
+    output.push_str("      Environment:\n");
+    output.push_str("        Variables:\n");
+    writeln!(
+        output,
+        "          APP_ENV: {}",
+        yaml_quote(&plan.environment)
+    )
+    .expect("writing to String cannot fail");
+    if function.database_connections_per_instance > 0 {
+        render_database_environment(output, function);
+    }
+    let has_sqs_trigger = plan.triggers.iter().any(|trigger| {
+        matches!(
+            trigger,
+            TriggerPlan::Sqs { function_id, .. } if function_id == &function.name
+        )
+    });
+    if function.database_connections_per_instance > 0 || has_sqs_trigger {
+        output.push_str("      Policies:\n");
+        output.push_str("        - Statement:\n");
+        if function.database_connections_per_instance > 0 {
+            render_database_policy_statements(output);
         }
     }
-    output.push_str("  ApiLogGroup:\n");
+    for trigger in &plan.triggers {
+        if let TriggerPlan::Sqs {
+            function_id,
+            queue_id,
+            ..
+        } = trigger
+            && function_id == &function.name
+        {
+            output.push_str("            - Effect: Allow\n");
+            output.push_str("              Action:\n");
+            output.push_str("                - sqs:ChangeMessageVisibility\n");
+            output.push_str("                - sqs:DeleteMessage\n");
+            output.push_str("                - sqs:GetQueueAttributes\n");
+            output.push_str("                - sqs:ReceiveMessage\n");
+            writeln!(
+                output,
+                "              Resource: !GetAtt {}Queue.Arn",
+                sam_logical_id(queue_id)
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+    let triggers =
+        plan.triggers
+            .iter()
+            .filter(|trigger| match trigger {
+                TriggerPlan::Sqs { function_id, .. }
+                | TriggerPlan::Schedule { function_id, .. } => function_id == &function.name,
+                TriggerPlan::HttpApi { .. } => false,
+            })
+            .collect::<Vec<_>>();
+    if !triggers.is_empty() {
+        output.push_str("      Events:\n");
+    }
+    for trigger in triggers {
+        match trigger {
+            TriggerPlan::Sqs {
+                id,
+                queue_id,
+                batch_size,
+                batching_window_seconds,
+                report_batch_item_failures,
+                maximum_concurrency,
+                ..
+            } => {
+                writeln!(output, "        {}Event:", sam_logical_id(id))
+                    .expect("writing to String cannot fail");
+                output.push_str("          Type: SQS\n");
+                output.push_str("          Properties:\n");
+                writeln!(
+                    output,
+                    "            Queue: !GetAtt {}Queue.Arn",
+                    sam_logical_id(queue_id)
+                )
+                .expect("writing to String cannot fail");
+                writeln!(output, "            BatchSize: {batch_size}")
+                    .expect("writing to String cannot fail");
+                writeln!(
+                    output,
+                    "            MaximumBatchingWindowInSeconds: {batching_window_seconds}"
+                )
+                .expect("writing to String cannot fail");
+                output.push_str("            Enabled: true\n");
+                if *report_batch_item_failures {
+                    output.push_str("            FunctionResponseTypes:\n");
+                    output.push_str("              - ReportBatchItemFailures\n");
+                }
+                output.push_str("            ScalingConfig:\n");
+                writeln!(
+                    output,
+                    "              MaximumConcurrency: {maximum_concurrency}"
+                )
+                .expect("writing to String cannot fail");
+            }
+            TriggerPlan::Schedule {
+                id,
+                expression,
+                enabled,
+                purpose,
+                ..
+            } => {
+                writeln!(output, "        {}Event:", sam_logical_id(id))
+                    .expect("writing to String cannot fail");
+                output.push_str("          Type: ScheduleV2\n");
+                output.push_str("          Properties:\n");
+                writeln!(
+                    output,
+                    "            ScheduleExpression: {}",
+                    yaml_quote(expression)
+                )
+                .expect("writing to String cannot fail");
+                writeln!(
+                    output,
+                    "            State: {}",
+                    if *enabled { "ENABLED" } else { "DISABLED" }
+                )
+                .expect("writing to String cannot fail");
+                writeln!(output, "            Description: {}", yaml_quote(purpose))
+                    .expect("writing to String cannot fail");
+                output.push_str("            FlexibleTimeWindow:\n");
+                output.push_str("              Mode: 'OFF'\n");
+            }
+            TriggerPlan::HttpApi { .. } => {}
+        }
+    }
+    let log_group = format!("{}LogGroup", sam_logical_id(&function.name));
+    writeln!(output, "  {log_group}:").expect("writing to String cannot fail");
     output.push_str("    Type: AWS::Logs::LogGroup\n");
     output.push_str("    Properties:\n");
-    output.push_str("      LogGroupName: !Sub '/aws/lambda/${ApiFunction}'\n");
+    writeln!(
+        output,
+        "      LogGroupName: !Sub '/aws/lambda/${{{function_resource}}}'"
+    )
+    .expect("writing to String cannot fail");
     writeln!(output, "      RetentionInDays: {}", plan.log_retention_days)
         .expect("writing to String cannot fail");
-    output.push_str("Outputs:\n");
-    output.push_str("  ApiUrl:\n");
-    output.push_str(
-        "    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'\n",
-    );
-    output.push_str("  ApiFunctionName:\n");
-    output.push_str("    Value: !Ref ApiFunction\n");
-    Ok(output)
+}
+
+fn api_function(plan: &DeploymentPlan) -> Option<&FunctionPlan> {
+    if plan.schema_version == 1 {
+        plan.functions.first()
+    } else {
+        plan.functions
+            .iter()
+            .find(|function| matches!(function.role, FunctionRole::HttpApi))
+    }
 }
 
 const fn method(method: HttpMethod) -> &'static str {
@@ -272,8 +570,8 @@ fn yaml_quote(value: &str) -> String {
 mod tests {
     use super::*;
     use crate::{
-        AuthPlan, CostPolicy, DatabaseDeployment, FunctionPlan, IngressPlan, NeonPlan,
-        PerformancePolicy, RoutePlan, RuntimePlan,
+        AuthPlan, CostPolicy, DatabaseDeployment, FunctionPlan, FunctionRole, IngressPlan,
+        NeonPlan, PerformancePolicy, RoutePlan, RuntimePlan,
     };
 
     #[test]
@@ -297,6 +595,7 @@ mod tests {
             },
             functions: vec![FunctionPlan {
                 name: "api".into(),
+                role: FunctionRole::HttpApi,
                 artifact_path: "artifact.zip".into(),
                 memory_mb: 512,
                 timeout_seconds: 15,
@@ -304,6 +603,9 @@ mod tests {
                 provisioned_concurrency: 0,
                 database_connections_per_instance: 2,
             }],
+            queues: Vec::new(),
+            triggers: Vec::new(),
+            iam_intents: Vec::new(),
             routes: vec![RoutePlan {
                 operation_id: "getHealth".into(),
                 method: HttpMethod::Get,

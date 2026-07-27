@@ -53,21 +53,21 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 21.15,
+        "cold_build_seconds": 108.0,
         "compressed_bytes": 5030945,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "dc00852e5d44cd318bfcd975185fe8f63e25f42e02c5349f0787fb1565048448",
+        "sha256": "7fece3ba3064c73dc6c4da6c4bd82d3f86b92f814e3cf76362e08026461fe7f7",
         "uncompressed_bytes": 11047008
       },
       "sqs_worker": {
-        "cold_build_seconds": 5.88,
+        "cold_build_seconds": 13.0,
         "compressed_bytes": 573415,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "0c6252cfc71187f7ffead2fc6e0fe4f1e3547153694228b3b63b2727fc51e867",
+        "sha256": "0dfea51f5e6150987fe047e046a80f7c4ec8aed17fa4909390984ede00df28eb",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:3dfec6747cf07a070e1fe5837358b044a5fda3211127942cd0cbeac3b154b208"
+    "revision": "source-tree-sha256:01625afcc88796ddbc11caac4fc360334458bd78f764273ee67b1ca4ffe4c8b8"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 8,
@@ -80,8 +80,7 @@
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",
     "cargo-bloat available: False; cargo-llvm-lines available: False.",
-    "The SQS worker is new in the candidate, so no baseline worker artifact exists.",
-    "M9-T01 carries the existing runtime, dependency, and artifact observations forward because it changes only documentation, task metadata, and generated repository evidence; Cargo manifests, Cargo.lock, Rust source, Plan IR, SAM, and recorded artifacts are unchanged."
+    "The SQS worker is new in the candidate, so no baseline worker artifact exists."
   ],
   "method": {
     "artifacts": "ZIP stat plus uncompressed member-size sum; artifacts are built by cargo lambda build --release --arm64 --output-format zip",

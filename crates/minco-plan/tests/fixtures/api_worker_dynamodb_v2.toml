@@ -1,0 +1,61 @@
+schema_version = 2
+application = "orders"
+environment = "test"
+region = "ap-southeast-2"
+runtime = "lambda_zip_arm64"
+ingress = "api_gateway_http_api"
+allowed_origins = ["https://app.example.invalid"]
+scheduled_wakeups = []
+uses_nat_gateway = false
+
+[auth]
+kind = "jwt"
+issuer = "https://issuer.example.invalid"
+audiences = ["orders"]
+
+[database]
+kind = "dynamo_db_on_demand"
+read_request_units_million = 1.0
+write_request_units_million = 1.0
+storage_gb_month = 1.0
+
+[[functions]]
+name = "api"
+role = "http_api"
+artifact_path = "target/lambda/orders-lambda/bootstrap.zip"
+memory_mb = 512
+timeout_seconds = 15
+reserved_concurrency = 2
+provisioned_concurrency = 0
+database_connections_per_instance = 0
+
+[[functions]]
+name = "orders-worker"
+role = "worker"
+artifact_path = "target/lambda/sqs_worker/bootstrap.zip"
+memory_mb = 256
+timeout_seconds = 30
+reserved_concurrency = 2
+provisioned_concurrency = 0
+database_connections_per_instance = 0
+
+[[queues]]
+id = "orders"
+fifo = false
+visibility_timeout_seconds = 180
+retention_seconds = 345600
+
+[[triggers]]
+kind = "http_api"
+id = "api"
+function_id = "api"
+
+[[triggers]]
+kind = "sqs"
+id = "orders"
+function_id = "orders-worker"
+queue_id = "orders"
+batch_size = 10
+batching_window_seconds = 0
+report_batch_item_failures = true
+maximum_concurrency = 2

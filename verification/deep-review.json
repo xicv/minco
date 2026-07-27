@@ -8,7 +8,7 @@
     "errors": 0,
     "warnings": 0,
     "metrics": {
-      "toml_files": 48,
+      "toml_files": 54,
       "yaml_files": 18,
       "json_files": 13,
       "workspace_members": 29,
@@ -18,10 +18,10 @@
       "plugins": 16,
       "milestones": 13,
       "tasks": 56,
-      "rust_files": 92,
+      "rust_files": 93,
       "python_files": 16,
       "shell_files": 34,
-      "implementation_files_scanned": 212
+      "implementation_files_scanned": 219
     },
     "findings": [],
     "limitations": [
@@ -30,10 +30,10 @@
     ]
   },
   "metrics": {
-    "rust_files": 92,
-    "rust_lines": 29326,
+    "rust_files": 93,
+    "rust_lines": 31519,
     "unsafe_tokens": 3,
-    "production_unwrap_expect": 76,
+    "production_unwrap_expect": 103,
     "sql_files": 6
   },
   "findings": [
@@ -47,7 +47,7 @@
       "severity": "warning",
       "code": "REVIEW-RUST-001",
       "path": "crates/minco-plan/src/sam.rs",
-      "message": "17 unwrap/expect calls before test code"
+      "message": "44 unwrap/expect calls before test code"
     },
     {
       "severity": "information",

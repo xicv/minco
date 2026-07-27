@@ -27,3 +27,10 @@ silently upload crates or change cloud resources.
 writing a repository artifact. Local topology tooling uses this mode so plugin
 selection and Rustack service startup consume the same validated graph as
 deployment planning.
+
+Plan IR schema 2 adds explicit worker artifacts, queues, mappings, DLQs and
+reviewed schedules while retaining schema 1 API-only input. `cost --json`
+exposes runtime wake/request dimensions and `perf --json` reports each
+function's artifact digest when built. See the repository's
+`docs/deployment/plan-schema-v2-migration.md` before adopting the likely 0.4
+serialized boundary.

@@ -1,0 +1,750 @@
+use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
+use minco_plan::{
+    DeploymentConfig, DeploymentPlan, IamResource, QueuePlan, RuntimePlan, Severity, TriggerPlan,
+    estimate_runtime_cost, render_sam, render_sam_with_code_uris,
+};
+use std::collections::BTreeMap;
+
+fn standard_worker_plan() -> DeploymentPlan {
+    plan_from_config(include_str!("fixtures/api_worker_standard_v2.toml"))
+}
+
+fn plan_from_config(source: &str) -> DeploymentPlan {
+    let config: DeploymentConfig = toml::from_str(source).expect("deployment config");
+    let contract = ContractDocument {
+        source: "inline".into(),
+        openapi_version: "3.1.0".into(),
+        title: "orders".into(),
+        version: "1".into(),
+        sha256: "hash".into(),
+        operations: Vec::new(),
+        schema_names: Vec::new(),
+        raw: serde_json::json!({}),
+    };
+
+    config.into_plan(&contract)
+}
+
+#[test]
+fn schema_v2_plans_one_api_and_one_explicit_sqs_worker() {
+    let plan = standard_worker_plan();
+
+    assert_eq!(plan.local_aws_services, ["sqs", "ssm", "sts"]);
+    assert!(
+        plan.validate()
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error)
+    );
+}
+
+#[test]
+fn every_openapi_operation_resolves_to_the_single_api_function() {
+    let config: DeploymentConfig =
+        toml::from_str(include_str!("fixtures/api_worker_standard_v2.toml"))
+            .expect("deployment config");
+    let contract = ContractDocument {
+        source: "inline".into(),
+        openapi_version: "3.1.0".into(),
+        title: "orders".into(),
+        version: "1".into(),
+        sha256: "hash".into(),
+        operations: vec![OwnedOperation {
+            operation_id: "createOrder".into(),
+            method: HttpMethod::Post,
+            path: "/orders".into(),
+            authenticated: true,
+            idempotent: true,
+        }],
+        schema_names: Vec::new(),
+        raw: serde_json::json!({}),
+    };
+
+    let plan = config.into_plan(&contract);
+
+    assert_eq!(plan.operation_function_id("createOrder"), Some("api"));
+    assert_eq!(plan.operation_function_id("missing"), None);
+}
+
+#[test]
+fn minco_sqs_workers_require_partial_batch_responses() {
+    let mut plan = standard_worker_plan();
+    let TriggerPlan::Sqs {
+        report_batch_item_failures,
+        ..
+    } = &mut plan.triggers[1]
+    else {
+        panic!("SQS trigger");
+    };
+    *report_batch_item_failures = false;
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SQS-001")
+    );
+}
+
+#[test]
+fn queue_visibility_covers_six_function_timeouts_and_the_batch_window() {
+    let mut plan = standard_worker_plan();
+    plan.queues[0].visibility_timeout_seconds = 179;
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SQS-002")
+    );
+}
+
+#[test]
+fn fifo_sources_require_fifo_dead_letter_queues() {
+    let mut plan = standard_worker_plan();
+    plan.queues[0].fifo = true;
+    plan.queues[0].dead_letter_queue_id = Some("orders-dlq".into());
+    plan.queues[0].max_receive_count = Some(5);
+    plan.queues.push(QueuePlan {
+        id: "orders-dlq".into(),
+        fifo: false,
+        visibility_timeout_seconds: 180,
+        retention_seconds: 1_209_600,
+        dead_letter_queue_id: None,
+        max_receive_count: None,
+    });
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SQS-003")
+    );
+}
+
+#[test]
+fn dead_letter_queue_graph_rejects_cycles() {
+    let mut plan = standard_worker_plan();
+    plan.queues[0].dead_letter_queue_id = Some("orders-dlq".into());
+    plan.queues[0].max_receive_count = Some(5);
+    plan.queues.push(QueuePlan {
+        id: "orders-dlq".into(),
+        fifo: false,
+        visibility_timeout_seconds: 180,
+        retention_seconds: 1_209_600,
+        dead_letter_queue_id: Some("orders".into()),
+        max_receive_count: Some(5),
+    });
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SQS-006")
+    );
+}
+
+#[test]
+fn sqs_mapping_concurrency_is_bounded_by_worker_and_cost_policy() {
+    let mut plan = standard_worker_plan();
+    let TriggerPlan::Sqs {
+        maximum_concurrency,
+        ..
+    } = &mut plan.triggers[1]
+    else {
+        panic!("SQS trigger");
+    };
+    *maximum_concurrency = 6;
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SQS-007")
+    );
+}
+
+#[test]
+fn aggregate_sqs_mapping_concurrency_cannot_exceed_worker_reservation() {
+    let mut plan = standard_worker_plan();
+    let mut second_queue = plan.queues[0].clone();
+    second_queue.id = "audit".into();
+    plan.queues.push(second_queue);
+    plan.triggers.push(TriggerPlan::Sqs {
+        id: "audit".into(),
+        function_id: "orders-worker".into(),
+        queue_id: "audit".into(),
+        batch_size: 10,
+        batching_window_seconds: 0,
+        report_batch_item_failures: true,
+        maximum_concurrency: 2,
+    });
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SQS-012")
+    );
+}
+
+#[test]
+fn fifo_mapping_batch_size_is_limited_to_ten() {
+    let mut plan = standard_worker_plan();
+    plan.queues[0].fifo = true;
+    let TriggerPlan::Sqs { batch_size, .. } = &mut plan.triggers[1] else {
+        panic!("SQS trigger");
+    };
+    *batch_size = 11;
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SQS-008")
+    );
+}
+
+#[test]
+fn minimal_idle_policy_rejects_enabled_explicit_schedules() {
+    let mut plan = standard_worker_plan();
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "outbox-recovery".into(),
+        function_id: "orders-worker".into(),
+        expression: "rate(15 minutes)".into(),
+        enabled: true,
+        purpose: "recover stranded outbox records".into(),
+    });
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-COST-002")
+    );
+}
+
+#[test]
+fn permitted_schedules_expose_wake_and_cost_diagnostics() {
+    let mut plan = standard_worker_plan();
+    plan.cost_policy.deny_scheduled_wakeups = false;
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "outbox-recovery".into(),
+        function_id: "orders-worker".into(),
+        expression: "rate(15 minutes)".into(),
+        enabled: true,
+        purpose: "recover stranded outbox records".into(),
+    });
+
+    let diagnostic = plan
+        .validate()
+        .into_iter()
+        .find(|diagnostic| diagnostic.code == "MINCO-COST-009")
+        .expect("schedule diagnostic");
+    assert_eq!(diagnostic.severity, Severity::Information);
+    assert!(diagnostic.message.contains("outbox-recovery"));
+    assert!(diagnostic.message.contains("rate(15 minutes)"));
+    assert!(diagnostic.message.contains("scale-to-zero"));
+}
+
+#[test]
+fn legacy_api_only_plan_migrates_deterministically_to_schema_v2() {
+    let config: DeploymentConfig = toml::from_str(include_str!(
+        "../../../examples/orders/config/minco.dev.toml"
+    ))
+    .expect("legacy config");
+    let contract = ContractDocument {
+        source: "inline".into(),
+        openapi_version: "3.1.0".into(),
+        title: "orders".into(),
+        version: "1".into(),
+        sha256: "hash".into(),
+        operations: Vec::new(),
+        schema_names: Vec::new(),
+        raw: serde_json::json!({}),
+    };
+
+    let legacy = config.into_plan(&contract);
+    let migrated = legacy.migrate_to_latest().expect("schema migration");
+
+    assert_eq!(migrated.schema_version, 2);
+    assert_eq!(
+        migrated.triggers,
+        [TriggerPlan::HttpApi {
+            id: "http-api".into(),
+            function_id: "api".into(),
+        }]
+    );
+    assert!(
+        migrated
+            .validate()
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error)
+    );
+}
+
+#[test]
+fn sam_renders_only_the_explicit_worker_queue_and_mapping() {
+    let yaml = render_sam(&standard_worker_plan()).expect("SAM");
+
+    assert!(yaml.contains("  OrdersQueue:\n    Type: AWS::SQS::Queue"));
+    assert!(yaml.contains("  OrdersWorkerFunction:\n    Type: AWS::Serverless::Function"));
+    assert!(yaml.contains("Queue: !GetAtt OrdersQueue.Arn"));
+    assert!(yaml.contains("FunctionResponseTypes:\n              - ReportBatchItemFailures"));
+    assert!(yaml.contains("ScalingConfig:\n              MaximumConcurrency: 2"));
+    assert!(yaml.contains("Resource: !GetAtt OrdersQueue.Arn"));
+    assert!(!yaml.contains("Type: ScheduleV2"));
+}
+
+#[test]
+fn database_free_functions_receive_no_database_parameter_or_vpc_policy() {
+    let config: DeploymentConfig =
+        toml::from_str(include_str!("fixtures/api_worker_database_free_v2.toml"))
+            .expect("deployment config");
+    let contract = ContractDocument {
+        source: "inline".into(),
+        openapi_version: "3.1.0".into(),
+        title: "orders".into(),
+        version: "1".into(),
+        sha256: "hash".into(),
+        operations: Vec::new(),
+        schema_names: Vec::new(),
+        raw: serde_json::json!({}),
+    };
+    let plan = config.into_plan(&contract);
+
+    let yaml = render_sam(&plan).expect("SAM");
+
+    assert!(!yaml.contains("DatabaseUrlParameterName"));
+    assert!(!yaml.contains("ssm:GetParameter"));
+    assert!(!yaml.contains("VpcConfig"));
+    assert!(yaml.contains("sqs:ReceiveMessage"));
+}
+
+#[test]
+fn plan_derives_exact_queue_consumer_iam_intent() {
+    let plan = standard_worker_plan();
+    let intent = plan
+        .iam_intents
+        .iter()
+        .find(|intent| {
+            intent.function_id == "orders-worker"
+                && intent.resource
+                    == IamResource::Queue {
+                        queue_id: "orders".into(),
+                    }
+        })
+        .expect("worker queue IAM intent");
+
+    assert_eq!(
+        intent.actions,
+        [
+            "sqs:ChangeMessageVisibility",
+            "sqs:DeleteMessage",
+            "sqs:GetQueueAttributes",
+            "sqs:ReceiveMessage",
+        ]
+    );
+}
+
+#[test]
+fn runtime_cost_report_exposes_schedule_wakes_and_worker_connection_pressure() {
+    let mut plan = standard_worker_plan();
+    plan.cost_policy.deny_scheduled_wakeups = false;
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "outbox-recovery".into(),
+        function_id: "orders-worker".into(),
+        expression: "rate(15 minutes)".into(),
+        enabled: true,
+        purpose: "recover stranded outbox records".into(),
+    });
+
+    let report = estimate_runtime_cost(&plan);
+
+    assert_eq!(
+        report.schedules[0].estimated_monthly_invocations,
+        Some(2_922)
+    );
+    assert!(report.schedules[0].can_wake_scale_to_zero_database);
+    assert_eq!(report.workers[0].maximum_database_connections, 2);
+    assert_eq!(report.queues[0].queue_id, "orders");
+    assert_eq!(report.queues[0].mappings[0].trigger_id, "orders");
+    assert!(report.queues[0].regional_request_rate_required);
+    assert!(!report.complete);
+}
+
+#[test]
+fn runtime_cost_report_preserves_every_mapping_for_a_queue() {
+    let mut plan = standard_worker_plan();
+    let mut second_worker = plan.functions[1].clone();
+    second_worker.name = "audit-worker".into();
+    plan.functions.push(second_worker);
+    plan.triggers.push(TriggerPlan::Sqs {
+        id: "audit".into(),
+        function_id: "audit-worker".into(),
+        queue_id: "orders".into(),
+        batch_size: 5,
+        batching_window_seconds: 0,
+        report_batch_item_failures: true,
+        maximum_concurrency: 2,
+    });
+
+    let report = estimate_runtime_cost(&plan);
+
+    assert_eq!(report.queues[0].mappings.len(), 2);
+    assert_eq!(report.queues[0].mappings[1].trigger_id, "audit");
+    assert_eq!(report.queues[0].mappings[1].function_id, "audit-worker");
+}
+
+#[test]
+fn sam_accepts_an_exact_artifact_uri_for_every_function() {
+    let code_uris = BTreeMap::from([
+        ("api".into(), "../../../artifacts/api.zip".into()),
+        (
+            "orders-worker".into(),
+            "../../../artifacts/orders-worker.zip".into(),
+        ),
+    ]);
+
+    let yaml =
+        render_sam_with_code_uris(&standard_worker_plan(), &code_uris).expect("SAM artifacts");
+
+    assert!(yaml.contains("CodeUri: '../../../artifacts/api.zip'"));
+    assert!(yaml.contains("CodeUri: '../../../artifacts/orders-worker.zip'"));
+}
+
+#[test]
+fn sam_renders_only_an_explicitly_declared_schedule() {
+    let mut plan = standard_worker_plan();
+    plan.cost_policy.deny_scheduled_wakeups = false;
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "outbox-recovery".into(),
+        function_id: "orders-worker".into(),
+        expression: "rate(15 minutes)".into(),
+        enabled: true,
+        purpose: "recover stranded outbox records".into(),
+    });
+
+    let yaml = render_sam(&plan).expect("scheduled SAM");
+
+    assert!(yaml.contains("Type: ScheduleV2"));
+    assert!(yaml.contains("ScheduleExpression: 'rate(15 minutes)'"));
+    assert!(yaml.contains("State: ENABLED"));
+    assert!(yaml.contains("Description: 'recover stranded outbox records'"));
+    assert_eq!(yaml.matches("Type: ScheduleV2").count(), 1);
+}
+
+#[test]
+fn schedules_require_a_reviewable_purpose() {
+    let mut plan = standard_worker_plan();
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "outbox-recovery".into(),
+        function_id: "orders-worker".into(),
+        expression: "rate(15 minutes)".into(),
+        enabled: false,
+        purpose: " ".into(),
+    });
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SCHEDULE-001")
+    );
+}
+
+#[test]
+fn schedules_accept_only_eventbridge_expression_forms() {
+    let mut plan = standard_worker_plan();
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "outbox-recovery".into(),
+        function_id: "orders-worker".into(),
+        expression: "every 15 minutes".into(),
+        enabled: false,
+        purpose: "recover stranded outbox records".into(),
+    });
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SCHEDULE-002")
+    );
+}
+
+#[test]
+fn generic_api_only_v1_fixture_remains_supported() {
+    let plan = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
+
+    assert_eq!(plan.schema_version, 1);
+    assert!(plan.queues.is_empty());
+    assert!(plan.triggers.is_empty());
+    assert!(
+        plan.validate()
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error)
+    );
+}
+
+#[test]
+fn schema_v1_cannot_relabel_its_only_function_as_a_worker() {
+    let mut plan = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
+    plan.functions[0].role = minco_plan::FunctionRole::Worker;
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-PLAN-005")
+    );
+    assert!(
+        plan.migrate_to_latest()
+            .expect_err("worker cannot migrate as an API")
+            .to_string()
+            .contains("MINCO-PLAN-MIGRATE-002")
+    );
+}
+
+#[test]
+fn fifo_dlq_fixture_renders_compatible_redrive_resources() {
+    let plan = plan_from_config(include_str!("fixtures/api_worker_fifo_dlq_v2.toml"));
+    assert!(
+        plan.validate()
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error)
+    );
+
+    let yaml = render_sam(&plan).expect("FIFO SAM");
+    assert_eq!(yaml.matches("FifoQueue: true").count(), 2);
+    assert!(yaml.contains("deadLetterTargetArn: !GetAtt OrdersDlqQueue.Arn"));
+    assert!(yaml.contains("maxReceiveCount: 5"));
+    assert!(yaml.contains("QueueName: 'orders-test-orders.fifo'"));
+}
+
+#[test]
+fn explicit_schedule_fixture_is_reviewable_and_renderable() {
+    let plan = plan_from_config(include_str!("fixtures/api_worker_schedule_v2.toml"));
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-COST-009")
+    );
+    assert!(plan.iam_intents.iter().any(|intent| {
+        intent.actions == ["lambda:InvokeFunction"]
+            && intent.resource
+                == IamResource::Function {
+                    function_id: "recovery-worker".into(),
+                }
+    }));
+    assert!(
+        render_sam(&plan)
+            .expect("scheduled SAM")
+            .contains("Type: ScheduleV2")
+    );
+}
+
+#[test]
+fn dynamodb_worker_fixture_has_no_relational_connection_or_iam_projection() {
+    let plan = plan_from_config(include_str!("fixtures/api_worker_dynamodb_v2.toml"));
+
+    assert_eq!(plan.local_aws_services, ["dynamodb", "sqs", "ssm", "sts"]);
+    assert!(
+        plan.validate()
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error)
+    );
+    assert!(plan.iam_intents.iter().all(|intent| {
+        !matches!(
+            intent.resource,
+            IamResource::DatabaseUrlParameter | IamResource::DatabaseUrlKmsKey
+        )
+    }));
+    assert!(
+        render_sam(&plan)
+            .expect_err("generic DynamoDB SAM must fail closed")
+            .to_string()
+            .contains("DynamoDB needs a dedicated adapter/rendering plugin")
+    );
+}
+
+#[test]
+fn local_native_topology_has_no_aws_database_parameter_iam() {
+    let mut config: DeploymentConfig =
+        toml::from_str(include_str!("fixtures/api_worker_standard_v2.toml"))
+            .expect("deployment config");
+    config.runtime = RuntimePlan::LocalNative;
+    let contract = ContractDocument {
+        source: "inline".into(),
+        openapi_version: "3.1.0".into(),
+        title: "orders".into(),
+        version: "1".into(),
+        sha256: "hash".into(),
+        operations: Vec::new(),
+        schema_names: Vec::new(),
+        raw: serde_json::json!({}),
+    };
+
+    let plan = config.into_plan(&contract);
+
+    assert_eq!(plan.local_aws_services, ["sqs"]);
+    assert!(plan.iam_intents.iter().all(|intent| {
+        !matches!(
+            intent.resource,
+            IamResource::DatabaseUrlParameter | IamResource::DatabaseUrlKmsKey
+        )
+    }));
+}
+
+#[test]
+fn missing_trigger_references_have_a_stable_diagnostic() {
+    let mut plan = standard_worker_plan();
+    let TriggerPlan::Sqs { queue_id, .. } = &mut plan.triggers[1] else {
+        panic!("SQS trigger");
+    };
+    *queue_id = "missing".into();
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-PLAN-015")
+    );
+}
+
+#[test]
+fn duplicate_function_queue_and_trigger_ids_are_rejected() {
+    let mut plan = standard_worker_plan();
+    plan.functions.push(plan.functions[1].clone());
+    plan.queues.push(plan.queues[0].clone());
+    plan.triggers.push(plan.triggers[1].clone());
+    let codes = plan
+        .validate()
+        .into_iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<Vec<_>>();
+
+    assert!(codes.contains(&"MINCO-PLAN-011".into()));
+    assert!(codes.contains(&"MINCO-PLAN-013".into()));
+    assert!(codes.contains(&"MINCO-PLAN-014".into()));
+}
+
+#[test]
+fn distinct_ids_cannot_collapse_to_the_same_sam_logical_id() {
+    let mut plan = standard_worker_plan();
+    let mut first = plan.functions[1].clone();
+    first.name = "audit-1".into();
+    let mut second = first.clone();
+    second.name = "audit1".into();
+    plan.functions.extend([first, second]);
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-PLAN-018")
+    );
+}
+
+#[test]
+fn openapi_operation_ids_cannot_collapse_to_one_sam_event() {
+    let mut plan = standard_worker_plan();
+    plan.routes = vec![
+        minco_plan::RoutePlan {
+            operation_id: "order-1".into(),
+            method: HttpMethod::Get,
+            path: "/orders/1".into(),
+            authenticated: false,
+        },
+        minco_plan::RoutePlan {
+            operation_id: "order1".into(),
+            method: HttpMethod::Get,
+            path: "/orders/2".into(),
+            authenticated: false,
+        },
+    ];
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-PLAN-018")
+    );
+}
+
+#[test]
+fn schema_v2_rejects_invalid_derived_aws_resource_names() {
+    let mut plan = standard_worker_plan();
+    plan.application = "orders".repeat(12);
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-AWS-001")
+    );
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-AWS-002")
+    );
+}
+
+#[test]
+fn worker_functions_cannot_own_http_operations() {
+    let mut plan = standard_worker_plan();
+    let TriggerPlan::HttpApi { function_id, .. } = &mut plan.triggers[0] else {
+        panic!("HTTP trigger");
+    };
+    *function_id = "orders-worker".into();
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-PLAN-016")
+    );
+}
+
+#[test]
+fn aggregate_connection_budget_includes_api_and_workers() {
+    let mut plan = standard_worker_plan();
+    plan.cost_policy.max_database_connections = 5;
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-COST-005")
+    );
+}
+
+#[test]
+fn schema_v2_rejects_legacy_schedule_strings() {
+    let mut plan = standard_worker_plan();
+    plan.scheduled_wakeups.push("rate(15 minutes)".into());
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SCHEDULE-003")
+    );
+}
+
+#[test]
+fn tampered_iam_projection_is_rejected() {
+    let mut plan = standard_worker_plan();
+    plan.iam_intents.clear();
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-IAM-001")
+    );
+}
+
+#[test]
+fn multi_runtime_sam_is_byte_deterministic() {
+    let plan = plan_from_config(include_str!("fixtures/api_worker_fifo_dlq_v2.toml"));
+
+    assert_eq!(
+        render_sam(&plan).expect("first SAM"),
+        render_sam(&plan).expect("second SAM")
+    );
+}
+
+#[test]
+fn legacy_unstructured_schedules_receive_a_stable_migration_rejection() {
+    let mut legacy = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
+    legacy
+        .scheduled_wakeups
+        .push("legacy nightly recovery".into());
+
+    let error = legacy
+        .migrate_to_latest()
+        .expect_err("unstructured schedule must not be guessed");
+
+    assert!(error.to_string().contains("MINCO-PLAN-MIGRATE-001"));
+}
