@@ -19,6 +19,10 @@
 /// Provider-neutral plugin, capability, service, and application graph APIs.
 pub use minco_core as core;
 
+#[cfg(feature = "config")]
+/// Typed environments, configuration schema, provenance, and secret references.
+pub use minco_config as config;
+
 #[cfg(feature = "contract")]
 /// `OpenAPI` loading, validation, operation inventory, and deterministic binding generation.
 pub use minco_contract as contract;
@@ -105,6 +109,11 @@ pub use minco_aws_adapters as aws_adapters;
 
 /// Common imports for application composition.
 pub mod prelude {
+    #[cfg(feature = "config")]
+    pub use minco_config::{
+        ConfigLayer, ConfigSourceKind, ConfigurationField, ConfigurationGraph, ConfigurationSchema,
+        ConfigurationValueKind, Environment, EnvironmentClass, SecretReference,
+    };
     pub use minco_core::{
         ApplicationGraph, CapabilityProvision, CapabilityRequirement, ComposedApplication,
         ContributionCollection, ContributionRegistrar, ContributionRegistration,

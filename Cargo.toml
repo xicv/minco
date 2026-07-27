@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
   "crates/minco",
+  "crates/minco-config",
   "crates/minco-core",
   "crates/minco-contract",
   "crates/minco-plan",
@@ -33,6 +34,7 @@ members = [
 ]
 default-members = [
   "crates/minco",
+  "crates/minco-config",
   "crates/minco-core",
   "crates/minco-contract",
   "crates/minco-plan",
@@ -132,6 +134,7 @@ walkdir = "2.5"
 # Every publishable path dependency carries an explicit version. Cargo removes
 # the path when packaging and resolves the version from the target registry.
 minco = { version = "0.3.1", path = "crates/minco", default-features = false }
+minco-config = { version = "0.3.1", path = "crates/minco-config" }
 minco-core = { version = "0.3.1", path = "crates/minco-core" }
 minco-contract = { version = "0.3.1", path = "crates/minco-contract" }
 minco-plan = { version = "0.3.1", path = "crates/minco-plan" }
@@ -187,6 +190,7 @@ too_many_lines = "allow"
 package_tests = ["minco-contract"]
 publish = [
   "minco-core",
+  "minco-config",
   "minco-contract",
   "minco-http",
   "minco-release",

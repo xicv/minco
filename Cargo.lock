@@ -883,6 +883,7 @@ dependencies = [
  "chrono",
  "clap",
  "minco",
+ "minco-config",
  "minco-contract",
  "minco-core",
  "minco-plan",
@@ -2175,6 +2176,7 @@ dependencies = [
  "minco-aws-adapters",
  "minco-aws-lambda",
  "minco-aws-worker",
+ "minco-config",
  "minco-contract",
  "minco-core",
  "minco-http",
@@ -2259,6 +2261,19 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "minco-config"
+version = "0.3.1"
+dependencies = [
+ "minco-core",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]

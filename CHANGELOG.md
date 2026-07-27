@@ -7,6 +7,11 @@ Semantic Versioning once public releases begin.
 
 ### Added
 
+- Added the publishable provider-neutral `minco-config` crate, strict
+  application/enabled-plugin schemas, fixed environment precedence, opaque
+  `env:`/`ssm:` secret references, redacted provenance and diff, deterministic
+  effective digests, typed constructor deserialization, and `cargo minco
+  config check|explain|diff|schema`.
 - Added Plan IR schema 2 for one HTTP API function plus explicit worker
   functions, SQS queues, DLQs, event-source mappings, partial-batch behavior
   and reviewed schedules, with deterministic local-service, IAM, cost,
@@ -37,10 +42,11 @@ Semantic Versioning once public releases begin.
 
 ### Compatibility boundary
 
-The new public plan types and schema 2 serialized fields are a likely Minco
-`0.4.0` boundary. API-only schema 1 configurations remain supported and their
-generated output is preserved where practical. No package version is changed
-or published by this implementation.
+The new public plan types, Plan schema 2 fields, configuration crate, typed
+configuration schema and CLI surface are a likely Minco `0.4.0` boundary.
+API-only Plan schema 1 configurations remain supported and their generated
+output is preserved where practical. No package version is changed or
+published by this implementation.
 
 ## [0.3.1] - 2026-07-27
 

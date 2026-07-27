@@ -1,0 +1,8 @@
+schema = 1
+environment_class = "local"
+
+[values.database]
+url = "env:MINCO_LOCAL_DATABASE_URL"
+
+[values.runtime]
+log_level = "debug"

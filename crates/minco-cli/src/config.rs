@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use minco_config::ConfigurationField;
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -17,6 +18,8 @@ pub struct MincoManifest {
     pub plugin_catalog: PathBuf,
     pub quality: PathBuf,
     #[serde(default)]
+    pub configuration: ConfigurationManifest,
+    #[serde(default)]
     pub architecture: ArchitectureManifest,
     #[serde(default)]
     pub operations: BTreeMap<String, OperationTrace>,
@@ -26,6 +29,28 @@ pub struct MincoManifest {
     pub commands: CommandManifest,
     #[serde(default)]
     pub plugins: PluginSelectionFile,
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+pub struct ConfigurationManifest {
+    pub root: PathBuf,
+    pub default_file: String,
+    pub local_override: String,
+    pub environment_prefix: String,
+    #[serde(default)]
+    pub fields: Vec<ConfigurationField>,
+}
+
+impl Default for ConfigurationManifest {
+    fn default() -> Self {
+        Self {
+            root: PathBuf::from("config"),
+            default_file: "default.toml".into(),
+            local_override: ".local.toml".into(),
+            environment_prefix: "MINCO_CONFIG__".into(),
+            fields: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]

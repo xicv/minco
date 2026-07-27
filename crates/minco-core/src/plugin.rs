@@ -278,6 +278,19 @@ impl PluginManager {
             .collect()
     }
 
+    /// Resolve selection and return only descriptors that participate in the
+    /// effective graph, including statically declared plugin dependencies.
+    pub fn enabled_descriptors(
+        &self,
+        selection: &PluginSelection,
+    ) -> Result<Vec<PluginDescriptor>, PluginError> {
+        Ok(self
+            .resolve_enabled(selection)?
+            .into_values()
+            .map(|effective| effective.descriptor)
+            .collect())
+    }
+
     pub fn compose(&self, selection: &PluginSelection) -> Result<ComposedApplication, PluginError> {
         self.compose_with(
             selection,

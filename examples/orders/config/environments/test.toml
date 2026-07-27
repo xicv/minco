@@ -1,0 +1,11 @@
+schema = 1
+environment_class = "test"
+
+[values.database]
+url = "env:MINCO_TEST_DATABASE_URL"
+
+[values.runtime]
+log_level = "warn"
+
+[values.plugins.idempotency]
+claim_timeout_seconds = 30
