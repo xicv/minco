@@ -1,5 +1,9 @@
-use anyhow::{Context, Result, bail};
+#[cfg(feature = "postgres")]
+use anyhow::Context;
+use anyhow::{Result, bail};
+#[cfg(feature = "postgres")]
 use minco_sqlx_postgres::PostgresPoolConfig;
+#[cfg(feature = "sqlite")]
 use minco_sqlx_sqlite::SqlitePoolConfig;
 
 #[tokio::main]

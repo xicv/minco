@@ -44,7 +44,7 @@ not production durability.
 | SQS/domain events | `minco-plugin-events`, `minco-aws-adapters`, `minco-sqlx-postgres` | official plugin contract + provider adapters | SQS publication and transaction-integrated leased PostgreSQL outbox; no hidden poller. |
 | Email/webhook/in-app notification | `minco-plugin-notifications`, `minco-aws-adapters` | official plugin contract + provider adapters | SES and DNS-pinned signed-webhook delivery exist; SES live send is externally blocked by the absence of a verified account identity. |
 | Durable business audit | `minco-plugin-audit`, SQLx adapters | official plugin contract + provider adapters | Append-only memory, PostgreSQL, and SQLite sinks, separate from operational logs. |
-| Feedback and client review | `minco-plugin-feedback` | official vertical slice (stable) | Compiler, HTTP, PostgreSQL, SQLite, memory, CLI, Chromium, and Firefox gates pass. Project isolation, authenticated transcription, public error redaction, and HTTPS developer transport are regression-tested. |
+| Feedback and client review | `minco-plugin-feedback` | official vertical slice (stable) | Compiler, HTTP, PostgreSQL, SQLite, memory, CLI, Chromium, and Firefox gates pass. Project isolation, authenticated transcription, public error redaction, HTTPS developer transport, and backend-specific SQLx feature graphs are regression-tested. |
 | Native Lambda/API Gateway deployment | `minco-aws-lambda`, `minco-plan` | official provider adapter/core | One ARM64 ZIP and HTTP API default. |
 | Build-once release promotion | `minco-release` | core | Contract, migration, plan, source, and artifact hashes. |
 | Rustack-shaped local AWS | endpoint override/local scripts | extension policy | Pinned local S3/SQS/SSM/STS and compiled adapter proof pass; real AWS remains authoritative. |
@@ -104,7 +104,9 @@ implementations:
 ## Conclusion
 
 Minco now has a stable architectural center and concrete SQLx/AWS adapter
-boundary. Feedback's compiler, database, browser, security-regression, and
+boundary. PostgreSQL-only, SQLite-only, memory, and no-default dependency graphs
+are checked explicitly while deliberate all-feature builds retain both SQLx
+backends. Feedback's compiler, database, browser, security-regression, and
 exact-head local gates pass; Lambda/SAM, exact-resource IAM, Rustack, bounded
 real AWS, and verified cleanup also pass within the recorded scope. Feedback is
 stable under the release-scoped M6-T05 risk decision. The unrun SES delivery and

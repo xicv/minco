@@ -14,6 +14,7 @@ uv run --locked python scripts/test/feedback_contract.py
 uv run --locked python scripts/test/sqlite_schema.py
 uv run --locked python scripts/test/scaffold_templates.py
 uv run --locked python scripts/test/rust_dependency_hygiene.py
+bash scripts/test/sqlx_feature_isolation.sh
 node --check plugins/minco-plugin-feedback/assets/widget.js
 cargo fmt --all -- --check
 cargo check -p minco --no-default-features --locked
