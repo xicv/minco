@@ -8,8 +8,8 @@ publish = false
 
 [features]
 default = ["sqlite"]
-sqlite = ["orders-adapters/sqlite"]
-postgres = ["orders-adapters/postgres"]
+sqlite = ["orders-adapters/sqlite", "dep:minco-sqlx-sqlite"]
+postgres = ["orders-adapters/postgres", "dep:minco-sqlx-postgres"]
 lambda = ["dep:minco-aws-lambda", "postgres"]
 all-runtimes = ["sqlite", "postgres", "lambda"]
 
@@ -40,8 +40,8 @@ minco-http.workspace = true
 minco-plugin-health.workspace = true
 minco-plugin-idempotency.workspace = true
 minco-plugin-observability.workspace = true
-minco-sqlx-postgres.workspace = true
-minco-sqlx-sqlite.workspace = true
+minco-sqlx-postgres = { workspace = true, optional = true }
+minco-sqlx-sqlite = { workspace = true, optional = true }
 orders-adapters.workspace = true
 orders-api.workspace = true
 orders-application.workspace = true
