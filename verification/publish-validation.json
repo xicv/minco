@@ -6,6 +6,7 @@
   "metrics": {
     "publish_order": [
       "minco-core",
+      "minco-config",
       "minco-contract",
       "minco-http",
       "minco-release",
@@ -34,8 +35,8 @@
       "minco-contract"
     ],
     "workspace_version": "0.3.1",
-    "workspace_packages": 29,
-    "publishable_packages": 24,
+    "workspace_packages": 30,
+    "publishable_packages": 25,
     "private_packages": 5,
     "publishable_names": [
       "cargo-minco",
@@ -43,6 +44,7 @@
       "minco-aws-adapters",
       "minco-aws-lambda",
       "minco-aws-worker",
+      "minco-config",
       "minco-contract",
       "minco-core",
       "minco-http",

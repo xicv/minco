@@ -1,0 +1,8 @@
+schema = 1
+environment_class = "staging"
+
+[values.database]
+url = "ssm:/minco/orders/staging/database-url"
+
+[values.plugins.idempotency]
+claim_timeout_seconds = 600

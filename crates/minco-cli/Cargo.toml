@@ -24,6 +24,7 @@ anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
 minco = { workspace = true, features = ["official-plugins"] }
+minco-config.workspace = true
 minco-contract.workspace = true
 minco-core.workspace = true
 minco-plan.workspace = true

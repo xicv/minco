@@ -30,6 +30,24 @@ Rust type and application/plugin owner; contribution records add deterministic
 installation indices. Registered values, configuration values and provider
 diagnostics are not emitted.
 
+## Typed configuration
+
+```text
+cargo minco config check [--environment NAME] [--set KEY=VALUE]
+cargo minco config explain <path> [--environment NAME] [--set KEY=VALUE]
+cargo minco config diff --from NAME --to NAME
+cargo minco config schema
+```
+
+`check` composes the application schema with the effective enabled-plugin
+schema and reports a deterministic digest. `explain` includes override
+provenance. `diff` compares effective values. Secret values and secret-reference
+names are omitted from every command response. `schema` includes all statically
+linked plugins for discovery, including disabled plugins.
+
+See [`configuration.md`](configuration.md) for file shape, precedence,
+environment classes, secret-reference syntax and migration.
+
 ## Contract
 
 ```text

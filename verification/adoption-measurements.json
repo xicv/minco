@@ -35,8 +35,8 @@
     "build_timings_seconds": {},
     "facade": {
       "all_features": {
-        "feature_tree_lines": 3424,
-        "normal_dependency_packages": 298
+        "feature_tree_lines": 3433,
+        "normal_dependency_packages": 299
       },
       "default_features": {
         "feature_tree_lines": 820,
@@ -53,29 +53,29 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 108.0,
-        "compressed_bytes": 5030945,
+        "cold_build_seconds": 113.0,
+        "compressed_bytes": 5031262,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "7fece3ba3064c73dc6c4da6c4bd82d3f86b92f814e3cf76362e08026461fe7f7",
-        "uncompressed_bytes": 11047008
+        "sha256": "8a0c995e96da2d53a7769ba0e2190ec43dac3ab28076610f3f39ddc19c204efb",
+        "uncompressed_bytes": 11047520
       },
       "sqs_worker": {
-        "cold_build_seconds": 13.0,
+        "cold_build_seconds": 14.0,
         "compressed_bytes": 573415,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "0dfea51f5e6150987fe047e046a80f7c4ec8aed17fa4909390984ede00df28eb",
+        "sha256": "2a219cf7c13a7cc1ee5b663d380bd61f65bc693426df07399917e79789666ac7",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:01625afcc88796ddbc11caac4fc360334458bd78f764273ee67b1ca4ffe4c8b8"
+    "revision": "source-tree-sha256:238445f401b4ffbea8d44c8b726aa49fe1f50f6fde29c5ff8e44dc750f478d06"
   },
   "comparison": {
-    "all_feature_dependency_package_delta": 8,
+    "all_feature_dependency_package_delta": 9,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 0,
-    "orders_lambda_compressed_byte_delta": 17943,
-    "orders_lambda_compressed_percent_delta": 0.3579
+    "orders_lambda_compressed_byte_delta": 18260,
+    "orders_lambda_compressed_percent_delta": 0.3643
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",

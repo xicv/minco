@@ -5,6 +5,7 @@
 
 mod architecture;
 mod config;
+mod config_cmd;
 mod feedback_cmd;
 mod new_cmd;
 mod plugin_cmd;
@@ -18,6 +19,7 @@ use architecture::validate_architecture;
 use chrono::Utc;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
+use config_cmd::ConfigCommand;
 use feedback_cmd::FeedbackArgs;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
 use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
@@ -62,6 +64,8 @@ enum Command {
     New(NewArgs),
     Doctor,
     Check(CheckArgs),
+    #[command(subcommand)]
+    Config(ConfigCommand),
     #[command(subcommand)]
     Contract(ContractCommand),
     Inspect,
@@ -305,6 +309,7 @@ async fn main() -> Result<()> {
         Command::New(_) => unreachable!("new is handled before project discovery"),
         Command::Doctor => doctor(&root, as_json),
         Command::Check(args) => check(&root, &manifest, args, as_json),
+        Command::Config(command) => config_cmd::execute(&root, &manifest, command, as_json),
         Command::Contract(command) => contract(&root, &manifest, command, as_json),
         Command::Inspect => inspect(&root, &manifest, as_json),
         Command::Explain(args) => explain(&root, &manifest, &args.operation_id, as_json),
@@ -1032,7 +1037,7 @@ fn load_application_graph(manifest: &MincoManifest) -> Result<ApplicationGraph> 
     Ok(manager.build_graph(&selection)?)
 }
 
-fn load_plugin_selection(
+pub(crate) fn load_plugin_selection(
     manifest: &MincoManifest,
     manager: &PluginManager,
 ) -> Result<PluginSelection> {
@@ -1083,7 +1088,7 @@ fn ensure_plan_valid(plan: &DeploymentPlan) -> Result<()> {
     }
 }
 
-fn print_value<T: Serialize + ?Sized>(value: &T, as_json: bool) -> Result<()> {
+pub(crate) fn print_value<T: Serialize + ?Sized>(value: &T, as_json: bool) -> Result<()> {
     if as_json {
         println!("{}", serde_json::to_string_pretty(value)?);
     } else {
@@ -1163,6 +1168,35 @@ mod cli_argument_tests {
             values,
             vec![OsString::from("cargo-minco"), OsString::from("doctor")]
         );
+    }
+
+    #[test]
+    fn typed_configuration_commands_have_stable_cli_shapes() {
+        let check = Cli::try_parse_from(["cargo-minco", "config", "check", "--environment", "dev"])
+            .expect("config check arguments");
+        assert!(matches!(
+            check.command,
+            Command::Config(ConfigCommand::Check(config_cmd::ConfigEnvironmentArgs {
+                environment,
+                ..
+            })) if environment == "dev"
+        ));
+
+        let difference = Cli::try_parse_from([
+            "cargo-minco",
+            "config",
+            "diff",
+            "--from",
+            "dev",
+            "--to",
+            "production",
+        ])
+        .expect("config diff arguments");
+        assert!(matches!(
+            difference.command,
+            Command::Config(ConfigCommand::Diff { from, to })
+                if from == "dev" && to == "production"
+        ));
     }
 
     #[test]

@@ -21,6 +21,8 @@ COMMON = [
     ".env.example",
     "rust-toolchain.toml",
     "minco.toml",
+    "config/environments/default.toml",
+    "config/environments/dev.toml",
     "quality.toml",
     "plugins/catalog.toml",
     "roadmap/roadmap.yaml",
@@ -68,6 +70,9 @@ def render_profile(destination: Path, database: str) -> None:
             if database == "postgres"
             else "DATABASE_PATH=var/app.db"
         ),
+        "{{DATABASE_SECRET_REFERENCE}}": (
+            "env:DATABASE_URL" if database == "postgres" else "env:DATABASE_PATH"
+        ),
     }
     for relative in COMMON:
         target = destination / relative
@@ -114,6 +119,10 @@ def check_profile(root: Path, database: str) -> dict[str, object]:
     assert manifest["contract"] == "openapi/openapi.yaml"
     assert manifest["generated"] == "crates/api/src/generated.rs"
     assert manifest["migrations"]["roots"] == [f"migrations/{database}"]
+    assert manifest["configuration"]["root"] == "config/environments"
+    assert {
+        field["key"] for field in manifest["configuration"]["fields"]
+    } == {"application.name", "runtime.log_level", "database.connection"}
     assert set(manifest["operations"]) == {"healthLive", "getPlatform"}
 
     contract = yaml.safe_load((root / "openapi/openapi.yaml").read_text())

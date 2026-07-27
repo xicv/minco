@@ -1,0 +1,11 @@
+schema = 1
+environment_class = "development"
+
+[values.database]
+url = "env:MINCO_DEV_DATABASE_URL"
+
+[values.runtime]
+log_level = "debug"
+
+[values.plugins.idempotency]
+claim_timeout_seconds = 300

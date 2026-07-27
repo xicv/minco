@@ -30,6 +30,12 @@ For a local SQLite application:
 cargo add minco --features sqlx-sqlite,test
 ```
 
+Enable typed environment composition explicitly:
+
+```bash
+cargo add minco --features config
+```
+
 ## Compose plugins
 
 ```rust

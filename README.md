@@ -67,7 +67,8 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The current 24-package family and workspace are published at `0.3.1`. See
+The published `0.3.1` baseline contains 24 packages. Current source adds the
+unpublished `minco-config` candidate for the next compatible release. See
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
 first-publish, dry-run, ownership, and trusted-publishing process.
 
@@ -97,6 +98,7 @@ A complete application-consumer walkthrough is available in
 ```text
 crates/
   minco/            ergonomic facade and feature-gated public entrypoint
+  minco-config/     typed environments, secret references and provenance
   minco-core/       plugin API, typed services, capability/application graph
   minco-contract/   OpenAPI profile, digest, operation inventory, generation
   minco-http/       Axum/Tower middleware, principal, RFC 9457 errors
@@ -369,7 +371,9 @@ then use the facade/stability matrix in
 ## Crates.io release preparation
 
 Minco uses a lock-step release family. The published `0.3.1` release contains
-24 publishable packages, unchanged from `0.3.0`.
+24 packages, unchanged from `0.3.0`. Current source adds `minco-config` as a
+25th publication candidate for the next compatible release; it is not registry
+proof.
 Static metadata and dependency validation can run without Cargo:
 
 ```bash

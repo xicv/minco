@@ -8,6 +8,35 @@ tasks = "tasks"
 plugin_catalog = "plugins/catalog.toml"
 quality = "quality.toml"
 
+[configuration]
+root = "config/environments"
+default_file = "default.toml"
+local_override = ".local.toml"
+environment_prefix = "MINCO_CONFIG__"
+
+[[configuration.fields]]
+key = "application.name"
+kind = "string"
+required = true
+secret = false
+description = "Stable application service name"
+default = "{{PACKAGE}}"
+
+[[configuration.fields]]
+key = "runtime.log_level"
+kind = "string"
+required = true
+secret = false
+description = "Default structured logging filter"
+default = "info"
+
+[[configuration.fields]]
+key = "database.connection"
+kind = "string"
+required = true
+secret = true
+description = "Opaque database connection secret reference"
+
 [architecture]
 domain_roots = ["crates/domain"]
 application_roots = ["crates/application"]

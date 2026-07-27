@@ -17,6 +17,7 @@ include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [features]
 default = ["contract", "http", "default-plugins"]
+config = ["dep:minco-config"]
 contract = ["dep:minco-contract"]
 http = ["dep:minco-http"]
 plan = ["dep:minco-plan", "contract"]
@@ -65,6 +66,7 @@ aws-adapters = ["dep:minco-aws-adapters", "minco-aws-adapters/full"]
 aws-lambda = ["dep:minco-aws-lambda", "http"]
 aws-worker = ["dep:minco-aws-worker"]
 full = [
+  "config",
   "contract",
   "http",
   "plan",
@@ -79,6 +81,7 @@ full = [
 ]
 
 [dependencies]
+minco-config = { workspace = true, optional = true }
 minco-core.workspace = true
 minco-contract = { workspace = true, optional = true }
 minco-http = { workspace = true, optional = true }

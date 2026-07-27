@@ -67,6 +67,13 @@ impl DatabaseChoice {
             Self::Sqlite => "DATABASE_PATH=var/app.db",
         }
     }
+
+    const fn database_secret_reference(self) -> &'static str {
+        match self {
+            Self::Postgres => "env:DATABASE_URL",
+            Self::Sqlite => "env:DATABASE_PATH",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -126,6 +133,14 @@ const COMMON_TEMPLATES: &[Template] = &[
     Template {
         path: "minco.toml",
         source: include_str!("../templates/app/minco.toml.tmpl"),
+    },
+    Template {
+        path: "config/environments/default.toml",
+        source: include_str!("../templates/app/config/environments/default.toml.tmpl"),
+    },
+    Template {
+        path: "config/environments/dev.toml",
+        source: include_str!("../templates/app/config/environments/dev.toml.tmpl"),
     },
     Template {
         path: "quality.toml",
@@ -247,6 +262,10 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
         ("{{DB_FEATURE}}", options.database.feature()),
         ("{{MIGRATION_DIR}}", options.database.migration_directory()),
         ("{{DATABASE_ENV}}", options.database.database_env()),
+        (
+            "{{DATABASE_SECRET_REFERENCE}}",
+            options.database.database_secret_reference(),
+        ),
     ]);
 
     for template in COMMON_TEMPLATES {
@@ -309,6 +328,7 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
             format!("cd {}", directory.display()),
             "cp .env.example .env".into(),
             "cargo minco doctor".into(),
+            "cargo minco config check".into(),
             "cargo minco contract sync --check".into(),
             "cargo minco check --with-cargo".into(),
             format!(

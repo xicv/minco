@@ -2,6 +2,7 @@
 /.env
 /.env.*
 !/.env.example
+/examples/orders/config/environments/.local.toml
 /.jj/
 /infra/aws/.aws-sam/
 /infra/aws/generated/*.packaged.yaml

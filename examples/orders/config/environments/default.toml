@@ -1,0 +1,7 @@
+schema = 1
+
+[values.application]
+name = "minco-orders"
+
+[values.runtime]
+log_level = "info"
