@@ -1,7 +1,7 @@
 # Incrementally adopting Minco
 
 Published baseline: `0.3.0`
-Current workspace version: `0.3.0`
+Current workspace version: `0.3.1`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -125,6 +125,16 @@ facade. Verify the resolved graph in the consuming application with
 
 Catalog `kind` distinguishes true plugins from adapters and runtimes. Catalog
 stability is validated against runtime descriptors for true plugins.
+
+## Upgrade notes: `0.3.0` to `0.3.1`
+
+- A Feedback configuration with `max_attachments = 0` is now enforced as a
+  text-only profile in both the widget and multipart request validation.
+- PostgreSQL-only consumers no longer resolve SQLite SQLx packages, and
+  SQLite-only consumers no longer resolve PostgreSQL SQLx packages. Memory and
+  no-default consumers remain SQLx-free.
+- Public Rust APIs and serialized contracts are unchanged. The multi-runtime
+  Plan IR redesign is not part of this patch.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

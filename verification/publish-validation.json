@@ -33,7 +33,7 @@
     "package_test_packages": [
       "minco-contract"
     ],
-    "workspace_version": "0.3.0",
+    "workspace_version": "0.3.1",
     "workspace_packages": 29,
     "publishable_packages": 24,
     "private_packages": 5,

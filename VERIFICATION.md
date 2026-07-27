@@ -1,10 +1,30 @@
 # Minco verification and release evidence
 
 Date: 2026-07-27
-Current workspace version: `0.3.0`
+Current workspace version: `0.3.1`
 Published baseline: `0.3.0`
-Purpose: preserve the published `M8` compiler/package evidence and define the
-`0.3.0` plugin-provenance release boundary without rewriting release history.
+Purpose: preserve published `M8` evidence and define the separately qualified
+`0.3.1` patch-release boundary without rewriting release history.
+
+## `0.3.1` release candidate
+
+The patch candidate contains the text-only Feedback boundary merged in PR #15
+and exact SQLx backend feature isolation merged in PR #16. It changes no public
+Rust API or serialized contract shape and retains the same 24-package release
+inventory as `0.3.0`. The larger multi-runtime Plan IR redesign remains outside
+this release and is tracked separately as M6-T10.
+
+The source-fix merge commit is
+`cd679c74d44e04abe1655b71c8ca9b9381aa6f6b`. Hosted run
+`30247725599` passed authoritative quality, the Chromium/Firefox Feedback
+matrix, all-package publication dry run, Rustack/SSM conformance, and Orders
+E2E on that exact merged `main` source before this release change began.
+
+Workspace version, versioned internal dependencies, Cargo.lock, changelog,
+release instructions, repository truth, task evidence, and deterministic
+source evidence are advanced together in M8-T06. Registry publication remains
+separate proof: `0.3.1` is not considered published until the exact tag and all
+24 independent crates.io records are verified.
 
 ## `0.3.0` release boundary
 

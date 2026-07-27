@@ -1,11 +1,12 @@
 schema = 1
-workspace_version = "0.3.0"
+workspace_version = "0.3.1"
 published_baseline = "0.3.0"
 published_package_count = 24
 adoption_gate_task = "M6-T07"
 
-# The 0.3.0 release changes public plugin-registration APIs from 0.2.0 and
-# retains the same 24-package graph.
+# The 0.3.1 candidate is patch-compatible with 0.3.0 and retains the same
+# 24-package graph. The independently verified published baseline remains
+# 0.3.0 until registry publication completes.
 publishable_package_count = 24
 
 [budgets]

@@ -5,8 +5,13 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-27
+
 ### Fixed
 
+- Enforced the Feedback text-only profile when `max_attachments = 0`: the
+  widget hides screenshot, file and voice controls, and the server rejects
+  multipart attachment fields without changing the JSON submission contract.
 - Isolated SQLx PostgreSQL and SQLite backend features so PostgreSQL-only
   Feedback and Orders consumers no longer compile `sqlx-sqlite` or
   `libsqlite3-sys`, while SQLite-only consumers no longer compile
@@ -14,6 +19,13 @@ Semantic Versioning once public releases begin.
 - Added a complete normal/build dependency-graph regression covering Feedback,
   the official SQLx extensions, the Orders adapter/service, memory/no-default
   surfaces, and the deliberate all-backend workspace build.
+
+### Compatibility boundary
+
+This patch preserves the public Rust API and serialized contracts of `0.3.0`.
+It tightens an existing zero-attachment configuration boundary and removes
+unselected database backends from Cargo dependency graphs. The lock-step
+package inventory remains 24 crates.
 
 ## [0.3.0] - 2026-07-27
 
