@@ -77,12 +77,14 @@ milestones:
   name: Two-application stabilization
   status: planned
   depends_on:
-  - M6
-  outcome: GarmentIQ and CGSP consume Minco vertical slices before public APIs are stabilized.
+  - M9
+  - M10
+  outcome: Evidence from bounded GarmentIQ and CGSP Minco slices informs the compatibility freeze without adding
+    product concepts to the framework.
   exit_criteria:
-  - At least one real slice from each application uses Minco.
+  - At least one separately authorized real slice from each application uses Minco.
   - Framework APIs encode no product-specific business concepts.
-  - Upgrade and compatibility policy is documented.
+  - Adoption gaps are fixed in bounded Minco tasks or retained as explicit application policy.
 - id: M8
   name: Cargo publication and ecosystem bootstrap
   status: active
@@ -96,3 +98,51 @@ milestones:
   - The facade feature matrix, workspace tests, documentation, and cargo publish dry-run pass on Rust 1.97.1.
   - The first release is uploaded in dependency order and trusted publishing is configured only after ownership
     exists.
+- id: M9
+  name: Application lifecycle and developer experience
+  status: active
+  depends_on:
+  - M4
+  outcome: One graph-driven control plane covers typed configuration, database lifecycle, safe seeders, local
+    development, vertical-slice generation, and compatibility reporting.
+  exit_criteria:
+  - Generated PostgreSQL and SQLite applications complete the documented local golden path.
+  - Configuration, migration, seed, and process plans are strict, redacted, deterministic, and inspectable.
+  - Generators produce reviewed structure and failing tests without fake business behavior.
+- id: M10
+  name: Safe deployment controller
+  status: planned
+  depends_on:
+  - M5
+  - M9
+  outcome: Operators preview, apply, verify, promote, and assess rollback of one exact release through guarded
+    deployment and database stages.
+  exit_criteria:
+  - Account, region, environment, change-set, migration, and destructive-action guards fail closed.
+  - Deployment and promotion use a verified exact artifact and emit durable receipts.
+  - Bounded real-AWS rehearsal proves hosted verification and rollback behavior.
+- id: M11
+  name: Plugin ecosystem and documentation
+  status: planned
+  depends_on:
+  - M9
+  - M10
+  outcome: A versioned documentation product and public conformance workflow make Minco and its static plugin
+    ecosystem discoverable without runtime package discovery.
+  exit_criteria:
+  - Tutorials, how-to guides, reference, and explanations are versioned, searchable, and checked.
+  - Official and third-party-style plugins pass the same public conformance kit.
+  - Package, feature, plugin, CLI, and diagnostic references derive from authoritative metadata.
+- id: M12
+  name: AI workbench and 1.0 preparation
+  status: planned
+  depends_on:
+  - M7
+  - M10
+  - M11
+  outcome: Stable local AI tooling, multi-application adoption evidence, an explicit compatibility freeze, and
+    release gates produce a credible Minco 1.0 candidate.
+  exit_criteria:
+  - Local read-only MCP and workbench surfaces expose bounded redacted graph and evidence models.
+  - Public Rust APIs, Cargo features, CLI, configuration, Plan IR, and plugin contracts are audited and frozen.
+  - Security, recovery, load, documentation, package, and release gates pass on the exact candidate.

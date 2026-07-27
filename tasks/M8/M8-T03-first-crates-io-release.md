@@ -1,6 +1,6 @@
 ---
 id: M8-T03
-title: Publish Minco 0.1.0 and configure trusted publishing
+title: Complete crates.io ownership and trusted publishing
 milestone: M8
 status: active
 priority: critical
@@ -13,30 +13,33 @@ owned_paths:
   - docs/development/publishing.md
   - .github/workflows/publish-crates.yml
 checks:
-  - python3 scripts/validate_publish.py --expect-unpublished --require-registry
-  - scripts/release/publish.sh --execute
+  - uv run --locked python scripts/validate_publish.py --check-registry --require-registry
+  - scripts/release/publish.sh --skip-quality
+  - gh workflow view publish-crates.yml
 ---
 
 ## Goal
 
-Publish the first immutable crate-family release from the reviewed `v0.1.0`
-tag, verify every package on crates.io and docs.rs, add co-maintainer ownership,
-and then configure the protected GitHub OIDC trusted publisher.
+Complete the remaining ecosystem-resilience work after the successful 0.1.0,
+0.1.1, 0.2.0, 0.3.0, and 0.3.1 releases: add trusted co-maintainer or restricted
+team ownership to every current package and configure the protected GitHub OIDC
+trusted publisher.
 
 ## Safety
 
-Crates.io uploads are permanent. Recheck name availability immediately before
-the first upload, publish only from the tagged release, and never attempt to
-replace an accepted version after a partial multi-package failure.
+Crates.io ownership and publisher changes affect every future release. Resolve
+the exact 24-package inventory from workspace metadata, verify the requested
+owner/team and protected GitHub environment, and keep upload testing dry-run
+unless a separate release task explicitly authorizes publication.
 
 ## Progress
 
-All 14 Minco packages were published at `0.1.0` on 2026-07-24 under owner
-`xicv`. Public installation succeeds. The `cargo-minco` archive is usable but
-its docs.rs build exposed the missing library documentation target tracked by
-`M8-T04`. Co-maintainer ownership and protected OIDC trusted publishing remain
-open, so this task stays active.
+The 0.3.1 lock-step family contains 24 published packages owned by `xicv`.
+Checksums, non-yanked state, external consumer installation, CLI installation,
+and docs.rs routes are recorded in `VERIFICATION.md`. Co-maintainer/team
+ownership and protected OIDC trusted publishing remain open, so this task stays
+active.
 
-The follow-up `0.1.1` release completed in `M8-T05`; all 14 documentation
-routes, including the new `cargo_minco` library target, are public. This does
-not close the remaining co-maintainer and trusted-publisher work.
+No crate upload is required to close the ownership/configuration work. A later
+release must independently qualify the exact tag and may use the trusted
+publisher only after its configuration is verified.

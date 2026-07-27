@@ -153,26 +153,29 @@ preserves the `0.1.x` evidence and records the current `0.2.0` boundary.
 ## Adoption footprint measurements
 
 The durable machine-readable comparison is
-`verification/adoption-measurements.json`. Both revisions were measured on the
-same pinned Rust/Cargo toolchain from isolated cold targets.
+`verification/adoption-measurements.json`. Dependency trees and native ARM64
+artifacts were measured on the same pinned Rust/Cargo toolchain from isolated
+cold targets.
 
 | Facade selection | Baseline packages / feature lines | Candidate packages / feature lines |
 |---|---:|---:|
 | no default features | 16 / 81 | 16 / 81 |
 | default features | 105 / 820 | 105 / 820 |
 | `official-plugins` | 118 / 1040 | 118 / 1040 |
-| all features | 290 / 3351 | 298 / 3426 |
+| all features | 290 / 3351 | 298 / 3424 |
 
 The no-default, default and official-plugin surfaces do not grow. The
 all-feature graph adds eight packages for the opt-in SQS Lambda runtime. Cold
-default builds measured 10.23 seconds at baseline and 10.15 seconds for the
-candidate; the all-feature increments measured 48.87 and 40.72 seconds. These
-single local wall-clock samples are observational and are not CI budgets.
+baseline default and all-feature-increment builds measured 10.23 and 48.87
+seconds. The current candidate report does not record corresponding general
+build timings. Its isolated native ARM64 artifact builds recorded 21.15 seconds
+for the Orders Lambda and 5.88 seconds for the SQS worker. These single local
+wall-clock samples are observational and are not CI budgets.
 
 The baseline Orders ARM64 Lambda ZIP was 5,013,002 compressed bytes and
-11,000,744 uncompressed bytes. The candidate ZIP measured 5,028,504 compressed
-bytes and 11,043,648 uncompressed bytes, a 15,502-byte (0.3092%) compressed
-increase. The new opt-in SQS worker ZIP measured 573,418 compressed and
+11,000,744 uncompressed bytes. The candidate ZIP measured 5,030,945 compressed
+bytes and 11,047,008 uncompressed bytes, a 17,943-byte (0.3579%) compressed
+increase. The new opt-in SQS worker ZIP measured 573,415 compressed and
 1,203,520 uncompressed bytes. The candidate report records exact SHA-256
 digests for both ZIPs in addition to their compressed/uncompressed sizes.
 `cargo-bloat` and `cargo-llvm-lines` were unavailable.
