@@ -14,6 +14,7 @@ owned_paths:
   - extensions/minco-sqlx-postgres/Cargo.toml
   - extensions/minco-sqlx-sqlite/Cargo.toml
   - examples/orders/adapters/Cargo.toml
+  - examples/orders/service/Cargo.toml
   - scripts/test/sqlx_feature_isolation.sh
   - scripts/quality.sh
   - CHANGELOG.md
@@ -28,6 +29,8 @@ checks:
   - cargo test -p minco-plugin-feedback --no-default-features --features sqlite --locked
   - cargo check -p orders-adapters --no-default-features --features postgres --locked
   - cargo check -p orders-adapters --no-default-features --features sqlite --locked
+  - cargo check -p orders-service --no-default-features --features postgres --locked
+  - cargo check -p orders-service --no-default-features --features sqlite --locked
   - ./scripts/quality.sh
 ---
 
@@ -53,6 +56,8 @@ boundary.
   features that require them;
 - retain one SQLx version and Cargo feature unification when both databases are
   deliberately selected;
+- make both the Orders adapter and service dependencies feature-gated so the
+  reference application proves the complete consumer graph;
 - do not change persistence traits, migrations, database behavior, or public
   Rust APIs;
 - do not represent DynamoDB as a relational SQLx backend.
@@ -63,7 +68,7 @@ boundary.
   `libsqlite3-sys`;
 - Feedback `sqlite` contains `sqlx-sqlite` and excludes `sqlx-postgres`;
 - official PostgreSQL and SQLite extensions retain only their selected backend;
-- the Orders reference adapter retains the same isolation;
+- the complete Orders adapter and service graphs retain the same isolation;
 - focused compile/test gates and the complete quality gate pass on the pinned
   toolchain;
 - `Cargo.lock` is unchanged unless Cargo proves a legitimate resolution change;
