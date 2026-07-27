@@ -53,7 +53,7 @@ class RepositoryTruthTests(unittest.TestCase):
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text().replace(
-                'workspace_version = "0.3.0"',
+                'workspace_version = "0.3.1"',
                 'workspace_version = "9.9.9"',
             )
         )

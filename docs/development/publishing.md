@@ -4,12 +4,12 @@ Minco is released as a lock-step crate family. The `minco` facade is the normal
 application dependency; the smaller crates remain independently usable for
 applications that need a narrower dependency graph.
 
-## Published releases and current workspace
+## Published baseline and current release candidate
 
-The `0.3.0` release contains the same lock-step 24-package inventory as
-`0.2.0`. A workspace version or source tag is not registry proof: release
-status must be verified independently against the exact crates.io records. The
-package inventory is derived from
+The published `0.3.0` release and the `0.3.1` patch candidate contain the same
+lock-step 24-package inventory. A workspace version or source tag is not
+registry proof: release status must be verified independently against the
+exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
@@ -130,9 +130,9 @@ For an authenticated release:
    qualified SHA using JJ:
 
    ```bash
-   jj tag set v0.3.0 -r <qualified-main-sha>
+   jj tag set v0.3.1 -r <qualified-main-sha>
    jj git export
-   git push origin refs/tags/v0.3.0
+   git push origin refs/tags/v0.3.1
    ```
 
 5. Confirm the remote tag resolves to the qualified `main` SHA, then publish
