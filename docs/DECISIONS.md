@@ -21,3 +21,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0015](adrs/0015-exact-http-policy-and-explicit-workers.md) | Merge exact application/plugin HTTP policy and keep SQS workers opt-in, bounded and unscheduled. | Accepted |
 | [ADR-0016](adrs/0016-explicit-openapi-policy-exceptions.md) | Keep OpenAPI exceptions explicit and validate effective idempotency and security semantics. | Accepted |
 | [ADR-0017](adrs/0017-bounded-plugin-registration-provenance.md) | Retain metadata-only application/plugin ownership for typed registrations without exposing values or permitting owner spoofing. | Accepted |
+| [ADR-0018](adrs/0018-framework-golden-path.md) | Define Minco by a five-plane contract-to-cloud golden path and measurable 1.0 completion boundary. | Accepted |

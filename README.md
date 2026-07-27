@@ -6,11 +6,14 @@
 
 <p align="center"><strong>Minimal cost, maximum capability.</strong></p>
 
-Minco is a contract-first, AI-native, AWS-native Rust framework for modular API
-backends. Business logic stays in ordinary Rust; OpenAPI is canonical; plugins
-are statically linked and explicitly selected; SQL remains visible; one
-application/deployment graph drives local development, cost analysis and AWS
-planning.
+Minco is the contract-to-cloud framework for building, operating and evolving
+low-idle-cost Rust web applications through one inspectable application graph.
+Business logic stays in ordinary Rust; OpenAPI is canonical; plugins are
+statically linked and explicitly selected; SQL remains visible; the graph
+connects code, capabilities, resources, cost, deployment and evidence.
+
+The accepted product definition, golden path and 1.0 completion boundary are in
+[`docs/vision/minco-framework-definition.md`](docs/vision/minco-framework-definition.md).
 
 The default AWS profile uses API Gateway HTTP API and one native ARM64 Lambda
 ZIP. It contains no provisioned concurrency, NAT Gateway, scheduled poller or
@@ -112,10 +115,13 @@ plugins/
   minco-plugin-notifications/   email, webhook, in-app and developer notices
   minco-plugin-audit/           append-only business audit port
   minco-plugin-feedback/        widget, screenshots, voice, discussion and AI handoff
+  minco-plugin-static-site/     static-site deployment intent
 extensions/
   minco-sqlx-postgres/
   minco-sqlx-sqlite/
+  minco-aws-adapters/
   minco-aws-lambda/
+  minco-aws-worker/
 examples/orders/
   domain/ application/ adapters/ api/ service/
   openapi/ migrations/ config/
@@ -244,7 +250,7 @@ constructed. Third-party plugins use the public `minco-core::Plugin`, descriptor
 
 ### Feedback plugin
 
-The official beta Feedback plugin provides a configurable floating action
+The official stable Feedback plugin provides a configurable floating action
 button, browser-authorized screenshots, file attachments, optional voice
 recording/transcription, client/developer discussion, explicit clarification and
 development states, PostgreSQL/SQLite persistence, notifications, audit/events,

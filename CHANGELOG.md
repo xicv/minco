@@ -5,6 +5,19 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+### Documentation
+
+- Defined Minco's five-plane contract-to-cloud product identity, developer and
+  deployment golden paths, measurable 1.0 completion boundary, explicit
+  non-goals, and M9-M12 framework-completion program.
+- Added the target Diátaxis information architecture without moving existing
+  pages ahead of deterministic link and snippet validation.
+- Corrected README drift against authoritative metadata: Feedback is stable,
+  and the source inventory includes the static-site plugin, AWS adapters, and
+  SQS worker runtime.
+- Reconciled the adoption-measurement narrative with the authoritative current
+  dependency, timing, and Lambda artifact report.
+
 ## [0.3.1] - 2026-07-27
 
 ### Fixed

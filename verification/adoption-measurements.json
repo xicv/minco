@@ -67,7 +67,7 @@
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:192803847ccb6519e5e3dc8f23b70e3828571fef213a035c4ff2e7fd6be97eac"
+    "revision": "source-tree-sha256:3dfec6747cf07a070e1fe5837358b044a5fda3211127942cd0cbeac3b154b208"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 8,
@@ -80,7 +80,8 @@
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",
     "cargo-bloat available: False; cargo-llvm-lines available: False.",
-    "The SQS worker is new in the candidate, so no baseline worker artifact exists."
+    "The SQS worker is new in the candidate, so no baseline worker artifact exists.",
+    "M9-T01 carries the existing runtime, dependency, and artifact observations forward because it changes only documentation, task metadata, and generated repository evidence; Cargo manifests, Cargo.lock, Rust source, Plan IR, SAM, and recorded artifacts are unchanged."
   ],
   "method": {
     "artifacts": "ZIP stat plus uncompressed member-size sum; artifacts are built by cargo lambda build --release --arm64 --output-format zip",

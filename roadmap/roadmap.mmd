@@ -8,6 +8,10 @@ flowchart LR
     NM6["M6<br/>Essential official extensions"]
     NM7["M7<br/>Two-application stabilization"]
     NM8["M8<br/>Cargo publication and ecosystem bootstrap"]
+    NM9["M9<br/>Application lifecycle and developer experience"]
+    NM10["M10<br/>Safe deployment controller"]
+    NM11["M11<br/>Plugin ecosystem and documentation"]
+    NM12["M12<br/>AI workbench and 1.0 preparation"]
     NM0 --> NM1
     NM1 --> NM2
     NM2 --> NM3
@@ -15,5 +19,14 @@ flowchart LR
     NM3 --> NM5
     NM4 --> NM5
     NM5 --> NM6
-    NM6 --> NM7
+    NM9 --> NM7
+    NM10 --> NM7
     NM0 --> NM8
+    NM4 --> NM9
+    NM5 --> NM10
+    NM9 --> NM10
+    NM9 --> NM11
+    NM10 --> NM11
+    NM7 --> NM12
+    NM10 --> NM12
+    NM11 --> NM12
