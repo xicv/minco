@@ -9,8 +9,8 @@ publish = false
 [features]
 default = ["memory"]
 memory = []
-postgres = ["dep:minco-sqlx-postgres"]
-sqlite = ["dep:minco-sqlx-sqlite"]
+postgres = ["dep:minco-sqlx-postgres", "dep:sqlx", "sqlx/postgres"]
+sqlite = ["dep:minco-sqlx-sqlite", "dep:sqlx", "sqlx/sqlite"]
 all-databases = ["postgres", "sqlite"]
 
 [dependencies]
@@ -21,7 +21,7 @@ minco-sqlx-sqlite = { workspace = true, optional = true }
 orders-application.workspace = true
 orders-domain.workspace = true
 serde_json.workspace = true
-sqlx.workspace = true
+sqlx = { workspace = true, optional = true }
 uuid.workspace = true
 
 [dev-dependencies]

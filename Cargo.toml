@@ -105,8 +105,6 @@ subtle = "2.6"
 sqlx = { version = "0.9.0", default-features = false, features = [
   "runtime-tokio",
   "tls-rustls-ring-webpki",
-  "postgres",
-  "sqlite",
   "uuid",
   "chrono",
   "json",
