@@ -335,7 +335,7 @@ components:
         max_screenshot_bytes: {type: integer, minimum: 1}
         max_audio_bytes: {type: integer, minimum: 1}
         max_file_bytes: {type: integer, minimum: 1}
-        max_attachments: {type: integer, minimum: 1, maximum: 8}
+        max_attachments: {type: integer, minimum: 0, maximum: 8}
         max_recording_seconds: {type: integer, minimum: 5, maximum: 300}
         include_url_query: {type: boolean}
         redact_query_parameters: {type: array, items: {type: string}}

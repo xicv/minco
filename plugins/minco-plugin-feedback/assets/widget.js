@@ -405,6 +405,12 @@
       return wrapper;
     }
 
+    attachmentLimit() {
+      return Number.isInteger(this.config.max_attachments)
+        ? this.config.max_attachments
+        : DEFAULT_MAX_ATTACHMENTS;
+    }
+
     renderCreate() {
       this.stopPolling();
       this.files = [];
@@ -429,8 +435,9 @@
       const titleLabel = node('label', {}, 'Title'); titleLabel.append(title);
       const descriptionLabel = node('label', {}, 'Feedback'); descriptionLabel.append(description);
       const actionRow = node('div', { class: 'actions' });
+      const attachmentsEnabled = this.attachmentLimit() > 0;
 
-      if (this.config.screenshot_enabled) {
+      if (attachmentsEnabled && this.config.screenshot_enabled) {
         const screenshot = node('button', { type: 'button' }, 'Capture screenshot');
         screenshot.addEventListener('click', () => this.captureScreenshot());
         actionRow.append(screenshot);
@@ -442,13 +449,15 @@
         actionRow.append(upload, input);
       }
 
-      const attach = node('button', { type: 'button' }, 'Attach file');
-      const fileInput = node('input', { type: 'file', multiple: 'multiple', class: 'hidden' });
-      fileInput.addEventListener('change', () => this.addFiles(fileInput.files || [], 'file'));
-      attach.addEventListener('click', () => fileInput.click());
-      actionRow.append(attach, fileInput);
+      if (attachmentsEnabled) {
+        const attach = node('button', { type: 'button' }, 'Attach file');
+        const fileInput = node('input', { type: 'file', multiple: 'multiple', class: 'hidden' });
+        fileInput.addEventListener('change', () => this.addFiles(fileInput.files || [], 'file'));
+        attach.addEventListener('click', () => fileInput.click());
+        actionRow.append(attach, fileInput);
+      }
 
-      if (this.config.voice_enabled && window.MediaRecorder && navigator.mediaDevices?.getUserMedia) {
+      if (attachmentsEnabled && this.config.voice_enabled && window.MediaRecorder && navigator.mediaDevices?.getUserMedia) {
         this.voiceButton = node('button', { type: 'button' }, 'Record voice');
         this.voiceButton.addEventListener('click', () => this.toggleVoice(description));
         actionRow.append(this.voiceButton);
@@ -528,8 +537,9 @@
 
     addFiles(files, field) {
       for (const file of files) {
-        if (this.files.length + (this.audioBlob ? 1 : 0) >= (this.config.max_attachments || DEFAULT_MAX_ATTACHMENTS)) {
-          this.status(`No more than ${this.config.max_attachments || DEFAULT_MAX_ATTACHMENTS} attachments are allowed.`, true);
+        const attachmentLimit = this.attachmentLimit();
+        if (this.files.length + (this.audioBlob ? 1 : 0) >= attachmentLimit) {
+          this.status(`No more than ${attachmentLimit} attachments are allowed.`, true);
           break;
         }
         const maximum = field === 'screenshot'
@@ -581,8 +591,9 @@
         this.status('Screen capture is not supported by this browser. Choose an image instead.', true);
         return;
       }
-      if (this.files.length + (this.audioBlob ? 1 : 0) >= (this.config.max_attachments || DEFAULT_MAX_ATTACHMENTS)) {
-        this.status(`No more than ${this.config.max_attachments || DEFAULT_MAX_ATTACHMENTS} attachments are allowed.`, true);
+      const attachmentLimit = this.attachmentLimit();
+      if (this.files.length + (this.audioBlob ? 1 : 0) >= attachmentLimit) {
+        this.status(`No more than ${attachmentLimit} attachments are allowed.`, true);
         return;
       }
       this.status('Choose the tab or window you want to capture.');
@@ -639,8 +650,9 @@
         this.mediaRecorder.stop();
         return;
       }
-      if (this.files.length + (this.audioBlob ? 1 : 0) >= (this.config.max_attachments || DEFAULT_MAX_ATTACHMENTS)) {
-        this.status(`No more than ${this.config.max_attachments || DEFAULT_MAX_ATTACHMENTS} attachments are allowed.`, true);
+      const attachmentLimit = this.attachmentLimit();
+      if (this.files.length + (this.audioBlob ? 1 : 0) >= attachmentLimit) {
+        this.status(`No more than ${attachmentLimit} attachments are allowed.`, true);
         return;
       }
       try {

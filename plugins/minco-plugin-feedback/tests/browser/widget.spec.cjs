@@ -869,6 +869,25 @@ test('rejects attachments beyond the configured count before submission', async 
   expect(runtime.submissions).toHaveLength(0);
 });
 
+test('hides attachment controls when the configured count is zero', async ({ page }) => {
+  await installSuccessfulMediaMocks(page, { microphone: true });
+  const { widget } = await loadWidget(page, {
+    config: { max_attachments: 0 },
+  });
+  await widget.getByRole('button', { name: 'Share feedback' }).click();
+  const dialog = widget.getByRole('dialog');
+
+  await expect(
+    dialog.getByRole('button', { name: 'Capture screenshot' }),
+  ).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Attach file' })).toHaveCount(
+    0,
+  );
+  await expect(dialog.getByRole('button', { name: 'Record voice' })).toHaveCount(
+    0,
+  );
+});
+
 test('rejects an oversized attachment before submission', async ({ page }) => {
   const { runtime, widget } = await loadWidget(page, {
     config: { max_file_bytes: 4 },

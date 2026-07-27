@@ -109,7 +109,9 @@ let router = compose_plugin_http(
 `compose_plugin_http` is important: it merges the statically contributed routes
 and raises the global body ceiling to the plugin's configured aggregate upload
 limit. Route handlers still enforce attachment count, media class, and per-file
-limits.
+limits. Set `max_attachments` to zero for a text-only profile: the bundled widget
+hides screenshot, file, and voice controls, and the server rejects multipart
+attachment fields.
 
 Production applications should replace memory implementations with durable
 adapters. `developer_token` is an operator fallback for local or narrowly
