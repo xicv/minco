@@ -1,6 +1,6 @@
 # Incrementally adopting Minco
 
-Published baseline: `0.3.0`
+Published baseline: `0.3.1`
 Current workspace version: `0.3.1`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
@@ -13,7 +13,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "0.3.0", default-features = false, features = ["contract"] }
+minco = { version = "0.3.1", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic

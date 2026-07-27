@@ -4,12 +4,12 @@ Minco is released as a lock-step crate family. The `minco` facade is the normal
 application dependency; the smaller crates remain independently usable for
 applications that need a narrower dependency graph.
 
-## Published baseline and current release candidate
+## Published baseline and release inventory
 
-The published `0.3.0` release and the `0.3.1` patch candidate contain the same
-lock-step 24-package inventory. A workspace version or source tag is not
-registry proof: release status must be verified independently against the
-exact crates.io records. The package inventory is derived from
+The published `0.3.1` patch release retains the lock-step 24-package inventory
+from `0.3.0`. A workspace version or source tag is not registry proof: release
+status must be verified independently against the exact crates.io records. The
+package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
