@@ -8,7 +8,7 @@
     "errors": 0,
     "warnings": 0,
     "metrics": {
-      "toml_files": 66,
+      "toml_files": 68,
       "yaml_files": 18,
       "json_files": 13,
       "workspace_members": 31,
@@ -18,10 +18,10 @@
       "plugins": 16,
       "milestones": 13,
       "tasks": 56,
-      "rust_files": 103,
+      "rust_files": 109,
       "python_files": 16,
       "shell_files": 34,
-      "implementation_files_scanned": 241
+      "implementation_files_scanned": 257
     },
     "findings": [],
     "limitations": [
@@ -30,11 +30,11 @@
     ]
   },
   "metrics": {
-    "rust_files": 103,
-    "rust_lines": 36303,
-    "unsafe_tokens": 5,
+    "rust_files": 109,
+    "rust_lines": 39155,
+    "unsafe_tokens": 7,
     "production_unwrap_expect": 105,
-    "sql_files": 6
+    "sql_files": 14
   },
   "findings": [
     {

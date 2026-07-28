@@ -13,7 +13,7 @@ readme = "README.md"
 keywords = ["minco", "cargo", "openapi", "aws", "serverless"]
 categories = ["command-line-utilities", "development-tools"]
 publish = ["crates-io"]
-include = ["src/**", "templates/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "templates/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 default-run = "cargo-minco"
 [[bin]]
 name = "cargo-minco"

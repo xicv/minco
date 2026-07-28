@@ -57,3 +57,8 @@ assert!(missing.is_empty());
 The adapter revalidates backend, SQL identifiers, project containment and
 resolved SQLx checksums immediately before execution. SQLx's PostgreSQL
 advisory migration lock remains enabled for the whole run.
+
+Validated `minco_db::SeedPlan` values execute with backend-specific SQL. A
+required plan uses one transaction; source digests are rechecked before that
+transaction starts. `verify_seed_plan` runs every declared boolean check in a
+read-only PostgreSQL transaction.

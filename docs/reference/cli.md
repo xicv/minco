@@ -125,6 +125,13 @@ cargo minco db status [--set ID --database-url-env NAME]
 cargo minco db verify [--set ID --database-url-env NAME]
 cargo minco db migrate --set ID --database-url-env NAME
   --expected-plan-digest SHA256 --receipt PATH [--allow-destructive]
+cargo minco db seed --profile CLASS [--environment ENV] [--set ID] --dry-run
+cargo minco db seed --verify
+cargo minco db seed --verify --profile CLASS [--environment ENV] --set ID
+  --database-url-env NAME
+cargo minco db seed --profile CLASS [--environment ENV] --set ID
+  --database-url-env NAME --expected-plan-digest SHA256 --receipt PATH
+  [--allow-destructive] [--authorize-bootstrap ENV]
 cargo minco release create --artifact PATH [--plan PATH] [--output PATH]
 cargo minco release verify <manifest>
 ```
@@ -135,6 +142,13 @@ are not command-line arguments or JSON fields. `migrate` requires the exact
 reviewed plan digest and reserves a new project-contained receipt before
 mutation. See
 [`../deployment/database-lifecycle.md`](../deployment/database-lifecycle.md).
+
+Seed classes are `reference`, `demo`, `test` and `bootstrap`; the default
+environment is `local`. Production rejects demo/test seeds throughout the
+dependency closure. Source verification is target-free. Target verification
+and execution require a selected set and a named URL environment variable;
+execution also requires the reviewed plan digest and a new receipt. Bootstrap
+execution requires `--authorize-bootstrap` with the exact selected environment.
 
 ## Update
 

@@ -26,6 +26,8 @@ pub struct MincoManifest {
     #[serde(default)]
     pub migrations: MigrationManifest,
     #[serde(default)]
+    pub seeds: SeedManifest,
+    #[serde(default)]
     pub commands: CommandManifest,
     #[serde(default)]
     pub plugins: PluginSelectionFile,
@@ -83,6 +85,12 @@ pub struct OperationTrace {
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
 pub struct MigrationManifest {
+    #[serde(default)]
+    pub roots: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
+pub struct SeedManifest {
     #[serde(default)]
     pub roots: Vec<PathBuf>,
 }

@@ -39,6 +39,13 @@ impl DatabaseChoice {
         }
     }
 
+    const fn seed_directory(self) -> &'static str {
+        match self {
+            Self::Postgres => "seeds/postgres",
+            Self::Sqlite => "seeds/sqlite",
+        }
+    }
+
     const fn environment_template(self) -> &'static str {
         match self {
             Self::Postgres => include_str!("../templates/app/environments/dev-postgres.toml.tmpl"),
@@ -317,6 +324,24 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
         include_str!("../templates/app/migrations/.minco-migrations.toml.tmpl"),
         &replacements,
     )?;
+    write_rendered(
+        &directory,
+        &format!("{}/.minco-seeds.toml", options.database.seed_directory()),
+        include_str!("../templates/app/seeds/.minco-seeds.toml.tmpl"),
+        &replacements,
+    )?;
+    write_rendered(
+        &directory,
+        &format!("{}/demo.sql", options.database.seed_directory()),
+        include_str!("../templates/app/seeds/demo.sql.tmpl"),
+        &replacements,
+    )?;
+    write_rendered(
+        &directory,
+        &format!("{}/demo.verify.sql", options.database.seed_directory()),
+        include_str!("../templates/app/seeds/demo.verify.sql.tmpl"),
+        &replacements,
+    )?;
 
     let contract = load_contract(directory.join("openapi/openapi.yaml"))?;
     if !contract.is_valid() {
@@ -358,6 +383,11 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
             "cargo minco check --with-cargo".into(),
             format!(
                 "cargo minco db plan --set {}-{} --json",
+                options.name,
+                options.database.as_str()
+            ),
+            format!(
+                "cargo minco db seed --profile demo --environment local --set {}-{}-seeds --dry-run --json",
                 options.name,
                 options.database.as_str()
             ),
@@ -469,6 +499,16 @@ mod tests {
             .expect("load generated lifecycle catalog");
         assert_eq!(catalog.sets[0].id, "example-api-postgres");
         assert_eq!(catalog.sets[0].history_table, "_example_api_migrations");
+        let seeds = minco_db::load_seed_catalog(&destination, &[PathBuf::from("seeds/postgres")])
+            .expect("load generated seed catalog");
+        let seed_plan = minco_db::build_seed_plan(
+            &seeds,
+            minco_db::SeedClass::Demo,
+            minco_db::SeedEnvironment::Local,
+            Some("example-api-postgres-seeds"),
+        )
+        .expect("build generated demo seed plan");
+        assert_eq!(seed_plan.seeds[0].id, "example-api-postgres-demo");
         assert!(
             report
                 .next_commands

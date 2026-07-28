@@ -25,3 +25,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0019](adrs/0019-trigger-aware-multi-runtime-plan.md) | Make worker, queue, mapping, schedule, IAM, local-service and cost topology explicit in Plan IR schema 2. | Accepted |
 | [ADR-0020](adrs/0020-typed-configuration-graph.md) | Compose strict typed environments and opaque secret references with fixed precedence, redacted provenance and deterministic digests. | Accepted |
 | [ADR-0021](adrs/0021-database-migration-lifecycle.md) | Plan, inspect, apply and verify attributable SQLx migration sets through digest-bound commands and durable receipts. | Accepted |
+| [ADR-0022](adrs/0022-classified-safe-seeders.md) | Plan and apply classified, preservation-aware seed sets with environment gates, read-only verification and durable receipts. | Accepted |

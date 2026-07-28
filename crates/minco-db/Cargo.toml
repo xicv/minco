@@ -7,13 +7,13 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Provider-neutral migration plans, status, and verification models for Minco"
+description = "Provider-neutral migration and safe seed lifecycle models for Minco"
 documentation = "https://docs.rs/minco-db"
 readme = "README.md"
-keywords = ["minco", "database", "migration", "sqlx"]
+keywords = ["minco", "database", "migration", "seed", "sqlx"]
 categories = ["database", "development-tools"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [dependencies]
 serde.workspace = true

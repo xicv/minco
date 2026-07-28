@@ -237,6 +237,40 @@ struct DbMigrateArgs {
     allow_destructive: bool,
 }
 
+#[derive(Debug, Clone, Args)]
+struct DbSeedArgs {
+    /// Seed class to plan or apply: reference, demo, test, or bootstrap.
+    #[arg(long)]
+    profile: Option<String>,
+    /// Declared environment class used for the seed allowlist; defaults to local.
+    #[arg(long)]
+    environment: Option<String>,
+    /// Seed set to inspect or apply.
+    #[arg(long)]
+    set: Option<String>,
+    /// Name of the environment variable containing the direct seed database URL.
+    #[arg(long)]
+    database_url_env: Option<String>,
+    /// Digest emitted by the matching seed dry-run.
+    #[arg(long)]
+    expected_plan_digest: Option<String>,
+    /// Durable JSON receipt destination for an applied seed plan.
+    #[arg(long)]
+    receipt: Option<PathBuf>,
+    /// Produce the complete seed plan without connecting or mutating.
+    #[arg(long)]
+    dry_run: bool,
+    /// Verify seed source, or the selected target when a URL environment is provided.
+    #[arg(long)]
+    verify: bool,
+    /// Permit plans containing destructive seed operations.
+    #[arg(long)]
+    allow_destructive: bool,
+    /// Exact environment acknowledgement required for bootstrap execution.
+    #[arg(long)]
+    authorize_bootstrap: Option<String>,
+}
+
 #[derive(Debug, Clone, Subcommand)]
 enum DbCommand {
     Plan {
@@ -246,6 +280,7 @@ enum DbCommand {
     Status(DbTargetArgs),
     Verify(DbTargetArgs),
     Migrate(DbMigrateArgs),
+    Seed(DbSeedArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -1265,6 +1300,61 @@ mod cli_argument_tests {
             })) if set == "orders-sqlite"
                 && database_url_env == "MINCO_TEST_DATABASE_URL"
                 && expected_plan_digest == "abc123"
+        ));
+    }
+
+    #[test]
+    fn seed_commands_make_dry_run_and_bootstrap_authority_explicit() {
+        let demo = Cli::try_parse_from([
+            "cargo-minco",
+            "db",
+            "seed",
+            "--profile",
+            "demo",
+            "--dry-run",
+        ])
+        .expect("demo seed dry-run arguments");
+        assert!(matches!(
+            demo.command,
+            Command::Db(DbCommand::Seed(DbSeedArgs {
+                profile: Some(profile),
+                environment,
+                dry_run: true,
+                ..
+            })) if profile == "demo" && environment.is_none()
+        ));
+
+        let bootstrap = Cli::try_parse_from([
+            "cargo-minco",
+            "db",
+            "seed",
+            "--profile",
+            "bootstrap",
+            "--environment",
+            "production",
+            "--set",
+            "orders-postgres-seeds",
+            "--database-url-env",
+            "MINCO_SEED_DATABASE_URL",
+            "--expected-plan-digest",
+            "abc123",
+            "--receipt",
+            "target/minco/bootstrap-receipt.json",
+            "--authorize-bootstrap",
+            "production",
+        ])
+        .expect("bootstrap seed arguments");
+        assert!(matches!(
+            bootstrap.command,
+            Command::Db(DbCommand::Seed(DbSeedArgs {
+                profile: Some(profile),
+                environment,
+                authorize_bootstrap: Some(authority),
+                dry_run: false,
+                ..
+            })) if profile == "bootstrap"
+                && environment.as_deref() == Some("production")
+                && authority == "production"
         ));
     }
 

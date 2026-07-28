@@ -1,4 +1,4 @@
-//! Provider-neutral database migration lifecycle models.
+//! Provider-neutral database migration and seed lifecycle models.
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,10 @@ use std::{
     path::{Path, PathBuf},
 };
 use thiserror::Error;
+
+mod seed;
+
+pub use seed::*;
 
 pub const MIGRATION_SET_MANIFEST: &str = ".minco-migrations.toml";
 
@@ -107,21 +111,21 @@ pub struct MigrationStatus {
 
 #[derive(Debug, Error)]
 pub enum DbLifecycleError {
-    #[error("migration lifecycle metadata is invalid: {0}")]
+    #[error("database lifecycle metadata is invalid: {0}")]
     Invalid(String),
-    #[error("migration lifecycle I/O failed at {path}: {source}")]
+    #[error("database lifecycle I/O failed at {path}: {source}")]
     Io {
         path: PathBuf,
         #[source]
         source: std::io::Error,
     },
-    #[error("migration lifecycle TOML failed at {path}: {source}")]
+    #[error("database lifecycle TOML failed at {path}: {source}")]
     Toml {
         path: PathBuf,
         #[source]
         source: toml::de::Error,
     },
-    #[error("migration lifecycle serialization failed: {0}")]
+    #[error("database lifecycle serialization failed: {0}")]
     Json(#[from] serde_json::Error),
 }
 
@@ -589,7 +593,7 @@ fn parse_migration_name(file_stem: &str) -> Result<(i64, String), DbLifecycleErr
     Ok((version, description.replace('_', " ")))
 }
 
-fn validate_stable_id(value: &str, description: &str) -> Result<(), DbLifecycleError> {
+pub(crate) fn validate_stable_id(value: &str, description: &str) -> Result<(), DbLifecycleError> {
     let valid = !value.is_empty()
         && value.len() <= 96
         && value
@@ -608,7 +612,7 @@ fn validate_stable_id(value: &str, description: &str) -> Result<(), DbLifecycleE
     Ok(())
 }
 
-fn validate_owner(value: &str) -> Result<(), DbLifecycleError> {
+pub(crate) fn validate_owner(value: &str) -> Result<(), DbLifecycleError> {
     let Some((kind, id)) = value.split_once(':') else {
         return Err(DbLifecycleError::Invalid(format!(
             "migration owner {value:?} must be application:<id> or plugin:<id>"
@@ -638,7 +642,7 @@ fn validate_identifier(value: &str, description: &str) -> Result<(), DbLifecycle
     Ok(())
 }
 
-fn canonicalize(path: &Path) -> Result<PathBuf, DbLifecycleError> {
+pub(crate) fn canonicalize(path: &Path) -> Result<PathBuf, DbLifecycleError> {
     path.canonicalize().map_err(|source| DbLifecycleError::Io {
         path: path.to_path_buf(),
         source,
@@ -652,7 +656,7 @@ fn read_to_string(path: &Path) -> Result<String, DbLifecycleError> {
     })
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 

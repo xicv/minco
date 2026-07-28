@@ -12,8 +12,9 @@ cargo minco doctor
 ```
 
 `cargo minco new` creates a layered, contract-first workspace with a local and
-Lambda composition root, `PostgreSQL` or `SQLite` migration path, quality gates,
-roadmap/tasks, plugin catalog, and JJ initialization by default.
+Lambda composition root, `PostgreSQL` or `SQLite` migration and safe demo-seed
+paths, quality gates, roadmap/tasks, plugin catalog, and JJ initialization by
+default.
 
 The remaining commands operate on a repository containing `minco.toml` and provide
 contract checks and generation, plugin selection and scaffolding, local quality
@@ -46,6 +47,23 @@ Only the environment-variable name appears in arguments; its database URL
 value is not serialized into plans or receipts. See
 `docs/deployment/database-lifecycle.md` in the Minco repository for sidecar
 metadata, locks, risk gates and receipt semantics.
+
+Database seeding is separately classified and digest-bound:
+
+```bash
+cargo minco db seed \
+  --profile demo \
+  --environment local \
+  --set orders-postgres-seeds \
+  --dry-run \
+  --json
+cargo minco db seed --verify --json
+```
+
+Applying a seed plan additionally requires a named database URL environment
+variable, the exact dry-run digest and a new receipt path. Demo/test seeds fail
+closed in production. Bootstrap execution requires an exact environment
+acknowledgement. Target verification is database-enforced read-only.
 
 `cargo minco deploy plan --stdout --json` emits canonical Plan IR without
 writing a repository artifact. Local topology tooling uses this mode so plugin

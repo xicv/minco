@@ -1,11 +1,13 @@
 use super::{
-    DbCommand, DbMigrateArgs, DbTargetArgs, MincoManifest, canonical_json, print_value, vcs,
+    DbCommand, DbMigrateArgs, DbSeedArgs, DbTargetArgs, MincoManifest, canonical_json, print_value,
+    vcs,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Utc};
 use minco_db::{
     DatabaseBackend, MigrationCatalog, MigrationPlan, MigrationRisk, MigrationSet, MigrationState,
-    MigrationStatus, build_plan, compare_target, load_catalog,
+    MigrationStatus, SeedClass, SeedEnvironment, SeedPlan, SeedRisk, SeedTransaction,
+    SeedVerification, build_plan, build_seed_plan, compare_target, load_catalog, load_seed_catalog,
 };
 use serde::Serialize;
 use std::{
@@ -33,6 +35,26 @@ struct SourceVerification<'a> {
     source_verified: bool,
     target_inspected: bool,
     target_verified: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+struct SeedSourceVerification<'a> {
+    schema_version: u32,
+    catalog_digest: &'a str,
+    source_verified: bool,
+    target_inspected: bool,
+    target_verified: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+struct SeedTargetVerification {
+    schema_version: u32,
+    catalog_digest: String,
+    plan_digest: String,
+    selected_set: String,
+    target_inspected: bool,
+    target_verified: bool,
+    verification: Vec<SeedVerification>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -97,6 +119,28 @@ struct MigrationReceipt {
     verification: Vec<SetVerification>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct SeedReceipt {
+    schema_version: u32,
+    receipt_id: String,
+    created_at: DateTime<Utc>,
+    source_change: String,
+    catalog_digest: String,
+    plan_digest: String,
+    selected_set: String,
+    backend: DatabaseBackend,
+    profile: SeedClass,
+    environment: SeedEnvironment,
+    transaction: SeedTransaction,
+    destructive_authorized: bool,
+    bootstrap_authorized: bool,
+    seed_ids: Vec<String>,
+    outcome: ReceiptOutcome,
+    failure_code: Option<String>,
+    target_verified: bool,
+    verification: Vec<SeedVerification>,
+}
+
 enum DatabaseTarget {
     Postgres(minco_sqlx_postgres::PgPool),
     Sqlite {
@@ -112,7 +156,7 @@ impl DatabaseTarget {
                 if !database_url.starts_with("postgres://")
                     && !database_url.starts_with("postgresql://")
                 {
-                    bail!("configured migration target is not a PostgreSQL URL");
+                    bail!("configured database target is not a PostgreSQL URL");
                 }
                 let config = minco_sqlx_postgres::PostgresPoolConfig {
                     url: database_url,
@@ -122,12 +166,12 @@ impl DatabaseTarget {
                 };
                 let pool = minco_sqlx_postgres::connect(&config)
                     .await
-                    .map_err(|_| anyhow!("could not connect to the PostgreSQL migration target"))?;
+                    .map_err(|_| anyhow!("could not connect to the PostgreSQL database target"))?;
                 Ok(Self::Postgres(pool))
             }
             DatabaseBackend::Sqlite => {
                 if !database_url.starts_with("sqlite:") {
-                    bail!("configured migration target is not a SQLite URL");
+                    bail!("configured database target is not a SQLite URL");
                 }
                 let config = minco_sqlx_sqlite::SqlitePoolConfig {
                     url: database_url,
@@ -136,7 +180,7 @@ impl DatabaseTarget {
                 };
                 let pool = minco_sqlx_sqlite::connect(&config)
                     .await
-                    .map_err(|_| anyhow!("could not connect to the SQLite migration target"))?;
+                    .map_err(|_| anyhow!("could not connect to the SQLite database target"))?;
                 Ok(Self::Sqlite { pool, config })
             }
         }
@@ -176,6 +220,32 @@ impl DatabaseTarget {
             }
         }
     }
+
+    async fn apply_seed_plan(&self, root: &Path, plan: &SeedPlan) -> Result<()> {
+        match self {
+            Self::Postgres(pool) => minco_sqlx_postgres::apply_seed_plan(pool, root, plan)
+                .await
+                .map_err(Into::into),
+            Self::Sqlite { pool, .. } => minco_sqlx_sqlite::apply_seed_plan(pool, root, plan)
+                .await
+                .map_err(Into::into),
+        }
+    }
+
+    async fn verify_seed_plan(
+        &self,
+        root: &Path,
+        plan: &SeedPlan,
+    ) -> Result<Vec<SeedVerification>> {
+        match self {
+            Self::Postgres(pool) => minco_sqlx_postgres::verify_seed_plan(pool, root, plan)
+                .await
+                .map_err(Into::into),
+            Self::Sqlite { pool, .. } => minco_sqlx_sqlite::verify_seed_plan(pool, root, plan)
+                .await
+                .map_err(Into::into),
+        }
+    }
 }
 
 pub async fn execute(
@@ -193,6 +263,262 @@ pub async fn execute(
         DbCommand::Status(args) => status(&catalog, args, as_json).await,
         DbCommand::Verify(args) => verify(&catalog, args, as_json).await,
         DbCommand::Migrate(args) => migrate(root, &catalog, args, as_json).await,
+        DbCommand::Seed(args) => seed(root, manifest, args, as_json).await,
+    }
+}
+
+async fn seed(
+    root: &Path,
+    manifest: &MincoManifest,
+    args: DbSeedArgs,
+    as_json: bool,
+) -> Result<()> {
+    let catalog = load_seed_catalog(root, &manifest.seeds.roots)?;
+    if args.verify && args.database_url_env.is_none() {
+        if args.profile.is_some()
+            || args.environment.is_some()
+            || args.set.is_some()
+            || args.expected_plan_digest.is_some()
+            || args.receipt.is_some()
+            || args.dry_run
+            || args.allow_destructive
+            || args.authorize_bootstrap.is_some()
+        {
+            bail!("source seed verification cannot include planning or execution arguments");
+        }
+        return print_value(
+            &SeedSourceVerification {
+                schema_version: 1,
+                catalog_digest: &catalog.digest,
+                source_verified: true,
+                target_inspected: false,
+                target_verified: None,
+            },
+            as_json,
+        );
+    }
+    if args.verify {
+        if args.expected_plan_digest.is_some()
+            || args.receipt.is_some()
+            || args.dry_run
+            || args.allow_destructive
+            || args.authorize_bootstrap.is_some()
+        {
+            bail!("target seed verification cannot include execution arguments");
+        }
+        let profile = parse_seed_class(
+            args.profile
+                .as_deref()
+                .context("target seed verification requires --profile")?,
+        )?;
+        let environment = requested_seed_environment(&args)?;
+        let selected_set = args
+            .set
+            .as_deref()
+            .context("target seed verification requires --set")?;
+        let plan = build_seed_plan(&catalog, profile, environment, Some(selected_set))?;
+        let backend = seed_plan_backend(&plan)?;
+        let database_url_env = args
+            .database_url_env
+            .as_deref()
+            .context("target seed verification requires --database-url-env")?;
+        let database_url = database_url_from_environment(database_url_env)?;
+        let target = DatabaseTarget::connect(backend, database_url).await?;
+        let verification = target.verify_seed_plan(root, &plan).await?;
+        let target_verified = verification.iter().all(|entry| entry.verified);
+        let report = SeedTargetVerification {
+            schema_version: 1,
+            catalog_digest: plan.catalog_digest.clone(),
+            plan_digest: plan.digest.clone(),
+            selected_set: selected_set.to_owned(),
+            target_inspected: true,
+            target_verified,
+            verification,
+        };
+        print_value(&report, as_json)?;
+        if !target_verified {
+            bail!("database seed verification failed for set {selected_set}");
+        }
+        return Ok(());
+    }
+    if args.dry_run {
+        if args.database_url_env.is_some()
+            || args.expected_plan_digest.is_some()
+            || args.receipt.is_some()
+            || args.allow_destructive
+            || args.authorize_bootstrap.is_some()
+        {
+            bail!("seed dry-run cannot include execution or verification arguments");
+        }
+        let profile = parse_seed_class(
+            args.profile
+                .as_deref()
+                .context("seed dry-run requires --profile")?,
+        )?;
+        let environment = requested_seed_environment(&args)?;
+        let plan = build_seed_plan(&catalog, profile, environment, args.set.as_deref())?;
+        return print_value(&plan, as_json);
+    }
+    let profile = parse_seed_class(
+        args.profile
+            .as_deref()
+            .context("seed execution requires --profile")?,
+    )?;
+    let environment = requested_seed_environment(&args)?;
+    let selected_set = args
+        .set
+        .as_deref()
+        .context("seed execution requires --set")?;
+    let plan = build_seed_plan(&catalog, profile, environment, Some(selected_set))?;
+    let expected_digest = args
+        .expected_plan_digest
+        .as_deref()
+        .context("seed execution requires --expected-plan-digest")?;
+    if plan.digest != expected_digest {
+        bail!(
+            "seed plan digest changed; rerun `minco db seed --profile {} --environment {} --set {} --dry-run`",
+            seed_class_name(profile),
+            seed_environment_name(environment),
+            selected_set
+        );
+    }
+    let database_url_env = args
+        .database_url_env
+        .as_deref()
+        .context("seed execution requires --database-url-env")?;
+    let receipt_path = args
+        .receipt
+        .as_deref()
+        .context("seed execution requires --receipt")?;
+    let contains_destructive = plan
+        .seeds
+        .iter()
+        .any(|seed| seed.risk == SeedRisk::Destructive);
+    if contains_destructive && !args.allow_destructive {
+        bail!("seed plan contains a destructive seed and requires --allow-destructive");
+    }
+    let contains_bootstrap = plan
+        .seeds
+        .iter()
+        .any(|seed| seed.class == SeedClass::Bootstrap);
+    let bootstrap_authorized = if contains_bootstrap {
+        let environment_name = seed_environment_name(environment);
+        if args.authorize_bootstrap.as_deref() != Some(environment_name) {
+            bail!("bootstrap seed execution requires --authorize-bootstrap {environment_name}");
+        }
+        true
+    } else {
+        if args.authorize_bootstrap.is_some() {
+            bail!("--authorize-bootstrap is valid only for the bootstrap seed profile");
+        }
+        false
+    };
+    let backend = seed_plan_backend(&plan)?;
+    let database_url = database_url_from_environment(database_url_env)?;
+    let target = DatabaseTarget::connect(backend, database_url).await?;
+    let mut receipt = SeedReceipt {
+        schema_version: 1,
+        receipt_id: Uuid::now_v7().to_string(),
+        created_at: Utc::now(),
+        source_change: vcs::source_change(root)?,
+        catalog_digest: plan.catalog_digest.clone(),
+        plan_digest: plan.digest.clone(),
+        selected_set: selected_set.to_owned(),
+        backend,
+        profile,
+        environment,
+        transaction: plan.seeds[0].transaction,
+        destructive_authorized: args.allow_destructive,
+        bootstrap_authorized,
+        seed_ids: plan.seeds.iter().map(|seed| seed.id.clone()).collect(),
+        outcome: ReceiptOutcome::Started,
+        failure_code: None,
+        target_verified: false,
+        verification: Vec::new(),
+    };
+    let mut writer = ReceiptWriter::reserve(root, receipt_path, &receipt)?;
+    if let Err(error) = target.apply_seed_plan(root, &plan).await {
+        receipt.outcome = ReceiptOutcome::Failed;
+        receipt.failure_code = Some("seed_execution_failed".into());
+        writer.update(&receipt)?;
+        return Err(error).context("apply database seed plan");
+    }
+    let verification = match target.verify_seed_plan(root, &plan).await {
+        Ok(verification) => verification,
+        Err(error) => {
+            receipt.outcome = ReceiptOutcome::Failed;
+            receipt.failure_code = Some("seed_verification_failed".into());
+            writer.update(&receipt)?;
+            return Err(error).context("verify database seed plan");
+        }
+    };
+    receipt.target_verified = verification.iter().all(|entry| entry.verified);
+    receipt.verification = verification;
+    if receipt.target_verified {
+        receipt.outcome = ReceiptOutcome::Succeeded;
+    } else {
+        receipt.outcome = ReceiptOutcome::Failed;
+        receipt.failure_code = Some("seed_verification_failed".into());
+    }
+    writer.update(&receipt)?;
+    print_value(&receipt, as_json)?;
+    if !receipt.target_verified {
+        bail!("database seed verification failed for set {selected_set}");
+    }
+    Ok(())
+}
+
+fn seed_plan_backend(plan: &SeedPlan) -> Result<DatabaseBackend> {
+    let Some(first) = plan.seeds.first() else {
+        bail!("seed plan contains no seeds");
+    };
+    if plan.seeds.iter().any(|seed| seed.backend != first.backend) {
+        bail!("an executable seed plan cannot mix database backends");
+    }
+    Ok(first.backend)
+}
+
+fn parse_seed_class(value: &str) -> Result<SeedClass> {
+    match value {
+        "reference" => Ok(SeedClass::Reference),
+        "demo" => Ok(SeedClass::Demo),
+        "test" => Ok(SeedClass::Test),
+        "bootstrap" => Ok(SeedClass::Bootstrap),
+        _ => bail!("seed profile must be reference, demo, test, or bootstrap"),
+    }
+}
+
+fn parse_seed_environment(value: &str) -> Result<SeedEnvironment> {
+    match value {
+        "local" => Ok(SeedEnvironment::Local),
+        "development" => Ok(SeedEnvironment::Development),
+        "test" => Ok(SeedEnvironment::Test),
+        "staging" => Ok(SeedEnvironment::Staging),
+        "production" => Ok(SeedEnvironment::Production),
+        _ => bail!("seed environment must be local, development, test, staging, or production"),
+    }
+}
+
+fn requested_seed_environment(args: &DbSeedArgs) -> Result<SeedEnvironment> {
+    parse_seed_environment(args.environment.as_deref().unwrap_or("local"))
+}
+
+const fn seed_class_name(value: SeedClass) -> &'static str {
+    match value {
+        SeedClass::Reference => "reference",
+        SeedClass::Demo => "demo",
+        SeedClass::Test => "test",
+        SeedClass::Bootstrap => "bootstrap",
+    }
+}
+
+const fn seed_environment_name(value: SeedEnvironment) -> &'static str {
+    match value {
+        SeedEnvironment::Local => "local",
+        SeedEnvironment::Development => "development",
+        SeedEnvironment::Test => "test",
+        SeedEnvironment::Staging => "staging",
+        SeedEnvironment::Production => "production",
     }
 }
 
@@ -528,19 +854,19 @@ struct ReceiptWriter {
 }
 
 impl ReceiptWriter {
-    fn reserve(root: &Path, relative_path: &Path, receipt: &MigrationReceipt) -> Result<Self> {
+    fn reserve<T: Serialize>(root: &Path, relative_path: &Path, receipt: &T) -> Result<Self> {
         let destination = receipt_destination(root, relative_path)?;
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&destination)
-            .with_context(|| format!("create new migration receipt {}", relative_path.display()))?;
+            .with_context(|| format!("create new database receipt {}", relative_path.display()))?;
         file.write_all(&canonical_json(receipt)?)?;
         file.sync_all()?;
         Ok(Self { file })
     }
 
-    fn update(&mut self, receipt: &MigrationReceipt) -> Result<()> {
+    fn update<T: Serialize>(&mut self, receipt: &T) -> Result<()> {
         self.file.seek(SeekFrom::Start(0))?;
         self.file.set_len(0)?;
         self.file.write_all(&canonical_json(receipt)?)?;
@@ -559,35 +885,35 @@ fn receipt_destination(root: &Path, relative_path: &Path) -> Result<PathBuf> {
             )
         })
     {
-        bail!("migration receipt path must stay within the project");
+        bail!("database receipt path must stay within the project");
     }
     let root = root.canonicalize().context("resolve project root")?;
     let destination = root.join(relative_path);
     let parent = destination
         .parent()
-        .context("migration receipt path has no parent")?;
+        .context("database receipt path has no parent")?;
     let mut existing_ancestor = parent;
     while !existing_ancestor.exists() {
         existing_ancestor = existing_ancestor
             .parent()
-            .context("migration receipt path has no existing project ancestor")?;
+            .context("database receipt path has no existing project ancestor")?;
     }
     let existing_ancestor = existing_ancestor
         .canonicalize()
-        .context("resolve migration receipt ancestor")?;
+        .context("resolve database receipt ancestor")?;
     if !existing_ancestor.starts_with(&root) {
-        bail!("migration receipt path escapes the project");
+        bail!("database receipt path escapes the project");
     }
-    fs::create_dir_all(parent).context("create migration receipt directory")?;
+    fs::create_dir_all(parent).context("create database receipt directory")?;
     let parent = parent
         .canonicalize()
-        .context("resolve migration receipt directory")?;
+        .context("resolve database receipt directory")?;
     if !parent.starts_with(&root) {
-        bail!("migration receipt path escapes the project");
+        bail!("database receipt path escapes the project");
     }
     let file_name = destination
         .file_name()
-        .context("migration receipt path has no file name")?;
+        .context("database receipt path has no file name")?;
     Ok(parent.join(file_name))
 }
 

@@ -58,3 +58,8 @@ assert!(missing.is_empty());
 Execution requires file-backed SQLite. The adapter revalidates backend, SQL
 identifiers, project containment and SQLx checksums, then holds an adjacent
 operating-system file lock for the whole migration run.
+
+Validated `minco_db::SeedPlan` values retain SQLite-specific SQL. A required
+plan uses one transaction and source digests are rechecked before mutation.
+`verify_seed_plan` uses a connection-local SQLite read-only guard and closes
+that guarded connection instead of returning its state to the pool.

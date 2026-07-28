@@ -1,7 +1,10 @@
 //! `SQLx` `SQLite` pools with explicit file-backed versus in-memory behavior.
 #![forbid(unsafe_code)]
 
-use minco_db::{AppliedMigration, DatabaseBackend, MigrationSet, TargetState};
+use minco_db::{
+    AppliedMigration, DatabaseBackend, MigrationSet, SeedPlan, SeedTransaction, SeedVerification,
+    TargetState, resolve_seed_source, validate_seed_plan as validate_seed_model_plan,
+};
 use serde::{Deserialize, Serialize};
 pub use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
@@ -15,11 +18,22 @@ use thiserror::Error;
 
 pub mod plugin_adapters;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SqlitePoolConfig {
     pub url: String,
     pub max_connections: u32,
     pub acquire_timeout_seconds: u64,
+}
+
+impl std::fmt::Debug for SqlitePoolConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SqlitePoolConfig")
+            .field("url", &"[REDACTED DATABASE URL]")
+            .field("max_connections", &self.max_connections)
+            .field("acquire_timeout_seconds", &self.acquire_timeout_seconds)
+            .finish()
+    }
 }
 
 impl SqlitePoolConfig {
@@ -179,6 +193,74 @@ pub async fn apply_migration_plan(
     Ok(())
 }
 
+pub async fn apply_seed_plan(
+    pool: &SqlitePool,
+    project_root: &Path,
+    plan: &SeedPlan,
+) -> Result<(), SqliteError> {
+    validate_seed_plan(plan)?;
+    let sources = plan
+        .seeds
+        .iter()
+        .map(|seed| resolve_seed_source(project_root, seed))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| SqliteError::SeedSource(error.to_string()))?;
+    match plan.seeds[0].transaction {
+        SeedTransaction::Required => {
+            let mut transaction = pool.begin().await?;
+            for source in sources {
+                sqlx::raw_sql(sqlx::AssertSqlSafe(source.apply_sql))
+                    .execute(&mut *transaction)
+                    .await?;
+            }
+            transaction.commit().await?;
+        }
+        SeedTransaction::Autocommit => {
+            for source in sources {
+                sqlx::raw_sql(sqlx::AssertSqlSafe(source.apply_sql))
+                    .execute(pool)
+                    .await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn verify_seed_plan(
+    pool: &SqlitePool,
+    project_root: &Path,
+    plan: &SeedPlan,
+) -> Result<Vec<SeedVerification>, SqliteError> {
+    validate_seed_plan(plan)?;
+    let mut connection = pool.acquire().await?;
+    // `query_only` is connection-local. Closing this connection on every exit
+    // prevents either a failed verification query or the guard itself from
+    // leaking state back into the pool.
+    connection.close_on_drop();
+    sqlx::query("PRAGMA query_only = ON")
+        .execute(&mut *connection)
+        .await?;
+    let mut verification = Vec::with_capacity(plan.seeds.len());
+    for seed in &plan.seeds {
+        let source = resolve_seed_source(project_root, seed)
+            .map_err(|error| SqliteError::SeedSource(error.to_string()))?;
+        let rows = sqlx::query_scalar::<_, bool>(sqlx::AssertSqlSafe(source.verify_sql))
+            .fetch_all(&mut *connection)
+            .await?;
+        if rows.len() != 1 {
+            return Err(SqliteError::InvalidConfig(format!(
+                "seed {} verification must return exactly one boolean row",
+                seed.id
+            )));
+        }
+        verification.push(SeedVerification {
+            seed_id: seed.id.clone(),
+            verified: rows[0],
+        });
+    }
+    Ok(verification)
+}
+
 pub async fn ready(pool: &SqlitePool) -> bool {
     matches!(
         sqlx::query_scalar::<_, i64>("SELECT 1")
@@ -186,6 +268,34 @@ pub async fn ready(pool: &SqlitePool) -> bool {
             .await,
         Ok(1)
     )
+}
+
+fn validate_seed_plan(plan: &SeedPlan) -> Result<(), SqliteError> {
+    validate_seed_model_plan(plan).map_err(|error| SqliteError::SeedSource(error.to_string()))?;
+    if plan.seeds.is_empty() {
+        return Err(SqliteError::InvalidConfig(
+            "seed plan contains no seeds".into(),
+        ));
+    }
+    if plan
+        .seeds
+        .iter()
+        .any(|seed| seed.backend != DatabaseBackend::Sqlite)
+    {
+        return Err(SqliteError::InvalidConfig(
+            "seed plan contains a non-SQLite seed".into(),
+        ));
+    }
+    if plan
+        .seeds
+        .iter()
+        .any(|seed| seed.transaction != plan.seeds[0].transaction)
+    {
+        return Err(SqliteError::InvalidConfig(
+            "seed plan mixes transaction behaviors".into(),
+        ));
+    }
+    Ok(())
 }
 
 async fn table_exists(pool: &SqlitePool, table: &str) -> Result<bool, SqliteError> {
@@ -324,6 +434,8 @@ pub enum SqliteError {
     MigrationLockUnavailable,
     #[error("SQLite migration filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
+    #[error("SQLite seed source validation failed: {0}")]
+    SeedSource(String),
 }
 
 #[cfg(test)]
@@ -370,6 +482,18 @@ mod tests {
         let mut config = SqlitePoolConfig::memory();
         config.max_connections = 2;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn pool_configuration_debug_redacts_database_urls() {
+        let config = SqlitePoolConfig {
+            url: "sqlite://var/app.db?password=secret-password".into(),
+            max_connections: 1,
+            acquire_timeout_seconds: 5,
+        };
+        let debug = format!("{config:?}");
+        assert!(!debug.contains("secret-password"));
+        assert!(!debug.contains("sqlite://"));
     }
 
     #[tokio::test]
