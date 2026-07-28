@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import copy
+import os
+import subprocess
 import sys
 import tempfile
 import tomllib
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -18,6 +21,7 @@ from publish import (  # noqa: E402
     external_consumer_manifest,
     packaged_test_command,
     publish_command,
+    verify_release_ref,
 )
 
 MANIFEST = ROOT / "crates" / "minco-contract" / "Cargo.toml"
@@ -98,3 +102,50 @@ assert 'name = "minco-archive-no-default"' in consumer_manifest
 assert 'minco = { version = "=0.4.0", default-features = false }' in consumer_manifest
 
 print("External archive-consumer manifest fixtures passed.")
+
+with tempfile.TemporaryDirectory(prefix="minco-release-ref-") as temporary:
+    release_root = Path(temporary)
+    (release_root / ".jj").mkdir()
+    tagged = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout="0123456789abcdef\n",
+    )
+    untagged = subprocess.CompletedProcess(args=[], returncode=0, stdout="")
+    with (
+        mock.patch("publish.ROOT", release_root),
+        mock.patch(
+            "publish.shutil.which",
+            side_effect=lambda command: "/usr/bin/jj" if command == "jj" else None,
+        ),
+        mock.patch.dict(os.environ, {}, clear=True),
+        mock.patch("publish.run", return_value=tagged) as run_mock,
+    ):
+        verify_release_ref("v0.4.0")
+        assert run_mock.call_args.args[0] == [
+            "jj",
+            "log",
+            "-r",
+            '(@ | @-) & tags(exact:"v0.4.0")',
+            "--no-graph",
+            "--template",
+            'commit_id ++ "\n"',
+        ]
+
+    with (
+        mock.patch("publish.ROOT", release_root),
+        mock.patch(
+            "publish.shutil.which",
+            side_effect=lambda command: "/usr/bin/jj" if command == "jj" else None,
+        ),
+        mock.patch.dict(os.environ, {}, clear=True),
+        mock.patch("publish.run", return_value=untagged),
+    ):
+        try:
+            verify_release_ref("v0.4.0")
+        except SystemExit as error:
+            assert str(error) == "release commit is not tagged v0.4.0"
+        else:
+            raise AssertionError("untagged JJ publication must fail closed")
+
+print("Exact Git/JJ release-ref fixtures passed.")

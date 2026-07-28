@@ -15,10 +15,17 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-Focused local source/package gates pass. The release pull request may become
-ready for review only when the complete clean-source package rerun and manual
-hosted workflow also pass on its exact head. This record does not approve
-merge, AWS mutation, promotion, tag creation or crate upload. Current and
-historical command evidence is maintained in `VERIFICATION.md`;
+Focused and authoritative local source/package gates pass. Corrected
+pull-request head `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual
+hosted run `30410242657`, including browser, coordinated package dry-run,
+Plan/SAM/native Lambda, Rustack and E2E stages. Later evidence-only head
+`edcb42c916114dc0c7bc3ffb10bcf8555190b0f1` passed authoritative quality
+and the browser matrix in run `30411179583`, then exposed a synchronization
+race in the packaged `minco-dev` descendant-shutdown fixture. The fixture
+correction passes focused gates and 600 repeated full-suite runs locally; the
+candidate is blocked on a fresh exact-head hosted run and is not yet safe to
+merge. This record does not approve AWS mutation, promotion, tag creation or
+crate upload. Current and historical command evidence is maintained in
+`VERIFICATION.md`;
 Feedback-specific architecture evidence remains in
 `FEEDBACK_REVIEW_STATUS.md`.

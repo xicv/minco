@@ -17,6 +17,7 @@ owned_paths:
   - PUBLISHING.md
   - REVIEW_STATUS.md
   - VERIFICATION.md
+  - crates/minco-dev/tests/supervisor.rs
   - docs/**
   - extensions/minco-aws-adapters/README.md
   - roadmap/**
@@ -126,7 +127,13 @@ default, full and four-new-crate consumers from unpacked archives, and installs
 the unpacked `cargo-minco` binary. Exact commands, artifact hashes,
 measurements, diagnostics and limitations are recorded in `VERIFICATION.md`.
 
-The task remains active until the clean final source passes the authoritative
-local suite and the manual hosted workflow passes the exact pull-request head.
-Live AWS rehearsal, merge, tag and registry publication remain separate,
-unauthorised phases.
+The clean source passed the authoritative local suite. Corrected pull-request
+head `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
+`30410242657`, including authoritative quality, browser, coordinated package
+dry-run, Plan/SAM/native Lambda, Rustack and E2E stages. A later evidence
+revision exposed a race in the packaged `minco-dev` shutdown fixture during
+run `30411179583`; the fixture now waits for a complete numeric descendant PID
+before requesting shutdown and passed 600 repeated full-suite runs locally.
+Exact-head hosted requalification remains required before completion or merge.
+Live AWS rehearsal, tag and registry publication remain separately evidenced
+phases.

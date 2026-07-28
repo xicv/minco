@@ -1,6 +1,6 @@
 # Minco 0.4.0 release handoff
 
-Date: 2026-07-28
+Date: 2026-07-29
 Task: `M8-T07`
 Published baseline: `0.3.1`
 Candidate source: `0.4.0`
@@ -23,11 +23,10 @@ Included:
 - zero-provisioned-compute doctrine, residual cost vocabulary and the
   repository-native Verified Review Loop decision;
 - recurring repository-truth diagnostics and generated roadmap/evidence;
-- exact local and hosted source/package qualification evidence once complete.
+- exact local and hosted source/package qualification evidence.
 
 Excluded without separate explicit approval:
 
-- pull-request merge;
 - any AWS resource mutation, hosted endpoint contact or alias promotion;
 - `v0.4.0` creation/push;
 - crates.io upload, ownership/trusted-publisher mutation or docs.rs claims.
@@ -80,10 +79,17 @@ and new-package consumers from those archives, and installs the archive-only
 CLI. No package was uploaded.
 
 `VERIFICATION.md` records commands, measurements, hashes, diagnostic failures
-and residual limits. The complete quality suite, clean final-source package
-rerun and manual hosted workflow must still pass on the exact pull-request
-head; neither historical green runs nor this local source state qualify a
-different commit automatically.
+and residual limits. The complete quality suite and clean source package rerun
+pass locally. Corrected pull-request head
+`46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
+`30410242657`, including browser, coordinated package dry-run,
+Plan/SAM/native Lambda, Rustack and E2E stages. Later evidence-only head
+`edcb42c916114dc0c7bc3ffb10bcf8555190b0f1` reached the package dry run in
+hosted run `30411179583`, where a packaged `minco-dev` test exposed a PID-file
+synchronization race. The bounded fixture correction passes focused tests,
+strict Clippy and 600 repeated full-suite runs locally. A fresh exact-head
+hosted run remains mandatory before merge; historical green runs never
+qualify a different executable tree automatically.
 
 The handoff verdict after those source/package gates is
 `live_deployment_gate_pending`: no AWS account, role, Region, change set,

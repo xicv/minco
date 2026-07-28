@@ -4,7 +4,9 @@ use minco_dev::{
     CommandSpec, DevEvent, DevPlan, DevStream, LifecycleKind, LifecyclePlan, ProcessPlan,
     ProcessRole, ReadinessProbe, ServiceKind, ServicePlan, Supervisor,
 };
-use std::{collections::BTreeMap, fs, future::pending, process::Command, time::Duration};
+use std::{
+    collections::BTreeMap, fs, future::pending, path::Path, process::Command, time::Duration,
+};
 use tempfile::tempdir;
 use tokio::sync::mpsc;
 
@@ -13,6 +15,19 @@ fn shell(script: &str, path: &str) -> CommandSpec {
         program: "/bin/sh".into(),
         arguments: vec!["-c".into(), script.into(), "minco-test".into(), path.into()],
         environment: BTreeMap::new(),
+    }
+}
+
+async fn wait_for_numeric_pid_file(path: &Path) {
+    loop {
+        if tokio::fs::read_to_string(path)
+            .await
+            .ok()
+            .is_some_and(|value| value.parse::<u32>().is_ok())
+        {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
     }
 }
 
@@ -93,14 +108,7 @@ async fn coordinated_shutdown_terminates_process_descendants() {
     };
     let wait_for_descendant = {
         let pid_file = pid_file.clone();
-        async move {
-            loop {
-                if tokio::fs::metadata(&pid_file).await.is_ok() {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(5)).await;
-            }
-        }
+        async move { wait_for_numeric_pid_file(&pid_file).await }
     };
     let (events, _receiver) = mpsc::unbounded_channel();
     let supervisor = Supervisor::new(root.path())
@@ -165,14 +173,7 @@ async fn coordinated_shutdown_interrupts_lifecycle_commands_and_their_descendant
     };
     let wait_for_descendant = {
         let pid_file = pid_file.clone();
-        async move {
-            loop {
-                if tokio::fs::metadata(&pid_file).await.is_ok() {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(5)).await;
-            }
-        }
+        async move { wait_for_numeric_pid_file(&pid_file).await }
     };
     let (events, _receiver) = mpsc::unbounded_channel();
     let supervisor = Supervisor::new(root.path()).with_shutdown_grace(Duration::from_millis(100));

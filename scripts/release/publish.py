@@ -250,6 +250,30 @@ def verify_release_ref(tag: str) -> None:
         tags = run(["git", "tag", "--points-at", "HEAD"], capture=True).stdout or ""
         if tag not in tags.splitlines():
             raise SystemExit(f"release commit is not tagged {tag}")
+        return
+
+    if shutil.which("jj") and (ROOT / ".jj").exists():
+        revision = f'(@ | @-) & tags(exact:{json.dumps(tag)})'
+        tagged = run(
+            [
+                "jj",
+                "log",
+                "-r",
+                revision,
+                "--no-graph",
+                "--template",
+                'commit_id ++ "\n"',
+            ],
+            capture=True,
+        ).stdout or ""
+        if not tagged.strip():
+            raise SystemExit(f"release commit is not tagged {tag}")
+        return
+
+    if github_ref is None:
+        raise SystemExit(
+            "publishing requires an exact GitHub tag ref or a tagged Git/JJ checkout"
+        )
 
 
 def main() -> int:

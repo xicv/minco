@@ -1,6 +1,6 @@
 # Minco verification and release evidence
 
-Date: 2026-07-28
+Date: 2026-07-29
 Current workspace version: `0.4.0`
 Published baseline: `0.3.1`
 Purpose: qualify the M8-T07 source/package candidate while preserving published
@@ -81,6 +81,31 @@ qualification:
    archive was built. The workflow now uses the Cargo Lambda documentation's
    Zig `0.14.0` GitHub Actions baseline through immutable `setup-zig v2.2.1`
    commit `d1434d08867e3ee9daa34448df10607b98908d29`.
+7. final review found that `--execute` verified the workspace-version tag in
+   Git checkouts but accepted an untagged JJ-only workspace. The release driver
+   now requires the exact tag on `@` or its clean parent in JJ workspaces, and
+   regression fixtures prove both the accepted and fail-closed paths.
+8. later evidence-only head
+   `edcb42c916114dc0c7bc3ffb10bcf8555190b0f1` passed authoritative quality
+   and the browser matrix in hosted run
+   [`30411179583`](https://github.com/xicv/minco/actions/runs/30411179583),
+   then failed while testing the unpacked `minco-dev` archive because
+   `coordinated_shutdown_terminates_process_descendants` observed its PID file
+   before the shell had completed the PID write. A local full-suite stress
+   loop reproduced both an empty PID and the premature shutdown assertion.
+   The fixture now waits for a complete numeric PID before resolving its
+   shutdown future; the unchanged descendant-liveness assertion then passed
+   600 repeated nine-test suite runs. No supervisor production code changed.
+
+Corrected pull-request head
+`46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
+[`30410242657`](https://github.com/xicv/minco/actions/runs/30410242657).
+Every material stage passed: authoritative quality, Chromium/Firefox,
+coordinated 28-package publication dry run, Plan/SAM and both native ARM64
+Lambda artifacts, Rustack/SSM conformance and Orders E2E. No package upload or
+live AWS mutation occurred. That historical green run does not qualify the
+later fixture correction; a fresh exact-head hosted run is required before
+merge.
 
 Regression fixtures assert the coordinated command, archive-only patch paths,
 offline archive-test boundary and external-consumer manifest. The controller
@@ -216,9 +241,10 @@ provisioned concurrency. Minco promises zero provisioned application compute
 at idle, not zero bill: storage, retained logs, DNS, secrets, database storage,
 schedules and other fixed/request dimensions remain explicit and bounded.
 
-Live AWS rehearsal, promotion, pull-request merge, tag creation and registry
-upload are not authorised by this task. The final release verdict therefore
-cannot advance beyond `live_deployment_gate_pending`.
+The operator separately authorised pull-request merge after this review. Live
+AWS rehearsal, promotion, tag creation and registry upload remain unauthorised.
+The final release verdict therefore cannot advance beyond
+`live_deployment_gate_pending`.
 
 ## M8-T03 trusted-publishing closure
 
