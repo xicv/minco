@@ -14,6 +14,7 @@ mod plugin_cmd;
 mod process;
 mod roadmap;
 mod update;
+mod upgrade_cmd;
 mod vcs;
 
 use anyhow::{Context, Result, bail};
@@ -25,7 +26,10 @@ use config_cmd::ConfigCommand;
 use feedback_cmd::FeedbackArgs;
 use generator_cmd::{MakeCommand, StubsCommand};
 use minco_config::EnvironmentClass;
-use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
+use minco_contract::{
+    Severity as ContractSeverity, diff_contracts, generate_rust, load_contract,
+    load_contract_source,
+};
 use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
 use minco_dev::{
     DevDatabase, DevEvent, DevGraph, DevOptions, DevPlan, DevStream, ServiceKind, Supervisor,
@@ -38,7 +42,7 @@ use minco_plan::{
 use minco_release::{FileDigest, ReleaseManifest};
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
 use plugin_cmd::{load_catalog, scaffold_plugin, set_plugin_state, validate_catalog};
-use process::{command_available, run_shell};
+use process::{capture, command_available, run_shell};
 use roadmap::{
     load_roadmap, load_tasks, ready_tasks, render_roadmap_mermaid, render_task_mermaid,
     validate_task_graph,
@@ -103,6 +107,8 @@ enum Command {
     Release(ReleaseCommand),
     #[command(subcommand)]
     Update(UpdateCommand),
+    #[command(subcommand)]
+    Upgrade(UpgradeCommand),
     #[command(subcommand)]
     Vcs(VcsCommand),
     /// Inspect and advance the first-class client feedback loop.
@@ -172,13 +178,24 @@ struct DevArgs {
     rustack_port: Option<u16>,
 }
 
-#[derive(Debug, Clone, Copy, Subcommand)]
+#[derive(Debug, Clone, Subcommand)]
 enum ContractCommand {
     Check,
     Sync {
         #[arg(long)]
         check: bool,
     },
+    /// Compare the current contract with the contract stored at a VCS revision.
+    Diff {
+        #[arg(long)]
+        against: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Subcommand)]
+enum UpgradeCommand {
+    /// Inventory application-facing compatibility boundaries for an upgrade review.
+    Report,
 }
 
 #[derive(Debug, Args)]
@@ -428,6 +445,10 @@ async fn main() -> Result<()> {
     };
 
     let root = discover_root(root)?;
+    let command = match command {
+        Command::Upgrade(command) => return upgrade_cmd::execute(&root, command, as_json),
+        other => other,
+    };
     let manifest = MincoManifest::load(&root)?;
     match command {
         Command::New(_) => unreachable!("new is handled before project discovery"),
@@ -451,6 +472,7 @@ async fn main() -> Result<()> {
         Command::Db(command) => db_cmd::execute(&root, &manifest, command, as_json).await,
         Command::Release(command) => release_command(&root, &manifest, command, as_json),
         Command::Update(command) => update_command(&root, command, as_json),
+        Command::Upgrade(_) => unreachable!("upgrade is handled before strict manifest loading"),
         Command::Vcs(command) => vcs_command(&root, command, as_json),
         Command::Feedback(args) => feedback_cmd::execute(&root, args, as_json).await,
     }
@@ -881,8 +903,59 @@ fn contract(
                 as_json,
             )?;
         }
+        ContractCommand::Diff { against } => {
+            validate_project_file(root, &manifest.contract, "OpenAPI contract")?;
+            validate_revision(&against)?;
+            let contract_path = manifest
+                .contract
+                .to_str()
+                .context("OpenAPI contract path must be valid UTF-8")?;
+            let baseline_source = revision_file(root, &against, contract_path)?;
+            let baseline_name = format!("{against}:{contract_path}");
+            let baseline = load_contract_source(baseline_name, &baseline_source)?;
+            if !baseline.is_valid() {
+                bail!(
+                    "baseline contract at {against} is invalid: {}",
+                    serde_json::to_string(&baseline.findings)?
+                );
+            }
+            if !report.is_valid() {
+                bail!(
+                    "candidate contract is invalid: {}",
+                    serde_json::to_string(&report.findings)?
+                );
+            }
+            let mut candidate = report.document;
+            candidate.source = contract_path.into();
+            print_value(&diff_contracts(&baseline.document, &candidate), as_json)?;
+        }
     }
     Ok(())
+}
+
+fn validate_revision(revision: &str) -> Result<()> {
+    if revision.is_empty()
+        || revision.len() > 256
+        || revision.starts_with('-')
+        || !revision.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(byte, b'@' | b'.' | b'_' | b'/' | b'+' | b'^' | b'-')
+        })
+    {
+        bail!("revision must be a bounded VCS name, commit ID, or simple ancestry expression");
+    }
+    Ok(())
+}
+
+fn revision_file(root: &Path, revision: &str, path: &str) -> Result<String> {
+    if root.join(".jj").exists() && command_available("jj") {
+        return capture(root, "jj", &["file", "show", "-r", revision, path]);
+    }
+    if root.join(".git").exists() && command_available("git") {
+        let object = format!("{revision}:{path}");
+        return capture(root, "git", &["show", &object]);
+    }
+    bail!("contract diff requires JJ or Git revision access")
 }
 
 fn inspect(root: &Path, manifest: &MincoManifest, as_json: bool) -> Result<()> {
@@ -1583,6 +1656,48 @@ mod cli_argument_tests {
                 operation_id,
                 dry_run: true,
             })) if operation_id == "placeOrder"
+        ));
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn contract_diff_has_an_explicit_revision_and_json_shape() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "contract",
+            "diff",
+            "--against",
+            "main",
+            "--json",
+        ])
+        .expect("contract diff arguments");
+
+        assert!(matches!(
+            cli.command,
+            Command::Contract(ContractCommand::Diff { against }) if against == "main"
+        ));
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn contract_diff_rejects_option_like_or_shell_shaped_revisions() {
+        assert!(validate_revision("-c").is_err());
+        assert!(validate_revision("--config=evil").is_err());
+        assert!(validate_revision("main;touch-pwned").is_err());
+        assert!(validate_revision("main branch").is_err());
+        assert!(validate_revision("main").is_ok());
+        assert!(validate_revision("@-").is_ok());
+        assert!(validate_revision("release/0.3.1^").is_ok());
+    }
+
+    #[test]
+    fn upgrade_report_has_a_deterministic_json_cli_shape() {
+        let cli = Cli::try_parse_from(["cargo-minco", "upgrade", "report", "--json"])
+            .expect("upgrade report arguments");
+
+        assert!(matches!(
+            cli.command,
+            Command::Upgrade(UpgradeCommand::Report)
         ));
         assert!(cli.json);
     }

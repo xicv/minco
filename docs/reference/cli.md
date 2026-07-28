@@ -53,7 +53,14 @@ environment classes, secret-reference syntax and migration.
 ```text
 cargo minco contract check
 cargo minco contract sync [--check]
+cargo minco contract diff --against <revision>
 ```
+
+`contract diff` validates the current and VCS-stored contracts without checking
+out the revision. Its deterministic report classifies bounded structural
+changes as `breaking`, `non_breaking` or `uncertain`; a clean structural report
+is not semantic, deployment or data-migration proof. See
+[`compatibility.md`](compatibility.md) for rules and automation guidance.
 
 ## Generators and app-owned stubs
 
@@ -177,10 +184,17 @@ execution requires `--authorize-bootstrap` with the exact selected environment.
 ```text
 cargo minco update check
 cargo minco update apply --yes
+cargo minco upgrade report
 ```
 
 Apply mode updates the pinned toolchain and dependencies and reruns checks. A
 clean JJ working-copy change is required.
+
+`upgrade report` is read-only and records Rust, CLI, Cargo feature,
+configuration, plugin and serialized-schema boundaries. It remains available
+when the manifest schema is unsupported so release notes and migration guides
+can explain the blocking version boundary. See
+[`compatibility.md`](compatibility.md).
 
 ## Jujutsu VCS
 
