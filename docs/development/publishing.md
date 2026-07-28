@@ -7,10 +7,11 @@ applications that need a narrower dependency graph.
 ## Published baseline and release inventory
 
 The published `0.3.1` patch release retains the lock-step 24-package inventory
-from `0.3.0`. Current source adds `minco-config` as a 25th publication
-candidate for the next release. A workspace version or source tag is not
-registry proof: release status must be verified independently against the exact
-crates.io records. The package inventory is derived from
+from `0.3.0`. Current source adds `minco-config`, `minco-db`, `minco-dev` and
+`minco-deploy-aws` as publication candidates for the next coordinated minor
+release. A workspace version or source tag is not registry proof: release
+status must be verified independently against the exact crates.io records. The
+package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
@@ -19,6 +20,8 @@ workspace member by `scripts/validate_publish.py`.
 | `minco-config` | Typed environment graph, strict schema, secret references, provenance and deterministic digest. |
 | `minco-core` | Provider-neutral plugins, typed services, capabilities, and application graph. |
 | `minco-contract` | OpenAPI 3.1 validation, operation inventory, hashing, and deterministic bindings. |
+| `minco-deploy-aws` | Fail-closed AWS target guards, CloudFormation change review and immutable receipts. |
+| `minco-dev` | Deterministic local development planning and supervised process topology. |
 | `minco-http` | Axum/Tower conventions, principals, request metadata, limits, and Problem Details. |
 | `minco-plan` | Deployment Plan IR, database profiles, structural cost/performance policy, and SAM rendering. |
 | `minco-release` | Immutable release manifests and artifact digest verification. |

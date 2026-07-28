@@ -28,6 +28,7 @@ minco-config.workspace = true
 minco-contract.workspace = true
 minco-core.workspace = true
 minco-db.workspace = true
+minco-deploy-aws.workspace = true
 minco-dev.workspace = true
 minco-plan.workspace = true
 minco-plugin-feedback = { workspace = true, default-features = false, features = ["client"] }

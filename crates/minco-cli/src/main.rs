@@ -30,6 +30,12 @@ use minco_contract::{
     load_contract_source,
 };
 use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
+use minco_deploy_aws::{
+    ChangeSetReceipt, ChangeSetReceiptInput, ChangeSetType, CloudFormationChangeSet,
+    DeploymentTarget, DeploymentTargetCatalog, DriftState, EnvironmentExpectation,
+    EnvironmentObservation, MigrationState as DeploymentMigrationState, SourceState, StackDrift,
+    caller_role_arn, verify_guards,
+};
 use minco_dev::{
     DevDatabase, DevEvent, DevGraph, DevOptions, DevPlan, DevStream, ServiceKind, Supervisor,
 };
@@ -39,7 +45,8 @@ use minco_plan::{
     render_sam_with_code_uris,
 };
 use minco_release::{
-    DatabaseSourceDigests, FileDigest, FunctionArtifact, ReleaseEnvironment, ReleaseManifest,
+    DatabasePlanBinding, DatabasePlanKind, DatabaseSourceDigests, DeploymentReceipt,
+    DeploymentReceiptInput, FileDigest, FunctionArtifact, ReleaseEnvironment, ReleaseManifest,
     ReleaseManifestInput, ToolchainIdentity,
 };
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
@@ -49,12 +56,15 @@ use roadmap::{
     load_roadmap, load_tasks, ready_tasks, render_roadmap_mermaid, render_task_mermaid,
     validate_task_graph,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
     ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
+    process::{Command as ProcessCommand, Output, Stdio},
+    thread,
+    time::Duration,
 };
 
 #[derive(Debug, Parser)]
@@ -229,6 +239,38 @@ struct PackageArgs {
     attestations: Vec<PathBuf>,
 }
 
+#[derive(Debug, Clone, Args)]
+struct ChangeSetArgs {
+    #[arg(long, default_value = "infra/aws/deployment-targets.toml")]
+    target_config: PathBuf,
+    #[arg(long)]
+    environment: Option<String>,
+    #[arg(long, default_value = "target/minco/release.json")]
+    manifest: PathBuf,
+    #[arg(long, default_value = "target/minco/change-set.json")]
+    output: PathBuf,
+    #[arg(long)]
+    approve_release_digest: Option<String>,
+    #[arg(long)]
+    dry_run: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+struct ApplyArgs {
+    #[arg(long, default_value = "target/minco/change-set.json")]
+    changeset: PathBuf,
+    #[arg(long, default_value = "target/minco/migration-plan.json")]
+    migration_plan: PathBuf,
+    #[arg(long, default_value = "target/minco/migration-receipt.json")]
+    migration_receipt: PathBuf,
+    #[arg(long, default_value = "target/minco/deployment-receipt.json")]
+    receipt: PathBuf,
+    #[arg(long)]
+    approve_changeset_digest: Option<String>,
+    #[arg(long)]
+    dry_run: bool,
+}
+
 #[derive(Debug, Subcommand)]
 enum DeployCommand {
     Plan {
@@ -245,6 +287,8 @@ enum DeployCommand {
         #[arg(long, default_value = "infra/aws/generated/template.yaml")]
         output: PathBuf,
     },
+    Changeset(ChangeSetArgs),
+    Apply(ApplyArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -1099,7 +1143,1003 @@ fn deploy(
                 as_json,
             )
         }
+        DeployCommand::Changeset(args) => change_set_command(root, &args, as_json),
+        DeployCommand::Apply(args) => apply_change_set_command(root, &args, as_json),
     }
+}
+
+fn change_set_command(root: &Path, args: &ChangeSetArgs, as_json: bool) -> Result<()> {
+    validate_project_file(root, &args.target_config, "deployment target configuration")?;
+    if root.join(&args.manifest).exists() {
+        validate_project_file(root, &args.manifest, "release manifest")?;
+    } else if args.manifest.is_absolute()
+        || !args
+            .manifest
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        bail!("release manifest must be a project-relative path");
+    }
+    let catalog =
+        DeploymentTargetCatalog::from_toml(&fs::read_to_string(root.join(&args.target_config))?)?;
+    let selected = catalog.select(args.environment.as_deref())?;
+    let review_output = package_output_path(root, &args.output)?;
+
+    let mut blockers = Vec::new();
+    if !selected.target.enabled {
+        blockers.push("target_disabled");
+    }
+    let release = if root.join(&args.manifest).is_file() {
+        if let Ok(release) = ReleaseManifest::read_json(root.join(&args.manifest))
+            .and_then(|release| release.verify_at(root).map(|()| release))
+        {
+            if release.environment.environment != selected.environment
+                || release.environment.region != selected.target.expected_region
+            {
+                blockers.push("release_environment_mismatch");
+            }
+            match vcs::source_snapshot(root) {
+                Ok(source) if source.change == release.source_change => {}
+                Ok(_) => blockers.push("source_mismatch"),
+                Err(_) => blockers.push("source_unproved"),
+            }
+            match args.approve_release_digest.as_deref() {
+                None => blockers.push("release_approval_missing"),
+                Some(digest) if digest != release.release_digest => {
+                    blockers.push("release_approval_mismatch");
+                }
+                Some(_) => {}
+            }
+            Some(release)
+        } else {
+            blockers.push("release_manifest_invalid");
+            None
+        }
+    } else {
+        blockers.push("release_manifest_missing");
+        if args.approve_release_digest.is_none() {
+            blockers.push("release_approval_missing");
+        }
+        None
+    };
+    if root.join(&args.output).exists() {
+        blockers.push("review_output_exists");
+    }
+
+    let plan = json!({
+        "schema_version": 1,
+        "operation": "create_change_set",
+        "dry_run": args.dry_run,
+        "external_aws_contact": false,
+        "infrastructure_apply": false,
+        "target_config": args.target_config,
+        "target": {
+            "environment": selected.environment,
+            "enabled": selected.target.enabled,
+            "expected_account_id": selected.target.expected_account_id,
+            "expected_region": selected.target.expected_region,
+            "expected_role_arn": selected.target.expected_role_arn,
+            "stack_name": selected.target.stack_name,
+            "artifact_bucket": selected.target.artifact_bucket,
+        },
+        "release_manifest": args.manifest,
+        "release": release.as_ref().map(|release| json!({
+            "release_id": release.release_id,
+            "release_digest": release.release_digest,
+            "source_change": release.source_change,
+        })),
+        "review_output": args.output,
+        "guard_requirements": [
+            "exact_source",
+            "verified_release",
+            "expected_account",
+            "expected_region",
+            "expected_role",
+            "drift_in_sync_or_new_stack",
+            "release_digest_approval",
+        ],
+        "steps": [
+            "verify_local_source_and_release",
+            "verify_caller_identity",
+            "inspect_stack_and_drift",
+            "upload_exact_release_artifacts",
+            "create_unexecuted_change_set",
+            "classify_provider_changes",
+            "write_immutable_review_receipt",
+        ],
+        "blockers": blockers,
+    });
+    if args.dry_run {
+        return print_value(&plan, as_json);
+    }
+    if !blockers.is_empty() {
+        bail!("change-set guards failed: {}", blockers.join(", "));
+    }
+    let release = release.context("verified release is required")?;
+    create_change_set(
+        root,
+        args,
+        &selected.target,
+        &selected.environment,
+        &release,
+        &review_output,
+        as_json,
+    )
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsCallerIdentity {
+    account: String,
+    arn: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDescribeStacks {
+    stacks: Vec<AwsStack>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsStack {
+    stack_status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDriftDetection {
+    stack_drift_detection_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDriftStatus {
+    stack_drift_detection_status: String,
+    stack_drift_status: Option<String>,
+    detection_status_reason: Option<String>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_change_set(
+    root: &Path,
+    args: &ChangeSetArgs,
+    target: &DeploymentTarget,
+    environment: &str,
+    release: &ReleaseManifest,
+    review_output: &Path,
+    as_json: bool,
+) -> Result<()> {
+    if !command_available("aws") || !command_available("sam") {
+        bail!("live change-set creation requires both `aws` and `sam`");
+    }
+
+    let identity: AwsCallerIdentity = aws_json(
+        root,
+        &target.expected_region,
+        "inspect AWS caller identity",
+        &["sts", "get-caller-identity"],
+    )?;
+    let role_arn = caller_role_arn(&identity.arn).context(
+        "AWS caller identity must be the exact configured IAM role or an assumed-role session",
+    )?;
+    let (change_set_type, drift) = inspect_stack_and_drift(root, target)?;
+    let source = vcs::source_snapshot(root)?;
+
+    verify_guards(
+        &EnvironmentExpectation {
+            account_id: target.expected_account_id.clone(),
+            region: target.expected_region.clone(),
+            environment: environment.to_owned(),
+            role_arn: target.expected_role_arn.clone(),
+            release_id: release.release_id.clone(),
+            release_digest: release.release_digest.clone(),
+            configuration_digest: release.configuration_digest.clone(),
+            migration_plan_digest: None,
+        },
+        &EnvironmentObservation {
+            account_id: identity.account,
+            region: target.expected_region.clone(),
+            environment: release.environment.environment.clone(),
+            role_arn,
+            release_id: release.release_id.clone(),
+            release_digest: release.release_digest.clone(),
+            release_verified: true,
+            configuration_digest: release.configuration_digest.clone(),
+            drift: DriftState::Clean,
+            migration: DeploymentMigrationState::NotRequired,
+            source: if source.change == release.source_change {
+                SourceState::Clean
+            } else {
+                SourceState::Dirty
+            },
+            operator_approval_digest: args.approve_release_digest.clone(),
+        },
+    )?;
+
+    run_cloud_output(
+        root,
+        "aws",
+        "verify the pre-existing artifact bucket",
+        &[
+            "s3api".into(),
+            "head-bucket".into(),
+            "--bucket".into(),
+            target.artifact_bucket.clone(),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    )?;
+
+    let packaged_template_relative = PathBuf::from(format!(
+        "target/minco/change-sets/{}/packaged-template.yaml",
+        release.release_id
+    ));
+    let packaged_template = package_output_path(root, &packaged_template_relative)?;
+    ensure_parent(&packaged_template)?;
+    let template = root.join(&release.deployment_template.path);
+    run_cloud_output(
+        root,
+        "sam",
+        "package the exact release template",
+        &[
+            "package".into(),
+            "--template-file".into(),
+            template.display().to_string(),
+            "--s3-bucket".into(),
+            target.artifact_bucket.clone(),
+            "--s3-prefix".into(),
+            format!("minco/releases/{}", release.release_id),
+            "--output-template-file".into(),
+            packaged_template.display().to_string(),
+            "--region".into(),
+            target.expected_region.clone(),
+            "--no-progressbar".into(),
+        ],
+    )?;
+    if vcs::source_snapshot(root)?.change != release.source_change {
+        bail!("source changed while packaging the reviewed release");
+    }
+    release.verify_at(root)?;
+    let current_catalog =
+        DeploymentTargetCatalog::from_toml(&fs::read_to_string(root.join(&args.target_config))?)?;
+    let current_target = current_catalog.select(Some(environment))?;
+    if current_target.target != *target {
+        bail!("deployment target changed while preparing the change set");
+    }
+    let release_manifest = FileDigest::from_rooted_path(root, root.join(&args.manifest))?;
+    let target_config = FileDigest::from_rooted_path(root, root.join(&args.target_config))?;
+    let packaged_template_digest = FileDigest::from_rooted_path(root, &packaged_template)?;
+
+    let change_set_name = format!("minco-{}", &release.release_digest[..24]);
+    let mut create_args = vec![
+        "cloudformation".into(),
+        "create-change-set".into(),
+        "--stack-name".into(),
+        target.stack_name.clone(),
+        "--change-set-name".into(),
+        change_set_name.clone(),
+        "--change-set-type".into(),
+        aws_change_set_type(change_set_type).into(),
+        "--template-body".into(),
+        format!("file://{}", packaged_template.display()),
+        "--capabilities".into(),
+        "CAPABILITY_IAM".into(),
+        "--client-token".into(),
+        release.release_digest.clone(),
+        "--description".into(),
+        format!("Minco reviewed release {}", release.release_id),
+        "--parameters".into(),
+        format!(
+            "ParameterKey=DatabaseUrlParameterName,ParameterValue={}",
+            target.database_url_parameter_name
+        ),
+        format!(
+            "ParameterKey=DatabaseUrlKmsKeyArn,ParameterValue={}",
+            target.database_kms_key_arn.as_deref().unwrap_or_default()
+        ),
+        format!(
+            "ParameterKey=LambdaSubnetIds,ParameterValue={}",
+            target.lambda_subnet_ids.join(",")
+        ),
+        format!(
+            "ParameterKey=LambdaSecurityGroupIds,ParameterValue={}",
+            target.lambda_security_group_ids.join(",")
+        ),
+        "--tags".into(),
+        format!("Key=MincoEnvironment,Value={environment}"),
+        format!("Key=MincoReleaseId,Value={}", release.release_id),
+        format!("Key=MincoReleaseDigest,Value={}", release.release_digest),
+        "--region".into(),
+        target.expected_region.clone(),
+        "--output".into(),
+        "json".into(),
+    ];
+    run_cloud_output(
+        root,
+        "aws",
+        "create the unexecuted CloudFormation change set",
+        &create_args,
+    )?;
+
+    create_args.clear();
+    run_cloud_output(
+        root,
+        "aws",
+        "wait for CloudFormation change-set creation",
+        &[
+            "cloudformation".into(),
+            "wait".into(),
+            "change-set-create-complete".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--change-set-name".into(),
+            change_set_name.clone(),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    )?;
+    let described = run_cloud_output(
+        root,
+        "aws",
+        "describe the created CloudFormation change set",
+        &[
+            "cloudformation".into(),
+            "describe-change-set".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--change-set-name".into(),
+            change_set_name,
+            "--include-property-values".into(),
+            "--region".into(),
+            target.expected_region.clone(),
+            "--output".into(),
+            "json".into(),
+        ],
+    )?;
+    let change_set = CloudFormationChangeSet::from_aws_json(&described.stdout)?;
+    if change_set.change_set_type != change_set_type {
+        bail!("provider change-set type did not match the guarded stack state");
+    }
+
+    let receipt = ChangeSetReceipt::seal(ChangeSetReceiptInput {
+        source_change: release.source_change.clone(),
+        release_manifest,
+        release_id: release.release_id.clone(),
+        release_digest: release.release_digest.clone(),
+        release_approval_digest: args
+            .approve_release_digest
+            .clone()
+            .context("release digest approval is required")?,
+        configuration_digest: release.configuration_digest.clone(),
+        environment: release.environment.clone(),
+        expected_account_id: target.expected_account_id.clone(),
+        expected_role_arn: target.expected_role_arn.clone(),
+        target_config,
+        packaged_template: packaged_template_digest,
+        drift,
+        change_set,
+    })?;
+    ensure_parent(review_output)?;
+    receipt.write_json(review_output)?;
+    receipt.verify_at(root)?;
+    print_value(&receipt, as_json)
+}
+
+fn inspect_stack_and_drift(
+    root: &Path,
+    target: &DeploymentTarget,
+) -> Result<(ChangeSetType, StackDrift)> {
+    let Some(stack) = describe_target_stack(root, target)? else {
+        return Ok((ChangeSetType::Create, StackDrift::NotApplicableNewStack));
+    };
+    require_stable_update_stack(&stack.stack_status)?;
+    Ok((
+        ChangeSetType::Update,
+        detect_clean_stack_drift(root, target)?,
+    ))
+}
+
+fn describe_target_stack(root: &Path, target: &DeploymentTarget) -> Result<Option<AwsStack>> {
+    let described = run_cloud_output_allow_failure(
+        root,
+        "aws",
+        &[
+            "cloudformation".into(),
+            "describe-stacks".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--region".into(),
+            target.expected_region.clone(),
+            "--output".into(),
+            "json".into(),
+        ],
+    )?;
+    if !described.status.success() {
+        let stderr = String::from_utf8_lossy(&described.stderr);
+        if stderr.contains("ValidationError") && stderr.contains("does not exist") {
+            return Ok(None);
+        }
+        bail!(
+            "inspect the target CloudFormation stack failed: {}",
+            bounded_provider_error(&described.stderr)
+        );
+    }
+    let response: AwsDescribeStacks =
+        serde_json::from_slice(&described.stdout).context("parse CloudFormation stack response")?;
+    let [stack] = response.stacks.as_slice() else {
+        bail!("CloudFormation stack lookup did not return exactly one stack");
+    };
+    Ok(Some(AwsStack {
+        stack_status: stack.stack_status.clone(),
+    }))
+}
+
+fn require_stable_update_stack(status: &str) -> Result<()> {
+    if !matches!(
+        status,
+        "CREATE_COMPLETE"
+            | "UPDATE_COMPLETE"
+            | "UPDATE_ROLLBACK_COMPLETE"
+            | "IMPORT_COMPLETE"
+            | "IMPORT_ROLLBACK_COMPLETE"
+    ) {
+        bail!("CloudFormation stack is not in a stable updateable state: {status}");
+    }
+    Ok(())
+}
+
+fn detect_clean_stack_drift(root: &Path, target: &DeploymentTarget) -> Result<StackDrift> {
+    let detection: AwsDriftDetection = aws_json(
+        root,
+        &target.expected_region,
+        "start CloudFormation drift detection",
+        &[
+            "cloudformation",
+            "detect-stack-drift",
+            "--stack-name",
+            &target.stack_name,
+        ],
+    )?;
+    for _ in 0..120 {
+        let status: AwsDriftStatus = aws_json(
+            root,
+            &target.expected_region,
+            "poll CloudFormation drift detection",
+            &[
+                "cloudformation",
+                "describe-stack-drift-detection-status",
+                "--stack-drift-detection-id",
+                &detection.stack_drift_detection_id,
+            ],
+        )?;
+        match status.stack_drift_detection_status.as_str() {
+            "DETECTION_IN_PROGRESS" => thread::sleep(Duration::from_secs(5)),
+            "DETECTION_FAILED" => {
+                bail!(
+                    "CloudFormation drift detection failed: {}",
+                    status
+                        .detection_status_reason
+                        .as_deref()
+                        .unwrap_or("provider supplied no reason")
+                );
+            }
+            "DETECTION_COMPLETE" => {
+                if status.stack_drift_status.as_deref() != Some("IN_SYNC") {
+                    bail!(
+                        "CloudFormation stack drift is not clean: {}",
+                        status.stack_drift_status.as_deref().unwrap_or("unknown")
+                    );
+                }
+                return Ok(StackDrift::InSync {
+                    detection_id: detection.stack_drift_detection_id,
+                    checked_at: chrono::Utc::now().to_rfc3339(),
+                });
+            }
+            other => bail!("CloudFormation returned unknown drift detection status {other}"),
+        }
+    }
+    bail!("CloudFormation drift detection did not complete within 10 minutes")
+}
+
+fn inspect_stack_before_apply(
+    root: &Path,
+    target: &DeploymentTarget,
+    change_set_type: ChangeSetType,
+) -> Result<()> {
+    let stack = describe_target_stack(root, target)?;
+    let status = stack.as_ref().map(|stack| stack.stack_status.as_str());
+    if apply_stack_requires_drift(change_set_type, status)? {
+        detect_clean_stack_drift(root, target)?;
+    }
+    Ok(())
+}
+
+fn apply_stack_requires_drift(
+    change_set_type: ChangeSetType,
+    stack_status: Option<&str>,
+) -> Result<bool> {
+    match (change_set_type, stack_status) {
+        (ChangeSetType::Create, Some("REVIEW_IN_PROGRESS")) => Ok(false),
+        (ChangeSetType::Update, Some(status)) => {
+            require_stable_update_stack(status)?;
+            Ok(true)
+        }
+        (ChangeSetType::Import, _) => bail!("import change sets are not supported"),
+        (ChangeSetType::Create, status) => {
+            bail!("new-stack change set has unexpected stack state: {status:?}")
+        }
+        (ChangeSetType::Update, None) => {
+            bail!("update change set target stack no longer exists")
+        }
+    }
+}
+
+const fn aws_change_set_type(change_set_type: ChangeSetType) -> &'static str {
+    match change_set_type {
+        ChangeSetType::Create => "CREATE",
+        ChangeSetType::Update => "UPDATE",
+        ChangeSetType::Import => "IMPORT",
+    }
+}
+
+fn aws_json<T: for<'de> Deserialize<'de>>(
+    root: &Path,
+    region: &str,
+    label: &str,
+    args: &[&str],
+) -> Result<T> {
+    let mut owned = args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
+    owned.extend([
+        "--region".into(),
+        region.into(),
+        "--output".into(),
+        "json".into(),
+    ]);
+    let output = run_cloud_output(root, "aws", label, &owned)?;
+    serde_json::from_slice(&output.stdout).with_context(|| format!("parse response for {label}"))
+}
+
+fn run_cloud_output(root: &Path, program: &str, label: &str, args: &[String]) -> Result<Output> {
+    let output = run_cloud_output_allow_failure(root, program, args)?;
+    if !output.status.success() {
+        bail!("{label} failed: {}", bounded_provider_error(&output.stderr));
+    }
+    Ok(output)
+}
+
+fn run_cloud_output_allow_failure(root: &Path, program: &str, args: &[String]) -> Result<Output> {
+    ProcessCommand::new(program)
+        .args(args)
+        .current_dir(root)
+        .env("AWS_PAGER", "")
+        .env("SAM_CLI_TELEMETRY", "0")
+        .stdin(Stdio::null())
+        .output()
+        .with_context(|| format!("run {program} for guarded cloud operation"))
+}
+
+fn bounded_provider_error(stderr: &[u8]) -> String {
+    String::from_utf8_lossy(stderr)
+        .chars()
+        .take(4_096)
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+#[derive(Debug, Deserialize)]
+struct MigrationReceiptEvidence {
+    schema_version: u32,
+    source_change: String,
+    catalog_digest: String,
+    plan_digest: String,
+    selected_set: String,
+    outcome: String,
+    failure_code: Option<String>,
+    after: Vec<MigrationAfterEvidence>,
+    verification: Vec<MigrationSetEvidence>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MigrationSetEvidence {
+    set_id: String,
+    verified: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct MigrationAfterEvidence {
+    set_id: String,
+    status: minco_db::MigrationStatus,
+}
+
+struct VerifiedApplyInputs {
+    change_set: ChangeSetReceipt,
+    change_set_receipt: FileDigest,
+    release: ReleaseManifest,
+    target: DeploymentTarget,
+    database_plan: DatabasePlanBinding,
+    migration_receipt: FileDigest,
+}
+
+fn apply_change_set_command(root: &Path, args: &ApplyArgs, as_json: bool) -> Result<()> {
+    for (path, label) in [
+        (&args.changeset, "change-set receipt"),
+        (&args.migration_plan, "migration plan"),
+        (&args.migration_receipt, "migration receipt"),
+    ] {
+        if root.join(path).exists() {
+            validate_project_file(root, path, label)?;
+        } else if path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            bail!("{label} must be a project-relative path");
+        }
+    }
+    let receipt_output = package_output_path(root, &args.receipt)?;
+    let mut blockers = Vec::new();
+    for (path, code) in [
+        (&args.changeset, "change_set_receipt_missing"),
+        (&args.migration_plan, "migration_plan_missing"),
+        (&args.migration_receipt, "migration_receipt_missing"),
+    ] {
+        if !root.join(path).is_file() {
+            blockers.push(code);
+        }
+    }
+    if receipt_output.exists() {
+        blockers.push("deployment_receipt_exists");
+    }
+
+    let verified = if blockers.is_empty() {
+        if let Ok(verified) = verify_apply_inputs(root, args) {
+            Some(verified)
+        } else {
+            blockers.push("apply_evidence_invalid");
+            None
+        }
+    } else {
+        None
+    };
+    if args.approve_changeset_digest.is_none() {
+        blockers.push("changeset_approval_missing");
+    } else if let (Some(verified), Some(approval)) =
+        (&verified, args.approve_changeset_digest.as_deref())
+        && approval != verified.change_set.receipt_digest
+    {
+        blockers.push("changeset_approval_mismatch");
+    }
+
+    let plan = json!({
+        "schema_version": 1,
+        "operation": "apply_change_set",
+        "dry_run": args.dry_run,
+        "external_aws_contact": false,
+        "infrastructure_apply": false,
+        "change_set_receipt": args.changeset,
+        "migration_plan": args.migration_plan,
+        "migration_receipt": args.migration_receipt,
+        "deployment_receipt": args.receipt,
+        "change_set": verified.as_ref().map(|verified| json!({
+            "receipt_digest": verified.change_set.receipt_digest,
+            "release_id": verified.change_set.release_id,
+            "change_set_id": verified.change_set.change_set.change_set_id,
+            "stack_name": verified.change_set.change_set.stack_name,
+            "change_set_type": verified.change_set.change_set.change_set_type,
+            "review": verified.change_set.change_set.review,
+            "migration_plan_digest": verified.database_plan.plan_digest,
+        })),
+        "guard_requirements": [
+            "exact_source",
+            "verified_release",
+            "immutable_change_set_receipt",
+            "current_expected_account_region_role",
+            "current_clean_drift_or_new_stack",
+            "current_available_change_set",
+            "verified_migration_receipt",
+            "exact_change_set_digest_approval",
+        ],
+        "blockers": blockers,
+    });
+    if args.dry_run {
+        return print_value(&plan, as_json);
+    }
+    if !blockers.is_empty() {
+        bail!("deployment apply guards failed: {}", blockers.join(", "));
+    }
+    let verified = verified.context("verified apply evidence is required")?;
+    apply_verified_change_set(root, args, verified, &receipt_output, as_json)
+}
+
+fn verify_apply_inputs(root: &Path, args: &ApplyArgs) -> Result<VerifiedApplyInputs> {
+    let change_set = ChangeSetReceipt::from_json(&fs::read(root.join(&args.changeset))?)?;
+    change_set.verify_at(root)?;
+    if !change_set.change_set.review.imports.is_empty()
+        || !change_set.change_set.review.indeterminate.is_empty()
+        || !change_set.change_set.review.metadata_syncs.is_empty()
+    {
+        bail!("change set contains unsupported import, dynamic, or drift-sync actions");
+    }
+    let release = ReleaseManifest::read_json(root.join(&change_set.release_manifest.path))
+        .and_then(|release| {
+            release.verify_at(root)?;
+            Ok(release)
+        })?;
+    let source = vcs::source_snapshot(root)?;
+    if source.change != change_set.source_change {
+        bail!("current source does not match the reviewed change set");
+    }
+
+    let catalog = DeploymentTargetCatalog::from_toml(&fs::read_to_string(
+        root.join(&change_set.target_config.path),
+    )?)?;
+    let selected = catalog.select(Some(&change_set.environment.environment))?;
+    let (database_plan, migration_receipt) = verify_migration_evidence(
+        root,
+        &release,
+        &args.migration_plan,
+        &args.migration_receipt,
+    )?;
+    Ok(VerifiedApplyInputs {
+        change_set_receipt: FileDigest::from_rooted_path(root, root.join(&args.changeset))?,
+        change_set,
+        release,
+        target: selected.target,
+        database_plan,
+        migration_receipt,
+    })
+}
+
+fn verify_migration_evidence(
+    root: &Path,
+    release: &ReleaseManifest,
+    plan_path: &Path,
+    receipt_path: &Path,
+) -> Result<(DatabasePlanBinding, FileDigest)> {
+    let plan: minco_db::MigrationPlan =
+        serde_json::from_slice(&fs::read(root.join(plan_path))?).context("parse migration plan")?;
+    let selected_set = plan
+        .selected_set
+        .as_deref()
+        .context("deployment migration plan must select exactly one set")?
+        .to_owned();
+    let receipt: MigrationReceiptEvidence =
+        serde_json::from_slice(&fs::read(root.join(receipt_path))?)
+            .context("parse migration receipt")?;
+    validate_migration_binding(
+        &plan,
+        &receipt,
+        &release.source_change,
+        &release.database_sources.migration_catalog,
+    )?;
+    Ok((
+        DatabasePlanBinding {
+            kind: DatabasePlanKind::Migration,
+            schema_version: plan.schema_version,
+            catalog_digest: plan.catalog_digest,
+            plan_digest: plan.digest,
+            file: FileDigest::from_rooted_path(root, root.join(plan_path))?,
+            selected_set: Some(selected_set),
+            environment: Some(release.environment.environment.clone()),
+        },
+        FileDigest::from_rooted_path(root, root.join(receipt_path))?,
+    ))
+}
+
+fn validate_migration_binding(
+    plan: &minco_db::MigrationPlan,
+    receipt: &MigrationReceiptEvidence,
+    expected_source_change: &str,
+    expected_catalog_digest: &str,
+) -> Result<()> {
+    let selected_set = plan
+        .selected_set
+        .as_deref()
+        .context("deployment migration plan must select exactly one set")?;
+    let planned_sets = plan
+        .sets
+        .iter()
+        .map(|set| set.id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let verified_sets = receipt
+        .verification
+        .iter()
+        .map(|set| set.set_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let applied_sets = receipt
+        .after
+        .iter()
+        .map(|set| set.set_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if plan.schema_version == 0
+        || planned_sets.is_empty()
+        || planned_sets.len() != plan.sets.len()
+        || verified_sets != planned_sets
+        || applied_sets != planned_sets
+        || plan.catalog_digest != expected_catalog_digest
+        || receipt.schema_version != 1
+        || receipt.source_change != expected_source_change
+        || receipt.catalog_digest != plan.catalog_digest
+        || receipt.plan_digest != plan.digest
+        || receipt.selected_set != selected_set
+        || receipt.outcome != "succeeded"
+        || receipt.failure_code.is_some()
+        || receipt.verification.is_empty()
+        || receipt
+            .verification
+            .iter()
+            .any(|verification| !verification.verified)
+        || receipt.after.iter().any(|after| {
+            after.status.set_id != after.set_id
+                || after.status.dirty_version.is_some()
+                || after
+                    .status
+                    .entries
+                    .iter()
+                    .any(|entry| entry.state != minco_db::MigrationState::Applied)
+        })
+    {
+        bail!("migration plan and successful verification receipt do not bind the exact release");
+    }
+    Ok(())
+}
+
+fn apply_verified_change_set(
+    root: &Path,
+    args: &ApplyArgs,
+    verified: VerifiedApplyInputs,
+    receipt_output: &Path,
+    as_json: bool,
+) -> Result<()> {
+    if !command_available("aws") {
+        bail!("deployment apply requires `aws`");
+    }
+    let identity: AwsCallerIdentity = aws_json(
+        root,
+        &verified.target.expected_region,
+        "inspect AWS caller identity before apply",
+        &["sts", "get-caller-identity"],
+    )?;
+    let role_arn = caller_role_arn(&identity.arn).context(
+        "AWS caller identity must be the exact configured IAM role or an assumed-role session",
+    )?;
+    let current_type = verified.change_set.change_set.change_set_type;
+    inspect_stack_before_apply(root, &verified.target, current_type)?;
+    let described = run_cloud_output(
+        root,
+        "aws",
+        "re-inspect the approved CloudFormation change set",
+        &[
+            "cloudformation".into(),
+            "describe-change-set".into(),
+            "--change-set-name".into(),
+            verified.change_set.change_set.change_set_id.clone(),
+            "--include-property-values".into(),
+            "--region".into(),
+            verified.target.expected_region.clone(),
+            "--output".into(),
+            "json".into(),
+        ],
+    )?;
+    let current_change_set = CloudFormationChangeSet::from_aws_json(&described.stdout)?;
+    if current_change_set != verified.change_set.change_set
+        || current_type != current_change_set.change_set_type
+    {
+        bail!("current provider change set does not match the approved immutable receipt");
+    }
+    let current_source = vcs::source_snapshot(root)?;
+    verified.change_set.verify_at(root)?;
+    for file in [
+        &verified.change_set_receipt,
+        &verified.database_plan.file,
+        &verified.migration_receipt,
+    ] {
+        file.verify_at(root)?;
+    }
+    verify_guards(
+        &EnvironmentExpectation {
+            account_id: verified.change_set.expected_account_id.clone(),
+            region: verified.change_set.environment.region.clone(),
+            environment: verified.change_set.environment.environment.clone(),
+            role_arn: verified.change_set.expected_role_arn.clone(),
+            release_id: verified.change_set.release_id.clone(),
+            release_digest: verified.change_set.release_digest.clone(),
+            configuration_digest: verified.change_set.configuration_digest.clone(),
+            migration_plan_digest: Some(verified.database_plan.plan_digest.clone()),
+        },
+        &EnvironmentObservation {
+            account_id: identity.account,
+            region: verified.target.expected_region.clone(),
+            environment: verified.release.environment.environment.clone(),
+            role_arn,
+            release_id: verified.release.release_id.clone(),
+            release_digest: verified.release.release_digest.clone(),
+            release_verified: true,
+            configuration_digest: verified.release.configuration_digest.clone(),
+            drift: DriftState::Clean,
+            migration: DeploymentMigrationState::Verified {
+                plan_digest: verified.database_plan.plan_digest.clone(),
+            },
+            source: if current_source.change == verified.change_set.source_change {
+                SourceState::Clean
+            } else {
+                SourceState::Dirty
+            },
+            operator_approval_digest: Some(verified.change_set.release_digest.clone()),
+        },
+    )?;
+
+    let mut deployment = DeploymentReceipt::start(DeploymentReceiptInput {
+        attempt_id: uuid::Uuid::now_v7().to_string(),
+        release_manifest: verified.change_set.release_manifest.clone(),
+        release_id: verified.release.release_id.clone(),
+        release_digest: verified.release.release_digest.clone(),
+        environment: verified.release.environment.clone(),
+        configuration_digest: verified.release.configuration_digest.clone(),
+        database_plans: vec![verified.database_plan],
+        attestations: vec![verified.change_set_receipt, verified.migration_receipt],
+    })?;
+    ensure_parent(receipt_output)?;
+    deployment.write_json(receipt_output)?;
+    deployment.verify_at(root)?;
+
+    if let Err(error) = run_cloud_output(
+        root,
+        "aws",
+        "execute the exact approved CloudFormation change set",
+        &[
+            "cloudformation".into(),
+            "execute-change-set".into(),
+            "--change-set-name".into(),
+            verified.change_set.change_set.change_set_id.clone(),
+            "--client-request-token".into(),
+            verified.change_set.receipt_digest.clone(),
+            "--region".into(),
+            verified.target.expected_region.clone(),
+        ],
+    ) {
+        deployment.fail("cloudformation_execute_failed")?;
+        deployment.write_json(receipt_output)?;
+        return Err(error);
+    }
+    let waiter = match current_type {
+        ChangeSetType::Create => "stack-create-complete",
+        ChangeSetType::Update => "stack-update-complete",
+        ChangeSetType::Import => {
+            deployment.fail("unsupported_import_apply")?;
+            deployment.write_json(receipt_output)?;
+            bail!("import change sets are not supported");
+        }
+    };
+    if let Err(error) = run_cloud_output(
+        root,
+        "aws",
+        "wait for CloudFormation stack apply",
+        &[
+            "cloudformation".into(),
+            "wait".into(),
+            waiter.into(),
+            "--stack-name".into(),
+            verified.target.stack_name,
+            "--region".into(),
+            verified.target.expected_region,
+        ],
+    ) {
+        deployment.fail("cloudformation_apply_failed")?;
+        deployment.write_json(receipt_output)?;
+        return Err(error);
+    }
+    print_value(
+        &json!({
+            "infrastructure_applied": true,
+            "hosted_verification_pending": true,
+            "deployment_receipt": deployment,
+            "deployment_receipt_path": args.receipt,
+        }),
+        as_json,
+    )
 }
 
 fn template_relative_path(root: &Path, template: &Path, artifact: &str) -> Result<PathBuf> {
@@ -1873,6 +2913,118 @@ mod cli_argument_tests {
     fn package_is_a_first_class_top_level_command() {
         let cli = Cli::try_parse_from(["cargo-minco", "package"]).expect("package command");
         assert!(matches!(cli.command, Command::Package(_)));
+    }
+
+    #[test]
+    fn deployment_change_set_has_a_non_contacting_dry_run_shape() {
+        let cli =
+            Cli::try_parse_from(["cargo-minco", "deploy", "changeset", "--dry-run", "--json"])
+                .expect("change-set dry-run command");
+
+        assert!(matches!(
+            cli.command,
+            Command::Deploy(DeployCommand::Changeset(ChangeSetArgs {
+                dry_run: true,
+                ..
+            }))
+        ));
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn deployment_apply_has_separate_exact_receipt_approval_shape() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "deploy",
+            "apply",
+            "--approve-changeset-digest",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--dry-run",
+            "--json",
+        ])
+        .expect("deployment apply dry-run command");
+
+        assert!(matches!(
+            cli.command,
+            Command::Deploy(DeployCommand::Apply(ApplyArgs {
+                dry_run: true,
+                approve_changeset_digest: Some(_),
+                ..
+            }))
+        ));
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn deployment_apply_requires_successful_exact_migration_evidence() {
+        let source_change = "a".repeat(64);
+        let catalog_digest = "b".repeat(64);
+        let plan_digest = "c".repeat(64);
+        let plan = minco_db::MigrationPlan {
+            schema_version: 1,
+            catalog_digest: catalog_digest.clone(),
+            selected_set: Some("orders".into()),
+            digest: plan_digest.clone(),
+            sets: vec![minco_db::MigrationSet {
+                id: "orders".into(),
+                owner: "orders".into(),
+                backend: minco_db::DatabaseBackend::Postgres,
+                root: PathBuf::from("migrations/orders"),
+                history_table: "_sqlx_migrations_orders".into(),
+                depends_on: Vec::new(),
+                verify_tables: vec!["orders".into()],
+                digest: "d".repeat(64),
+                migrations: Vec::new(),
+            }],
+        };
+        let mut receipt = MigrationReceiptEvidence {
+            schema_version: 1,
+            source_change: source_change.clone(),
+            catalog_digest: catalog_digest.clone(),
+            plan_digest,
+            selected_set: "orders".into(),
+            outcome: "succeeded".into(),
+            failure_code: None,
+            after: vec![MigrationAfterEvidence {
+                set_id: "orders".into(),
+                status: minco_db::MigrationStatus {
+                    set_id: "orders".into(),
+                    dirty_version: None,
+                    entries: Vec::new(),
+                },
+            }],
+            verification: vec![MigrationSetEvidence {
+                set_id: "orders".into(),
+                verified: true,
+            }],
+        };
+        validate_migration_binding(&plan, &receipt, &source_change, &catalog_digest)
+            .expect("exact successful migration evidence");
+
+        receipt.outcome = "failed".into();
+        assert!(
+            validate_migration_binding(&plan, &receipt, &source_change, &catalog_digest).is_err()
+        );
+        receipt.outcome = "succeeded".into();
+        receipt.source_change = "d".repeat(64);
+        assert!(
+            validate_migration_binding(&plan, &receipt, &source_change, &catalog_digest).is_err()
+        );
+    }
+
+    #[test]
+    fn create_change_set_apply_accepts_only_the_provider_review_state() {
+        assert!(
+            apply_stack_requires_drift(ChangeSetType::Create, Some("REVIEW_IN_PROGRESS"))
+                .is_ok_and(|required| !required)
+        );
+        assert!(
+            apply_stack_requires_drift(ChangeSetType::Create, Some("CREATE_COMPLETE")).is_err()
+        );
+        assert!(
+            apply_stack_requires_drift(ChangeSetType::Update, Some("UPDATE_COMPLETE"))
+                .is_ok_and(|required| required)
+        );
     }
 
     #[test]

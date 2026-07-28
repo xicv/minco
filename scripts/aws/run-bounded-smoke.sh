@@ -61,9 +61,27 @@ identity="$(
     --output json
 )"
 account_id="$(jq -er '.Account' <<<"$identity")"
+caller_arn="$(jq -er '.Arn' <<<"$identity")"
 write_evidence_value "$MINCO_AWS_EVIDENCE_DIR/caller-identity.json" "$identity"
 unset identity
 [[ "$account_id" =~ ^[0-9]{12}$ ]]
+case "$caller_arn" in
+  arn:aws*:iam::"$account_id":role/*)
+    expected_role_arn="$caller_arn"
+    ;;
+  arn:aws*:sts::"$account_id":assumed-role/*/*)
+    partition="${caller_arn%%:sts::*}"
+    role_session="${caller_arn#*:assumed-role/}"
+    role_name="${role_session%%/*}"
+    expected_role_arn="${partition}:iam::${account_id}:role/${role_name}"
+    unset partition role_session role_name
+    ;;
+  *)
+    echo "bounded deployment requires an IAM role or assumed-role caller" >&2
+    exit 1
+    ;;
+esac
+unset caller_arn
 
 aws_logged ssm describe-parameters \
   "capture existing database parameter metadata before use; no value requested" \
@@ -180,7 +198,126 @@ MINCO_CONFIG__APPLICATION__NAME="$MINCO_SMOKE_APPLICATION" cargo minco release c
   --output "$MINCO_RELEASE_MANIFEST"
 cargo minco release verify "$MINCO_RELEASE_MANIFEST"
 
-MINCO_AWS_EXECUTE_CHANGESET=yes scripts/aws/deploy.sh
+migration_plan="$MINCO_AWS_EVIDENCE_DIR/database-migration-plan.json"
+migration_receipt="$MINCO_AWS_EVIDENCE_DIR/database-migration-receipt.json"
+[[ -f "$migration_plan" && -f "$migration_receipt" ]] || {
+  echo "exact migration plan and successful receipt are required before infrastructure apply" >&2
+  exit 1
+}
+
+stack_error="$MINCO_AWS_EVIDENCE_DIR/stack-preflight-error.txt"
+if aws_logged cloudformation describe-stacks \
+  "ensure stack $MINCO_STACK_NAME does not pre-exist" \
+  --stack-name "$MINCO_STACK_NAME" >/dev/null 2>"$stack_error"; then
+  echo "refusing to mutate pre-existing stack $MINCO_STACK_NAME" >&2
+  exit 1
+elif ! grep -Eq 'does not exist' "$stack_error"; then
+  echo "could not prove that stack $MINCO_STACK_NAME is absent" >&2
+  sed -n '1,8p' "$stack_error" >&2
+  exit 1
+fi
+rm -f "$stack_error"
+write_evidence_value \
+  "$MINCO_AWS_EVIDENCE_DIR/stack-preflight-absent.txt" \
+  "$MINCO_STACK_NAME"
+
+bucket_error="$MINCO_AWS_EVIDENCE_DIR/bucket-preflight-error.txt"
+if aws_logged s3api head-bucket \
+  "ensure artifact bucket $MINCO_AWS_ARTIFACT_BUCKET does not pre-exist" \
+  --bucket "$MINCO_AWS_ARTIFACT_BUCKET" >/dev/null 2>"$bucket_error"; then
+  echo "refusing to mutate pre-existing bucket $MINCO_AWS_ARTIFACT_BUCKET" >&2
+  exit 1
+elif ! grep -Eq '404|NoSuchBucket|Not Found' "$bucket_error"; then
+  echo "could not prove that artifact bucket is absent" >&2
+  sed -n '1,8p' "$bucket_error" >&2
+  exit 1
+fi
+rm -f "$bucket_error"
+write_evidence_value \
+  "$MINCO_AWS_EVIDENCE_DIR/bucket-preflight-absent.txt" \
+  "$MINCO_AWS_ARTIFACT_BUCKET"
+
+bucket_arguments=(--bucket "$MINCO_AWS_ARTIFACT_BUCKET")
+bucket_configuration="$(s3_tagged_create_configuration "$AWS_REGION" "$MINCO_AWS_RUN_ID")"
+bucket_arguments+=(--create-bucket-configuration "$bucket_configuration")
+aws_logged s3api create-bucket \
+  "create the bounded SAM artifact bucket" \
+  "${bucket_arguments[@]}" >/dev/null
+unset bucket_configuration
+aws_logged s3api put-public-access-block \
+  "block all public access on the bounded artifact bucket" \
+  --bucket "$MINCO_AWS_ARTIFACT_BUCKET" \
+  --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true \
+  >/dev/null
+aws_logged s3api put-bucket-encryption \
+  "enable server-side encryption on the bounded artifact bucket" \
+  --bucket "$MINCO_AWS_ARTIFACT_BUCKET" \
+  --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":false}]}' \
+  >/dev/null
+
+target_config="$MINCO_AWS_EVIDENCE_DIR/deployment-targets.toml"
+{
+  printf 'schema_version = 1\ndefault_environment = "dev"\n\n'
+  printf '[environments.dev]\nenabled = true\n'
+  printf 'expected_account_id = "%s"\n' "$account_id"
+  printf 'expected_region = "%s"\n' "$AWS_REGION"
+  printf 'expected_role_arn = "%s"\n' "$expected_role_arn"
+  printf 'stack_name = "%s"\n' "$MINCO_STACK_NAME"
+  printf 'artifact_bucket = "%s"\n' "$MINCO_AWS_ARTIFACT_BUCKET"
+  printf 'database_url_parameter_name = "%s"\n' "$MINCO_DATABASE_URL_PARAMETER"
+  if [[ -n "${MINCO_DATABASE_KMS_KEY_ARN:-}" ]]; then
+    printf 'database_kms_key_arn = "%s"\n' "$MINCO_DATABASE_KMS_KEY_ARN"
+  fi
+  if [[ -n "${MINCO_LAMBDA_SUBNET_IDS:-}" ]]; then
+    printf 'lambda_subnet_ids = ["%s"]\n' \
+      "${MINCO_LAMBDA_SUBNET_IDS//,/\",\"}"
+    printf 'lambda_security_group_ids = ["%s"]\n' \
+      "${MINCO_LAMBDA_SECURITY_GROUP_IDS//,/\",\"}"
+  fi
+} >"$target_config"
+chmod 600 "$target_config"
+
+release_digest="$(jq -er '.release_digest' "$MINCO_RELEASE_MANIFEST")"
+MINCO_DEPLOY_PHASE=changeset \
+MINCO_DEPLOY_TARGET_CONFIG="target/minco/aws/$MINCO_AWS_RUN_ID/deployment-targets.toml" \
+MINCO_APPROVE_RELEASE_DIGEST="$release_digest" \
+  scripts/aws/deploy.sh
+change_set_receipt="$MINCO_AWS_EVIDENCE_DIR/change-set-receipt.json"
+jq -e '
+  .change_set.change_set_type == "create"
+  and (.change_set.review.additions | length > 0)
+  and (.change_set.review.modifications | length == 0)
+  and (.change_set.review.replacements | length == 0)
+  and (.change_set.review.deletions | length == 0)
+  and (.change_set.review.imports | length == 0)
+  and (.change_set.review.indeterminate | length == 0)
+  and (.change_set.review.metadata_syncs | length == 0)
+  and (
+    [.change_set.review.additions[].resource_type]
+    | all(
+        . == "AWS::ApiGatewayV2::Api"
+        or . == "AWS::ApiGatewayV2::Stage"
+        or . == "AWS::IAM::Role"
+        or . == "AWS::Lambda::Function"
+        or . == "AWS::Lambda::Permission"
+        or . == "AWS::Logs::LogGroup"
+      )
+  )
+' "$change_set_receipt" >/dev/null || {
+  echo "bounded change set is not an approved create-only resource set" >&2
+  exit 1
+}
+change_set_digest="$(jq -er '.receipt_digest' "$change_set_receipt")"
+MINCO_DEPLOY_PHASE=apply \
+MINCO_DEPLOY_TARGET_CONFIG="target/minco/aws/$MINCO_AWS_RUN_ID/deployment-targets.toml" \
+MINCO_CHANGESET_RECEIPT="target/minco/aws/$MINCO_AWS_RUN_ID/change-set-receipt.json" \
+MINCO_MIGRATION_PLAN="target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-plan.json" \
+MINCO_MIGRATION_RECEIPT="target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-receipt.json" \
+MINCO_APPROVE_CHANGESET_DIGEST="$change_set_digest" \
+  scripts/aws/deploy.sh
+unset change_set_digest release_digest
 scripts/aws/smoke.sh
 
 unset MINCO_SMOKE_JWT_TOKEN
