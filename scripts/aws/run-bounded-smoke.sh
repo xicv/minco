@@ -173,7 +173,7 @@ cargo minco deploy plan --config "$smoke_config" --output "$plan"
 cargo minco deploy render-sam --config "$smoke_config" --output "$template"
 uv run --locked python scripts/validate_static.py
 SAM_CLI_TELEMETRY=0 sam validate --lint --template-file "$template"
-cargo minco release create \
+MINCO_CONFIG__APPLICATION__NAME="$MINCO_SMOKE_APPLICATION" cargo minco release create \
   --artifact "$build_directory/bootstrap.zip" \
   --plan "$plan" \
   --template "$template" \

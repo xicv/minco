@@ -1,10 +1,12 @@
 # minco-release
 
-Immutable release-manifest and digest verification primitives for Minco.
+Immutable release-manifest and deployment-receipt primitives for Minco.
 
-A release records the exact application artifact, OpenAPI contract, migration
-set, deployment plan, Cargo lockfile, source change, and toolchain identity.
-Promotion reuses the same artifact rather than rebuilding source.
+A release records exact function artifacts, OpenAPI contract, configuration and
+database-source digests, Plan IR, rendered template, Cargo lockfile, source
+change, toolchain identity and optional attestations. A deployment receipt binds
+that verified release to exact database plans and terminal verification
+evidence. Promotion reuses the same artifacts rather than rebuilding source.
 
 ```rust,no_run
 use minco_release::FileDigest;

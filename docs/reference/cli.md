@@ -161,6 +161,9 @@ cargo minco db seed --verify --profile CLASS [--environment ENV] --set ID
 cargo minco db seed --profile CLASS [--environment ENV] --set ID
   --database-url-env NAME --expected-plan-digest SHA256 --receipt PATH
   [--allow-destructive] [--authorize-bootstrap ENV]
+cargo minco package [--config PATH] [--environment ENV]
+  [--plan target/PATH] [--template target/PATH]
+  [--output target/PATH] [--attestation PATH]...
 cargo minco release create --artifact PATH [--plan PATH] [--output PATH]
 cargo minco release verify <manifest>
 ```

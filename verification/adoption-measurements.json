@@ -56,18 +56,18 @@
         "cold_build_seconds": 124.77,
         "compressed_bytes": 5031958,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "189397cee2a8a86245c0fdbdec0db1e12fda84d012d0ac3263872af6aff0e400",
+        "sha256": "11782c2e74ab92651c8d24bbae232cfdcbc6e8ad4a42e15a069849218227bbcd",
         "uncompressed_bytes": 11048288
       },
       "sqs_worker": {
         "cold_build_seconds": 15.04,
         "compressed_bytes": 573415,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "23e05b301f266835da5b9937638bd38373c34a5d988c792653aa69836aaa36dc",
+        "sha256": "d98d08684bd000e1826b499a4a75577415717c8a9346abd776ad07774d4deeba",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:69a1567e7388c8458b03eab71499c3e1da6d2b52d7c1e2174fa044d460fad7e5"
+    "revision": "source-tree-sha256:3988f49a60737456ead0edf0eab697e71d42335e6de676f526e2c092564eeb1d"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,

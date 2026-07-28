@@ -102,6 +102,12 @@ def render_profile(destination: Path, database: str) -> None:
         "{{DATABASE_SECRET_REFERENCE}}": (
             "env:DATABASE_URL" if database == "postgres" else "env:DATABASE_PATH"
         ),
+        "{{PACKAGE_COMMAND}}": (
+            "cargo lambda build --release --arm64 --output-format zip "
+            "-p sample-api-service --bin sample-api-lambda --features lambda"
+            if database == "postgres"
+            else "cargo build -p sample-api-service --bin sample-api-local"
+        ),
     }
     for relative in COMMON:
         target = destination / relative
