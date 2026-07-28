@@ -1,16 +1,21 @@
 # Graph-derived local infrastructure
 
-Minco derives its local Compose services from the selected deployment and
-plugin graph:
+The primary local workflow derives and supervises the complete topology:
+
+```bash
+cargo minco dev --dry-run --json
+cargo minco dev
+```
+
+These lower-level diagnostics expose only the Compose projection:
 
 ```bash
 python3 scripts/dev/topology.py
 ./scripts/dev/up.sh --dry-run
 ```
 
-The reference graph selects PostgreSQL and Rustack's SSM/STS services. Start
-them, migrate explicitly, then run the application with the same derived
-configuration:
+The reference graph selects PostgreSQL and Rustack's SSM/STS services. The
+individual scripts remain useful when qualifying one boundary:
 
 ```bash
 ./scripts/dev/up.sh

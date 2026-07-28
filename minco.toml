@@ -80,6 +80,33 @@ test_all = [
   "scripts/test/e2e.sh",
 ]
 
+[development]
+default_environment = "local"
+default_profile = "postgres"
+compose_file = "infra/local/compose.yaml"
+
+[development.profiles.postgres]
+deployment_config = "examples/orders/config/minco.dev.toml"
+migration = { program = "cargo", arguments = ["run", "-p", "orders-service", "--bin", "orders-migrate", "--features", "all-runtimes"] }
+
+[development.profiles.postgres.seeds.demo]
+program = "scripts/dev/seed.sh"
+arguments = ["demo"]
+
+[development.profiles.sqlite]
+deployment_config = "examples/orders/config/minco.local-sqlite.toml"
+migration = { program = "cargo", arguments = ["run", "-p", "orders-service", "--bin", "orders-migrate", "--features", "all-runtimes"] }
+
+[development.profiles.sqlite.seeds.demo]
+program = "scripts/dev/seed.sh"
+arguments = ["demo"]
+
+[development.api]
+id = "api"
+default_enabled = true
+command = { program = "cargo", arguments = ["run", "-p", "orders-service", "--bin", "orders-local", "--features", "all-runtimes"] }
+readiness = { kind = "http", url = "http://127.0.0.1:3000/health/ready" }
+
 [operations.healthLive]
 handler = "examples/orders/api/src/lib.rs#health_live"
 tests = ["examples/orders/api/src/lib.rs#live_is_public"]

@@ -35,11 +35,11 @@
     "build_timings_seconds": {},
     "facade": {
       "all_features": {
-        "feature_tree_lines": 3443,
+        "feature_tree_lines": 3453,
         "normal_dependency_packages": 300
       },
       "default_features": {
-        "feature_tree_lines": 820,
+        "feature_tree_lines": 824,
         "normal_dependency_packages": 105
       },
       "no_default_features": {
@@ -47,27 +47,27 @@
         "normal_dependency_packages": 16
       },
       "official_plugins": {
-        "feature_tree_lines": 1040,
+        "feature_tree_lines": 1050,
         "normal_dependency_packages": 118
       }
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 139.54,
+        "cold_build_seconds": 124.77,
         "compressed_bytes": 5031958,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "23c05e30f52e45137e574a294922c00b7334dde21ec5b72879ea6dd9154660e5",
+        "sha256": "189397cee2a8a86245c0fdbdec0db1e12fda84d012d0ac3263872af6aff0e400",
         "uncompressed_bytes": 11048288
       },
       "sqs_worker": {
-        "cold_build_seconds": 18.01,
+        "cold_build_seconds": 15.04,
         "compressed_bytes": 573415,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "13febed2fa7f7858dc3ae0c5f00c624401cfe5f7f5234227b90dcab913d2b5ac",
+        "sha256": "23e05b301f266835da5b9937638bd38373c34a5d988c792653aa69836aaa36dc",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:cc4de918d255d31e724247f33bd0cc1091904c1b7c0716b870a0f0b6f86f069f"
+    "revision": "source-tree-sha256:594252de4145efd8bf96f13fe20332d0d1382e07ef0e3f2cedb74b389438ed2f"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,

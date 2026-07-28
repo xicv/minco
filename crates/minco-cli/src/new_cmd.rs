@@ -168,6 +168,10 @@ const COMMON_TEMPLATES: &[Template] = &[
         source: include_str!("../templates/app/quality.toml.tmpl"),
     },
     Template {
+        path: "infra/local/compose.yaml",
+        source: include_str!("../templates/app/infra/local/compose.yaml.tmpl"),
+    },
+    Template {
         path: "plugins/catalog.toml",
         source: include_str!("../templates/app/plugins/catalog.toml.tmpl"),
     },
@@ -495,6 +499,16 @@ mod tests {
                 .unwrap();
         assert_eq!(manifest["name"].as_str(), Some("example-api"));
         assert!(manifest["commands"].get("database_migrate").is_none());
+        assert_eq!(
+            manifest["development"]["default_environment"].as_str(),
+            Some("dev")
+        );
+        assert_eq!(
+            manifest["development"]["default_profile"].as_str(),
+            Some("postgres")
+        );
+        assert_eq!(manifest["development"]["api"]["id"].as_str(), Some("api"));
+        assert!(destination.join("infra/local/compose.yaml").is_file());
         let catalog = minco_db::load_catalog(&destination, &[PathBuf::from("migrations/postgres")])
             .expect("load generated lifecycle catalog");
         assert_eq!(catalog.sets[0].id, "example-api-postgres");

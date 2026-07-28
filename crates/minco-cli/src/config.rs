@@ -30,6 +30,8 @@ pub struct MincoManifest {
     #[serde(default)]
     pub commands: CommandManifest,
     #[serde(default)]
+    pub development: DevelopmentManifest,
+    #[serde(default)]
     pub plugins: PluginSelectionFile,
 }
 
@@ -105,6 +107,41 @@ pub struct CommandManifest {
     pub e2e: Vec<String>,
     #[serde(default, rename = "test_all")]
     pub all: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+pub struct DevelopmentManifest {
+    pub default_environment: String,
+    pub default_profile: String,
+    pub compose_file: PathBuf,
+    #[serde(default)]
+    pub profiles: BTreeMap<String, DevelopmentProfile>,
+    pub api: Option<minco_dev::ProcessConfig>,
+    #[serde(default)]
+    pub workers: Vec<minco_dev::ProcessConfig>,
+    pub frontend: Option<minco_dev::ProcessConfig>,
+}
+
+impl Default for DevelopmentManifest {
+    fn default() -> Self {
+        Self {
+            default_environment: String::new(),
+            default_profile: String::new(),
+            compose_file: PathBuf::from("infra/local/compose.yaml"),
+            profiles: BTreeMap::new(),
+            api: None,
+            workers: Vec::new(),
+            frontend: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
+pub struct DevelopmentProfile {
+    pub deployment_config: PathBuf,
+    pub migration: Option<minco_dev::CommandSpec>,
+    #[serde(default)]
+    pub seeds: BTreeMap<String, minco_dev::CommandSpec>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]

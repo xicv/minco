@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Cargo subcommand for Minco contracts, plugins, tests, plans, releases, updates, and JJ workflows"
+description = "Cargo subcommand for Minco local development, contracts, plugins, plans, releases, and JJ workflows"
 documentation = "https://docs.rs/cargo-minco"
 readme = "README.md"
 keywords = ["minco", "cargo", "openapi", "aws", "serverless"]
@@ -28,6 +28,7 @@ minco-config.workspace = true
 minco-contract.workspace = true
 minco-core.workspace = true
 minco-db.workspace = true
+minco-dev.workspace = true
 minco-plan.workspace = true
 minco-plugin-feedback = { workspace = true, default-features = false, features = ["client"] }
 minco-release.workspace = true
@@ -39,6 +40,7 @@ serde_yaml_ng.workspace = true
 tokio.workspace = true
 toml.workspace = true
 uuid.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 tempfile = "3.20"

@@ -67,6 +67,61 @@ def test_reference_graph_selects_only_declared_local_dependencies() -> None:
     assert result["compose_services"] == ["postgres", "rustack"]
 
 
+def test_minco_dev_dry_run_exposes_the_safe_graph_before_startup() -> None:
+    result = subprocess.run(
+        ["cargo", "minco", "dev", "--dry-run", "--json"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    plan = json.loads(result.stdout)
+
+    assert plan["external_aws_contact"] is False
+    assert [service["kind"] for service in plan["services"]] == [
+        "postgres",
+        "rustack",
+    ]
+    assert [step["kind"] for step in plan["lifecycle"]] == ["migrate"]
+    assert [(process["id"], process["role"]) for process in plan["processes"]] == [
+        ("api", "api"),
+    ]
+    serialized = json.dumps(plan)
+    assert "DATABASE_URL" not in serialized
+    assert "AWS_SECRET_ACCESS_KEY" not in serialized
+    assert "postgres://" not in serialized
+
+
+def test_minco_dev_sqlite_profile_and_port_override_remain_local_and_explicit() -> None:
+    result = subprocess.run(
+        [
+            "cargo",
+            "minco",
+            "dev",
+            "--profile",
+            "sqlite",
+            "--no-migrate",
+            "--port",
+            "31000",
+            "--dry-run",
+            "--json",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    plan = json.loads(result.stdout)
+
+    assert plan["profile"] == "sqlite"
+    assert [service["kind"] for service in plan["services"]] == ["sqlite"]
+    assert plan["lifecycle"] == []
+    assert plan["processes"][0]["command"]["environment"]["PORT"] == "31000"
+    assert plan["processes"][0]["readiness"]["url"] == (
+        "http://127.0.0.1:31000/health/ready"
+    )
+
+
 def test_provider_neutral_plugins_do_not_silently_select_aws_providers() -> None:
     with tempfile.TemporaryDirectory(prefix="minco-local-topology-") as temporary:
         root = Path(temporary)
@@ -231,6 +286,9 @@ def test_migrate_uses_the_same_graph_derived_database_configuration() -> None:
         cargo = directory / "cargo"
         cargo.write_text(
             "#!/bin/sh\n"
+            "case \"$*\" in\n"
+            "  *'db plan'*) printf '{\"digest\":\"test-plan-digest\"}\\n'; exit 0 ;;\n"
+            "esac\n"
             "printf 'database=%s migration=%s cargo=%s\\n' "
             "\"$DATABASE_URL\" \"$MIGRATION_DATABASE_URL\" \"$*\" "
             ">> \"$MINCO_TEST_LOG\"\n"
@@ -254,9 +312,13 @@ def test_migrate_uses_the_same_graph_derived_database_configuration() -> None:
 
         calls = log.read_text().splitlines()
 
-    assert calls == [
-        f"database={isolated_url} migration={isolated_url} cargo=minco db migrate"
-    ]
+    assert len(calls) == 1
+    assert calls[0].startswith(
+        f"database={isolated_url} migration={isolated_url} "
+        "cargo=minco db migrate --set orders-postgres "
+    )
+    assert "--expected-plan-digest test-plan-digest" in calls[0]
+    assert "--receipt target/minco/dev/orders-postgres-" in calls[0]
 
 
 def test_up_proves_rustack_readiness_through_the_standard_aws_endpoint() -> None:
@@ -310,7 +372,10 @@ def test_up_proves_rustack_readiness_through_the_standard_aws_endpoint() -> None
 
 def main() -> int:
     test_reference_graph_selects_only_declared_local_dependencies()
+    test_minco_dev_dry_run_exposes_the_safe_graph_before_startup()
+    test_minco_dev_sqlite_profile_and_port_override_remain_local_and_explicit()
     test_provider_neutral_plugins_do_not_silently_select_aws_providers()
+    test_offline_plan_rejects_unsupported_rustack_services()
     test_up_dry_run_reports_the_exact_selected_services()
     test_compose_passes_the_derived_service_set_to_rustack()
     test_reference_graph_exports_standard_local_runtime_configuration()
