@@ -24,6 +24,7 @@ include = [
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
+minco-db.workspace = true
 minco-plugin-audit.workspace = true
 minco-plugin-events.workspace = true
 minco-plugin-idempotency.workspace = true
@@ -36,6 +37,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+tempfile.workspace = true
 tokio.workspace = true
 
 [package.metadata.docs.rs]

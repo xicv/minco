@@ -10,3 +10,8 @@
 8. Use one JJ workspace per task and keep task evidence in `tasks/`.
 9. Run `cargo minco check --with-cargo` before completing a task.
 10. Deployment cost, wake-source, performance, and database-profile changes require explicit review.
+11. Keep migration identity, ownership, risk, verification, and history in the
+    selected root's `.minco-migrations.toml`; never change applied SQL only to
+    change metadata.
+12. Use `cargo minco db plan`, digest-bound `db migrate`, and `db verify`.
+    Application startup must not migrate.

@@ -34,3 +34,26 @@ minco_sqlx_postgres::migrate_with_history_table(
 The history-table name is restricted to a plain PostgreSQL identifier. Reusing
 SQLx's default `_sqlx_migrations` table for unrelated migration directories
 causes version/checksum collisions.
+
+The framework lifecycle API accepts a validated `minco_db::MigrationSet`:
+
+```rust,no_run
+# use minco_db::MigrationSet;
+# use minco_sqlx_postgres::PgPool;
+# use std::path::Path;
+# async fn lifecycle(
+#   pool: &PgPool,
+#   project_root: &Path,
+#   set: &MigrationSet,
+# ) -> Result<(), minco_sqlx_postgres::PostgresError> {
+let before = minco_sqlx_postgres::migration_target_state(pool, set).await?;
+minco_sqlx_postgres::apply_migration_set(pool, project_root, set).await?;
+let missing = minco_sqlx_postgres::verify_migration_tables(pool, set).await?;
+assert!(before.dirty_version.is_none());
+assert!(missing.is_empty());
+# Ok(()) }
+```
+
+The adapter revalidates backend, SQL identifiers, project containment and
+resolved SQLx checksums immediately before execution. SQLx's PostgreSQL
+advisory migration lock remains enabled for the whole run.

@@ -7,6 +7,7 @@
     "publish_order": [
       "minco-core",
       "minco-config",
+      "minco-db",
       "minco-contract",
       "minco-http",
       "minco-release",
@@ -35,8 +36,8 @@
       "minco-contract"
     ],
     "workspace_version": "0.3.1",
-    "workspace_packages": 30,
-    "publishable_packages": 25,
+    "workspace_packages": 31,
+    "publishable_packages": 26,
     "private_packages": 5,
     "publishable_names": [
       "cargo-minco",
@@ -47,6 +48,7 @@
       "minco-config",
       "minco-contract",
       "minco-core",
+      "minco-db",
       "minco-http",
       "minco-plan",
       "minco-plugin-audit",

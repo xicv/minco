@@ -23,7 +23,7 @@ pub async fn migrate_from_env(path: impl AsRef<Path>) -> Result<(), AdapterError
         .or_else(|_| std::env::var("DATABASE_URL"))
         .map_err(|_| AdapterError::MissingDatabaseUrl)?;
     let pool = minco::sqlx_postgres::connect(&PostgresPoolConfig::serverless(url)).await?;
-    minco::sqlx_postgres::migrate(&pool, path).await?;
+    minco::sqlx_postgres::migrate_with_history_table(&pool, path, "_{{CRATE}}_migrations").await?;
     pool.close().await;
     Ok(())
 }

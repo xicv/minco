@@ -6,6 +6,7 @@
 mod architecture;
 mod config;
 mod config_cmd;
+mod db_cmd;
 mod feedback_cmd;
 mod new_cmd;
 mod plugin_cmd;
@@ -207,9 +208,44 @@ enum TestCommand {
     All,
 }
 
-#[derive(Debug, Clone, Copy, Subcommand)]
+#[derive(Debug, Clone, Args)]
+struct DbTargetArgs {
+    /// Migration set to inspect. Omitting this and the URL environment lists source state only.
+    #[arg(long)]
+    set: Option<String>,
+    /// Name of the environment variable containing the database URL.
+    #[arg(long, requires = "set")]
+    database_url_env: Option<String>,
+}
+
+#[derive(Debug, Clone, Args)]
+struct DbMigrateArgs {
+    /// Migration set to apply, including its declared dependency closure.
+    #[arg(long)]
+    set: String,
+    /// Name of the environment variable containing the direct migration database URL.
+    #[arg(long)]
+    database_url_env: String,
+    /// Digest emitted by `minco db plan --set <id>`.
+    #[arg(long)]
+    expected_plan_digest: String,
+    /// Durable JSON receipt destination.
+    #[arg(long)]
+    receipt: PathBuf,
+    /// Permit plans containing data-rewrite or destructive migrations.
+    #[arg(long)]
+    allow_destructive: bool,
+}
+
+#[derive(Debug, Clone, Subcommand)]
 enum DbCommand {
-    Migrate,
+    Plan {
+        #[arg(long)]
+        set: Option<String>,
+    },
+    Status(DbTargetArgs),
+    Verify(DbTargetArgs),
+    Migrate(DbMigrateArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -321,7 +357,7 @@ async fn main() -> Result<()> {
         Command::Task(command) => task_command(&root, &manifest, command, as_json),
         Command::Plugin(command) => plugin_command(&root, &manifest, command, as_json),
         Command::Test(command) => test_command(&root, &manifest, command, as_json),
-        Command::Db(command) => db_command(&root, &manifest, command, as_json),
+        Command::Db(command) => db_cmd::execute(&root, &manifest, command, as_json).await,
         Command::Release(command) => release_command(&root, &manifest, command, as_json),
         Command::Update(command) => update_command(&root, command, as_json),
         Command::Vcs(command) => vcs_command(&root, command, as_json),
@@ -829,10 +865,10 @@ fn test_command(
     };
 
     let commands = match command {
-        TestCommand::Unit => configured_or(&manifest.commands.test_unit, fallback_unit),
-        TestCommand::Feature => configured_or(&manifest.commands.test_feature, fallback_feature),
-        TestCommand::E2e => configured_or(&manifest.commands.test_e2e, fallback_e2e),
-        TestCommand::All => configured_or(&manifest.commands.test_all, fallback_all),
+        TestCommand::Unit => configured_or(&manifest.commands.unit, fallback_unit),
+        TestCommand::Feature => configured_or(&manifest.commands.feature, fallback_feature),
+        TestCommand::E2e => configured_or(&manifest.commands.e2e, fallback_e2e),
+        TestCommand::All => configured_or(&manifest.commands.all, fallback_all),
     };
     if commands.is_empty() {
         bail!("no test command is configured for this test level");
@@ -858,28 +894,6 @@ fn configured_or(configured: &[String], fallback: Vec<String>) -> Vec<String> {
         fallback
     } else {
         configured.to_vec()
-    }
-}
-
-fn db_command(
-    root: &Path,
-    manifest: &MincoManifest,
-    command: DbCommand,
-    as_json: bool,
-) -> Result<()> {
-    match command {
-        DbCommand::Migrate => {
-            let command = manifest
-                .commands
-                .database_migrate
-                .as_deref()
-                .context("minco.toml must define commands.database_migrate")?;
-            let result = run_shell(root, command, !as_json)?;
-            if !result.success {
-                bail!("database migration failed");
-            }
-            print_value(&result, as_json)
-        }
     }
 }
 
@@ -1197,6 +1211,87 @@ mod cli_argument_tests {
             Command::Config(ConfigCommand::Diff { from, to })
                 if from == "dev" && to == "production"
         ));
+    }
+
+    #[test]
+    fn database_lifecycle_commands_keep_planning_read_only_and_migration_explicit() {
+        let plan = Cli::try_parse_from(["cargo-minco", "db", "plan", "--set", "orders-sqlite"])
+            .expect("db plan arguments");
+        assert!(matches!(
+            plan.command,
+            Command::Db(DbCommand::Plan { set: Some(set) }) if set == "orders-sqlite"
+        ));
+
+        let status = Cli::try_parse_from([
+            "cargo-minco",
+            "db",
+            "status",
+            "--set",
+            "orders-sqlite",
+            "--database-url-env",
+            "MINCO_TEST_DATABASE_URL",
+        ])
+        .expect("db status arguments");
+        assert!(matches!(
+            status.command,
+            Command::Db(DbCommand::Status(DbTargetArgs {
+                set: Some(set),
+                database_url_env: Some(database_url_env),
+            })) if set == "orders-sqlite" && database_url_env == "MINCO_TEST_DATABASE_URL"
+        ));
+
+        let migrate = Cli::try_parse_from([
+            "cargo-minco",
+            "db",
+            "migrate",
+            "--set",
+            "orders-sqlite",
+            "--database-url-env",
+            "MINCO_TEST_DATABASE_URL",
+            "--expected-plan-digest",
+            "abc123",
+            "--receipt",
+            "target/migration-receipt.json",
+        ])
+        .expect("db migrate arguments");
+        assert!(matches!(
+            migrate.command,
+            Command::Db(DbCommand::Migrate(DbMigrateArgs {
+                set,
+                database_url_env,
+                expected_plan_digest,
+                allow_destructive: false,
+                ..
+            })) if set == "orders-sqlite"
+                && database_url_env == "MINCO_TEST_DATABASE_URL"
+                && expected_plan_digest == "abc123"
+        ));
+    }
+
+    #[test]
+    fn target_inspection_requires_a_set_and_never_accepts_a_database_url_value() {
+        assert!(
+            Cli::try_parse_from([
+                "cargo-minco",
+                "db",
+                "status",
+                "--database-url-env",
+                "MINCO_TEST_DATABASE_URL",
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "cargo-minco",
+                "db",
+                "status",
+                "--set",
+                "orders-sqlite",
+                "--database-url",
+                "sqlite://secret.db",
+            ])
+            .is_err()
+        );
     }
 
     #[test]

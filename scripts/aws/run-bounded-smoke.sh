@@ -109,10 +109,23 @@ else
   record_external_database_touch \
     "explicit migration" \
     "apply release migrations before Lambda deployment; database URL redacted"
+  migration_plan="$MINCO_AWS_EVIDENCE_DIR/database-migration-plan.json"
+  cargo minco db plan --set orders-postgres --json >"$migration_plan"
+  migration_digest="$(jq -er '.digest' "$migration_plan")"
   MIGRATION_DATABASE_URL="$database_url" \
-    DATABASE_KIND=postgres \
-    cargo minco db migrate
+    cargo minco db migrate \
+      --set orders-postgres \
+      --database-url-env MIGRATION_DATABASE_URL \
+      --expected-plan-digest "$migration_digest" \
+      --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-receipt.json" \
+      --json >"$MINCO_AWS_EVIDENCE_DIR/database-migration-output.json"
+  MIGRATION_DATABASE_URL="$database_url" \
+    cargo minco db verify \
+      --set orders-postgres \
+      --database-url-env MIGRATION_DATABASE_URL \
+      --json >"$MINCO_AWS_EVIDENCE_DIR/database-migration-verification.json"
   unset database_url
+  unset migration_digest
   write_evidence_value "$MINCO_AWS_EVIDENCE_DIR/database-migration-complete.txt" true
 fi
 

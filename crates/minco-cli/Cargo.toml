@@ -27,9 +27,12 @@ minco = { workspace = true, features = ["official-plugins"] }
 minco-config.workspace = true
 minco-contract.workspace = true
 minco-core.workspace = true
+minco-db.workspace = true
 minco-plan.workspace = true
 minco-plugin-feedback = { workspace = true, default-features = false, features = ["client"] }
 minco-release.workspace = true
+minco-sqlx-postgres.workspace = true
+minco-sqlx-sqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true

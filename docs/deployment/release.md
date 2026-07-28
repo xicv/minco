@@ -27,3 +27,9 @@ The manifest stores repository-relative paths, so a clean checkout can verify
 the same release without retaining the builder's absolute filesystem paths.
 Promotion selects a verified manifest and deploys its exact ZIP and rendered
 template. It never replans or recompiles source in staging or production.
+
+Database migration remains a separate, digest-bound release operation. Review
+`cargo minco db plan`, acknowledge that exact digest to `db migrate`, and retain
+the resulting receipt before deployment or promotion. The receipt records
+before/after history and schema verification without storing the database URL.
+See [`database-lifecycle.md`](database-lifecycle.md).

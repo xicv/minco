@@ -59,12 +59,13 @@ max_database_connections = 20
 
 [migrations]
 roots = [
+  "extensions/minco-sqlx-postgres/migrations/plugins",
+  "extensions/minco-sqlx-sqlite/migrations/plugins",
   "examples/orders/migrations/postgres",
   "examples/orders/migrations/sqlite",
 ]
 
 [commands]
-database_migrate = "cargo run -p orders-service --bin orders-migrate --features all-runtimes"
 test_unit = ["cargo test --workspace --lib --all-features"]
 test_feature = ["cargo test -p orders-api -p orders-application -p orders-adapters --all-features"]
 test_e2e = ["scripts/test/e2e.sh"]

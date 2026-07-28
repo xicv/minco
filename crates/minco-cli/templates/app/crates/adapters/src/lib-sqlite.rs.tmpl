@@ -29,7 +29,7 @@ pub async fn connect_runtime_from_env() -> Result<SqlitePool, AdapterError> {
 
 pub async fn migrate_from_env(path: impl AsRef<Path>) -> Result<(), AdapterError> {
     let pool = connect_runtime_from_env().await?;
-    minco::sqlx_sqlite::migrate(&pool, path).await?;
+    minco::sqlx_sqlite::migrate_with_history_table(&pool, path, "_{{CRATE}}_migrations").await?;
     pool.close().await;
     Ok(())
 }

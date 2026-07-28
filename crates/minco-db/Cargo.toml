@@ -1,0 +1,32 @@
+[package]
+name = "minco-db"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral migration plans, status, and verification models for Minco"
+documentation = "https://docs.rs/minco-db"
+readme = "README.md"
+keywords = ["minco", "database", "migration", "sqlx"]
+categories = ["database", "development-tools"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

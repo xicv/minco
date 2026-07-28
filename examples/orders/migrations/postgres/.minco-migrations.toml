@@ -1,0 +1,12 @@
+schema = 1
+id = "orders-postgres"
+owner = "application:orders"
+backend = "postgres"
+history_table = "_minco_orders_migrations"
+depends_on = []
+verify_tables = ["orders", "order_idempotency"]
+
+[[migration]]
+version = 1
+risk = "additive"
+reversible = false
