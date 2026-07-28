@@ -1,0 +1,11 @@
+//! Failing behavioral specification for the `{{NAME}}` adapter.
+#![forbid(unsafe_code)]
+
+#[path = "../src/{{SNAKE_NAME}}.rs"]
+mod generated_adapter;
+
+#[test]
+fn {{SNAKE_NAME}}_adapter_behavior_must_be_implemented() {
+    let _adapter = generated_adapter::{{PASCAL_NAME}}Adapter;
+    panic!("TODO({{NAME}}): assert the application port contract against the real engine");
+}

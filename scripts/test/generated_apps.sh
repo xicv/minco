@@ -30,6 +30,15 @@ minco-contract = { path = $(toml_path "$root/crates/minco-contract") }
 PATCH
 }
 
+run_generator() {
+  local project="$1"
+  shift
+  cargo run --locked -p cargo-minco -- \
+    --root "$project" \
+    --json \
+    "$@" >/dev/null
+}
+
 for database in postgres sqlite; do
   project="$temporary/minco-smoke-$database"
   cargo run --locked -p cargo-minco -- \
@@ -49,4 +58,35 @@ for database in postgres sqlite; do
   CARGO_TARGET_DIR="$root/target" \
     cargo test --locked --manifest-path "$project/Cargo.toml" --workspace --all-targets --all-features
   printf 'generated %s application compiled and tested successfully\n' "$database"
+
+  run_generator "$project" stubs publish
+  run_generator "$project" make module billing
+  run_generator "$project" make migration add-widgets
+  run_generator "$project" make seeder sample-widgets
+  run_generator "$project" make worker email-dispatch
+  run_generator "$project" make adapter widget-store
+  run_generator "$project" make operation getPlatform
+  run_generator "$project" make plugin metrics
+  run_generator "$project" inspect
+  run_generator "$project" db plan --set "minco-smoke-$database-$database"
+  run_generator "$project" db seed \
+    --profile demo \
+    --environment local \
+    --set "minco-smoke-$database-$database-seeds" \
+    --dry-run
+
+  cargo generate-lockfile --manifest-path "$project/Cargo.toml"
+  CARGO_TARGET_DIR="$root/target" \
+    cargo check --locked --manifest-path "$project/Cargo.toml" --workspace --all-targets --all-features
+
+  expected_failure="$temporary/$database-generated-specifications.log"
+  if CARGO_TARGET_DIR="$root/target" \
+    cargo test --locked --manifest-path "$project/Cargo.toml" --workspace --all-targets --all-features --no-fail-fast \
+      >"$expected_failure" 2>&1; then
+    echo "generated application and HTTP specifications unexpectedly passed" >&2
+    exit 1
+  fi
+  rg --fixed-strings 'get_platform_business_behavior_must_be_implemented' "$expected_failure" >/dev/null
+  rg --fixed-strings 'get_platform_http_contract_must_be_implemented' "$expected_failure" >/dev/null
+  printf 'generated %s application generators compiled and failed on explicit TODO specifications as expected\n' "$database"
 done

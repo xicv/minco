@@ -1,0 +1,9 @@
+//! Failing HTTP contract specification generated from `{{OPERATION_ID}}`.
+#![forbid(unsafe_code)]
+
+#[test]
+fn {{SNAKE_NAME}}_http_contract_must_be_implemented() {
+    let method = "{{METHOD}}";
+    let path = {{RUST_PATH_LITERAL}};
+    panic!("TODO({{OPERATION_ID}}): exercise {method} {path} through the Axum router");
+}

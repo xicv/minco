@@ -8,6 +8,7 @@ mod config;
 mod config_cmd;
 mod db_cmd;
 mod feedback_cmd;
+mod generator_cmd;
 mod new_cmd;
 mod plugin_cmd;
 mod process;
@@ -22,6 +23,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use config_cmd::ConfigCommand;
 use feedback_cmd::FeedbackArgs;
+use generator_cmd::{MakeCommand, StubsCommand};
 use minco_config::EnvironmentClass;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
 use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
@@ -76,6 +78,10 @@ enum Command {
     Config(ConfigCommand),
     #[command(subcommand)]
     Contract(ContractCommand),
+    #[command(subcommand)]
+    Make(MakeCommand),
+    #[command(subcommand)]
+    Stubs(StubsCommand),
     Inspect,
     Explain(ExplainArgs),
     #[command(subcommand)]
@@ -430,6 +436,8 @@ async fn main() -> Result<()> {
         Command::Check(args) => check(&root, &manifest, args, as_json),
         Command::Config(command) => config_cmd::execute(&root, &manifest, command, as_json),
         Command::Contract(command) => contract(&root, &manifest, command, as_json),
+        Command::Make(command) => generator_cmd::execute(&root, &manifest, command, as_json),
+        Command::Stubs(command) => generator_cmd::execute_stubs(&root, &command, as_json),
         Command::Inspect => inspect(&root, &manifest, as_json),
         Command::Explain(args) => explain(&root, &manifest, &args.operation_id, as_json),
         Command::Deploy(command) => deploy(&root, &manifest, command, as_json),
@@ -1555,6 +1563,28 @@ mod cli_argument_tests {
             values,
             vec![OsString::from("cargo-minco"), OsString::from("doctor")]
         );
+    }
+
+    #[test]
+    fn contract_aware_operation_generator_has_dry_run_json_cli_shape() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "make",
+            "operation",
+            "placeOrder",
+            "--dry-run",
+            "--json",
+        ])
+        .expect("operation generator should expose a dry-run JSON plan");
+
+        assert!(matches!(
+            cli.command,
+            Command::Make(MakeCommand::Operation(generator_cmd::OperationArgs {
+                operation_id,
+                dry_run: true,
+            })) if operation_id == "placeOrder"
+        ));
+        assert!(cli.json);
     }
 
     #[test]
