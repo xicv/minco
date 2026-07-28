@@ -7,9 +7,9 @@ applications that need a narrower dependency graph.
 ## Published baseline and release inventory
 
 The published `0.3.1` patch release retains the lock-step 24-package inventory
-from `0.3.0`. Current source adds `minco-config`, `minco-db`, `minco-dev` and
-`minco-deploy-aws` as publication candidates for the next coordinated minor
-release. A workspace version or source tag is not registry proof: release
+from `0.3.0`. The coordinated `0.4.0` source candidate has 28 publishable
+packages and adds first releases for `minco-config`, `minco-db`, `minco-dev`
+and `minco-deploy-aws`. A workspace version or source tag is not registry proof: release
 status must be verified independently against the exact crates.io records. The
 package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
@@ -18,6 +18,7 @@ workspace member by `scripts/validate_publish.py`.
 | Package | Role |
 |---|---|
 | `minco-config` | Typed environment graph, strict schema, secret references, provenance and deterministic digest. |
+| `minco-db` | Migration and seed catalogs, digest-bound plans, verification and receipts. |
 | `minco-core` | Provider-neutral plugins, typed services, capabilities, and application graph. |
 | `minco-contract` | OpenAPI 3.1 validation, operation inventory, hashing, and deterministic bindings. |
 | `minco-deploy-aws` | Fail-closed AWS target guards, CloudFormation change review and immutable receipts. |
@@ -136,9 +137,9 @@ trusted publishing is unavailable:
    qualified SHA using JJ:
 
    ```bash
-   jj tag set v0.3.1 -r <qualified-main-sha>
+   jj tag set v0.4.0 -r <qualified-main-sha>
    jj git export
-   git push origin refs/tags/v0.3.1
+   git push origin refs/tags/v0.4.0
    ```
 
 5. Confirm the remote tag resolves to the qualified `main` SHA, then publish
@@ -155,8 +156,9 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. Every package in the current 24-package family crossed that boundary
-with the `0.2.0` release.
+exists. Every package in the published 24-package family crossed that boundary
+with the `0.2.0` release. The four `0.4.0` additions require first-publish
+handling and separate post-upload trusted-publisher configuration.
 
 ## Trusted publishing after the first release
 
@@ -167,9 +169,10 @@ exists on crates.io, configure a trusted publisher for that package:
 - workflow: `publish-crates.yml`
 - environment: `crates-io`
 
-The 24 packages published in `0.3.1` have this configuration. `minco-config`
-does not: its first publication and subsequent trusted-publisher configuration
-belong to a separate release task.
+The 24 packages published in `0.3.1` have this configuration. `minco-config`,
+`minco-db`, `minco-dev` and `minco-deploy-aws` do not: their first publication
+and subsequent trusted-publisher configuration belong to the separately
+authorised publication phase of M8-T07.
 
 The checked-in workflow uses GitHub OIDC to obtain a short-lived crates.io token;
 it does not require a long-lived crates.io secret. Keep the workflow manual-only

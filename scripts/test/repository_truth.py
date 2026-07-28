@@ -53,11 +53,36 @@ class RepositoryTruthTests(unittest.TestCase):
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text().replace(
-                'workspace_version = "0.3.1"',
+                'workspace_version = "0.4.0"',
                 'workspace_version = "9.9.9"',
             )
         )
         self.assertIn("STATIC-TRUTH-VERSION-001", self.truth_codes())
+
+    def test_readme_inventory_drift_has_a_stable_code(self) -> None:
+        readme = self.root / "README.md"
+        readme.write_text(
+            readme.read_text().replace(
+                "Current publishable package count: `28`",
+                "Current publishable package count: `25`",
+            )
+        )
+        self.assertIn("STATIC-TRUTH-DOCS-001", self.truth_codes())
+
+    def test_cli_deployment_surface_drift_has_a_stable_code(self) -> None:
+        cli = self.root / "docs/reference/cli.md"
+        cli.write_text(cli.read_text().replace("cargo minco promote", "cargo minco alias"))
+        self.assertIn("STATIC-TRUTH-DOCS-001", self.truth_codes())
+
+    def test_new_package_archive_test_drift_has_a_stable_code(self) -> None:
+        cargo = self.root / "Cargo.toml"
+        cargo.write_text(
+            cargo.read_text().replace(
+                'package_tests = [\n  "minco-config",\n',
+                "package_tests = [\n",
+            )
+        )
+        self.assertIn("STATIC-TRUTH-PACKAGES-004", self.truth_codes())
 
     def test_catalog_workspace_drift_has_a_stable_code(self) -> None:
         catalog = self.root / "plugins/catalog.toml"
@@ -125,6 +150,56 @@ class RepositoryTruthTests(unittest.TestCase):
             )
         )
         self.assertIn("STATIC-BUDGET-007", self.truth_codes())
+
+    def test_manual_workflow_qualifies_plan_sam_and_both_lambda_artifacts(self) -> None:
+        workflow = yaml.safe_load(
+            (self.root / ".github/workflows/minco-manual.yml").read_text()
+        )
+        steps = workflow["jobs"]["quality"]["steps"]
+        commands = {
+            step["name"]: step.get("run", "")
+            for step in steps
+            if "name" in step
+        }
+        self.assertEqual(
+            commands["Install pinned JJ"],
+            "cargo install --locked --bin jj jj-cli --version 0.43.0\njj --version\n",
+        )
+        self.assertEqual(
+            commands["Install pinned ripgrep"],
+            "cargo install --locked ripgrep --version 15.2.0\nrg --version\n",
+        )
+        self.assertEqual(
+            commands["Install pinned Cargo Lambda"],
+            "cargo install --locked cargo-lambda --version 1.9.1",
+        )
+        zig_steps = [
+            step
+            for step in steps
+            if step.get("uses", "").startswith("mlugg/setup-zig@")
+        ]
+        self.assertEqual(
+            zig_steps,
+            [
+                {
+                    "name": "Install pinned Zig",
+                    "uses": "mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29",
+                    "with": {"version": "0.14.0"},
+                }
+            ],
+        )
+        qualification = commands[
+            "Plan, SAM, and native ARM64 Lambda qualification"
+        ]
+        for required in [
+            "cargo lambda --version",
+            "sam --version",
+            "scripts/aws/plan.sh",
+            "scripts/aws/validate.sh",
+            "scripts/aws/build-lambda.sh",
+            "scripts/aws/build-worker-lambda.sh",
+        ]:
+            self.assertIn(required, qualification)
 
     def test_security_requirement_shape_matches_rust_policy_fixtures(self) -> None:
         fixture = yaml.safe_load(

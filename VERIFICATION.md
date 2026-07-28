@@ -1,10 +1,224 @@
 # Minco verification and release evidence
 
-Date: 2026-07-27
-Current workspace version: `0.3.1`
+Date: 2026-07-28
+Current workspace version: `0.4.0`
 Published baseline: `0.3.1`
-Purpose: preserve published `M8` evidence and the independently qualified
-`0.3.1` patch-release boundary without rewriting release history.
+Purpose: qualify the M8-T07 source/package candidate while preserving published
+M8 evidence and the independently qualified `0.3.1` release history.
+
+## M8-T07 `0.4.0` source and package candidate
+
+Starting remote `main`:
+`12839f3e802b2e47bf9088c82787a8aa9b1ec93d`. The task runs in the isolated
+`/Users/xicao/Projects/minco-m8-t07` JJ workspace; the unrelated dirty primary
+checkout is preserved.
+
+Current source metadata declares 28 lock-step `0.4.0` publishable packages over
+the independently published 24-package `0.3.1` baseline. First-publish crates
+are `minco-config`, `minco-db`, `minco-dev` and `minco-deploy-aws`. Each is in
+the unpacked-archive test set.
+
+Baseline checks on untouched `main` passed:
+
+```text
+uv sync --locked --only-dev
+uv run --locked python scripts/validate_static.py
+uv run --locked python scripts/test/repository_truth.py
+uv run --locked python scripts/validate_publish.py
+uv run --locked python scripts/test/publish_validation.py
+uv run --locked python scripts/deep_review.py
+uv run --locked python scripts/test/deep_review_exclusions.py
+cargo minco architecture
+cargo minco inspect --json
+cargo minco roadmap status
+cargo minco task ready --json
+cargo minco upgrade report --json
+jj log -r 'conflicts()'
+```
+
+The literal baseline `git diff --check` was blocked in the secondary JJ
+workspace with `fatal: not a git repository (or any of the parent directories):
+.git`. A Git transport equivalent must run from the colocated primary
+repository against the final exported commit; this blocker is not a pass.
+
+The release reconciliation found six fail-closed controller defects before
+qualification:
+
+1. publishing each `0.4.0` crate separately could not resolve unpublished
+   lock-step dependencies from crates.io; the driver now performs one
+   coordinated 28-package Cargo dry run;
+2. unpacked archive tests inherited a lockfile that referred to the temporary
+   registry, so `--locked` could not refresh that registry source; the
+   coordinated family dry run remains locked while isolated archive tests use
+   `--offline` plus patches to the other unpacked archives;
+3. repeated Cargo Lambda ZIP builds embedded the build-time DOS timestamp, so
+   byte-identical ARM64 binaries had different archive SHA-256 values. The
+   shared Lambda packaging helper now accepts only `bootstrap` and the optional
+   RDS CA bundle, normalizes timestamps and modes, writes entries in stable
+   order and atomically replaces the ZIP only after successful validation. Both
+   native build scripts also require the existing lockfile;
+4. exact-head hosted run
+   [`30367217262`](https://github.com/xicv/minco/actions/runs/30367217262)
+   failed before its compatibility assertions because three CLI fixtures
+   require JJ to create and read an `@-` baseline while the runner had no `jj`
+   binary. The manual workflow now installs the current pinned `jj-cli 0.43.0`
+   package, checks `jj --version`, and retains the real JJ-backed test rather
+   than weakening it to `--vcs none`;
+5. the next exact-head hosted run
+   [`30368618149`](https://github.com/xicv/minco/actions/runs/30368618149)
+   passed repository-truth checks and the JJ-backed compatibility fixtures,
+   then failed with exit 127 at
+   `scripts/test/generated_apps.sh: line 89: rg: command not found`. The
+   runner image did not supply ripgrep even though the authoritative quality
+   script requires it. The workflow now installs the current pinned
+   `ripgrep 15.2.0` package and checks `rg --version` before quality;
+6. exact-head hosted run
+   [`30369804923`](https://github.com/xicv/minco/actions/runs/30369804923)
+   passed source quality, the two-browser matrix and coordinated 28-package
+   publication dry run, then failed after Plan generation and SAM validation
+   because the source-installed Cargo Lambda did not install Zig. Cargo Lambda
+   reported `Zig is not installed in your system` before either native ARM64
+   archive was built. The workflow now uses the Cargo Lambda documentation's
+   Zig `0.14.0` GitHub Actions baseline through immutable `setup-zig v2.2.1`
+   commit `d1434d08867e3ee9daa34448df10607b98908d29`.
+
+Regression fixtures assert the coordinated command, archive-only patch paths,
+offline archive-test boundary and external-consumer manifest. The controller
+now compiles four consumers from unpacked archives (`minco` no-default,
+default and full, plus the four first-publish crates), installs
+`cargo-minco` from its unpacked archive and checks that the installed binary
+reports `minco 0.4.0`. A partial recovery selection deliberately skips this
+full-family consumer gate and cannot substitute for it.
+The Lambda regression creates equivalent archives with different timestamps,
+proves normalization yields the same digest and permissions, and proves an
+unexpected entry leaves the original archive unchanged. Two consecutive real
+Orders and worker builds reproduced the same normalized hashes.
+The hosted-toolchain regression first failed with
+`KeyError: 'Install pinned JJ'`, then passed after asserting the exact pinned
+install and version-check commands. The ripgrep regression separately failed
+with `KeyError: 'Install pinned ripgrep'` before its matching pinned install
+and version check were added. The Zig regression failed with an empty
+`zig_steps` list before asserting the exact immutable action and version. The focused
+`cargo test -p cargo-minco --test compatibility_cli --locked` gate passed all
+three JJ-backed tests locally. Skipped stages in all three failed hosted runs
+are not counted as passes; in the third run Rustack and E2E were skipped.
+
+Focused candidate gates passed:
+
+```text
+uv run --locked python scripts/validate_static.py
+uv run --locked python scripts/test/repository_truth.py
+uv run --locked python scripts/validate_publish.py --check-registry
+uv run --locked python scripts/test/publish_validation.py
+uv run --locked python scripts/test/lambda_artifact_reproducibility.py
+uv run --locked python scripts/deep_review.py
+uv run --locked python scripts/test/deep_review_exclusions.py
+cargo fmt --all -- --check
+cargo test -p cargo-minco --test compatibility_cli --locked
+cargo check -p minco --no-default-features --locked
+cargo check -p minco --locked
+cargo check -p minco --features official-plugins --locked
+cargo check -p minco --all-features --locked
+cargo test -p minco-config --all-features --locked
+cargo test -p minco-db --all-features --locked
+cargo test -p minco-dev --all-features --locked
+cargo test -p minco-deploy-aws --all-features --locked
+cargo test -p minco --no-default-features --locked
+cargo test -p minco --locked
+cargo test -p minco --all-features --locked
+cargo minco architecture
+cargo minco inspect --json
+cargo minco task ready --json
+cargo minco roadmap status
+scripts/aws/plan.sh
+scripts/aws/validate.sh
+scripts/aws/build-lambda.sh
+scripts/aws/build-worker-lambda.sh
+scripts/test/e2e.sh
+scripts/dev/rustack-smoke.sh
+npm run --prefix plugins/minco-plugin-feedback test:browser
+scripts/release/package-list.sh
+scripts/release/publish.sh --skip-quality
+```
+
+The browser gate used the repository lockfile with Node 24 after Node 26
+browser-engine installation stalled. Chromium and Firefox completed all 40
+tests. Orders E2E passed. Rustack completed S3, SQS, SSM and STS conformance
+plus Minco adapter checks under account `000000000000`, then cleaned its
+emulated resources. Neither gate contacted or mutated AWS.
+
+The coordinated release dry run verified and staged all 28 archives, emitted
+Cargo's expected dry-run upload abort for every package, ran the five configured
+unpacked-archive suites, compiled all required archive consumers and installed
+the archive-only CLI. `--execute` was never supplied.
+
+Observed first complete archive set:
+
+| Archive | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `cargo-minco-0.4.0.crate` | 116394 | `0a42f971d445efdf30fb034823b1f3d3bf665268570b96923b903997052607e4` |
+| `minco-0.4.0.crate` | 35218 | `41d722b94f9f7887ba8c0c796aba6a13cbcbf63063c9fbd9da533981aec73230` |
+| `minco-aws-adapters-0.4.0.crate` | 50929 | `8effec677afdfdafed81187a5e3855a1a277c26c9b2cde6819f5bb660a31fd3c` |
+| `minco-aws-lambda-0.4.0.crate` | 23598 | `13a10e273fbfb0292fd8b3e04af4f6dd4db2bb2bee5542ce9741b8c99c622591` |
+| `minco-aws-worker-0.4.0.crate` | 19870 | `6b5afcf023a6d0548db4f3e125ed213ed6735aaa738d06a02eb2c630293d46f6` |
+| `minco-config-0.4.0.crate` | 20387 | `47a96d6d1fe3e2cccfcdd47d4eb9a27d4f7ad6e0e2675a471a07b55607c0d20f` |
+| `minco-contract-0.4.0.crate` | 28460 | `76121b309d0df3858bcc95f0f7f9185b0833be6e0e34e7b9f1fb72ec45b88e9f` |
+| `minco-core-0.4.0.crate` | 25745 | `e78434810174282cc9900749cb8ac23b523b5ea491db1f91a57f57b6fbebde57` |
+| `minco-db-0.4.0.crate` | 19749 | `fd38ab2a093473463ecc18bbc4712a425a1439b2d091b5c0afdd982785b7d33d` |
+| `minco-deploy-aws-0.4.0.crate` | 30835 | `e74f557183d00ebd54477f04fe818f32d23803b15cd5f180fe62b248409c5358` |
+| `minco-dev-0.4.0.crate` | 28735 | `ecfa93ac0166f1592c3a1ae04c11844459adeb48f4969ddae21ef12ee3e58828` |
+| `minco-http-0.4.0.crate` | 20197 | `1c3c88240688a3d004e461f07a1de540fb7c840cd227a988a11d11cecbfe0225` |
+| `minco-plan-0.4.0.crate` | 37318 | `80b315c749797b7173b9a4d967e639d4aabebf5de904c15d72a1d6584cf8ca58` |
+| `minco-plugin-audit-0.4.0.crate` | 11780 | `8f044d45d04dcc77daa17cd7b24bd1213afb00a74134af7e56fc4e10a32c354a` |
+| `minco-plugin-events-0.4.0.crate` | 13964 | `21d9cc5c206dc100cdd39d02f98ba512f0e69f12fe8ca47286e0c2940fb80eae` |
+| `minco-plugin-feedback-0.4.0.crate` | 78770 | `a2cda3578d616ccf780389a071f3ff30b5ddb79cf895038064e222ce9faead0f` |
+| `minco-plugin-health-0.4.0.crate` | 9817 | `95f80fda2f57fcee6d73758e75cde52c11736934a4aec17596047e2c4bafcc9b` |
+| `minco-plugin-idempotency-0.4.0.crate` | 14330 | `7189a2aba4f0adbfdce17ed761bc0f68a2c819ed0830dedfe2a59997f7a8043a` |
+| `minco-plugin-identity-0.4.0.crate` | 16872 | `ad76388253cab9acde022a1e32394e33fdab0a2cfdbd6db02166163a39e6700c` |
+| `minco-plugin-notifications-0.4.0.crate` | 11788 | `696ea3b3a36f995b8a957db86b5c84a9dae1a19876c4e38f4b76c39198b7c4bf` |
+| `minco-plugin-object-storage-0.4.0.crate` | 14321 | `fda540c4393529fea6bbc08779c7e81db7c12aee1bd65bde8c01e473e7a4a5b1` |
+| `minco-plugin-observability-0.4.0.crate` | 10037 | `5c58f3074eaea9f86f79c3321d6626e3c15fc6c198968ac0b3ad64fa0299cea4` |
+| `minco-plugin-sessions-0.4.0.crate` | 15115 | `09577095c7c4d0b69f467cbbbe74ff670135d668f86e83e654faa3ea49574f6d` |
+| `minco-plugin-static-site-0.4.0.crate` | 12507 | `5dd42539129abf4bf9a86b1a0b7336b02bacb9cec72bfec3335c2457effa48c3` |
+| `minco-release-0.4.0.crate` | 18242 | `25b2b21a7f018bfb8629946e2ddf26323c53e3bbd8cd3cf4a9d5572c89f7be25` |
+| `minco-sqlx-postgres-0.4.0.crate` | 32082 | `4b5a192e5329b2251199936d536bc06168df1b30b2eee59f0e146ba6ed57159e` |
+| `minco-sqlx-sqlite-0.4.0.crate` | 29987 | `b7a904945f0f39f12a42985657ba161bb753b3a705c80db8bf0313441b2a29fa` |
+| `minco-test-0.4.0.crate` | 12666 | `5bae49c5588bc6dcc09dc70aec6c94b4d83c14f7f1dfb0e2c13f983fe777a119` |
+
+The sorted archive-manifest digest is
+`cbd9d81b24fd1c1ceba42a89952f97c76b0c063c9d3e456d34b2847a3d8bc0c5`.
+The final clean-source run reproduced every archive byte count and SHA-256
+exactly.
+
+Facade dependency observations versus `0.3.1` are 16/105/118/300 normal
+packages for no-default/default/official/all-feature profiles, with deltas
+0/0/0/+10. Feature-tree line counts are 81/824/1050/3453. Initial cold/follow-on
+facade build observations were 5.53 and 45.38 seconds. These are local samples,
+not release budgets.
+
+The exact-source native ARM64 Orders ZIP is 5,035,518 compressed /
+11,048,288 uncompressed bytes with SHA-256
+`42ae9c1056738dd2ccd39864a69965cb13b4de6eb1f3c4177bacc1575aafa04f`
+and a 113.05-second cold build observation. The worker ZIP is 574,199 /
+1,203,520 bytes with SHA-256
+`c1508117d7329029aaedc85691b416f3321d1fa11831c5c162f9647465bd3a44`
+and a 13.15-second follow-on build observation. Both are below the 10 MiB
+compressed policy. The durable measurement report binds these observations to
+the final source-tree digest.
+
+The generated AWS plan and SAM static gates pass without provider contact.
+Plan SHA-256 is
+`b104438b8eb61dcef6a7585a7e2f35565dd59b83da3973a4adcde10125ce4c9d`;
+template SHA-256 is
+`e25a3c0d61ad8bddc795e92067def9728d102c8090e3355a511c414ed090e372`.
+The minimal profile retains no NAT gateway, fixed compute, schedule or
+provisioned concurrency. Minco promises zero provisioned application compute
+at idle, not zero bill: storage, retained logs, DNS, secrets, database storage,
+schedules and other fixed/request dimensions remain explicit and bounded.
+
+Live AWS rehearsal, promotion, pull-request merge, tag creation and registry
+upload are not authorised by this task. The final release verdict therefore
+cannot advance beyond `live_deployment_gate_pending`.
 
 ## M8-T03 trusted-publishing closure
 
@@ -286,9 +500,10 @@ Docker-backed PostgreSQL and Rustack reruns are explicitly environment-blocked.
 No Docker restart was attempted because it could disrupt unrelated user
 containers. No AWS mutation, deployment, crate upload or tag occurred.
 
-Context7 was invoked for the current Lambda runtime/events and Cargo Lambda
-documentation but returned `Monthly quota exceeded`; exact locally resolved
-crate sources and installed CLI help were used as the documented fallback.
+For the final hosted-controller correction, the repository's `get-api-docs`
+workflow found no local Context package for Cargo Lambda and used the official
+Cargo Lambda installation and GitHub Actions guidance. That guidance requires
+Zig for the default cross-compiler and shows Zig `0.14.0` on Linux runners.
 
 ## Release history and current boundary
 

@@ -25,7 +25,10 @@ checks:
 
 Complete private-object publication, CloudFront OAC, optional custom-domain
 inputs, certificate/DNS guards, cache policy, invalidation, and hosted
-byte/hash verification through the generic deployment receipt.
+byte/hash verification through the generic deployment receipt. Research the
+current CloudFront request/transfer and flat-rate choices before selecting a
+profile; flat-rate pricing is eligibility-dependent and must not be encoded as
+a timeless default.
 
 ## Acceptance
 
@@ -34,6 +37,8 @@ byte/hash verification through the generic deployment receipt.
 - certificate region, DNS ownership, distribution, and invalidation are
   explicit guarded stages;
 - live CloudFront proof is separately authorised and cost-labelled;
+- cost evidence uses explicit classes and dated pricing confidence, including
+  account eligibility and Region where relevant;
 - removal and rollback behavior is documented.
 
 ## Non-goals

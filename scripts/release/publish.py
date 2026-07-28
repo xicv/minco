@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -15,13 +17,20 @@ ROOT = Path(__file__).resolve().parents[2]
 MIN_CARGO = (1, 90, 0)
 
 
-def run(command: list[str], *, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess[str]:
+def run(
+    command: list[str],
+    *,
+    check: bool = True,
+    capture: bool = False,
+    environment: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     print("+", " ".join(command), flush=True)
     return subprocess.run(
         command,
         cwd=ROOT,
         check=check,
         text=True,
+        env=environment,
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.STDOUT if capture else None,
     )
@@ -60,16 +69,150 @@ def packaged_test_packages(data: dict) -> list[str]:
     return values
 
 
+def archive_patch_arguments(
+    root: Path,
+    version: str,
+    selected: list[str],
+) -> list[str]:
+    arguments: list[str] = []
+    for package in selected:
+        package_root = root / "target" / "package" / f"{package}-{version}"
+        if not (package_root / "Cargo.toml").is_file():
+            raise SystemExit(f"packaged manifest is missing: {package_root / 'Cargo.toml'}")
+        arguments.extend(
+            [
+                "--config",
+                f"patch.crates-io.{package}.path={json.dumps(str(package_root))}",
+            ]
+        )
+    return arguments
+
+
 def verify_packaged_tests(data: dict, selected: list[str]) -> None:
     version = data["workspace"]["package"]["version"]
+    patch_arguments = archive_patch_arguments(ROOT, version, selected)
     for package in packaged_test_packages(data):
         if package not in selected:
             continue
-        run(["cargo", "package", "--locked", "--package", package])
         manifest = ROOT / "target" / "package" / f"{package}-{version}" / "Cargo.toml"
-        if not manifest.is_file():
-            raise SystemExit(f"packaged manifest is missing: {manifest}")
-        run(["cargo", "test", "--manifest-path", str(manifest), "--locked"])
+        run(packaged_test_command(manifest, patch_arguments))
+
+
+def packaged_test_command(
+    manifest: Path,
+    patch_arguments: list[str],
+) -> list[str]:
+    return [
+        "cargo",
+        "test",
+        "--manifest-path",
+        str(manifest),
+        "--offline",
+        *patch_arguments,
+    ]
+
+
+def external_consumer_manifest(
+    name: str,
+    version: str,
+    dependency_lines: list[str],
+) -> str:
+    dependencies = "\n".join(dependency_lines)
+    return f"""[package]
+name = {json.dumps(name)}
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+{dependencies}
+"""
+
+
+def verify_external_consumers(data: dict, selected: list[str]) -> None:
+    version = data["workspace"]["package"]["version"]
+    patch_arguments = archive_patch_arguments(ROOT, version, selected)
+    target = ROOT / "target" / "package" / "external-consumer-target"
+    environment = dict(os.environ)
+    environment["CARGO_TARGET_DIR"] = str(target)
+    consumers = [
+        (
+            "minco-archive-no-default",
+            [f'minco = {{ version = "={version}", default-features = false }}'],
+        ),
+        ("minco-archive-default", [f'minco = "={version}"']),
+        (
+            "minco-archive-all-features",
+            [f'minco = {{ version = "={version}", features = ["full"] }}'],
+        ),
+        (
+            "minco-archive-new-packages",
+            [
+                f'minco-config = "={version}"',
+                f'minco-db = "={version}"',
+                f'minco-dev = "={version}"',
+                f'minco-deploy-aws = "={version}"',
+            ],
+        ),
+    ]
+    with tempfile.TemporaryDirectory(prefix="minco-release-consumers-") as temporary:
+        consumer_root = Path(temporary)
+        for name, dependencies in consumers:
+            project = consumer_root / name
+            (project / "src").mkdir(parents=True)
+            (project / "Cargo.toml").write_text(
+                external_consumer_manifest(name, version, dependencies)
+            )
+            (project / "src" / "lib.rs").write_text(
+                "#![forbid(unsafe_code)]\n"
+                "pub fn archive_consumer_compiled() -> bool { true }\n"
+            )
+            run(
+                [
+                    "cargo",
+                    "check",
+                    "--manifest-path",
+                    str(project / "Cargo.toml"),
+                    "--offline",
+                    *patch_arguments,
+                ],
+                environment=environment,
+            )
+
+        install_root = consumer_root / "cargo-minco-install"
+        run(
+            [
+                "cargo",
+                "install",
+                "--path",
+                str(ROOT / "target" / "package" / f"cargo-minco-{version}"),
+                "--root",
+                str(install_root),
+                "--offline",
+                "--locked",
+                "--debug",
+                *patch_arguments,
+            ],
+            environment=environment,
+        )
+        run(
+            [str(install_root / "bin" / "cargo-minco"), "minco", "--version"],
+            environment=environment,
+        )
+
+
+def publish_command(
+    selected: list[str],
+    registry: str,
+    *,
+    execute: bool,
+) -> list[str]:
+    command = ["cargo", "publish", "--registry", registry, "--locked"]
+    if not execute:
+        command.append("--dry-run")
+    for package in selected:
+        command.extend(["--package", package])
+    return command
 
 
 def clean_workspace() -> None:
@@ -153,18 +296,26 @@ def main() -> int:
         run(["cargo", "rustdoc", "-p", "cargo-minco", "--lib", "--all-features", "--locked"])
         run(["cargo", "doc", "--workspace", "--all-features", "--no-deps", "--locked"])
 
-    verify_packaged_tests(data, selected)
-
-    command = ["cargo", "publish", "--registry", args.registry, "--locked"]
-    if not args.execute:
-        command.append("--dry-run")
-    for package in selected:
-        command.extend(["--package", package])
-
-    print(f"Minco release packages ({'upload' if args.execute else 'dry-run'}):")
+    print("Minco release packages (dry-run):")
     for package in selected:
         print(f"  - {package}")
-    run(command)
+    run(publish_command(selected, args.registry, execute=False))
+
+    verify_packaged_tests(data, selected)
+    if selected == declared:
+        verify_external_consumers(data, selected)
+    else:
+        print(
+            "Skipping external consumer verification for a partial package selection; "
+            "the full family gate remains required before release.",
+            flush=True,
+        )
+
+    if args.execute:
+        print("Minco release packages (upload):")
+        for package in selected:
+            print(f"  - {package}")
+        run(publish_command(selected, args.registry, execute=True))
     return 0
 
 

@@ -371,6 +371,9 @@ class Validator:
             if package.get("publish") is not False:
                 publishable.append(name)
         release_packages = cargo["workspace"]["metadata"]["minco"]["release"]["publish"]
+        package_tests = cargo["workspace"]["metadata"]["minco"]["release"][
+            "package_tests"
+        ]
         expected_package_count = truth.get("publishable_package_count")
         if expected_package_count != len(publishable):
             self.error(
@@ -382,6 +385,27 @@ class Validator:
             self.error(
                 "STATIC-TRUTH-PACKAGES-002",
                 "release package inventory differs from publishable workspace packages",
+                cargo_path,
+            )
+        new_publishable_packages = truth.get("new_publishable_packages", [])
+        if (
+            not isinstance(new_publishable_packages, list)
+            or not new_publishable_packages
+            or any(
+                not isinstance(package, str) or package not in publishable
+                for package in new_publishable_packages
+            )
+        ):
+            self.error(
+                "STATIC-TRUTH-PACKAGES-003",
+                "new_publishable_packages must name publishable workspace packages",
+                truth_path,
+            )
+        elif not set(new_publishable_packages).issubset(package_tests):
+            missing = sorted(set(new_publishable_packages) - set(package_tests))
+            self.error(
+                "STATIC-TRUTH-PACKAGES-004",
+                f"new publishable packages lack archive tests: {missing}",
                 cargo_path,
             )
 
@@ -578,10 +602,15 @@ class Validator:
             self.root / "README.md": [
                 f"Published baseline: `{truth['published_baseline']}`",
                 f"Current workspace version: `{workspace_version}`",
+                f"Current publishable package count: `{expected_package_count}`",
             ],
             self.root / "VERIFICATION.md": [
                 f"Current workspace version: `{workspace_version}`",
                 f"Published baseline: `{truth['published_baseline']}`",
+            ],
+            self.root / "docs/reference/cli.md": [
+                "cargo minco deploy verify",
+                "cargo minco promote",
             ],
         }
         for document, expected_markers in markers.items():

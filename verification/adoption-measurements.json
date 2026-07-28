@@ -32,7 +32,10 @@
     "revision": "6fe9121ea9284e2fa4e2dbfd76f21bd8a13e263a"
   },
   "candidate": {
-    "build_timings_seconds": {},
+    "build_timings_seconds": {
+      "minco_all_features": 45.38,
+      "minco_no_default": 5.53
+    },
     "facade": {
       "all_features": {
         "feature_tree_lines": 3453,
@@ -53,29 +56,29 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 124.77,
-        "compressed_bytes": 5031958,
+        "cold_build_seconds": 113.05,
+        "compressed_bytes": 5035518,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "11782c2e74ab92651c8d24bbae232cfdcbc6e8ad4a42e15a069849218227bbcd",
+        "sha256": "42ae9c1056738dd2ccd39864a69965cb13b4de6eb1f3c4177bacc1575aafa04f",
         "uncompressed_bytes": 11048288
       },
       "sqs_worker": {
-        "cold_build_seconds": 15.04,
-        "compressed_bytes": 573415,
+        "cold_build_seconds": 13.15,
+        "compressed_bytes": 574199,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "d98d08684bd000e1826b499a4a75577415717c8a9346abd776ad07774d4deeba",
+        "sha256": "c1508117d7329029aaedc85691b416f3321d1fa11831c5c162f9647465bd3a44",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:48aee689fbc3cf6294c7e249d7edf5e5268a749bfbf6027b7a60d3f8598c040e"
+    "revision": "source-tree-sha256:ed97ff06415c266e185cfb854ae5391ebe3b00ba21b9b28138457065c254f37b"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 0,
-    "orders_lambda_compressed_byte_delta": 18956,
-    "orders_lambda_compressed_percent_delta": 0.3781
+    "orders_lambda_compressed_byte_delta": 22516,
+    "orders_lambda_compressed_percent_delta": 0.4492
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",

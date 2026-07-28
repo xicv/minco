@@ -159,3 +159,76 @@ write_evidence_value() {
   printf '%s\n' "$value" >"$path"
   chmod 600 "$path"
 }
+
+normalize_lambda_zip() (
+  local artifact="$1"
+  local artifact_directory
+  local temporary_directory
+  local entries
+  local bootstrap_count
+  local certificate_count
+  local entry_count
+
+  for command in basename chmod dirname grep mktemp mv pwd rmdir rm touch unzip zip; do
+    require_command "$command"
+  done
+  [[ -f "$artifact" && ! -L "$artifact" ]] || {
+    printf 'Lambda artifact must be a regular non-symlink file: %s\n' "$artifact" >&2
+    return 1
+  }
+  artifact_directory="$(cd "$(dirname "$artifact")" && pwd -P)"
+  artifact="$artifact_directory/$(basename "$artifact")"
+  unzip -tqq "$artifact"
+  entries="$(unzip -Z1 "$artifact")"
+  bootstrap_count="$(printf '%s\n' "$entries" | grep -c '^bootstrap$' || true)"
+  certificate_count="$(
+    printf '%s\n' "$entries" | grep -c '^rds-ca-bundle\.pem$' || true
+  )"
+  entry_count="$(printf '%s\n' "$entries" | grep -c '.' || true)"
+  [[ "$bootstrap_count" == 1 && "$certificate_count" -le 1 ]] || {
+    printf 'Lambda artifact has an invalid bootstrap or CA bundle inventory\n' >&2
+    return 1
+  }
+  [[ "$entry_count" -eq $((bootstrap_count + certificate_count)) ]] || {
+    printf 'Lambda artifact contains an unexpected archive entry\n' >&2
+    return 1
+  }
+
+  temporary_directory="$(
+    mktemp -d "$artifact_directory/.minco-lambda-normalize.XXXXXX"
+  )"
+  # Invoked indirectly by the EXIT trap.
+  # shellcheck disable=SC2329
+  cleanup_normalized_lambda() {
+    rm -f \
+      "$temporary_directory/bootstrap" \
+      "$temporary_directory/rds-ca-bundle.pem" \
+      "$temporary_directory/bootstrap.zip"
+    rmdir "$temporary_directory" >/dev/null 2>&1 || true
+  }
+  trap cleanup_normalized_lambda EXIT
+
+  unzip -p "$artifact" bootstrap >"$temporary_directory/bootstrap"
+  [[ -s "$temporary_directory/bootstrap" ]] || {
+    printf 'Lambda bootstrap must not be empty\n' >&2
+    return 1
+  }
+  chmod 0755 "$temporary_directory/bootstrap"
+  touch -t 198001010000 "$temporary_directory/bootstrap"
+  if [[ "$certificate_count" == 1 ]]; then
+    unzip -p "$artifact" rds-ca-bundle.pem \
+      >"$temporary_directory/rds-ca-bundle.pem"
+    chmod 0644 "$temporary_directory/rds-ca-bundle.pem"
+    touch -t 198001010000 "$temporary_directory/rds-ca-bundle.pem"
+    (
+      cd "$temporary_directory"
+      zip -X -q bootstrap.zip bootstrap rds-ca-bundle.pem
+    )
+  else
+    (
+      cd "$temporary_directory"
+      zip -X -q bootstrap.zip bootstrap
+    )
+  fi
+  mv "$temporary_directory/bootstrap.zip" "$artifact"
+)

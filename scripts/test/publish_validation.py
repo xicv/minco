@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import copy
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "scripts" / "release"))
 
 from validate_publish import PublishValidator  # noqa: E402
+from publish import (  # noqa: E402
+    archive_patch_arguments,
+    external_consumer_manifest,
+    packaged_test_command,
+    publish_command,
+)
 
 MANIFEST = ROOT / "crates" / "minco-contract" / "Cargo.toml"
 
@@ -43,3 +51,50 @@ assert [finding for finding in validate(drifted) if finding[0] == "PUBLISH-021"]
 ]
 
 print("Publish integration-test inclusion fixtures passed.")
+
+selected = ["minco-core", "minco-config"]
+assert publish_command(selected, "crates-io", execute=False) == [
+    "cargo",
+    "publish",
+    "--registry",
+    "crates-io",
+    "--locked",
+    "--dry-run",
+    "--package",
+    "minco-core",
+    "--package",
+    "minco-config",
+]
+assert "--dry-run" not in publish_command(selected, "crates-io", execute=True)
+
+with tempfile.TemporaryDirectory(prefix="minco-package-patches-") as temporary:
+    package_root = Path(temporary)
+    for name in selected:
+        manifest = package_root / "target" / "package" / f"{name}-0.4.0" / "Cargo.toml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text("[package]\n")
+    patch_arguments = archive_patch_arguments(package_root, "0.4.0", selected)
+    assert patch_arguments == [
+        "--config",
+        f'patch.crates-io.minco-core.path="{package_root}/target/package/minco-core-0.4.0"',
+        "--config",
+        f'patch.crates-io.minco-config.path="{package_root}/target/package/minco-config-0.4.0"',
+    ]
+    packaged_test = packaged_test_command(
+        package_root / "target/package/minco-config-0.4.0/Cargo.toml",
+        patch_arguments,
+    )
+    assert "--offline" in packaged_test
+    assert "--locked" not in packaged_test
+
+print("Coordinated dry-run and unpacked-archive fixtures passed.")
+
+consumer_manifest = external_consumer_manifest(
+    "minco-archive-no-default",
+    "0.4.0",
+    ['minco = { version = "=0.4.0", default-features = false }'],
+)
+assert 'name = "minco-archive-no-default"' in consumer_manifest
+assert 'minco = { version = "=0.4.0", default-features = false }' in consumer_manifest
+
+print("External archive-consumer manifest fixtures passed.")

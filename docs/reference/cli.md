@@ -95,6 +95,11 @@ cargo minco deploy changeset [--target-config PATH] [--environment ENV]
 cargo minco deploy apply [--changeset target/PATH]
   [--migration-plan target/PATH] [--migration-receipt target/PATH]
   [--receipt target/PATH] --approve-changeset-digest SHA256
+cargo minco deploy verify [--manifest target/PATH]
+  [--receipt target/PATH] [--output target/PATH] [--dry-run]
+cargo minco promote [--manifest target/PATH] [--receipt target/PATH]
+  [--verification target/PATH] [--output target/PATH]
+  --approve-verification-digest SHA256 [--dry-run]
 cargo minco cost [--config PATH]
 cargo minco perf [--config PATH]
 ```
@@ -116,6 +121,15 @@ before executing the exact change-set ARN. Infrastructure completion remains
 pending until hosted verification advances the deployment receipt. Both
 commands support `--dry-run`; dry-run is local and non-contacting.
 
+`deploy verify` binds the exact release, started deployment receipt, executed
+artifact/version, HTTPS endpoint and required contract, readiness,
+authentication, smoke and artifact-identity checks. It advances the receipt
+only after the application-owned hosted command returns a strict successful
+observation. `promote` requires that immutable verification report and its
+exact digest, rechecks the release/deployment binding, and modifies only the
+guarded live API Gateway stage routing boundary. It never rebuilds or replans.
+Its dry-run reports missing evidence and performs no AWS or HTTP contact.
+
 `inspect --json` includes the full deployment projection. `explain
 <operationId> --json` identifies the HTTP deployment function and trigger for
 the operation.
@@ -129,7 +143,9 @@ does not guess them.
 
 See
 [`plan-schema-v2-migration.md`](../deployment/plan-schema-v2-migration.md) for
-schema compatibility and upgrade examples.
+schema compatibility and upgrade examples, and
+[`../adoption/0.3.1-to-0.4.0.md`](../adoption/0.3.1-to-0.4.0.md) for the
+coordinated release boundary.
 
 ## Plugins
 

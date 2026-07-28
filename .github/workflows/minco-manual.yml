@@ -33,6 +33,14 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Install pinned JJ
+        run: |
+          cargo install --locked --bin jj jj-cli --version 0.43.0
+          jj --version
+      - name: Install pinned ripgrep
+        run: |
+          cargo install --locked ripgrep --version 15.2.0
+          rg --version
       - name: Install security and dependency tools
         run: |
           cargo install --locked cargo-deny --version 0.19.5
@@ -48,6 +56,20 @@ jobs:
           npm run --prefix plugins/minco-plugin-feedback test:browser
       - name: Publish dry run
         run: scripts/release/publish.sh --skip-quality
+      - name: Install pinned Cargo Lambda
+        run: cargo install --locked cargo-lambda --version 1.9.1
+      - name: Install pinned Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: "0.14.0"
+      - name: Plan, SAM, and native ARM64 Lambda qualification
+        run: |
+          cargo lambda --version
+          sam --version
+          scripts/aws/plan.sh
+          scripts/aws/validate.sh
+          scripts/aws/build-lambda.sh
+          scripts/aws/build-worker-lambda.sh
       - name: Rustack and Minco SSM adapter conformance
         if: ${{ inputs.run_rustack }}
         run: scripts/dev/rustack-smoke.sh

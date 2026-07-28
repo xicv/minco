@@ -1,7 +1,7 @@
 # Incrementally adopting Minco
 
 Published baseline: `0.3.1`
-Current workspace version: `0.3.1`
+Current workspace version: `0.4.0`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -13,7 +13,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "0.3.1", default-features = false, features = ["contract"] }
+minco = { version = "0.4.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -135,6 +135,11 @@ stability is validated against runtime descriptors for true plugins.
   no-default consumers remain SQLx-free.
 - Public Rust APIs and serialized contracts are unchanged. The multi-runtime
   Plan IR redesign is not part of this patch.
+
+Applications moving from `0.3.1` to the `0.4.0` family must use the dedicated
+[`0.3.1` to `0.4.0` guide](0.3.1-to-0.4.0.md); it covers Plan IR schema 2,
+typed configuration, database/dev/generator lifecycle, deployment receipts,
+hosted verification and the four new crates.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

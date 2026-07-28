@@ -17,16 +17,19 @@ The accepted product definition, golden path and 1.0 completion boundary are in
 
 The default AWS profile uses API Gateway HTTP API and one native ARM64 Lambda
 ZIP. It contains no provisioned concurrency, NAT Gateway, scheduled poller or
-always-on compute. Storage, retained logs, DNS, secrets and database providers
-can still incur idle charges, so the precise promise is **minimal idle cost**.
+always-on compute. Minco targets zero provisioned application compute at idle.
+Storage, retained logs, DNS, secrets, database storage, schedules and other
+fixed/request dimensions remain explicit and bounded.
 
 > Published baseline: `0.3.1`
 >
-> Current workspace version: `0.3.1`
+> Current workspace version: `0.4.0`
 >
-> Minco is pre-1.0. The published `0.3.1` patch preserves the `0.3.0`
-> boundaries; current main-source lifecycle work is accumulating toward the
-> documented `0.4.0` public CLI and serialized-schema boundary.
+> Current publishable package count: `28`
+>
+> Minco is pre-1.0. Source is preparing the coordinated `0.4.0` public CLI,
+> configuration, lifecycle and serialized-schema boundary. A source version is
+> not registry publication or live deployment proof.
 
 
 ## Use Minco as a dependency
@@ -68,8 +71,10 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The published `0.3.1` baseline contains 24 packages. Current source adds the
-unpublished `minco-config` candidate for the next compatible release. See
+The published `0.3.1` baseline contains 24 packages. The `0.4.0` source
+candidate contains 28: the existing family plus first-publish crates
+`minco-config`, `minco-db`, `minco-dev` and `minco-deploy-aws`. See the
+[`0.3.1` to `0.4.0` upgrade guide](docs/adoption/0.3.1-to-0.4.0.md) and
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
 first-publish, dry-run, ownership, and trusted-publishing process.
 
@@ -100,8 +105,11 @@ A complete application-consumer walkthrough is available in
 crates/
   minco/            ergonomic facade and feature-gated public entrypoint
   minco-config/     typed environments, secret references and provenance
+  minco-db/         migration, seed-plan and database lifecycle contracts
+  minco-dev/        deterministic local dependency/process supervision
   minco-core/       plugin API, typed services, capability/application graph
   minco-contract/   OpenAPI profile, digest, operation inventory, generation
+  minco-deploy-aws/ guarded CloudFormation target, receipt and promotion model
   minco-http/       Axum/Tower middleware, principal, RFC 9457 errors
   minco-plan/       Plan IR, performance/cost rules, database profiles, SAM
   minco-release/    immutable release manifests and digest verification
@@ -162,6 +170,7 @@ migrations and deployment-route generation.
 | Databases | Explicit Neon, self-hosted PostgreSQL, RDS, Aurora, DynamoDB and SQLite profiles. |
 | Local AWS | Standard endpoint override, Rustack preferred, real AWS authoritative. |
 | Release | Build once, hash everything, migrate explicitly, promote exact artifact. |
+| Idle cost | Zero provisioned application compute by default; retained, scheduled, request and fixed dimensions remain explicit. |
 | Frontend | Not assumed; a future static-artifact plugin may be selected explicitly. |
 | Update | Reviewed source/toolchain/dependency update; no unsigned self-replacement. |
 
@@ -317,6 +326,9 @@ explicit inputs; missing rates make an estimate incomplete rather than silently
 zero. DynamoDB is a real cost/planning profile but the Orders relational port is
 not falsely mapped to DynamoDB; its adapter remains a tracked task. See
 [`docs/deployment/database-options.md`](docs/deployment/database-options.md).
+The broader default/opt-in/excluded service policy and dated evidence boundary
+are in
+[`docs/deployment/aws-service-doctrine.md`](docs/deployment/aws-service-doctrine.md).
 
 ## Plan, build and deploy
 
@@ -387,9 +399,10 @@ then use the facade/stability matrix in
 ## Crates.io release preparation
 
 Minco uses a lock-step release family. The published `0.3.1` release contains
-24 packages, unchanged from `0.3.0`. Current source adds `minco-config` as a
-25th publication candidate for the next compatible release; it is not registry
-proof.
+24 packages, unchanged from `0.3.0`. The `0.4.0` source candidate contains 28
+publishable packages, including first releases for `minco-config`, `minco-db`,
+`minco-dev` and `minco-deploy-aws`. Source and package qualification are not
+registry proof.
 Static metadata and dependency validation can run without Cargo:
 
 ```bash
