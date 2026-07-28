@@ -8,6 +8,93 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, process::Output};
 use tower::ServiceExt;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FixtureIdentity {
+    pub namespace: String,
+    pub kind: String,
+    pub ordinal: u64,
+    pub stable_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixtureError {
+    message: String,
+}
+
+impl std::fmt::Display for FixtureError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for FixtureError {}
+
+/// Produces deterministic identities without coupling fixtures to an ORM,
+/// database, wall clock, random-number generator, or global process state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixtureSequence {
+    namespace: String,
+    next_ordinal: u64,
+}
+
+impl FixtureSequence {
+    pub fn new(namespace: impl Into<String>) -> Result<Self, FixtureError> {
+        let namespace = namespace.into();
+        validate_fixture_part(&namespace, "fixture namespace")?;
+        Ok(Self {
+            namespace,
+            next_ordinal: 1,
+        })
+    }
+
+    pub fn next(&mut self, kind: &str) -> Result<FixtureIdentity, FixtureError> {
+        validate_fixture_part(kind, "fixture kind")?;
+        let ordinal = self.next_ordinal;
+        let next_ordinal = ordinal.checked_add(1).ok_or_else(|| FixtureError {
+            message: "fixture sequence exhausted its ordinal range".into(),
+        })?;
+        let identity = FixtureIdentity {
+            namespace: self.namespace.clone(),
+            kind: kind.to_owned(),
+            ordinal,
+            stable_id: format!("{}:{kind}:{ordinal:08}", self.namespace),
+        };
+        self.next_ordinal = next_ordinal;
+        Ok(identity)
+    }
+
+    pub fn build<T>(
+        &mut self,
+        kind: &str,
+        builder: impl FnOnce(FixtureIdentity) -> T,
+    ) -> Result<T, FixtureError> {
+        self.next(kind).map(builder)
+    }
+}
+
+fn validate_fixture_part(value: &str, label: &str) -> Result<(), FixtureError> {
+    let valid = !value.is_empty()
+        && value.len() <= 64
+        && value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+        && value
+            .as_bytes()
+            .last()
+            .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && !value.contains("--");
+    if valid {
+        Ok(())
+    } else {
+        Err(FixtureError {
+            message: format!(
+                "{label} must be a lowercase kebab-case identifier of at most 64 bytes"
+            ),
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TestClient {
     router: Router,

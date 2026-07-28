@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "SQLx SQLite pools, WAL configuration, and migrations for Minco applications"
+description = "SQLx SQLite pools, migrations, and safe seed execution for Minco applications"
 documentation = "https://docs.rs/minco-sqlx-sqlite"
 readme = "README.md"
 keywords = ["minco", "sqlite", "sqlx", "database"]
@@ -16,6 +16,7 @@ publish = ["crates-io"]
 include = [
   "src/**",
   "migrations/plugins/**",
+  "tests/**",
   "Cargo.toml",
   "README.md",
   "LICENSE-MIT",

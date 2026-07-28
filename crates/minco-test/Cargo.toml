@@ -7,13 +7,13 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "In-process Axum HTTP test clients and deterministic command evidence for Minco applications"
+description = "In-process HTTP clients, deterministic fixtures, and command evidence for Minco applications"
 documentation = "https://docs.rs/minco-test"
 readme = "README.md"
 keywords = ["minco", "testing", "axum", "http"]
 categories = ["development-tools::testing"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 [dependencies]
 axum.workspace = true
 http.workspace = true

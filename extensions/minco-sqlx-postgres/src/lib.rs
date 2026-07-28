@@ -1,7 +1,10 @@
 //! Bounded `SQLx` `PostgreSQL` pools for local servers and serverless runtimes.
 #![forbid(unsafe_code)]
 
-use minco_db::{AppliedMigration, DatabaseBackend, MigrationSet, TargetState};
+use minco_db::{
+    AppliedMigration, DatabaseBackend, MigrationSet, SeedPlan, SeedTransaction, SeedVerification,
+    TargetState, resolve_seed_source, validate_seed_plan as validate_seed_model_plan,
+};
 use serde::{Deserialize, Serialize};
 pub use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
@@ -196,6 +199,71 @@ pub async fn apply_migration_plan(
     Ok(())
 }
 
+pub async fn apply_seed_plan(
+    pool: &PgPool,
+    project_root: &Path,
+    plan: &SeedPlan,
+) -> Result<(), PostgresError> {
+    validate_seed_plan(plan)?;
+    let sources = plan
+        .seeds
+        .iter()
+        .map(|seed| resolve_seed_source(project_root, seed))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| PostgresError::SeedSource(error.to_string()))?;
+    match plan.seeds[0].transaction {
+        SeedTransaction::Required => {
+            let mut transaction = pool.begin().await?;
+            for source in sources {
+                sqlx::raw_sql(sqlx::AssertSqlSafe(source.apply_sql))
+                    .execute(&mut *transaction)
+                    .await?;
+            }
+            transaction.commit().await?;
+        }
+        SeedTransaction::Autocommit => {
+            for source in sources {
+                sqlx::raw_sql(sqlx::AssertSqlSafe(source.apply_sql))
+                    .execute(pool)
+                    .await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn verify_seed_plan(
+    pool: &PgPool,
+    project_root: &Path,
+    plan: &SeedPlan,
+) -> Result<Vec<SeedVerification>, PostgresError> {
+    validate_seed_plan(plan)?;
+    let mut transaction = pool.begin().await?;
+    sqlx::query("SET TRANSACTION READ ONLY")
+        .execute(&mut *transaction)
+        .await?;
+    let mut verification = Vec::with_capacity(plan.seeds.len());
+    for seed in &plan.seeds {
+        let source = resolve_seed_source(project_root, seed)
+            .map_err(|error| PostgresError::SeedSource(error.to_string()))?;
+        let rows = sqlx::query_scalar::<_, bool>(sqlx::AssertSqlSafe(source.verify_sql))
+            .fetch_all(&mut *transaction)
+            .await?;
+        if rows.len() != 1 {
+            return Err(PostgresError::InvalidConfig(format!(
+                "seed {} verification must return exactly one boolean row",
+                seed.id
+            )));
+        }
+        verification.push(SeedVerification {
+            seed_id: seed.id.clone(),
+            verified: rows[0],
+        });
+    }
+    transaction.rollback().await?;
+    Ok(verification)
+}
+
 pub async fn ready(pool: &PgPool) -> bool {
     matches!(
         sqlx::query_scalar::<_, i32>("SELECT 1")
@@ -203,6 +271,34 @@ pub async fn ready(pool: &PgPool) -> bool {
             .await,
         Ok(1)
     )
+}
+
+fn validate_seed_plan(plan: &SeedPlan) -> Result<(), PostgresError> {
+    validate_seed_model_plan(plan).map_err(|error| PostgresError::SeedSource(error.to_string()))?;
+    if plan.seeds.is_empty() {
+        return Err(PostgresError::InvalidConfig(
+            "seed plan contains no seeds".into(),
+        ));
+    }
+    if plan
+        .seeds
+        .iter()
+        .any(|seed| seed.backend != DatabaseBackend::Postgres)
+    {
+        return Err(PostgresError::InvalidConfig(
+            "seed plan contains a non-PostgreSQL seed".into(),
+        ));
+    }
+    if plan
+        .seeds
+        .iter()
+        .any(|seed| seed.transaction != plan.seeds[0].transaction)
+    {
+        return Err(PostgresError::InvalidConfig(
+            "seed plan mixes transaction behaviors".into(),
+        ));
+    }
+    Ok(())
 }
 
 async fn table_exists(pool: &PgPool, table: &str) -> Result<bool, PostgresError> {
@@ -313,6 +409,8 @@ pub enum PostgresError {
     PlanLockLost,
     #[error("PostgreSQL migration filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
+    #[error("PostgreSQL seed source validation failed: {0}")]
+    SeedSource(String),
 }
 
 #[cfg(test)]

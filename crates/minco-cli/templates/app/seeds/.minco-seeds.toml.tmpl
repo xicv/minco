@@ -1,0 +1,18 @@
+schema = 1
+id = "{{PACKAGE}}-{{DATABASE}}-seeds"
+owner = "application:{{PACKAGE}}"
+backend = "{{DATABASE}}"
+
+[[seed]]
+id = "{{PACKAGE}}-{{DATABASE}}-demo"
+version = 1
+class = "demo"
+source = "demo.sql"
+verify = "demo.verify.sql"
+depends_on = []
+environments = ["local", "development"]
+idempotency = "upsert"
+mutable_state = "owned_rows"
+risk = "replaces_owned_rows"
+transaction = "required"
+preservation = "preserve_unowned_rows"

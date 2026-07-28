@@ -1,0 +1,6 @@
+SELECT EXISTS (
+    SELECT 1
+    FROM minco_schema_metadata
+    WHERE key = '{{PACKAGE}}.demo-fixture'
+      AND value = 'enabled'
+);

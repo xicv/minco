@@ -65,6 +65,12 @@ roots = [
   "examples/orders/migrations/sqlite",
 ]
 
+[seeds]
+roots = [
+  "examples/orders/seeds/postgres",
+  "examples/orders/seeds/sqlite",
+]
+
 [commands]
 test_unit = ["cargo test --workspace --lib --all-features"]
 test_feature = ["cargo test -p orders-api -p orders-application -p orders-adapters --all-features"]

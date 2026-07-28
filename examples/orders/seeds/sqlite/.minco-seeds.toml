@@ -1,0 +1,32 @@
+schema = 1
+id = "orders-sqlite-seeds"
+owner = "application:orders"
+backend = "sqlite"
+
+[[seed]]
+id = "orders-sqlite-demo"
+version = 1
+class = "demo"
+source = "demo.sql"
+verify = "demo.verify.sql"
+depends_on = []
+environments = ["local", "development"]
+idempotency = "upsert"
+mutable_state = "owned_rows"
+risk = "replaces_owned_rows"
+transaction = "required"
+preservation = "preserve_unowned_rows"
+
+[[seed]]
+id = "orders-sqlite-test"
+version = 1
+class = "test"
+source = "test.sql"
+verify = "test.verify.sql"
+depends_on = []
+environments = ["test"]
+idempotency = "upsert"
+mutable_state = "owned_rows"
+risk = "replaces_owned_rows"
+transaction = "required"
+preservation = "preserve_unowned_rows"

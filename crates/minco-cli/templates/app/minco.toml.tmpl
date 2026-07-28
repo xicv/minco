@@ -45,6 +45,9 @@ api_roots = ["crates/api"]
 [migrations]
 roots = ["{{MIGRATION_DIR}}"]
 
+[seeds]
+roots = ["seeds/{{DATABASE}}"]
+
 [commands]
 test_unit = ["cargo test --workspace --lib"]
 test_feature = ["cargo test -p {{PACKAGE}}-application -p {{PACKAGE}}-api"]
