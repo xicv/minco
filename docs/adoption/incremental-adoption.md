@@ -170,6 +170,29 @@ Run contract checks before compiling, then the facade no-default/default/
 all-feature matrix and application tests. Promotion still uses the exact built
 artifact; it never rebuilds source.
 
+## Evidence-led upgrade workflow
+
+Before changing the pinned Minco version, capture:
+
+```text
+cargo minco upgrade report --json
+cargo minco contract diff --against <reviewed-revision> --json
+```
+
+The upgrade report inventories the consuming application's Rust/CLI versions,
+facade features, typed configuration metadata, selected and linked plugins,
+and serialized manifest/contract/deployment schema versions. It intentionally
+omits configuration defaults, values and secret-reference names. Its
+`review_required` assessment means release notes and migration guidance are
+still authoritative.
+
+Run the same reports after the dependency and feature edit, then compare the
+schema-1 output. Resolve every `breaking` or `uncertain` contract item in the
+actual request/response direction. Follow with contract checks, compilation,
+the facade feature matrix, application tests and deployment-plan validation.
+See [`../reference/compatibility.md`](../reference/compatibility.md) for the
+bounded classifications and report limitations.
+
 ## Operational boundary
 
 Local compiler, contract, Rustack, package and SAM evidence is not a live

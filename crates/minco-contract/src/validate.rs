@@ -42,7 +42,15 @@ impl ContractReport {
 pub fn load_contract(path: impl AsRef<Path>) -> Result<ContractReport, ContractError> {
     let path = path.as_ref();
     let source = fs::read_to_string(path)?;
-    let yaml: serde_yaml_ng::Value = serde_yaml_ng::from_str(&source)?;
+    load_contract_source(path.display().to_string(), &source)
+}
+
+pub fn load_contract_source(
+    source_name: impl Into<String>,
+    source: &str,
+) -> Result<ContractReport, ContractError> {
+    let source_name = source_name.into();
+    let yaml: serde_yaml_ng::Value = serde_yaml_ng::from_str(source)?;
     let raw = serde_json::to_value(yaml)?;
     let canonical = serde_json::to_vec(&canonicalize(&raw))?;
     let sha256 = format!("{:x}", Sha256::digest(canonical));
@@ -198,7 +206,7 @@ pub fn load_contract(path: impl AsRef<Path>) -> Result<ContractReport, ContractE
     schema_names.sort();
     Ok(ContractReport {
         document: ContractDocument {
-            source: path.display().to_string(),
+            source: source_name,
             openapi_version,
             title,
             version,
