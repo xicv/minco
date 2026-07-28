@@ -120,16 +120,21 @@ cargo minco task verify <id>
 ## Database and release
 
 ```text
-cargo minco db migrate
+cargo minco db plan [--set ID]
+cargo minco db status [--set ID --database-url-env NAME]
+cargo minco db verify [--set ID --database-url-env NAME]
+cargo minco db migrate --set ID --database-url-env NAME
+  --expected-plan-digest SHA256 --receipt PATH [--allow-destructive]
 cargo minco release create --artifact PATH [--plan PATH] [--output PATH]
 cargo minco release verify <manifest>
 ```
 
-`cargo minco db migrate` executes the application-relative
-`commands.database_migrate` entry from `minco.toml`. The application owns its
-adapter-specific environment contract—for example a pooled/direct PostgreSQL
-URL pair or a persistent SQLite path—rather than the CLI guessing database
-environment variables.
+`plan` and source-only `status`/`verify` do not connect. Target commands accept
+the name of an environment variable holding the direct database URL; URL values
+are not command-line arguments or JSON fields. `migrate` requires the exact
+reviewed plan digest and reserves a new project-contained receipt before
+mutation. See
+[`../deployment/database-lifecycle.md`](../deployment/database-lifecycle.md).
 
 ## Update
 

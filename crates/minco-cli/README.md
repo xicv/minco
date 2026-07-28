@@ -23,6 +23,30 @@ manifests, roadmap/task views, updates, and JJ-first task workflows.
 Publishing and mutating deployment actions remain explicit; the CLI does not
 silently upload crates or change cloud resources.
 
+Database migration is also explicit and digest-bound:
+
+```bash
+cargo minco db plan --set orders-postgres --json
+cargo minco db status \
+  --set orders-postgres \
+  --database-url-env MINCO_MIGRATION_DATABASE_URL \
+  --json
+cargo minco db migrate \
+  --set orders-postgres \
+  --database-url-env MINCO_MIGRATION_DATABASE_URL \
+  --expected-plan-digest reviewed-plan-digest \
+  --receipt target/minco/migration-receipt.json
+cargo minco db verify \
+  --set orders-postgres \
+  --database-url-env MINCO_MIGRATION_DATABASE_URL \
+  --json
+```
+
+Only the environment-variable name appears in arguments; its database URL
+value is not serialized into plans or receipts. See
+`docs/deployment/database-lifecycle.md` in the Minco repository for sidecar
+metadata, locks, risk gates and receipt semantics.
+
 `cargo minco deploy plan --stdout --json` emits canonical Plan IR without
 writing a repository artifact. Local topology tooling uses this mode so plugin
 selection and Rustack service startup consume the same validated graph as

@@ -49,8 +49,18 @@ manifest and evidence journal contain no secret value.
 # Build once from a reviewed environment config, then lint and hash the inputs
 ./scripts/aws/build-release.sh path/to/reviewed.minco.toml
 
-# Run database migration separately
-DATABASE_KIND=postgres MIGRATION_DATABASE_URL='postgresql://...' cargo minco db migrate
+# Plan and run database migration separately. The direct URL value is injected
+# out of band into MINCO_MIGRATION_DATABASE_URL.
+cargo minco db plan --set orders-postgres --json \
+  > target/minco/orders-postgres-plan.json
+MINCO_REVIEWED_MIGRATION_DIGEST="$(
+  jq -r '.digest' target/minco/orders-postgres-plan.json
+)"
+cargo minco db migrate \
+  --set orders-postgres \
+  --database-url-env MINCO_MIGRATION_DATABASE_URL \
+  --expected-plan-digest "$MINCO_REVIEWED_MIGRATION_DIGEST" \
+  --receipt target/minco/orders-postgres-receipt.json
 
 # Promote the already verified release
 MINCO_STACK_NAME=minco-dev \
@@ -62,6 +72,9 @@ MINCO_AWS_EXECUTE_CHANGESET=yes \
 AWS_REGION=ap-southeast-2 \
 ./scripts/aws/deploy.sh
 ```
+
+See [`database-lifecycle.md`](database-lifecycle.md) for target status,
+destructive-risk gates, locking, verification and receipt semantics.
 
 `deploy.sh` never builds or replans. It verifies the release, refuses an
 existing stack or artifact bucket, creates a blocked and encrypted temporary S3

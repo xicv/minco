@@ -36,6 +36,14 @@ Enable typed environment composition explicitly:
 cargo add minco --features config
 ```
 
+Enable provider-neutral migration planning without a database driver:
+
+```bash
+cargo add minco --features db
+```
+
+The `sqlx-postgres` and `sqlx-sqlite` features include `db` automatically.
+
 ## Compose plugins
 
 ```rust

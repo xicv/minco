@@ -1,0 +1,12 @@
+schema = 1
+id = "official-plugins-sqlite"
+owner = "plugin:official-storage"
+backend = "sqlite"
+history_table = "_minco_plugin_storage_migrations"
+depends_on = []
+verify_tables = ["minco_audit", "minco_idempotency", "minco_sessions"]
+
+[[migration]]
+version = 1
+risk = "additive"
+reversible = false

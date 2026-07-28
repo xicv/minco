@@ -18,6 +18,13 @@ pub enum DatabaseChoice {
 }
 
 impl DatabaseChoice {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Postgres => "postgres",
+            Self::Sqlite => "sqlite",
+        }
+    }
+
     const fn feature(self) -> &'static str {
         match self {
             Self::Postgres => "sqlx-postgres",
@@ -64,7 +71,14 @@ impl DatabaseChoice {
             Self::Postgres => {
                 "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app\nDATABASE_MIGRATION_URL=postgresql://postgres:postgres@127.0.0.1:5432/app"
             }
-            Self::Sqlite => "DATABASE_PATH=var/app.db",
+            Self::Sqlite => "DATABASE_PATH=var/app.db\nDATABASE_MIGRATION_URL=sqlite://var/app.db",
+        }
+    }
+
+    const fn migration_setup(self) -> &'static str {
+        match self {
+            Self::Postgres => "mkdir -p target/minco",
+            Self::Sqlite => "mkdir -p target/minco var",
         }
     }
 
@@ -260,6 +274,8 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
         ("{{TITLE}}", title.as_str()),
         ("{{MINCO_VERSION}}", env!("CARGO_PKG_VERSION")),
         ("{{DB_FEATURE}}", options.database.feature()),
+        ("{{DATABASE}}", options.database.as_str()),
+        ("{{DATABASE_SETUP}}", options.database.migration_setup()),
         ("{{MIGRATION_DIR}}", options.database.migration_directory()),
         ("{{DATABASE_ENV}}", options.database.database_env()),
         (
@@ -290,6 +306,15 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
             options.database.migration_directory()
         ),
         options.database.migration_template(),
+        &replacements,
+    )?;
+    write_rendered(
+        &directory,
+        &format!(
+            "{}/.minco-migrations.toml",
+            options.database.migration_directory()
+        ),
+        include_str!("../templates/app/migrations/.minco-migrations.toml.tmpl"),
         &replacements,
     )?;
 
@@ -332,8 +357,9 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
             "cargo minco contract sync --check".into(),
             "cargo minco check --with-cargo".into(),
             format!(
-                "cargo run -p {}-service --bin {}-migrate",
-                options.name, options.name
+                "cargo minco db plan --set {}-{} --json",
+                options.name,
+                options.database.as_str()
             ),
             format!(
                 "cargo run -p {}-service --bin {}-local",
@@ -438,5 +464,15 @@ mod tests {
             toml::from_str(&std::fs::read_to_string(destination.join("minco.toml")).unwrap())
                 .unwrap();
         assert_eq!(manifest["name"].as_str(), Some("example-api"));
+        assert!(manifest["commands"].get("database_migrate").is_none());
+        let catalog = minco_db::load_catalog(&destination, &[PathBuf::from("migrations/postgres")])
+            .expect("load generated lifecycle catalog");
+        assert_eq!(catalog.sets[0].id, "example-api-postgres");
+        assert_eq!(catalog.sets[0].history_table, "_example_api_migrations");
+        assert!(
+            report
+                .next_commands
+                .contains(&"cargo minco db plan --set example-api-postgres --json".into())
+        );
     }
 }

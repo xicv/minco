@@ -23,6 +23,10 @@ pub use minco_core as core;
 /// Typed environments, configuration schema, provenance, and secret references.
 pub use minco_config as config;
 
+#[cfg(feature = "db")]
+/// Provider-neutral migration catalogs, plans, status, risk, and verification models.
+pub use minco_db as db;
+
 #[cfg(feature = "contract")]
 /// `OpenAPI` loading, validation, operation inventory, and deterministic binding generation.
 pub use minco_contract as contract;
@@ -123,6 +127,12 @@ pub mod prelude {
         PluginFinalizeContext, PluginId, PluginManager, PluginSelection, RegistrationOwner,
         RegistrationProvenance, ResourceIntent, ResourceKind, ServiceCollection, ServiceError,
         ServiceRegistrar, ServiceRegistration, WakeSource,
+    };
+
+    #[cfg(feature = "db")]
+    pub use minco_db::{
+        DatabaseBackend, MigrationCatalog, MigrationPlan, MigrationRisk, MigrationState,
+        MigrationStatus, TargetState,
     };
 
     #[cfg(feature = "http")]

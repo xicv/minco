@@ -37,6 +37,11 @@ for database in postgres sqlite; do
     --directory "$project" \
     --database "$database" \
     --vcs none
+  cargo run --locked -p cargo-minco -- \
+    --root "$project" \
+    --json \
+    db plan \
+    --set "minco-smoke-$database-$database" >/dev/null
   append_local_patches "$project"
   cargo generate-lockfile --manifest-path "$project/Cargo.toml"
   CARGO_TARGET_DIR="$root/target" \

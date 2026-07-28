@@ -1,0 +1,12 @@
+schema = 1
+id = "orders-sqlite"
+owner = "application:orders"
+backend = "sqlite"
+history_table = "_minco_orders_migrations"
+depends_on = []
+verify_tables = ["orders", "order_idempotency"]
+
+[[migration]]
+version = 1
+risk = "additive"
+reversible = false

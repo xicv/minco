@@ -138,9 +138,6 @@ api_roots = ["crates/api"]
 [migrations]
 roots = ["migrations/postgres"]
 
-[commands]
-database_migrate = "cargo run -p example-service --bin migrate"
-
 [plugins]
 enabled = ["health", "observability", "idempotency"]
 disabled = []
@@ -161,7 +158,13 @@ cargo minco contract sync
 cargo minco inspect --json
 cargo minco explain createWidget --json
 cargo minco check --with-cargo
+cargo minco db plan --set example-api-postgres --json
 ```
+
+Each migration root also needs a `.minco-migrations.toml` sidecar describing
+its stable ID, owner, backend, history table, verification tables and
+per-version risk. See
+[`../deployment/database-lifecycle.md`](../deployment/database-lifecycle.md).
 
 ## 5. Select a database deployment profile
 

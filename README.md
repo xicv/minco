@@ -24,8 +24,9 @@ can still incur idle charges, so the precise promise is **minimal idle cost**.
 >
 > Current workspace version: `0.3.1`
 >
-> Minco is pre-1.0. The `0.3.1` patch release preserves the public Rust and
-> serialized-contract boundaries of `0.3.0`.
+> Minco is pre-1.0. The published `0.3.1` patch preserves the `0.3.0`
+> boundaries; current main-source lifecycle work is accumulating toward the
+> documented `0.4.0` public CLI and serialized-schema boundary.
 
 
 ## Use Minco as a dependency
@@ -331,12 +332,24 @@ AWS_REGION=ap-southeast-2 \
 Migrate separately before deployment:
 
 ```bash
-DATABASE_KIND=postgres DATABASE_URL='postgresql://...' cargo minco db migrate
+# MINCO_MIGRATION_DATABASE_URL is injected out of band.
+cargo minco db plan --set orders-postgres --json \
+  > target/minco/orders-postgres-plan.json
+MINCO_REVIEWED_MIGRATION_DIGEST="$(
+  jq -r '.digest' target/minco/orders-postgres-plan.json
+)"
+cargo minco db migrate \
+  --set orders-postgres \
+  --database-url-env MINCO_MIGRATION_DATABASE_URL \
+  --expected-plan-digest "$MINCO_REVIEWED_MIGRATION_DIGEST" \
+  --receipt target/minco/orders-postgres-receipt.json
 ```
 
 The generated SAM template reads the named SSM `SecureString` at runtime through
 least-privilege `ssm:GetParameter` and KMS-decrypt permission. Secret values are
-not stored in the plan, template or release manifest.
+not stored in the database plan/receipt, deployment plan, template or release
+manifest. See
+[`docs/deployment/database-lifecycle.md`](docs/deployment/database-lifecycle.md).
 
 ## Update
 

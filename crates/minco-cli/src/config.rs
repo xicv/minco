@@ -89,15 +89,14 @@ pub struct MigrationManifest {
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
 pub struct CommandManifest {
-    pub database_migrate: Option<String>,
-    #[serde(default)]
-    pub test_unit: Vec<String>,
-    #[serde(default)]
-    pub test_feature: Vec<String>,
-    #[serde(default)]
-    pub test_e2e: Vec<String>,
-    #[serde(default)]
-    pub test_all: Vec<String>,
+    #[serde(default, rename = "test_unit")]
+    pub unit: Vec<String>,
+    #[serde(default, rename = "test_feature")]
+    pub feature: Vec<String>,
+    #[serde(default, rename = "test_e2e")]
+    pub e2e: Vec<String>,
+    #[serde(default, rename = "test_all")]
+    pub all: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]

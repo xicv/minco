@@ -63,12 +63,18 @@ def render_profile(destination: Path, database: str) -> None:
         "{{TITLE}}": "Sample Api",
         "{{MINCO_VERSION}}": MINCO_VERSION,
         "{{DB_FEATURE}}": "sqlx-postgres" if database == "postgres" else "sqlx-sqlite",
+        "{{DATABASE}}": database,
+        "{{DATABASE_SETUP}}": (
+            "mkdir -p target/minco"
+            if database == "postgres"
+            else "mkdir -p target/minco var"
+        ),
         "{{MIGRATION_DIR}}": f"migrations/{database}",
         "{{DATABASE_ENV}}": (
             "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app\n"
             "DATABASE_MIGRATION_URL=postgresql://postgres:postgres@127.0.0.1:5432/app"
             if database == "postgres"
-            else "DATABASE_PATH=var/app.db"
+            else "DATABASE_PATH=var/app.db\nDATABASE_MIGRATION_URL=sqlite://var/app.db"
         ),
         "{{DATABASE_SECRET_REFERENCE}}": (
             "env:DATABASE_URL" if database == "postgres" else "env:DATABASE_PATH"
@@ -91,6 +97,9 @@ def render_profile(destination: Path, database: str) -> None:
     target = destination / f"migrations/{database}/0001_foundation.sql"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(render(migration, values))
+    lifecycle = template("migrations/.minco-migrations.toml")
+    target = destination / f"migrations/{database}/.minco-migrations.toml"
+    target.write_text(render(lifecycle, values))
 
 
 def check_profile(root: Path, database: str) -> dict[str, object]:
@@ -145,6 +154,20 @@ def check_profile(root: Path, database: str) -> dict[str, object]:
     assert "HttpConfigurationError" in source
     assert "InvalidHeaderValue" not in source
     assert (root / f"migrations/{database}/0001_foundation.sql").is_file()
+    lifecycle = tomllib.loads(
+        (root / f"migrations/{database}/.minco-migrations.toml").read_text()
+    )
+    assert lifecycle["id"] == f"sample-api-{database}"
+    assert lifecycle["owner"] == "application:sample-api"
+    assert lifecycle["backend"] == database
+    assert lifecycle["history_table"] == "_sample_api_migrations"
+    assert lifecycle["verify_tables"] == ["minco_schema_metadata"]
+    assert lifecycle["migration"] == [
+        {"version": 1, "risk": "additive", "reversible": False}
+    ]
+    assert "database_migrate" not in manifest["commands"]
+    if database == "sqlite":
+        assert "mkdir -p target/minco var" in (root / "README.md").read_text()
     return {
         "database": database,
         "toml_files": len(toml_files),

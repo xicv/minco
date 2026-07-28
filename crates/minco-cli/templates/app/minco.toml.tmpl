@@ -46,7 +46,6 @@ api_roots = ["crates/api"]
 roots = ["{{MIGRATION_DIR}}"]
 
 [commands]
-database_migrate = "cargo run -p {{PACKAGE}}-service --bin {{PACKAGE}}-migrate"
 test_unit = ["cargo test --workspace --lib"]
 test_feature = ["cargo test -p {{PACKAGE}}-application -p {{PACKAGE}}-api"]
 test_e2e = []

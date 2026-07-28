@@ -886,9 +886,12 @@ dependencies = [
  "minco-config",
  "minco-contract",
  "minco-core",
+ "minco-db",
  "minco-plan",
  "minco-plugin-feedback",
  "minco-release",
+ "minco-sqlx-postgres",
+ "minco-sqlx-sqlite",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -2179,6 +2182,7 @@ dependencies = [
  "minco-config",
  "minco-contract",
  "minco-core",
+ "minco-db",
  "minco-http",
  "minco-plan",
  "minco-plugin-audit",
@@ -2298,6 +2302,18 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "minco-db"
+version = "0.3.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]
@@ -2525,6 +2541,7 @@ version = "0.3.1"
 dependencies = [
  "async-trait",
  "chrono",
+ "minco-db",
  "minco-plugin-audit",
  "minco-plugin-events",
  "minco-plugin-idempotency",
@@ -2532,6 +2549,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -2544,12 +2562,14 @@ version = "0.3.1"
 dependencies = [
  "async-trait",
  "chrono",
+ "minco-db",
  "minco-plugin-audit",
  "minco-plugin-idempotency",
  "minco-plugin-sessions",
  "serde",
  "serde_json",
  "sqlx",
+ "tempfile",
  "thiserror",
  "tokio",
  "uuid",

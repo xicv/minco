@@ -1,0 +1,12 @@
+schema = 1
+id = "{{PACKAGE}}-{{DATABASE}}"
+owner = "application:{{PACKAGE}}"
+backend = "{{DATABASE}}"
+history_table = "_{{CRATE}}_migrations"
+depends_on = []
+verify_tables = ["minco_schema_metadata"]
+
+[[migration]]
+version = 1
+risk = "additive"
+reversible = false

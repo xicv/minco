@@ -33,3 +33,28 @@ minco_sqlx_sqlite::migrate_with_history_table(
 The history-table name is restricted to a plain ASCII identifier. Reusing
 SQLx's default `_sqlx_migrations` table for unrelated migration directories
 causes version/checksum collisions.
+
+The framework lifecycle API accepts a validated `minco_db::MigrationSet` and
+the same configuration used to open the pool:
+
+```rust,no_run
+# use minco_db::MigrationSet;
+# use minco_sqlx_sqlite::{SqlitePool, SqlitePoolConfig};
+# use std::path::Path;
+# async fn lifecycle(
+#   pool: &SqlitePool,
+#   config: &SqlitePoolConfig,
+#   project_root: &Path,
+#   set: &MigrationSet,
+# ) -> Result<(), minco_sqlx_sqlite::SqliteError> {
+let before = minco_sqlx_sqlite::migration_target_state(pool, set).await?;
+minco_sqlx_sqlite::apply_migration_set(pool, config, project_root, set).await?;
+let missing = minco_sqlx_sqlite::verify_migration_tables(pool, set).await?;
+assert!(before.dirty_version.is_none());
+assert!(missing.is_empty());
+# Ok(()) }
+```
+
+Execution requires file-backed SQLite. The adapter revalidates backend, SQL
+identifiers, project containment and SQLx checksums, then holds an adjacent
+operating-system file lock for the whole migration run.
