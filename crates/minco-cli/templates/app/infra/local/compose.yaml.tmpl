@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: minco_orders
+      POSTGRES_USER: minco
+      POSTGRES_PASSWORD: minco
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U minco -d minco_orders"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - minco-postgres:/var/lib/postgresql
+
+  rustack:
+    image: ghcr.io/tyrchen/rustack@sha256:18cd91395e17453e2c34b299e45f4679dc2427473dc1db6541bbe212fd70a104
+    environment:
+      SERVICES: ${MINCO_RUSTACK_SERVICES:-ssm,sts}
+      DEFAULT_REGION: ap-southeast-2
+      LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:${MINCO_RUSTACK_PORT:-4566}:4566"
+
+volumes:
+  minco-postgres:

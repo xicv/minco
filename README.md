@@ -202,19 +202,22 @@ SQLite-only:
 cargo run -p orders-service --bin orders-local --features sqlite
 ```
 
-PostgreSQL and Rustack:
+Inspect or run the graph-selected local environment:
 
 ```bash
-./scripts/dev/up.sh --dry-run
-./scripts/dev/up.sh
-./scripts/dev/migrate.sh
-./scripts/dev/run.sh
+cargo minco dev --dry-run --json
+cargo minco dev
+cargo minco dev --profile sqlite
 ```
 
-The reference graph starts PostgreSQL and only its declared Rustack services.
-Use `MINCO_RUSTACK_PORT=4567` on both scripts if the default port is occupied;
-see [`infra/local/README.md`](infra/local/README.md) for conformance and
-isolated-database options.
+The default reference profile starts PostgreSQL, only its declared Rustack
+services, the migration and the API. Use `--rustack-port 4567` when the default
+port is occupied. Ctrl-C stops all process groups and selected containers
+together without resetting volumes. See
+[`docs/development/local-development.md`](docs/development/local-development.md)
+for profiles, workers, seeds, frontend commands, JSON events and safety
+boundaries, and [`infra/local/README.md`](infra/local/README.md) for isolated
+conformance commands.
 
 Contract-first workflow:
 

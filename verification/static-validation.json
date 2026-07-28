@@ -5,20 +5,20 @@
   "errors": 0,
   "warnings": 0,
   "metrics": {
-    "toml_files": 68,
+    "toml_files": 69,
     "yaml_files": 18,
     "json_files": 13,
-    "workspace_members": 31,
+    "workspace_members": 32,
     "contract_sha256": "84e48fb8460a6000e4055de391b8cb00f0e17f60df465967207a50bd7d7b910e",
     "contract_operations": 4,
     "contract_schemas": 10,
     "plugins": 16,
     "milestones": 13,
     "tasks": 56,
-    "rust_files": 109,
+    "rust_files": 114,
     "python_files": 16,
-    "shell_files": 34,
-    "implementation_files_scanned": 257
+    "shell_files": 35,
+    "implementation_files_scanned": 264
   },
   "findings": [],
   "limitations": [

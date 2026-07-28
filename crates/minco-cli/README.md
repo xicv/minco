@@ -17,9 +17,22 @@ paths, quality gates, roadmap/tasks, plugin catalog, and JJ initialization by
 default.
 
 The remaining commands operate on a repository containing `minco.toml` and provide
-contract checks and generation, plugin selection and scaffolding, local quality
-and test runners, deployment planning, database cost analysis, release
-manifests, roadmap/task views, updates, and JJ-first task workflows.
+graph-driven local supervision, contract checks and generation, plugin
+selection and scaffolding, local quality and test runners, deployment planning,
+database cost analysis, release manifests, roadmap/task views, updates, and
+JJ-first task workflows.
+
+Inspect or run only the local services and processes declared by the selected
+graph:
+
+```bash
+cargo minco dev --dry-run --json
+cargo minco dev
+```
+
+Seeds, non-default workers and frontend commands remain explicit options.
+Ctrl-C terminates process groups and stops selected Compose services together;
+dry-run resolves no secret values.
 
 Publishing and mutating deployment actions remain explicit; the CLI does not
 silently upload crates or change cloud resources.

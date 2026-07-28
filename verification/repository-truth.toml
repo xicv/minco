@@ -5,8 +5,8 @@ published_package_count = 24
 adoption_gate_task = "M6-T07"
 
 # The independently verified 0.3.1 release retains 24 packages. Current source
-# adds minco-config and minco-db as unpublished candidates for the next release.
-publishable_package_count = 26
+# adds minco-config, minco-db and minco-dev as candidates for the next release.
+publishable_package_count = 27
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760

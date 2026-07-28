@@ -13,7 +13,7 @@ use `uv run --locked` and fail rather than rewriting the lock.
 |---|---|---|
 | Unit | `./scripts/test/unit.sh` | Domain invariants, graph validation, parsing, cost formulas, plugin ordering. |
 | Feature | `./scripts/test/feature.sh` | Application use cases, HTTP `oneshot`, adapter behavior, generated plan/contract checks. |
-| Local topology | `python3 scripts/dev/test_topology.py` | Graph-derived Compose selection, standard endpoint wiring, and override behavior. |
+| Local topology | `python3 scripts/dev/test_topology.py` | `cargo minco dev` default/SQLite plans, graph-derived Compose selection, standard endpoint wiring, and override behavior. |
 | Rustack conformance | `./scripts/dev/rustack-smoke.sh` | Isolated real S3, SQS, SSM SecureString, STS, and Minco SSM SDK-adapter operations against Rustack. |
 | E2E | `./scripts/test/e2e.sh` | Local service over TCP with contract requests; optional PostgreSQL/Rustack dependencies. |
 | All | `./scripts/test/all.sh` | Runs the three tiers and deep review. |

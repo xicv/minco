@@ -51,29 +51,29 @@ ALLOW_DEVELOPMENT_HEADERS=true \
 cargo run -p orders-service --bin orders-local --features sqlite
 ```
 
-## 6. Run with PostgreSQL and Rustack
+## 6. Run the graph-selected environment
 
-Inspect the graph-derived topology before starting it:
-
-```bash
-python3 scripts/dev/topology.py
-./scripts/dev/up.sh --dry-run
-./scripts/dev/up.sh
-./scripts/dev/migrate.sh
-./scripts/dev/run.sh
-```
-
-The reference graph selects PostgreSQL plus Rustack SSM/STS and configures the
-application through standard AWS endpoint variables. If port 4566 is already
-in use, pass the same override to both scripts:
+Inspect the complete service/lifecycle/process plan, then start it:
 
 ```bash
-MINCO_RUSTACK_PORT=4567 ./scripts/dev/up.sh
-MINCO_RUSTACK_PORT=4567 ./scripts/dev/run.sh
+cargo minco dev --dry-run --json
+cargo minco dev
 ```
 
-See [`../../infra/local/README.md`](../../infra/local/README.md) for isolated
-database and Rustack conformance commands.
+The reference default selects PostgreSQL plus Rustack SSM/STS, applies the
+declared migration and waits for API readiness. SQLite and port overrides are
+explicit:
+
+```bash
+cargo minco dev --profile sqlite
+cargo minco dev --port 31000 --rustack-port 4567
+```
+
+Ctrl-C stops process groups and selected containers together without resetting
+volumes. See
+[`local-development.md`](local-development.md) for workers, explicit seed and
+frontend options, and [`../../infra/local/README.md`](../../infra/local/README.md)
+for isolated database and Rustack conformance commands.
 
 ## 7. Exercise the contract
 

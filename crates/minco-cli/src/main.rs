@@ -22,11 +22,16 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use config_cmd::ConfigCommand;
 use feedback_cmd::FeedbackArgs;
+use minco_config::EnvironmentClass;
 use minco_contract::{Severity as ContractSeverity, generate_rust, load_contract};
 use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
+use minco_dev::{
+    DevDatabase, DevEvent, DevGraph, DevOptions, DevPlan, DevStream, ServiceKind, Supervisor,
+};
 use minco_plan::{
-    DatabaseCostEstimate, DeploymentConfig, DeploymentPlan, Severity as PlanSeverity,
-    estimate_database_cost, estimate_runtime_cost, render_sam_with_code_uris,
+    DatabaseCostEstimate, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionRole,
+    Severity as PlanSeverity, TriggerPlan, estimate_database_cost, estimate_runtime_cost,
+    render_sam_with_code_uris,
 };
 use minco_release::{FileDigest, ReleaseManifest};
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
@@ -64,6 +69,8 @@ struct Cli {
 enum Command {
     New(NewArgs),
     Doctor,
+    /// Run the graph-declared local development topology.
+    Dev(DevArgs),
     Check(CheckArgs),
     #[command(subcommand)]
     Config(ConfigCommand),
@@ -117,6 +124,46 @@ struct CheckArgs {
     with_cargo: bool,
     #[arg(long)]
     with_optional: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+// These booleans are independent user-facing flags, including Clap's explicit
+// positive/negative frontend pair.
+#[allow(clippy::struct_excessive_bools)]
+struct DevArgs {
+    /// Print the deterministic development plan without starting anything.
+    #[arg(long)]
+    dry_run: bool,
+    /// Typed runtime configuration environment.
+    #[arg(long)]
+    environment: Option<String>,
+    /// Named development/deployment profile; defaults to the manifest selection.
+    #[arg(long)]
+    profile: Option<String>,
+    /// Do not apply the declared local migration command.
+    #[arg(long)]
+    no_migrate: bool,
+    /// Explicit local seed profile to apply.
+    #[arg(long)]
+    seed: Option<String>,
+    /// Start a declared worker that is disabled by default.
+    #[arg(long = "with-worker")]
+    with_workers: Vec<String>,
+    /// Omit a declared worker that is enabled by default.
+    #[arg(long = "without-worker")]
+    without_workers: Vec<String>,
+    /// Start the application-defined frontend process.
+    #[arg(long, conflicts_with = "no_frontend")]
+    frontend: bool,
+    /// Omit the application-defined frontend process.
+    #[arg(long, conflicts_with = "frontend")]
+    no_frontend: bool,
+    /// Override the local API port.
+    #[arg(long, value_parser = clap::value_parser!(u16).range(1..))]
+    port: Option<u16>,
+    /// Override the local Rustack port.
+    #[arg(long, value_parser = clap::value_parser!(u16).range(1..))]
+    rustack_port: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy, Subcommand)]
@@ -379,6 +426,7 @@ async fn main() -> Result<()> {
     match command {
         Command::New(_) => unreachable!("new is handled before project discovery"),
         Command::Doctor => doctor(&root, as_json),
+        Command::Dev(args) => dev(&root, &manifest, args, as_json).await,
         Command::Check(args) => check(&root, &manifest, args, as_json),
         Command::Config(command) => config_cmd::execute(&root, &manifest, command, as_json),
         Command::Contract(command) => contract(&root, &manifest, command, as_json),
@@ -398,6 +446,310 @@ async fn main() -> Result<()> {
         Command::Vcs(command) => vcs_command(&root, command, as_json),
         Command::Feedback(args) => feedback_cmd::execute(&root, args, as_json).await,
     }
+}
+
+async fn dev(root: &Path, manifest: &MincoManifest, args: DevArgs, as_json: bool) -> Result<()> {
+    let environment = args
+        .environment
+        .clone()
+        .unwrap_or_else(|| manifest.development.default_environment.clone());
+    let configuration = config_cmd::load_graph(root, manifest, &environment, &[])
+        .map_err(|diagnostics| anyhow::anyhow!("invalid runtime configuration: {diagnostics:?}"))?;
+    let environment_class = configuration.environment().class;
+    if args.seed.is_some()
+        && matches!(
+            environment_class,
+            EnvironmentClass::Staging | EnvironmentClass::Production
+        )
+    {
+        bail!("cargo minco dev refuses seed profiles in staging or production environments");
+    }
+
+    let profile_id = args
+        .profile
+        .clone()
+        .unwrap_or_else(|| manifest.development.default_profile.clone());
+    let profile = manifest
+        .development
+        .profiles
+        .get(&profile_id)
+        .with_context(|| format!("development profile `{profile_id}` is not declared"))?;
+    validate_project_file(
+        root,
+        &profile.deployment_config,
+        "development deployment config",
+    )?;
+    validate_project_file(
+        root,
+        &manifest.development.compose_file,
+        "development Compose file",
+    )?;
+    let deployment = load_plan(root, manifest, Some(profile.deployment_config.clone()))?;
+    ensure_plan_valid(&deployment)?;
+
+    let database = match &deployment.database {
+        DatabaseDeployment::NeonPostgres { .. }
+        | DatabaseDeployment::SelfHostedPostgres { .. }
+        | DatabaseDeployment::RdsPostgres { .. }
+        | DatabaseDeployment::AuroraServerlessV2 { .. } => DevDatabase::Postgres,
+        DatabaseDeployment::SqlitePersistentHost { .. }
+        | DatabaseDeployment::SqliteLambdaMutable { .. } => DevDatabase::Sqlite,
+        DatabaseDeployment::DynamoDbOnDemand { .. } => DevDatabase::None,
+    };
+    let api = manifest
+        .development
+        .api
+        .clone()
+        .context("minco.toml must declare development.api")?;
+    let http_functions = deployment
+        .functions
+        .iter()
+        .filter(|function| function.role == FunctionRole::HttpApi)
+        .map(|function| function.name.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if !http_functions.contains(api.id.as_str()) {
+        bail!(
+            "development API `{}` is not declared as an HTTP function in profile `{profile_id}`",
+            api.id
+        );
+    }
+    let deployed_workers = deployment
+        .functions
+        .iter()
+        .filter(|function| function.role == FunctionRole::Worker)
+        .map(|function| function.name.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    for worker in &manifest.development.workers {
+        if !deployed_workers.contains(worker.id.as_str()) {
+            bail!(
+                "development worker `{}` is absent from deployment profile `{profile_id}`",
+                worker.id
+            );
+        }
+    }
+    let mut schedules = deployment.scheduled_wakeups.clone();
+    schedules.extend(deployment.triggers.iter().filter_map(|trigger| {
+        if let TriggerPlan::Schedule { id, .. } = trigger {
+            Some(id.clone())
+        } else {
+            None
+        }
+    }));
+    let region = deployment.region.clone();
+    let graph = DevGraph {
+        application: deployment.application.clone(),
+        environment: environment.clone(),
+        compose_file: manifest
+            .development
+            .compose_file
+            .to_string_lossy()
+            .into_owned(),
+        database,
+        local_aws_services: deployment.local_aws_services.clone(),
+        api,
+        workers: manifest.development.workers.clone(),
+        frontend: manifest.development.frontend.clone(),
+        migration: profile.migration.clone(),
+        seeds: profile.seeds.clone(),
+        schedules,
+    };
+    let frontend = match (args.frontend, args.no_frontend) {
+        (true, false) => Some(true),
+        (false, true) => Some(false),
+        (false, false) => None,
+        (true, true) => unreachable!("clap rejects conflicting frontend flags"),
+    };
+    let options = DevOptions {
+        profile: profile_id,
+        migrate: !args.no_migrate,
+        seed: args.seed,
+        with_workers: args.with_workers.into_iter().collect(),
+        without_workers: args.without_workers.into_iter().collect(),
+        frontend,
+        port: args.port,
+        rustack_port: args.rustack_port,
+    };
+    let plan = DevPlan::derive(&graph, &options)?;
+    if args.dry_run {
+        return print_value(&plan, as_json);
+    }
+
+    let runtime_environment =
+        development_runtime_environment(&plan, database, &environment, environment_class, &region)?;
+    if as_json {
+        println!(
+            "{}",
+            serde_json::to_string(&json!({"kind": "plan", "plan": &plan}))?
+        );
+    } else {
+        println!(
+            "[minco] {} process(es), {} local service(s), profile {}",
+            plan.processes.len(),
+            plan.services.len(),
+            plan.profile
+        );
+    }
+    let (events, receiver) = tokio::sync::mpsc::unbounded_channel();
+    let renderer = tokio::spawn(render_development_events(receiver, as_json));
+    let result = Supervisor::new(root)
+        .run_until(
+            &plan,
+            &runtime_environment,
+            async {
+                let _ = tokio::signal::ctrl_c().await;
+            },
+            events,
+        )
+        .await;
+    renderer
+        .await
+        .context("development event renderer failed")??;
+    result?;
+    Ok(())
+}
+
+fn validate_project_file(root: &Path, relative: &Path, label: &str) -> Result<()> {
+    if relative.as_os_str().is_empty()
+        || !relative
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        bail!("{label} must be a project-relative path");
+    }
+    let canonical = fs::canonicalize(root.join(relative))
+        .with_context(|| format!("resolve {label} {}", relative.display()))?;
+    if !canonical.starts_with(root) || !canonical.is_file() {
+        bail!("{label} must resolve to a file inside the project");
+    }
+    Ok(())
+}
+
+fn development_runtime_environment(
+    plan: &DevPlan,
+    database: DevDatabase,
+    environment: &str,
+    environment_class: EnvironmentClass,
+    region: &str,
+) -> Result<std::collections::BTreeMap<String, String>> {
+    let api_port = plan
+        .processes
+        .iter()
+        .find(|process| process.role == minco_dev::ProcessRole::Api)
+        .and_then(|process| process.command.environment.get("PORT"))
+        .cloned()
+        .unwrap_or_else(|| "3000".into());
+    let allow_development_headers = matches!(
+        environment_class,
+        EnvironmentClass::Local | EnvironmentClass::Development | EnvironmentClass::Test
+    );
+    let environment_class = match environment_class {
+        EnvironmentClass::Local => "local",
+        EnvironmentClass::Test => "test",
+        EnvironmentClass::Development => "development",
+        EnvironmentClass::Staging => "staging",
+        EnvironmentClass::Production => "production",
+    };
+    let mut values = std::collections::BTreeMap::from([
+        (
+            "ALLOW_DEVELOPMENT_HEADERS".into(),
+            allow_development_headers.to_string(),
+        ),
+        ("API_HOST".into(), "127.0.0.1".into()),
+        ("API_PORT".into(), api_port),
+        ("APP_ENV".into(), environment.into()),
+        ("AWS_EC2_METADATA_DISABLED".into(), "true".into()),
+        (
+            "MINCO_DEV_ENVIRONMENT_CLASS".into(),
+            environment_class.into(),
+        ),
+    ]);
+    match database {
+        DevDatabase::Postgres => {
+            let database_url = std::env::var("MINCO_LOCAL_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://minco:minco@127.0.0.1:55432/minco_orders".into());
+            if database_url.is_empty() {
+                bail!("MINCO_LOCAL_DATABASE_URL must not be empty");
+            }
+            validate_local_postgres_url(&database_url)?;
+            values.insert("DATABASE_KIND".into(), "postgres".into());
+            values.insert("DATABASE_URL".into(), database_url.clone());
+            values.insert("DATABASE_MIGRATION_URL".into(), database_url.clone());
+            values.insert("MIGRATION_DATABASE_URL".into(), database_url);
+        }
+        DevDatabase::Sqlite => {
+            values.insert("DATABASE_KIND".into(), "sqlite".into());
+            values.insert("DATABASE_PATH".into(), "target/minco/orders.db".into());
+            values.insert(
+                "DATABASE_MIGRATION_URL".into(),
+                "sqlite://target/minco/orders.db".into(),
+            );
+            values.insert("SQLITE_PATH".into(), "target/minco/orders.db".into());
+        }
+        DevDatabase::None => {
+            values.insert("DATABASE_KIND".into(), "memory".into());
+        }
+    }
+    if let Some(rustack) = plan
+        .services
+        .iter()
+        .find(|service| service.kind == ServiceKind::Rustack)
+    {
+        let port = rustack
+            .port
+            .context("Rustack service must expose a local port")?;
+        values.extend([
+            ("AWS_ACCESS_KEY_ID".into(), "test".into()),
+            ("AWS_DEFAULT_REGION".into(), region.into()),
+            (
+                "AWS_ENDPOINT_URL".into(),
+                format!("http://127.0.0.1:{port}"),
+            ),
+            ("AWS_SECRET_ACCESS_KEY".into(), "test".into()),
+        ]);
+    }
+    Ok(values)
+}
+
+fn validate_local_postgres_url(value: &str) -> Result<()> {
+    let parsed = url::Url::parse(value).context("MINCO_LOCAL_DATABASE_URL must be a valid URL")?;
+    let loopback = match parsed.host_str() {
+        Some("localhost") => true,
+        Some(host) => host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback()),
+        None => false,
+    };
+    if !matches!(parsed.scheme(), "postgres" | "postgresql") || !loopback {
+        bail!("MINCO_LOCAL_DATABASE_URL must use PostgreSQL on a loopback host");
+    }
+    Ok(())
+}
+
+async fn render_development_events(
+    mut events: tokio::sync::mpsc::UnboundedReceiver<DevEvent>,
+    as_json: bool,
+) -> Result<()> {
+    while let Some(event) = events.recv().await {
+        if as_json {
+            println!("{}", serde_json::to_string(&event)?);
+            continue;
+        }
+        match event {
+            DevEvent::Starting { id } => println!("[{id}] starting"),
+            DevEvent::Ready { id } => println!("[{id}] ready"),
+            DevEvent::Log { id, stream, line } => {
+                let stream = match stream {
+                    DevStream::Stdout => "out",
+                    DevStream::Stderr => "err",
+                };
+                println!("[{id}:{stream}] {line}");
+            }
+            DevEvent::Stopping { id } => println!("[{id}] stopping"),
+            DevEvent::Stopped { id } => println!("[{id}] stopped"),
+            DevEvent::Failed { id } => println!("[{id}] failed"),
+        }
+    }
+    Ok(())
 }
 
 fn doctor(root: &Path, as_json: bool) -> Result<()> {
@@ -1217,6 +1569,69 @@ mod cli_argument_tests {
             values,
             vec![OsString::from("cargo-minco"), OsString::from("doctor")]
         );
+    }
+
+    #[test]
+    fn development_command_parses_every_explicit_topology_override() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "dev",
+            "--dry-run",
+            "--environment",
+            "local",
+            "--profile",
+            "sqlite",
+            "--no-migrate",
+            "--seed",
+            "demo",
+            "--with-worker",
+            "email",
+            "--without-worker",
+            "events",
+            "--frontend",
+            "--port",
+            "31000",
+            "--rustack-port",
+            "45666",
+            "--json",
+        ])
+        .expect("development arguments");
+
+        assert!(matches!(
+            cli.command,
+            Command::Dev(DevArgs {
+                dry_run: true,
+                environment: Some(environment),
+                profile: Some(profile),
+                no_migrate: true,
+                seed: Some(seed),
+                with_workers,
+                without_workers,
+                frontend: true,
+                no_frontend: false,
+                port: Some(31_000),
+                rustack_port: Some(45_666),
+            }) if environment == "local"
+                && profile == "sqlite"
+                && seed == "demo"
+                && with_workers == ["email"]
+                && without_workers == ["events"]
+        ));
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn development_database_override_rejects_remote_hosts() {
+        validate_local_postgres_url("postgres://minco:minco@127.0.0.1:55432/minco_orders")
+            .expect("loopback PostgreSQL URL");
+
+        let error = validate_local_postgres_url(
+            "postgres://operator:secret@database.example.invalid/orders",
+        )
+        .expect_err("remote development database must fail");
+        assert!(error.to_string().contains("loopback"));
+        assert!(!error.to_string().contains("operator"));
+        assert!(!error.to_string().contains("secret"));
     }
 
     #[test]

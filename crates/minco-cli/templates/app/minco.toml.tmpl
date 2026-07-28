@@ -54,6 +54,21 @@ test_feature = ["cargo test -p {{PACKAGE}}-application -p {{PACKAGE}}-api"]
 test_e2e = []
 test_all = ["cargo test --workspace --all-targets"]
 
+[development]
+default_environment = "dev"
+default_profile = "{{DATABASE}}"
+compose_file = "infra/local/compose.yaml"
+
+[development.profiles.{{DATABASE}}]
+deployment_config = "environments/dev.toml"
+migration = { program = "cargo", arguments = ["run", "-p", "{{PACKAGE}}-service", "--bin", "{{PACKAGE}}-migrate"] }
+
+[development.api]
+id = "api"
+default_enabled = true
+command = { program = "cargo", arguments = ["run", "-p", "{{PACKAGE}}-service", "--bin", "{{PACKAGE}}-local"] }
+readiness = { kind = "http", url = "http://127.0.0.1:3000/health/live" }
+
 [plugins]
 enabled = ["health", "observability", "idempotency"]
 disabled = []

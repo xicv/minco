@@ -132,7 +132,7 @@ pub fn execute(
     }
 }
 
-fn load_graph(
+pub fn load_graph(
     root: &Path,
     manifest: &MincoManifest,
     environment_name: &str,
