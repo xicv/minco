@@ -23,7 +23,15 @@ cleanup_authorization_header() {
   rm -f "$authorization_header"
 }
 trap cleanup_authorization_header EXIT INT TERM
-artifact="$(jq -er '.artifact.path' "$MINCO_RELEASE_MANIFEST")"
+artifact="$(
+  jq -er '
+    [.artifacts[] | select(.function_id == "api")]
+    | if length == 1
+      then .[0].file.path
+      else error("release must contain exactly one api artifact")
+      end
+  ' "$MINCO_RELEASE_MANIFEST"
+)"
 expected_code_sha="$(
   shasum -a 256 "$artifact" | awk '{print $1}' | xxd -r -p | base64
 )"

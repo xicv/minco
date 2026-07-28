@@ -19,7 +19,6 @@ mod vcs;
 
 use anyhow::{Context, Result, bail};
 use architecture::validate_architecture;
-use chrono::Utc;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use config_cmd::ConfigCommand;
@@ -39,7 +38,10 @@ use minco_plan::{
     Severity as PlanSeverity, TriggerPlan, estimate_database_cost, estimate_runtime_cost,
     render_sam_with_code_uris,
 };
-use minco_release::{FileDigest, ReleaseManifest};
+use minco_release::{
+    DatabaseSourceDigests, FileDigest, FunctionArtifact, ReleaseEnvironment, ReleaseManifest,
+    ReleaseManifestInput, ToolchainIdentity,
+};
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
 use plugin_cmd::{load_catalog, scaffold_plugin, set_plugin_state, validate_catalog};
 use process::{capture, command_available, run_shell};
@@ -54,7 +56,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use uuid::Uuid;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -103,6 +104,8 @@ enum Command {
     Test(TestCommand),
     #[command(subcommand)]
     Db(DbCommand),
+    /// Build and seal an exact, independently verifiable release package.
+    Package(PackageArgs),
     #[command(subcommand)]
     Release(ReleaseCommand),
     #[command(subcommand)]
@@ -207,6 +210,23 @@ struct ExplainArgs {
 struct PlanInput {
     #[arg(long)]
     config: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Args)]
+struct PackageArgs {
+    #[arg(long)]
+    config: Option<PathBuf>,
+    #[arg(long)]
+    environment: Option<String>,
+    #[arg(long, default_value = "target/minco/plan.json")]
+    plan: PathBuf,
+    #[arg(long, default_value = "target/minco/template.yaml")]
+    template: PathBuf,
+    #[arg(long, default_value = "target/minco/release.json")]
+    output: PathBuf,
+    /// Repository-relative detached signature or provenance statement.
+    #[arg(long = "attestation")]
+    attestations: Vec<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -470,6 +490,7 @@ async fn main() -> Result<()> {
         Command::Plugin(command) => plugin_command(&root, &manifest, command, as_json),
         Command::Test(command) => test_command(&root, &manifest, command, as_json),
         Command::Db(command) => db_cmd::execute(&root, &manifest, command, as_json).await,
+        Command::Package(args) => package_command(&root, &manifest, args, as_json),
         Command::Release(command) => release_command(&root, &manifest, command, as_json),
         Command::Update(command) => update_command(&root, command, as_json),
         Command::Upgrade(_) => unreachable!("upgrade is handled before strict manifest loading"),
@@ -1365,6 +1386,243 @@ fn configured_or(configured: &[String], fallback: Vec<String>) -> Vec<String> {
     }
 }
 
+fn package_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    args: PackageArgs,
+    as_json: bool,
+) -> Result<()> {
+    if manifest.commands.package.is_empty() {
+        bail!("no package command is configured in [commands].package");
+    }
+    let source = vcs::source_snapshot(root)?;
+    for command in &manifest.commands.package {
+        if command.trim().is_empty() {
+            bail!("package commands cannot be empty");
+        }
+        let result = run_shell(root, command, !as_json)?;
+        if !result.success {
+            bail!("package command failed: {command}");
+        }
+    }
+    if vcs::source_snapshot(root)? != source {
+        bail!(
+            "package command changed the exact source revision; review and commit source changes"
+        );
+    }
+
+    let plan = load_plan(root, manifest, args.config)?;
+    ensure_plan_valid(&plan)?;
+    let plan_path = package_output_path(root, &args.plan)?;
+    let template_path = package_output_path(root, &args.template)?;
+    let output = package_output_path(root, &args.output)?;
+    if plan_path == template_path || plan_path == output || template_path == output {
+        bail!("package plan, template, and release outputs must use distinct paths");
+    }
+    ensure_parent(&plan_path)?;
+    fs::write(&plan_path, canonical_json(&plan)?)?;
+
+    let code_uris = plan
+        .functions
+        .iter()
+        .map(|function| {
+            let code_uri = template_relative_path(root, &template_path, &function.artifact_path)?;
+            Ok((
+                function.name.clone(),
+                code_uri.to_string_lossy().into_owned(),
+            ))
+        })
+        .collect::<Result<std::collections::BTreeMap<_, _>>>()?;
+    ensure_parent(&template_path)?;
+    fs::write(
+        &template_path,
+        render_sam_with_code_uris(&plan, &code_uris)?,
+    )?;
+    if vcs::source_snapshot(root)? != source {
+        bail!(
+            "package outputs changed the exact source revision; outputs must remain under ignored target/"
+        );
+    }
+
+    let release = seal_release(
+        root,
+        manifest,
+        &plan,
+        &plan_path,
+        &template_path,
+        &source.change,
+        args.environment.as_deref(),
+        None,
+        &args.attestations,
+    )?;
+    ensure_parent(&output)?;
+    release.write_json(&output)?;
+    release.verify_at(root)?;
+    print_value(&release, as_json)
+}
+
+fn package_output_path(root: &Path, relative: &Path) -> Result<PathBuf> {
+    if relative.is_absolute() {
+        bail!("package output paths must be repository-relative");
+    }
+    let components = relative.components().collect::<Vec<_>>();
+    if components.len() < 2
+        || components.first() != Some(&std::path::Component::Normal(OsStr::new("target")))
+        || !components
+            .iter()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        bail!("package output paths must be normalized descendants of target/");
+    }
+    let root = root
+        .canonicalize()
+        .context("canonicalize the package repository root")?;
+    let target = root.join("target");
+    if target
+        .symlink_metadata()
+        .context("package commands must create the target/ directory")?
+        .file_type()
+        .is_symlink()
+    {
+        bail!("package output target/ must not be a symbolic link");
+    }
+    let target = target
+        .canonicalize()
+        .context("canonicalize the package target/ directory")?;
+    let output = root.join(relative);
+    if output
+        .symlink_metadata()
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        bail!("package output must not be a symbolic link");
+    }
+    let mut existing_ancestor = output.as_path();
+    while !existing_ancestor.exists() {
+        existing_ancestor = existing_ancestor
+            .parent()
+            .context("package output has no existing ancestor")?;
+    }
+    let existing_ancestor = existing_ancestor
+        .canonicalize()
+        .context("canonicalize the package output ancestor")?;
+    if !existing_ancestor.starts_with(&target) {
+        bail!("package output resolves outside target/");
+    }
+    Ok(output)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn seal_release(
+    root: &Path,
+    manifest: &MincoManifest,
+    plan: &DeploymentPlan,
+    plan_path: &Path,
+    template_path: &Path,
+    source_change: &str,
+    environment: Option<&str>,
+    artifact_override: Option<&Path>,
+    attestation_paths: &[PathBuf],
+) -> Result<ReleaseManifest> {
+    let environment = environment.unwrap_or(&plan.environment);
+    if environment != plan.environment {
+        bail!(
+            "configuration environment {environment} does not match deployment environment {}",
+            plan.environment
+        );
+    }
+    let configuration = config_cmd::load_graph(root, manifest, environment, &[])
+        .map_err(|diagnostics| anyhow::anyhow!("invalid runtime configuration: {diagnostics:?}"))?;
+    let configured_application = configuration
+        .explain("application.name")
+        .and_then(|explanation| explanation.value)
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .context("typed configuration must contain non-secret application.name")?;
+    if configured_application != plan.application {
+        bail!(
+            "configuration application {configured_application} does not match deployment application {}",
+            plan.application
+        );
+    }
+    let migration_catalog = minco_db::load_catalog(root, &manifest.migrations.roots)?;
+    let seed_catalog = minco_db::load_seed_catalog(root, &manifest.seeds.roots)?;
+    let rustc = capture(root, "rustc", &["--version"])
+        .context("rustc is required to capture the release toolchain")?;
+    let artifact_builder = command_available("cargo-lambda")
+        .then(|| capture(root, "cargo", &["lambda", "--version"]))
+        .transpose()?;
+
+    let artifacts = if let Some(artifact) = artifact_override {
+        let [function] = plan.functions.as_slice() else {
+            bail!("release create --artifact requires a plan with exactly one function");
+        };
+        vec![FunctionArtifact {
+            function_id: function.name.clone(),
+            file: FileDigest::from_rooted_path(root, artifact)?,
+        }]
+    } else {
+        plan.functions
+            .iter()
+            .map(|function| {
+                let path = root.join(&function.artifact_path);
+                if !path.is_file() {
+                    bail!(
+                        "package artifact for function {} does not exist at {}",
+                        function.name,
+                        path.display()
+                    );
+                }
+                Ok(FunctionArtifact {
+                    function_id: function.name.clone(),
+                    file: FileDigest::from_rooted_path(root, path)?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?
+    };
+    let attestations = attestation_paths
+        .iter()
+        .map(|path| {
+            if path.is_absolute()
+                || !path
+                    .components()
+                    .all(|component| matches!(component, std::path::Component::Normal(_)))
+            {
+                bail!("attestation paths must be normalized repository-relative paths");
+            }
+            FileDigest::from_rooted_path(root, root.join(path)).map_err(Into::into)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    ReleaseManifest::seal(ReleaseManifestInput {
+        source_change: source_change.into(),
+        environment: ReleaseEnvironment {
+            application: plan.application.clone(),
+            environment: plan.environment.clone(),
+            region: plan.region.clone(),
+        },
+        toolchain: ToolchainIdentity {
+            rustc,
+            cargo_minco: env!("CARGO_PKG_VERSION").into(),
+            artifact_builder,
+        },
+        artifacts,
+        contract: FileDigest::from_rooted_path(root, root.join(&manifest.contract))?,
+        configuration_digest: configuration.digest().into(),
+        database_sources: DatabaseSourceDigests {
+            migration_catalog: migration_catalog.digest,
+            seed_catalog: seed_catalog.digest,
+        },
+        cargo_lock: root
+            .join("Cargo.lock")
+            .is_file()
+            .then(|| FileDigest::from_rooted_path(root, root.join("Cargo.lock")))
+            .transpose()?,
+        deployment_plan: FileDigest::from_rooted_path(root, plan_path)?,
+        deployment_template: FileDigest::from_rooted_path(root, template_path)?,
+        attestations,
+    })
+    .map_err(Into::into)
+}
+
 fn release_command(
     root: &Path,
     manifest: &MincoManifest,
@@ -1390,52 +1648,21 @@ fn release_command(
             if !template.is_file() {
                 bail!("deployment template {} does not exist", template.display());
             }
-            let source_change = vcs::source_change(root)?;
-            let short_change = source_change.chars().take(12).collect::<String>();
-            let release_suffix = if short_change.is_empty() {
-                Uuid::now_v7()
-                    .simple()
-                    .to_string()
-                    .chars()
-                    .take(12)
-                    .collect::<String>()
-            } else {
-                short_change
-            };
-            let release_id = format!("{}.{}", Utc::now().format("%Y-%m-%d"), release_suffix);
-            let rust_version = if command_available("rustc") {
-                process::capture(root, "rustc", &["--version"])?
-            } else {
-                "unverified".into()
-            };
-            let mut migration_paths = Vec::new();
-            for migration_root in &manifest.migrations.roots {
-                migration_paths.extend(collect_files(&root.join(migration_root), "sql")?);
-            }
-            migration_paths.sort();
-            migration_paths.dedup();
-            let migrations = migration_paths
-                .into_iter()
-                .map(|path| FileDigest::from_rooted_path(root, path))
-                .collect::<Result<Vec<_>, _>>()?;
-            let release = ReleaseManifest {
-                schema_version: 2,
-                release_id,
-                created_at: Utc::now(),
-                source_change,
-                rust_version,
-                minco_version: env!("CARGO_PKG_VERSION").into(),
-                artifact: FileDigest::from_rooted_path(root, &artifact)?,
-                contract: FileDigest::from_rooted_path(root, root.join(&manifest.contract))?,
-                migration_set: migrations,
-                cargo_lock: root
-                    .join("Cargo.lock")
-                    .is_file()
-                    .then(|| FileDigest::from_rooted_path(root, root.join("Cargo.lock")))
-                    .transpose()?,
-                deployment_plan: FileDigest::from_rooted_path(root, &plan)?,
-                deployment_template: FileDigest::from_rooted_path(root, &template)?,
-            };
+            let source = vcs::source_snapshot(root)?;
+            let deployment_plan: DeploymentPlan =
+                serde_json::from_slice(&fs::read(&plan)?).context("parse deployment plan")?;
+            ensure_plan_valid(&deployment_plan)?;
+            let release = seal_release(
+                root,
+                manifest,
+                &deployment_plan,
+                &plan,
+                &template,
+                &source.change,
+                None,
+                Some(&artifact),
+                &[],
+            )?;
             let output = root.join(output);
             ensure_parent(&output)?;
             release.write_json(&output)?;
@@ -1597,24 +1824,6 @@ fn ensure_parent(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn collect_files(root: &Path, extension: &str) -> Result<Vec<PathBuf>> {
-    let mut output = Vec::new();
-    if !root.exists() {
-        return Ok(output);
-    }
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            output.extend(collect_files(&path, extension)?);
-        } else if path.extension().and_then(|value| value.to_str()) == Some(extension) {
-            output.push(path);
-        }
-    }
-    output.sort();
-    Ok(output)
-}
-
 #[allow(dead_code)]
 fn _assert_cost_estimate_is_serializable(value: &DatabaseCostEstimate) -> Result<String> {
     Ok(serde_json::to_string(value)?)
@@ -1658,6 +1867,46 @@ mod cli_argument_tests {
             })) if operation_id == "placeOrder"
         ));
         assert!(cli.json);
+    }
+
+    #[test]
+    fn package_is_a_first_class_top_level_command() {
+        let cli = Cli::try_parse_from(["cargo-minco", "package"]).expect("package command");
+        assert!(matches!(cli.command, Command::Package(_)));
+    }
+
+    #[test]
+    fn package_outputs_are_confined_to_ignored_target_descendants() {
+        let project = tempfile::tempdir().unwrap();
+        let root = project.path();
+        std::fs::create_dir(root.join("target")).unwrap();
+        assert_eq!(
+            package_output_path(root, Path::new("target/minco/release.json")).unwrap(),
+            root.canonicalize()
+                .unwrap()
+                .join("target/minco/release.json")
+        );
+        for unsafe_path in [
+            Path::new("target"),
+            Path::new("infra/release.json"),
+            Path::new("target/../release.json"),
+            Path::new("/tmp/release.json"),
+        ] {
+            assert!(package_output_path(root, unsafe_path).is_err());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn package_outputs_reject_symlinked_target_escape() {
+        let project = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::create_dir(project.path().join("target")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), project.path().join("target/escape")).unwrap();
+
+        let error = package_output_path(project.path(), Path::new("target/escape/release.json"))
+            .expect_err("symlinked package output must not escape target");
+        assert!(error.to_string().contains("outside target"));
     }
 
     #[test]

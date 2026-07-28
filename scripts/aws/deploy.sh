@@ -47,7 +47,13 @@ template="$(
   jq -er '.deployment_template.path' "$MINCO_RELEASE_MANIFEST"
 )"
 artifact="$(
-  jq -er '.artifact.path' "$MINCO_RELEASE_MANIFEST"
+  jq -er '
+    [.artifacts[] | select(.function_id == "api")]
+    | if length == 1
+      then .[0].file.path
+      else error("release must contain exactly one api artifact")
+      end
+  ' "$MINCO_RELEASE_MANIFEST"
 )"
 plan="$(
   jq -er '.deployment_plan.path' "$MINCO_RELEASE_MANIFEST"

@@ -49,6 +49,7 @@ roots = ["{{MIGRATION_DIR}}"]
 roots = ["seeds/{{DATABASE}}"]
 
 [commands]
+package = ["{{PACKAGE_COMMAND}}"]
 test_unit = ["cargo test --workspace --lib"]
 test_feature = ["cargo test -p {{PACKAGE}}-application -p {{PACKAGE}}-api"]
 test_e2e = []

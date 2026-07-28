@@ -10,6 +10,19 @@ pub struct WorkspaceResult {
     pub path: PathBuf,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceKind {
+    Jujutsu,
+    Git,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SourceSnapshot {
+    pub kind: SourceKind,
+    pub change: String,
+}
+
 pub fn initialize(root: &Path) -> Result<()> {
     if !command_available("jj") {
         bail!("Jujutsu (`jj`) is required; install it before running `minco vcs init`");
@@ -104,6 +117,57 @@ pub fn source_change(root: &Path) -> Result<String> {
     Ok("unversioned-workspace".into())
 }
 
+pub fn source_snapshot(root: &Path) -> Result<SourceSnapshot> {
+    if command_available("jj") && root.join(".jj").exists() {
+        let conflicts = capture(
+            root,
+            "jj",
+            &[
+                "log",
+                "-r",
+                "@ & conflicts()",
+                "--no-graph",
+                "-T",
+                "commit_id",
+            ],
+        )?;
+        if !conflicts.is_empty() {
+            bail!("refusing to package a conflicted Jujutsu working-copy commit");
+        }
+        let change = capture(
+            root,
+            "jj",
+            &["log", "-r", "@", "--no-graph", "-T", "commit_id"],
+        )?;
+        if change.is_empty() {
+            bail!("could not resolve the exact Jujutsu working-copy commit");
+        }
+        return Ok(SourceSnapshot {
+            kind: SourceKind::Jujutsu,
+            change,
+        });
+    }
+    if command_available("git") {
+        let inside = capture(root, "git", &["rev-parse", "--is-inside-work-tree"]);
+        if matches!(inside.as_deref(), Ok("true")) {
+            let status = capture(
+                root,
+                "git",
+                &["status", "--porcelain=v1", "--untracked-files=all"],
+            )?;
+            if !status.is_empty() {
+                bail!("refusing to package a dirty Git workspace");
+            }
+            let change = capture(root, "git", &["rev-parse", "HEAD"])?;
+            return Ok(SourceSnapshot {
+                kind: SourceKind::Git,
+                change,
+            });
+        }
+    }
+    bail!("packaging requires an exact Jujutsu or Git source revision")
+}
+
 fn validate_task_id(value: &str) -> Result<()> {
     if value.is_empty()
         || !value
@@ -130,6 +194,8 @@ fn workspace_add_command(workspace_name: &str, path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn task_workspace_is_created_on_the_current_change() {
@@ -137,5 +203,35 @@ mod tests {
             workspace_add_command("task-m6-t04", Path::new("/tmp/minco task")),
             "jj workspace add --name 'task-m6-t04' -r @ '/tmp/minco task'"
         );
+    }
+
+    #[test]
+    fn git_source_snapshot_rejects_dirty_workspace() {
+        let project = tempdir().expect("temporary Git project");
+        require_success(
+            &run_shell(project.path(), "git init --quiet", false).expect("initialize Git"),
+        )
+        .expect("Git initialization");
+        fs::write(project.path().join("tracked.txt"), "baseline\n").expect("write tracked file");
+        require_success(
+            &run_shell(project.path(), "git add tracked.txt", false).expect("stage baseline"),
+        )
+        .expect("stage baseline");
+        require_success(
+            &run_shell(
+                project.path(),
+                "git -c user.name=Minco -c user.email=minco@example.invalid commit --quiet -m baseline",
+                false,
+            )
+            .expect("commit baseline"),
+        )
+        .expect("commit baseline");
+
+        let clean = source_snapshot(project.path()).expect("clean source snapshot");
+        assert_eq!(clean.kind, SourceKind::Git);
+
+        fs::write(project.path().join("tracked.txt"), "changed\n").expect("dirty tracked file");
+        let error = source_snapshot(project.path()).expect_err("dirty source must be rejected");
+        assert!(error.to_string().contains("dirty Git workspace"));
     }
 }

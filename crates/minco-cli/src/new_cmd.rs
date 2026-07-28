@@ -95,6 +95,17 @@ impl DatabaseChoice {
             Self::Sqlite => "env:DATABASE_PATH",
         }
     }
+
+    fn package_command(self, package: &str) -> String {
+        match self {
+            Self::Postgres => format!(
+                "cargo lambda build --release --arm64 --output-format zip -p {package}-service --bin {package}-lambda --features lambda"
+            ),
+            Self::Sqlite => {
+                format!("cargo build -p {package}-service --bin {package}-local")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -279,6 +290,7 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
 
     let crate_name = options.name.replace('-', "_");
     let title = title_case(&options.name);
+    let package_command = options.database.package_command(&options.name);
     let replacements = BTreeMap::from([
         ("{{PACKAGE}}", options.name.as_str()),
         ("{{CRATE}}", crate_name.as_str()),
@@ -289,6 +301,7 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
         ("{{DATABASE_SETUP}}", options.database.migration_setup()),
         ("{{MIGRATION_DIR}}", options.database.migration_directory()),
         ("{{DATABASE_ENV}}", options.database.database_env()),
+        ("{{PACKAGE_COMMAND}}", package_command.as_str()),
         (
             "{{DATABASE_SECRET_REFERENCE}}",
             options.database.database_secret_reference(),
@@ -499,6 +512,12 @@ mod tests {
                 .unwrap();
         assert_eq!(manifest["name"].as_str(), Some("example-api"));
         assert!(manifest["commands"].get("database_migrate").is_none());
+        assert_eq!(
+            manifest["commands"]["package"][0].as_str(),
+            Some(
+                "cargo lambda build --release --arm64 --output-format zip -p example-api-service --bin example-api-lambda --features lambda"
+            )
+        );
         assert_eq!(
             manifest["development"]["default_environment"].as_str(),
             Some("dev")

@@ -72,6 +72,7 @@ roots = [
 ]
 
 [commands]
+package = ["scripts/aws/build-lambda.sh"]
 test_unit = ["cargo test --workspace --lib --all-features"]
 test_feature = ["cargo test -p orders-api -p orders-application -p orders-adapters --all-features"]
 test_e2e = ["scripts/test/e2e.sh"]

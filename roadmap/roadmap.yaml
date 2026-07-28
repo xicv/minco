@@ -111,7 +111,7 @@ milestones:
   - Generators produce reviewed structure and failing tests without fake business behavior.
 - id: M10
   name: Safe deployment controller
-  status: planned
+  status: active
   depends_on:
   - M5
   - M9
