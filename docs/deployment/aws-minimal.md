@@ -5,7 +5,8 @@
 ```text
 Internet
   -> API Gateway HTTP API
-      -> native ARM64 Rust Lambda ZIP
+      -> candidate stage -> candidate Lambda alias
+      -> live $default stage -> approved published Lambda version
           -> external/serverless PostgreSQL
 ```
 
@@ -101,6 +102,30 @@ drift, source and the provider change set before execution. A completed stack
 is not hosted runtime proof; the deployment receipt remains pending until the
 hosted verification phase.
 
+After apply, run the configured hosted verification against the current
+candidate stack output and then explicitly approve that report for routing:
+
+```bash
+cargo minco deploy verify \
+  --manifest target/minco/release.json \
+  --receipt target/minco/deployment-receipt.json \
+  --output target/minco/hosted-verification.json
+
+verification_digest="$(
+  shasum -a 256 target/minco/hosted-verification.json | awk '{print $1}'
+)"
+cargo minco promote \
+  --manifest target/minco/release.json \
+  --receipt target/minco/deployment-receipt.json \
+  --verification target/minco/hosted-verification.json \
+  --approve-verification-digest "$verification_digest"
+```
+
+Use `deploy verify --dry-run` and `promote --dry-run` to inspect local blockers.
+Both dry runs avoid AWS, HTTP calls, receipt transitions, rebuilds, and
+replanning. The live command uses the original packaged template and refuses
+any provider change beyond the exact live API Gateway stage property update.
+
 For the disposable development proof, use:
 
 ```bash
@@ -132,9 +157,10 @@ configuration.
 
 The bounded runner builds before creating resources, performs the explicit
 migration, uses a temporary Cognito Lite user pool and ten-minute synthetic
-identity to prove authenticated order operations, verifies the deployed Lambda
-ZIP digest, and always invokes cleanup. Cognito is test harness infrastructure;
-it is not part of the default application topology. See
+identity to prove authenticated candidate operations, verifies the deployed
+Lambda ZIP digest, promotes only that report-approved version through the
+routing-only guard, and always invokes cleanup. Cognito is test harness
+infrastructure; it is not part of the default application topology. See
 [`real-aws-smoke.md`](real-aws-smoke.md) for the evidence and recovery contract.
 
 ## Database boundary

@@ -19,6 +19,7 @@ mod vcs;
 
 use anyhow::{Context, Result, bail};
 use architecture::validate_architecture;
+use base64::Engine as _;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use config_cmd::ConfigCommand;
@@ -33,8 +34,9 @@ use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
 use minco_deploy_aws::{
     ChangeSetReceipt, ChangeSetReceiptInput, ChangeSetType, CloudFormationChangeSet,
     DeploymentTarget, DeploymentTargetCatalog, DriftState, EnvironmentExpectation,
-    EnvironmentObservation, MigrationState as DeploymentMigrationState, SourceState, StackDrift,
-    caller_role_arn, verify_guards,
+    EnvironmentObservation, HostedCheckResult, HostedVerificationInput, HostedVerificationReport,
+    MigrationState as DeploymentMigrationState, PromotionReceipt, PromotionReceiptInput,
+    SourceState, StackDrift, caller_role_arn, verify_guards, verify_promotion_boundary,
 };
 use minco_dev::{
     DevDatabase, DevEvent, DevGraph, DevOptions, DevPlan, DevStream, ServiceKind, Supervisor,
@@ -45,9 +47,9 @@ use minco_plan::{
     render_sam_with_code_uris,
 };
 use minco_release::{
-    DatabasePlanBinding, DatabasePlanKind, DatabaseSourceDigests, DeploymentReceipt,
-    DeploymentReceiptInput, FileDigest, FunctionArtifact, ReleaseEnvironment, ReleaseManifest,
-    ReleaseManifestInput, ToolchainIdentity,
+    DatabasePlanBinding, DatabasePlanKind, DatabaseSourceDigests, DeploymentOutcome,
+    DeploymentReceipt, DeploymentReceiptInput, FileDigest, FunctionArtifact, ReleaseEnvironment,
+    ReleaseManifest, ReleaseManifestInput, ToolchainIdentity, VerificationEvidence,
 };
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
 use plugin_cmd::{load_catalog, scaffold_plugin, set_plugin_state, validate_catalog};
@@ -56,6 +58,7 @@ use roadmap::{
     load_roadmap, load_tasks, ready_tasks, render_roadmap_mermaid, render_task_mermaid,
     validate_task_graph,
 };
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
@@ -66,6 +69,9 @@ use std::{
     thread,
     time::Duration,
 };
+
+const LIVE_STAGE_LOGICAL_ID: &str = "HttpApiApiGatewayDefaultStage";
+const LIVE_FUNCTION_VERSION_PARAMETER: &str = "LiveFunctionVersion";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -116,6 +122,8 @@ enum Command {
     Db(DbCommand),
     /// Build and seal an exact, independently verifiable release package.
     Package(PackageArgs),
+    /// Route live API traffic to an exact successfully verified release.
+    Promote(PromoteArgs),
     #[command(subcommand)]
     Release(ReleaseCommand),
     #[command(subcommand)]
@@ -271,6 +279,43 @@ struct ApplyArgs {
     dry_run: bool,
 }
 
+#[derive(Debug, Clone, Args)]
+struct DeployVerifyArgs {
+    #[arg(long, default_value = "target/minco/release.json")]
+    manifest: PathBuf,
+    #[arg(long, default_value = "target/minco/deployment-receipt.json")]
+    receipt: PathBuf,
+    #[arg(long, default_value = "target/minco/hosted-verification.json")]
+    output: PathBuf,
+    #[arg(long)]
+    dry_run: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HostedVerificationObservation {
+    endpoint: String,
+    executed_artifact_digest: String,
+    executed_version: String,
+    checks: Vec<HostedCheckResult>,
+}
+
+#[derive(Debug, Clone, Args)]
+struct PromoteArgs {
+    #[arg(long, default_value = "target/minco/release.json")]
+    manifest: PathBuf,
+    #[arg(long, default_value = "target/minco/deployment-receipt.json")]
+    receipt: PathBuf,
+    #[arg(long, default_value = "target/minco/hosted-verification.json")]
+    verification: PathBuf,
+    #[arg(long, default_value = "target/minco/promotion-receipt.json")]
+    output: PathBuf,
+    #[arg(long)]
+    approve_verification_digest: Option<String>,
+    #[arg(long)]
+    dry_run: bool,
+}
+
 #[derive(Debug, Subcommand)]
 enum DeployCommand {
     Plan {
@@ -289,6 +334,7 @@ enum DeployCommand {
     },
     Changeset(ChangeSetArgs),
     Apply(ApplyArgs),
+    Verify(DeployVerifyArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -535,12 +581,572 @@ async fn main() -> Result<()> {
         Command::Test(command) => test_command(&root, &manifest, command, as_json),
         Command::Db(command) => db_cmd::execute(&root, &manifest, command, as_json).await,
         Command::Package(args) => package_command(&root, &manifest, args, as_json),
+        Command::Promote(args) => promote_command(&root, &args, as_json),
         Command::Release(command) => release_command(&root, &manifest, command, as_json),
         Command::Update(command) => update_command(&root, command, as_json),
         Command::Upgrade(_) => unreachable!("upgrade is handled before strict manifest loading"),
         Command::Vcs(command) => vcs_command(&root, command, as_json),
         Command::Feedback(args) => feedback_cmd::execute(&root, args, as_json).await,
     }
+}
+
+fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()> {
+    for (path, label) in [
+        (&args.manifest, "release manifest"),
+        (&args.receipt, "deployment receipt"),
+        (&args.verification, "hosted verification"),
+        (&args.output, "promotion receipt"),
+    ] {
+        if path.as_os_str().is_empty()
+            || path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            bail!("{label} must be a normalized project-relative path");
+        }
+    }
+    let output_path = package_output_path(root, &args.output)?;
+    let mut blockers = Vec::new();
+    if !root.join(&args.manifest).is_file() {
+        blockers.push("release_manifest_missing");
+    }
+    if !root.join(&args.receipt).is_file() {
+        blockers.push("deployment_receipt_missing");
+    }
+    if !root.join(&args.verification).is_file() {
+        blockers.push("hosted_verification_missing");
+    }
+    if output_path.exists() {
+        blockers.push("promotion_receipt_exists");
+    }
+    if args.approve_verification_digest.is_none() {
+        blockers.push("verification_approval_missing");
+    }
+    if args.dry_run {
+        return print_value(
+            &json!({
+                "external_aws_contact": false,
+                "rebuild": false,
+                "replan": false,
+                "routing_boundary": "api_gateway_stage",
+                "release_manifest": args.manifest,
+                "deployment_receipt": args.receipt,
+                "hosted_verification": args.verification,
+                "promotion_receipt": args.output,
+                "blockers": blockers,
+            }),
+            as_json,
+        );
+    }
+    if !blockers.is_empty() {
+        bail!("promotion is blocked: {}", blockers.join(", "));
+    }
+    if !command_available("aws") {
+        bail!("promotion requires `aws`");
+    }
+    for (path, label) in [
+        (&args.manifest, "release manifest"),
+        (&args.receipt, "deployment receipt"),
+        (&args.verification, "hosted verification"),
+    ] {
+        validate_project_file(root, path, label)?;
+    }
+
+    let evidence = verified_deployment_evidence(root, &args.manifest, &args.receipt)?;
+    if evidence.deployment.outcome() != DeploymentOutcome::Succeeded {
+        bail!("promotion requires a successfully hosted-verified deployment receipt");
+    }
+    let api_artifact = exact_api_artifact(&evidence.release)?;
+    let hosted_verification = FileDigest::from_rooted_path(root, root.join(&args.verification))?;
+    let [verification] = evidence.deployment.verification() else {
+        bail!("deployment receipt must contain exactly one verification evidence binding");
+    };
+    if verification.kind != "hosted_verification" || verification.file != hosted_verification {
+        bail!("deployment receipt does not bind the selected hosted verification report");
+    }
+    let report = HostedVerificationReport::read_json(
+        root.join(&args.verification),
+        &api_artifact.file.sha256,
+    )?;
+    let approval = args
+        .approve_verification_digest
+        .as_deref()
+        .context("hosted verification digest approval is required")?;
+    if approval != hosted_verification.sha256 {
+        bail!("hosted verification approval does not match the exact report digest");
+    }
+    require_exact_source(root, &evidence.release)?;
+    verify_current_caller(root, &evidence.target)?;
+    let stack = describe_target_stack(root, &evidence.target)?
+        .context("promotion target stack no longer exists")?;
+    require_stable_update_stack(&stack.stack_status)?;
+    let function_name = stack_output(&stack, "ApiFunctionName")?;
+    let candidate_endpoint = canonical_hosted_endpoint(stack_output(&stack, "CandidateApiUrl")?)?;
+    if candidate_endpoint != report.endpoint {
+        bail!("hosted verification endpoint does not match the current candidate stage");
+    }
+    verify_candidate_function(
+        root,
+        &evidence.target,
+        function_name,
+        &report.executed_version,
+        &report.executed_artifact_digest,
+    )?;
+    let previous_version = stack_parameter(&stack, LIVE_FUNCTION_VERSION_PARAMETER)?.to_owned();
+    if previous_version == report.executed_version {
+        bail!("live routing already targets the hosted-verified function version");
+    }
+    if previous_version != "candidate"
+        && !previous_version
+            .parse::<u64>()
+            .ok()
+            .is_some_and(|version| version > 0 && version.to_string() == previous_version)
+    {
+        bail!("current live function version is not a guarded routing value");
+    }
+    detect_clean_stack_drift(root, &evidence.target)?;
+    let change_set = create_promotion_change_set(
+        root,
+        &evidence.target,
+        &evidence.change_set,
+        &stack,
+        &hosted_verification.sha256,
+        &report.executed_version,
+    )?;
+    verify_promotion_boundary(
+        &change_set,
+        &evidence.target.stack_name,
+        LIVE_STAGE_LOGICAL_ID,
+    )?;
+
+    ensure_parent(&output_path)?;
+    let mut promotion = PromotionReceipt::start(PromotionReceiptInput {
+        attempt_id: uuid::Uuid::now_v7().to_string(),
+        release_id: evidence.release.release_id.clone(),
+        release_digest: evidence.release.release_digest.clone(),
+        environment: evidence.release.environment.clone(),
+        deployment_receipt: evidence.deployment_receipt,
+        hosted_verification,
+        operator_approval_digest: approval.to_owned(),
+        stack_name: evidence.target.stack_name.clone(),
+        live_stage_logical_id: LIVE_STAGE_LOGICAL_ID.into(),
+        previous_version,
+        promoted_version: report.executed_version.clone(),
+        change_set,
+    })?;
+    promotion.write_json(&output_path)?;
+    promotion.verify_at(root)?;
+    let started_digest = promotion.receipt_digest.clone();
+
+    if let Err(error) = verify_current_caller(root, &evidence.target) {
+        promotion.fail("promotion_caller_changed")?;
+        promotion.write_json(&output_path)?;
+        return Err(error);
+    }
+    if let Err(error) = run_cloud_output(
+        root,
+        "aws",
+        "execute the exact promotion routing change set",
+        &[
+            "cloudformation".into(),
+            "execute-change-set".into(),
+            "--change-set-name".into(),
+            promotion.change_set.change_set_id.clone(),
+            "--client-request-token".into(),
+            started_digest,
+            "--region".into(),
+            evidence.target.expected_region.clone(),
+        ],
+    ) {
+        promotion.fail("cloudformation_promotion_execute_failed")?;
+        promotion.write_json(&output_path)?;
+        return Err(error);
+    }
+    if let Err(error) = run_cloud_output(
+        root,
+        "aws",
+        "wait for the promotion routing update",
+        &[
+            "cloudformation".into(),
+            "wait".into(),
+            "stack-update-complete".into(),
+            "--stack-name".into(),
+            evidence.target.stack_name.clone(),
+            "--region".into(),
+            evidence.target.expected_region.clone(),
+        ],
+    ) {
+        promotion.fail("cloudformation_promotion_wait_failed")?;
+        promotion.write_json(&output_path)?;
+        return Err(error);
+    }
+    let postcheck = (|| -> Result<()> {
+        verify_current_caller(root, &evidence.target)?;
+        let current = describe_target_stack(root, &evidence.target)?
+            .context("promotion target stack disappeared after update")?;
+        require_stable_update_stack(&current.stack_status)?;
+        if stack_parameter(&current, LIVE_FUNCTION_VERSION_PARAMETER)? != report.executed_version {
+            bail!("live routing parameter does not match the promoted function version");
+        }
+        if stack_output(&current, "ApiFunctionName")? != function_name {
+            bail!("promotion unexpectedly changed the API function identity");
+        }
+        verify_candidate_function(
+            root,
+            &evidence.target,
+            function_name,
+            &report.executed_version,
+            &report.executed_artifact_digest,
+        )
+    })();
+    if let Err(error) = postcheck {
+        promotion.fail("promotion_postcheck_failed")?;
+        promotion.write_json(&output_path)?;
+        return Err(error);
+    }
+    promotion.succeed()?;
+    promotion.write_json(&output_path)?;
+    promotion.verify_at(root)?;
+    print_value(
+        &json!({
+            "promoted": true,
+            "rebuild": false,
+            "replan": false,
+            "routing_boundary": "api_gateway_stage",
+            "promotion_receipt": promotion,
+            "promotion_receipt_path": args.output,
+            "hosted_verification_path": args.verification,
+            "production_runtime_proof": false,
+        }),
+        as_json,
+    )
+}
+
+struct VerifiedDeploymentEvidence {
+    release: ReleaseManifest,
+    deployment: DeploymentReceipt,
+    deployment_receipt: FileDigest,
+    change_set: ChangeSetReceipt,
+    target: DeploymentTarget,
+}
+
+fn verified_deployment_evidence(
+    root: &Path,
+    manifest_path: &Path,
+    receipt_path: &Path,
+) -> Result<VerifiedDeploymentEvidence> {
+    let release_path = root.join(manifest_path);
+    let release: ReleaseManifest = read_strict_json(&release_path, "release manifest")?;
+    release.verify_at(root)?;
+    let release_manifest = FileDigest::from_rooted_path(root, &release_path)?;
+    let deployment_path = root.join(receipt_path);
+    let deployment: DeploymentReceipt = read_strict_json(&deployment_path, "deployment receipt")?;
+    deployment.verify_at(root)?;
+    if deployment.release_manifest != release_manifest
+        || deployment.release_id != release.release_id
+        || deployment.release_digest != release.release_digest
+        || deployment.environment != release.environment
+        || deployment.configuration_digest != release.configuration_digest
+    {
+        bail!("deployment receipt does not bind the exact verified release");
+    }
+    let matching = deployment
+        .attestations
+        .iter()
+        .filter_map(|file| {
+            let bytes = fs::read(root.join(&file.path)).ok()?;
+            let receipt = ChangeSetReceipt::from_json(&bytes).ok()?;
+            (receipt.release_manifest == release_manifest
+                && receipt.release_id == release.release_id
+                && receipt.release_digest == release.release_digest
+                && receipt.environment == release.environment)
+                .then(|| (file.clone(), receipt))
+        })
+        .collect::<Vec<_>>();
+    if matching.len() != 1 {
+        bail!("deployment receipt must bind exactly one matching change-set receipt");
+    }
+    let (change_set_file, change_set) = matching
+        .into_iter()
+        .next()
+        .context("matching change-set receipt disappeared")?;
+    change_set_file.verify_at(root)?;
+    change_set.verify_at(root)?;
+    let catalog = DeploymentTargetCatalog::from_toml(&fs::read_to_string(
+        root.join(&change_set.target_config.path),
+    )?)?;
+    let selected = catalog.select(Some(&release.environment.environment))?;
+    if !selected.target.enabled
+        || selected.target.expected_account_id != change_set.expected_account_id
+        || selected.target.expected_region != release.environment.region
+        || selected.target.expected_role_arn != change_set.expected_role_arn
+        || selected.target.stack_name != change_set.change_set.stack_name
+    {
+        bail!("deployment target no longer matches the reviewed release environment");
+    }
+    Ok(VerifiedDeploymentEvidence {
+        release,
+        deployment,
+        deployment_receipt: FileDigest::from_rooted_path(root, deployment_path)?,
+        change_set,
+        target: selected.target,
+    })
+}
+
+fn read_strict_json<T>(path: &Path, label: &str) -> Result<T>
+where
+    T: DeserializeOwned + Serialize,
+{
+    let bytes = fs::read(path).with_context(|| format!("read {label}"))?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).with_context(|| format!("parse {label} JSON"))?;
+    let parsed: T =
+        serde_json::from_value(value.clone()).with_context(|| format!("decode {label}"))?;
+    if serde_json::to_value(&parsed)? != value {
+        bail!("{label} contains unknown or non-canonical fields");
+    }
+    Ok(parsed)
+}
+
+fn exact_api_artifact(release: &ReleaseManifest) -> Result<&FunctionArtifact> {
+    let artifacts = release
+        .artifacts
+        .iter()
+        .filter(|artifact| artifact.function_id == "api")
+        .collect::<Vec<_>>();
+    let [artifact] = artifacts.as_slice() else {
+        bail!("verified release must contain exactly one api artifact");
+    };
+    Ok(artifact)
+}
+
+fn require_exact_source(root: &Path, release: &ReleaseManifest) -> Result<()> {
+    if vcs::source_snapshot(root)?.change != release.source_change {
+        bail!("current source does not match the exact verified release");
+    }
+    Ok(())
+}
+
+fn verify_current_caller(root: &Path, target: &DeploymentTarget) -> Result<()> {
+    let identity: AwsCallerIdentity = aws_json(
+        root,
+        &target.expected_region,
+        "verify current AWS caller identity",
+        &["sts", "get-caller-identity"],
+    )?;
+    let role_arn = caller_role_arn(&identity.arn).context(
+        "AWS caller identity must be the exact configured IAM role or an assumed-role session",
+    )?;
+    if identity.account != target.expected_account_id || role_arn != target.expected_role_arn {
+        bail!("current AWS caller does not match the reviewed deployment target");
+    }
+    Ok(())
+}
+
+fn stack_output<'a>(stack: &'a AwsStack, key: &str) -> Result<&'a str> {
+    let values = stack
+        .outputs
+        .iter()
+        .filter(|output| output.output_key == key)
+        .filter_map(|output| output.output_value.as_deref())
+        .collect::<Vec<_>>();
+    let [value] = values.as_slice() else {
+        bail!("CloudFormation stack must expose exactly one {key} output");
+    };
+    Ok(value)
+}
+
+fn stack_parameter<'a>(stack: &'a AwsStack, key: &str) -> Result<&'a str> {
+    let values = stack
+        .parameters
+        .iter()
+        .filter(|parameter| parameter.parameter_key == key)
+        .filter_map(|parameter| parameter.parameter_value.as_deref())
+        .collect::<Vec<_>>();
+    let [value] = values.as_slice() else {
+        bail!("CloudFormation stack must expose exactly one {key} parameter");
+    };
+    Ok(value)
+}
+
+fn canonical_hosted_endpoint(value: &str) -> Result<String> {
+    let endpoint = url::Url::parse(value).context("parse hosted endpoint")?;
+    if endpoint.scheme() != "https"
+        || endpoint.host_str().is_none()
+        || !endpoint.username().is_empty()
+        || endpoint.password().is_some()
+        || endpoint.query().is_some()
+        || endpoint.fragment().is_some()
+    {
+        bail!("hosted endpoint is not a redacted HTTPS URL");
+    }
+    Ok(endpoint.to_string().trim_end_matches('/').to_owned())
+}
+
+fn expected_lambda_code_sha256(artifact_digest: &str) -> Result<String> {
+    if artifact_digest.len() != 64
+        || !artifact_digest
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        bail!("release artifact digest is not a lowercase SHA-256 value");
+    }
+    let bytes = artifact_digest
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            std::str::from_utf8(pair)
+                .context("artifact digest contains invalid UTF-8")
+                .and_then(|pair| {
+                    u8::from_str_radix(pair, 16).context("artifact digest contains invalid hex")
+                })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+fn verify_candidate_function(
+    root: &Path,
+    target: &DeploymentTarget,
+    function_name: &str,
+    expected_version: &str,
+    expected_artifact_digest: &str,
+) -> Result<()> {
+    let configuration: AwsFunctionConfiguration = aws_json(
+        root,
+        &target.expected_region,
+        "verify hosted candidate Lambda identity",
+        &[
+            "lambda",
+            "get-function-configuration",
+            "--function-name",
+            function_name,
+            "--qualifier",
+            "candidate",
+        ],
+    )?;
+    if configuration.function_name != function_name
+        || configuration.version != expected_version
+        || configuration.last_update_status != "Successful"
+        || configuration.code_sha256 != expected_lambda_code_sha256(expected_artifact_digest)?
+    {
+        bail!("candidate Lambda does not match the hosted-verified artifact and version");
+    }
+    Ok(())
+}
+
+fn create_promotion_change_set(
+    root: &Path,
+    target: &DeploymentTarget,
+    original: &ChangeSetReceipt,
+    expected_stack: &AwsStack,
+    verification_digest: &str,
+    promoted_version: &str,
+) -> Result<CloudFormationChangeSet> {
+    original.verify_at(root)?;
+    verify_current_caller(root, target)?;
+    if vcs::source_snapshot(root)?.change != original.source_change {
+        bail!("source changed before creating the promotion change set");
+    }
+    let current_stack =
+        describe_target_stack(root, target)?.context("promotion target stack no longer exists")?;
+    if current_stack != *expected_stack {
+        bail!("CloudFormation stack identity or routing inputs changed during promotion review");
+    }
+    let mut parameter_keys = current_stack
+        .parameters
+        .iter()
+        .map(|parameter| parameter.parameter_key.as_str())
+        .collect::<Vec<_>>();
+    parameter_keys.sort_unstable();
+    if parameter_keys.windows(2).any(|keys| keys[0] == keys[1])
+        || !parameter_keys.contains(&LIVE_FUNCTION_VERSION_PARAMETER)
+    {
+        bail!("CloudFormation stack parameters are missing or duplicated");
+    }
+    let name = format!("minco-promote-{}", &verification_digest[..24]);
+    let mut create_args = vec![
+        "cloudformation".into(),
+        "create-change-set".into(),
+        "--stack-name".into(),
+        target.stack_name.clone(),
+        "--change-set-name".into(),
+        name.clone(),
+        "--change-set-type".into(),
+        "UPDATE".into(),
+        "--template-body".into(),
+        format!(
+            "file://{}",
+            root.join(&original.packaged_template.path).display()
+        ),
+        "--capabilities".into(),
+        "CAPABILITY_IAM".into(),
+        "--client-token".into(),
+        verification_digest.into(),
+        "--description".into(),
+        format!(
+            "Minco promote {} to Lambda version {promoted_version}",
+            original.release_id
+        ),
+        "--parameters".into(),
+    ];
+    for key in parameter_keys {
+        if key == LIVE_FUNCTION_VERSION_PARAMETER {
+            create_args.push(format!(
+                "ParameterKey={key},ParameterValue={promoted_version}"
+            ));
+        } else {
+            create_args.push(format!("ParameterKey={key},UsePreviousValue=true"));
+        }
+    }
+    create_args.extend([
+        "--region".into(),
+        target.expected_region.clone(),
+        "--output".into(),
+        "json".into(),
+    ]);
+    run_cloud_output(
+        root,
+        "aws",
+        "create the unexecuted promotion routing change set",
+        &create_args,
+    )?;
+    run_cloud_output(
+        root,
+        "aws",
+        "wait for promotion change-set creation",
+        &[
+            "cloudformation".into(),
+            "wait".into(),
+            "change-set-create-complete".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--change-set-name".into(),
+            name.clone(),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    )?;
+    let described = run_cloud_output(
+        root,
+        "aws",
+        "describe the promotion routing change set",
+        &[
+            "cloudformation".into(),
+            "describe-change-set".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--change-set-name".into(),
+            name,
+            "--include-property-values".into(),
+            "--region".into(),
+            target.expected_region.clone(),
+            "--output".into(),
+            "json".into(),
+        ],
+    )?;
+    CloudFormationChangeSet::from_aws_json(&described.stdout).map_err(Into::into)
 }
 
 async fn dev(root: &Path, manifest: &MincoManifest, args: DevArgs, as_json: bool) -> Result<()> {
@@ -1145,7 +1751,163 @@ fn deploy(
         }
         DeployCommand::Changeset(args) => change_set_command(root, &args, as_json),
         DeployCommand::Apply(args) => apply_change_set_command(root, &args, as_json),
+        DeployCommand::Verify(args) => verify_deployment_command(root, manifest, &args, as_json),
     }
+}
+
+fn verify_deployment_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    args: &DeployVerifyArgs,
+    as_json: bool,
+) -> Result<()> {
+    for (path, label) in [
+        (&args.manifest, "release manifest"),
+        (&args.receipt, "deployment receipt"),
+        (&args.output, "hosted verification output"),
+    ] {
+        if path.as_os_str().is_empty()
+            || path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            bail!("{label} must be a normalized project-relative path");
+        }
+    }
+    let output_path = package_output_path(root, &args.output)?;
+    let mut blockers = Vec::new();
+    if !root.join(&args.manifest).is_file() {
+        blockers.push("release_manifest_missing");
+    }
+    if !root.join(&args.receipt).is_file() {
+        blockers.push("deployment_receipt_missing");
+    }
+    if output_path.exists() {
+        blockers.push("hosted_verification_output_exists");
+    }
+    if args.dry_run {
+        return print_value(
+            &json!({
+                "external_aws_contact": false,
+                "external_http_contact": false,
+                "deployment_receipt_transition": false,
+                "release_manifest": args.manifest,
+                "deployment_receipt": args.receipt,
+                "hosted_verification_output": args.output,
+                "blockers": blockers,
+            }),
+            as_json,
+        );
+    }
+    if !blockers.is_empty() {
+        bail!("hosted verification is blocked: {}", blockers.join(", "));
+    }
+    validate_project_file(root, &args.manifest, "release manifest")?;
+    validate_project_file(root, &args.receipt, "deployment receipt")?;
+    let evidence = verified_deployment_evidence(root, &args.manifest, &args.receipt)?;
+    let mut deployment = evidence.deployment;
+    if deployment.outcome() != DeploymentOutcome::Started {
+        bail!("started deployment receipt does not bind the exact verified release");
+    }
+    let api_artifact = exact_api_artifact(&evidence.release)?;
+    if manifest.commands.hosted_verify.len() != 1
+        || manifest.commands.hosted_verify[0].trim().is_empty()
+    {
+        bail!("minco.toml must declare exactly one non-empty commands.hosted_verify command");
+    }
+    require_exact_source(root, &evidence.release)?;
+    verify_current_caller(root, &evidence.target)?;
+    let stack = describe_target_stack(root, &evidence.target)?
+        .context("hosted verification target stack no longer exists")?;
+    require_stable_update_stack(&stack.stack_status)?;
+    let candidate_endpoint = canonical_hosted_endpoint(stack_output(&stack, "CandidateApiUrl")?)?;
+    let function_name = stack_output(&stack, "ApiFunctionName")?.to_owned();
+    ensure_parent(&output_path)?;
+    let observation = args
+        .output
+        .with_extension(format!("{}.observation.json", deployment.attempt_id));
+    let observation_path = root.join(&observation);
+    if observation_path.exists() {
+        bail!("hosted verification observation output already exists");
+    }
+    let command = &manifest.commands.hosted_verify[0];
+    let collection = (|| -> Result<HostedVerificationReport> {
+        let mut process = if cfg!(windows) {
+            let mut process = ProcessCommand::new("cmd");
+            process.args(["/C", command]);
+            process
+        } else {
+            let mut process = ProcessCommand::new("sh");
+            process.args(["-c", command]);
+            process
+        };
+        let output = process
+            .current_dir(root)
+            .env("AWS_REGION", &evidence.target.expected_region)
+            .env("AWS_DEFAULT_REGION", &evidence.target.expected_region)
+            .env("MINCO_CANDIDATE_API_URL", &candidate_endpoint)
+            .env("MINCO_FUNCTION_NAME", &function_name)
+            .env("MINCO_HOSTED_OBSERVATION", &observation_path)
+            .env("MINCO_RELEASE_MANIFEST", &args.manifest)
+            .output()
+            .with_context(|| format!("run configured hosted verification command {command}"))?;
+        if !output.status.success() {
+            bail!(
+                "configured hosted verification command failed with exit code {:?}",
+                output.status.code()
+            );
+        }
+        let observation: HostedVerificationObservation =
+            serde_json::from_slice(&fs::read(&observation_path)?)
+                .context("parse strict hosted verification observation")?;
+        let report = HostedVerificationReport::complete(HostedVerificationInput {
+            endpoint: observation.endpoint,
+            expected_artifact_digest: api_artifact.file.sha256.clone(),
+            executed_artifact_digest: observation.executed_artifact_digest,
+            executed_version: observation.executed_version,
+            checks: observation.checks,
+        })?;
+        if report.endpoint != candidate_endpoint {
+            bail!("hosted verification did not target the current candidate stage");
+        }
+        verify_candidate_function(
+            root,
+            &evidence.target,
+            &function_name,
+            &report.executed_version,
+            &report.executed_artifact_digest,
+        )?;
+        report.write_json(&output_path)?;
+        Ok(report)
+    })();
+    let report = match collection {
+        Ok(report) => report,
+        Err(error) => {
+            let _ = fs::remove_file(&observation_path);
+            deployment.fail("hosted_verification_failed")?;
+            deployment.write_json(root.join(&args.receipt))?;
+            return Err(error);
+        }
+    };
+    let _ = fs::remove_file(&observation_path);
+    let verification_file = FileDigest::from_rooted_path(root, &output_path)?;
+    deployment.succeed(vec![VerificationEvidence {
+        kind: "hosted_verification".into(),
+        file: verification_file,
+    }])?;
+    deployment.write_json(root.join(&args.receipt))?;
+    deployment.verify_at(root)?;
+    print_value(
+        &json!({
+            "hosted_verified": true,
+            "report": report,
+            "report_path": args.output,
+            "deployment_receipt": deployment,
+            "deployment_receipt_path": args.receipt,
+        }),
+        as_json,
+    )
 }
 
 fn change_set_command(root: &Path, args: &ChangeSetArgs, as_json: bool) -> Result<()> {
@@ -1280,10 +2042,37 @@ struct AwsDescribeStacks {
     stacks: Vec<AwsStack>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct AwsStack {
     stack_status: String,
+    #[serde(default)]
+    outputs: Vec<AwsStackOutput>,
+    #[serde(default)]
+    parameters: Vec<AwsStackParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsStackOutput {
+    output_key: String,
+    output_value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsStackParameter {
+    parameter_key: String,
+    parameter_value: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsFunctionConfiguration {
+    function_name: String,
+    code_sha256: String,
+    last_update_status: String,
+    version: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1324,6 +2113,16 @@ fn create_change_set(
         "AWS caller identity must be the exact configured IAM role or an assumed-role session",
     )?;
     let (change_set_type, drift) = inspect_stack_and_drift(root, target)?;
+    let live_version = match change_set_type {
+        ChangeSetType::Create | ChangeSetType::Import => None,
+        ChangeSetType::Update => {
+            let stack = describe_target_stack(root, target)?
+                .context("existing deployment stack disappeared during review")?;
+            Some(stack_parameter(&stack, LIVE_FUNCTION_VERSION_PARAMETER)?.to_owned())
+        }
+    };
+    let live_version_parameter =
+        live_version_change_set_parameter(change_set_type, live_version.as_deref())?;
     let source = vcs::source_snapshot(root)?;
 
     verify_guards(
@@ -1446,6 +2245,7 @@ fn create_change_set(
             "ParameterKey=LambdaSecurityGroupIds,ParameterValue={}",
             target.lambda_security_group_ids.join(",")
         ),
+        live_version_parameter,
         "--tags".into(),
         format!("Key=MincoEnvironment,Value={environment}"),
         format!("Key=MincoReleaseId,Value={}", release.release_id),
@@ -1570,9 +2370,7 @@ fn describe_target_stack(root: &Path, target: &DeploymentTarget) -> Result<Optio
     let [stack] = response.stacks.as_slice() else {
         bail!("CloudFormation stack lookup did not return exactly one stack");
     };
-    Ok(Some(AwsStack {
-        stack_status: stack.stack_status.clone(),
-    }))
+    Ok(Some(stack.clone()))
 }
 
 fn require_stable_update_stack(status: &str) -> Result<()> {
@@ -1680,6 +2478,33 @@ const fn aws_change_set_type(change_set_type: ChangeSetType) -> &'static str {
         ChangeSetType::Create => "CREATE",
         ChangeSetType::Update => "UPDATE",
         ChangeSetType::Import => "IMPORT",
+    }
+}
+
+fn live_version_change_set_parameter(
+    change_set_type: ChangeSetType,
+    current: Option<&str>,
+) -> Result<String> {
+    match change_set_type {
+        ChangeSetType::Create => Ok(format!(
+            "ParameterKey={LIVE_FUNCTION_VERSION_PARAMETER},ParameterValue=candidate"
+        )),
+        ChangeSetType::Update => {
+            let current =
+                current.context("existing stack lacks the explicit live routing parameter")?;
+            let valid = current == "candidate"
+                || current
+                    .parse::<u64>()
+                    .ok()
+                    .is_some_and(|version| version > 0 && version.to_string() == current);
+            if !valid {
+                bail!("existing stack has an invalid live routing parameter");
+            }
+            Ok(format!(
+                "ParameterKey={LIVE_FUNCTION_VERSION_PARAMETER},UsePreviousValue=true"
+            ))
+        }
+        ChangeSetType::Import => bail!("import change sets are not supported"),
     }
 }
 
@@ -2518,13 +3343,18 @@ fn package_output_path(root: &Path, relative: &Path) -> Result<PathBuf> {
         .canonicalize()
         .context("canonicalize the package repository root")?;
     let target = root.join("target");
-    if target
-        .symlink_metadata()
-        .context("package commands must create the target/ directory")?
-        .file_type()
-        .is_symlink()
-    {
+    let target_metadata = match target.symlink_metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(root.join(relative));
+        }
+        Err(error) => return Err(error).context("inspect the package target/ directory"),
+    };
+    if target_metadata.file_type().is_symlink() {
         bail!("package output target/ must not be a symbolic link");
+    }
+    if !target_metadata.is_dir() {
+        bail!("package output target/ must be a directory");
     }
     let target = target
         .canonicalize()
@@ -3376,6 +4206,60 @@ mod cli_argument_tests {
         assert_eq!(
             rendered,
             "{\n  \"a\": 3,\n  \"z\": {\n    \"a\": 2,\n    \"b\": 1\n  }\n}\n"
+        );
+    }
+
+    #[test]
+    fn lambda_code_digest_conversion_matches_the_provider_encoding() {
+        assert_eq!(
+            expected_lambda_code_sha256(&"a".repeat(64)).expect("valid digest"),
+            "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo="
+        );
+        assert!(expected_lambda_code_sha256("not-a-digest").is_err());
+    }
+
+    #[test]
+    fn stack_routing_evidence_requires_exactly_one_value() {
+        let stack = AwsStack {
+            stack_status: "UPDATE_COMPLETE".into(),
+            outputs: vec![
+                AwsStackOutput {
+                    output_key: "ApiFunctionName".into(),
+                    output_value: Some("orders-api".into()),
+                },
+                AwsStackOutput {
+                    output_key: "ApiFunctionName".into(),
+                    output_value: Some("ambiguous-api".into()),
+                },
+            ],
+            parameters: vec![AwsStackParameter {
+                parameter_key: LIVE_FUNCTION_VERSION_PARAMETER.into(),
+                parameter_value: Some("42".into()),
+            }],
+        };
+
+        assert!(stack_output(&stack, "ApiFunctionName").is_err());
+        assert_eq!(
+            stack_parameter(&stack, LIVE_FUNCTION_VERSION_PARAMETER).expect("exact live parameter"),
+            "42"
+        );
+    }
+
+    #[test]
+    fn ordinary_updates_preserve_live_routing_until_explicit_promotion() {
+        assert_eq!(
+            live_version_change_set_parameter(ChangeSetType::Create, None)
+                .expect("new stack candidate routing"),
+            "ParameterKey=LiveFunctionVersion,ParameterValue=candidate"
+        );
+        assert_eq!(
+            live_version_change_set_parameter(ChangeSetType::Update, Some("41"))
+                .expect("preserve current published version"),
+            "ParameterKey=LiveFunctionVersion,UsePreviousValue=true"
+        );
+        assert!(
+            live_version_change_set_parameter(ChangeSetType::Update, None).is_err(),
+            "an existing stack without the explicit routing boundary must fail closed"
         );
     }
 

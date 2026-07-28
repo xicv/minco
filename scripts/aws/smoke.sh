@@ -11,11 +11,14 @@ for command in aws base64 curl jq shasum xxd; do
 done
 : "${AWS_REGION:=ap-southeast-2}"
 : "${MINCO_RELEASE_MANIFEST:?set MINCO_RELEASE_MANIFEST}"
+: "${MINCO_HOSTED_OBSERVATION:?set MINCO_HOSTED_OBSERVATION}"
 : "${MINCO_SMOKE_JWT_TOKEN:?set MINCO_SMOKE_JWT_TOKEN}"
+: "${MINCO_CANDIDATE_API_URL:?set MINCO_CANDIDATE_API_URL from the current stack output}"
+: "${MINCO_FUNCTION_NAME:?set MINCO_FUNCTION_NAME from the current stack output}"
 initialize_cloud_journal
 
-api_url="$(<"$MINCO_AWS_EVIDENCE_DIR/api-url.txt")"
-function_name="$(<"$MINCO_AWS_EVIDENCE_DIR/function-name.txt")"
+api_url="${MINCO_CANDIDATE_API_URL%/}"
+function_name="$MINCO_FUNCTION_NAME"
 authorization_header="$(mktemp /tmp/minco-smoke-authorization.XXXXXX)"
 chmod 600 "$authorization_header"
 printf 'Authorization: Bearer %s\n' "$MINCO_SMOKE_JWT_TOKEN" >"$authorization_header"
@@ -32,31 +35,37 @@ artifact="$(
       end
   ' "$MINCO_RELEASE_MANIFEST"
 )"
+artifact_digest="$(
+  jq -er '
+    [.artifacts[] | select(.function_id == "api")]
+    | if length == 1
+      then .[0].file.sha256
+      else error("release must contain exactly one api artifact")
+      end
+  ' "$MINCO_RELEASE_MANIFEST"
+)"
 expected_code_sha="$(
   shasum -a 256 "$artifact" | awk '{print $1}' | xxd -r -p | base64
 )"
-actual_code_sha="$(
-  aws_logged lambda get-function-configuration \
-    "verify deployed function $function_name runtime, architecture and artifact digest" \
-    --function-name "$function_name" \
-    --query CodeSha256 \
-    --output text
-)"
-[[ "$actual_code_sha" == "$expected_code_sha" ]] || {
-  echo "deployed Lambda digest does not match the release artifact" >&2
-  exit 1
-}
 aws_logged lambda get-function-configuration \
-  "retain runtime configuration evidence for $function_name" \
+  "verify candidate function $function_name runtime, version, architecture and artifact digest" \
   --function-name "$function_name" \
-  --query '{FunctionName:FunctionName,Runtime:Runtime,Architectures:Architectures,MemorySize:MemorySize,Timeout:Timeout,CodeSha256:CodeSha256,LastUpdateStatus:LastUpdateStatus}' \
+  --qualifier candidate \
+  --query '{FunctionName:FunctionName,Runtime:Runtime,Architectures:Architectures,MemorySize:MemorySize,Timeout:Timeout,CodeSha256:CodeSha256,LastUpdateStatus:LastUpdateStatus,Version:Version,RevisionId:RevisionId}' \
   --output json >"$MINCO_AWS_EVIDENCE_DIR/lambda.json"
 chmod 600 "$MINCO_AWS_EVIDENCE_DIR/lambda.json"
 jq -e '
   .Runtime == "provided.al2023"
   and .Architectures == ["arm64"]
   and .LastUpdateStatus == "Successful"
+  and (.Version | test("^[1-9][0-9]*$"))
 ' "$MINCO_AWS_EVIDENCE_DIR/lambda.json" >/dev/null
+actual_code_sha="$(jq -er '.CodeSha256' "$MINCO_AWS_EVIDENCE_DIR/lambda.json")"
+executed_version="$(jq -er '.Version' "$MINCO_AWS_EVIDENCE_DIR/lambda.json")"
+[[ "$actual_code_sha" == "$expected_code_sha" ]] || {
+  echo "deployed candidate Lambda digest does not match the release artifact" >&2
+  exit 1
+}
 
 http_call() {
   local method="$1"
@@ -64,22 +73,38 @@ http_call() {
   local expected="$3"
   shift 3
   local response="$MINCO_AWS_EVIDENCE_DIR/http-response.json"
+  local headers="$MINCO_AWS_EVIDENCE_DIR/http-response.headers"
   record_cloud_touch "aws:execute-api" "$method $path" "synthetic bounded smoke; credentials and token redacted"
-  local status
-  status="$(
+  last_http_status="$(
     curl \
       --silent \
       --show-error \
       --max-time 30 \
+      --dump-header "$headers" \
       --output "$response" \
       --write-out '%{http_code}' \
       --request "$method" \
       "$api_url$path" \
       "$@"
   )"
-  [[ "$status" == "$expected" ]] || {
-    printf '%s %s returned %s, expected %s\n' "$method" "$path" "$status" "$expected" >&2
-    jq -c . "$response" >&2 2>/dev/null || true
+  [[ "$last_http_status" == "$expected" ]] || {
+    printf '%s %s returned %s, expected %s\n' \
+      "$method" "$path" "$last_http_status" "$expected" >&2
+    return 1
+  }
+  last_request_id="$(
+    awk '
+      BEGIN { IGNORECASE = 1 }
+      /^x-request-id:/ || /^x-amzn-requestid:/ {
+        sub(/^[^:]+:[[:space:]]*/, "")
+        sub(/\r$/, "")
+        print
+        exit
+      }
+    ' "$headers"
+  )"
+  [[ -n "$last_request_id" ]] || {
+    echo "$method $path did not return a request ID" >&2
     return 1
   }
 }
@@ -87,9 +112,12 @@ http_call() {
 http_call GET /health/live 200
 jq -e '.live == true and .service == "minco-orders"' \
   "$MINCO_AWS_EVIDENCE_DIR/http-response.json" >/dev/null
+contract_request_id="$last_request_id"
 http_call GET /health/ready 200
 jq -e '.ready == true' "$MINCO_AWS_EVIDENCE_DIR/http-response.json" >/dev/null
+readiness_request_id="$last_request_id"
 http_call GET /orders/00000000-0000-0000-0000-000000000000 401
+authentication_request_id="$last_request_id"
 
 idempotency_key="minco-smoke-$MINCO_AWS_RUN_ID"
 customer_reference="MINCO-SMOKE-$MINCO_AWS_RUN_ID"
@@ -127,7 +155,57 @@ jq -e \
   --arg id "$order_id" \
   '.replayed == true and .order.id == $id' \
   "$MINCO_AWS_EVIDENCE_DIR/http-response.json" >/dev/null
+smoke_request_id="$last_request_id"
 
-rm -f "$body" "$MINCO_AWS_EVIDENCE_DIR/http-response.json"
+jq -n \
+  --arg endpoint "$api_url" \
+  --arg artifact_digest "$artifact_digest" \
+  --arg executed_version "$executed_version" \
+  --arg contract_request_id "$contract_request_id" \
+  --arg readiness_request_id "$readiness_request_id" \
+  --arg authentication_request_id "$authentication_request_id" \
+  --arg smoke_request_id "$smoke_request_id" \
+  '{
+    endpoint: $endpoint,
+    executed_artifact_digest: $artifact_digest,
+    executed_version: $executed_version,
+    checks: [
+      {
+        kind: "contract",
+        passed: true,
+        request_id: $contract_request_id,
+        status_code: 200
+      },
+      {
+        kind: "readiness",
+        passed: true,
+        request_id: $readiness_request_id,
+        status_code: 200
+      },
+      {
+        kind: "authentication",
+        passed: true,
+        request_id: $authentication_request_id,
+        status_code: 401
+      },
+      {
+        kind: "smoke",
+        passed: true,
+        request_id: $smoke_request_id,
+        status_code: 200
+      },
+      {
+        kind: "artifact_identity",
+        passed: true,
+        request_id: null,
+        status_code: null
+      }
+    ]
+  }' >"$MINCO_HOSTED_OBSERVATION"
+chmod 600 "$MINCO_HOSTED_OBSERVATION"
+rm -f \
+  "$body" \
+  "$MINCO_AWS_EVIDENCE_DIR/http-response.json" \
+  "$MINCO_AWS_EVIDENCE_DIR/http-response.headers"
 unset MINCO_SMOKE_JWT_TOKEN
 printf 'AWS smoke passed: live, ready, auth rejection, place, get and idempotent replay\n'

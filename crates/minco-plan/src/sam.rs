@@ -63,6 +63,8 @@ pub fn render_sam_with_code_uris(
         .functions
         .iter()
         .any(|function| function.database_connections_per_instance > 0);
+    output.push_str("Parameters:\n");
+    render_live_function_version_parameter(&mut output);
     if uses_database_parameter {
         render_database_parameters(&mut output);
     }
@@ -71,6 +73,8 @@ pub fn render_sam_with_code_uris(
     output.push_str("    Type: AWS::Serverless::HttpApi\n");
     output.push_str("    Properties:\n");
     output.push_str("      StageName: '$default'\n");
+    output.push_str("      StageVariables:\n");
+    output.push_str("        lambdaVersion: !Ref LiveFunctionVersion\n");
     output.push_str("      CorsConfiguration:\n");
     output.push_str("        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]\n");
     output.push_str("        AllowHeaders:\n");
@@ -98,6 +102,7 @@ pub fn render_sam_with_code_uris(
                 .expect("writing to String cannot fail");
         }
     }
+    render_http_api_definition(&mut output, plan);
     for queue in &plan.queues {
         render_queue(&mut output, plan, queue);
     }
@@ -120,6 +125,7 @@ pub fn render_sam_with_code_uris(
         )
     )
     .expect("writing to String cannot fail");
+    output.push_str("      AutoPublishAlias: candidate\n");
     output.push_str("      Handler: bootstrap\n");
     output.push_str("      Runtime: provided.al2023\n");
     output.push_str("      Architectures: [arm64]\n");
@@ -159,22 +165,21 @@ pub fn render_sam_with_code_uris(
         output.push_str("        - Statement:\n");
         render_database_policy_statements(&mut output);
     }
-    output.push_str("      Events:\n");
-    for route in &plan.routes {
-        writeln!(output, "        {}:", event_name(&route.operation_id))
-            .expect("writing to String cannot fail");
-        output.push_str("          Type: HttpApi\n");
-        output.push_str("          Properties:\n");
-        output.push_str("            ApiId: !Ref HttpApi\n");
-        writeln!(output, "            Path: {}", yaml_quote(&route.path))
-            .expect("writing to String cannot fail");
-        writeln!(output, "            Method: {}", method(route.method))
-            .expect("writing to String cannot fail");
-        if !route.authenticated && matches!(&plan.auth, AuthPlan::Jwt { .. }) {
-            output.push_str("            Auth:\n");
-            output.push_str("              Authorizer: NONE\n");
-        }
-    }
+    output.push_str("  ApiInvokePermission:\n");
+    output.push_str("    Type: AWS::Lambda::Permission\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      Action: lambda:InvokeFunction\n");
+    output.push_str("      FunctionName: !Ref ApiFunction\n");
+    output.push_str("      Principal: apigateway.amazonaws.com\n");
+    output.push_str("      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'\n");
+    output.push_str("  CandidateStage:\n");
+    output.push_str("    Type: AWS::ApiGatewayV2::Stage\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      ApiId: !Ref HttpApi\n");
+    output.push_str("      AutoDeploy: true\n");
+    output.push_str("      StageName: candidate\n");
+    output.push_str("      StageVariables:\n");
+    output.push_str("        lambdaVersion: 'candidate'\n");
     for worker in plan
         .functions
         .iter()
@@ -193,13 +198,28 @@ pub fn render_sam_with_code_uris(
     output.push_str(
         "    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'\n",
     );
+    output.push_str("  CandidateApiUrl:\n");
+    output.push_str(
+        "    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/candidate'\n",
+    );
     output.push_str("  ApiFunctionName:\n");
     output.push_str("    Value: !Ref ApiFunction\n");
+    output.push_str("  CandidateAliasName:\n");
+    output.push_str("    Value: candidate\n");
     Ok(output)
 }
 
+fn render_live_function_version_parameter(output: &mut String) {
+    output.push_str("  LiveFunctionVersion:\n");
+    output.push_str("    Type: String\n");
+    output.push_str("    Default: candidate\n");
+    output.push_str("    AllowedPattern: '^(candidate|[1-9][0-9]*)$'\n");
+    output.push_str(
+        "    Description: Published API function version receiving live traffic; candidate is allowed only for initial deployment.\n",
+    );
+}
+
 fn render_database_parameters(output: &mut String) {
-    output.push_str("Parameters:\n");
     output.push_str("  DatabaseUrlParameterName:\n");
     output.push_str("    Type: String\n");
     output.push_str("    AllowedPattern: '^/[A-Za-z0-9_.\\-/]+$'\n");
@@ -241,6 +261,50 @@ fn render_database_parameters(output: &mut String) {
     output.push_str("  UsesVpc: !And\n");
     output.push_str("    - !Not [!Equals [!Ref LambdaSubnetIds, '']]\n");
     output.push_str("    - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]\n");
+}
+
+fn render_http_api_definition(output: &mut String, plan: &DeploymentPlan) {
+    output.push_str("      DefinitionBody:\n");
+    output.push_str("        openapi: '3.0.1'\n");
+    output.push_str("        info:\n");
+    writeln!(
+        output,
+        "          title: {}",
+        yaml_quote(&format!(
+            "{}-{}-promotion-api",
+            plan.application, plan.environment
+        ))
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("          version: '1.0'\n");
+    output.push_str("        paths:\n");
+    for route in &plan.routes {
+        writeln!(output, "          {}:", yaml_quote(&route.path))
+            .expect("writing to String cannot fail");
+        writeln!(
+            output,
+            "            {}:",
+            method(route.method).to_ascii_lowercase()
+        )
+        .expect("writing to String cannot fail");
+        writeln!(
+            output,
+            "              operationId: {}",
+            yaml_quote(&route.operation_id)
+        )
+        .expect("writing to String cannot fail");
+        output.push_str("              responses:\n");
+        output.push_str("                default:\n");
+        output.push_str("                  description: Lambda proxy response\n");
+        output.push_str("              x-amazon-apigateway-integration:\n");
+        output.push_str("                httpMethod: POST\n");
+        output.push_str("                payloadFormatVersion: '2.0'\n");
+        output.push_str("                type: aws_proxy\n");
+        output.push_str("                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'\n");
+        if !route.authenticated && matches!(&plan.auth, AuthPlan::Jwt { .. }) {
+            output.push_str("              security: []\n");
+        }
+    }
 }
 
 fn render_vpc_config(output: &mut String) {
@@ -544,24 +608,6 @@ const fn method(method: HttpMethod) -> &'static str {
     }
 }
 
-fn event_name(operation_id: &str) -> String {
-    let mut output = String::new();
-    let mut uppercase = true;
-    for character in operation_id.chars() {
-        if character.is_ascii_alphanumeric() {
-            if uppercase {
-                output.push(character.to_ascii_uppercase());
-                uppercase = false;
-            } else {
-                output.push(character);
-            }
-        } else {
-            uppercase = true;
-        }
-    }
-    format!("{output}Event")
-}
-
 fn yaml_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
@@ -574,9 +620,8 @@ mod tests {
         NeonPlan, PerformancePolicy, RoutePlan, RuntimePlan,
     };
 
-    #[test]
-    fn renders_a_minimal_http_api_and_lambda() {
-        let plan = DeploymentPlan {
+    fn minimal_http_plan() -> DeploymentPlan {
+        DeploymentPlan {
             schema_version: 1,
             application: "demo".into(),
             environment: "dev".into(),
@@ -626,11 +671,16 @@ mod tests {
             log_retention_days: 14,
             cost_policy: CostPolicy::default(),
             performance_policy: PerformancePolicy::default(),
-        };
+        }
+    }
+
+    #[test]
+    fn renders_a_minimal_http_api_and_lambda() {
+        let plan = minimal_http_plan();
         let yaml = render_sam(&plan).expect("SAM");
         assert!(yaml.contains("AWS::Serverless::HttpApi"));
-        assert!(yaml.contains("GetHealthEvent"));
-        assert!(yaml.contains("Authorizer: NONE"));
+        assert!(yaml.contains("operationId: 'getHealth'"));
+        assert!(yaml.contains("security: []"));
         assert!(!yaml.contains("AllowOrigins: ['*']"));
         assert!(yaml.contains("UsesCustomerManagedDatabaseKey"));
         assert!(yaml.contains("Resource: !Ref DatabaseUrlKmsKeyArn"));
@@ -650,5 +700,18 @@ mod tests {
         let relocated =
             render_sam_with_code_uri(&plan, Some("../../../artifact.zip")).expect("SAM");
         assert!(relocated.contains("CodeUri: '../../../artifact.zip'"));
+    }
+
+    #[test]
+    fn isolates_candidate_verification_from_the_live_stage() {
+        let yaml = render_sam(&minimal_http_plan()).expect("SAM");
+
+        assert!(yaml.contains("  LiveFunctionVersion:"));
+        assert!(yaml.contains("StageName: '$default'"));
+        assert!(yaml.contains("  CandidateStage:\n    Type: AWS::ApiGatewayV2::Stage"));
+        assert!(yaml.contains("AutoPublishAlias: candidate"));
+        assert!(yaml.contains("lambdaVersion: 'candidate'"));
+        assert!(yaml.contains("lambdaVersion: !Ref LiveFunctionVersion"));
+        assert!(yaml.contains("${!stageVariables.lambdaVersion}/invocations"));
     }
 }

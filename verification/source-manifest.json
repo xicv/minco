@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 589,
+  "file_count": 591,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -59,8 +59,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "215298f2a14009c74e01dd293a8ffc7552b6f56086f014b651ffb7f8b4edbf93",
-      "size_bytes": 107146
+      "sha256": "ca5a264bd45be2b80eb5c15b1a0db07af91a48c5b757c9fe149e3a7fd5b1b319",
+      "size_bytes": 107165
     },
     {
       "path": "Cargo.toml",
@@ -149,8 +149,8 @@
     },
     {
       "path": "crates/minco-cli/Cargo.toml",
-      "sha256": "1a6f15609511f34a5e6a75d4059b519d30271b9c02db0034087eb20149d6559e",
-      "size_bytes": 1564
+      "sha256": "ce53633f3d476faa660fb6d6aa6f5b0f2e0eb810b65327a0fcb46bbc4719a498",
+      "size_bytes": 1588
     },
     {
       "path": "crates/minco-cli/LICENSE-APACHE",
@@ -174,8 +174,8 @@
     },
     {
       "path": "crates/minco-cli/src/config.rs",
-      "sha256": "85003fe32c23a361fae9112483099260e4dad8e667cd45af4c98e35b6044161f",
-      "size_bytes": 6020
+      "sha256": "aaff1c804063b3ac41b330cedf51f97ec98a209dba03a7ea3f9aace59ee9f012",
+      "size_bytes": 6078
     },
     {
       "path": "crates/minco-cli/src/config_cmd.rs",
@@ -204,8 +204,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "8d5a4da6c0cc2baa310656212ce4434bda241596e64d3312407a9212378bbd68",
-      "size_bytes": 120147
+      "sha256": "01d75fa565663f5267de69f8686707e5567ac86fdea7b67459b5ca9ad8afaa76",
+      "size_bytes": 153300
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -534,8 +534,8 @@
     },
     {
       "path": "crates/minco-cli/tests/deploy_cli.rs",
-      "sha256": "563e6052b1eef15fbe00d4b128a13a9c1635d9b28fdd88d2a8fa2d33a3c863e0",
-      "size_bytes": 2487
+      "sha256": "177e8d51d41cd4509bd0564b5dbf50441eacde8529152d57603cca43e712f5a0",
+      "size_bytes": 4727
     },
     {
       "path": "crates/minco-cli/tests/dev_cli.rs",
@@ -804,8 +804,8 @@
     },
     {
       "path": "crates/minco-deploy-aws/Cargo.toml",
-      "sha256": "13d7c382761300e0cbd41c5f08f500a728763a30d2576622bf5c3961d44b301c",
-      "size_bytes": 900
+      "sha256": "6256884de01512405cb23b63a3fc5006625d988d84fb3063c0b089f8dd4d4a5c",
+      "size_bytes": 921
     },
     {
       "path": "crates/minco-deploy-aws/LICENSE-APACHE",
@@ -819,18 +819,28 @@
     },
     {
       "path": "crates/minco-deploy-aws/README.md",
-      "sha256": "7de29399d26092908b2086187b124bf94d7011d7eb2443107acfd99a00d6f6d0",
-      "size_bytes": 301
+      "sha256": "1f259b0fd6f6a20dda1747b94315638f4710311953971b0a140beaac029f33d4",
+      "size_bytes": 606
     },
     {
       "path": "crates/minco-deploy-aws/src/lib.rs",
-      "sha256": "903b4be4d528da71c96f6aeaa2da19e89dcdacf02df7d8d513ac59432433bc30",
-      "size_bytes": 44170
+      "sha256": "55164ddaeaee228e0769b5ecbe2786525ccbf0664e6e52b829751f1cf6982ecd",
+      "size_bytes": 69387
     },
     {
       "path": "crates/minco-deploy-aws/tests/cloudformation.rs",
       "sha256": "98526dfc6bd97665521d9a7e76181538431f9c4e7c0764e60afd58423543a0fe",
       "size_bytes": 4062
+    },
+    {
+      "path": "crates/minco-deploy-aws/tests/hosted_verification.rs",
+      "sha256": "9fd51c2bb2093c6638df0f5f8d1c575d65fd2be6ec1715bac09c6f19de5068e0",
+      "size_bytes": 12106
+    },
+    {
+      "path": "crates/minco-deploy-aws/tests/promotion.rs",
+      "sha256": "2ed85beb375beabb8229d1f4620a39e44aab7efc0f529be04a58f7ea582684fc",
+      "size_bytes": 8766
     },
     {
       "path": "crates/minco-deploy-aws/tests/receipt.rs",
@@ -969,8 +979,8 @@
     },
     {
       "path": "crates/minco-plan/src/sam.rs",
-      "sha256": "7228690f5a76c054bb94e27fd2a77efc040317f6b7247b8a5b51508180a0a0f4",
-      "size_bytes": 27144
+      "sha256": "0f112ca9b8e03ef7b09e98a839ea29c42c29eb835ced2938876af8a588a16d1f",
+      "size_bytes": 30392
     },
     {
       "path": "crates/minco-plan/tests/fixtures/api_only_v1.toml",
@@ -1254,8 +1264,8 @@
     },
     {
       "path": "docs/deployment/aws-minimal.md",
-      "sha256": "d8f8f9cf8e34e499bcdc3b01c2d43efa6fea359aa17dbeb6a4b708ea1c1e35e6",
-      "size_bytes": 6711
+      "sha256": "012a79c360294e9a0793f3068cb0ea46945a651d8681f9d2031ab1b17475cd16",
+      "size_bytes": 7835
     },
     {
       "path": "docs/deployment/aws-plugin-adapters.md",
@@ -1274,8 +1284,8 @@
     },
     {
       "path": "docs/deployment/dev-to-deploy.md",
-      "sha256": "ab594c550e154e8af32dedb43b30f3ad34a091a3c637b331f41384de1871ceac",
-      "size_bytes": 892
+      "sha256": "39905ca0a0672d2c87e3e6b30948da6c597a808e192b430e165a5a580f200be6",
+      "size_bytes": 1576
     },
     {
       "path": "docs/deployment/local-parity.md",
@@ -1289,13 +1299,13 @@
     },
     {
       "path": "docs/deployment/real-aws-smoke.md",
-      "sha256": "8aed7309660044f3b918e8fe39617e104986e82e87cc4733311504c227787ca0",
-      "size_bytes": 10843
+      "sha256": "15c98bfa2be9fd4c2798a8643fe5f077ef674f674eb65e167133edfdfcffe813",
+      "size_bytes": 11178
     },
     {
       "path": "docs/deployment/release.md",
-      "sha256": "25fa75225d6525dcf16a0e6c59f0d71509c707b7b04432843b5d39ea90ac9d42",
-      "size_bytes": 2904
+      "sha256": "6d6a1ef8ff237a3a9299f37a47fd07b371c899d030c32cb53d7c0e09bcc9a15d",
+      "size_bytes": 5778
     },
     {
       "path": "docs/deployment/sqs-worker.md",
@@ -1879,8 +1889,8 @@
     },
     {
       "path": "infra/aws/generated/template.yaml",
-      "sha256": "ed65d8a03fea1afbd69481f4b104e928d3339e766ec66eae4212829c8c18cd91",
-      "size_bytes": 5432
+      "sha256": "e25a3c0d61ad8bddc795e92067def9728d102c8090e3355a511c414ed090e372",
+      "size_bytes": 8198
     },
     {
       "path": "infra/aws/smoke/temporary-postgres.yaml",
@@ -1899,8 +1909,8 @@
     },
     {
       "path": "minco.toml",
-      "sha256": "05234d2bd97c2cba621f38de7c8088517ed89355627b192fd60d61ae12160b7c",
-      "size_bytes": 9106
+      "sha256": "47ec9d53ae794350b66c9ad305f828a2bda16df867955c571aeb84f88361cec8",
+      "size_bytes": 9147
     },
     {
       "path": "plugins/catalog.toml",
@@ -2349,8 +2359,8 @@
     },
     {
       "path": "scripts/aws/deploy.sh",
-      "sha256": "a14aa9609dc2a8713528199f023073a372055a0348ee8cb454feafeeb972e393",
-      "size_bytes": 4667
+      "sha256": "29dbefecb909d7318a9d4225b7bbbcbd09e1981da6e30395e28ad799fbe6a690",
+      "size_bytes": 4863
     },
     {
       "path": "scripts/aws/inspect-account.sh",
@@ -2374,18 +2384,18 @@
     },
     {
       "path": "scripts/aws/run-bounded-root-bootstrap.sh",
-      "sha256": "a3027f7c86451bf3f0638a36248c400bc9b13feba7bd98102811278205143eb7",
-      "size_bytes": 42457
+      "sha256": "145e43c3f82ae7be27eb620a5f231538ff1146f2d0d3d9937f038d80975b6285",
+      "size_bytes": 42718
     },
     {
       "path": "scripts/aws/run-bounded-smoke.sh",
-      "sha256": "701637eda04d3911c38f8485a62f773de1a9b43e6d0fe1f21d80fb70c6f50e69",
-      "size_bytes": 13089
+      "sha256": "add5f92a3bdfba12ddc503263dc66e396c7c779e981dd3c69b475e3ae38aaee3",
+      "size_bytes": 14504
     },
     {
       "path": "scripts/aws/smoke.sh",
-      "sha256": "c7812ec675f45e741b6e8e3d6fba072fda4dcf1b2a84fd804491239256722cb3",
-      "size_bytes": 4794
+      "sha256": "4f39543e5d16cde1896a7e6bb590d3ba9e3c2ba290ad2b01b93d47916a183a72",
+      "size_bytes": 7146
     },
     {
       "path": "scripts/aws/validate.sh",
@@ -2444,8 +2454,8 @@
     },
     {
       "path": "scripts/generate_bootstrap_artifacts.py",
-      "sha256": "9b1b7c47e9d57bdb78473266a4434d33526435ef70e0838db2125d04d639c826",
-      "size_bytes": 7876
+      "sha256": "77bbe590f87f042f283ee31896e848a05191d6e7c8509e4d299501d99942a11a",
+      "size_bytes": 13329
     },
     {
       "path": "scripts/jj/init.sh",
@@ -2609,8 +2619,8 @@
     },
     {
       "path": "tasks/M10/M10-T03-hosted-verify-promote.md",
-      "sha256": "8bd1b35d1a6e70d42c673fb3dec3dd7e0294f4b0dfc3ae6a934032b15a48cc76",
-      "size_bytes": 1300
+      "sha256": "b2d546c951d191812efc027fbd50d0248f697510ff4198a1252fd0796b6b0ce7",
+      "size_bytes": 5443
     },
     {
       "path": "tasks/M10/M10-T04-rollback-canary.md",
@@ -2874,7 +2884,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "353b36cc6addff9ca6030bfab9a37c9f93d314e3b714192d3bb25106d1ecf185",
+      "sha256": "31bf0a2f6fd658b4f4645ea8aaab8627b9ee708f7f6b769f1947c10c53525afb",
       "size_bytes": 1817
     },
     {
@@ -2929,7 +2939,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "1ca17c68eab6d286d2680b0e0582287aba4094add3bf65f609f6d62d2fbbd951",
+      "sha256": "5126d741a315f60fbe1ba1bc1272e33186fd4622962050882385336fb8033c6d",
       "size_bytes": 754
     },
     {
@@ -2953,7 +2963,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "ec8cd51b9224fe596e87352582c3eb4252198155bf4564f4fd4b363f08562a95",
-  "total_size_bytes": 3408119,
+  "source_tree_sha256": "48aee689fbc3cf6294c7e249d7edf5e5268a749bfbf6027b7a60d3f8598c040e",
+  "total_size_bytes": 3514920,
   "version": "0.3.1"
 }
