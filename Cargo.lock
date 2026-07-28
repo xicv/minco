@@ -880,6 +880,7 @@ name = "cargo-minco"
 version = "0.3.1"
 dependencies = [
  "anyhow",
+ "base64",
  "chrono",
  "clap",
  "minco",
@@ -2330,6 +2331,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "toml",
+ "url",
 ]
 
 [[package]]

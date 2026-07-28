@@ -87,6 +87,9 @@ write_evidence_value \
   "$(jq -er '.Stacks[0].Outputs[] | select(.OutputKey=="ApiFunctionName").OutputValue' "$MINCO_AWS_EVIDENCE_DIR/stack.json")"
 write_evidence_value \
   "$MINCO_AWS_EVIDENCE_DIR/api-url.txt" \
+  "$(jq -er '.Stacks[0].Outputs[] | select(.OutputKey=="CandidateApiUrl").OutputValue' "$MINCO_AWS_EVIDENCE_DIR/stack.json")"
+write_evidence_value \
+  "$MINCO_AWS_EVIDENCE_DIR/live-api-url.txt" \
   "$(jq -er '.Stacks[0].Outputs[] | select(.OutputKey=="ApiUrl").OutputValue' "$MINCO_AWS_EVIDENCE_DIR/stack.json")"
 aws_logged cloudformation list-stack-resources \
   "retain physical resource identifiers for independent cleanup verification" \

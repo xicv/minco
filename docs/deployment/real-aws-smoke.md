@@ -84,11 +84,16 @@ the owned database is the proof that all synthetic rows are gone.
 7. create a private SSE-S3 artifact bucket;
 8. upload the verified release and retain an unexecuted CloudFormation change
    set;
-9. require the create-only review gate, allow only the six expected
+9. require the create-only review gate, allow only the eight expected
    SAM-transformed resource types and execute it;
-10. verify liveness, database readiness, unauthenticated rejection,
+10. verify candidate liveness, database readiness, unauthenticated rejection,
     authenticated place/get, idempotent replay, native ARM64 runtime and exact
-    Lambda `CodeSha256`.
+    Lambda `CodeSha256`;
+11. seal those redacted results into the hosted report and terminal successful
+    deployment receipt;
+12. approve the exact report digest, require a one-stage-only CloudFormation
+    update, route live traffic to the verified numeric version, and retain the
+    terminal promotion receipt.
 
 Each top-level AWS CLI, SAM, API Gateway HTTP and external PostgreSQL action is
 appended to `cloud-touches.jsonl`. Arguments described as redacted are never
@@ -177,7 +182,8 @@ Cleanup runs on success, interruption and failure:
 The final `cleanup.json` and, when applicable, `bootstrap-cleanup.json` must
 contain only `true` values. If a fail-closed cleanup requires recovery, preserve
 the original documents and require a separate `final-cleanup.json` containing
-only `true` values. Release, change-set, runtime, HTTP and cleanup details remain
+only `true` values. Release, change-set, hosted verification, promotion,
+runtime, HTTP and cleanup details remain
 in the ignored run directory for local audit. Never commit account IDs, ARNs,
 parameter names, URLs, tokens, passwords or database values.
 

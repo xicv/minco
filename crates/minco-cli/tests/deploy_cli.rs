@@ -77,3 +77,74 @@ fn default_apply_dry_run_is_local_and_requires_separate_evidence() {
         ])
     );
 }
+
+#[test]
+fn default_hosted_verification_dry_run_is_local_and_requires_deployment_evidence() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root");
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
+        .args([
+            "--root",
+            root.to_str().expect("UTF-8 root"),
+            "--json",
+            "deploy",
+            "verify",
+            "--dry-run",
+        ])
+        .output()
+        .expect("execute hosted verification dry-run");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON plan");
+    assert_eq!(plan["external_aws_contact"], false);
+    assert_eq!(plan["external_http_contact"], false);
+    assert_eq!(plan["deployment_receipt_transition"], false);
+    assert_eq!(
+        plan["blockers"],
+        serde_json::json!(["release_manifest_missing", "deployment_receipt_missing"])
+    );
+}
+
+#[test]
+fn default_promotion_dry_run_never_contacts_aws_or_rebuilds() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root");
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
+        .args([
+            "--root",
+            root.to_str().expect("UTF-8 root"),
+            "--json",
+            "promote",
+            "--dry-run",
+        ])
+        .output()
+        .expect("execute promotion dry-run");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON plan");
+    assert_eq!(plan["external_aws_contact"], false);
+    assert_eq!(plan["rebuild"], false);
+    assert_eq!(plan["replan"], false);
+    assert_eq!(plan["routing_boundary"], "api_gateway_stage");
+    assert_eq!(
+        plan["blockers"],
+        serde_json::json!([
+            "release_manifest_missing",
+            "deployment_receipt_missing",
+            "hosted_verification_missing",
+            "verification_approval_missing"
+        ])
+    );
+}

@@ -58,3 +58,70 @@ evidence, rechecks live guards, and persists the deployment receipt before
 executing the exact change-set ARN. Successful infrastructure apply leaves the
 receipt in `started`; hosted verification owns the eventual `succeeded`
 transition, while execution or wait errors write terminal `failed`.
+
+## Hosted verification
+
+The API function is published behind the `candidate` Lambda alias. The
+candidate API Gateway stage always routes to that alias, while the live
+`$default` stage reads its published function version from the
+`LiveFunctionVersion` stack parameter. Infrastructure apply does not make the
+new release live on a stack that already has this boundary; ordinary updates
+must preserve the previous parameter value. A pre-boundary existing stack is
+rejected instead of silently resetting live routing. A new stack initially has
+no prior live release, so both stages begin on `candidate` until the first
+numeric promotion anchors live traffic.
+
+Declare one hosted verification command:
+
+```toml
+[commands]
+hosted_verify = ["scripts/aws/smoke.sh"]
+```
+
+Then verify the applied candidate:
+
+```bash
+cargo minco deploy verify \
+  --manifest target/minco/release.json \
+  --receipt target/minco/deployment-receipt.json \
+  --output target/minco/hosted-verification.json
+```
+
+The controller re-verifies the release, source, deployment/change-set
+receipts, account, role, Region, current stack outputs, candidate function
+version, and Lambda `CodeSha256`. The configured command must provide redacted
+contract, readiness, authentication, smoke, and artifact-identity results.
+Every HTTP check includes a bounded request ID and status. A missing, duplicate,
+invalid, or failed check makes the deployment receipt terminal `failed`;
+success binds the immutable hosted report and makes that receipt terminal
+`succeeded`.
+
+## Exact-artifact promotion
+
+Promotion requires human approval of the exact hosted report file digest:
+
+```bash
+verification_digest="$(
+  shasum -a 256 target/minco/hosted-verification.json | awk '{print $1}'
+)"
+cargo minco promote \
+  --manifest target/minco/release.json \
+  --receipt target/minco/deployment-receipt.json \
+  --verification target/minco/hosted-verification.json \
+  --approve-verification-digest "$verification_digest"
+```
+
+`promote` does not rebuild, repackage, or replan. It rechecks current source,
+caller, clean stack drift, candidate endpoint/version/digest, and every bound
+file. It creates an unexecuted CloudFormation update from the original packaged
+template with all parameters preserved except `LiveFunctionVersion`. Execution
+is allowed only when the provider reports exactly one ordinary property
+modification to `HttpApiApiGatewayDefaultStage`, the live
+`AWS::ApiGatewayV2::Stage`; any Lambda, IAM, API, replacement, deletion, import,
+dynamic, or provider-sync change is rejected.
+
+The promotion receipt is persisted `started` before execution and makes one
+terminal transition after the stack parameter and candidate identity are
+rechecked. Local qualification, hosted candidate verification, routing
+promotion, and production runtime proof remain separate evidence. Promotion
+does not synthesize production proof.

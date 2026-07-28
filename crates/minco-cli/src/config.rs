@@ -101,6 +101,8 @@ pub struct SeedManifest {
 pub struct CommandManifest {
     #[serde(default)]
     pub package: Vec<String>,
+    #[serde(default)]
+    pub hosted_verify: Vec<String>,
     #[serde(default, rename = "test_unit")]
     pub unit: Vec<String>,
     #[serde(default, rename = "test_feature")]

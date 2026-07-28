@@ -15,10 +15,10 @@
     "plugins": 16,
     "milestones": 13,
     "tasks": 56,
-    "rust_files": 126,
+    "rust_files": 128,
     "python_files": 16,
     "shell_files": 35,
-    "implementation_files_scanned": 278
+    "implementation_files_scanned": 280
   },
   "findings": [],
   "limitations": [

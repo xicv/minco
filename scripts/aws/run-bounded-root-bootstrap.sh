@@ -589,21 +589,28 @@ jq -n \
         Effect: "Allow",
         Action: [
           "lambda:AddPermission",
+          "lambda:CreateAlias",
           "lambda:CreateFunction",
+          "lambda:DeleteAlias",
           "lambda:DeleteFunction",
           "lambda:DeleteFunctionConcurrency",
+          "lambda:GetAlias",
           "lambda:GetFunction",
           "lambda:GetFunctionConfiguration",
           "lambda:GetPolicy",
+          "lambda:ListAliases",
           "lambda:ListTags",
+          "lambda:ListVersionsByFunction",
+          "lambda:PublishVersion",
           "lambda:PutFunctionConcurrency",
           "lambda:RemovePermission",
           "lambda:TagResource",
           "lambda:UntagResource",
+          "lambda:UpdateAlias",
           "lambda:UpdateFunctionCode",
           "lambda:UpdateFunctionConfiguration"
         ],
-        Resource: $function_arn
+        Resource: [$function_arn, ($function_arn + ":*")]
       },
       {
         Sid: "OwnedLogs",

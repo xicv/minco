@@ -14,6 +14,16 @@ contract change
   -> promote exact release
 ```
 
+The evidence boundaries are intentionally separate:
+
+| Boundary | Evidence | What it does not prove |
+|---|---|---|
+| Local qualification | tests, lint, Plan/SAM validation | hosted runtime behavior |
+| Infrastructure apply | immutable change-set and started deployment receipt | candidate acceptance or live routing |
+| Hosted verification | request IDs, status codes, readiness/auth/smoke results, exact candidate version and artifact | live or production behavior |
+| Promotion | routing-only change set and terminal promotion receipt | production runtime acceptance |
+| Production proof | separately captured live requests and operational evidence | future release correctness |
+
 ## Environment classes
 
 | Environment | Purpose | Data and mutation policy |

@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: 'Minco deployment for minco-orders (dev)'
 Parameters:
+  LiveFunctionVersion:
+    Type: String
+    Default: candidate
+    AllowedPattern: '^(candidate|[1-9][0-9]*)$'
+    Description: Published API function version receiving live traffic; candidate is allowed only for initial deployment.
   DatabaseUrlParameterName:
     Type: String
     AllowedPattern: '^/[A-Za-z0-9_.\-/]+$'
@@ -42,6 +47,8 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: '$default'
+      StageVariables:
+        lambdaVersion: !Ref LiveFunctionVersion
       CorsConfiguration:
         AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
         AllowHeaders:
@@ -60,11 +67,64 @@ Resources:
               issuer: 'https://issuer.example.invalid'
               audience:
                 - 'minco-orders'
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: 'minco-orders-dev-promotion-api'
+          version: '1.0'
+        paths:
+          '/health/live':
+            get:
+              operationId: 'getLive'
+              responses:
+                default:
+                  description: Lambda proxy response
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                payloadFormatVersion: '2.0'
+                type: aws_proxy
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+              security: []
+          '/orders/{orderId}':
+            get:
+              operationId: 'getOrder'
+              responses:
+                default:
+                  description: Lambda proxy response
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                payloadFormatVersion: '2.0'
+                type: aws_proxy
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+          '/health/ready':
+            get:
+              operationId: 'getReady'
+              responses:
+                default:
+                  description: Lambda proxy response
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                payloadFormatVersion: '2.0'
+                type: aws_proxy
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+              security: []
+          '/orders':
+            post:
+              operationId: 'placeOrder'
+              responses:
+                default:
+                  description: Lambda proxy response
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                payloadFormatVersion: '2.0'
+                type: aws_proxy
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: 'minco-orders-dev-api'
       CodeUri: '../../../target/lambda/orders-lambda/bootstrap.zip'
+      AutoPublishAlias: candidate
       Handler: bootstrap
       Runtime: provided.al2023
       Architectures: [arm64]
@@ -111,35 +171,21 @@ Resources:
                   - ec2:UnassignPrivateIpAddresses
                 Resource: '*'
               - !Ref AWS::NoValue
-      Events:
-        GetLiveEvent:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: '/health/live'
-            Method: GET
-            Auth:
-              Authorizer: NONE
-        GetOrderEvent:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: '/orders/{orderId}'
-            Method: GET
-        GetReadyEvent:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: '/health/ready'
-            Method: GET
-            Auth:
-              Authorizer: NONE
-        PlaceOrderEvent:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: '/orders'
-            Method: POST
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'
+  CandidateStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      AutoDeploy: true
+      StageName: candidate
+      StageVariables:
+        lambdaVersion: 'candidate'
   ApiLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -148,5 +194,9 @@ Resources:
 Outputs:
   ApiUrl:
     Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  CandidateApiUrl:
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/candidate'
   ApiFunctionName:
     Value: !Ref ApiFunction
+  CandidateAliasName:
+    Value: candidate

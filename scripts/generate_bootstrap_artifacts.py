@@ -48,6 +48,14 @@ def main() -> None:
     plan = dict(config)
     plan["routes"] = routes
     output = ROOT / "infra/aws/generated/plan.json"
+    if output.is_file():
+        # The Rust planner is authoritative for the statically linked typed
+        # plugin graph. Preserve those compiler-derived fields when this
+        # no-Cargo bootstrap refreshes contract/config projections.
+        existing = json.loads(output.read_text())
+        for key in ("application_graph", "local_aws_services"):
+            if key in existing:
+                plan[key] = existing[key]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n")
     (ROOT / "infra/aws/generated/template.yaml").write_text(render_sam(plan))
@@ -65,23 +73,59 @@ def render_sam(plan: dict) -> str:
         "Transform: AWS::Serverless-2016-10-31",
         f"Description: {quote(description)}",
         "Parameters:",
+        "  LiveFunctionVersion:",
+        "    Type: String",
+        "    Default: candidate",
+        "    AllowedPattern: '^(candidate|[1-9][0-9]*)$'",
+        "    Description: Published API function version receiving live traffic; candidate is allowed only for initial deployment.",
         "  DatabaseUrlParameterName:",
         "    Type: String",
+        "    AllowedPattern: '^/[A-Za-z0-9_.\\-/]+$'",
         "    Description: Existing SSM SecureString containing the pooled runtime PostgreSQL URL.",
+        "  DatabaseUrlKmsKeyArn:",
+        "    Type: String",
+        "    Default: ''",
+        "    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'",
+        "    Description: Customer-managed KMS key ARN for the database parameter; leave empty only when the AWS-managed aws/ssm key is used.",
+        "  LambdaSubnetIds:",
+        "    Type: String",
+        "    Default: ''",
+        "    AllowedPattern: '^$|^subnet-[a-z0-9]+(,subnet-[a-z0-9]+)*$'",
+        "    Description: Optional comma-separated private subnet IDs for an externally provisioned VPC database profile.",
+        "  LambdaSecurityGroupIds:",
+        "    Type: String",
+        "    Default: ''",
+        "    AllowedPattern: '^$|^sg-[a-z0-9]+(,sg-[a-z0-9]+)*$'",
+        "    Description: Optional comma-separated security group IDs paired with LambdaSubnetIds.",
+        "Rules:",
+        "  VpcParametersArePaired:",
+        "    Assertions:",
+        "      - Assert: !Or",
+        "          - !And",
+        "            - !Equals [!Ref LambdaSubnetIds, '']",
+        "            - !Equals [!Ref LambdaSecurityGroupIds, '']",
+        "          - !And",
+        "            - !Not [!Equals [!Ref LambdaSubnetIds, '']]",
+        "            - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]",
+        "        AssertDescription: LambdaSubnetIds and LambdaSecurityGroupIds must be set together.",
+        "Conditions:",
+        "  UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]",
+        "  UsesVpc: !And",
+        "    - !Not [!Equals [!Ref LambdaSubnetIds, '']]",
+        "    - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]",
         "Resources:",
         "  HttpApi:",
         "    Type: AWS::Serverless::HttpApi",
         "    Properties:",
         "      StageName: '$default'",
+        "      StageVariables:",
+        "        lambdaVersion: !Ref LiveFunctionVersion",
         "      CorsConfiguration:",
         "        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]",
         "        AllowHeaders:",
-        "        AllowOrigins:",
     ]
-    lines[-1:-1] = [
-        f"          - {quote(header)}"
-        for header in plan["allowed_headers"]
-    ]
+    lines.extend(f"          - {quote(header)}" for header in plan["allowed_headers"])
+    lines.append("        AllowOrigins:")
     lines.extend(f"          - {quote(origin)}" for origin in plan["allowed_origins"])
     auth = plan["auth"]
     if auth["kind"] == "jwt":
@@ -100,17 +144,51 @@ def render_sam(plan: dict) -> str:
         lines.extend(f"                - {quote(audience)}" for audience in auth["audiences"])
     lines.extend(
         [
+            "      DefinitionBody:",
+            "        openapi: '3.0.1'",
+            "        info:",
+            f"          title: {quote(plan['application'] + '-' + plan['environment'] + '-promotion-api')}",
+            "          version: '1.0'",
+            "        paths:",
+        ]
+    )
+    for route in plan["routes"]:
+        lines.extend(
+            [
+                f"          {quote(route['path'])}:",
+                f"            {route['method'].lower()}:",
+                f"              operationId: {quote(route['operation_id'])}",
+                "              responses:",
+                "                default:",
+                "                  description: Lambda proxy response",
+                "              x-amazon-apigateway-integration:",
+                "                httpMethod: POST",
+                "                payloadFormatVersion: '2.0'",
+                "                type: aws_proxy",
+                "                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'",
+            ]
+        )
+        if not route["authenticated"] and auth["kind"] == "jwt":
+            lines.append("              security: []")
+    lines.extend(
+        [
             "  ApiFunction:",
             "    Type: AWS::Serverless::Function",
             "    Properties:",
             f"      FunctionName: {quote(plan['application'] + '-' + plan['environment'] + '-api')}",
-            f"      CodeUri: {quote(function['artifact_path'])}",
+            f"      CodeUri: {quote('../../../' + function['artifact_path'])}",
+            "      AutoPublishAlias: candidate",
             "      Handler: bootstrap",
             "      Runtime: provided.al2023",
             "      Architectures: [arm64]",
             f"      MemorySize: {function['memory_mb']}",
             f"      Timeout: {function['timeout_seconds']}",
             f"      ReservedConcurrentExecutions: {function['reserved_concurrency']}",
+            "      VpcConfig: !If",
+            "        - UsesVpc",
+            "        - SubnetIds: !Split [',', !Ref LambdaSubnetIds]",
+            "          SecurityGroupIds: !Split [',', !Ref LambdaSecurityGroupIds]",
+            "        - !Ref AWS::NoValue",
             "      Environment:",
             "        Variables:",
             f"          APP_ENV: {quote(plan['environment'])}",
@@ -124,30 +202,45 @@ def render_sam(plan: dict) -> str:
             "            - Effect: Allow",
             "              Action: [ssm:GetParameter]",
             "              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'",
-            "            - Effect: Allow",
-            "              Action: [kms:Decrypt]",
-            "              Resource: '*'",
-            "              Condition:",
-            "                StringEquals:",
-            "                  kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'",
-            "      Events:",
+            "            - !If",
+            "              - UsesCustomerManagedDatabaseKey",
+            "              - Effect: Allow",
+            "                Action: [kms:Decrypt]",
+            "                Resource: !Ref DatabaseUrlKmsKeyArn",
+            "                Condition:",
+            "                  StringEquals:",
+            "                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'",
+            "                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'",
+            "              - !Ref AWS::NoValue",
+            "            - !If",
+            "              - UsesVpc",
+            "              - Effect: Allow",
+            "                Action:",
+            "                  - ec2:AssignPrivateIpAddresses",
+            "                  - ec2:CreateNetworkInterface",
+            "                  - ec2:DeleteNetworkInterface",
+            "                  - ec2:DescribeNetworkInterfaces",
+            "                  - ec2:DescribeSubnets",
+            "                  - ec2:UnassignPrivateIpAddresses",
+            "                Resource: '*'",
+            "              - !Ref AWS::NoValue",
+            "  ApiInvokePermission:",
+            "    Type: AWS::Lambda::Permission",
+            "    Properties:",
+            "      Action: lambda:InvokeFunction",
+            "      FunctionName: !Ref ApiFunction",
+            "      Principal: apigateway.amazonaws.com",
+            "      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'",
+            "  CandidateStage:",
+            "    Type: AWS::ApiGatewayV2::Stage",
+            "    Properties:",
+            "      ApiId: !Ref HttpApi",
+            "      AutoDeploy: true",
+            "      StageName: candidate",
+            "      StageVariables:",
+            "        lambdaVersion: 'candidate'",
         ]
     )
-    for route in plan["routes"]:
-        name = re.sub(r"[^A-Za-z0-9]", " ", route["operation_id"])
-        name = "".join(part[:1].upper() + part[1:] for part in name.split()) + "Event"
-        lines.extend(
-            [
-                f"        {name}:",
-                "          Type: HttpApi",
-                "          Properties:",
-                "            ApiId: !Ref HttpApi",
-                f"            Path: {quote(route['path'])}",
-                f"            Method: {route['method'].upper()}",
-            ]
-        )
-        if not route["authenticated"] and auth["kind"] == "jwt":
-            lines.extend(["            Auth:", "              Authorizer: NONE"])
     lines.extend(
         [
             "  ApiLogGroup:",
@@ -158,8 +251,12 @@ def render_sam(plan: dict) -> str:
             "Outputs:",
             "  ApiUrl:",
             "    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'",
+            "  CandidateApiUrl:",
+            "    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/candidate'",
             "  ApiFunctionName:",
             "    Value: !Ref ApiFunction",
+            "  CandidateAliasName:",
+            "    Value: candidate",
         ]
     )
     return "\n".join(lines) + "\n"

@@ -185,7 +185,7 @@ awk \
 
 plan="$build_directory/plan.json"
 template="$build_directory/template.yaml"
-MINCO_RELEASE_MANIFEST="$MINCO_AWS_EVIDENCE_DIR/release.json"
+MINCO_RELEASE_MANIFEST="target/minco/aws/$MINCO_AWS_RUN_ID/release.json"
 export MINCO_RELEASE_MANIFEST
 cargo minco deploy plan --config "$smoke_config" --output "$plan"
 cargo minco deploy render-sam --config "$smoke_config" --output "$template"
@@ -300,8 +300,10 @@ jq -e '
         . == "AWS::ApiGatewayV2::Api"
         or . == "AWS::ApiGatewayV2::Stage"
         or . == "AWS::IAM::Role"
+        or . == "AWS::Lambda::Alias"
         or . == "AWS::Lambda::Function"
         or . == "AWS::Lambda::Permission"
+        or . == "AWS::Lambda::Version"
         or . == "AWS::Logs::LogGroup"
       )
   )
@@ -318,7 +320,37 @@ MINCO_MIGRATION_RECEIPT="target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-r
 MINCO_APPROVE_CHANGESET_DIGEST="$change_set_digest" \
   scripts/aws/deploy.sh
 unset change_set_digest release_digest
-scripts/aws/smoke.sh
+
+hosted_verification="target/minco/aws/$MINCO_AWS_RUN_ID/hosted-verification.json"
+record_cloud_touch \
+  "aws:lambda,execute-api" \
+  "hosted-verification" \
+  "verify the candidate endpoint, request IDs, readiness, authentication, smoke behavior and exact artifact"
+cargo minco deploy verify \
+  --manifest "$MINCO_RELEASE_MANIFEST" \
+  --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/deployment-receipt.json" \
+  --output "$hosted_verification" \
+  --json >"$MINCO_AWS_EVIDENCE_DIR/hosted-verification-output.json"
+chmod 600 \
+  "$hosted_verification" \
+  "$MINCO_AWS_EVIDENCE_DIR/hosted-verification-output.json"
+
+verification_digest="$(shasum -a 256 "$hosted_verification" | awk '{print $1}')"
+record_cloud_touch \
+  "aws:cloudformation" \
+  "guarded-promotion" \
+  "route the live API stage to the exact hosted-verified Lambda version"
+cargo minco promote \
+  --manifest "$MINCO_RELEASE_MANIFEST" \
+  --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/deployment-receipt.json" \
+  --verification "$hosted_verification" \
+  --output "target/minco/aws/$MINCO_AWS_RUN_ID/promotion-receipt.json" \
+  --approve-verification-digest "$verification_digest" \
+  --json >"$MINCO_AWS_EVIDENCE_DIR/promotion-output.json"
+chmod 600 \
+  "$MINCO_AWS_EVIDENCE_DIR/promotion-receipt.json" \
+  "$MINCO_AWS_EVIDENCE_DIR/promotion-output.json"
+unset verification_digest
 
 unset MINCO_SMOKE_JWT_TOKEN
 scripts/aws/cleanup.sh

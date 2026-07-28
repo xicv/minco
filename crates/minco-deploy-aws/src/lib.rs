@@ -1,7 +1,7 @@
 //! Fail-closed AWS deployment guards and `CloudFormation` change-set review.
 #![forbid(unsafe_code)]
 
-use minco_release::{FileDigest, ReleaseEnvironment};
+use minco_release::{DeploymentOutcome, DeploymentReceipt, FileDigest, ReleaseEnvironment};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -575,6 +575,657 @@ pub enum ChangeSetReceiptError {
     Json(#[from] serde_json::Error),
     #[error("change-set receipt I/O failed: {0}")]
     Io(#[from] std::io::Error),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HostedCheckKind {
+    Contract,
+    Readiness,
+    Authentication,
+    Smoke,
+    ArtifactIdentity,
+}
+
+impl HostedCheckKind {
+    const REQUIRED: [Self; 5] = [
+        Self::Contract,
+        Self::Readiness,
+        Self::Authentication,
+        Self::Smoke,
+        Self::ArtifactIdentity,
+    ];
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostedCheckResult {
+    pub kind: HostedCheckKind,
+    pub passed: bool,
+    pub request_id: Option<String>,
+    pub status_code: Option<u16>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostedVerificationInput {
+    pub endpoint: String,
+    pub expected_artifact_digest: String,
+    pub executed_artifact_digest: String,
+    pub executed_version: String,
+    pub checks: Vec<HostedCheckResult>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostedVerificationReport {
+    pub endpoint: String,
+    pub executed_artifact_digest: String,
+    pub executed_version: String,
+    pub checks: Vec<HostedCheckResult>,
+}
+
+impl HostedVerificationReport {
+    pub fn complete(mut input: HostedVerificationInput) -> Result<Self, HostedVerificationError> {
+        let endpoint = url::Url::parse(&input.endpoint)
+            .ok()
+            .filter(|endpoint| {
+                endpoint.scheme() == "https"
+                    && endpoint.host_str().is_some()
+                    && endpoint.username().is_empty()
+                    && endpoint.password().is_none()
+                    && endpoint.query().is_none()
+                    && endpoint.fragment().is_none()
+            })
+            .ok_or(HostedVerificationError::InvalidField { field: "endpoint" })?;
+        if !input
+            .executed_version
+            .parse::<u64>()
+            .ok()
+            .is_some_and(|version| version > 0 && version.to_string() == input.executed_version)
+        {
+            return Err(HostedVerificationError::InvalidField {
+                field: "executed_version",
+            });
+        }
+        if !sha256_is_valid(&input.expected_artifact_digest)
+            || !sha256_is_valid(&input.executed_artifact_digest)
+        {
+            return Err(HostedVerificationError::InvalidField {
+                field: "artifact_digest",
+            });
+        }
+        for kind in HostedCheckKind::REQUIRED {
+            let count = input
+                .checks
+                .iter()
+                .filter(|check| check.kind == kind)
+                .count();
+            if count == 0 {
+                return Err(HostedVerificationError::MissingRequiredCheck { kind });
+            }
+            if count > 1 {
+                return Err(HostedVerificationError::DuplicateRequiredCheck { kind });
+            }
+        }
+        for check in &input.checks {
+            let valid = if check.kind == HostedCheckKind::ArtifactIdentity {
+                check.request_id.is_none() && check.status_code.is_none()
+            } else {
+                let structural = check.request_id.as_deref().is_some_and(request_id_is_valid)
+                    && check
+                        .status_code
+                        .is_some_and(|status| (100..=599).contains(&status));
+                let expected_status = match check.kind {
+                    HostedCheckKind::Contract
+                    | HostedCheckKind::Readiness
+                    | HostedCheckKind::Smoke => 200,
+                    HostedCheckKind::Authentication => 401,
+                    HostedCheckKind::ArtifactIdentity => unreachable!(),
+                };
+                structural && (!check.passed || check.status_code == Some(expected_status))
+            };
+            if !valid {
+                return Err(HostedVerificationError::InvalidCheck { kind: check.kind });
+            }
+        }
+        if let Some(check) = input.checks.iter().find(|check| !check.passed) {
+            return Err(HostedVerificationError::RequiredCheckFailed { kind: check.kind });
+        }
+        if input.executed_artifact_digest != input.expected_artifact_digest {
+            return Err(HostedVerificationError::ArtifactMismatch);
+        }
+        input.checks.sort_by_key(|check| check.kind);
+        Ok(Self {
+            endpoint: endpoint.to_string().trim_end_matches('/').to_owned(),
+            executed_artifact_digest: input.executed_artifact_digest,
+            executed_version: input.executed_version,
+            checks: input.checks,
+        })
+    }
+
+    pub fn write_json(&self, path: impl AsRef<Path>) -> Result<(), HostedVerificationError> {
+        let path = path.as_ref();
+        let mut rendered = serde_json::to_vec_pretty(self)
+            .map_err(|error| HostedVerificationError::Serialization(error.to_string()))?;
+        rendered.push(b'\n');
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+        {
+            Ok(mut file) => {
+                file.write_all(&rendered)
+                    .map_err(|error| HostedVerificationError::Io(error.to_string()))?;
+                file.sync_all()
+                    .map_err(|error| HostedVerificationError::Io(error.to_string()))
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let existing = Self::read_json(path, &self.executed_artifact_digest)?;
+                if existing == *self {
+                    Ok(())
+                } else {
+                    Err(HostedVerificationError::Conflict(
+                        path.display().to_string(),
+                    ))
+                }
+            }
+            Err(error) => Err(HostedVerificationError::Io(error.to_string())),
+        }
+    }
+
+    pub fn read_json(
+        path: impl AsRef<Path>,
+        expected_artifact_digest: &str,
+    ) -> Result<Self, HostedVerificationError> {
+        let bytes =
+            std::fs::read(path).map_err(|error| HostedVerificationError::Io(error.to_string()))?;
+        let report: Self = serde_json::from_slice(&bytes)
+            .map_err(|error| HostedVerificationError::Serialization(error.to_string()))?;
+        Self::complete(HostedVerificationInput {
+            endpoint: report.endpoint,
+            expected_artifact_digest: expected_artifact_digest.to_owned(),
+            executed_artifact_digest: report.executed_artifact_digest,
+            executed_version: report.executed_version,
+            checks: report.checks,
+        })
+    }
+}
+
+pub fn verify_promotion_boundary(
+    change_set: &CloudFormationChangeSet,
+    expected_stack_name: &str,
+    live_stage_logical_id: &str,
+) -> Result<(), PromotionBoundaryError> {
+    if change_set.change_set_type != ChangeSetType::Update
+        || change_set.status != ChangeSetStatus::CreateComplete
+        || change_set.execution_status != ExecutionStatus::Available
+        || change_set.stack_name != expected_stack_name
+    {
+        return Err(PromotionBoundaryError::InvalidProviderState);
+    }
+    let review = &change_set.review;
+    let only_live_stage = match review.modifications.as_slice() {
+        [change] => {
+            change.logical_id == live_stage_logical_id
+                && change.resource_type == "AWS::ApiGatewayV2::Stage"
+                && change.action == ChangeAction::Modify
+                && matches!(change.replacement, None | Some(Replacement::Never))
+                && change.policy_action.is_none()
+                && change.scope.as_slice() == [ChangeScope::Properties]
+        }
+        _ => false,
+    };
+    if !only_live_stage
+        || !review.additions.is_empty()
+        || !review.replacements.is_empty()
+        || !review.deletions.is_empty()
+        || !review.imports.is_empty()
+        || !review.indeterminate.is_empty()
+        || !review.metadata_syncs.is_empty()
+    {
+        return Err(PromotionBoundaryError::NonRoutingChange);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum PromotionBoundaryError {
+    #[error("promotion change set is not a complete available update for the expected stack")]
+    InvalidProviderState,
+    #[error("promotion change set contains a non-routing resource change")]
+    NonRoutingChange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PromotionOutcome {
+    Started,
+    Failed,
+    Succeeded,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromotionReceiptInput {
+    pub attempt_id: String,
+    pub release_id: String,
+    pub release_digest: String,
+    pub environment: ReleaseEnvironment,
+    pub deployment_receipt: FileDigest,
+    pub hosted_verification: FileDigest,
+    pub operator_approval_digest: String,
+    pub stack_name: String,
+    pub live_stage_logical_id: String,
+    pub previous_version: String,
+    pub promoted_version: String,
+    pub change_set: CloudFormationChangeSet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromotionReceipt {
+    pub schema_version: u32,
+    pub receipt_digest: String,
+    pub attempt_id: String,
+    pub release_id: String,
+    pub release_digest: String,
+    pub environment: ReleaseEnvironment,
+    pub deployment_receipt: FileDigest,
+    pub hosted_verification: FileDigest,
+    pub operator_approval_digest: String,
+    pub stack_name: String,
+    pub live_stage_logical_id: String,
+    pub previous_version: String,
+    pub promoted_version: String,
+    pub change_set: CloudFormationChangeSet,
+    outcome: PromotionOutcome,
+    failure_code: Option<String>,
+}
+
+impl PromotionReceipt {
+    pub fn start(input: PromotionReceiptInput) -> Result<Self, PromotionReceiptError> {
+        verify_promotion_boundary(
+            &input.change_set,
+            &input.stack_name,
+            &input.live_stage_logical_id,
+        )?;
+        let mut receipt = Self {
+            schema_version: 1,
+            receipt_digest: String::new(),
+            attempt_id: input.attempt_id,
+            release_id: input.release_id,
+            release_digest: input.release_digest,
+            environment: input.environment,
+            deployment_receipt: input.deployment_receipt,
+            hosted_verification: input.hosted_verification,
+            operator_approval_digest: input.operator_approval_digest,
+            stack_name: input.stack_name,
+            live_stage_logical_id: input.live_stage_logical_id,
+            previous_version: input.previous_version,
+            promoted_version: input.promoted_version,
+            change_set: input.change_set,
+            outcome: PromotionOutcome::Started,
+            failure_code: None,
+        };
+        receipt.refresh_digest()?;
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    pub const fn outcome(&self) -> PromotionOutcome {
+        self.outcome
+    }
+
+    pub fn succeed(&mut self) -> Result<(), PromotionReceiptError> {
+        self.require_started()?;
+        self.outcome = PromotionOutcome::Succeeded;
+        self.refresh_digest()?;
+        self.verify_structure()
+    }
+
+    pub fn fail(&mut self, code: impl Into<String>) -> Result<(), PromotionReceiptError> {
+        self.require_started()?;
+        let code = code.into();
+        if !identifier_is_valid(&code) {
+            return Err(PromotionReceiptError::Invalid(
+                "promotion failure code is invalid".into(),
+            ));
+        }
+        self.outcome = PromotionOutcome::Failed;
+        self.failure_code = Some(code);
+        self.refresh_digest()?;
+        self.verify_structure()
+    }
+
+    pub fn write_json(&self, path: impl AsRef<Path>) -> Result<(), PromotionReceiptError> {
+        self.verify_structure()?;
+        let path = path.as_ref();
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| PromotionReceiptError::Invalid("receipt path is invalid".into()))?;
+        let lock = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(parent.join(format!(".{name}.lock")))?;
+        lock.lock()?;
+        let mut rendered = serde_json::to_vec_pretty(self)?;
+        rendered.push(b'\n');
+        if !path.exists() {
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)?;
+            file.write_all(&rendered)?;
+            file.sync_all()?;
+            return Ok(());
+        }
+        let existing = Self::read_json(path)?;
+        if existing == *self {
+            return Ok(());
+        }
+        if existing.attempt_id != self.attempt_id || !existing.same_binding(self) {
+            return Err(PromotionReceiptError::Conflict(self.attempt_id.clone()));
+        }
+        if existing.outcome != PromotionOutcome::Started
+            || self.outcome == PromotionOutcome::Started
+        {
+            return Err(PromotionReceiptError::Terminal {
+                attempt_id: existing.attempt_id,
+                outcome: existing.outcome,
+            });
+        }
+        let temporary = parent.join(format!(".{name}.{}.tmp", self.receipt_digest));
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        file.write_all(&rendered)?;
+        file.sync_all()?;
+        std::fs::rename(temporary, path)?;
+        Ok(())
+    }
+
+    pub fn read_json(path: impl AsRef<Path>) -> Result<Self, PromotionReceiptError> {
+        let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
+        let receipt: Self = serde_json::from_value(value.clone())?;
+        if serde_json::to_value(&receipt)? != value {
+            return Err(PromotionReceiptError::Invalid(
+                "promotion receipt contains unknown or non-canonical fields".into(),
+            ));
+        }
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    pub fn verify_at(&self, root: impl AsRef<Path>) -> Result<(), PromotionReceiptError> {
+        self.verify_structure()?;
+        let root = root.as_ref();
+        self.deployment_receipt
+            .verify_at(root)
+            .map_err(|error| PromotionReceiptError::Invalid(error.to_string()))?;
+        self.hosted_verification
+            .verify_at(root)
+            .map_err(|error| PromotionReceiptError::Invalid(error.to_string()))?;
+
+        let deployment_path = root.join(&self.deployment_receipt.path);
+        let value: serde_json::Value = serde_json::from_slice(&std::fs::read(&deployment_path)?)?;
+        let deployment: DeploymentReceipt = serde_json::from_value(value.clone())?;
+        if serde_json::to_value(&deployment)? != value {
+            return Err(PromotionReceiptError::Invalid(
+                "deployment receipt contains unknown or non-canonical fields".into(),
+            ));
+        }
+        deployment
+            .verify_at(root)
+            .map_err(|error| PromotionReceiptError::Invalid(error.to_string()))?;
+        if deployment.outcome() != DeploymentOutcome::Succeeded
+            || deployment.release_id != self.release_id
+            || deployment.release_digest != self.release_digest
+            || deployment.environment != self.environment
+        {
+            return Err(PromotionReceiptError::Invalid(
+                "promotion does not bind a successful deployment of the exact release".into(),
+            ));
+        }
+        let [verification] = deployment.verification() else {
+            return Err(PromotionReceiptError::Invalid(
+                "deployment must bind exactly one hosted verification report".into(),
+            ));
+        };
+        if verification.kind != "hosted_verification"
+            || verification.file != self.hosted_verification
+        {
+            return Err(PromotionReceiptError::Invalid(
+                "deployment hosted verification binding does not match promotion".into(),
+            ));
+        }
+        let release_value: serde_json::Value = serde_json::from_slice(&std::fs::read(
+            root.join(&deployment.release_manifest.path),
+        )?)?;
+        let release: minco_release::ReleaseManifest =
+            serde_json::from_value(release_value.clone())?;
+        if serde_json::to_value(&release)? != release_value {
+            return Err(PromotionReceiptError::Invalid(
+                "release manifest contains unknown or non-canonical fields".into(),
+            ));
+        }
+        release
+            .verify_at(root)
+            .map_err(|error| PromotionReceiptError::Invalid(error.to_string()))?;
+        let api_artifacts = release
+            .artifacts
+            .iter()
+            .filter(|artifact| artifact.function_id == "api")
+            .collect::<Vec<_>>();
+        let [api_artifact] = api_artifacts.as_slice() else {
+            return Err(PromotionReceiptError::Invalid(
+                "release must bind exactly one API artifact".into(),
+            ));
+        };
+        let report = HostedVerificationReport::read_json(
+            root.join(&self.hosted_verification.path),
+            &api_artifact.file.sha256,
+        )
+        .map_err(|error| PromotionReceiptError::Invalid(error.to_string()))?;
+        if report.executed_version != self.promoted_version {
+            return Err(PromotionReceiptError::Invalid(
+                "hosted verification version does not match promotion".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn require_started(&self) -> Result<(), PromotionReceiptError> {
+        if self.outcome == PromotionOutcome::Started {
+            Ok(())
+        } else {
+            Err(PromotionReceiptError::Terminal {
+                attempt_id: self.attempt_id.clone(),
+                outcome: self.outcome,
+            })
+        }
+    }
+
+    fn same_binding(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.attempt_id == other.attempt_id
+            && self.release_id == other.release_id
+            && self.release_digest == other.release_digest
+            && self.environment == other.environment
+            && self.deployment_receipt == other.deployment_receipt
+            && self.hosted_verification == other.hosted_verification
+            && self.operator_approval_digest == other.operator_approval_digest
+            && self.stack_name == other.stack_name
+            && self.live_stage_logical_id == other.live_stage_logical_id
+            && self.previous_version == other.previous_version
+            && self.promoted_version == other.promoted_version
+            && self.change_set == other.change_set
+    }
+
+    fn verify_structure(&self) -> Result<(), PromotionReceiptError> {
+        if self.schema_version != 1
+            || !identifier_is_valid(&self.attempt_id)
+            || !release_identity_is_valid(&self.release_id, &self.release_digest)
+            || self.operator_approval_digest != self.hosted_verification.sha256
+            || !stack_name_is_valid(&self.stack_name)
+            || !self
+                .live_stage_logical_id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric())
+            || !(self.previous_version == "candidate"
+                || published_version_is_valid(&self.previous_version))
+            || !published_version_is_valid(&self.promoted_version)
+            || self.previous_version == self.promoted_version
+        {
+            return Err(PromotionReceiptError::Invalid(
+                "promotion receipt binding is invalid".into(),
+            ));
+        }
+        validate_bound_file(&self.deployment_receipt, "deployment receipt")
+            .map_err(|error| PromotionReceiptError::Invalid(error.to_string()))?;
+        validate_bound_file(&self.hosted_verification, "hosted verification")
+            .map_err(|error| PromotionReceiptError::Invalid(error.to_string()))?;
+        verify_promotion_boundary(
+            &self.change_set,
+            &self.stack_name,
+            &self.live_stage_logical_id,
+        )?;
+        match self.outcome {
+            PromotionOutcome::Started | PromotionOutcome::Succeeded
+                if self.failure_code.is_none() => {}
+            PromotionOutcome::Failed
+                if self
+                    .failure_code
+                    .as_deref()
+                    .is_some_and(identifier_is_valid) => {}
+            _ => {
+                return Err(PromotionReceiptError::Invalid(
+                    "promotion outcome and failure are inconsistent".into(),
+                ));
+            }
+        }
+        let actual = self.calculate_digest()?;
+        if self.receipt_digest != actual {
+            return Err(PromotionReceiptError::DigestMismatch);
+        }
+        Ok(())
+    }
+
+    fn refresh_digest(&mut self) -> Result<(), PromotionReceiptError> {
+        self.receipt_digest = self.calculate_digest()?;
+        Ok(())
+    }
+
+    fn calculate_digest(&self) -> Result<String, PromotionReceiptError> {
+        #[derive(Serialize)]
+        struct DigestPayload<'a> {
+            schema_version: u32,
+            attempt_id: &'a str,
+            release_id: &'a str,
+            release_digest: &'a str,
+            environment: &'a ReleaseEnvironment,
+            deployment_receipt: &'a FileDigest,
+            hosted_verification: &'a FileDigest,
+            operator_approval_digest: &'a str,
+            stack_name: &'a str,
+            live_stage_logical_id: &'a str,
+            previous_version: &'a str,
+            promoted_version: &'a str,
+            change_set: &'a CloudFormationChangeSet,
+            outcome: PromotionOutcome,
+            failure_code: &'a Option<String>,
+        }
+        let payload = DigestPayload {
+            schema_version: self.schema_version,
+            attempt_id: &self.attempt_id,
+            release_id: &self.release_id,
+            release_digest: &self.release_digest,
+            environment: &self.environment,
+            deployment_receipt: &self.deployment_receipt,
+            hosted_verification: &self.hosted_verification,
+            operator_approval_digest: &self.operator_approval_digest,
+            stack_name: &self.stack_name,
+            live_stage_logical_id: &self.live_stage_logical_id,
+            previous_version: &self.previous_version,
+            promoted_version: &self.promoted_version,
+            change_set: &self.change_set,
+            outcome: self.outcome,
+            failure_code: &self.failure_code,
+        };
+        Ok(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&payload)?)
+        ))
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum PromotionReceiptError {
+    #[error("invalid promotion receipt: {0}")]
+    Invalid(String),
+    #[error("promotion receipt digest does not match its contents")]
+    DigestMismatch,
+    #[error("promotion receipt {0} conflicts with an existing attempt")]
+    Conflict(String),
+    #[error("promotion receipt {attempt_id} is already terminal as {outcome:?}")]
+    Terminal {
+        attempt_id: String,
+        outcome: PromotionOutcome,
+    },
+    #[error(transparent)]
+    Boundary(#[from] PromotionBoundaryError),
+    #[error("promotion receipt JSON is invalid: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("promotion receipt I/O failed: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+fn identifier_is_valid(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
+
+fn published_version_is_valid(value: &str) -> bool {
+    value
+        .parse::<u64>()
+        .ok()
+        .is_some_and(|version| version > 0 && version.to_string() == value)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum HostedVerificationError {
+    #[error("hosted verification field {field} is invalid")]
+    InvalidField { field: &'static str },
+    #[error("required hosted {kind:?} check is missing")]
+    MissingRequiredCheck { kind: HostedCheckKind },
+    #[error("required hosted {kind:?} check is duplicated")]
+    DuplicateRequiredCheck { kind: HostedCheckKind },
+    #[error("hosted {kind:?} check evidence is invalid")]
+    InvalidCheck { kind: HostedCheckKind },
+    #[error("required hosted {kind:?} check failed")]
+    RequiredCheckFailed { kind: HostedCheckKind },
+    #[error("executed artifact does not match the verified release")]
+    ArtifactMismatch,
+    #[error("hosted verification JSON is invalid: {0}")]
+    Serialization(String),
+    #[error("hosted verification I/O failed: {0}")]
+    Io(String),
+    #[error("immutable hosted verification report already exists at {0}")]
+    Conflict(String),
+}
+
+fn request_id_is_valid(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
 }
 
 fn source_change_is_valid(value: &str) -> bool {
