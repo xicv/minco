@@ -55,6 +55,28 @@ cargo minco contract check
 cargo minco contract sync [--check]
 ```
 
+## Generators and app-owned stubs
+
+```text
+cargo minco make module <name> [--dry-run]
+cargo minco make operation <operationId> [--dry-run]
+cargo minco make migration <name> [--dry-run]
+cargo minco make seeder <name> [--dry-run]
+cargo minco make worker <name> [--dry-run]
+cargo minco make adapter <name> [--dry-run]
+cargo minco make test <operationId> [--dry-run]
+cargo minco make plugin <id> [--dry-run]
+cargo minco stubs publish [--dry-run]
+```
+
+All commands print deterministic change plans; combine global `--json` with
+`--dry-run` for non-mutating automation. Operation and test generation require an
+existing valid OpenAPI operation and create intentionally failing specifications,
+never placeholder success. Existing paths, symlinked path components, unknown
+stub placeholders, and ambiguous migration/seed roots fail closed. See
+[`../development/generators.md`](../development/generators.md) for generated
+paths, safety defaults, and app-owned stub customization.
+
 ## Deployment, cost and performance
 
 ```text

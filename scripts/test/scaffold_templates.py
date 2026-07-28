@@ -12,6 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_ROOT = ROOT / "crates/minco-cli/templates/app"
+GENERATOR_TEMPLATE_ROOT = ROOT / "crates/minco-cli/templates/generator"
 MINCO_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
 COMMON = [
     "Cargo.toml",
@@ -41,6 +42,28 @@ COMMON = [
     "services/app/src/bin/lambda.rs",
     "services/app/src/bin/migrate.rs",
 ]
+GENERATOR_STUBS = {
+    "adapter-test.rs.tmpl",
+    "adapter.rs.tmpl",
+    "adapter.md.tmpl",
+    "application-test.rs.tmpl",
+    "http-test.rs.tmpl",
+    "migration.sql.tmpl",
+    "migration.md.tmpl",
+    "module-application.rs.tmpl",
+    "module-domain.rs.tmpl",
+    "module-test.rs.tmpl",
+    "module.md.tmpl",
+    "operation.md.tmpl",
+    "plugin-lib.rs.tmpl",
+    "plugin-readme.md.tmpl",
+    "seeder-verify.sql.tmpl",
+    "seeder.sql.tmpl",
+    "seeder.md.tmpl",
+    "worker-test.rs.tmpl",
+    "worker.rs.tmpl",
+    "worker.md.tmpl",
+}
 
 
 def template(path: str) -> str:
@@ -178,6 +201,29 @@ def check_profile(root: Path, database: str) -> dict[str, object]:
     }
 
 
+def check_generator_stubs() -> dict[str, object]:
+    paths = sorted(GENERATOR_TEMPLATE_ROOT.glob("*.tmpl"))
+    assert {path.name for path in paths} == GENERATOR_STUBS
+    values = {
+        "{{NAME}}": "sample-widgets",
+        "{{SNAKE_NAME}}": "sample_widgets",
+        "{{PASCAL_NAME}}": "SampleWidgets",
+        "{{OPERATION_ID}}": "getPlatform",
+        "{{METHOD}}": "GET",
+        "{{PATH}}": "/platform",
+        "{{RUST_PATH_LITERAL}}": '"/platform"',
+        "{{VERSION}}": "0002",
+        "{{LAYER}}": "application",
+    }
+    rendered = {path.name: render(path.read_text(), values) for path in paths}
+    assert all(source.endswith("\n") for source in rendered.values())
+    assert "SELECT FALSE;" in rendered["seeder-verify.sql.tmpl"]
+    assert "panic!(\"TODO(getPlatform)" in rendered["application-test.rs.tmpl"]
+    assert "panic!(\"TODO(getPlatform)" in rendered["http-test.rs.tmpl"]
+    assert "PluginId::new(\"sample-widgets\")" in rendered["plugin-lib.rs.tmpl"]
+    return {"count": len(rendered), "files": sorted(rendered)}
+
+
 def main() -> int:
     reports = []
     with tempfile.TemporaryDirectory(prefix="minco-scaffold-") as temporary:
@@ -187,7 +233,16 @@ def main() -> int:
             root.mkdir()
             render_profile(root, database)
             reports.append(check_profile(root, database))
-    print(json.dumps({"status": "ok", "profiles": reports}, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "profiles": reports,
+                "generator_stubs": check_generator_stubs(),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

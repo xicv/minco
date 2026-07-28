@@ -18,10 +18,10 @@
       "plugins": 16,
       "milestones": 13,
       "tasks": 56,
-      "rust_files": 114,
+      "rust_files": 116,
       "python_files": 16,
       "shell_files": 35,
-      "implementation_files_scanned": 264
+      "implementation_files_scanned": 266
     },
     "findings": [],
     "limitations": [
@@ -30,10 +30,10 @@
     ]
   },
   "metrics": {
-    "rust_files": 114,
-    "rust_lines": 41624,
+    "rust_files": 116,
+    "rust_lines": 43408,
     "unsafe_tokens": 7,
-    "production_unwrap_expect": 106,
+    "production_unwrap_expect": 107,
     "sql_files": 14
   },
   "findings": [

@@ -36,6 +36,8 @@ The framework's own tests cover:
 - domain and application fail-before-persistence behavior;
 - memory, PostgreSQL, and SQLite adapter semantics;
 - CLI manifest/task/plugin/update helpers.
+- deterministic generator plans, fail-closed paths, app-owned stubs, and
+  compiler-visible PostgreSQL/SQLite generated-application journeys;
 - graph-derived local services and standard AWS endpoint configuration;
 - isolated Rustack S3, SQS, SSM and STS compatibility, including the Minco SSM
   SDK adapter.

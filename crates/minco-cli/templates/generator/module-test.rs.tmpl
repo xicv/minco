@@ -1,0 +1,10 @@
+//! Compile boundary for the generated `{{NAME}}` {{LAYER}} module.
+#![forbid(unsafe_code)]
+
+#[path = "../src/modules/{{SNAKE_NAME}}.rs"]
+mod generated_module;
+
+#[test]
+fn {{SNAKE_NAME}}_{{LAYER}}_module_is_compiler_visible() {
+    let _module_name = module_path!();
+}
