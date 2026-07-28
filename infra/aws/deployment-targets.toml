@@ -1,0 +1,13 @@
+schema_version = 1
+default_environment = "dev"
+
+# Safe checked-in planning target. Live use must select a reviewed target whose
+# exact account and role are enabled explicitly.
+[environments.dev]
+enabled = false
+expected_account_id = "000000000000"
+expected_region = "ap-southeast-2"
+expected_role_arn = "arn:aws:iam::000000000000:role/minco-dev"
+stack_name = "minco-dev"
+artifact_bucket = "minco-dev-artifacts-placeholder"
+database_url_parameter_name = "/minco/dev/database-url"

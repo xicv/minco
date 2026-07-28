@@ -62,25 +62,44 @@ cargo minco db migrate \
   --expected-plan-digest "$MINCO_REVIEWED_MIGRATION_DIGEST" \
   --receipt target/minco/orders-postgres-receipt.json
 
-# Promote the already verified release
-MINCO_STACK_NAME=minco-dev \
-MINCO_DATABASE_URL_PARAMETER=/minco/dev/database-url \
-MINCO_AWS_ARTIFACT_BUCKET=minco-dev-artifacts-unique \
+# Create an unexecuted change set using a reviewed, enabled target catalog.
+# Its artifact bucket must already exist.
+MINCO_DEPLOY_PHASE=changeset \
+MINCO_DEPLOY_TARGET_CONFIG=path/to/reviewed-deployment-targets.toml \
 MINCO_RELEASE_MANIFEST=target/minco/release.json \
 MINCO_AWS_RUN_ID=reviewed-run-id \
-MINCO_AWS_EXECUTE_CHANGESET=yes \
-AWS_REGION=ap-southeast-2 \
+MINCO_APPROVE_RELEASE_DIGEST="$(
+  jq -er '.release_digest' target/minco/release.json
+)" \
+./scripts/aws/deploy.sh
+
+# Inspect the change-set receipt, then apply that exact review only after the
+# migration above succeeded.
+MINCO_DEPLOY_PHASE=apply \
+MINCO_DEPLOY_TARGET_CONFIG=path/to/reviewed-deployment-targets.toml \
+MINCO_RELEASE_MANIFEST=target/minco/release.json \
+MINCO_AWS_RUN_ID=reviewed-run-id \
+MINCO_CHANGESET_RECEIPT=target/minco/aws/reviewed-run-id/change-set-receipt.json \
+MINCO_MIGRATION_PLAN=target/minco/orders-postgres-plan.json \
+MINCO_MIGRATION_RECEIPT=target/minco/orders-postgres-receipt.json \
+MINCO_APPROVE_CHANGESET_DIGEST="$(
+  jq -er '.receipt_digest' \
+    target/minco/aws/reviewed-run-id/change-set-receipt.json
+)" \
 ./scripts/aws/deploy.sh
 ```
 
 See [`database-lifecycle.md`](database-lifecycle.md) for target status,
 destructive-risk gates, locking, verification and receipt semantics.
 
-`deploy.sh` never builds or replans. It verifies the release, refuses an
-existing stack or artifact bucket, creates a blocked and encrypted temporary S3
-bucket, asks SAM to create but not execute a change set, retains the change-set
-description, requires an explicit execution acknowledgement, and then executes
-that exact create-only change set.
+`deploy.sh` never builds or replans and no longer provisions lifecycle
+infrastructure. Its `changeset` phase delegates to the guarded controller and
+stops after writing an immutable, redacted review receipt. Its separate `apply`
+phase requires that receipt's exact digest plus the exact migration plan and
+successful receipt. The controller rechecks caller identity, stack state,
+drift, source and the provider change set before execution. A completed stack
+is not hosted runtime proof; the deployment receipt remains pending until the
+hosted verification phase.
 
 For the disposable development proof, use:
 

@@ -27,3 +27,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0021](adrs/0021-database-migration-lifecycle.md) | Plan, inspect, apply and verify attributable SQLx migration sets through digest-bound commands and durable receipts. | Accepted |
 | [ADR-0022](adrs/0022-classified-safe-seeders.md) | Plan and apply classified, preservation-aware seed sets with environment gates, read-only verification and durable receipts. | Accepted |
 | [ADR-0023](adrs/0023-graph-driven-development-supervisor.md) | Derive one inspectable local DevPlan and supervise declared services and process groups through `cargo minco dev`. | Accepted |
+| [ADR-0024](adrs/0024-guarded-cloudformation-controller.md) | Separate immutable CloudFormation review from exact apply behind current environment, drift, migration and digest approvals. | Accepted |

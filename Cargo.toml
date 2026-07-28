@@ -7,6 +7,7 @@ members = [
   "crates/minco-dev",
   "crates/minco-core",
   "crates/minco-contract",
+  "crates/minco-deploy-aws",
   "crates/minco-plan",
   "crates/minco-release",
   "crates/minco-http",
@@ -41,6 +42,7 @@ default-members = [
   "crates/minco-dev",
   "crates/minco-core",
   "crates/minco-contract",
+  "crates/minco-deploy-aws",
   "crates/minco-plan",
   "crates/minco-release",
   "crates/minco-http",
@@ -145,6 +147,7 @@ minco-db = { version = "0.3.1", path = "crates/minco-db" }
 minco-dev = { version = "0.3.1", path = "crates/minco-dev" }
 minco-core = { version = "0.3.1", path = "crates/minco-core" }
 minco-contract = { version = "0.3.1", path = "crates/minco-contract" }
+minco-deploy-aws = { version = "0.3.1", path = "crates/minco-deploy-aws" }
 minco-plan = { version = "0.3.1", path = "crates/minco-plan" }
 minco-release = { version = "0.3.1", path = "crates/minco-release" }
 minco-http = { version = "0.3.1", path = "crates/minco-http" }
@@ -204,6 +207,7 @@ publish = [
   "minco-contract",
   "minco-http",
   "minco-release",
+  "minco-deploy-aws",
   "minco-test",
   "minco-plan",
   "minco-plugin-health",

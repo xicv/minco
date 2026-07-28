@@ -887,6 +887,7 @@ dependencies = [
  "minco-contract",
  "minco-core",
  "minco-db",
+ "minco-deploy-aws",
  "minco-dev",
  "minco-plan",
  "minco-plugin-feedback",
@@ -2310,6 +2311,19 @@ dependencies = [
 name = "minco-db"
 version = "0.3.1"
 dependencies = [
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
+name = "minco-deploy-aws"
+version = "0.3.1"
+dependencies = [
+ "minco-release",
  "serde",
  "serde_json",
  "sha2 0.10.9",

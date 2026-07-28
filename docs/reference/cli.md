@@ -89,6 +89,12 @@ paths, safety defaults, and app-owned stub customization.
 ```text
 cargo minco deploy plan [--config PATH] [--output PATH]
 cargo minco deploy render-sam [--config PATH] [--output PATH]
+cargo minco deploy changeset [--target-config PATH] [--environment ENV]
+  [--manifest target/PATH] [--output target/PATH]
+  --approve-release-digest SHA256
+cargo minco deploy apply [--changeset target/PATH]
+  [--migration-plan target/PATH] [--migration-receipt target/PATH]
+  [--receipt target/PATH] --approve-changeset-digest SHA256
 cargo minco cost [--config PATH]
 cargo minco perf [--config PATH]
 ```
@@ -98,6 +104,17 @@ Schema 1 retains the API-only topology. Schema 2 requires one explicit
 `http_api` function/trigger and can add worker functions, queues, SQS mappings,
 DLQs and reviewed schedules. `render-sam` assigns the artifact URI for every
 function and emits only resources present in the plan.
+
+`changeset` verifies the exact release/source and the reviewed account, Region,
+environment, role, stack state and drift before packaging artifacts into a
+pre-existing bucket. It creates an unexecuted provider change set and writes a
+digest-sealed, value-redacted receipt classifying additions, modifications,
+replacements and deletions. `apply` is deliberately separate: it requires that
+receipt's exact digest, a matching migration plan and a successful migration
+receipt, rechecks the live guards, and writes `started` deployment evidence
+before executing the exact change-set ARN. Infrastructure completion remains
+pending until hosted verification advances the deployment receipt. Both
+commands support `--dry-run`; dry-run is local and non-contacting.
 
 `inspect --json` includes the full deployment projection. `explain
 <operationId> --json` identifies the HTTP deployment function and trigger for

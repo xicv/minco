@@ -12,6 +12,7 @@
       "minco-contract",
       "minco-http",
       "minco-release",
+      "minco-deploy-aws",
       "minco-test",
       "minco-plan",
       "minco-plugin-health",
@@ -37,8 +38,8 @@
       "minco-contract"
     ],
     "workspace_version": "0.3.1",
-    "workspace_packages": 32,
-    "publishable_packages": 27,
+    "workspace_packages": 33,
+    "publishable_packages": 28,
     "private_packages": 5,
     "publishable_names": [
       "cargo-minco",
@@ -50,6 +51,7 @@
       "minco-contract",
       "minco-core",
       "minco-db",
+      "minco-deploy-aws",
       "minco-dev",
       "minco-http",
       "minco-plan",

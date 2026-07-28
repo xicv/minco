@@ -49,3 +49,12 @@ by a success, and success is invalid without repository-relative verification
 evidence. Migration and seed bindings include both the catalog/plan digests and
 the exact plan file. Receipts contain no credentials, database URLs, secret
 values, or authorization headers.
+
+CloudFormation review is a separate immutable boundary. `cargo minco deploy
+changeset` binds the provider preview, packaged template, exact release,
+reviewed target and drift evidence without executing it. `cargo minco deploy
+apply` requires the exact review-receipt digest plus successful migration
+evidence, rechecks live guards, and persists the deployment receipt before
+executing the exact change-set ARN. Successful infrastructure apply leaves the
+receipt in `started`; hosted verification owns the eventual `succeeded`
+transition, while execution or wait errors write terminal `failed`.
