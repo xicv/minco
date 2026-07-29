@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "d4ce972a46c07ce3e96e6883b97d024d64e51d4657df533f50526473865967bf",
-      "size_bytes": 43750
+      "sha256": "ada1d7075754f24975520cf73c5d6824b2fb46f8f833556d504d3bb8b48f0bd6",
+      "size_bytes": 45581
     },
     {
       "path": "config/jj/repo.toml",
@@ -204,8 +204,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "a79263043e4b0eee8d831d7433933f69fa0eca82398164f10490201573591fea",
-      "size_bytes": 155250
+      "sha256": "05c537b49d3919baaa8a572d3341854b3fddab84f9f93bf6d457621cb8396548",
+      "size_bytes": 155321
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -824,13 +824,13 @@
     },
     {
       "path": "crates/minco-deploy-aws/src/lib.rs",
-      "sha256": "55164ddaeaee228e0769b5ecbe2786525ccbf0664e6e52b829751f1cf6982ecd",
-      "size_bytes": 69387
+      "sha256": "033f53a6ac965ab782dcb5d77d2d798f0bbedf72c79b2ee45886a0274186825d",
+      "size_bytes": 69973
     },
     {
       "path": "crates/minco-deploy-aws/tests/cloudformation.rs",
-      "sha256": "98526dfc6bd97665521d9a7e76181538431f9c4e7c0764e60afd58423543a0fe",
-      "size_bytes": 4062
+      "sha256": "e2a4aa43eee4330c28e1f6741b987f17ffd590883b871adefe2a17fbbe4c6da5",
+      "size_bytes": 5738
     },
     {
       "path": "crates/minco-deploy-aws/tests/hosted_verification.rs",
@@ -844,8 +844,8 @@
     },
     {
       "path": "crates/minco-deploy-aws/tests/receipt.rs",
-      "sha256": "b419814a62103888925bbd56f9ff5a0b1c18a691ca541dd437fcbfb3501721ee",
-      "size_bytes": 3955
+      "sha256": "e10ba4bd42ca658f6e2052ca5f259bf5e01983c6bd1431e214c5173a9f0816ff",
+      "size_bytes": 4004
     },
     {
       "path": "crates/minco-deploy-aws/tests/review.rs",
@@ -1209,8 +1209,8 @@
     },
     {
       "path": "docs/adrs/0024-guarded-cloudformation-controller.md",
-      "sha256": "d848addda943fb77e4e6271259dcf8dcb9ab473a81634ebe764bbf2af3577d9b",
-      "size_bytes": 4815
+      "sha256": "828627938bb7ed32a5c53033cc0eb11dd42a31564933af2e617185b15329ac34",
+      "size_bytes": 5188
     },
     {
       "path": "docs/adrs/0025-zero-provisioned-compute-review-loop.md",
@@ -2364,8 +2364,8 @@
     },
     {
       "path": "scripts/aws/cleanup.sh",
-      "sha256": "f0bec88f7e7c1d2efd55e74cc711c8180b291421fb3456e3fedc6d0fbc933f90",
-      "size_bytes": 19906
+      "sha256": "1578388745b0f91a527172c231fec15b37f1f1864931dea4ad6e280ea99bbb4a",
+      "size_bytes": 21311
     },
     {
       "path": "scripts/aws/create-smoke-identity.sh",
@@ -2389,8 +2389,8 @@
     },
     {
       "path": "scripts/aws/lib/common.sh",
-      "sha256": "8b2e57235b1fb72802486f461e0183528c4bcc2a50967031012e1b6f068383c7",
-      "size_bytes": 7034
+      "sha256": "222d96cfebfe9f63f2bf2207bc6b93062dc0d9b542e1626d6f9aae36d151b858",
+      "size_bytes": 7926
     },
     {
       "path": "scripts/aws/plan.sh",
@@ -2534,8 +2534,8 @@
     },
     {
       "path": "scripts/test/aws_shell_portability.sh",
-      "sha256": "a1813ca4df6f809619445da91ca4588ddb3f436662569149bf0f2f467239e6cd",
-      "size_bytes": 3243
+      "sha256": "4715f8760b47e62af11c54caeb00c89642e80ffefea2177162c21135104a6a25",
+      "size_bytes": 5361
     },
     {
       "path": "scripts/test/deep_review_exclusions.py",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "77bc9fdc17cd47d51908514bf7c9a1ea1416d3d57f0f1b7bc2e5dd97eed9c2b4",
-      "size_bytes": 8586
+      "sha256": "f941a856d8f4bb32ab4500d45fb0daa46505fa1aac14c48387af8950855a4681",
+      "size_bytes": 10309
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -2934,7 +2934,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "9d3e7a82430c66712b38f8184e0325044d423c98bb22cd52a71cb7cf08949cec",
+      "sha256": "2842cd134ec17bbf695ec4636a123c2fa6c9d7211163258dc29ddb1517401d07",
       "size_bytes": 1817
     },
     {
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "0216c9662fd00b3fb4a19d20c3e6f0d5bbe307fb3c0af7e91d15669a912b9e6c",
-  "total_size_bytes": 3606569,
+  "source_tree_sha256": "5ff1d379c6060219a2f95782bb3182e232dc7de47c01a4a737a425333395c559",
+  "total_size_bytes": 3617293,
   "version": "0.4.0"
 }

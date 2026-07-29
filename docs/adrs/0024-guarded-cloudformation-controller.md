@@ -27,6 +27,11 @@ references for
 [`get-caller-identity`](https://docs.aws.amazon.com/cli/latest/reference/sts/get-caller-identity.html)
 and
 [`sam package`](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-package.html).
+`CreateChangeSet` accepts `ChangeSetType`, but the documented
+`DescribeChangeSet` response does not return it. The controller therefore
+binds the provider response to the type established by its guarded stack-state
+inspection and rejects any optional provider value that contradicts that
+expected type.
 
 ## Decision
 
@@ -41,7 +46,8 @@ provider change classification and a digest-sealed change-set receipt.
    for clean drift on a stable existing stack;
 4. packages only the release-bound SAM template and artifacts;
 5. creates, but does not execute, a deterministic CloudFormation change set;
-6. classifies additions, ordinary modifications, replacements, deletions,
+6. binds the response to the already-guarded create/update type, then
+   classifies additions, ordinary modifications, replacements, deletions,
    imports and indeterminate/provider-sync actions while discarding parameter
    and property values;
 7. writes an immutable receipt binding the release, target configuration,

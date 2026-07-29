@@ -29,6 +29,31 @@ normalized_ssm_parameter_name() {
     "$parameter_name" != */ ]]
 }
 
+bounded_review_stack_cleanup_is_authorized() {
+  local stack_description_path="$1"
+  local stack_resources_path="$2"
+  local stack_preflight_absence_path="$3"
+  local expected_stack_name="$4"
+  require_command jq
+
+  [[ -f "$stack_description_path" &&
+    -f "$stack_resources_path" &&
+    -f "$stack_preflight_absence_path" &&
+    "$(<"$stack_preflight_absence_path")" == "$expected_stack_name" ]] || return 1
+
+  jq -e \
+    --arg stack "$expected_stack_name" \
+    '(.Stacks | type == "array" and length == 1)
+     and .Stacks[0].StackName == $stack
+     and .Stacks[0].StackStatus == "REVIEW_IN_PROGRESS"
+     and ((.Stacks[0].Tags // null) | type == "array" and length == 0)' \
+    "$stack_description_path" >/dev/null &&
+    jq -e \
+      'has("StackResourceSummaries")
+       and (.StackResourceSummaries | type == "array" and length == 0)' \
+      "$stack_resources_path" >/dev/null
+}
+
 s3_tagged_create_configuration() {
   local region="$1"
   local run_id="$2"

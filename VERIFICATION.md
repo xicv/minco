@@ -140,6 +140,30 @@ qualification:
     string values. Its focused regression preserves comma-delimited values as
     strings, and AWS CLI `2.36.10` accepted the same shape with the
     non-contacting output-skeleton validator.
+12. the JSON-parameter correction passed PR-head manual run
+    [`30428780397`](https://github.com/xicv/minco/actions/runs/30428780397),
+    merged as exact `main`
+    `100ffa276163a2c02149321b2b7ffcc542edb4c5`, and passed the full local
+    suite, AWS/SAM validation and exact-main hosted run
+    [`30429829246`](https://github.com/xicv/minco/actions/runs/30429829246).
+    Authorised replacement run `20260729t071107z-approved` migrated and
+    verified its disposable private PostgreSQL database, built the 5,038,349
+    byte native ARM64 artifact and created the unexecuted application change
+    set. Parsing then stopped fail-closed because the real
+    `describe-change-set` response omitted `ChangeSetType`, which is create
+    input rather than a documented `DescribeChangeSet` response element. The
+    initial cleanup removed every application resource but refused the empty,
+    untagged `REVIEW_IN_PROGRESS` shell; after exact inspection proved one
+    unexecuted change set and zero stack resources, the change set and shell
+    were deleted. The RDS-managed secret subsequently reached
+    `ResourceNotFound`, and the repository verifiers produced all-true
+    application, database/VPC/secret and bootstrap-IAM receipts. The candidate
+    parser now requires the caller's already-guarded type and rejects an
+    optional contradictory provider value. Cleanup separately permits only an
+    exact preflight-absent, untagged `REVIEW_IN_PROGRESS` stack with zero
+    resources. Focused red/green tests cover the real missing-field shape,
+    contradiction rejection and cleanup refusal when preflight absence, review
+    status or zero-resource evidence is missing.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
@@ -294,11 +318,13 @@ schedules and other fixed/request dimensions remain explicit and bounded.
 
 The operator separately authorised the bounded live-AWS rehearsal and the
 irreversible exact tag, crates.io publication and GitHub release on 2026-07-29.
-The SSM-name and Cognito-tagging corrections passed exact-main local and hosted
-qualification. The subsequent live controller invocation found the
-CloudFormation parameter-encoding defect after database migration, then proved
-every run-owned application, database, VPC, secret and bootstrap-IAM resource
-absent. Until the JSON parameter correction is reviewed, merged, requalified
+The SSM-name, Cognito-tagging and JSON-parameter corrections passed exact-main
+local and hosted qualification. The subsequent live controller invocation
+reached a real unexecuted CloudFormation change set and exposed the documented
+absence of `ChangeSetType` from `DescribeChangeSet`, plus the cleanup
+controller's handling of an empty untagged review shell. Exact application,
+database, VPC, secret and bootstrap-IAM absence is proven. Until the guarded
+parser and review-shell cleanup corrections are reviewed, merged, requalified
 and the replacement live rehearsal passes with cleanup proof, the release
 verdict remains `live_deployment_gate_blocked`. No tag or registry upload has
 occurred.

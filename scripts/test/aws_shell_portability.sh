@@ -23,6 +23,60 @@ for parameter_name in \
   fi
 done
 
+review_fixture_dir="$(mktemp -d)"
+cleanup_review_fixture() {
+  rm -r -- "$review_fixture_dir"
+}
+trap cleanup_review_fixture EXIT
+printf '%s\n' minco-smoke-test >"$review_fixture_dir/stack-preflight-absent.txt"
+printf '%s\n' \
+  '{"Stacks":[{"StackName":"minco-smoke-test","StackStatus":"REVIEW_IN_PROGRESS","Tags":[]}]}' \
+  >"$review_fixture_dir/stack.json"
+printf '%s\n' '{"StackResourceSummaries":[]}' >"$review_fixture_dir/resources.json"
+
+if ! bounded_review_stack_cleanup_is_authorized \
+  "$review_fixture_dir/stack.json" \
+  "$review_fixture_dir/resources.json" \
+  "$review_fixture_dir/stack-preflight-absent.txt" \
+  minco-smoke-test; then
+  printf 'rejected an exact empty run-created review stack\n' >&2
+  exit 1
+fi
+
+printf '%s\n' \
+  '{"StackResourceSummaries":[{"LogicalResourceId":"KeepMe"}]}' \
+  >"$review_fixture_dir/resources.json"
+if bounded_review_stack_cleanup_is_authorized \
+  "$review_fixture_dir/stack.json" \
+  "$review_fixture_dir/resources.json" \
+  "$review_fixture_dir/stack-preflight-absent.txt" \
+  minco-smoke-test; then
+  printf 'authorized review-stack cleanup with a resource present\n' >&2
+  exit 1
+fi
+printf '%s\n' '{"StackResourceSummaries":[]}' >"$review_fixture_dir/resources.json"
+printf '%s\n' minco-smoke-other >"$review_fixture_dir/stack-preflight-absent.txt"
+if bounded_review_stack_cleanup_is_authorized \
+  "$review_fixture_dir/stack.json" \
+  "$review_fixture_dir/resources.json" \
+  "$review_fixture_dir/stack-preflight-absent.txt" \
+  minco-smoke-test; then
+  printf 'authorized review-stack cleanup with mismatched preflight evidence\n' >&2
+  exit 1
+fi
+printf '%s\n' minco-smoke-test >"$review_fixture_dir/stack-preflight-absent.txt"
+printf '%s\n' \
+  '{"Stacks":[{"StackName":"minco-smoke-test","StackStatus":"CREATE_COMPLETE","Tags":[]}]}' \
+  >"$review_fixture_dir/stack.json"
+if bounded_review_stack_cleanup_is_authorized \
+  "$review_fixture_dir/stack.json" \
+  "$review_fixture_dir/resources.json" \
+  "$review_fixture_dir/stack-preflight-absent.txt" \
+  minco-smoke-test; then
+  printf 'authorized cleanup of an untagged non-review stack\n' >&2
+  exit 1
+fi
+
 python3 - <<'PY'
 import json
 from pathlib import Path

@@ -1,4 +1,25 @@
-use minco_deploy_aws::{ChangeAction, CloudFormationChangeSet, Replacement};
+use minco_deploy_aws::{ChangeAction, ChangeSetType, CloudFormationChangeSet, Replacement};
+
+#[test]
+fn provider_change_set_uses_guarded_type_when_describe_omits_it() {
+    let provider_json = r#"
+    {
+      "ChangeSetName": "minco-orders-reviewed",
+      "ChangeSetId": "arn:aws:cloudformation:ap-southeast-2:111122223333:changeSet/minco-orders-reviewed/abc",
+      "StackId": "arn:aws:cloudformation:ap-southeast-2:111122223333:stack/minco-orders/def",
+      "StackName": "minco-orders",
+      "Status": "CREATE_COMPLETE",
+      "ExecutionStatus": "AVAILABLE",
+      "Changes": []
+    }
+    "#;
+
+    let change_set =
+        CloudFormationChangeSet::from_aws_json(provider_json.as_bytes(), ChangeSetType::Create)
+            .expect("provider response without a change-set type");
+
+    assert_eq!(change_set.change_set_type, ChangeSetType::Create);
+}
 
 #[test]
 fn provider_change_set_is_fully_classified_without_parameter_or_property_values() {
@@ -89,8 +110,9 @@ fn provider_change_set_is_fully_classified_without_parameter_or_property_values(
     }
     "#;
 
-    let change_set = CloudFormationChangeSet::from_aws_json(provider_json.as_bytes())
-        .expect("provider response");
+    let change_set =
+        CloudFormationChangeSet::from_aws_json(provider_json.as_bytes(), ChangeSetType::Update)
+            .expect("provider response");
 
     assert_eq!(change_set.review.additions[0].logical_id, "OrdersApi");
     assert_eq!(
@@ -127,4 +149,30 @@ fn provider_change_set_is_fully_classified_without_parameter_or_property_values(
     ] {
         assert!(!output.contains(sensitive), "{sensitive} escaped");
     }
+}
+
+#[test]
+fn provider_change_set_rejects_a_type_that_contradicts_the_guarded_state() {
+    let provider_json = r#"
+    {
+      "ChangeSetName": "minco-orders-reviewed",
+      "ChangeSetId": "arn:aws:cloudformation:ap-southeast-2:111122223333:changeSet/minco-orders-reviewed/abc",
+      "StackId": "arn:aws:cloudformation:ap-southeast-2:111122223333:stack/minco-orders/def",
+      "StackName": "minco-orders",
+      "ChangeSetType": "UPDATE",
+      "Status": "CREATE_COMPLETE",
+      "ExecutionStatus": "AVAILABLE",
+      "Changes": []
+    }
+    "#;
+
+    let error =
+        CloudFormationChangeSet::from_aws_json(provider_json.as_bytes(), ChangeSetType::Create)
+            .expect_err("provider type must not override the guarded stack state");
+
+    assert!(
+        error
+            .to_string()
+            .contains("contradicts guarded type Create")
+    );
 }

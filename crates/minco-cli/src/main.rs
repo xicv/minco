@@ -1147,7 +1147,8 @@ fn create_promotion_change_set(
             "json".into(),
         ],
     )?;
-    CloudFormationChangeSet::from_aws_json(&described.stdout).map_err(Into::into)
+    CloudFormationChangeSet::from_aws_json(&described.stdout, ChangeSetType::Update)
+        .map_err(Into::into)
 }
 
 async fn dev(root: &Path, manifest: &MincoManifest, args: DevArgs, as_json: bool) -> Result<()> {
@@ -2326,7 +2327,7 @@ fn create_change_set(
             "json".into(),
         ],
     )?;
-    let change_set = CloudFormationChangeSet::from_aws_json(&described.stdout)?;
+    let change_set = CloudFormationChangeSet::from_aws_json(&described.stdout, change_set_type)?;
     if change_set.change_set_type != change_set_type {
         bail!("provider change-set type did not match the guarded stack state");
     }
@@ -2885,7 +2886,8 @@ fn apply_verified_change_set(
             "json".into(),
         ],
     )?;
-    let current_change_set = CloudFormationChangeSet::from_aws_json(&described.stdout)?;
+    let current_change_set =
+        CloudFormationChangeSet::from_aws_json(&described.stdout, current_type)?;
     if current_change_set != verified.change_set.change_set
         || current_type != current_change_set.change_set_type
     {

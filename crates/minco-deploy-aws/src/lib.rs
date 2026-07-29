@@ -170,6 +170,13 @@ pub enum ChangeReviewError {
     UnexpectedReplacement(String),
     #[error("change-set entry has unsupported type {0}")]
     UnsupportedChangeType(String),
+    #[error(
+        "CloudFormation change-set response type {actual:?} contradicts guarded type {expected:?}"
+    )]
+    UnexpectedChangeSetType {
+        expected: ChangeSetType,
+        actual: ChangeSetType,
+    },
     #[error("CloudFormation change-set response is invalid: {0}")]
     ProviderJson(#[from] serde_json::Error),
 }
@@ -220,8 +227,19 @@ pub struct CloudFormationChangeSet {
 }
 
 impl CloudFormationChangeSet {
-    pub fn from_aws_json(source: &[u8]) -> Result<Self, ChangeReviewError> {
+    pub fn from_aws_json(
+        source: &[u8],
+        expected_change_set_type: ChangeSetType,
+    ) -> Result<Self, ChangeReviewError> {
         let provider: ProviderChangeSet = serde_json::from_slice(source)?;
+        if let Some(actual) = provider.change_set_type.map(Into::into)
+            && actual != expected_change_set_type
+        {
+            return Err(ChangeReviewError::UnexpectedChangeSetType {
+                expected: expected_change_set_type,
+                actual,
+            });
+        }
         let changes = provider
             .changes
             .into_iter()
@@ -252,7 +270,7 @@ impl CloudFormationChangeSet {
             change_set_id: provider.change_set_id,
             stack_id: provider.stack_id,
             stack_name: provider.stack_name,
-            change_set_type: provider.change_set_type.into(),
+            change_set_type: expected_change_set_type,
             status: provider.status.into(),
             execution_status: provider.execution_status.into(),
             review: ChangeSetReview::classify(changes)?,
@@ -1288,7 +1306,7 @@ struct ProviderChangeSet {
     change_set_id: String,
     stack_id: String,
     stack_name: String,
-    change_set_type: ProviderChangeSetType,
+    change_set_type: Option<ProviderChangeSetType>,
     status: ProviderChangeSetStatus,
     execution_status: ProviderExecutionStatus,
     #[serde(default)]
