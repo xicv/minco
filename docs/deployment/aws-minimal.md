@@ -52,6 +52,12 @@ reserved release identity tags. `MincoEnvironment`, `MincoReleaseId`,
 `MincoReleaseDigest` and the `aws:` prefix are reserved; target tags are limited
 to the remaining 47 CloudFormation tag slots.
 
+CloudFormation may add its own `aws:cloudformation:stack-name`,
+`aws:cloudformation:stack-id` and `aws:cloudformation:logical-id` tags to
+supported resources. Those provider-owned keys are not target configuration:
+the bounded rehearsal accounts for them only in its exact API Gateway stage
+tagging permission.
+
 ```toml
 [environments.dev]
 # ...reviewed account, Region, role, stack, bucket and parameter names...

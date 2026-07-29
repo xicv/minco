@@ -33,6 +33,12 @@ binds the provider response to the type established by its guarded stack-state
 inspection and rejects any optional provider value that contradicts that
 expected type.
 
+CloudFormation also propagates three provider-owned tags to supported
+resources: `aws:cloudformation:stack-name`, `aws:cloudformation:stack-id` and
+`aws:cloudformation:logical-id`. A bounded `aws:TagKeys` policy must account
+for those keys without allowing target configuration to set arbitrary
+provider-reserved tags.
+
 ## Decision
 
 `minco-deploy-aws` owns strict deployment-target parsing, environment guards,
@@ -98,4 +104,7 @@ errors are bounded, provider response values are discarded, all AWS calls use
 the exact configured Region, and source identity is rechecked immediately
 before mutation. No command claims that a change set, drift result or completed
 stack proves application correctness. Target stack tags cannot replace Minco's
-reserved release tags or use the provider-reserved `aws:` prefix.
+reserved release tags or use the provider-reserved `aws:` prefix. The bounded
+AWS rehearsal permits CloudFormation's three automatic system-tag keys only
+for the exact stage-tagging action, resource collection, caller chain and
+run-owned tag values.

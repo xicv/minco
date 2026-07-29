@@ -15,20 +15,23 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-Exact merged `main` `13be9b0a8d99281c98fec880b8d275a59c7499f9`
-passed the full local suite, AWS/SAM validation and manual hosted run
-`30434365889`. Authorised live run `20260729t082616z-approved` proved the
-private PostgreSQL migration, native ARM64 artifact, sealed release and real
-change-set parser, then failed during application stack creation because the
-change set omitted the run-ownership tags required by the bounded API Gateway
-stage policy. Rollback and an exact manual cleanup removed all run resources;
-a cross-service absence sweep passed.
+Exact merged `main` `8dcc49e2cefec1b9a043da5ae50161ae1e2431d1`
+passed the full local suite, AWS Plan/SAM validation and manual hosted run
+`30440072120`. Authorised live run `20260729t094817z-approved` proved the
+private PostgreSQL migration, native ARM64 artifact, sealed release and exact
+run-owned stack tags. API Gateway stage tagging still failed because
+CloudFormation's three automatic `aws:cloudformation:*` keys were absent from
+the bounded `aws:TagKeys` allowlist. AWS IAM simulation reproduced the
+`implicitDeny` and proved that adding only those keys makes the exact request
+`allowed`. Rollback and the exact cleanup verifiers produced all-true
+application, database/VPC/secret and bootstrap-IAM receipts.
 
-The current unmerged correction makes validated target stack tags part of the
-deterministic change-set input and binds the bounded smoke tags to the IAM and
-cleanup contract. The authoritative local suite, AWS Plan/SAM validation,
-ShellCheck and non-contacting AWS CLI validation pass. Hosted qualification,
-replacement live AWS proof, exact tag creation and crates.io publication
-remain separate pending gates. Current and historical command evidence is
-maintained in `VERIFICATION.md`; Feedback-specific architecture evidence
-remains in `FEEDBACK_REVIEW_STATUS.md`.
+The current unmerged correction narrows the stage action to API Gateway V2's
+documented tagging IAM action, `apigateway:POST`, and admits only the three
+provider-owned CloudFormation keys while retaining the exact resource,
+call-chain and run-tag value guards. The focused shell regression passes. Full
+local qualification, hosted qualification, replacement live AWS proof, exact
+tag creation and crates.io publication remain separate pending gates. Current
+and historical command evidence is maintained in `VERIFICATION.md`;
+Feedback-specific architecture evidence remains in
+`FEEDBACK_REVIEW_STATUS.md`.

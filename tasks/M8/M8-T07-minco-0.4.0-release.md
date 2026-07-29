@@ -236,3 +236,25 @@ The authoritative local suite, AWS Plan/SAM validation, ShellCheck and AWS CLI
 non-contacting shape gates pass. Hosted qualification, a replacement live
 rehearsal, tag and registry publication remain blocked pending exact-head merge
 and requalification.
+
+That correction passed exact PR-head hosted run
+[`30438686783`](https://github.com/xicv/minco/actions/runs/30438686783), merged
+as `8dcc49e2cefec1b9a043da5ae50161ae1e2431d1`, and passed the full local
+suite, AWS Plan/SAM validation and exact-main hosted run
+[`30440072120`](https://github.com/xicv/minco/actions/runs/30440072120).
+Authorised replacement run `20260729t094817z-approved` proved the run tags,
+private PostgreSQL migration, native ARM64 artifact and exact-source sealed
+release, then failed API Gateway stage tagging because CloudFormation's
+automatic `aws:cloudformation:stack-name`, `aws:cloudformation:stack-id` and
+`aws:cloudformation:logical-id` keys were absent from the bounded
+`aws:TagKeys` allowlist. AWS IAM simulation reproduced `implicitDeny` with the
+real key set and `allowed` after adding only those keys. The exact cleanup
+verifiers subsequently produced all-true application,
+database/VPC/secret and bootstrap-IAM receipts.
+
+The candidate correction names only API Gateway V2's documented tagging IAM
+action, `apigateway:POST`, and permits only those three provider-owned keys in
+addition to the already reviewed run, release and SAM keys. The exact stage
+collection ARN, CloudFormation caller chain and run-tag values remain
+mandatory. A replacement live rehearsal, tag and registry publication remain
+blocked pending merge and exact-main requalification.
