@@ -50,8 +50,14 @@ not substitute for those gates.
 
 `.github/workflows/minco-manual.yml` is deliberately `workflow_dispatch` only.
 It does not run until a maintainer explicitly invokes it. The workflow installs
-the exact uv release and locked Python dependency group used locally. This avoids
-making hosted CI a prerequisite while retaining a reproducible runner config.
+the exact uv release and locked Python dependency group used locally. It also
+pins Cargo Lambda, builds both native ARM64 Lambda ZIPs, and runs deterministic
+Plan/SAM validation without AWS credentials or provider calls. This avoids
+making hosted CI a prerequisite while retaining a reproducible runner config;
+it does not replace the separately authorised bounded real-AWS smoke gate.
+The Lambda build helpers normalize the Cargo Lambda ZIP timestamp, permissions
+and entry order and reject unexpected entries so exact-artifact digests are
+reproducible when the compiled binaries are byte-identical.
 
 ## Evidence
 

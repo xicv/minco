@@ -35,9 +35,13 @@
       "cargo-minco"
     ],
     "package_test_packages": [
-      "minco-contract"
+      "minco-config",
+      "minco-contract",
+      "minco-db",
+      "minco-deploy-aws",
+      "minco-dev"
     ],
-    "workspace_version": "0.3.1",
+    "workspace_version": "0.4.0",
     "workspace_packages": 33,
     "publishable_packages": 28,
     "private_packages": 5,

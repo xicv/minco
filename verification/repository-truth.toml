@@ -1,5 +1,5 @@
 schema = 1
-workspace_version = "0.3.1"
+workspace_version = "0.4.0"
 published_baseline = "0.3.1"
 published_package_count = 24
 adoption_gate_task = "M6-T07"
@@ -8,6 +8,12 @@ adoption_gate_task = "M6-T07"
 # adds minco-config, minco-db, minco-dev and minco-deploy-aws as candidates for
 # the next coordinated minor release.
 publishable_package_count = 28
+new_publishable_packages = [
+  "minco-config",
+  "minco-db",
+  "minco-dev",
+  "minco-deploy-aws",
+]
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760

@@ -9,7 +9,8 @@ flowchart LR
     NM10T03["M10-T03<br/>Add hosted verification and exact-artifact promotion"]
     NM10T04["M10-T04<br/>Add rollback compatibility and optional canary aliases"]
     NM10T05["M10-T05<br/>Complete static-site and custom-domain deployment"]
-    NM10T06["M10-T06<br/>Add preview environment TTL cost and cleanup"]
+    NM10T06["M10-T06<br/>Add Verified Review Loop preview lifecycle and cleanup"]
+    NM10T07["M10-T07<br/>Research zero-idle AWS profiles and cost evidence"]
     NM11T01["M11-T01<br/>Build the versioned Diataxis documentation site"]
     NM11T02["M11-T02<br/>Define the plugin distribution manifest"]
     NM11T03["M11-T03<br/>Publish one plugin conformance kit"]
@@ -48,6 +49,7 @@ flowchart LR
     NM8T04["M8-T04<br/>Make cargo-minco documentation build on docs.rs"]
     NM8T05["M8-T05<br/>Publish Minco 0.1.1 with cargo-minco docs.rs support"]
     NM8T06["M8-T06<br/>Publish Minco 0.3.1 text-only and SQLx isolation patch"]
+    NM8T07["M8-T07<br/>Prepare the Minco 0.4.0 source and package boundary"]
     NM9T01["M9-T01<br/>Define the framework-completion golden path and documentation map"]
     NM9T02["M9-T02<br/>Add a typed environment and secret-reference graph"]
     NM9T03["M9-T03<br/>Add database status plan migrate and verification"]
@@ -68,6 +70,7 @@ flowchart LR
     NM10T03 --> NM10T05
     NM10T02 --> NM10T06
     NM10T05 --> NM10T06
+    NM10T03 --> NM10T07
     NM9T07 --> NM11T01
     NM10T03 --> NM11T01
     NM9T04 --> NM11T02
@@ -130,6 +133,8 @@ flowchart LR
     NM8T04 --> NM8T05
     NM6T08 --> NM8T06
     NM6T09 --> NM8T06
+    NM9T07 --> NM8T07
+    NM10T03 --> NM8T07
     NM6T09 --> NM9T01
     NM6T10 --> NM9T02
     NM9T01 --> NM9T02

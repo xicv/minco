@@ -5,9 +5,17 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.4.0] - 2026-07-28
+
 ### Added
 
-- Added the publishable provider-neutral `minco-config` crate, strict
+- Added four publishable crates: provider-neutral `minco-config`, database
+  lifecycle `minco-db`, local supervisor `minco-dev`, and guarded provider
+  controller `minco-deploy-aws`. The lock-step family grows from 24 to 28
+  packages.
+- Added strict
   application/enabled-plugin schemas, fixed environment precedence, opaque
   `env:`/`ssm:` secret references, redacted provenance and diff, deterministic
   effective digests, typed constructor deserialization, and `cargo minco
@@ -18,12 +26,45 @@ Semantic Versioning once public releases begin.
   performance and SAM projections.
 - Added generic API-only, standard/FIFO worker, redrive, schedule and DynamoDB
   fixtures with stable validation and migration-rejection coverage.
+- Added digest-bound database migration status/plan/lock/apply/verify receipts
+  and classified, preservation-aware seed plans for `reference`, `demo`, `test`
+  and explicitly authorised `bootstrap` data.
+- Added graph-derived `cargo minco dev` dry-run and supervision, selected
+  PostgreSQL/Rustack dependencies, bounded process groups and structured
+  lifecycle events.
+- Added contract-aware module, operation, migration, seeder, worker, adapter,
+  test and plugin generators plus app-owned stubs. Plans are deterministic,
+  existing/symlinked paths fail closed, and operation specifications start
+  failing rather than inventing business behavior.
+- Added `cargo minco contract diff` and `cargo minco upgrade report` for bounded
+  structural compatibility and redacted schema/feature inventory.
+- Added immutable application packaging, deployment receipts, guarded
+  CloudFormation change-set/apply phases, hosted contract/readiness/
+  authentication/smoke/artifact verification and exact-artifact promotion.
+- Defined zero provisioned application compute, residual cost classes/pricing
+  confidence, the repository-native Verified Review Loop and an explicit AWS
+  service doctrine.
 
 ### Changed
 
 - `cargo minco explain --json` now identifies an operation's deployment
   function/trigger, `cost --json` includes runtime resource dimensions, and
   `perf --json` reports every function artifact and available SHA-256.
+- The release manifest is schema 3 and binds configuration, migration and seed
+  digests in addition to source, OpenAPI, Plan, template, lockfile, toolchain
+  and artifact identity.
+- The deployment CLI now separates plan, change-set review, apply, hosted
+  verify and promote behind independent receipts and exact-digest approvals.
+- The M9 application-lifecycle milestone is complete in source. Rollback/
+  canary, static-site domains, review-environment cleanup and later ecosystem/
+  workbench programs remain deferred.
+
+### Fixed
+
+- Native Lambda packaging now normalizes ZIP entry timestamps, permissions and
+  order after Cargo Lambda builds. Repeated builds of byte-identical Orders and
+  SQS worker binaries therefore produce the same artifact digest, while
+  unexpected archive entries fail before replacement.
 
 ### Documentation
 
@@ -39,14 +80,17 @@ Semantic Versioning once public releases begin.
   dependency, timing, and Lambda artifact report.
 - Documented the trigger-aware Plan decision, schema 2 migration, explicit SQS
   worker constraints and unchanged minimal-idle default.
+- Added a dedicated `0.3.1` to `0.4.0` guide covering the four new crates,
+  schemas, configuration, database/dev/generator lifecycle, CLI and deferred
+  operational boundaries.
 
 ### Compatibility boundary
 
-The new public plan types, Plan schema 2 fields, configuration crate, typed
-configuration schema and CLI surface are a likely Minco `0.4.0` boundary.
-API-only Plan schema 1 configurations remain supported and their generated
-output is preserved where practical. No package version is changed or
-published by this implementation.
+The public plan types, Plan schema 2 fields, typed configuration and database
+schemas, package/release model and lifecycle/deployment CLI form the Minco
+`0.4.0` pre-1.0 minor boundary. API-only Plan schema 1 configurations remain
+supported. Source and package qualification do not prove merge, tag, crates.io
+publication, live AWS deployment or production promotion.
 
 ## [0.3.1] - 2026-07-27
 

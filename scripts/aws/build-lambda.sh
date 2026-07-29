@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+# shellcheck source=scripts/aws/lib/common.sh
+source scripts/aws/lib/common.sh
 command -v cargo-lambda >/dev/null || { echo 'cargo-lambda is required' >&2; exit 1; }
 cargo lambda build --release --arm64 --output-format zip \
-  -p orders-service --bin orders-lambda --no-default-features --features lambda
+  -p orders-service --bin orders-lambda --no-default-features --features lambda \
+  --locked
 artifact=target/lambda/orders-lambda/bootstrap.zip
 [[ -f "$artifact" ]] || { echo "missing $artifact" >&2; exit 1; }
 if [[ -n "${MINCO_RDS_CA_BUNDLE:-}" ]]; then
@@ -34,4 +37,5 @@ if [[ -n "${MINCO_RDS_CA_BUNDLE:-}" ]]; then
   cleanup_bundle
   trap - EXIT
 fi
+normalize_lambda_zip "$artifact"
 printf 'Built %s (%s bytes)\n' "$artifact" "$(wc -c < "$artifact")"

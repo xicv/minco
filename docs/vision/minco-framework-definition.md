@@ -3,7 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `0.3.1`
-Reviewed `main`: `cb6ffd702a65a59a3195caa64c3709a471b4c21f`
+Current source candidate: `0.4.0`
+Reviewed starting `main`: `12839f3e802b2e47bf9088c82787a8aa9b1ec93d`
 
 ## Product identity
 
@@ -18,12 +19,15 @@ capabilities, provider resources, cost, deployment, and verifiable evidence.
 
 The current classification is:
 
-> Architecture-complete enough for bounded adoption; application-lifecycle
-> incomplete.
+> Source-coherent through the guarded hosted-verification and exact-artifact
+> promotion boundary; live deployment rehearsal and later lifecycle/ecosystem
+> programs remain incomplete.
 
-The framework-completion program therefore prioritises one coherent path from a
-new contract to a safely deployed, observable, and upgradable application. It
-does not prioritise another unrelated official plugin.
+The framework-completion program still prioritises one coherent path from a new
+contract to a safely deployed, observable, and upgradable application. Source
+implementation through M10-T03 does not substitute for a live AWS rehearsal,
+rollback/canary, static-site domains, review-environment cleanup, a
+documentation product, multi-application adoption or the 1.0 freeze.
 
 ## The five-plane application graph
 
@@ -86,7 +90,9 @@ The framework-completion program preserves the accepted ADRs and
 7. The provider-neutral core does not depend on Axum, SQLx, Lambda, or cloud
    SDKs.
 8. The default AWS profile retains no NAT Gateway, fixed application compute,
-   provisioned concurrency, or scheduled wakeup.
+   provisioned concurrency, or scheduled wakeup. Zero provisioned application
+   compute never hides storage, retained-log, DNS, secret, database, request,
+   schedule or fixed dimensions.
 9. Production migrations remain explicit release operations.
 10. Promotion uses an already verified artifact and manifest; it never rebuilds.
 11. Provider correctness, wake sources, connection pressure, cost, and residual
@@ -96,24 +102,24 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current state at `0.3.1` | Completion direction |
+| Area | Current `0.4.0` source state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong | Distribution metadata and conformance |
-| OpenAPI contract | Strong constrained profile | Compatibility diff and operation generators |
+| OpenAPI contract | Strong constrained profile plus structural diff and operation generators | Measured adoption and compatibility freeze |
 | HTTP runtime | Strong | Adoption fixtures, not redesign |
-| PostgreSQL and SQLite | Strong foundations | Status, plan, lock, verify, and safe seeding |
-| Events and SQS worker | Runtime exists | Trigger-aware Plan IR and deployment topology |
+| PostgreSQL and SQLite | Status, digest plan, lock, apply, verify and classified seeds | Live application evidence and operational recipes |
+| Events and SQS worker | Trigger-aware Plan IR, SAM, local projection and bounded runtime | Live multi-runtime rehearsal |
 | Provider adapters | Broad and explicit | Operational recipes and evidence |
-| Feedback | Stable vertical slice | Maintain; do not let it dominate the roadmap |
-| Local infrastructure | Useful primitives | Graph-driven `cargo minco dev` |
-| Deployment Plan IR | API-only | API, workers, queues, DLQs, and explicit schedules |
-| Deployment controller | Scripted stages | Change sets, receipts, verify, promote, rollback |
-| Configuration | Plugin schemas plus environment files | Unified typed environment and secret-reference graph |
-| Migrations | One delegated apply command | Status, plan, drift, lock, apply, verify, receipt |
-| Seeders and fixtures | Not a framework primitive | Classified, idempotent, preservation-aware plans |
-| Generators | Project and plugin generation | Contract-aware vertical-slice generators |
-| Documentation | Substantial Markdown | Versioned Diátaxis product |
+| Feedback | Stable vertical slice and Verified Review Loop foundation | Optional review-environment/delivery trace |
+| Local infrastructure | Graph-driven `cargo minco dev` with supervised process groups | Broader generated-app adoption |
+| Deployment Plan IR | Schema 2 API, workers, queues, DLQs, mappings and schedules | Profile research and compatibility freeze |
+| Deployment controller | Exact release, change set, apply, receipts, hosted verify and promote | Live rehearsal, rollback/canary and static-site domains |
+| Configuration | Unified typed environment and opaque secret-reference graph | Measured application adoption |
+| Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
+| Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
+| Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
+| Documentation | Substantial checked Markdown and `0.4.0` upgrade guide | Versioned Diátaxis product |
 | AI support | Stable paths and JSON inspection | Local read-only MCP and optional workbench |
 | Compatibility | Pre-1.0 policy | Explicit public API and feature freeze |
 
@@ -294,8 +300,9 @@ Minco remains a lock-step pre-1.0 crate family while the golden path is built.
 - A breaking public Rust API, serialized Plan IR, CLI contract, feature
   boundary, or application configuration schema advances the left-most
   non-zero version component.
-- M6-T10 is expected to be a `0.4.0` boundary because it changes public
-  serialized planning structures and generated deployment output.
+- The work through M10-T03 is the `0.4.0` boundary because it changes public
+  serialized planning/configuration/release structures, package inventory and
+  the lifecycle/deployment CLI.
 - New Cargo features stay opt-in unless a separately reviewed default-surface
   decision proves the dependency and behavior impact.
 - Every significant public change includes a compatibility note, migration
