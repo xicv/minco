@@ -33,6 +33,7 @@ fn provider_change_set() -> CloudFormationChangeSet {
           }]
         }
         "#,
+        minco_deploy_aws::ChangeSetType::Create,
     )
     .expect("provider change set")
 }

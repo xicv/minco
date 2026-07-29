@@ -18,6 +18,7 @@ owned_paths:
   - REVIEW_STATUS.md
   - VERIFICATION.md
   - crates/minco-cli/src/main.rs
+  - crates/minco-deploy-aws/**
   - crates/minco-dev/tests/supervisor.rs
   - docs/**
   - extensions/minco-aws-adapters/README.md
@@ -25,6 +26,7 @@ owned_paths:
   - scripts/validate_static.py
   - scripts/aws/build-lambda.sh
   - scripts/aws/build-worker-lambda.sh
+  - scripts/aws/cleanup.sh
   - scripts/aws/lib/common.sh
   - scripts/aws/run-bounded-root-bootstrap.sh
   - scripts/quality.sh
@@ -182,3 +184,28 @@ focused regression and the AWS CLI `2.36.10` non-contacting output-skeleton
 validator preserve comma-delimited values as strings. The live replacement,
 tag and registry publication remain blocked pending merge and exact-main
 requalification.
+
+The JSON-parameter correction passed PR-head hosted run
+[`30428780397`](https://github.com/xicv/minco/actions/runs/30428780397), merged
+as exact `main` `100ffa276163a2c02149321b2b7ffcc542edb4c5`, and passed the
+full local suite, AWS/SAM validation and exact-main hosted run
+[`30429829246`](https://github.com/xicv/minco/actions/runs/30429829246).
+Authorised replacement run `20260729t071107z-approved` migrated and verified
+its disposable private PostgreSQL database, built the 5,038,349 byte native
+ARM64 artifact and created the application change set, then stopped
+fail-closed because the real `describe-change-set` response omitted
+`ChangeSetType`. That field is guarded create input and is not a documented
+`DescribeChangeSet` response element. Exact inspection also found an empty,
+untagged `REVIEW_IN_PROGRESS` shell that the tag-only cleanup guard correctly
+refused. The shell contained one unexecuted change set and zero resources; both
+were deleted, the RDS-managed secret reached `ResourceNotFound`, and the exact
+repository cleanup verifiers produced all-true application,
+database/VPC/secret and bootstrap-IAM receipts.
+
+The candidate parser requires the already-guarded expected type, uses it in the
+redacted immutable review and rejects an optional contradictory provider
+value. Cleanup may delete an untagged review shell only when the exact stack
+was proven absent before the run, remains in `REVIEW_IN_PROGRESS` and has zero
+resources. Focused red/green tests cover the real provider shape and every
+cleanup refusal boundary. A replacement live rehearsal, tag and registry
+publication remain blocked pending merge and exact-main requalification.

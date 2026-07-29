@@ -113,6 +113,8 @@ if aws_logged cloudformation describe-stacks \
   --stack-name "$MINCO_STACK_NAME" \
   --output json >"$MINCO_AWS_EVIDENCE_DIR/stack-before-cleanup.json" \
   2>"$stack_description_error"; then
+  stack_cleanup_authorized=false
+  stack_cleanup_detail=
   if jq -e \
     --arg stack "$MINCO_STACK_NAME" \
     --arg run_id "$MINCO_AWS_RUN_ID" \
@@ -125,8 +127,35 @@ if aws_logged cloudformation describe-stacks \
          and .["minco:run-id"] == $run_id
      )' \
     "$MINCO_AWS_EVIDENCE_DIR/stack-before-cleanup.json" >/dev/null; then
+    stack_cleanup_authorized=true
+    stack_cleanup_detail="delete exact tagged bounded stack $MINCO_STACK_NAME"
+  elif [[ -f "$MINCO_AWS_EVIDENCE_DIR/stack-preflight-absent.txt" &&
+    "$(<"$MINCO_AWS_EVIDENCE_DIR/stack-preflight-absent.txt")" == "$MINCO_STACK_NAME" ]] &&
+    jq -e \
+      --arg stack "$MINCO_STACK_NAME" \
+      '(.Stacks | type == "array" and length == 1)
+       and .Stacks[0].StackName == $stack
+       and .Stacks[0].StackStatus == "REVIEW_IN_PROGRESS"
+       and ((.Stacks[0].Tags // null) | type == "array" and length == 0)' \
+      "$MINCO_AWS_EVIDENCE_DIR/stack-before-cleanup.json" >/dev/null; then
+    stack_resources_path="$MINCO_AWS_EVIDENCE_DIR/stack-resources-before-cleanup.json"
+    if aws_logged cloudformation list-stack-resources \
+      "prove the run-created review stack has no resources before cleanup" \
+      --stack-name "$MINCO_STACK_NAME" \
+      --output json >"$stack_resources_path" &&
+      bounded_review_stack_cleanup_is_authorized \
+        "$MINCO_AWS_EVIDENCE_DIR/stack-before-cleanup.json" \
+        "$stack_resources_path" \
+        "$MINCO_AWS_EVIDENCE_DIR/stack-preflight-absent.txt" \
+        "$MINCO_STACK_NAME"; then
+      stack_cleanup_authorized=true
+      stack_cleanup_detail="delete exact empty run-created review stack $MINCO_STACK_NAME"
+    fi
+  fi
+
+  if [[ "$stack_cleanup_authorized" == true ]]; then
     aws_logged cloudformation delete-stack \
-      "delete exact tagged bounded stack $MINCO_STACK_NAME" \
+      "$stack_cleanup_detail" \
       --stack-name "$MINCO_STACK_NAME"
     if ! aws_logged cloudformation wait \
       "wait for bounded stack $MINCO_STACK_NAME deletion" \
@@ -135,7 +164,7 @@ if aws_logged cloudformation describe-stacks \
       failure=1
     fi
   else
-    echo "refusing to delete a stack without exact run ownership tags" >&2
+    echo "refusing to delete a stack without exact run ownership evidence" >&2
     failure=1
   fi
 elif ! grep -Eq 'does not exist' "$stack_description_error"; then
