@@ -370,3 +370,37 @@ Application cleanup is all true. After the delayed RDS-managed secret reached
 cleanup checks were independently consolidated in an all-true
 `final-cleanup.json`. Exact-head hosted qualification, merge, a replacement
 live rehearsal, tag and registry publication remain blocked.
+
+The first tagged-stage correction passed exact PR-head hosted run
+[`30466012186`](https://github.com/xicv/minco/actions/runs/30466012186) at
+`d7ffe82290ff2cfc215e737823e471226d661b56`, merged as
+`4bf245cae924e2d3c89d008cf291da8bf862cba4`, passed the full local suite and
+AWS Plan/SAM validation, and passed exact-main hosted run
+[`30467769879`](https://github.com/xicv/minco/actions/runs/30467769879).
+Authorised run `20260729t215737z-approved` migrated and verified its disposable
+PostgreSQL database over TLS `verify-full`, removed the local `/32`, proved the
+database private, passed S3 visibility on the first bounded attempt, and sealed
+exact-source release `minco.683d7abad93046f3b4476621` with digest
+`683d7abad93046f3b44766215f0ecea095bf9003e2fc4242b769db2f1deed30d`.
+It created an exact release-bound change-set receipt with digest
+`f32c48fb78964575188c2fe0035f053e0a4142d5e7030f08a19602284a209605`.
+
+Both API Gateway stage creates then failed. AWS reported the dependent
+`apigateway:TagResource` denial against the evaluated resource
+`arn:aws:apigateway:ap-southeast-2::/apis/iaqgnlnghl/stages`. Custom-policy
+simulation reproduced the mismatch: `POST` on the stage collection was
+allowed, but `PUT` on the same collection was `implicitDeny` because the
+candidate had placed it on the separate direct tagging API namespace
+`/tags/*`.
+
+The current correction puts both specialized methods on
+`/apis/*/stages`, retaining the three exact run-ownership request tags and
+closed ten-key allowlist. The focused regression failed before implementation
+and passes afterward. Simulation permits exact-tag `POST` and `PUT` on the
+stage collection; a wrong run ID, an extra tag key and direct `PUT` on
+`/tags/*` are `implicitDeny`. Access Analyzer reports no findings for both
+specialized statements. Application cleanup is all true; the second exact RDS
+cleanup verification confirms the delayed managed secret, database instance,
+stack, VPC, local secret files and synthetic data are absent. Bootstrap IAM
+and temporary local credentials are absent. Exact-head hosted qualification,
+merge, another live rehearsal, tag and registry publication remain blocked.

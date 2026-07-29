@@ -40,14 +40,15 @@ for those keys without allowing target configuration to set arbitrary
 provider-reserved tags.
 
 API Gateway V2 authorizes tagged stage creation with two permissions:
-`apigateway:POST` for the `/apis/${ApiId}/stages` collection and
-`apigateway:PUT` for the `/tags/*` tagging namespace. Its CloudFormation
-provider can report a dependent `TagResource` denial even though CloudTrail
-records only the tagged `CreateStage` request. The dependent authorization
-does not carry the CloudFormation `aws:CalledVia` context used by the generic
-mutation statement. Separate specialized statements therefore grant only the
-documented action/resource pairs and require the exact run-ownership request
-tags plus a closed tag-key allowlist. See the AWS
+`apigateway:POST` and `apigateway:PUT`. In a live CloudFormation failure, AWS
+evaluated both against the `/apis/${ApiId}/stages` collection; the separate
+direct `TagResource` API uses the `/tags/*` namespace. The provider can report
+a dependent `TagResource` denial even though CloudTrail records only the
+tagged `CreateStage` request. The dependent authorization does not carry the
+CloudFormation `aws:CalledVia` context used by the generic mutation statement.
+Separate specialized statements therefore grant both required methods only on
+the stage collection and require the exact run-ownership request tags plus a
+closed tag-key allowlist. Direct `/tags/*` mutation remains denied. See the AWS
 [`CreateStage` authorization mapping](https://docs.aws.amazon.com/service-authorization/latest/reference/list_apigatewayv2.html)
 and
 [`tagging IAM examples`](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-tagging-iam-policy.html).
@@ -119,7 +120,7 @@ before mutation. No command claims that a change set, drift result or completed
 stack proves application correctness. Target stack tags cannot replace Minco's
 reserved release tags or use the provider-reserved `aws:` prefix. The bounded
 AWS rehearsal keeps general API Gateway mutations behind the CloudFormation
-caller chain. Its separate tagged-stage authorization permits `POST` only on
-the stage collection when the three exact run-ownership tag values are present
-and every requested key is in the reviewed run, release, SAM and
+caller chain. Its separate tagged-stage authorizations permit `POST` and `PUT`
+only on the stage collection when the three exact run-ownership tag values are
+present and every requested key is in the reviewed run, release, SAM and
 CloudFormation system-key allowlist.

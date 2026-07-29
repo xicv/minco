@@ -357,6 +357,44 @@ fail-closed controller defects before publication:
     credential-file absence were independently consolidated in an all-true
     `final-cleanup.json`. Exact-head hosted qualification, merge, a replacement
     live rehearsal, tag and registry publication remain blocked.
+19. the first tagged-stage correction passed exact PR-head hosted run
+    [`30466012186`](https://github.com/xicv/minco/actions/runs/30466012186)
+    at `d7ffe82290ff2cfc215e737823e471226d661b56`, merged as
+    `4bf245cae924e2d3c89d008cf291da8bf862cba4`, passed the full local suite
+    and AWS Plan/SAM validation, and passed exact-main hosted run
+    [`30467769879`](https://github.com/xicv/minco/actions/runs/30467769879).
+    Authorised run `20260729t215737z-approved` migrated and verified its
+    disposable PostgreSQL database over TLS `verify-full`, removed the local
+    `/32`, proved the database private, passed S3 visibility on its first
+    bounded attempt, and sealed exact-source release
+    `minco.683d7abad93046f3b4476621` with digest
+    `683d7abad93046f3b44766215f0ecea095bf9003e2fc4242b769db2f1deed30d`.
+    It created the exact release-bound change-set receipt with digest
+    `f32c48fb78964575188c2fe0035f053e0a4142d5e7030f08a19602284a209605`.
+
+    Both API Gateway stage creates then failed. AWS reported that the temporary
+    role was not authorized for `apigateway:TagResource` and identified the
+    evaluated resource as
+    `arn:aws:apigateway:ap-southeast-2::/apis/iaqgnlnghl/stages`.
+    Custom-policy simulation reproduced the cause: `POST` on the stage
+    collection was allowed, while `PUT` on that same collection was
+    `implicitDeny`; the prior candidate had placed `PUT` on the separate
+    direct tagging API namespace `/tags/*`.
+
+    The current correction puts both specialized methods on
+    `/apis/*/stages`, preserving the three exact run-ownership request tags and
+    closed ten-key allowlist. The focused regression failed before the
+    implementation and passes afterward. Custom-policy simulation permits
+    exact-tag `POST` and `PUT` on the stage collection; a wrong run ID, an
+    extra tag key and direct `PUT` on `/tags/*` are `implicitDeny`. Access
+    Analyzer reports no findings for the two specialized statements.
+
+    Application cleanup contains only true values. The exact database cleanup
+    verifier subsequently confirmed the delayed managed secret, database
+    instance, stack, VPC, local secret files and synthetic data are all absent.
+    Bootstrap IAM and all temporary local credential/profile files are absent.
+    Exact-head hosted qualification, merge, a replacement live rehearsal, tag
+    and registry publication remain blocked.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
