@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "f212d5b9a29c20384f824f767357f7f907646c71db683a9bcea3dc413728baa2",
-      "size_bytes": 42456
+      "sha256": "d4ce972a46c07ce3e96e6883b97d024d64e51d4657df533f50526473865967bf",
+      "size_bytes": 43750
     },
     {
       "path": "config/jj/repo.toml",
@@ -204,8 +204,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "01d75fa565663f5267de69f8686707e5567ac86fdea7b67459b5ca9ad8afaa76",
-      "size_bytes": 153300
+      "sha256": "a79263043e4b0eee8d831d7433933f69fa0eca82398164f10490201573591fea",
+      "size_bytes": 155250
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "693dec9c7e0caff685cf7433e612129e0a9ed1dc0eb501dbbd72d8c59ea82541",
-      "size_bytes": 7464
+      "sha256": "77bc9fdc17cd47d51908514bf7c9a1ea1416d3d57f0f1b7bc2e5dd97eed9c2b4",
+      "size_bytes": 8586
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -2934,7 +2934,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "faca5c6fd59fbb6be34a612f3281eb4499892aa15c07110e24c04a2e2bcc886e",
+      "sha256": "9d3e7a82430c66712b38f8184e0325044d423c98bb22cd52a71cb7cf08949cec",
       "size_bytes": 1817
     },
     {
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "1c9a30bb460e246b8be99c26976c189795ff23be11f1602f12ad9090980b3fbe",
-  "total_size_bytes": 3602203,
+  "source_tree_sha256": "0216c9662fd00b3fb4a19d20c3e6f0d5bbe307fb3c0af7e91d15669a912b9e6c",
+  "total_size_bytes": 3606569,
   "version": "0.4.0"
 }

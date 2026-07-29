@@ -1066,7 +1066,18 @@ fn create_promotion_change_set(
         bail!("CloudFormation stack parameters are missing or duplicated");
     }
     let name = format!("minco-promote-{}", &verification_digest[..24]);
-    let mut create_args = vec![
+    let parameters: Vec<_> = parameter_keys
+        .into_iter()
+        .map(|key| {
+            if key == LIVE_FUNCTION_VERSION_PARAMETER {
+                AwsChangeSetParameter::value(key, promoted_version)
+            } else {
+                AwsChangeSetParameter::previous(key)
+            }
+        })
+        .collect();
+    let parameters = aws_change_set_parameters(&parameters)?;
+    let create_args = vec![
         "cloudformation".into(),
         "create-change-set".into(),
         "--stack-name".into(),
@@ -1090,22 +1101,12 @@ fn create_promotion_change_set(
             original.release_id
         ),
         "--parameters".into(),
-    ];
-    for key in parameter_keys {
-        if key == LIVE_FUNCTION_VERSION_PARAMETER {
-            create_args.push(format!(
-                "ParameterKey={key},ParameterValue={promoted_version}"
-            ));
-        } else {
-            create_args.push(format!("ParameterKey={key},UsePreviousValue=true"));
-        }
-    }
-    create_args.extend([
+        parameters,
         "--region".into(),
         target.expected_region.clone(),
         "--output".into(),
         "json".into(),
-    ]);
+    ];
     run_cloud_output(
         root,
         "aws",
@@ -2066,6 +2067,34 @@ struct AwsStackParameter {
     parameter_value: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsChangeSetParameter {
+    parameter_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parameter_value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    use_previous_value: Option<bool>,
+}
+
+impl AwsChangeSetParameter {
+    fn value(key: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            parameter_key: key.into(),
+            parameter_value: Some(value.into()),
+            use_previous_value: None,
+        }
+    }
+
+    fn previous(key: impl Into<String>) -> Self {
+        Self {
+            parameter_key: key.into(),
+            parameter_value: None,
+            use_previous_value: Some(true),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct AwsFunctionConfiguration {
@@ -2211,6 +2240,22 @@ fn create_change_set(
     let packaged_template_digest = FileDigest::from_rooted_path(root, &packaged_template)?;
 
     let change_set_name = format!("minco-{}", &release.release_digest[..24]);
+    let parameters = aws_change_set_parameters(&[
+        AwsChangeSetParameter::value(
+            "DatabaseUrlParameterName",
+            &target.database_url_parameter_name,
+        ),
+        AwsChangeSetParameter::value(
+            "DatabaseUrlKmsKeyArn",
+            target.database_kms_key_arn.as_deref().unwrap_or_default(),
+        ),
+        AwsChangeSetParameter::value("LambdaSubnetIds", target.lambda_subnet_ids.join(",")),
+        AwsChangeSetParameter::value(
+            "LambdaSecurityGroupIds",
+            target.lambda_security_group_ids.join(","),
+        ),
+        live_version_parameter,
+    ])?;
     let mut create_args = vec![
         "cloudformation".into(),
         "create-change-set".into(),
@@ -2229,23 +2274,7 @@ fn create_change_set(
         "--description".into(),
         format!("Minco reviewed release {}", release.release_id),
         "--parameters".into(),
-        format!(
-            "ParameterKey=DatabaseUrlParameterName,ParameterValue={}",
-            target.database_url_parameter_name
-        ),
-        format!(
-            "ParameterKey=DatabaseUrlKmsKeyArn,ParameterValue={}",
-            target.database_kms_key_arn.as_deref().unwrap_or_default()
-        ),
-        format!(
-            "ParameterKey=LambdaSubnetIds,ParameterValue={}",
-            target.lambda_subnet_ids.join(",")
-        ),
-        format!(
-            "ParameterKey=LambdaSecurityGroupIds,ParameterValue={}",
-            target.lambda_security_group_ids.join(",")
-        ),
-        live_version_parameter,
+        parameters,
         "--tags".into(),
         format!("Key=MincoEnvironment,Value={environment}"),
         format!("Key=MincoReleaseId,Value={}", release.release_id),
@@ -2484,10 +2513,11 @@ const fn aws_change_set_type(change_set_type: ChangeSetType) -> &'static str {
 fn live_version_change_set_parameter(
     change_set_type: ChangeSetType,
     current: Option<&str>,
-) -> Result<String> {
+) -> Result<AwsChangeSetParameter> {
     match change_set_type {
-        ChangeSetType::Create => Ok(format!(
-            "ParameterKey={LIVE_FUNCTION_VERSION_PARAMETER},ParameterValue=candidate"
+        ChangeSetType::Create => Ok(AwsChangeSetParameter::value(
+            LIVE_FUNCTION_VERSION_PARAMETER,
+            "candidate",
         )),
         ChangeSetType::Update => {
             let current =
@@ -2500,12 +2530,19 @@ fn live_version_change_set_parameter(
             if !valid {
                 bail!("existing stack has an invalid live routing parameter");
             }
-            Ok(format!(
-                "ParameterKey={LIVE_FUNCTION_VERSION_PARAMETER},UsePreviousValue=true"
+            Ok(AwsChangeSetParameter::previous(
+                LIVE_FUNCTION_VERSION_PARAMETER,
             ))
         }
         ChangeSetType::Import => bail!("import change sets are not supported"),
     }
+}
+
+fn aws_change_set_parameters(parameters: &[AwsChangeSetParameter]) -> Result<String> {
+    if parameters.is_empty() {
+        bail!("CloudFormation change-set parameters must not be empty");
+    }
+    Ok(serde_json::to_string(&parameters)?)
 }
 
 fn aws_json<T: for<'de> Deserialize<'de>>(
@@ -4250,16 +4287,39 @@ mod cli_argument_tests {
         assert_eq!(
             live_version_change_set_parameter(ChangeSetType::Create, None)
                 .expect("new stack candidate routing"),
-            "ParameterKey=LiveFunctionVersion,ParameterValue=candidate"
+            AwsChangeSetParameter::value(LIVE_FUNCTION_VERSION_PARAMETER, "candidate")
         );
         assert_eq!(
             live_version_change_set_parameter(ChangeSetType::Update, Some("41"))
                 .expect("preserve current published version"),
-            "ParameterKey=LiveFunctionVersion,UsePreviousValue=true"
+            AwsChangeSetParameter::previous(LIVE_FUNCTION_VERSION_PARAMETER)
         );
         assert!(
             live_version_change_set_parameter(ChangeSetType::Update, None).is_err(),
             "an existing stack without the explicit routing boundary must fail closed"
+        );
+    }
+
+    #[test]
+    fn cloudformation_change_set_parameters_preserve_comma_delimited_values_as_strings() {
+        let rendered = aws_change_set_parameters(&[
+            AwsChangeSetParameter::value("LambdaSubnetIds", "subnet-a,subnet-b"),
+            AwsChangeSetParameter::previous("LiveFunctionVersion"),
+        ])
+        .expect("serialize CloudFormation parameters");
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&rendered).expect("parameter JSON"),
+            json!([
+                {
+                    "ParameterKey": "LambdaSubnetIds",
+                    "ParameterValue": "subnet-a,subnet-b"
+                },
+                {
+                    "ParameterKey": "LiveFunctionVersion",
+                    "UsePreviousValue": true
+                }
+            ])
         );
     }
 
