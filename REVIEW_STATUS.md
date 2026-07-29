@@ -22,10 +22,13 @@ Plan/SAM/native Lambda, Rustack and E2E stages. Later evidence-only head
 `edcb42c916114dc0c7bc3ffb10bcf8555190b0f1` passed authoritative quality
 and the browser matrix in run `30411179583`, then exposed a synchronization
 race in the packaged `minco-dev` descendant-shutdown fixture. The fixture
-correction passes focused gates and 600 repeated full-suite runs locally; the
-candidate is blocked on a fresh exact-head hosted run and is not yet safe to
-merge. This record does not approve AWS mutation, promotion, tag creation or
-crate upload. Current and historical command evidence is maintained in
-`VERIFICATION.md`;
+correction passes focused gates and 600 repeated full-suite runs locally.
+Corrected exact head `b211b5083b43a0c9a0de9cd28ca4f748dfbbeb51`
+passed every stage of manual hosted run `30412849538`: authoritative quality,
+Chromium/Firefox, coordinated package dry-run, Plan/SAM/native Lambda,
+Rustack/SSM conformance and E2E. The candidate is ready for an exact-head
+guarded merge. This record does not approve AWS mutation, promotion, tag
+creation or crate upload. Current and historical command evidence is
+maintained in `VERIFICATION.md`;
 Feedback-specific architecture evidence remains in
 `FEEDBACK_REVIEW_STATUS.md`.

@@ -2,7 +2,7 @@
 id: M8-T07
 title: Prepare the Minco 0.4.0 source and package boundary
 milestone: M8
-status: active
+status: complete
 priority: critical
 area: release/crates-io
 depends_on: [M9-T07, M10-T03]
@@ -134,6 +134,7 @@ dry-run, Plan/SAM/native Lambda, Rustack and E2E stages. A later evidence
 revision exposed a race in the packaged `minco-dev` shutdown fixture during
 run `30411179583`; the fixture now waits for a complete numeric descendant PID
 before requesting shutdown and passed 600 repeated full-suite runs locally.
-Exact-head hosted requalification remains required before completion or merge.
-Live AWS rehearsal, tag and registry publication remain separately evidenced
-phases.
+Corrected exact head `b211b5083b43a0c9a0de9cd28ca4f748dfbbeb51`
+then passed every stage of hosted run `30412849538`. The source/package task is
+complete and ready for an exact-head guarded merge. Live AWS rehearsal, tag
+and registry publication remain separately authorised and evidenced phases.

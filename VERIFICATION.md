@@ -41,7 +41,7 @@ workspace with `fatal: not a git repository (or any of the parent directories):
 .git`. A Git transport equivalent must run from the colocated primary
 repository against the final exported commit; this blocker is not a pass.
 
-The release reconciliation found six fail-closed controller defects before
+The release reconciliation found eight fail-closed controller defects before
 qualification:
 
 1. publishing each `0.4.0` crate separately could not resolve unpublished
@@ -103,9 +103,16 @@ Corrected pull-request head
 Every material stage passed: authoritative quality, Chromium/Firefox,
 coordinated 28-package publication dry run, Plan/SAM and both native ARM64
 Lambda artifacts, Rustack/SSM conformance and Orders E2E. No package upload or
-live AWS mutation occurred. That historical green run does not qualify the
-later fixture correction; a fresh exact-head hosted run is required before
-merge.
+live AWS mutation occurred.
+
+Corrected exact head
+`b211b5083b43a0c9a0de9cd28ca4f748dfbbeb51` then passed manual hosted run
+[`30412849538`](https://github.com/xicv/minco/actions/runs/30412849538).
+Every material stage passed again, including the coordinated package dry run
+that exercises the corrected `minco-dev` fixture. No package upload, tag
+creation or live AWS mutation occurred. M8-T07 is complete and the pull
+request is ready for an exact-head guarded merge; the final evidence-only
+record still requires its own exact-head qualification before merge.
 
 Regression fixtures assert the coordinated command, archive-only patch paths,
 offline archive-test boundary and external-consumer manifest. The controller

@@ -87,9 +87,12 @@ Plan/SAM/native Lambda, Rustack and E2E stages. Later evidence-only head
 `edcb42c916114dc0c7bc3ffb10bcf8555190b0f1` reached the package dry run in
 hosted run `30411179583`, where a packaged `minco-dev` test exposed a PID-file
 synchronization race. The bounded fixture correction passes focused tests,
-strict Clippy and 600 repeated full-suite runs locally. A fresh exact-head
-hosted run remains mandatory before merge; historical green runs never
-qualify a different executable tree automatically.
+strict Clippy and 600 repeated full-suite runs locally. Corrected exact head
+`b211b5083b43a0c9a0de9cd28ca4f748dfbbeb51` passed every stage of manual
+hosted run `30412849538`, including the coordinated package dry run,
+Plan/SAM/native Lambda, Rustack/SSM conformance and E2E. M8-T07 is complete and
+the pull request is ready for an exact-head guarded merge. Historical green
+runs still never qualify a different executable tree automatically.
 
 The handoff verdict after those source/package gates is
 `live_deployment_gate_pending`: no AWS account, role, Region, change set,
