@@ -23,4 +23,72 @@ for parameter_name in \
   fi
 done
 
+python3 - <<'PY'
+import json
+from pathlib import Path
+import subprocess
+
+source = Path("scripts/aws/run-bounded-root-bootstrap.sh").read_text()
+start_marker = '  --argjson create_temp_rds "$MINCO_CREATE_TEMP_RDS" \\\n  \''
+end_marker = '\' >"$request_directory/role-policy.json"'
+start = source.find(start_marker)
+if start < 0:
+    raise SystemExit("missing bootstrap role policy start")
+start += len(start_marker)
+end = source.find(end_marker, start)
+if end < 0:
+    raise SystemExit("missing bootstrap role policy end")
+
+account_id = "123456789012"
+region = "ap-southeast-2"
+run_id = "test-run"
+arguments = [
+    "jq", "-n",
+    "--arg", "stack_arn", "arn:aws:cloudformation:ap-southeast-2:123456789012:stack/test/*",
+    "--arg", "rds_stack_arn", "arn:aws:cloudformation:ap-southeast-2:123456789012:stack/rds/*",
+    "--arg", "bucket_arn", "arn:aws:s3:::test",
+    "--arg", "parameter_arn", "arn:aws:ssm:ap-southeast-2:123456789012:parameter/minco/test",
+    "--arg", "function_arn", "arn:aws:lambda:ap-southeast-2:123456789012:function:test",
+    "--arg", "execution_role_arn", "arn:aws:iam::123456789012:role/test-*",
+    "--arg", "log_group_arn", "arn:aws:logs:ap-southeast-2:123456789012:log-group:/aws/lambda/test",
+    "--arg", "rds_instance_arn", "arn:aws:rds:ap-southeast-2:123456789012:db:test",
+    "--arg", "rds_subnet_group_arn", "arn:aws:rds:ap-southeast-2:123456789012:subgrp:test-*",
+    "--arg", "rds_secret_arn", "arn:aws:secretsmanager:ap-southeast-2:123456789012:secret:rds!db-*",
+    "--arg", "region", region,
+    "--arg", "account_id", account_id,
+    "--arg", "run_id", run_id,
+    "--argjson", "create_temp_rds", "true",
+    source[start:end],
+]
+policy = json.loads(subprocess.run(
+    arguments,
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout)
+statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "TagOwnedTemporaryCognitoHarness"
+)
+expected_tags = {
+    "aws:RequestTag/minco:run-id": run_id,
+    "aws:RequestTag/minco:managed": "true",
+    "aws:RequestTag/minco:purpose": "bounded-smoke",
+}
+expected_keys = ["minco:run-id", "minco:managed", "minco:purpose"]
+if statement != {
+    "Sid": "TagOwnedTemporaryCognitoHarness",
+    "Effect": "Allow",
+    "Action": ["cognito-idp:TagResource"],
+    "Resource": (
+        f"arn:aws:cognito-idp:{region}:{account_id}:userpool/*"
+    ),
+    "Condition": {
+        "StringEquals": expected_tags,
+        "ForAllValues:StringEquals": {"aws:TagKeys": expected_keys},
+    },
+}:
+    raise SystemExit("Cognito tagging policy exceeds or misses the run-owned boundary")
+PY
+
 printf 'AWS shell portability checks passed.\n'

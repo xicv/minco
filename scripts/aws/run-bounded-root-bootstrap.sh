@@ -679,6 +679,26 @@ jq -n \
         }
       },
       {
+        Sid: "TagOwnedTemporaryCognitoHarness",
+        Effect: "Allow",
+        Action: ["cognito-idp:TagResource"],
+        Resource: ("arn:aws:cognito-idp:" + $region + ":" + $account_id + ":userpool/*"),
+        Condition: {
+          StringEquals: {
+            "aws:RequestTag/minco:run-id": $run_id,
+            "aws:RequestTag/minco:managed": "true",
+            "aws:RequestTag/minco:purpose": "bounded-smoke"
+          },
+          "ForAllValues:StringEquals": {
+            "aws:TagKeys": [
+              "minco:run-id",
+              "minco:managed",
+              "minco:purpose"
+            ]
+          }
+        }
+      },
+      {
         Sid: "DiscoverTemporaryCognitoHarness",
         Effect: "Allow",
         Action: ["cognito-idp:ListUserPools"],

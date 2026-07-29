@@ -104,6 +104,23 @@ qualification:
    character-class position, and a Mac-Bash regression accepts the generated
    default while retaining the relative-name, doubled-slash, trailing-slash
    and whitespace rejections.
+10. after that correction merged, exact `main`
+    `d34c0e49d881a5ababdc1e9576c046c867f45ab3` passed the full local suite and
+    manual hosted run
+    [`30422838559`](https://github.com/xicv/minco/actions/runs/30422838559).
+    The next authorised live rehearsal migrated and verified its disposable
+    private PostgreSQL database and built the native ARM64 Lambda, then Cognito
+    rejected tagged user-pool creation because the bounded deployment role
+    lacked `cognito-idp:TagResource`. Application cleanup passed immediately;
+    the RDS-managed secret reached `ResourceNotFound` after the controller's
+    initial bounded verification window, and the exact cleanup verifier then
+    produced all-true application, database/VPC/secret and bootstrap-IAM
+    receipts. The candidate correction grants only `TagResource` over the
+    current Region/account user-pool namespace when all three exact run tags
+    and no other tag keys are present. Its regression renders the actual role
+    policy and asserts the whole statement rather than searching for an action
+    string. The AWS IAM policy simulator returned `allowed` for those exact
+    tags and `implicitDeny` when an additional tag key was supplied.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
@@ -239,10 +256,10 @@ not release budgets.
 The exact-source native ARM64 Orders ZIP is 5,035,518 compressed /
 11,048,288 uncompressed bytes with SHA-256
 `42ae9c1056738dd2ccd39864a69965cb13b4de6eb1f3c4177bacc1575aafa04f`
-and a 113.05-second cold build observation. The worker ZIP is 574,199 /
+and a 127.87-second cold build observation. The worker ZIP is 574,199 /
 1,203,520 bytes with SHA-256
 `c1508117d7329029aaedc85691b416f3321d1fa11831c5c162f9647465bd3a44`
-and a 13.15-second follow-on build observation. Both are below the 10 MiB
+and a 15.16-second follow-on build observation. Both are below the 10 MiB
 compressed policy. The durable measurement report binds these observations to
 the final source-tree digest.
 
@@ -258,11 +275,13 @@ schedules and other fixed/request dimensions remain explicit and bounded.
 
 The operator separately authorised the bounded live-AWS rehearsal and the
 irreversible exact tag, crates.io publication and GitHub release on 2026-07-29.
-The first live controller invocation stopped at local parameter-name preflight
-before AWS caller discovery or resource creation. Until the corrected
-exact-main source is requalified and the live rehearsal passes with cleanup
-proof, the release verdict remains `live_deployment_gate_pending`. No tag or
-registry upload has occurred.
+The corrected SSM-name source passed exact-main local and hosted qualification.
+The subsequent live controller invocation found the bounded Cognito tagging
+permission defect after database migration, then proved every run-owned
+application, database, VPC, secret and bootstrap-IAM resource absent. Until the
+least-privilege policy correction is reviewed, merged, requalified and the
+replacement live rehearsal passes with cleanup proof, the release verdict
+remains `live_deployment_gate_blocked`. No tag or registry upload has occurred.
 
 ## M8-T03 trusted-publishing closure
 

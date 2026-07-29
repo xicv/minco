@@ -56,21 +56,21 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 113.05,
+        "cold_build_seconds": 127.87,
         "compressed_bytes": 5035518,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
         "sha256": "42ae9c1056738dd2ccd39864a69965cb13b4de6eb1f3c4177bacc1575aafa04f",
         "uncompressed_bytes": 11048288
       },
       "sqs_worker": {
-        "cold_build_seconds": 13.15,
+        "cold_build_seconds": 15.16,
         "compressed_bytes": 574199,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
         "sha256": "c1508117d7329029aaedc85691b416f3321d1fa11831c5c162f9647465bd3a44",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:214a620b1e09abd1c2508bc18099bde3bbc8f4b8d99ea6c4626df73d170a6aec"
+    "revision": "source-tree-sha256:1c9a30bb460e246b8be99c26976c189795ff23be11f1602f12ad9090980b3fbe"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,
