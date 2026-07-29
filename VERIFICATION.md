@@ -121,6 +121,25 @@ qualification:
     policy and asserts the whole statement rather than searching for an action
     string. The AWS IAM policy simulator returned `allowed` for those exact
     tags and `implicitDeny` when an additional tag key was supplied.
+11. that least-privilege correction passed PR-head manual run
+    [`30425328469`](https://github.com/xicv/minco/actions/runs/30425328469),
+    merged as exact `main`
+    `cd5b0049cd55f3ba7093a202eff9b668c825ed0b`, and passed the full local
+    suite, AWS/SAM validation and exact-main hosted run
+    [`30426089277`](https://github.com/xicv/minco/actions/runs/30426089277).
+    Authorised replacement run `20260729t060221z-approved` then migrated and
+    verified its disposable private PostgreSQL database, built and sealed the
+    exact native ARM64 artifact, and stopped before application change-set
+    creation. AWS CLI parsed the shorthand comma-delimited
+    `LambdaSubnetIds` value as a nested list, but CloudFormation
+    `ParameterValue` accepts only a string. Application cleanup passed
+    immediately; after the RDS-managed secret reached `ResourceNotFound`, the
+    exact verifier produced all-true application, database/VPC/secret and
+    bootstrap-IAM receipts. The candidate correction serializes both
+    deployment and promotion parameter lists as one JSON argument with typed
+    string values. Its focused regression preserves comma-delimited values as
+    strings, and AWS CLI `2.36.10` accepted the same shape with the
+    non-contacting output-skeleton validator.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
@@ -275,13 +294,14 @@ schedules and other fixed/request dimensions remain explicit and bounded.
 
 The operator separately authorised the bounded live-AWS rehearsal and the
 irreversible exact tag, crates.io publication and GitHub release on 2026-07-29.
-The corrected SSM-name source passed exact-main local and hosted qualification.
-The subsequent live controller invocation found the bounded Cognito tagging
-permission defect after database migration, then proved every run-owned
-application, database, VPC, secret and bootstrap-IAM resource absent. Until the
-least-privilege policy correction is reviewed, merged, requalified and the
-replacement live rehearsal passes with cleanup proof, the release verdict
-remains `live_deployment_gate_blocked`. No tag or registry upload has occurred.
+The SSM-name and Cognito-tagging corrections passed exact-main local and hosted
+qualification. The subsequent live controller invocation found the
+CloudFormation parameter-encoding defect after database migration, then proved
+every run-owned application, database, VPC, secret and bootstrap-IAM resource
+absent. Until the JSON parameter correction is reviewed, merged, requalified
+and the replacement live rehearsal passes with cleanup proof, the release
+verdict remains `live_deployment_gate_blocked`. No tag or registry upload has
+occurred.
 
 ## M8-T03 trusted-publishing closure
 

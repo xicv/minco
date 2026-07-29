@@ -17,6 +17,7 @@ owned_paths:
   - PUBLISHING.md
   - REVIEW_STATUS.md
   - VERIFICATION.md
+  - crates/minco-cli/src/main.rs
   - crates/minco-dev/tests/supervisor.rs
   - docs/**
   - extensions/minco-aws-adapters/README.md
@@ -163,3 +164,21 @@ Region/account user-pool namespace and the exact three run-ownership tags; the
 local regression renders and compares the complete generated statement. AWS
 IAM simulation returned `allowed` for the exact tag set and `implicitDeny` when
 an additional tag key was supplied. No tag or registry upload occurred.
+
+That correction passed PR-head hosted run
+[`30425328469`](https://github.com/xicv/minco/actions/runs/30425328469),
+merged as exact `main`
+`cd5b0049cd55f3ba7093a202eff9b668c825ed0b`, and passed the full local suite,
+AWS/SAM validation and exact-main hosted run
+[`30426089277`](https://github.com/xicv/minco/actions/runs/30426089277).
+Authorised replacement run `20260729t060221z-approved` migrated and verified
+its disposable private PostgreSQL database and sealed the native ARM64
+artifact, then stopped before application change-set creation because AWS CLI
+shorthand parsed comma-delimited Lambda subnet IDs as a list where
+CloudFormation requires a string `ParameterValue`. All application,
+database/VPC/secret and bootstrap-IAM cleanup receipts are true. The candidate
+fix serializes deployment and promotion parameters as one JSON list; its
+focused regression and the AWS CLI `2.36.10` non-contacting output-skeleton
+validator preserve comma-delimited values as strings. The live replacement,
+tag and registry publication remain blocked pending merge and exact-main
+requalification.
