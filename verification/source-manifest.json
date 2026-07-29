@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 598,
+  "file_count": 600,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -14,8 +14,8 @@
     },
     {
       "path": ".github/workflows/minco-manual.yml",
-      "sha256": "fd982af27577dafeba47450c5746d21710921cb31a5eb3194c5b3dd6bb1ca636",
-      "size_bytes": 2817
+      "sha256": "f6be9e0a68e6f123dffc979967baf9a2e449d9d025420419de1d819ecbdc2789",
+      "size_bytes": 3073
     },
     {
       "path": ".github/workflows/publish-crates.yml",
@@ -1359,8 +1359,8 @@
     },
     {
       "path": "docs/development/testing.md",
-      "sha256": "de736573c74a4e428eba6a9200d00857e2e1d435749227a416630a9d07aab44b",
-      "size_bytes": 3564
+      "sha256": "9d7203ddb2bfe40578d95507b8aba74f1aa952172cffa66cb3fc7cc57cca1b15",
+      "size_bytes": 4265
     },
     {
       "path": "docs/development/update.md",
@@ -2029,18 +2029,18 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/package-lock.json",
-      "sha256": "1b561e2bb3cf92679c7417495df45206b8a154c27d8b82f3c09a9c4415c67641",
+      "sha256": "58995cdd0bb7374d864d2474e785690b76b0daf35943bc3c91ba20db329b13b1",
       "size_bytes": 2230
     },
     {
       "path": "plugins/minco-plugin-feedback/package.json",
-      "sha256": "7fb2327b6f0cf949775f9419ca2a59869be2a8970022e2f5c5cd99b8d30b4fae",
+      "sha256": "04309c80b802bcf9c566f18d1fb84269e966e4f1f82c8739dace495823c68587",
       "size_bytes": 314
     },
     {
       "path": "plugins/minco-plugin-feedback/playwright.config.cjs",
-      "sha256": "2ada4e2a20df8cf610ffe5a6babccff0cb3d9a2768ef491ae229d723b1cb2d26",
-      "size_bytes": 917
+      "sha256": "d42f8758d01ab8ecca10c8e81d72f7d4a88042cb21b656438df6eba7cf0abadc",
+      "size_bytes": 1045
     },
     {
       "path": "plugins/minco-plugin-feedback/src/client.rs",
@@ -2319,8 +2319,8 @@
     },
     {
       "path": "quality.toml",
-      "sha256": "0e3177182b3d1252bf22cf15934b4721bf9b4d67353221d175d48b1ea9655f69",
-      "size_bytes": 1984
+      "sha256": "641064829423297e7c0e58fd1328a64f589db2afb05ee3333a8e5eccd1478d79",
+      "size_bytes": 2054
     },
     {
       "path": "roadmap/roadmap.mmd",
@@ -2424,8 +2424,8 @@
     },
     {
       "path": "scripts/bootstrap.sh",
-      "sha256": "e2b5a966fc5bd4f10ff77bf5845887bd059460070442f822a3acf51156f7b150",
-      "size_bytes": 970
+      "sha256": "d6ed7c9689252f9b058106b21685a289ee22f63d2d894f739ec78de36e4f3a2e",
+      "size_bytes": 1164
     },
     {
       "path": "scripts/deep_review.py",
@@ -2504,8 +2504,8 @@
     },
     {
       "path": "scripts/quality.sh",
-      "sha256": "35d23ceab0ca958e728399bbbf021f9c9cc12bb4caff4cc0382ceadb3af538be",
-      "size_bytes": 1927
+      "sha256": "d27bb2e097917142b16494b261066965d4a362de9da10a95cccc2106dd795986",
+      "size_bytes": 1960
     },
     {
       "path": "scripts/release/package-list.sh",
@@ -2546,6 +2546,11 @@
       "path": "scripts/test/feature.sh",
       "sha256": "ba18f7fa3278a3fc81f41e7b63d9c058f40307208a6942e1922ac146c23b3234",
       "size_bytes": 168
+    },
+    {
+      "path": "scripts/test/feedback_browser.sh",
+      "sha256": "fc4672f63721ded70616df2e2c2847157515a954045b0bb36a5f88d2eaee21bd",
+      "size_bytes": 395
     },
     {
       "path": "scripts/test/feedback_contract.py",
@@ -2823,6 +2828,11 @@
       "size_bytes": 7523
     },
     {
+      "path": "tasks/M6/M6-T11-feedback-browser-ci.md",
+      "sha256": "f95dccdf98431832b9e0396bf5a51b9026a18f8da8510171825326f4f5023390",
+      "size_bytes": 3882
+    },
+    {
       "path": "tasks/M7/M7-T01-two-app-validation.md",
       "sha256": "e4fe940da09a7044332478f907d949ebadf505013da1a7871c705236d43df0d5",
       "size_bytes": 1230
@@ -2919,7 +2929,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "5c1fb6dac18452934bf86370800477d48a5a6c3d4485611c9177ca8eabc5b978",
+      "sha256": "f53646c4af5e9f7bd69364f19ed600ed897260ce5c2c25e194a15746f38d638b",
       "size_bytes": 1817
     },
     {
@@ -2974,7 +2984,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "b101209d3094eb72f1efa6de2aadc3fcce71987c1479e7c3eb9b5c6c3ea4d20f",
+      "sha256": "fa1473ea6e16d33f64594ab9e55ea0e6bfa32caf4c27270cbfb9ffd220f556d2",
       "size_bytes": 754
     },
     {
@@ -2998,7 +3008,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "396158f57374f706a60624124cf7c88531f2cc40890f540500a7dee64f07aabf",
-  "total_size_bytes": 3588889,
+  "source_tree_sha256": "d00404a2c386e9876aa00b5cf6bcbaca47e66cdd525ca8d1819d538f72a65b1b",
+  "total_size_bytes": 3594548,
   "version": "0.4.0"
 }
