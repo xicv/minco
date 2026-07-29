@@ -138,3 +138,11 @@ Corrected exact head `b211b5083b43a0c9a0de9cd28ca4f748dfbbeb51`
 then passed every stage of hosted run `30412849538`. The source/package task is
 complete and ready for an exact-head guarded merge. Live AWS rehearsal, tag
 and registry publication remain separately authorised and evidenced phases.
+
+The first authorised live-AWS invocation on 2026-07-29 stopped before caller
+discovery or resource creation because macOS Bash rejected the controller's
+own hyphenated default SSM parameter name. The portable shared predicate and
+`scripts/test/aws_shell_portability.sh` regression retain every fail-closed
+normalization check while accepting the generated default. Exact-main
+qualification and the live rehearsal must be repeated after this correction;
+no tag or registry upload occurred.

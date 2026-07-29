@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 600,
+  "file_count": 601,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "e5d8ff69df39c5053ce62f7fd1910daeac582c931ae8d2d2e32da2e1e06da740",
-      "size_bytes": 40238
+      "sha256": "c0255345ea5295cd829e7864ebb6196150ec000259303f8a93992cd818a1fb33",
+      "size_bytes": 41037
     },
     {
       "path": "config/jj/repo.toml",
@@ -2389,8 +2389,8 @@
     },
     {
       "path": "scripts/aws/lib/common.sh",
-      "sha256": "254411efc26ed0f2c4c2c7b3454dccbc8342c63631b7276b099b240fbd0e02d8",
-      "size_bytes": 6856
+      "sha256": "8b2e57235b1fb72802486f461e0183528c4bcc2a50967031012e1b6f068383c7",
+      "size_bytes": 7034
     },
     {
       "path": "scripts/aws/plan.sh",
@@ -2404,8 +2404,8 @@
     },
     {
       "path": "scripts/aws/run-bounded-root-bootstrap.sh",
-      "sha256": "145e43c3f82ae7be27eb620a5f231538ff1146f2d0d3d9937f038d80975b6285",
-      "size_bytes": 42718
+      "sha256": "c6f96d8b8c2d638852f0cc7dae453a7b9a42ca685772e78253b9f285a7420753",
+      "size_bytes": 42511
     },
     {
       "path": "scripts/aws/run-bounded-smoke.sh",
@@ -2504,8 +2504,8 @@
     },
     {
       "path": "scripts/quality.sh",
-      "sha256": "d27bb2e097917142b16494b261066965d4a362de9da10a95cccc2106dd795986",
-      "size_bytes": 1960
+      "sha256": "e221ed64495cfbb24d0aecb998d3dc6c85a284f05a56963f023237871e5d54ed",
+      "size_bytes": 2003
     },
     {
       "path": "scripts/release/package-list.sh",
@@ -2531,6 +2531,11 @@
       "path": "scripts/test/all.sh",
       "sha256": "08f2d3aaad0fc02d99d94e1aeb967b89e038613fc044bc9d4c9383446116f574",
       "size_bytes": 130
+    },
+    {
+      "path": "scripts/test/aws_shell_portability.sh",
+      "sha256": "7089e52c272791de3f7e774ad9e8f0ba2d9c0f02f2ed3358a95efa9c9ff72ea5",
+      "size_bytes": 661
     },
     {
       "path": "scripts/test/deep_review_exclusions.py",
@@ -2869,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "6a2e8fc848b08c15d60416a5f2ca83016f03425435d558d6635ae42964a5b378",
-      "size_bytes": 5930
+      "sha256": "973d327905f38c4d3d8d00a1a8813997458ab6ba6c64e2b2a4f6b02402afc6f8",
+      "size_bytes": 6420
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -2929,7 +2934,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "f53646c4af5e9f7bd69364f19ed600ed897260ce5c2c25e194a15746f38d638b",
+      "sha256": "faca5c6fd59fbb6be34a612f3281eb4499892aa15c07110e24c04a2e2bcc886e",
       "size_bytes": 1817
     },
     {
@@ -2984,7 +2989,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "fa1473ea6e16d33f64594ab9e55ea0e6bfa32caf4c27270cbfb9ffd220f556d2",
+      "sha256": "1d49a8cd51a0574698744081489e2756fe5aeecc12ba70aa3186e50686ab4475",
       "size_bytes": 754
     },
     {
@@ -3008,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "d00404a2c386e9876aa00b5cf6bcbaca47e66cdd525ca8d1819d538f72a65b1b",
-  "total_size_bytes": 3594548,
+  "source_tree_sha256": "214a620b1e09abd1c2508bc18099bde3bbc8f4b8d99ea6c4626df73d170a6aec",
+  "total_size_bytes": 3596512,
   "version": "0.4.0"
 }
