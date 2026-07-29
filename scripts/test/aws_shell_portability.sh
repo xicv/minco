@@ -195,7 +195,7 @@ if mutation_statement != {
 
 tag_statement = next(
     item for item in policy["Statement"]
-    if item["Sid"] == "TagOwnedTemporaryHttpApiResource"
+    if item["Sid"] == "CreateRunOwnedTemporaryHttpApiStage"
 )
 allowed_stage_tag_keys = [
     "minco:run-id",
@@ -210,10 +210,10 @@ allowed_stage_tag_keys = [
     "aws:cloudformation:logical-id",
 ]
 if tag_statement != {
-    "Sid": "TagOwnedTemporaryHttpApiResource",
+    "Sid": "CreateRunOwnedTemporaryHttpApiStage",
     "Effect": "Allow",
     "Action": "apigateway:POST",
-    "Resource": f"arn:aws:apigateway:{region}::/tags/*",
+    "Resource": f"arn:aws:apigateway:{region}::/apis/*/stages",
     "Condition": {
         "StringEquals": expected_tags,
         "ForAllValues:StringEquals": {
@@ -221,7 +221,12 @@ if tag_statement != {
         },
     },
 }:
-    raise SystemExit("API Gateway tagging policy exceeds the run-owned boundary")
+    raise SystemExit("API Gateway stage creation policy exceeds the run-owned boundary")
+if any(
+    item.get("Resource") == f"arn:aws:apigateway:{region}::/tags/*"
+    for item in policy["Statement"]
+):
+    raise SystemExit("API Gateway policy retained the disproved tags namespace")
 PY
 
 printf 'AWS shell portability checks passed.\n'

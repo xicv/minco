@@ -15,28 +15,29 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-Exact merged `main` `0f1271eec11bf2e4fd475f7093c04eddd8d47f6c`
+Exact merged `main` `edabc701ee86b4adfee27b978f8d4d6187d19f2e`
 passed the full local suite, AWS Plan/SAM validation and manual hosted run
-`30444766607`. Authorised live run `20260729t105820z-approved` proved the
+`30449710067`. Authorised live run `20260729t121408z-approved` proved the
 private PostgreSQL migration, the 5,038,349-byte native ARM64 artifact and
-sealed exact-source release `minco.44a1623ffb1ec9bd0b037813`. Both API Gateway
+sealed exact-source release `minco.6fba6aee8d28ce4d9bece03b`. Both API Gateway
 stage creates still failed their dependent `TagResource` authorization.
-CloudTrail recorded the calls as `CreateStage` from CloudFormation with the
-complete reviewed tag sets. AWS documents the dependent tagging operation as
-`apigateway:POST` on `/tags/*`, not the stage collection used by the current
-policy. The existing CloudFormation-wide mutation statement would already
-admit that resource if the dependent evaluation carried `aws:CalledVia`; IAM
-simulation reproduces `implicitDeny` when that missing context remains
-required.
+CloudTrail records the actual operations as `CreateStage` on
+`/apis/${ApiId}/stages`, with the complete reviewed tag sets and no separate
+tagging event. IAM simulation confirms that the current `/tags/*` statement
+cannot admit that stage-collection resource.
 
-The current unmerged correction leaves all API Gateway mutations behind the
-CloudFormation caller-chain statement. It separately permits
-`apigateway:POST` only on the documented `/tags/*` namespace, with the three
-exact run-ownership request-tag values and the closed run, release, SAM and
-CloudFormation system-key allowlist. IAM simulation returns `allowed` for the
-exact request and `implicitDeny` for an extra tag key or wrong run ID. The
-focused red/green regression, authoritative local quality suite, AWS Plan/SAM
-validation and ShellCheck pass. Hosted qualification, replacement live AWS
+The current unmerged correction leaves general API Gateway mutations behind
+the CloudFormation caller-chain statement. It separately permits
+`apigateway:POST` only on `/apis/*/stages`, with the three exact run-ownership
+request-tag values and the closed run, release, SAM and CloudFormation
+system-key allowlist. IAM simulation returns `allowed` for the exact observed
+request without `aws:CalledVia`, and `implicitDeny` for a wrong run ID or extra
+tag key; the whole-statement regression failed before the correction and
+passes afterward. Application cleanup is all true. The delayed RDS-managed
+secret subsequently reached `ResourceNotFound`, the exact RDS cleanup verifier
+is all true, and the deterministic bootstrap user and role are independently
+absent. The authoritative local quality suite and AWS Plan/SAM validation pass
+on the replacement candidate. Hosted qualification, replacement live AWS
 proof, exact tag creation and crates.io publication remain separate pending
 gates. Current and historical command evidence is maintained in
 `VERIFICATION.md`; Feedback-specific architecture evidence remains in
