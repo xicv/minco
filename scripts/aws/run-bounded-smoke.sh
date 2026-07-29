@@ -256,6 +256,10 @@ aws_logged s3api put-bucket-encryption \
   --server-side-encryption-configuration \
   '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":false}]}' \
   >/dev/null
+wait_for_s3_bucket_visibility \
+  "$MINCO_AWS_ARTIFACT_BUCKET" \
+  "$AWS_REGION" \
+  "$MINCO_AWS_EVIDENCE_DIR/bucket-visibility-error.txt"
 
 target_config="$MINCO_AWS_EVIDENCE_DIR/deployment-targets.toml"
 write_bounded_deployment_target_config \

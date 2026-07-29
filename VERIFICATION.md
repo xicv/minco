@@ -289,6 +289,35 @@ fail-closed controller defects before publication:
     `scripts/aws/validate.sh` and `scripts/aws/plan.sh` pass on the
     replacement candidate. Hosted qualification, a replacement live
     rehearsal, tag and registry publication remain blocked.
+17. the stage-collection correction passed exact PR-head hosted run
+    [`30453546940`](https://github.com/xicv/minco/actions/runs/30453546940),
+    merged as `8593b47eaf691cace2bf32d3d07e3408f036ca46`, and passed the full
+    local suite, AWS/SAM validation and exact-main hosted run
+    [`30454760539`](https://github.com/xicv/minco/actions/runs/30454760539).
+    Authorised run `20260729t132534z-approved` migrated and verified its
+    disposable PostgreSQL database over TLS `verify-full`, removed the local
+    `/32`, proved the database private, built the 5,038,349-byte native ARM64
+    ZIP with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-source release `minco.2b3857b9f12ff31ac32f183a` with
+    digest
+    `2b3857b9f12ff31ac32f183afb855975dea11d2a2fff385014a054b13613bb7e`.
+    S3 accepted the run-owned bucket creation, public-access block and
+    encryption calls. The cached build then reached the controller within
+    seconds, and its immediate `HeadBucket` returned 404 before a change set
+    was created. The application cleanup receipt contains only true values.
+    The delayed managed secret subsequently reached `ResourceNotFound`; the
+    exact RDS cleanup verifier, bootstrap IAM checks and local credential-file
+    checks are consolidated in an all-true `final-cleanup.json`.
+
+    The replacement candidate waits for the newly created bucket at the
+    bounded smoke-script boundary. It retries only `404`, `NoSuchBucket` and
+    `Not Found`, fails immediately for every other response, and stops after
+    15 attempts. The focused regression failed with a missing helper before
+    the implementation and now covers success after transient 404 responses,
+    non-404 fail-fast behavior and bounded exhaustion. Exact-head hosted
+    qualification, merge, a replacement live rehearsal, tag and registry
+    publication remain blocked.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

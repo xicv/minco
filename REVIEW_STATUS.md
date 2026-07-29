@@ -15,30 +15,26 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-Exact merged `main` `edabc701ee86b4adfee27b978f8d4d6187d19f2e`
-passed the full local suite, AWS Plan/SAM validation and manual hosted run
-`30449710067`. Authorised live run `20260729t121408z-approved` proved the
-private PostgreSQL migration, the 5,038,349-byte native ARM64 artifact and
-sealed exact-source release `minco.6fba6aee8d28ce4d9bece03b`. Both API Gateway
-stage creates still failed their dependent `TagResource` authorization.
-CloudTrail records the actual operations as `CreateStage` on
-`/apis/${ApiId}/stages`, with the complete reviewed tag sets and no separate
-tagging event. IAM simulation confirms that the current `/tags/*` statement
-cannot admit that stage-collection resource.
+The stage-create correction passed exact PR-head hosted run `30453546940`,
+merged as `8593b47eaf691cace2bf32d3d07e3408f036ca46`, and passed the full
+local suite, AWS Plan/SAM validation and exact-main hosted run `30454760539`.
+Authorised live run `20260729t132534z-approved` proved the private PostgreSQL
+migration, the 5,038,349-byte native ARM64 artifact and exact-source release
+`minco.2b3857b9f12ff31ac32f183a`. The run-owned artifact bucket was created and
+hardened successfully, but the cached build reached the deployment controller
+within seconds and its immediate `HeadBucket` returned 404. The application
+cleanup receipt contains only true values. The delayed RDS-managed secret then
+reached `ResourceNotFound`; the exact recovery cleanup and independent
+bootstrap user/role checks are consolidated in an all-true
+`final-cleanup.json`.
 
-The current unmerged correction leaves general API Gateway mutations behind
-the CloudFormation caller-chain statement. It separately permits
-`apigateway:POST` only on `/apis/*/stages`, with the three exact run-ownership
-request-tag values and the closed run, release, SAM and CloudFormation
-system-key allowlist. IAM simulation returns `allowed` for the exact observed
-request without `aws:CalledVia`, and `implicitDeny` for a wrong run ID or extra
-tag key; the whole-statement regression failed before the correction and
-passes afterward. Application cleanup is all true. The delayed RDS-managed
-secret subsequently reached `ResourceNotFound`, the exact RDS cleanup verifier
-is all true, and the deterministic bootstrap user and role are independently
-absent. The authoritative local quality suite and AWS Plan/SAM validation pass
-on the replacement candidate. Hosted qualification, replacement live AWS
-proof, exact tag creation and crates.io publication remain separate pending
-gates. Current and historical command evidence is maintained in
-`VERIFICATION.md`; Feedback-specific architecture evidence remains in
+The current unmerged correction adds a bounded visibility wait only after the
+new run-owned bucket has been created, blocked from public access and encrypted.
+It retries only `404`, `NoSuchBucket` and `Not Found`, fails immediately for
+other errors, and fails closed after 15 attempts. Focused tests cover eventual
+success, non-404 fail-fast behavior and exhaustion of the retry bound. Exact
+source qualification, hosted qualification, replacement live AWS proof, exact
+tag creation and crates.io publication remain separate pending gates. Current
+and historical command evidence is maintained in `VERIFICATION.md`;
+Feedback-specific architecture evidence remains in
 `FEEDBACK_REVIEW_STATUS.md`.

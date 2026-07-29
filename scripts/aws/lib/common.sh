@@ -209,6 +209,49 @@ aws_logged() {
     "$service" "$operation" "$@"
 }
 
+wait_for_s3_bucket_visibility() {
+  local bucket="$1"
+  local region="$2"
+  local error_path="$3"
+  local max_attempts="${4:-15}"
+  local delay_seconds="${5:-2}"
+  local attempt
+
+  [[ "$max_attempts" =~ ^[1-9][0-9]*$ ]] || {
+    printf 'S3 bucket visibility attempts must be a positive integer\n' >&2
+    return 1
+  }
+  [[ "$delay_seconds" =~ ^[0-9]+$ ]] || {
+    printf 'S3 bucket visibility delay must be a non-negative integer\n' >&2
+    return 1
+  }
+
+  for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do
+    : >"$error_path"
+    chmod 600 "$error_path"
+    if aws_logged s3api head-bucket \
+      "wait for newly created artifact bucket $bucket to become visible; attempt $attempt" \
+      --bucket "$bucket" \
+      --region "$region" >/dev/null 2>"$error_path"; then
+      rm -f "$error_path"
+      return 0
+    fi
+    if ! grep -Eq '404|NoSuchBucket|Not Found' "$error_path"; then
+      printf 'could not verify artifact bucket visibility\n' >&2
+      sed -n '1,8p' "$error_path" >&2
+      return 1
+    fi
+    if ((attempt < max_attempts)); then
+      sleep "$delay_seconds"
+    fi
+  done
+
+  printf 'artifact bucket did not become visible after %s attempts\n' \
+    "$max_attempts" >&2
+  sed -n '1,8p' "$error_path" >&2
+  return 1
+}
+
 sam_logged() {
   local action="$1"
   local detail="$2"

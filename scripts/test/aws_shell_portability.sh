@@ -28,6 +28,67 @@ cleanup_review_fixture() {
   rm -r -- "$review_fixture_dir"
 }
 trap cleanup_review_fixture EXIT
+
+bucket_visibility_error="$review_fixture_dir/bucket-visibility-error.txt"
+bucket_visibility_calls=0
+aws_logged() {
+  bucket_visibility_calls=$((bucket_visibility_calls + 1))
+  if ((bucket_visibility_calls < 3)); then
+    printf 'An error occurred (404) when calling HeadBucket: Not Found\n' >&2
+    return 1
+  fi
+}
+wait_for_s3_bucket_visibility \
+  minco-smoke-test \
+  ap-southeast-2 \
+  "$bucket_visibility_error" \
+  3 \
+  0
+[[ "$bucket_visibility_calls" == "3" ]] || {
+  printf 'artifact bucket visibility did not retry bounded 404 responses\n' >&2
+  exit 1
+}
+
+bucket_visibility_calls=0
+aws_logged() {
+  bucket_visibility_calls=$((bucket_visibility_calls + 1))
+  printf 'AccessDenied\n' >&2
+  return 1
+}
+if wait_for_s3_bucket_visibility \
+  minco-smoke-test \
+  ap-southeast-2 \
+  "$bucket_visibility_error" \
+  3 \
+  0 2>/dev/null; then
+  printf 'artifact bucket visibility accepted a non-404 error\n' >&2
+  exit 1
+fi
+[[ "$bucket_visibility_calls" == "1" ]] || {
+  printf 'artifact bucket visibility retried a non-404 error\n' >&2
+  exit 1
+}
+
+bucket_visibility_calls=0
+aws_logged() {
+  bucket_visibility_calls=$((bucket_visibility_calls + 1))
+  printf 'NoSuchBucket\n' >&2
+  return 1
+}
+if wait_for_s3_bucket_visibility \
+  minco-smoke-test \
+  ap-southeast-2 \
+  "$bucket_visibility_error" \
+  3 \
+  0 2>/dev/null; then
+  printf 'artifact bucket visibility accepted exhausted 404 retries\n' >&2
+  exit 1
+fi
+[[ "$bucket_visibility_calls" == "3" ]] || {
+  printf 'artifact bucket visibility exceeded its retry bound\n' >&2
+  exit 1
+}
+
 printf '%s\n' minco-smoke-test >"$review_fixture_dir/stack-preflight-absent.txt"
 printf '%s\n' \
   '{"Stacks":[{"StackName":"minco-smoke-test","StackStatus":"REVIEW_IN_PROGRESS","Tags":[]}]}' \

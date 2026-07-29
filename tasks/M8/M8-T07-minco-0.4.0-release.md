@@ -316,3 +316,27 @@ without `aws:CalledVia`, and `implicitDeny` for a wrong run ID or extra tag key.
 The authoritative local quality suite and AWS Plan/SAM validation pass.
 Hosted qualification, a replacement live rehearsal, tag and registry
 publication remain blocked.
+
+That stage-collection correction passed exact PR-head hosted run
+[`30453546940`](https://github.com/xicv/minco/actions/runs/30453546940), merged
+as `8593b47eaf691cace2bf32d3d07e3408f036ca46`, and passed the full local
+suite, AWS Plan/SAM validation and exact-main hosted run
+[`30454760539`](https://github.com/xicv/minco/actions/runs/30454760539).
+Authorised replacement run `20260729t132534z-approved` migrated and verified
+its disposable PostgreSQL database over TLS `verify-full`, removed the local
+`/32`, proved the database private, built the same 5,038,349-byte native ARM64
+ZIP, and sealed exact-source release `minco.2b3857b9f12ff31ac32f183a`.
+The run-owned S3 bucket was created, tagged, blocked from public access and
+encrypted, but the cached build reached the controller within seconds and its
+immediate `HeadBucket` returned 404 before change-set creation. Application
+cleanup is all true. After the RDS-managed secret reached
+`ResourceNotFound`, exact database/VPC/secret cleanup and bootstrap IAM/local
+credential checks were consolidated in an all-true `final-cleanup.json`.
+
+The replacement candidate adds a bounded bucket-visibility wait after creation
+and hardening. It retries only `404`, `NoSuchBucket` and `Not Found`, fails
+immediately on every other response, and stops after 15 attempts. The focused
+test failed before the helper existed and now covers transient success,
+non-404 fail-fast behavior and exhaustion of the retry bound. Exact-head hosted
+qualification, merge, a replacement live rehearsal, tag and registry
+publication remain blocked.
