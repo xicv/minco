@@ -118,6 +118,13 @@ several boundaries that local emulation could not prove:
 - New IAM users, keys, policies and trust principals are eventually consistent.
   Bootstrap retries only the reviewed propagation errors, with bounded attempts
   and one journal entry per call.
+- A fresh access key can resolve correctly through `GetCallerIdentity` and
+  still return `InvalidClientTokenId` on the immediately following
+  `AssumeRole`. Both identity verification and exact-role assumption retry only
+  the reviewed fresh-key/authorization propagation errors, at most 15 times
+  two seconds apart. Cleanup records whether the application runner was
+  invoked, so a pre-application bootstrap failure is clean without weakening
+  the all-true receipt requirement after invocation.
 - A PostgreSQL URI in `PGDATABASE` is treated as a database name by the local
   `psql`. The common helper converts a URL read through stdin into quoted libpq
   conninfo held only in process memory, keeping passwords out of argv.
