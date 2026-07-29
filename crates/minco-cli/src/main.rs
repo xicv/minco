@@ -2078,6 +2078,13 @@ struct AwsChangeSetParameter {
     use_previous_value: Option<bool>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsChangeSetTag {
+    key: String,
+    value: String,
+}
+
 impl AwsChangeSetParameter {
     fn value(key: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
@@ -2257,6 +2264,12 @@ fn create_change_set(
         ),
         live_version_parameter,
     ])?;
+    let tags = aws_change_set_tags(
+        environment,
+        &release.release_id,
+        &release.release_digest,
+        &target.stack_tags,
+    )?;
     let mut create_args = vec![
         "cloudformation".into(),
         "create-change-set".into(),
@@ -2277,9 +2290,7 @@ fn create_change_set(
         "--parameters".into(),
         parameters,
         "--tags".into(),
-        format!("Key=MincoEnvironment,Value={environment}"),
-        format!("Key=MincoReleaseId,Value={}", release.release_id),
-        format!("Key=MincoReleaseDigest,Value={}", release.release_digest),
+        tags,
         "--region".into(),
         target.expected_region.clone(),
         "--output".into(),
@@ -2544,6 +2555,33 @@ fn aws_change_set_parameters(parameters: &[AwsChangeSetParameter]) -> Result<Str
         bail!("CloudFormation change-set parameters must not be empty");
     }
     Ok(serde_json::to_string(&parameters)?)
+}
+
+fn aws_change_set_tags(
+    environment: &str,
+    release_id: &str,
+    release_digest: &str,
+    target_tags: &std::collections::BTreeMap<String, String>,
+) -> Result<String> {
+    let mut tags = vec![
+        AwsChangeSetTag {
+            key: "MincoEnvironment".into(),
+            value: environment.into(),
+        },
+        AwsChangeSetTag {
+            key: "MincoReleaseId".into(),
+            value: release_id.into(),
+        },
+        AwsChangeSetTag {
+            key: "MincoReleaseDigest".into(),
+            value: release_digest.into(),
+        },
+    ];
+    tags.extend(target_tags.iter().map(|(key, value)| AwsChangeSetTag {
+        key: key.clone(),
+        value: value.clone(),
+    }));
+    Ok(serde_json::to_string(&tags)?)
 }
 
 fn aws_json<T: for<'de> Deserialize<'de>>(
@@ -3798,6 +3836,32 @@ mod cli_argument_tests {
             }))
         ));
         assert!(cli.json);
+    }
+
+    #[test]
+    fn deployment_change_set_includes_deterministic_target_stack_tags() {
+        let tags = std::collections::BTreeMap::from([
+            ("minco:run-id".to_owned(), "run-123".to_owned()),
+            ("minco:managed".to_owned(), "true".to_owned()),
+        ]);
+        let rendered = aws_change_set_tags(
+            "dev",
+            "minco.aaaaaaaaaaaaaaaaaaaaaaaa",
+            &"a".repeat(64),
+            &tags,
+        )
+        .expect("serialize change-set tags");
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&rendered).expect("tag JSON"),
+            json!([
+                {"Key": "MincoEnvironment", "Value": "dev"},
+                {"Key": "MincoReleaseId", "Value": "minco.aaaaaaaaaaaaaaaaaaaaaaaa"},
+                {"Key": "MincoReleaseDigest", "Value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                {"Key": "minco:managed", "Value": "true"},
+                {"Key": "minco:run-id", "Value": "run-123"}
+            ])
+        );
     }
 
     #[test]

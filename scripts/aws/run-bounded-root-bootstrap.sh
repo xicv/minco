@@ -660,6 +660,17 @@ jq -n \
             "aws:RequestTag/minco:managed": "true",
             "aws:RequestTag/minco:purpose": "bounded-smoke"
           },
+          "ForAllValues:StringEquals": {
+            "aws:TagKeys": [
+              "minco:run-id",
+              "minco:managed",
+              "minco:purpose",
+              "MincoEnvironment",
+              "MincoReleaseId",
+              "MincoReleaseDigest",
+              "httpapi:createdBy"
+            ]
+          },
           "ForAnyValue:StringEquals": {
             "aws:CalledVia": "cloudformation.amazonaws.com"
           }

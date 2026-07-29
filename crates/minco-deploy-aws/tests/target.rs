@@ -14,6 +14,7 @@ expected_role_arn = "arn:aws:iam::000000000000:role/minco-dev"
 stack_name = "minco-dev"
 artifact_bucket = "minco-dev-artifacts-placeholder"
 database_url_parameter_name = "/minco/dev/database-url"
+stack_tags = { "minco:managed" = "true", "minco:purpose" = "bounded-smoke", "minco:run-id" = "run-123" }
 "#;
 
     let catalog = DeploymentTargetCatalog::from_toml(source).expect("target catalog");
@@ -21,6 +22,10 @@ database_url_parameter_name = "/minco/dev/database-url"
     assert_eq!(selected.environment, "dev");
     assert!(!selected.target.enabled);
     assert_eq!(selected.target.expected_region, "ap-southeast-2");
+    assert_eq!(
+        selected.target.stack_tags.get("minco:run-id"),
+        Some(&"run-123".to_owned())
+    );
 
     let output = serde_json::to_string(&selected).expect("serialize target");
     assert!(output.contains("database_url_parameter_name"));
@@ -44,4 +49,53 @@ database_url_parameter_name = "/minco/dev/database-url"
         "database_url_parameter_name = \"/minco/dev/database-url\"\ndatabase_kms_key_arn = \"arn:aws:kms:us-east-1:999900001111:key/not-reviewed\"",
     );
     assert!(DeploymentTargetCatalog::from_toml(&wrong_kms_target).is_err());
+
+    let reserved_release_tag = source.replace(
+        "\"minco:run-id\" = \"run-123\"",
+        "\"MincoReleaseDigest\" = \"operator-controlled\"",
+    );
+    assert!(DeploymentTargetCatalog::from_toml(&reserved_release_tag).is_err());
+
+    let aws_reserved_tag = source.replace(
+        "\"minco:run-id\" = \"run-123\"",
+        "\"aws:operator\" = \"run-123\"",
+    );
+    assert!(DeploymentTargetCatalog::from_toml(&aws_reserved_tag).is_err());
+}
+
+#[test]
+fn deployment_target_stack_tags_enforce_provider_limits() {
+    let source = r#"
+schema_version = 1
+default_environment = "dev"
+
+[environments.dev]
+enabled = false
+expected_account_id = "000000000000"
+expected_region = "ap-southeast-2"
+expected_role_arn = "arn:aws:iam::000000000000:role/minco-dev"
+stack_name = "minco-dev"
+artifact_bucket = "minco-dev-artifacts-placeholder"
+database_url_parameter_name = "/minco/dev/database-url"
+stack_tags = { "minco:run-id" = "run-123" }
+"#;
+
+    for invalid in [
+        source.replace("\"minco:run-id\"", "\"\""),
+        source.replace("\"minco:run-id\"", &format!("\"{}\"", "k".repeat(129))),
+        source.replace("\"run-123\"", &format!("\"{}\"", "v".repeat(257))),
+        source.replace("\"run-123\"", "\"run\\n123\""),
+    ] {
+        assert!(DeploymentTargetCatalog::from_toml(&invalid).is_err());
+    }
+
+    let too_many = (0..48)
+        .map(|index| format!("\"tag-{index}\" = \"value\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let too_many = source.replace(
+        "stack_tags = { \"minco:run-id\" = \"run-123\" }",
+        &format!("stack_tags = {{ {too_many} }}"),
+    );
+    assert!(DeploymentTargetCatalog::from_toml(&too_many).is_err());
 }

@@ -209,3 +209,30 @@ was proven absent before the run, remains in `REVIEW_IN_PROGRESS` and has zero
 resources. Focused red/green tests cover the real provider shape and every
 cleanup refusal boundary. A replacement live rehearsal, tag and registry
 publication remain blocked pending merge and exact-main requalification.
+
+That correction passed PR-head hosted run
+[`30433187335`](https://github.com/xicv/minco/actions/runs/30433187335), merged
+as exact `main` `13be9b0a8d99281c98fec880b8d275a59c7499f9`, and passed the
+full local suite, AWS/SAM validation and exact-main hosted run
+[`30434365889`](https://github.com/xicv/minco/actions/runs/30434365889).
+Authorised replacement run `20260729t082616z-approved` then migrated and
+verified its disposable private PostgreSQL database, sealed and verified the
+native ARM64 release, created and re-read the application change set through
+the corrected provider parser, and entered the digest-approved apply. Both API
+Gateway stages failed because the change set propagated only Minco release
+tags while the bounded role and cleanup contract require the exact three
+run-ownership tags. Rollback deleted every stack resource. The release-tagged
+rollback shell and delayed RDS secret were subsequently removed after exact
+ownership verification, and a cross-service sweep proved every application,
+database, secret, network, storage, Cognito, Lambda/log and bootstrap-IAM
+resource absent.
+
+The candidate correction makes validated, deterministic target stack tags part
+of the change-set JSON input and emits the bounded smoke run tags from one
+tested helper. Reserved release tags and the `aws:` prefix cannot be
+overridden, provider limits fail closed, and the API Gateway stage policy
+admits only the run, release and SAM-owned tag keys through CloudFormation.
+The authoritative local suite, AWS Plan/SAM validation, ShellCheck and AWS CLI
+non-contacting shape gates pass. Hosted qualification, a replacement live
+rehearsal, tag and registry publication remain blocked pending exact-head merge
+and requalification.

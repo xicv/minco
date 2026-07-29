@@ -29,6 +29,42 @@ normalized_ssm_parameter_name() {
     "$parameter_name" != */ ]]
 }
 
+write_bounded_deployment_target_config() {
+  local output_path="$1"
+  local account_id="$2"
+  local region="$3"
+  local role_arn="$4"
+  local stack_name="$5"
+  local artifact_bucket="$6"
+  local database_parameter_name="$7"
+  local database_kms_key_arn="$8"
+  local lambda_subnet_ids="$9"
+  local lambda_security_group_ids="${10}"
+  local run_id="${11}"
+
+  {
+    printf 'schema_version = 1\ndefault_environment = "dev"\n\n'
+    printf '[environments.dev]\nenabled = true\n'
+    printf 'expected_account_id = "%s"\n' "$account_id"
+    printf 'expected_region = "%s"\n' "$region"
+    printf 'expected_role_arn = "%s"\n' "$role_arn"
+    printf 'stack_name = "%s"\n' "$stack_name"
+    printf 'artifact_bucket = "%s"\n' "$artifact_bucket"
+    printf 'database_url_parameter_name = "%s"\n' "$database_parameter_name"
+    if [[ -n "$database_kms_key_arn" ]]; then
+      printf 'database_kms_key_arn = "%s"\n' "$database_kms_key_arn"
+    fi
+    if [[ -n "$lambda_subnet_ids" ]]; then
+      printf 'lambda_subnet_ids = ["%s"]\n' "${lambda_subnet_ids//,/\",\"}"
+      printf 'lambda_security_group_ids = ["%s"]\n' \
+        "${lambda_security_group_ids//,/\",\"}"
+    fi
+    printf 'stack_tags = { "minco:managed" = "true", '
+    printf '"minco:purpose" = "bounded-smoke", "minco:run-id" = "%s" }\n' "$run_id"
+  } >"$output_path"
+  chmod 600 "$output_path"
+}
+
 bounded_review_stack_cleanup_is_authorized() {
   local stack_description_path="$1"
   local stack_resources_path="$2"

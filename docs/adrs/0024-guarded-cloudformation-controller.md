@@ -45,7 +45,9 @@ provider change classification and a digest-sealed change-set receipt.
 3. verifies the current STS caller and either proves the stack is new or waits
    for clean drift on a stable existing stack;
 4. packages only the release-bound SAM template and artifacts;
-5. creates, but does not execute, a deterministic CloudFormation change set;
+5. creates, but does not execute, a deterministic CloudFormation change set
+   with reserved release-identity tags plus validated, non-secret target stack
+   tags;
 6. binds the response to the already-guarded create/update type, then
    classifies additions, ordinary modifications, replacements, deletions,
    imports and indeterminate/provider-sync actions while discarding parameter
@@ -95,4 +97,5 @@ Target configuration contains identifiers and secret names only. Process
 errors are bounded, provider response values are discarded, all AWS calls use
 the exact configured Region, and source identity is rechecked immediately
 before mutation. No command claims that a change set, drift result or completed
-stack proves application correctness.
+stack proves application correctness. Target stack tags cannot replace Minco's
+reserved release tags or use the provider-reserved `aws:` prefix.

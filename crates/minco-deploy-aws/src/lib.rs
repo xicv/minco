@@ -1792,6 +1792,8 @@ pub struct DeploymentTarget {
     pub lambda_subnet_ids: Vec<String>,
     #[serde(default)]
     pub lambda_security_group_ids: Vec<String>,
+    #[serde(default)]
+    pub stack_tags: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1902,6 +1904,10 @@ fn validate_deployment_target(
                 && resource_ids_are_valid(&target.lambda_subnet_ids, "subnet-")
                 && resource_ids_are_valid(&target.lambda_security_group_ids, "sg-"),
         ),
+        (
+            "stack_tags",
+            deployment_stack_tags_are_valid(&target.stack_tags),
+        ),
     ];
     if let Some((field, _)) = valid.into_iter().find(|(_, valid)| !valid) {
         return Err(DeploymentTargetError::InvalidField {
@@ -1915,6 +1921,22 @@ fn validate_deployment_target(
         ));
     }
     Ok(())
+}
+
+fn deployment_stack_tags_are_valid(tags: &BTreeMap<String, String>) -> bool {
+    tags.len() <= 47
+        && tags.iter().all(|(key, value)| {
+            !key.is_empty()
+                && key.len() <= 128
+                && value.len() <= 256
+                && key.chars().all(|character| !character.is_control())
+                && value.chars().all(|character| !character.is_control())
+                && !key.to_ascii_lowercase().starts_with("aws:")
+                && !matches!(
+                    key.as_str(),
+                    "MincoEnvironment" | "MincoReleaseId" | "MincoReleaseDigest"
+                )
+        })
 }
 
 fn stack_name_is_valid(value: &str) -> bool {
