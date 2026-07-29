@@ -258,26 +258,18 @@ aws_logged s3api put-bucket-encryption \
   >/dev/null
 
 target_config="$MINCO_AWS_EVIDENCE_DIR/deployment-targets.toml"
-{
-  printf 'schema_version = 1\ndefault_environment = "dev"\n\n'
-  printf '[environments.dev]\nenabled = true\n'
-  printf 'expected_account_id = "%s"\n' "$account_id"
-  printf 'expected_region = "%s"\n' "$AWS_REGION"
-  printf 'expected_role_arn = "%s"\n' "$expected_role_arn"
-  printf 'stack_name = "%s"\n' "$MINCO_STACK_NAME"
-  printf 'artifact_bucket = "%s"\n' "$MINCO_AWS_ARTIFACT_BUCKET"
-  printf 'database_url_parameter_name = "%s"\n' "$MINCO_DATABASE_URL_PARAMETER"
-  if [[ -n "${MINCO_DATABASE_KMS_KEY_ARN:-}" ]]; then
-    printf 'database_kms_key_arn = "%s"\n' "$MINCO_DATABASE_KMS_KEY_ARN"
-  fi
-  if [[ -n "${MINCO_LAMBDA_SUBNET_IDS:-}" ]]; then
-    printf 'lambda_subnet_ids = ["%s"]\n' \
-      "${MINCO_LAMBDA_SUBNET_IDS//,/\",\"}"
-    printf 'lambda_security_group_ids = ["%s"]\n' \
-      "${MINCO_LAMBDA_SECURITY_GROUP_IDS//,/\",\"}"
-  fi
-} >"$target_config"
-chmod 600 "$target_config"
+write_bounded_deployment_target_config \
+  "$target_config" \
+  "$account_id" \
+  "$AWS_REGION" \
+  "$expected_role_arn" \
+  "$MINCO_STACK_NAME" \
+  "$MINCO_AWS_ARTIFACT_BUCKET" \
+  "$MINCO_DATABASE_URL_PARAMETER" \
+  "${MINCO_DATABASE_KMS_KEY_ARN:-}" \
+  "${MINCO_LAMBDA_SUBNET_IDS:-}" \
+  "${MINCO_LAMBDA_SECURITY_GROUP_IDS:-}" \
+  "$MINCO_AWS_RUN_ID"
 
 release_digest="$(jq -er '.release_digest' "$MINCO_RELEASE_MANIFEST")"
 MINCO_DEPLOY_PHASE=changeset \

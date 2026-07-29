@@ -46,6 +46,18 @@ manifest and evidence journal contain no secret value.
 
 ## Explicit stages
 
+The reviewed deployment-target catalog may add non-secret CloudFormation stack
+tags with `stack_tags`. Minco serializes them deterministically alongside its
+reserved release identity tags. `MincoEnvironment`, `MincoReleaseId`,
+`MincoReleaseDigest` and the `aws:` prefix are reserved; target tags are limited
+to the remaining 47 CloudFormation tag slots.
+
+```toml
+[environments.dev]
+# ...reviewed account, Region, role, stack, bucket and parameter names...
+stack_tags = { "minco:managed" = "true", "minco:purpose" = "bounded-smoke", "minco:run-id" = "reviewed-run-id" }
+```
+
 ```bash
 # Build once from a reviewed environment config, then lint and hash the inputs
 ./scripts/aws/build-release.sh path/to/reviewed.minco.toml

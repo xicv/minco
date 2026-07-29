@@ -41,8 +41,8 @@ workspace with `fatal: not a git repository (or any of the parent directories):
 .git`. A Git transport equivalent must run from the colocated primary
 repository against the final exported commit; this blocker is not a pass.
 
-The release reconciliation found eight fail-closed controller defects before
-qualification:
+The release reconciliation and authorised live gates found the following
+fail-closed controller defects before publication:
 
 1. publishing each `0.4.0` crate separately could not resolve unpublished
    lock-step dependencies from crates.io; the driver now performs one
@@ -164,6 +164,37 @@ qualification:
     resources. Focused red/green tests cover the real missing-field shape,
     contradiction rejection and cleanup refusal when preflight absence, review
     status or zero-resource evidence is missing.
+13. the guarded-type correction passed PR-head manual run
+    [`30433187335`](https://github.com/xicv/minco/actions/runs/30433187335),
+    merged as exact `main`
+    `13be9b0a8d99281c98fec880b8d275a59c7499f9`, and passed the full local
+    suite, AWS/SAM validation and exact-main hosted run
+    [`30434365889`](https://github.com/xicv/minco/actions/runs/30434365889).
+    The first replacement invocation `20260729t082443z-approved` stopped during
+    IAM propagation before application or database creation; its temporary
+    user, role, access key and local credential files were removed. Authorised
+    replacement run `20260729t082616z-approved` then migrated and verified the
+    private PostgreSQL database, sealed and verified the 5,038,349 byte native
+    ARM64 release, created and re-read the application change set through the
+    corrected parser, and attempted the exact digest-approved apply. Both API
+    Gateway stages failed because CloudFormation propagated stack tags but the
+    change set carried only Minco release tags while the bounded role required
+    the three run-ownership tags. Rollback removed all stack resources.
+    Tag-only cleanup correctly refused the remaining release-tagged rollback
+    shell; exact preflight, stack ID, release digest and all-`DELETE_COMPLETE`
+    resource evidence authorized its manual deletion. The RDS-managed secret
+    reached `ResourceNotFound` after the initial verification window. A final
+    cross-service sweep proved the application and RDS stacks, instance,
+    secret, VPC, parameter, bucket, Cognito pool, Lambda/log group and
+    bootstrap IAM identities absent. The candidate correction makes validated
+    target stack tags part of the deterministic JSON change-set input, reserves
+    Minco's three release keys and the `aws:` prefix, enforces provider limits,
+    and generates the bounded smoke catalog with the exact run tags required
+    by both stage authorization and cleanup. The authoritative local suite,
+    AWS Plan/SAM validation, ShellCheck and AWS CLI `2.36.10` non-contacting
+    shape validation pass. Hosted qualification, a replacement live rehearsal,
+    tag and registry publication remain blocked pending exact-head merge and
+    requalification.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

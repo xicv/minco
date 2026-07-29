@@ -77,6 +77,33 @@ if bounded_review_stack_cleanup_is_authorized \
   exit 1
 fi
 
+target_fixture="$review_fixture_dir/deployment-targets.toml"
+write_bounded_deployment_target_config \
+  "$target_fixture" \
+  123456789012 \
+  ap-southeast-2 \
+  arn:aws:iam::123456789012:role/minco-smoke-test \
+  minco-smoke-test \
+  minco-smoke-test \
+  /minco/smoke/test/database-url \
+  "" \
+  subnet-a,subnet-b \
+  sg-test \
+  test-run
+python3 - "$target_fixture" <<'PY'
+from pathlib import Path
+import sys
+import tomllib
+
+target = tomllib.loads(Path(sys.argv[1]).read_text())["environments"]["dev"]
+if target["stack_tags"] != {
+    "minco:managed": "true",
+    "minco:purpose": "bounded-smoke",
+    "minco:run-id": "test-run",
+}:
+    raise SystemExit("bounded target omitted exact run-ownership stack tags")
+PY
+
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -143,6 +170,36 @@ if statement != {
     },
 }:
     raise SystemExit("Cognito tagging policy exceeds or misses the run-owned boundary")
+
+stage_statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "TagOwnedTemporaryHttpApiStage"
+)
+allowed_stage_tag_keys = [
+    "minco:run-id",
+    "minco:managed",
+    "minco:purpose",
+    "MincoEnvironment",
+    "MincoReleaseId",
+    "MincoReleaseDigest",
+    "httpapi:createdBy",
+]
+if stage_statement != {
+    "Sid": "TagOwnedTemporaryHttpApiStage",
+    "Effect": "Allow",
+    "Action": "apigateway:*",
+    "Resource": f"arn:aws:apigateway:{region}::/apis/*/stages",
+    "Condition": {
+        "StringEquals": expected_tags,
+        "ForAllValues:StringEquals": {
+            "aws:TagKeys": allowed_stage_tag_keys,
+        },
+        "ForAnyValue:StringEquals": {
+            "aws:CalledVia": "cloudformation.amazonaws.com",
+        },
+    },
+}:
+    raise SystemExit("API Gateway stage tagging policy exceeds the run-owned boundary")
 PY
 
 printf 'AWS shell portability checks passed.\n'

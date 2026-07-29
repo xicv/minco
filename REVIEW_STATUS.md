@@ -15,20 +15,20 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-Focused and authoritative local source/package gates pass. Corrected
-pull-request head `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual
-hosted run `30410242657`, including browser, coordinated package dry-run,
-Plan/SAM/native Lambda, Rustack and E2E stages. Later evidence-only head
-`edcb42c916114dc0c7bc3ffb10bcf8555190b0f1` passed authoritative quality
-and the browser matrix in run `30411179583`, then exposed a synchronization
-race in the packaged `minco-dev` descendant-shutdown fixture. The fixture
-correction passes focused gates and 600 repeated full-suite runs locally.
-Corrected exact head `b211b5083b43a0c9a0de9cd28ca4f748dfbbeb51`
-passed every stage of manual hosted run `30412849538`: authoritative quality,
-Chromium/Firefox, coordinated package dry-run, Plan/SAM/native Lambda,
-Rustack/SSM conformance and E2E. The candidate is ready for an exact-head
-guarded merge. This record does not approve AWS mutation, promotion, tag
-creation or crate upload. Current and historical command evidence is
-maintained in `VERIFICATION.md`;
-Feedback-specific architecture evidence remains in
-`FEEDBACK_REVIEW_STATUS.md`.
+Exact merged `main` `13be9b0a8d99281c98fec880b8d275a59c7499f9`
+passed the full local suite, AWS/SAM validation and manual hosted run
+`30434365889`. Authorised live run `20260729t082616z-approved` proved the
+private PostgreSQL migration, native ARM64 artifact, sealed release and real
+change-set parser, then failed during application stack creation because the
+change set omitted the run-ownership tags required by the bounded API Gateway
+stage policy. Rollback and an exact manual cleanup removed all run resources;
+a cross-service absence sweep passed.
+
+The current unmerged correction makes validated target stack tags part of the
+deterministic change-set input and binds the bounded smoke tags to the IAM and
+cleanup contract. The authoritative local suite, AWS Plan/SAM validation,
+ShellCheck and non-contacting AWS CLI validation pass. Hosted qualification,
+replacement live AWS proof, exact tag creation and crates.io publication
+remain separate pending gates. Current and historical command evidence is
+maintained in `VERIFICATION.md`; Feedback-specific architecture evidence
+remains in `FEEDBACK_REVIEW_STATUS.md`.
