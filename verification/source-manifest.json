@@ -104,8 +104,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "32788cac4feb23ece6ff6a737db7bf07129861e8976fd614837e99d454c89283",
-      "size_bytes": 2183
+      "sha256": "ca27786f965c66929c7c0f4e2e1a17a17ca128122fda8833574bd159168b43a6",
+      "size_bytes": 2413
     },
     {
       "path": "SECURITY.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "885a9455e5e59029de29108f6b6ae2c7da942669255c0c4c38e51e57dd808f0e",
-      "size_bytes": 56023
+      "sha256": "3c10ec2f522a88d69de88507dae3e2dd7e4c3163b81671566507e07eff5cf32e",
+      "size_bytes": 58553
     },
     {
       "path": "config/jj/repo.toml",
@@ -1209,8 +1209,8 @@
     },
     {
       "path": "docs/adrs/0024-guarded-cloudformation-controller.md",
-      "sha256": "61de189739e464eae6b22af2e74dcf10c16a366f43d105c77d76d554089d5f43",
-      "size_bytes": 6898
+      "sha256": "3a79fb5256d18498c52f6e94e9d3d653733006269c8849185ef1c9bbb5132c49",
+      "size_bytes": 6946
     },
     {
       "path": "docs/adrs/0025-zero-provisioned-compute-review-loop.md",
@@ -1314,8 +1314,8 @@
     },
     {
       "path": "docs/deployment/real-aws-smoke.md",
-      "sha256": "dd5f5bd9059a2863ed932b6b1d04b9444782932aca5f4eafec676be6ef10acdb",
-      "size_bytes": 11916
+      "sha256": "bce5c7e2331d42e1c78a855daa0c4ac43ca04d2cfb0e9a8052f35d74517506a0",
+      "size_bytes": 11994
     },
     {
       "path": "docs/deployment/release.md",
@@ -2404,8 +2404,8 @@
     },
     {
       "path": "scripts/aws/run-bounded-root-bootstrap.sh",
-      "sha256": "49b19a4fe7cdc01786d44f4f64e44792f928633cd6107a064f1b77222f69f10e",
-      "size_bytes": 43517
+      "sha256": "d14d1b5be14db44ed7098940e4a21f14b3fde085b3e767eec1b9c4f4ff3bf5c0",
+      "size_bytes": 44406
     },
     {
       "path": "scripts/aws/run-bounded-smoke.sh",
@@ -2534,8 +2534,8 @@
     },
     {
       "path": "scripts/test/aws_shell_portability.sh",
-      "sha256": "65d1bffbe271415abba49af92724bc9b4a95fcf2c412b535448eb1f499f8b9ec",
-      "size_bytes": 9338
+      "sha256": "ec7b88f39ab84b2a24cd29225a946d81379e46ed1b860f7bcdb6ccffdd32c12b",
+      "size_bytes": 9732
     },
     {
       "path": "scripts/test/deep_review_exclusions.py",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "84a292da278a0141e9dbcf05d4a8dcf84a186e335f030ca3b6a212bf99d3c279",
-      "size_bytes": 18802
+      "sha256": "0159ffe59b2f355b9bce4c944fea4cbe150d6c38acbda09bb6ac7921b01e6bf1",
+      "size_bytes": 20819
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "8f693cffcb13d7394814e6352b7c9b044f81c87cf3dc411d1461a5572b8cc696",
-  "total_size_bytes": 3651121,
+  "source_tree_sha256": "90c9738432d8c372878fac71d8309f9a37c714ccfcf24fb6a486f6ee9ceefc26",
+  "total_size_bytes": 3657307,
   "version": "0.4.0"
 }

@@ -254,7 +254,7 @@ if mutation_statement != {
 }:
     raise SystemExit("API Gateway mutation policy exceeds the CloudFormation boundary")
 
-tag_statement = next(
+stage_create_statement = next(
     item for item in policy["Statement"]
     if item["Sid"] == "CreateRunOwnedTemporaryHttpApiStage"
 )
@@ -270,7 +270,7 @@ allowed_stage_tag_keys = [
     "aws:cloudformation:stack-id",
     "aws:cloudformation:logical-id",
 ]
-if tag_statement != {
+if stage_create_statement != {
     "Sid": "CreateRunOwnedTemporaryHttpApiStage",
     "Effect": "Allow",
     "Action": "apigateway:POST",
@@ -283,11 +283,23 @@ if tag_statement != {
     },
 }:
     raise SystemExit("API Gateway stage creation policy exceeds the run-owned boundary")
-if any(
-    item.get("Resource") == f"arn:aws:apigateway:{region}::/tags/*"
-    for item in policy["Statement"]
-):
-    raise SystemExit("API Gateway policy retained the disproved tags namespace")
+stage_tag_statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "TagRunOwnedTemporaryHttpApiStage"
+)
+if stage_tag_statement != {
+    "Sid": "TagRunOwnedTemporaryHttpApiStage",
+    "Effect": "Allow",
+    "Action": "apigateway:PUT",
+    "Resource": f"arn:aws:apigateway:{region}::/tags/*",
+    "Condition": {
+        "StringEquals": expected_tags,
+        "ForAllValues:StringEquals": {
+            "aws:TagKeys": allowed_stage_tag_keys,
+        },
+    },
+}:
+    raise SystemExit("API Gateway stage tagging policy exceeds the run-owned boundary")
 PY
 
 printf 'AWS shell portability checks passed.\n'
