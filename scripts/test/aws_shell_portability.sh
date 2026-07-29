@@ -171,6 +171,29 @@ from pathlib import Path
 import subprocess
 
 source = Path("scripts/aws/run-bounded-root-bootstrap.sh").read_text()
+if (
+    "InvalidClientTokenId|AccessDenied|not authorized to perform: sts:AssumeRole"
+    not in source
+):
+    raise SystemExit(
+        "role assumption does not retry the fresh-key propagation failure"
+    )
+if (
+    'if [[ "$application_runner_started" == false ]]; then\n'
+    "    application_cleanup=true"
+    not in source
+):
+    raise SystemExit(
+        "bootstrap cleanup does not recognize a never-started application"
+    )
+if (
+    "application_runner_started=true\n"
+    "AWS_CONFIG_FILE=\"$profile_config\""
+    not in source
+):
+    raise SystemExit(
+        "bootstrap does not mark the application runner before invoking it"
+    )
 start_marker = '  --argjson create_temp_rds "$MINCO_CREATE_TEMP_RDS" \\\n  \''
 end_marker = '\' >"$request_directory/role-policy.json"'
 start = source.find(start_marker)

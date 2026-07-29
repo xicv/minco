@@ -404,3 +404,29 @@ cleanup verification confirms the delayed managed secret, database instance,
 stack, VPC, local secret files and synthetic data are absent. Bootstrap IAM
 and temporary local credentials are absent. Exact-head hosted qualification,
 merge, another live rehearsal, tag and registry publication remain blocked.
+
+The stage-collection correction passed exact PR-head hosted run
+[`30496875203`](https://github.com/xicv/minco/actions/runs/30496875203) at
+`cffb60520a9311c72cf287f94c8dcbfa762bf1e0`, merged as
+`36d09d5ce36242290ae99506afee64c1a2f0de91`, passed the full local suite and
+AWS Plan/SAM validation, and passed exact-main hosted run
+[`30498077062`](https://github.com/xicv/minco/actions/runs/30498077062).
+
+Authorised replacement run `20260729t231646z-approved` stopped before
+application, database or release work. Its fresh access key resolved on the
+first identity attempt to exact run-owned user
+`MincoSmokeBootstrap-ddf380d762c9`, but the immediately following first
+`AssumeRole` returned `InvalidClientTokenId`. The bootstrap already retried
+that propagation class during identity verification, but not during role
+assumption.
+
+The current correction adds that same fresh-key propagation class to the
+existing role-assumption retry loop, still capped at 15 attempts two seconds
+apart and still bound to the exact principal, role and one-hour session. It
+also marks application invocation before the runner so cleanup can distinguish
+a never-started application from a started run that must supply its existing
+all-true receipt. The focused regression failed before implementation and
+passes afterward. Independent exact-name checks confirm the application and
+RDS stacks, bootstrap user and bootstrap role are absent; local temporary
+credentials and profiles are absent. Exact-head hosted qualification, merge,
+another live rehearsal, tag and registry publication remain blocked.

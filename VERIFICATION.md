@@ -395,6 +395,36 @@ fail-closed controller defects before publication:
     Bootstrap IAM and all temporary local credential/profile files are absent.
     Exact-head hosted qualification, merge, a replacement live rehearsal, tag
     and registry publication remain blocked.
+20. the stage-collection correction passed exact PR-head hosted run
+    [`30496875203`](https://github.com/xicv/minco/actions/runs/30496875203) at
+    `cffb60520a9311c72cf287f94c8dcbfa762bf1e0`, merged as
+    `36d09d5ce36242290ae99506afee64c1a2f0de91`, passed the full local suite
+    and AWS Plan/SAM validation, and passed exact-main hosted run
+    [`30498077062`](https://github.com/xicv/minco/actions/runs/30498077062).
+
+    Authorised run `20260729t231646z-approved` stopped before application,
+    database or release work. The fresh bootstrap key resolved on its first
+    identity attempt to exact user
+    `MincoSmokeBootstrap-ddf380d762c9`; the immediately following first
+    `AssumeRole` returned `InvalidClientTokenId`. The script retried that
+    reviewed fresh-key propagation failure during identity verification but
+    not during role assumption.
+
+    The current correction admits the same
+    `InvalidClientTokenId`/invalid-security-token propagation class to the
+    existing role-assumption retry loop, which remains capped at 15 attempts
+    two seconds apart. It does not alter the exact role, principal, action or
+    one-hour session. The bootstrap now marks application invocation before
+    calling the runner; cleanup can therefore report a never-started
+    application clean, while any started runner still requires its existing
+    all-true receipt. The focused regression failed before implementation and
+    passes afterward.
+
+    Independent exact-name checks confirm both application and RDS stacks,
+    bootstrap user and bootstrap role are absent. The cleanup receipt confirms
+    temporary-database and local credential/profile cleanup are true. Exact-head
+    hosted qualification, merge, another live rehearsal, tag and registry
+    publication remain blocked.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

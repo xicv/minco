@@ -105,6 +105,7 @@ user_created=false
 parameter_created=false
 rds_created=false
 bootstrap_cleanup_started=false
+application_runner_started=false
 
 root_aws_logged() {
   AWS_PROFILE="$MINCO_ROOT_PROFILE" aws_logged "$@"
@@ -135,7 +136,9 @@ cleanup_bootstrap() {
   bootstrap_cleanup_started=true
 
   application_cleanup=false
-  if [[ -f "$MINCO_AWS_EVIDENCE_DIR/cleanup.json" ]] &&
+  if [[ "$application_runner_started" == false ]]; then
+    application_cleanup=true
+  elif [[ -f "$MINCO_AWS_EVIDENCE_DIR/cleanup.json" ]] &&
     jq -e '[.[]] | all' "$MINCO_AWS_EVIDENCE_DIR/cleanup.json" >/dev/null; then
     application_cleanup=true
     parameter_created=false
@@ -1072,7 +1075,8 @@ for attempt in {1..15}; do
     role_session_created=true
     break
   fi
-  if ! grep -Eq 'AccessDenied|not authorized to perform: sts:AssumeRole' "$role_session_error"; then
+  if ! grep -Eq 'InvalidClientTokenId|AccessDenied|not authorized to perform: sts:AssumeRole|security token included in the request is invalid' \
+    "$role_session_error"; then
     sed -n '1,8p' "$role_session_error" >&2
     exit 1
   fi
@@ -1239,6 +1243,7 @@ jq -e \
   '.Name == $name and .Type == "SecureString"' \
   "$MINCO_AWS_EVIDENCE_DIR/created-parameter-metadata.json" >/dev/null
 
+application_runner_started=true
 AWS_CONFIG_FILE="$profile_config" \
 AWS_PROFILE="$deploy_profile" \
 scripts/aws/run-bounded-smoke.sh
