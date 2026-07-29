@@ -82,8 +82,9 @@ the owned database is the proof that all synthetic rows are gone.
    non-secret client and synthetic user;
 6. render and hash a release with that temporary issuer/audience;
 7. create a private SSE-S3 artifact bucket;
-8. upload the verified release and retain an unexecuted CloudFormation change
-   set;
+8. wait with a bounded 404-only retry for that newly created bucket to become
+   visible, then upload the verified release and retain an unexecuted
+   CloudFormation change set;
 9. require the create-only review gate, allow only the eight expected
    SAM-transformed resource types and execute it;
 10. verify candidate liveness, database readiness, unauthenticated rejection,
@@ -143,6 +144,11 @@ several boundaries that local emulation could not prove:
   all three ownership tags must match. Current S3 general-purpose bucket
   creation accepts tags atomically, so `CreateBucket` supplies all three tags,
   IAM requires those request tags and cleanup has no untagged-bucket exception.
+- A successful run-owned bucket create can briefly precede visibility to a
+  following `HeadBucket` when the cached release build reaches the deployment
+  controller within seconds. The bounded smoke runner retries only `404`,
+  `NoSuchBucket` and `Not Found` after public-access blocking and encryption,
+  fails immediately for every other response, and stops after 15 attempts.
 - The run role keeps regional discovery read-only. API Gateway and general VPC
   mutations require an AWS CloudFormation forward-access session; direct
   Cognito and security-group mutations require the exact run ownership tags.
