@@ -127,12 +127,14 @@ several boundaries that local emulation could not prove:
 - API Gateway stage tagging reports authorization as
   `apigateway:TagResource`, while IAM Access Analyzer rejects that explicit
   action. CloudTrail records the actual operation as tagged `CreateStage`.
-  API Gateway V2 maps that operation to `apigateway:POST` on
-  `/apis/${ApiId}/stages` and the dependent tag write to `apigateway:PUT` on
-  `/tags/*`. The role keeps general mutation behind the CloudFormation caller
-  chain and separately permits only those two exact action/resource pairs when
-  the run ID, managed and purpose request tags are present and every requested
-  key is in the closed reviewed allowlist.
+  API Gateway V2 maps that operation to both `apigateway:POST` and
+  `apigateway:PUT`. A live failure showed AWS evaluating both on
+  `/apis/${ApiId}/stages`; the separate direct tagging API uses `/tags/*`.
+  The role keeps general mutation behind the CloudFormation caller chain and
+  separately permits only those two methods on the stage collection when the
+  run ID, managed and purpose request tags are present and every requested key
+  is in the closed reviewed allowlist. Direct `/tags/*` mutation remains
+  denied.
 - CloudFormation can delete an `--on-failure DELETE` stack before a later
   diagnostic pass. A failed create waiter now captures stack events before
   cleanup so the initial failure remains attributable without another cloud

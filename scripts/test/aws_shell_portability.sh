@@ -291,7 +291,7 @@ if stage_tag_statement != {
     "Sid": "TagRunOwnedTemporaryHttpApiStage",
     "Effect": "Allow",
     "Action": "apigateway:PUT",
-    "Resource": f"arn:aws:apigateway:{region}::/tags/*",
+    "Resource": f"arn:aws:apigateway:{region}::/apis/*/stages",
     "Condition": {
         "StringEquals": expected_tags,
         "ForAllValues:StringEquals": {

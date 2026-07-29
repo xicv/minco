@@ -15,28 +15,30 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-The bounded S3-visibility correction passed exact PR-head hosted run
-`30458112104`, merged as
-`dbe8a55f141c082a8329ec1871590c0199682eed`, passed the full local suite and
-AWS Plan/SAM validation, and passed exact-main hosted run `30459913592`.
-Authorised live run `20260729t143232z-approved` proved the private PostgreSQL
-migration, the visibility guard, the 5,038,349-byte native ARM64 artifact and
-exact-source release `minco.eefe49c4e87868c73164ecba`. Both API Gateway stage
-creates then failed the provider-reported dependent `TagResource`
-authorization. CloudTrail recorded the tagged `CreateStage` requests from the
-exact temporary role and no separate `TagResource` event.
+The first tagged-stage correction passed exact PR-head hosted run
+`30466012186`, merged as
+`4bf245cae924e2d3c89d008cf291da8bf862cba4`, passed the full local suite and
+AWS Plan/SAM validation, and passed exact-main hosted run `30467769879`.
+Authorised live run `20260729t215737z-approved` proved the private PostgreSQL
+migration, S3 visibility on the first bounded attempt, exact-source release
+`minco.683d7abad93046f3b4476621` and an exact release-bound change set. Both
+API Gateway stage creates then failed because AWS evaluated the dependent
+`apigateway:TagResource` authorization as `apigateway:PUT` on the stage
+collection ARN `/apis/<api-id>/stages`, not on the direct tagging API's
+`/tags/*` namespace.
 
-The current unmerged correction follows AWS's current API Gateway V2 operation
-mapping: tagged `CreateStage` requires `apigateway:POST` on
-`/apis/*/stages` and `apigateway:PUT` on `/tags/*`. Each specialized statement
-requires the three exact run-ownership request tags and the same closed
-ten-key allowlist. The focused regression failed before implementation and
-passes afterward. IAM custom-policy simulation permits only those two
-action/resource pairs; crossed pairs, a wrong run ID and an extra tag key are
-all implicit deny. The failed live run's application cleanup is all true; once
-the delayed managed secret reached `ResourceNotFound`, exact database/VPC,
-bootstrap IAM and local credential-file checks were independently consolidated
-in an all-true `final-cleanup.json`.
+The current unmerged correction keeps the specialized
+`apigateway:POST` and `apigateway:PUT` permissions on
+`/apis/*/stages`. Each statement requires the three exact run-ownership
+request tags and the same closed ten-key allowlist. The focused regression
+failed before implementation and passes afterward. IAM custom-policy
+simulation permits both required methods on the stage collection with exact
+tags; a wrong run ID, an extra tag key and direct `PUT` on `/tags/*` are
+implicit deny. Access Analyzer reports no findings for the two specialized
+statements. The failed live run's application cleanup is all true, and the
+second exact database cleanup verification confirms the delayed managed
+secret, instance, stack, VPC, local secret files and synthetic data are all
+absent. Bootstrap IAM and local temporary credentials are also absent.
 
 Exact source qualification, hosted qualification, replacement live AWS proof,
 exact tag creation and crates.io publication remain separate pending gates.

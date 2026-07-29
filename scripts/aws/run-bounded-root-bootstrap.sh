@@ -680,7 +680,7 @@ jq -n \
         Sid: "TagRunOwnedTemporaryHttpApiStage",
         Effect: "Allow",
         Action: "apigateway:PUT",
-        Resource: ("arn:aws:apigateway:" + $region + "::/tags/*"),
+        Resource: ("arn:aws:apigateway:" + $region + "::/apis/*/stages"),
         Condition: {
           StringEquals: {
             "aws:RequestTag/minco:run-id": $run_id,
