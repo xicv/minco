@@ -652,7 +652,7 @@ jq -n \
       {
         Sid: "TagOwnedTemporaryHttpApiStage",
         Effect: "Allow",
-        Action: "apigateway:*",
+        Action: "apigateway:POST",
         Resource: ("arn:aws:apigateway:" + $region + "::/apis/*/stages"),
         Condition: {
           StringEquals: {
@@ -668,7 +668,10 @@ jq -n \
               "MincoEnvironment",
               "MincoReleaseId",
               "MincoReleaseDigest",
-              "httpapi:createdBy"
+              "httpapi:createdBy",
+              "aws:cloudformation:stack-name",
+              "aws:cloudformation:stack-id",
+              "aws:cloudformation:logical-id"
             ]
           },
           "ForAnyValue:StringEquals": {

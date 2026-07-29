@@ -192,9 +192,32 @@ fail-closed controller defects before publication:
     and generates the bounded smoke catalog with the exact run tags required
     by both stage authorization and cleanup. The authoritative local suite,
     AWS Plan/SAM validation, ShellCheck and AWS CLI `2.36.10` non-contacting
-    shape validation pass. Hosted qualification, a replacement live rehearsal,
-    tag and registry publication remain blocked pending exact-head merge and
-    requalification.
+    shape validation pass.
+14. the stack-tag correction passed PR-head hosted run
+    [`30438686783`](https://github.com/xicv/minco/actions/runs/30438686783),
+    merged as exact `main`
+    `8dcc49e2cefec1b9a043da5ae50161ae1e2431d1`, and passed the full local
+    suite, AWS Plan/SAM validation and exact-main hosted run
+    [`30440072120`](https://github.com/xicv/minco/actions/runs/30440072120).
+    Authorised replacement run `20260729t094817z-approved` proved the target
+    stack carried the exact run tags, migrated and verified its disposable
+    private PostgreSQL database, and sealed release
+    `minco.28624a327fb2f9afaed5d1ac` from the exact merged source. API Gateway
+    stage tagging still returned `AccessDenied` because CloudFormation adds
+    `aws:cloudformation:stack-name`, `aws:cloudformation:stack-id` and
+    `aws:cloudformation:logical-id`, while the policy's `aws:TagKeys`
+    allowlist omitted those service-owned keys. AWS IAM custom-policy
+    simulation reproduced `implicitDeny` with the real key set and returned
+    `allowed` after adding only those three keys. Application rollback and
+    cleanup passed; the delayed RDS-managed secret subsequently reached
+    `ResourceNotFound`, and the exact cleanup verifier produced all-true
+    application, database/VPC/secret and bootstrap-IAM receipts. The candidate
+    correction names only the documented API Gateway V2 tagging IAM action
+    `apigateway:POST`, retains the exact stage collection ARN, caller chain and
+    run-tag value guards, and admits only the three documented CloudFormation
+    system keys in addition to the already reviewed run, release and SAM keys.
+    A replacement live rehearsal, tag and registry publication remain blocked
+    pending exact-head merge and requalification.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

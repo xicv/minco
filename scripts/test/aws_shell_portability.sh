@@ -183,11 +183,14 @@ allowed_stage_tag_keys = [
     "MincoReleaseId",
     "MincoReleaseDigest",
     "httpapi:createdBy",
+    "aws:cloudformation:stack-name",
+    "aws:cloudformation:stack-id",
+    "aws:cloudformation:logical-id",
 ]
 if stage_statement != {
     "Sid": "TagOwnedTemporaryHttpApiStage",
     "Effect": "Allow",
-    "Action": "apigateway:*",
+    "Action": "apigateway:POST",
     "Resource": f"arn:aws:apigateway:{region}::/apis/*/stages",
     "Condition": {
         "StringEquals": expected_tags,
