@@ -218,6 +218,43 @@ fail-closed controller defects before publication:
     system keys in addition to the already reviewed run, release and SAM keys.
     A replacement live rehearsal, tag and registry publication remain blocked
     pending exact-head merge and requalification.
+15. that action/key correction passed PR-head hosted run
+    [`30443671627`](https://github.com/xicv/minco/actions/runs/30443671627),
+    merged as exact `main`
+    `0f1271eec11bf2e4fd475f7093c04eddd8d47f6c`, and passed the full local
+    suite, AWS/SAM validation and exact-main hosted run
+    [`30444766607`](https://github.com/xicv/minco/actions/runs/30444766607).
+    Authorised replacement run `20260729t105820z-approved` migrated and
+    verified its disposable private PostgreSQL database, built the
+    5,038,349-byte native ARM64 ZIP with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-source release `minco.44a1623ffb1ec9bd0b037813` with
+    digest
+    `44a1623ffb1ec9bd0b0378136bd9931e8420f78762bc422f634f6a072a7199d9`.
+    Both API Gateway stage creates still failed their dependent
+    `TagResource` authorization. CloudTrail recorded the operations as
+    `CreateStage`, the assumed run role, CloudFormation source and user agent,
+    and the complete expected request tags. AWS documents the tagging endpoint
+    as `POST /v2/tags/{resource-arn}` and its IAM resource as `/tags/*`; the
+    specialized statement instead named the stage collection. The existing
+    region-wide mutation statement already admits every API Gateway resource
+    when `aws:CalledVia` is present, so the continued deny also proves the
+    dependent tag evaluation cannot rely on that caller-chain context.
+    Rollback completed, the delayed RDS-managed secret reached
+    `ResourceNotFound`, exact user/role absence was independently rechecked,
+    and all three cleanup receipts contain only true values.
+
+    The candidate correction retains the CloudFormation-only mutation
+    statement and grants the separate `apigateway:POST` tagging authorization
+    only on `/tags/*`, requiring the three exact run-ownership request-tag
+    values and the closed reviewed tag-key allowlist. The focused regression
+    failed with `StopIteration` before the generated statement changed and
+    passes afterward. IAM custom-policy simulation returns `allowed` for the
+    exact request and `implicitDeny` for either an extra tag key or a wrong run
+    ID. `./scripts/quality.sh`, `scripts/aws/validate.sh` and
+    `scripts/aws/plan.sh` pass on the candidate. A replacement live rehearsal,
+    tag and registry publication remain blocked pending exact-head hosted
+    qualification, merge and exact-main requalification.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

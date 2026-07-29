@@ -258,3 +258,34 @@ addition to the already reviewed run, release and SAM keys. The exact stage
 collection ARN, CloudFormation caller chain and run-tag values remain
 mandatory. A replacement live rehearsal, tag and registry publication remain
 blocked pending merge and exact-main requalification.
+
+That correction passed exact PR-head hosted run
+[`30443671627`](https://github.com/xicv/minco/actions/runs/30443671627), merged
+as `0f1271eec11bf2e4fd475f7093c04eddd8d47f6c`, and passed the full local
+suite, AWS Plan/SAM validation and exact-main hosted run
+[`30444766607`](https://github.com/xicv/minco/actions/runs/30444766607).
+Authorised replacement run `20260729t105820z-approved` migrated and verified
+its disposable private PostgreSQL database, built the 5,038,349-byte native
+ARM64 ZIP with SHA-256
+`ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+and sealed exact-source release `minco.44a1623ffb1ec9bd0b037813`. Both API
+Gateway stage creates still failed the dependent `TagResource` authorization.
+CloudTrail recorded `CreateStage` from CloudFormation and the complete expected
+request tags. AWS documents the tagging API as `apigateway:POST` on `/tags/*`;
+the current specialized statement instead names `/apis/*/stages`, while the
+broader CloudFormation-only statement cannot satisfy a dependent evaluation
+that omits `aws:CalledVia`. Application rollback completed, the delayed
+RDS-managed secret reached `ResourceNotFound`, bootstrap user/role absence was
+independently rechecked, and all application, database/VPC/secret and
+bootstrap-IAM cleanup receipts are true.
+
+The candidate correction preserves the CloudFormation-only statement for all
+API Gateway mutations and grants the separate tagging authorization only on
+the documented `/tags/*` namespace. It requires the three exact run-ownership
+request-tag values and a closed allowlist containing only the reviewed run,
+release, SAM and CloudFormation system keys. The focused test failed before
+the policy change and passes afterward. IAM simulation returns `allowed` for
+the exact request and `implicitDeny` for an extra key or wrong run ID. The
+authoritative local quality suite and AWS Plan/SAM validation pass. A
+replacement live rehearsal, tag and registry publication remain blocked
+pending exact-head hosted qualification, merge and exact-main requalification.

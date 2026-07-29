@@ -125,8 +125,11 @@ several boundaries that local emulation could not prove:
   `PubliclyAccessible` is false and no public-access change is pending.
 - API Gateway stage tagging reports authorization as
   `apigateway:TagResource`, while IAM Access Analyzer rejects that explicit
-  action. The role uses an Analyzer-clean wildcard restricted to the stage
-  collection and requiring the run ID, managed and purpose request tags.
+  action. API Gateway V2 maps it to `apigateway:POST` on `/tags/*`. The role
+  keeps stage mutation behind the CloudFormation caller chain and separately
+  permits that exact tagging action only when the run ID, managed and purpose
+  request tags are present and every requested key is in the closed reviewed
+  allowlist.
 - CloudFormation can delete an `--on-failure DELETE` stack before a later
   diagnostic pass. A failed create waiter now captures stack events before
   cleanup so the initial failure remains attributable without another cloud

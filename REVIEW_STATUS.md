@@ -15,23 +15,29 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-Exact merged `main` `8dcc49e2cefec1b9a043da5ae50161ae1e2431d1`
+Exact merged `main` `0f1271eec11bf2e4fd475f7093c04eddd8d47f6c`
 passed the full local suite, AWS Plan/SAM validation and manual hosted run
-`30440072120`. Authorised live run `20260729t094817z-approved` proved the
-private PostgreSQL migration, native ARM64 artifact, sealed release and exact
-run-owned stack tags. API Gateway stage tagging still failed because
-CloudFormation's three automatic `aws:cloudformation:*` keys were absent from
-the bounded `aws:TagKeys` allowlist. AWS IAM simulation reproduced the
-`implicitDeny` and proved that adding only those keys makes the exact request
-`allowed`. Rollback and the exact cleanup verifiers produced all-true
-application, database/VPC/secret and bootstrap-IAM receipts.
+`30444766607`. Authorised live run `20260729t105820z-approved` proved the
+private PostgreSQL migration, the 5,038,349-byte native ARM64 artifact and
+sealed exact-source release `minco.44a1623ffb1ec9bd0b037813`. Both API Gateway
+stage creates still failed their dependent `TagResource` authorization.
+CloudTrail recorded the calls as `CreateStage` from CloudFormation with the
+complete reviewed tag sets. AWS documents the dependent tagging operation as
+`apigateway:POST` on `/tags/*`, not the stage collection used by the current
+policy. The existing CloudFormation-wide mutation statement would already
+admit that resource if the dependent evaluation carried `aws:CalledVia`; IAM
+simulation reproduces `implicitDeny` when that missing context remains
+required.
 
-The current unmerged correction narrows the stage action to API Gateway V2's
-documented tagging IAM action, `apigateway:POST`, and admits only the three
-provider-owned CloudFormation keys while retaining the exact resource,
-call-chain and run-tag value guards. The focused shell regression passes. Full
-local qualification, hosted qualification, replacement live AWS proof, exact
-tag creation and crates.io publication remain separate pending gates. Current
-and historical command evidence is maintained in `VERIFICATION.md`;
-Feedback-specific architecture evidence remains in
+The current unmerged correction leaves all API Gateway mutations behind the
+CloudFormation caller-chain statement. It separately permits
+`apigateway:POST` only on the documented `/tags/*` namespace, with the three
+exact run-ownership request-tag values and the closed run, release, SAM and
+CloudFormation system-key allowlist. IAM simulation returns `allowed` for the
+exact request and `implicitDeny` for an extra tag key or wrong run ID. The
+focused red/green regression, authoritative local quality suite, AWS Plan/SAM
+validation and ShellCheck pass. Hosted qualification, replacement live AWS
+proof, exact tag creation and crates.io publication remain separate pending
+gates. Current and historical command evidence is maintained in
+`VERIFICATION.md`; Feedback-specific architecture evidence remains in
 `FEEDBACK_REVIEW_STATUS.md`.
