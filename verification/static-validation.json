@@ -14,11 +14,11 @@
     "contract_schemas": 10,
     "plugins": 16,
     "milestones": 13,
-    "tasks": 58,
+    "tasks": 59,
     "rust_files": 128,
     "python_files": 17,
-    "shell_files": 36,
-    "implementation_files_scanned": 282
+    "shell_files": 37,
+    "implementation_files_scanned": 283
   },
   "findings": [],
   "limitations": [

@@ -17,6 +17,7 @@ uv run --locked python scripts/test/rust_dependency_hygiene.py
 uv run --locked python scripts/test/lambda_artifact_reproducibility.py
 bash scripts/test/sqlx_feature_isolation.sh
 node --check plugins/minco-plugin-feedback/assets/widget.js
+scripts/test/feedback_browser.sh
 cargo fmt --all -- --check
 cargo check -p minco --no-default-features --locked
 cargo check -p minco --locked

@@ -34,6 +34,11 @@ commands = [
   "cargo doc --workspace --all-features --no-deps --locked",
 ]
 
+[gates.browser]
+commands = [
+  "scripts/test/feedback_browser.sh",
+]
+
 [gates.security]
 commands = [
   "cargo deny check advisories bans licenses sources",

@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 missing=0
-for command in python3 uv git jj cargo rustc rustfmt; do
+for command in python3 uv git jj cargo rustc rustfmt node npm; do
   if ! command -v "$command" >/dev/null 2>&1; then
     printf 'missing required development tool: %s\n' "$command" >&2
     missing=1
@@ -15,6 +15,11 @@ Install the missing tools, then rerun this script. The repository intentionally 
 execute remote installation scripts without operator review. Rust is pinned in
 rust-toolchain.toml; Jujutsu should use a colocated Git backend for GitHub interoperability.
 TEXT
+  exit 1
+fi
+node_major="$(node -p 'process.versions.node.split(".")[0]')"
+if (( node_major < 20 )); then
+  printf 'Node.js 20 or newer is required; found %s.\n' "$(node --version)" >&2
   exit 1
 fi
 if [[ ! -f Cargo.lock ]]; then
