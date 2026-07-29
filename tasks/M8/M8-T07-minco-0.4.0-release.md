@@ -340,3 +340,33 @@ test failed before the helper existed and now covers transient success,
 non-404 fail-fast behavior and exhaustion of the retry bound. Exact-head hosted
 qualification, merge, a replacement live rehearsal, tag and registry
 publication remain blocked.
+
+That correction passed exact PR-head hosted run
+[`30458112104`](https://github.com/xicv/minco/actions/runs/30458112104), merged
+as `dbe8a55f141c082a8329ec1871590c0199682eed`, and passed the full local
+suite, AWS Plan/SAM validation and exact-main hosted run
+[`30459913592`](https://github.com/xicv/minco/actions/runs/30459913592).
+Authorised replacement run `20260729t143232z-approved` migrated and verified
+its disposable PostgreSQL database over TLS `verify-full`, removed the local
+`/32`, proved the database private, and passed the new S3 visibility guard on
+its first attempt. It built the same 5,038,349-byte native ARM64 ZIP and sealed
+exact-source release `minco.eefe49c4e87868c73164ecba`. Both API Gateway stage
+creates then failed the provider-reported dependent `TagResource`
+authorization. CloudTrail recorded the tagged `CreateStage` calls from exact
+temporary role `MincoSmoke-d93173c82d99`, with the expected ten-key closed tag
+set, and no separate `TagResource` event.
+
+AWS's current API Gateway V2 operation mapping identifies both
+`apigateway:POST` and `apigateway:PUT` as required for tagged `CreateStage`.
+Together with the tagging IAM namespace, this proves the exact authorization
+pair: `POST` on `/apis/*/stages` plus `PUT` on `/tags/*`. The replacement
+candidate adds only the missing `PUT` statement, requiring the same three exact
+run-tag values and closed ten-key allowlist. The focused regression failed with
+`StopIteration` before the statement existed and passes afterward. IAM
+custom-policy simulation permits only those two exact action/resource pairs;
+crossed pairs, a wrong run ID and an extra tag key are all implicit deny.
+Application cleanup is all true. After the delayed RDS-managed secret reached
+`ResourceNotFound`, exact database/VPC, bootstrap IAM and local credential-file
+cleanup checks were independently consolidated in an all-true
+`final-cleanup.json`. Exact-head hosted qualification, merge, a replacement
+live rehearsal, tag and registry publication remain blocked.

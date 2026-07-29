@@ -39,14 +39,15 @@ resources: `aws:cloudformation:stack-name`, `aws:cloudformation:stack-id` and
 for those keys without allowing target configuration to set arbitrary
 provider-reserved tags.
 
-API Gateway V2 authorizes tagged stage creation as `apigateway:POST` on the
-`/apis/${ApiId}/stages` collection. Its CloudFormation provider can report a
-dependent `TagResource` denial even though CloudTrail records only the
-`CreateStage` request, with its tags, against that stage collection. That
-authorization does not carry the CloudFormation `aws:CalledVia` context used
-by the generic mutation statement. The specialized stage-create statement is
-therefore bounded by the exact run-ownership request tags and closed tag-key
-allowlist rather than that absent caller-chain key. See the AWS
+API Gateway V2 authorizes tagged stage creation with two permissions:
+`apigateway:POST` for the `/apis/${ApiId}/stages` collection and
+`apigateway:PUT` for the `/tags/*` tagging namespace. Its CloudFormation
+provider can report a dependent `TagResource` denial even though CloudTrail
+records only the tagged `CreateStage` request. The dependent authorization
+does not carry the CloudFormation `aws:CalledVia` context used by the generic
+mutation statement. Separate specialized statements therefore grant only the
+documented action/resource pairs and require the exact run-ownership request
+tags plus a closed tag-key allowlist. See the AWS
 [`CreateStage` authorization mapping](https://docs.aws.amazon.com/service-authorization/latest/reference/list_apigatewayv2.html)
 and
 [`tagging IAM examples`](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-tagging-iam-policy.html).

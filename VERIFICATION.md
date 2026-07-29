@@ -318,6 +318,45 @@ fail-closed controller defects before publication:
     non-404 fail-fast behavior and bounded exhaustion. Exact-head hosted
     qualification, merge, a replacement live rehearsal, tag and registry
     publication remain blocked.
+18. the bounded bucket-visibility correction passed exact PR-head hosted run
+    [`30458112104`](https://github.com/xicv/minco/actions/runs/30458112104),
+    merged as `dbe8a55f141c082a8329ec1871590c0199682eed`, passed the full local
+    suite and AWS Plan/SAM validation, and passed exact-main hosted run
+    [`30459913592`](https://github.com/xicv/minco/actions/runs/30459913592).
+    Authorised run `20260729t143232z-approved` migrated and verified its
+    disposable PostgreSQL database over TLS `verify-full`, removed the local
+    `/32`, proved the database private, passed the new bucket-visibility guard
+    on its first bounded attempt, built the 5,038,349-byte native ARM64 ZIP
+    with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-source release `minco.eefe49c4e87868c73164ecba` with
+    digest
+    `eefe49c4e87868c73164ecba8408ec5df76b741f15563c5856d072aea64cc79f`.
+    Both API Gateway stage creates failed the provider-reported dependent
+    `TagResource` authorization. CloudTrail recorded the two tagged
+    `CreateStage` requests from exact temporary role
+    `MincoSmoke-d93173c82d99`, including the expected ten-key closed tag set;
+    no separate `TagResource` event exists.
+
+    AWS's current API Gateway V2 operation mapping lists two permissions for
+    tagged `CreateStage`: `apigateway:POST` for the stage collection and
+    `apigateway:PUT` for the tag write. This proves that the prior retries
+    alternated resource namespaces without ever granting the documented
+    action/resource pair together. The current candidate adds only
+    `apigateway:PUT` on `/tags/*`, with the same exact run-tag values and
+    closed ten-key allowlist as the specialized `POST` statement on
+    `/apis/*/stages`. The focused test failed with `StopIteration` before
+    implementation and passes afterward. IAM custom-policy simulation returns
+    `allowed` for only the expected `POST`/stage-collection and
+    `PUT`/tag-namespace pairs. Crossed pairs, a wrong run ID and an extra tag
+    key return `implicitDeny`.
+
+    The application cleanup receipt contains only true values. After the
+    RDS-managed secret reached `ResourceNotFound`, the exact database/VPC
+    cleanup verifier, deterministic bootstrap user and role absence, and local
+    credential-file absence were independently consolidated in an all-true
+    `final-cleanup.json`. Exact-head hosted qualification, merge, a replacement
+    live rehearsal, tag and registry publication remain blocked.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

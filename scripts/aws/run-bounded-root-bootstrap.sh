@@ -677,6 +677,33 @@ jq -n \
         }
       },
       {
+        Sid: "TagRunOwnedTemporaryHttpApiStage",
+        Effect: "Allow",
+        Action: "apigateway:PUT",
+        Resource: ("arn:aws:apigateway:" + $region + "::/tags/*"),
+        Condition: {
+          StringEquals: {
+            "aws:RequestTag/minco:run-id": $run_id,
+            "aws:RequestTag/minco:managed": "true",
+            "aws:RequestTag/minco:purpose": "bounded-smoke"
+          },
+          "ForAllValues:StringEquals": {
+            "aws:TagKeys": [
+              "minco:run-id",
+              "minco:managed",
+              "minco:purpose",
+              "MincoEnvironment",
+              "MincoReleaseId",
+              "MincoReleaseDigest",
+              "httpapi:createdBy",
+              "aws:cloudformation:stack-name",
+              "aws:cloudformation:stack-id",
+              "aws:cloudformation:logical-id"
+            ]
+          }
+        }
+      },
+      {
         Sid: "CreateTemporaryCognitoHarness",
         Effect: "Allow",
         Action: ["cognito-idp:CreateUserPool"],
