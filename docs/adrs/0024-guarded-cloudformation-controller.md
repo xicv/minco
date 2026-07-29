@@ -39,6 +39,18 @@ resources: `aws:cloudformation:stack-name`, `aws:cloudformation:stack-id` and
 for those keys without allowing target configuration to set arbitrary
 provider-reserved tags.
 
+API Gateway V2 authorizes tagged stage creation across two IAM resource
+namespaces. Stage creation uses `apigateway:POST` on
+`/apis/${ApiId}/stages`, while the dependent `TagResource` operation uses the
+same IAM action on `/tags/*`. The dependent authorization does not carry the
+CloudFormation `aws:CalledVia` context observed by the stage mutation. The
+tagging statement must therefore be bounded by the exact run-ownership request
+tags and closed tag-key allowlist rather than that absent caller-chain key.
+See the AWS
+[`Tags` API](https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/tags-resource-arn.html)
+and
+[`tagging IAM examples`](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-tagging-iam-policy.html).
+
 ## Decision
 
 `minco-deploy-aws` owns strict deployment-target parsing, environment guards,
@@ -105,6 +117,8 @@ the exact configured Region, and source identity is rechecked immediately
 before mutation. No command claims that a change set, drift result or completed
 stack proves application correctness. Target stack tags cannot replace Minco's
 reserved release tags or use the provider-reserved `aws:` prefix. The bounded
-AWS rehearsal permits CloudFormation's three automatic system-tag keys only
-for the exact stage-tagging action, resource collection, caller chain and
-run-owned tag values.
+AWS rehearsal keeps API Gateway mutations behind the CloudFormation caller
+chain. Its separate dependent tag authorization permits `POST` only on the
+documented `/tags/*` namespace when the three exact run-ownership tag values
+are present and every requested key is in the reviewed run, release, SAM and
+CloudFormation system-key allowlist.

@@ -171,9 +171,31 @@ if statement != {
 }:
     raise SystemExit("Cognito tagging policy exceeds or misses the run-owned boundary")
 
-stage_statement = next(
+mutation_statement = next(
     item for item in policy["Statement"]
-    if item["Sid"] == "TagOwnedTemporaryHttpApiStage"
+    if item["Sid"] == "MutateTemporaryHttpApiViaCloudFormation"
+)
+if mutation_statement != {
+    "Sid": "MutateTemporaryHttpApiViaCloudFormation",
+    "Effect": "Allow",
+    "Action": [
+        "apigateway:DELETE",
+        "apigateway:PATCH",
+        "apigateway:POST",
+        "apigateway:PUT",
+    ],
+    "Resource": f"arn:aws:apigateway:{region}::/*",
+    "Condition": {
+        "ForAnyValue:StringEquals": {
+            "aws:CalledVia": "cloudformation.amazonaws.com",
+        },
+    },
+}:
+    raise SystemExit("API Gateway mutation policy exceeds the CloudFormation boundary")
+
+tag_statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "TagOwnedTemporaryHttpApiResource"
 )
 allowed_stage_tag_keys = [
     "minco:run-id",
@@ -187,22 +209,19 @@ allowed_stage_tag_keys = [
     "aws:cloudformation:stack-id",
     "aws:cloudformation:logical-id",
 ]
-if stage_statement != {
-    "Sid": "TagOwnedTemporaryHttpApiStage",
+if tag_statement != {
+    "Sid": "TagOwnedTemporaryHttpApiResource",
     "Effect": "Allow",
     "Action": "apigateway:POST",
-    "Resource": f"arn:aws:apigateway:{region}::/apis/*/stages",
+    "Resource": f"arn:aws:apigateway:{region}::/tags/*",
     "Condition": {
         "StringEquals": expected_tags,
         "ForAllValues:StringEquals": {
             "aws:TagKeys": allowed_stage_tag_keys,
         },
-        "ForAnyValue:StringEquals": {
-            "aws:CalledVia": "cloudformation.amazonaws.com",
-        },
     },
 }:
-    raise SystemExit("API Gateway stage tagging policy exceeds the run-owned boundary")
+    raise SystemExit("API Gateway tagging policy exceeds the run-owned boundary")
 PY
 
 printf 'AWS shell portability checks passed.\n'

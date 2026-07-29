@@ -650,10 +650,10 @@ jq -n \
         }
       },
       {
-        Sid: "TagOwnedTemporaryHttpApiStage",
+        Sid: "TagOwnedTemporaryHttpApiResource",
         Effect: "Allow",
         Action: "apigateway:POST",
-        Resource: ("arn:aws:apigateway:" + $region + "::/apis/*/stages"),
+        Resource: ("arn:aws:apigateway:" + $region + "::/tags/*"),
         Condition: {
           StringEquals: {
             "aws:RequestTag/minco:run-id": $run_id,
@@ -673,9 +673,6 @@ jq -n \
               "aws:cloudformation:stack-id",
               "aws:cloudformation:logical-id"
             ]
-          },
-          "ForAnyValue:StringEquals": {
-            "aws:CalledVia": "cloudformation.amazonaws.com"
           }
         }
       },
