@@ -25,8 +25,10 @@ owned_paths:
   - scripts/aws/build-lambda.sh
   - scripts/aws/build-worker-lambda.sh
   - scripts/aws/lib/common.sh
+  - scripts/aws/run-bounded-root-bootstrap.sh
   - scripts/quality.sh
   - scripts/release/publish.py
+  - scripts/test/aws_shell_portability.sh
   - scripts/test/lambda_artifact_reproducibility.py
   - scripts/test/publish_validation.py
   - scripts/test/repository_truth.py
@@ -146,3 +148,18 @@ own hyphenated default SSM parameter name. The portable shared predicate and
 normalization check while accepting the generated default. Exact-main
 qualification and the live rehearsal must be repeated after this correction;
 no tag or registry upload occurred.
+
+That correction merged as
+`d34c0e49d881a5ababdc1e9576c046c867f45ab3`, which passed the complete local
+suite and exact-main hosted run
+[`30422838559`](https://github.com/xicv/minco/actions/runs/30422838559).
+The next authorised live rehearsal migrated and verified its disposable
+private PostgreSQL database and built the native ARM64 Lambda, then failed
+tagged Cognito user-pool creation because the bounded deployment role lacked
+`cognito-idp:TagResource`. The run subsequently produced all-true application,
+database/VPC/secret and bootstrap-IAM cleanup receipts. The candidate
+least-privilege correction permits that action only for the current
+Region/account user-pool namespace and the exact three run-ownership tags; the
+local regression renders and compares the complete generated statement. AWS
+IAM simulation returned `allowed` for the exact tag set and `implicitDeny` when
+an additional tag key was supplied. No tag or registry upload occurred.
