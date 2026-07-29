@@ -96,6 +96,14 @@ qualification:
    The fixture now waits for a complete numeric PID before resolving its
    shutdown future; the unchanged descendant-liveness assertion then passed
    600 repeated nine-test suite runs. No supervisor production code changed.
+9. the first separately authorised live-AWS rehearsal on 2026-07-29 stopped
+   before caller discovery or resource creation because macOS Bash rejected
+   the bootstrap controller's own hyphenated default SSM parameter name. The
+   escaped hyphen was not portable inside the bracket expression. Parameter
+   validation now uses one shared predicate with the hyphen in the final
+   character-class position, and a Mac-Bash regression accepts the generated
+   default while retaining the relative-name, doubled-slash, trailing-slash
+   and whitespace rejections.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
@@ -248,10 +256,13 @@ provisioned concurrency. Minco promises zero provisioned application compute
 at idle, not zero bill: storage, retained logs, DNS, secrets, database storage,
 schedules and other fixed/request dimensions remain explicit and bounded.
 
-The operator separately authorised pull-request merge after this review. Live
-AWS rehearsal, promotion, tag creation and registry upload remain unauthorised.
-The final release verdict therefore cannot advance beyond
-`live_deployment_gate_pending`.
+The operator separately authorised the bounded live-AWS rehearsal and the
+irreversible exact tag, crates.io publication and GitHub release on 2026-07-29.
+The first live controller invocation stopped at local parameter-name preflight
+before AWS caller discovery or resource creation. Until the corrected
+exact-main source is requalified and the live rehearsal passes with cleanup
+proof, the release verdict remains `live_deployment_gate_pending`. No tag or
+registry upload has occurred.
 
 ## M8-T03 trusted-publishing closure
 

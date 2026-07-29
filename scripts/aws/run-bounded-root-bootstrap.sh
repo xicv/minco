@@ -35,9 +35,7 @@ if [[ -n "${MINCO_DATABASE_URL_SOURCE_PARAMETER:-}" &&
   exit 1
 fi
 if [[ -n "${MINCO_DATABASE_URL_SOURCE_PARAMETER:-}" ]] &&
-  { ! [[ "$MINCO_DATABASE_URL_SOURCE_PARAMETER" =~ ^/[A-Za-z0-9_.\-/]+$ ]] ||
-    [[ "$MINCO_DATABASE_URL_SOURCE_PARAMETER" == *//* ||
-      "$MINCO_DATABASE_URL_SOURCE_PARAMETER" == */ ]]; }; then
+  ! normalized_ssm_parameter_name "$MINCO_DATABASE_URL_SOURCE_PARAMETER"; then
   echo "MINCO_DATABASE_URL_SOURCE_PARAMETER must be a normalized SSM parameter name" >&2
   exit 1
 fi
@@ -97,9 +95,7 @@ export AWS_REGION MINCO_AWS_RUN_ID MINCO_CREATE_TEMP_RDS
   echo "MINCO_SMOKE_APPLICATION must be a bounded Lambda name component" >&2
   exit 1
 }
-[[ "$MINCO_DATABASE_URL_PARAMETER" =~ ^/[A-Za-z0-9_.\-/]+$ &&
-  "$MINCO_DATABASE_URL_PARAMETER" != *//* &&
-  "$MINCO_DATABASE_URL_PARAMETER" != */ ]] || {
+normalized_ssm_parameter_name "$MINCO_DATABASE_URL_PARAMETER" || {
   echo "MINCO_DATABASE_URL_PARAMETER must be a normalized absolute SSM parameter name" >&2
   exit 1
 }

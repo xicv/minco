@@ -22,6 +22,13 @@ require_safe_name() {
   }
 }
 
+normalized_ssm_parameter_name() {
+  local parameter_name="$1"
+  [[ "$parameter_name" =~ ^/[A-Za-z0-9_./-]+$ &&
+    "$parameter_name" != *//* &&
+    "$parameter_name" != */ ]]
+}
+
 s3_tagged_create_configuration() {
   local region="$1"
   local run_id="$2"
