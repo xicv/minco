@@ -39,15 +39,15 @@ resources: `aws:cloudformation:stack-name`, `aws:cloudformation:stack-id` and
 for those keys without allowing target configuration to set arbitrary
 provider-reserved tags.
 
-API Gateway V2 authorizes tagged stage creation across two IAM resource
-namespaces. Stage creation uses `apigateway:POST` on
-`/apis/${ApiId}/stages`, while the dependent `TagResource` operation uses the
-same IAM action on `/tags/*`. The dependent authorization does not carry the
-CloudFormation `aws:CalledVia` context observed by the stage mutation. The
-tagging statement must therefore be bounded by the exact run-ownership request
-tags and closed tag-key allowlist rather than that absent caller-chain key.
-See the AWS
-[`Tags` API](https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/tags-resource-arn.html)
+API Gateway V2 authorizes tagged stage creation as `apigateway:POST` on the
+`/apis/${ApiId}/stages` collection. Its CloudFormation provider can report a
+dependent `TagResource` denial even though CloudTrail records only the
+`CreateStage` request, with its tags, against that stage collection. That
+authorization does not carry the CloudFormation `aws:CalledVia` context used
+by the generic mutation statement. The specialized stage-create statement is
+therefore bounded by the exact run-ownership request tags and closed tag-key
+allowlist rather than that absent caller-chain key. See the AWS
+[`CreateStage` authorization mapping](https://docs.aws.amazon.com/service-authorization/latest/reference/list_apigatewayv2.html)
 and
 [`tagging IAM examples`](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-tagging-iam-policy.html).
 
@@ -117,8 +117,8 @@ the exact configured Region, and source identity is rechecked immediately
 before mutation. No command claims that a change set, drift result or completed
 stack proves application correctness. Target stack tags cannot replace Minco's
 reserved release tags or use the provider-reserved `aws:` prefix. The bounded
-AWS rehearsal keeps API Gateway mutations behind the CloudFormation caller
-chain. Its separate dependent tag authorization permits `POST` only on the
-documented `/tags/*` namespace when the three exact run-ownership tag values
-are present and every requested key is in the reviewed run, release, SAM and
+AWS rehearsal keeps general API Gateway mutations behind the CloudFormation
+caller chain. Its separate tagged-stage authorization permits `POST` only on
+the stage collection when the three exact run-ownership tag values are present
+and every requested key is in the reviewed run, release, SAM and
 CloudFormation system-key allowlist.

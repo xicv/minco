@@ -650,10 +650,10 @@ jq -n \
         }
       },
       {
-        Sid: "TagOwnedTemporaryHttpApiResource",
+        Sid: "CreateRunOwnedTemporaryHttpApiStage",
         Effect: "Allow",
         Action: "apigateway:POST",
-        Resource: ("arn:aws:apigateway:" + $region + "::/tags/*"),
+        Resource: ("arn:aws:apigateway:" + $region + "::/apis/*/stages"),
         Condition: {
           StringEquals: {
             "aws:RequestTag/minco:run-id": $run_id,

@@ -289,3 +289,30 @@ the exact request and `implicitDeny` for an extra key or wrong run ID. The
 authoritative local quality suite and AWS Plan/SAM validation pass. A
 replacement live rehearsal, tag and registry publication remain blocked
 pending exact-head hosted qualification, merge and exact-main requalification.
+
+That correction passed exact PR-head hosted run
+[`30448531978`](https://github.com/xicv/minco/actions/runs/30448531978), merged
+as `edabc701ee86b4adfee27b978f8d4d6187d19f2e`, and passed the full local
+suite, AWS Plan/SAM validation and exact-main hosted run
+[`30449710067`](https://github.com/xicv/minco/actions/runs/30449710067).
+Authorised replacement run `20260729t121408z-approved` again migrated and
+verified its disposable private PostgreSQL database, built the same
+5,038,349-byte native ARM64 ZIP, and sealed exact-source release
+`minco.6fba6aee8d28ce4d9bece03b`. Both stage creates still failed the
+provider-reported `TagResource` dependency. CloudTrail records the actual
+operation as tagged `CreateStage` against `/apis/${ApiId}/stages`; there is no
+separate tagging event. This falsifies the `/tags/*` resource hypothesis.
+Application cleanup is all true. The delayed managed secret subsequently
+reached `ResourceNotFound`, the exact RDS cleanup verifier is all true, and the
+deterministic bootstrap user and role are independently absent.
+
+The replacement candidate preserves the CloudFormation-only statement for
+general API Gateway mutations and grants the specialized
+`apigateway:POST` authorization only on `/apis/*/stages`. It still requires the
+three exact run-ownership request-tag values and closed reviewed tag-key
+allowlist. The focused test failed before the policy change and passes
+afterward; IAM simulation returns `allowed` for the exact observed request
+without `aws:CalledVia`, and `implicitDeny` for a wrong run ID or extra tag key.
+The authoritative local quality suite and AWS Plan/SAM validation pass.
+Hosted qualification, a replacement live rehearsal, tag and registry
+publication remain blocked.

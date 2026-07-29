@@ -255,6 +255,40 @@ fail-closed controller defects before publication:
     `scripts/aws/plan.sh` pass on the candidate. A replacement live rehearsal,
     tag and registry publication remain blocked pending exact-head hosted
     qualification, merge and exact-main requalification.
+16. the `/tags/*` correction passed PR-head hosted run
+    [`30448531978`](https://github.com/xicv/minco/actions/runs/30448531978),
+    merged as exact `main`
+    `edabc701ee86b4adfee27b978f8d4d6187d19f2e`, and passed the full local
+    suite, AWS/SAM validation and exact-main hosted run
+    [`30449710067`](https://github.com/xicv/minco/actions/runs/30449710067).
+    Authorised replacement run `20260729t121408z-approved` migrated and
+    verified its disposable private PostgreSQL database, built the same
+    5,038,349-byte native ARM64 ZIP with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-source release `minco.6fba6aee8d28ce4d9bece03b` with
+    digest
+    `6fba6aee8d28ce4d9bece03b2d5a260f3b4d43530ef4eb2f175881764fd59a43`.
+    Both stage creates still failed the provider-reported `TagResource`
+    dependency. CloudTrail records the actual operation as `CreateStage`,
+    with the complete expected tags, against
+    `arn:aws:apigateway:ap-southeast-2::/apis/oyjsik9b3l/stages`; no separate
+    tagging event exists. This falsifies the `/tags/*` resource hypothesis.
+    Application cleanup contains only true values. The delayed RDS-managed
+    secret subsequently reached `ResourceNotFound`, the exact RDS verifier
+    contains only true values, and the deterministic bootstrap user and role
+    are independently absent.
+
+    The replacement candidate retains the CloudFormation-only general mutation
+    statement and grants the specialized `apigateway:POST` authorization only
+    on `/apis/*/stages`, requiring the three exact run-ownership request-tag
+    values and closed reviewed tag-key allowlist. The focused regression failed
+    with `StopIteration` before the generated statement changed and passes
+    afterward. IAM custom-policy simulation returns `allowed` for the exact
+    observed request without `aws:CalledVia`, and `implicitDeny` for a wrong
+    run ID or extra tag key. `./scripts/quality.sh`,
+    `scripts/aws/validate.sh` and `scripts/aws/plan.sh` pass on the
+    replacement candidate. Hosted qualification, a replacement live
+    rehearsal, tag and registry publication remain blocked.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
