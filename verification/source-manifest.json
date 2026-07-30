@@ -104,8 +104,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "622f74529f19da985eb14b930c447ebb9b7b9238fb4413065c6ecceadccccc7b",
-      "size_bytes": 9716
+      "sha256": "1b67b0ce132c59c59bad375f832a02f73474720d508ecd5f799d4c9917f1e39b",
+      "size_bytes": 11193
     },
     {
       "path": "SECURITY.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "04a2ceead21dda709d5b932364754ef49818bfeca7d7fb01353e575cb64e2c06",
-      "size_bytes": 89947
+      "sha256": "ba98fc80ca1c68a18ae14ac16631afc0953a4ab59c65479613dc07133f349ff2",
+      "size_bytes": 92101
     },
     {
       "path": "config/jj/repo.toml",
@@ -2404,8 +2404,8 @@
     },
     {
       "path": "scripts/aws/run-bounded-root-bootstrap.sh",
-      "sha256": "4749650ac50605c53af095ff5e51445777495dbebd0f3fffb20823fe6d86ea58",
-      "size_bytes": 45157
+      "sha256": "c6cf6accb3e1d9bd252ba38402978a272f87d0aff3e7bcb36e964f97167c1f26",
+      "size_bytes": 45204
     },
     {
       "path": "scripts/aws/run-bounded-smoke.sh",
@@ -2534,8 +2534,8 @@
     },
     {
       "path": "scripts/test/aws_shell_portability.sh",
-      "sha256": "ccd2e9128d461f0713a6d87a9e5c3da4e35ee03fe44fd836f4648d369a035a3b",
-      "size_bytes": 17458
+      "sha256": "8cf82b613db6f57f43bfecab92e7fc259567d2896dd6fd4f78538579e9c76f35",
+      "size_bytes": 17649
     },
     {
       "path": "scripts/test/deep_review_exclusions.py",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "f45d5ebdad91c4d15dbcfce4043a7ce693c0f5d5733d633628564c1c90128465",
-      "size_bytes": 46673
+      "sha256": "aa4b2b952bf178cf39761a21e69c02ca50780fc9c6aa83138b5bf8aa7bfaff8c",
+      "size_bytes": 48368
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "d84b76d38c315e09306ebd61150f215457703bb21aff0d169ebc1f721c155338",
-  "total_size_bytes": 3753799,
+  "source_tree_sha256": "c540907b671a44609fa700dc936fa24edf30b2710582bc3f458afcfd7a3d7dc1",
+  "total_size_bytes": 3759363,
   "version": "0.4.0"
 }

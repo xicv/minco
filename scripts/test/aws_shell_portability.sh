@@ -347,6 +347,10 @@ if "lambda:GetProvisionedConcurrencyConfig" not in owned_function_statement["Act
     raise SystemExit(
         "owned function policy misses the provider drift-read permission"
     )
+if "lambda:GetRuntimeManagementConfig" not in owned_function_statement["Action"]:
+    raise SystemExit(
+        "owned function policy misses the version runtime drift-read permission"
+    )
 if owned_function_statement["Resource"] != [
     "arn:aws:lambda:ap-southeast-2:123456789012:function:test",
     "arn:aws:lambda:ap-southeast-2:123456789012:function:test:*",

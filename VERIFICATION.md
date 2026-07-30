@@ -848,6 +848,39 @@ fail-closed controller defects before publication:
     all true; `final-cleanup.json` also proves bootstrap principals, profiles
     and local credential files absent. Exact-head hosted qualification, merge,
     exact-main qualification and another live rehearsal remain required.
+33. The drift-resource IAM correction passed exact PR-head hosted run
+    [`30570766634`](https://github.com/xicv/minco/actions/runs/30570766634) at
+    `367d04e0476e9225e64626966245313340d54a71`, merged as exact `main`
+    `982bc9bf2e58597b9d7df2b7fe3e39d5a89f83b9`, passed the complete local
+    release matrix and passed exact-main hosted run
+    [`30573067627`](https://github.com/xicv/minco/actions/runs/30573067627).
+
+    Authorised live run `20260730t191908z-release040` migrated and verified
+    private PostgreSQL, reproduced the 5,039,398-byte native ARM64 artifact
+    with SHA-256
+    `92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+    sealed verified release `minco.30360dc26d7e73b91c2657fe` with digest
+    `30360dc26d7e73b91c2657fe30e237941b35903a9f6b96f670bb4d68006e4802`,
+    applied reviewed change-set receipt digest
+    `6eb539a96f9a73ddaa14db2af91b3db37cdcb6a57c2c73bdb9a53d3cbe263ad5`
+    and passed every candidate hosted check under verification digest
+    `028a83bec858aa4622cd8b15c1ff5d75e0d03f99b1ba0b1411da7bb494d2af92`.
+    Promotion failed closed before creating or executing a change set because
+    CloudFormation drift inspection required
+    `lambda:GetRuntimeManagementConfig` on the published function version. No
+    live alias changed, and no tag or registry upload occurred.
+
+    The focused rendered-policy regression failed before the correction with
+    `owned function policy misses the version runtime drift-read permission`
+    and passes after it. The new read remains confined to the exact run-owned
+    function ARN and qualified ARN pattern; no action or resource wildcard was
+    added. ShellCheck warning/error classes pass. The application cleanup
+    receipt is all true. The first RDS cleanup check caught AWS's delayed
+    managed-secret deletion and failed closed; the exact recovery rerun is all
+    true, both run-specific stacks are independently absent, and
+    `final-cleanup.json` proves bootstrap principals, profiles and local
+    credential files absent. Exact-head hosted qualification, merge,
+    exact-main qualification and another live rehearsal remain required.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

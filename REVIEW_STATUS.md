@@ -165,3 +165,27 @@ before the change and passes after it. Application and RDS cleanup evidence is
 all true, including the managed secret, VPC, bootstrap identities, profiles and
 local credential files. Exact-head hosted qualification, merge, exact-main
 qualification and another live rehearsal remain required.
+
+That correction passed exact PR-head hosted run `30570766634` at
+`367d04e0476e9225e64626966245313340d54a71`, merged as exact `main`
+`982bc9bf2e58597b9d7df2b7fe3e39d5a89f83b9`, passed the complete local release
+matrix and passed exact-main hosted run `30573067627`.
+
+Authorised live run `20260730t191908z-release040` then migrated and verified
+private PostgreSQL, reproduced the 5,039,398-byte native ARM64 artifact, sealed
+release `minco.30360dc26d7e73b91c2657fe`, applied its reviewed change set and
+passed every candidate hosted check. Promotion stopped before a change set or
+live alias mutation because CloudFormation drift inspection additionally
+required `lambda:GetRuntimeManagementConfig` for the published function
+version. No tag or registry upload occurred.
+
+The current least-privilege correction adds only that read to the existing
+exact function and qualified-version ARN boundary. Its focused rendered-policy
+regression failed before the source change with `owned function policy misses
+the version runtime drift-read permission` and passes after it; ShellCheck
+warning/error classes also pass. Application cleanup is all true. The exact
+RDS recovery rerun and all-true `final-cleanup.json` prove the managed secret,
+temporary database/VPC, bootstrap identities, profiles and local credential
+files absent. Exact-head hosted qualification, merge, exact-main qualification
+and another live rehearsal remain required before tag creation or crates.io
+publication.

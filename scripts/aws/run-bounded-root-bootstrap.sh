@@ -609,6 +609,7 @@ jq -n \
           "lambda:GetFunctionConfiguration",
           "lambda:GetPolicy",
           "lambda:GetProvisionedConcurrencyConfig",
+          "lambda:GetRuntimeManagementConfig",
           "lambda:ListAliases",
           "lambda:ListTags",
           "lambda:ListVersionsByFunction",
