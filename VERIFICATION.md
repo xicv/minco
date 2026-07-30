@@ -1,6 +1,6 @@
 # Minco verification and release evidence
 
-Date: 2026-07-29
+Date: 2026-07-30
 Current workspace version: `0.4.0`
 Published baseline: `0.3.1`
 Purpose: qualify the M8-T07 source/package candidate while preserving published
@@ -425,6 +425,68 @@ fail-closed controller defects before publication:
     temporary-database and local credential/profile cleanup are true. Exact-head
     hosted qualification, merge, another live rehearsal, tag and registry
     publication remain blocked.
+21. the fresh-key correction passed exact PR-head hosted run
+    [`30499941916`](https://github.com/xicv/minco/actions/runs/30499941916) at
+    `579e240328b3415dd8a839535c2efd8dbc6fcd40`, merged as
+    `fbba94496e14fce0629efef78d5bee4f71aa132a`, passed the full local suite
+    and AWS Plan/SAM validation, and passed exact-main hosted run
+    [`30500931722`](https://github.com/xicv/minco/actions/runs/30500931722).
+
+    Authorised run `20260730t001031z-approved` proved the corrected
+    fresh-credential propagation path, migrated and verified private
+    PostgreSQL, built the 5,038,349-byte native ARM64 artifact with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-source release `minco.d6168caadfd9d66f5d593c4d` with
+    digest
+    `d6168caadfd9d66f5d593c4d2afb751f330dcff3b62162debe92d7df565546fd`.
+    The digest-approved application apply used change-set receipt
+    `8ef973c492f41d89a934b8367278253d01edae50504568274c2dc41e7d02aeed`.
+
+    Both API Gateway V2 stage creates failed because CloudFormation evaluated
+    dependent authorization as `apigateway:TagResource` on
+    `arn:aws:apigateway:ap-southeast-2::/apis/sefukjj5f2/stages`, while the
+    specialized statement still granted `apigateway:PUT` on that correct
+    collection resource. IAM custom-policy simulation returns `allowed` when
+    the statement names the provider-evaluated `apigateway:TagResource`
+    action.
+
+    The current correction changes only that specialized action. The exact
+    stage-collection ARN, three run-ownership request-tag values and closed
+    ten-key allowlist are unchanged. Access Analyzer currently returns the
+    exact stale error `The action apigateway:TagResource does not exist.` even
+    though live IAM evaluation requires the action and IAM custom-policy
+    simulation returns `allowed`. The bootstrap now accepts only that one
+    `INVALID_ACTION` finding at the exact structurally verified statement
+    index. Focused fixtures prove that an additional Analyzer error, a
+    different finding location, a broader stage-tagging resource or an
+    additional action wildcard remains fatal. Application cleanup contains
+    only true values. The second exact RDS cleanup verifier confirms the
+    delayed managed secret, database instance, stack, VPC, local secret files
+    and synthetic data are absent. Independent exact-name checks also confirm
+    the application stack, artifact bucket and bootstrap user/role are absent.
+    Exact-head hosted qualification, merge, another live rehearsal, tag and
+    registry publication remain blocked.
+22. candidate `d9c2e541889aec007038bfe12cd60114ff863317`
+    passed the authoritative quality and Feedback browser stages of exact-head
+    hosted run
+    [`30504351107`](https://github.com/xicv/minco/actions/runs/30504351107),
+    then failed in the coordinated publication dry run while testing the
+    unpacked `minco-dev` archive. The
+    `coordinated_shutdown_terminates_process_descendants` fixture reported
+    `descendant process 25049 survived shutdown`.
+
+    The supervisor sends the whole process group `TERM`, reaps its direct
+    child, sends the group `KILL`, and waits for every descendant-held log pipe
+    to close. The fixture then used `kill -0`, which reports a Linux zombie PID
+    as present even though the descendant is terminated and cannot execute.
+    That made the assertion depend on the hosted runner's orphan-reaping
+    timing rather than the supervisor's shutdown contract. The test-only
+    correction inspects portable Unix `ps` state, treats only non-zombie
+    processes as running, and applies the same helper to the lifecycle
+    descendant case. No supervisor production code changed. The complete
+    nine-test supervisor suite and 100 repeated focused shutdown runs pass
+    locally. Exact-head hosted qualification must be repeated before merge;
+    live AWS, tag and registry publication remain blocked.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

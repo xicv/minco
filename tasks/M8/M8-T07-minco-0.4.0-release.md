@@ -430,3 +430,59 @@ passes afterward. Independent exact-name checks confirm the application and
 RDS stacks, bootstrap user and bootstrap role are absent; local temporary
 credentials and profiles are absent. Exact-head hosted qualification, merge,
 another live rehearsal, tag and registry publication remain blocked.
+
+That fresh-key correction passed exact PR-head hosted run
+[`30499941916`](https://github.com/xicv/minco/actions/runs/30499941916) at
+`579e240328b3415dd8a839535c2efd8dbc6fcd40`, merged as exact `main`
+`fbba94496e14fce0629efef78d5bee4f71aa132a`, passed the full local suite and
+AWS Plan/SAM validation, and passed exact-main hosted run
+[`30500931722`](https://github.com/xicv/minco/actions/runs/30500931722).
+Authorised replacement run `20260730t001031z-approved` resolved its fresh
+bootstrap key on the fifth bounded identity attempt and assumed the exact
+temporary role on the first role attempt. It migrated and verified private
+PostgreSQL, built the 5,038,349-byte ARM64 ZIP with SHA-256
+`ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+sealed exact-source release `minco.d6168caadfd9d66f5d593c4d` with digest
+`d6168caadfd9d66f5d593c4d2afb751f330dcff3b62162debe92d7df565546fd`,
+and entered the digest-approved application apply from change-set receipt
+`8ef973c492f41d89a934b8367278253d01edae50504568274c2dc41e7d02aeed`.
+
+Both API Gateway V2 stages then failed. CloudFormation reported that exact
+temporary role `MincoSmoke-2379eb7eebfa` lacked
+`apigateway:TagResource` on
+`arn:aws:apigateway:ap-southeast-2::/apis/sefukjj5f2/stages`. The candidate's
+specialized statement had the correct stage-collection ARN and closed request
+tag conditions but still named `apigateway:PUT`. IAM custom-policy simulation
+returns `allowed` for the provider-evaluated `apigateway:TagResource` action on
+that exact collection shape.
+
+The current correction changes only the specialized action from
+`apigateway:PUT` to `apigateway:TagResource`; the general
+CloudFormation-called mutation statement, exact resource, three run-owned tag
+values and ten-key allowlist remain unchanged. Access Analyzer currently calls
+the literal action invalid even though the live provider requires it and IAM
+custom-policy simulation returns `allowed`. The bootstrap accepts only that
+single stale `INVALID_ACTION` finding at the exact structurally verified
+statement index; fixtures reject an additional error, another location or a
+broader tagging resource, and reject any additional action wildcard.
+Application cleanup contains only true values. After the delayed RDS-managed
+secret reached `ResourceNotFound`, the exact RDS cleanup verifier also contains
+only true values. Independent exact-name checks confirm the application and
+RDS stacks, artifact bucket, managed secret, bootstrap user and bootstrap role
+are absent. Exact-head hosted qualification, merge, another live rehearsal,
+tag and registry publication remain blocked.
+
+Candidate `d9c2e541889aec007038bfe12cd60114ff863317` passed the
+authoritative quality and Feedback browser stages of exact-head hosted run
+[`30504351107`](https://github.com/xicv/minco/actions/runs/30504351107), then
+the unpacked `minco-dev` archive test reported that a coordinated-shutdown
+descendant survived. The fixture used `kill -0`, which reports a terminated
+Linux zombie as present until the hosted runner reaps the orphan. Supervisor
+cleanup already waits for the descendant-held log pipe to close, so the
+assertion was measuring runner reaping rather than runnable process state. The
+test-only correction uses portable Unix `ps` state, treats zombies as
+terminated, and shares the helper with the lifecycle-descendant case. The full
+nine-test supervisor suite and 100 repeated focused runs pass locally. No
+production supervisor code changed. A replacement exact-head hosted run,
+merge, exact-main qualification, live AWS, tag and registry publication remain
+blocked.

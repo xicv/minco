@@ -682,7 +682,7 @@ jq -n \
       {
         Sid: "TagRunOwnedTemporaryHttpApiStage",
         Effect: "Allow",
-        Action: "apigateway:PUT",
+        Action: "apigateway:TagResource",
         Resource: ("arn:aws:apigateway:" + $region + "::/apis/*/stages"),
         Condition: {
           StringEquals: {
@@ -931,8 +931,11 @@ root_aws_logged accessanalyzer validate-policy \
   --policy-type IDENTITY_POLICY \
   --output json >"$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-policy-validation.json"
 chmod 600 "$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-policy-validation.json"
-jq -e '[.findings[] | select(.findingType == "ERROR")] | length == 0' \
-  "$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-policy-validation.json" >/dev/null || {
+access_analyzer_role_policy_is_accepted \
+  "$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-policy-validation.json" \
+  "$request_directory/role-policy.json" \
+  "$AWS_REGION" \
+  "$MINCO_AWS_RUN_ID" || {
   echo "AWS Access Analyzer rejected the temporary role policy" >&2
   exit 1
 }

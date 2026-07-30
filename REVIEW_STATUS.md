@@ -15,27 +15,45 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-The stage-collection correction passed exact PR-head hosted run `30496875203`
-at `cffb60520a9311c72cf287f94c8dcbfa762bf1e0`, merged as
-`36d09d5ce36242290ae99506afee64c1a2f0de91`, passed the full local suite and
-AWS Plan/SAM validation, and passed exact-main hosted run `30498077062`.
-Authorised replacement run `20260729t231646z-approved` stopped before any
-application, database or release work: the fresh bootstrap access key resolved
-to the exact run-owned user, but its immediately following first
-`AssumeRole` call returned `InvalidClientTokenId`.
+The fresh-key correction passed exact PR-head hosted run `30499941916` at
+`579e240328b3415dd8a839535c2efd8dbc6fcd40`, merged as
+`fbba94496e14fce0629efef78d5bee4f71aa132a`, passed the full local suite and
+AWS Plan/SAM validation, and passed exact-main hosted run `30500931722`.
+Authorised replacement run `20260730t001031z-approved` proved the corrected
+bootstrap retry, private PostgreSQL migration and verification, deterministic
+native ARM64 artifact, exact-source release manifest and digest-approved
+application change set. Both API Gateway V2 stages then rolled back because
+CloudFormation's dependent authorization was evaluated as
+`apigateway:TagResource` on `/apis/${ApiId}/stages`, while the specialized
+statement still named `apigateway:PUT`.
 
-The current unmerged correction handles that same fresh-key propagation error
-in the already bounded role-assumption loop: at most 15 attempts, two seconds
-apart, with no widened action, principal, role or credentials lifetime. It
-also records whether the application runner was invoked so early bootstrap
-failure can truthfully report the never-started application clean while still
-requiring the existing all-true cleanup receipt after any invocation. The
-focused regression failed before implementation and passes afterward. Exact
-application and RDS stack checks, bootstrap IAM checks and local temporary
-credential checks for the failed run are all absent/clean.
+The current unmerged correction changes only that specialized action to the
+provider-evaluated `apigateway:TagResource`. The exact stage-collection ARN,
+three run-ownership request-tag values and closed ten-key allowlist are
+unchanged. IAM custom-policy simulation returns `allowed` for that exact
+action/resource pair, although Access Analyzer currently returns one stale
+`INVALID_ACTION` finding for the same literal action. The bootstrap accepts
+only that exact finding at the exact structurally verified statement; every
+other Analyzer error remains fatal. Focused regressions fail for an additional
+error, a different finding location, any broader tagging resource or an
+additional wildcard action. Application cleanup is all true; the second exact
+RDS verifier confirms the delayed managed secret, instance, stack, VPC, local
+secret files and synthetic data are absent. Independent exact-name checks also
+confirm the application stack, artifact bucket and bootstrap user/role are
+absent.
 
-Exact source qualification, hosted qualification, replacement live AWS proof,
-exact tag creation and crates.io publication remain separate pending gates.
-Current and historical command evidence is maintained in `VERIFICATION.md`;
-Feedback-specific architecture evidence remains in
+Exact candidate `d9c2e541889aec007038bfe12cd60114ff863317`
+passed the authoritative quality and browser stages of hosted run
+`30504351107`, then its unpacked `minco-dev` archive test treated a terminated
+Linux zombie as a live descendant because the fixture used `kill -0`.
+Supervisor cleanup already waits for descendant-held log pipes to close, but
+`kill -0` reports a zombie PID as present until the runner's process reaper
+collects it. The fixture now inspects portable Unix process state and treats
+only non-zombie processes as running; both descendant-shutdown cases use the
+same helper. The nine-test supervisor suite and 100 repeated focused runs pass
+locally. A new exact-head hosted run remains required before merge.
+
+Replacement live AWS proof, exact tag creation and crates.io publication remain
+separate pending gates. Current and historical command evidence is maintained
+in `VERIFICATION.md`; Feedback-specific architecture evidence remains in
 `FEEDBACK_REVIEW_STATUS.md`.

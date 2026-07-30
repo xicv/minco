@@ -31,6 +31,32 @@ async fn wait_for_numeric_pid_file(path: &Path) {
     }
 }
 
+fn process_is_running(pid: u32) -> bool {
+    let output = Command::new("/bin/ps")
+        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .output()
+        .expect("inspect descendant");
+    if !output.status.success() {
+        return false;
+    }
+    output
+        .stdout
+        .iter()
+        .copied()
+        .find(|byte| !byte.is_ascii_whitespace())
+        .is_some_and(|state| state != b'Z')
+}
+
+fn terminate_if_running(pid: u32) -> bool {
+    let running = process_is_running(pid);
+    if running {
+        let _ = Command::new("/bin/kill")
+            .args(["-KILL", &pid.to_string()])
+            .output();
+    }
+    running
+}
+
 #[tokio::test]
 async fn child_failure_runs_declared_cleanup_after_services_lifecycle_and_process_start() {
     let root = tempdir().expect("temporary root");
@@ -124,18 +150,10 @@ async fn coordinated_shutdown_terminates_process_descendants() {
         .expect("descendant PID")
         .parse::<u32>()
         .expect("numeric descendant PID");
-    let alive = Command::new("/bin/kill")
-        .args(["-0", &pid.to_string()])
-        .output()
-        .expect("inspect descendant")
-        .status
-        .success();
-    if alive {
-        let _ = Command::new("/bin/kill")
-            .args(["-KILL", &pid.to_string()])
-            .output();
-    }
-    assert!(!alive, "descendant process {pid} survived shutdown");
+    assert!(
+        !terminate_if_running(pid),
+        "descendant process {pid} survived shutdown"
+    );
 }
 
 #[tokio::test]
@@ -188,22 +206,12 @@ async fn coordinated_shutdown_interrupts_lifecycle_commands_and_their_descendant
         .expect("descendant PID")
         .parse::<u32>()
         .expect("numeric descendant PID");
-    let alive = Command::new("/bin/kill")
-        .args(["-0", &pid.to_string()])
-        .output()
-        .expect("inspect descendant")
-        .status
-        .success();
-    if alive {
-        let _ = Command::new("/bin/kill")
-            .args(["-KILL", &pid.to_string()])
-            .output();
-    }
+    let running = terminate_if_running(pid);
 
     result
         .expect("lifecycle command ignored coordinated shutdown")
         .expect("lifecycle shutdown should be clean");
-    assert!(!alive, "lifecycle descendant {pid} survived shutdown");
+    assert!(!running, "lifecycle descendant {pid} survived shutdown");
     assert_eq!(
         fs::read_to_string(journal).expect("supervisor journal"),
         "service-start\nservice-stop\n"

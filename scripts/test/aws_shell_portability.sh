@@ -165,10 +165,12 @@ if target["stack_tags"] != {
     raise SystemExit("bounded target omitted exact run-ownership stack tags")
 PY
 
-python3 - <<'PY'
+python3 - "$review_fixture_dir" <<'PY'
+import copy
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 source = Path("scripts/aws/run-bounded-root-bootstrap.sh").read_text()
 if (
@@ -313,7 +315,7 @@ stage_tag_statement = next(
 if stage_tag_statement != {
     "Sid": "TagRunOwnedTemporaryHttpApiStage",
     "Effect": "Allow",
-    "Action": "apigateway:PUT",
+    "Action": "apigateway:TagResource",
     "Resource": f"arn:aws:apigateway:{region}::/apis/*/stages",
     "Condition": {
         "StringEquals": expected_tags,
@@ -323,6 +325,119 @@ if stage_tag_statement != {
     },
 }:
     raise SystemExit("API Gateway stage tagging policy exceeds the run-owned boundary")
+
+fixture_dir = Path(sys.argv[1])
+(fixture_dir / "role-policy.json").write_text(
+    json.dumps(policy, separators=(",", ":"))
+)
+statement_index = policy["Statement"].index(stage_tag_statement)
+stale_finding = {
+    "findingDetails": "The action apigateway:TagResource does not exist.",
+    "findingType": "ERROR",
+    "issueCode": "INVALID_ACTION",
+    "learnMoreLink": (
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/"
+        "access-analyzer-reference-policy-checks.html"
+        "#access-analyzer-reference-policy-checks-error-invalid-action"
+    ),
+    "locations": [{
+        "path": [
+            {"value": "Statement"},
+            {"index": statement_index},
+            {"value": "Action"},
+        ],
+        "span": {
+            "start": {"line": 1, "column": 1, "offset": 1},
+            "end": {"line": 1, "column": 2, "offset": 2},
+        },
+    }],
+}
+(fixture_dir / "validation-clean.json").write_text(
+    json.dumps({"findings": []}, separators=(",", ":"))
+)
+(fixture_dir / "validation-stale-stage-tag-action.json").write_text(
+    json.dumps({"findings": [stale_finding]}, separators=(",", ":"))
+)
+unrelated_error = {
+    "findingDetails": "A different validation error.",
+    "findingType": "ERROR",
+    "issueCode": "OTHER_ERROR",
+    "locations": [],
+}
+(fixture_dir / "validation-stale-plus-error.json").write_text(
+    json.dumps(
+        {"findings": [stale_finding, unrelated_error]},
+        separators=(",", ":"),
+    )
+)
+wrong_location_finding = copy.deepcopy(stale_finding)
+wrong_location_finding["locations"][0]["path"][1]["index"] += 1
+(fixture_dir / "validation-stale-wrong-location.json").write_text(
+    json.dumps(
+        {"findings": [wrong_location_finding]},
+        separators=(",", ":"),
+    )
+)
+broader_policy = copy.deepcopy(policy)
+broader_policy["Statement"][statement_index]["Resource"] = (
+    f"arn:aws:apigateway:{region}::/*"
+)
+(fixture_dir / "role-policy-broader-stage-tag.json").write_text(
+    json.dumps(broader_policy, separators=(",", ":"))
+)
+additional_broad_policy = copy.deepcopy(policy)
+additional_broad_policy["Statement"].append({
+    "Sid": "BroaderApiGatewayAccess",
+    "Effect": "Allow",
+    "Action": "apigateway:*",
+    "Resource": "*",
+})
+(fixture_dir / "role-policy-additional-api-wildcard.json").write_text(
+    json.dumps(additional_broad_policy, separators=(",", ":"))
+)
 PY
+
+access_analyzer_role_policy_is_accepted \
+  "$review_fixture_dir/validation-clean.json" \
+  "$review_fixture_dir/role-policy.json" \
+  ap-southeast-2 \
+  test-run
+access_analyzer_role_policy_is_accepted \
+  "$review_fixture_dir/validation-stale-stage-tag-action.json" \
+  "$review_fixture_dir/role-policy.json" \
+  ap-southeast-2 \
+  test-run
+if access_analyzer_role_policy_is_accepted \
+  "$review_fixture_dir/validation-stale-plus-error.json" \
+  "$review_fixture_dir/role-policy.json" \
+  ap-southeast-2 \
+  test-run; then
+  printf 'accepted an unrelated Access Analyzer error\n' >&2
+  exit 1
+fi
+if access_analyzer_role_policy_is_accepted \
+  "$review_fixture_dir/validation-stale-wrong-location.json" \
+  "$review_fixture_dir/role-policy.json" \
+  ap-southeast-2 \
+  test-run; then
+  printf 'accepted the stale finding at a different policy location\n' >&2
+  exit 1
+fi
+if access_analyzer_role_policy_is_accepted \
+  "$review_fixture_dir/validation-stale-stage-tag-action.json" \
+  "$review_fixture_dir/role-policy-broader-stage-tag.json" \
+  ap-southeast-2 \
+  test-run; then
+  printf 'accepted the stale finding for a broader stage-tagging policy\n' >&2
+  exit 1
+fi
+if access_analyzer_role_policy_is_accepted \
+  "$review_fixture_dir/validation-stale-stage-tag-action.json" \
+  "$review_fixture_dir/role-policy-additional-api-wildcard.json" \
+  ap-southeast-2 \
+  test-run; then
+  printf 'accepted the stale finding alongside an API Gateway wildcard\n' >&2
+  exit 1
+fi
 
 printf 'AWS shell portability checks passed.\n'

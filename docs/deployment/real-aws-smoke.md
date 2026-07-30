@@ -131,16 +131,21 @@ several boundaries that local emulation could not prove:
 - The generic RDS `available` waiter can return before a public-access change is
   applied. The database gate polls until status is `available`,
   `PubliclyAccessible` is false and no public-access change is pending.
-- API Gateway stage tagging reports authorization as
-  `apigateway:TagResource`, while IAM Access Analyzer rejects that explicit
-  action. CloudTrail records the actual operation as tagged `CreateStage`.
-  API Gateway V2 maps that operation to both `apigateway:POST` and
-  `apigateway:PUT`. A live failure showed AWS evaluating both on
-  `/apis/${ApiId}/stages`; the separate direct tagging API uses `/tags/*`.
-  The role keeps general mutation behind the CloudFormation caller chain and
-  separately permits only those two methods on the stage collection when the
-  run ID, managed and purpose request tags are present and every requested key
-  is in the closed reviewed allowlist. Direct `/tags/*` mutation remains
+- API Gateway V2's service-authorization reference describes HTTP-method
+  aliases for tagged stage creation, but CloudFormation's live IAM denial
+  identifies the dependent action as `apigateway:TagResource` on
+  `/apis/${ApiId}/stages`. IAM custom-policy simulation also accepts that
+  exact semantic action/resource pair. Access Analyzer currently reports the
+  literal `apigateway:TagResource` action as one `INVALID_ACTION`; the
+  bootstrap tolerates only that exact finding at the exact statement index
+  after structurally matching the statement's action, stage-collection
+  resource, three ownership values and closed tag-key allowlist, confirming
+  the action appears once and rejecting every action wildcard. Any other
+  Analyzer error remains fatal. The role therefore keeps general mutation
+  behind the CloudFormation caller chain and separately permits only
+  `apigateway:POST` and `apigateway:TagResource` on the stage collection when
+  the run ID, managed and purpose request tags are present and every requested
+  key is in the closed reviewed allowlist. Direct `/tags/*` mutation remains
   denied.
 - CloudFormation can delete an `--on-failure DELETE` stack before a later
   diagnostic pass. A failed create waiter now captures stack events before
