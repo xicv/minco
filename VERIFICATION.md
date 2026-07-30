@@ -754,6 +754,38 @@ fail-closed controller defects before publication:
     synthetic data, bootstrap principals, profiles and local credential files
     absent. Exact-head hosted qualification, merge, exact-main qualification
     and another live rehearsal remain required.
+30. The padded-request-ID correction passed exact PR-head hosted run
+    [`30548150116`](https://github.com/xicv/minco/actions/runs/30548150116) at
+    `ade67d7f6d2866ed6bfde610742cf53660fe8ec9`, merged as exact `main`
+    `25ffdd4c38eba8e8a759cf7e83404fbfebd36e60`, passed the complete local
+    release matrix and passed exact-main hosted run
+    [`30550393414`](https://github.com/xicv/minco/actions/runs/30550393414).
+    Both hosted runs passed authoritative quality, all 40 Feedback browser
+    checks, the coordinated 28-package dry run, Plan/SAM/native ARM64 Lambda,
+    Rustack/SSM and Orders E2E.
+
+    Authorised live run `20260730t142515z-release040` migrated and verified its
+    disposable private PostgreSQL database, built the 5,039,398-byte native
+    ARM64 artifact with SHA-256
+    `92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+    sealed release `minco.31235789f783406088906750` with digest
+    `31235789f783406088906750b530cfe7e84bb7d959c65a809cf98158a0fd0556`,
+    applied its exact reviewed change set and passed all candidate hosted
+    checks. Promotion stopped before creating or executing a change set
+    because the bounded deployment role lacked
+    `cloudformation:DetectStackResourceDrift`; no live alias changed.
+
+    AWS documents stack drift detection as requiring stack-scoped
+    `DetectStackDrift` and `DetectStackResourceDrift`, plus wildcard-only
+    `BatchDescribeTypeConfigurations` and drift-status polling. The focused
+    policy regression failed before the correction and now compares both
+    complete statements, retaining exact stack ARNs and adding no action
+    wildcard. Application cleanup is all true. An exact bounded RDS cleanup
+    rerun after the managed-secret deletion window is all true, and the
+    recovery `final-cleanup.json` proves the temporary database, bootstrap
+    principals, profiles and local credential files absent. Exact-head hosted
+    qualification, merge, exact-main qualification and another live rehearsal
+    remain required before tag or registry publication.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

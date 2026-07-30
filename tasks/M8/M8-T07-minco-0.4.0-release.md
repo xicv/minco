@@ -704,3 +704,32 @@ and local database secret files absent. The bootstrap user, role, profiles and
 credential files are absent. Exact-head hosted qualification, merge, exact-main
 qualification, another live rehearsal, tag and registry publication remain
 blocked.
+
+The padded-request-ID correction passed exact PR-head hosted run
+[`30548150116`](https://github.com/xicv/minco/actions/runs/30548150116) at
+`ade67d7f6d2866ed6bfde610742cf53660fe8ec9`, merged as exact `main`
+`25ffdd4c38eba8e8a759cf7e83404fbfebd36e60`, passed the complete local release
+matrix and passed exact-main hosted run
+[`30550393414`](https://github.com/xicv/minco/actions/runs/30550393414).
+
+Authorised live run `20260730t142515z-release040` migrated and verified its
+private disposable PostgreSQL database, built the 5,039,398-byte native ARM64
+artifact with SHA-256
+`92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+sealed release `minco.31235789f783406088906750`, applied the exact reviewed
+change set and passed every candidate hosted check. Promotion stopped before
+creating or executing a change set because the bounded deployment role lacked
+`cloudformation:DetectStackResourceDrift`; no live alias changed.
+
+The current correction follows AWS's documented drift-detection dependency
+set. It adds `DetectStackDrift` and `DetectStackResourceDrift` only to the two
+exact run-owned stack ARN patterns, and places
+`BatchDescribeTypeConfigurations` plus
+`DescribeStackDriftDetectionStatus` in a separate discovery statement because
+those actions do not support resource-level permissions. The focused rendered
+policy regression failed before the change and passes after it, with no action
+wildcard. Application cleanup is all true; an exact RDS recovery rerun and the
+required `final-cleanup.json` prove the temporary database, managed secret,
+VPC, bootstrap principals, profiles and local credential files absent.
+Exact-head hosted qualification, merge, exact-main qualification, another live
+rehearsal, tag and registry publication remain blocked.

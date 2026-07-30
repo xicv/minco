@@ -295,6 +295,50 @@ if mutation_statement != {
 }:
     raise SystemExit("API Gateway mutation policy exceeds the CloudFormation boundary")
 
+owned_stack_statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "OwnedStack"
+)
+if owned_stack_statement != {
+    "Sid": "OwnedStack",
+    "Effect": "Allow",
+    "Action": [
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DetectStackDrift",
+        "cloudformation:DetectStackResourceDrift",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListChangeSets",
+        "cloudformation:ListStackResources",
+    ],
+    "Resource": [
+        "arn:aws:cloudformation:ap-southeast-2:123456789012:stack/test/*",
+        "arn:aws:cloudformation:ap-southeast-2:123456789012:stack/rds/*",
+    ],
+}:
+    raise SystemExit("stack drift policy exceeds or misses the exact stack boundary")
+
+drift_discovery_statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "DriftDetectionDiscovery"
+)
+if drift_discovery_statement != {
+    "Sid": "DriftDetectionDiscovery",
+    "Effect": "Allow",
+    "Action": [
+        "cloudformation:BatchDescribeTypeConfigurations",
+        "cloudformation:DescribeStackDriftDetectionStatus",
+    ],
+    "Resource": "*",
+}:
+    raise SystemExit("drift discovery policy exceeds or misses provider requirements")
+
 stage_create_statement = next(
     item for item in policy["Statement"]
     if item["Sid"] == "CreateRunOwnedTemporaryHttpApiStage"
