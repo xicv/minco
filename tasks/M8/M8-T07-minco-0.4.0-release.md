@@ -34,6 +34,7 @@ owned_paths:
   - scripts/aws/cleanup.sh
   - scripts/aws/lib/common.sh
   - scripts/aws/run-bounded-root-bootstrap.sh
+  - scripts/aws/smoke.sh
   - scripts/generate_bootstrap_artifacts.py
   - scripts/quality.sh
   - scripts/release/publish.py
@@ -518,6 +519,38 @@ secret, bootstrap-IAM and local credential resources from the failed run are
 independently absent. Exact-head hosted qualification, merge, exact-main
 qualification, another live rehearsal, tag and registry publication remain
 blocked.
+
+The named-stage correction passed exact PR-head hosted run
+[`30532832860`](https://github.com/xicv/minco/actions/runs/30532832860) at
+`d7e5a1c6e9ff5f5c43c754bc145bdefd63c7b60e`, merged as exact `main`
+`73807d918bc860b60d592611f388bb63775d7c54`, passed the complete local
+qualification and passed exact-main hosted run
+[`30534601227`](https://github.com/xicv/minco/actions/runs/30534601227).
+Both hosted boundaries passed authoritative quality, Feedback browser
+evidence, the coordinated 28-package dry run, Plan/SAM/native ARM64 Lambda,
+Rustack/SSM and explicit Orders E2E stages.
+
+Authorised replacement run `20260730t104626z-release040` migrated and verified
+private PostgreSQL, built the 5,039,398-byte native ARM64 artifact with SHA-256
+`92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+sealed release `minco.789c2425846acb0fda2039f0` with digest
+`789c2425846acb0fda2039f0eca3179978a48ce2be8af34ebb9b4ab42593c7b7`,
+and applied the exact reviewed change set. Candidate liveness and readiness
+passed, and the unauthenticated protected-order probe returned its expected
+401. API Gateway supplied `apigw-requestid`, which the smoke verifier did not
+recognize as a request ID, so verification failed before authenticated
+mutation or promotion.
+
+The bounded correction centralizes response request-ID extraction and accepts
+Minco's `x-request-id`, Lambda/API Gateway's `x-amzn-requestid`, and API
+Gateway's observed `apigw-requestid`. Executable fixtures cover all three
+spellings and reject unrelated headers. Application cleanup is all true. An
+exact bounded rerun after the RDS-managed secret deletion window proves the
+temporary PostgreSQL stack, instance, managed secret and VPC absent, with
+synthetic data and local secret files absent. Bootstrap user, role, profiles
+and credential files are absent. Exact-head hosted qualification, merge,
+exact-main qualification, another live rehearsal, tag and registry
+publication remain blocked.
 
 The corrected source boundary passes `cargo test -p minco-plan --all-targets
 --all-features --locked`, exact SAM translator `1.111.0` transformation, the

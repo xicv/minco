@@ -92,17 +92,7 @@ http_call() {
       "$method" "$path" "$last_http_status" "$expected" >&2
     return 1
   }
-  last_request_id="$(
-    awk '
-      BEGIN { IGNORECASE = 1 }
-      /^x-request-id:/ || /^x-amzn-requestid:/ {
-        sub(/^[^:]+:[[:space:]]*/, "")
-        sub(/\r$/, "")
-        print
-        exit
-      }
-    ' "$headers"
-  )"
+  last_request_id="$(http_response_request_id "$headers")"
   [[ -n "$last_request_id" ]] || {
     echo "$method $path did not return a request ID" >&2
     return 1

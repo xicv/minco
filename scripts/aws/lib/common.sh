@@ -29,6 +29,20 @@ normalized_ssm_parameter_name() {
     "$parameter_name" != */ ]]
 }
 
+http_response_request_id() {
+  local headers_path="$1"
+  [[ -f "$headers_path" ]] || return 1
+  awk '
+    BEGIN { IGNORECASE = 1 }
+    /^x-request-id:/ || /^x-amzn-requestid:/ || /^apigw-requestid:/ {
+      sub(/^[^:]+:[[:space:]]*/, "")
+      sub(/\r$/, "")
+      print
+      exit
+    }
+  ' "$headers_path"
+}
+
 write_bounded_deployment_target_config() {
   local output_path="$1"
   local account_id="$2"

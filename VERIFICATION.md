@@ -686,6 +686,41 @@ fail-closed controller defects before publication:
     absent. The bootstrap user, role, profiles and credential files are absent.
     Exact-head hosted qualification, merge, exact-main qualification and
     another live rehearsal remain required.
+28. The named-stage correction passed exact PR-head hosted run
+    [`30532832860`](https://github.com/xicv/minco/actions/runs/30532832860) at
+    `d7e5a1c6e9ff5f5c43c754bc145bdefd63c7b60e`, merged as exact `main`
+    `73807d918bc860b60d592611f388bb63775d7c54`, passed the complete local
+    qualification and passed exact-main hosted run
+    [`30534601227`](https://github.com/xicv/minco/actions/runs/30534601227).
+    Both hosted boundaries passed authoritative quality, Feedback browser
+    evidence, the coordinated 28-package dry run, Plan/SAM/native ARM64
+    Lambda, Rustack/SSM and explicit Orders E2E stages.
+
+    Authorised live run `20260730t104626z-release040` migrated and verified
+    private PostgreSQL, built the 5,039,398-byte native ARM64 artifact with
+    SHA-256
+    `92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+    sealed release `minco.789c2425846acb0fda2039f0` with digest
+    `789c2425846acb0fda2039f0eca3179978a48ce2be8af34ebb9b4ab42593c7b7`,
+    and applied its exact reviewed change set. Candidate liveness and
+    readiness passed. The unauthenticated protected-order probe returned the
+    expected 401 with `apigw-requestid` `BUQyKibkSwMEMJw=`, but the smoke
+    verifier recognized only `x-request-id` and `x-amzn-requestid`. It
+    therefore failed before the authenticated POST, database mutation or
+    promotion.
+
+    The correction centralizes response request-ID extraction and recognizes
+    Minco's `x-request-id`, Lambda/API Gateway's `x-amzn-requestid`, and API
+    Gateway's observed `apigw-requestid`. The executable AWS shell portability
+    suite covers every supported spelling and rejects an unrelated-header
+    response. Application cleanup contains only true values. The initial
+    database aggregate caught the RDS-managed secret during its asynchronous
+    deletion window; an exact bounded rerun then proved the temporary
+    PostgreSQL stack, instance, managed secret and VPC absent, with synthetic
+    data and local secret files absent. Bootstrap user, role, profiles and
+    credentials are absent. No tag or registry upload occurred. Exact-head
+    hosted qualification, merge, exact-main qualification and another live
+    rehearsal remain required.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

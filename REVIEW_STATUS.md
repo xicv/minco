@@ -51,3 +51,25 @@ Replacement live AWS proof, exact tag creation and crates.io publication remain
 separate pending gates. Current and historical command evidence is maintained
 in `VERIFICATION.md`; Feedback-specific architecture evidence remains in
 `FEEDBACK_REVIEW_STATUS.md`.
+
+The named-stage correction passed PR-head hosted run `30532832860` at
+`d7e5a1c6e9ff5f5c43c754bc145bdefd63c7b60e`, merged as exact `main`
+`73807d918bc860b60d592611f388bb63775d7c54`, and passed both the complete
+local qualification and exact-main hosted run `30534601227`.
+
+Authorised live run `20260730t104626z-release040` then migrated and verified
+private PostgreSQL, sealed exact release `minco.789c2425846acb0fda2039f0`,
+and applied its reviewed change set. Candidate liveness and readiness passed;
+the protected-order probe returned the expected 401 with API Gateway header
+`apigw-requestid`. The verifier rejected that valid provider request ID because
+it recognized only `x-request-id` and `x-amzn-requestid`, so no authenticated
+mutation or promotion ran. Application cleanup is all true. A bounded exact
+rerun after the asynchronous RDS secret window proves the temporary database,
+managed secret and VPC absent; bootstrap principals, profiles and credentials
+are also absent.
+
+The current correction centralizes response request-ID extraction and adds
+executable positive fixtures for all three supported provider/application
+headers plus a negative unrelated-header fixture. Exact-head hosted
+qualification, merge, exact-main qualification and another live rehearsal are
+required before tag creation or crates.io publication.
