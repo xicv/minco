@@ -1239,9 +1239,16 @@ pub enum HostedVerificationError {
 }
 
 fn request_id_is_valid(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value
+    if value.is_empty() || value.len() > 128 {
+        return false;
+    }
+    let value_without_padding = value
+        .strip_suffix("==")
+        .or_else(|| value.strip_suffix('='))
+        .unwrap_or(value);
+    !value_without_padding.is_empty()
+        && !value_without_padding.contains('=')
+        && value_without_padding
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
 }

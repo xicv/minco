@@ -73,3 +73,26 @@ executable positive fixtures for all three supported provider/application
 headers plus a negative unrelated-header fixture. Exact-head hosted
 qualification, merge, exact-main qualification and another live rehearsal are
 required before tag creation or crates.io publication.
+
+That correction passed exact PR-head hosted run `30539721321` at
+`8e97b38ef22608f849d531145f13dbf0e3e7243e`, merged as exact `main`
+`30260209c49acb048f6549a31eb1e375fd1e923e`, passed the complete local release
+matrix and passed exact-main hosted run `30542710147`.
+
+Authorised live run `20260730t124426z-release040` then migrated and verified
+private PostgreSQL, built the 5,039,398-byte native ARM64 artifact, sealed
+release `minco.761bb0f73b895275c78858ff`, applied the exact reviewed change
+set, and passed candidate liveness, readiness, the unauthenticated 401,
+authenticated place/get and idempotent replay. Hosted-report construction
+rejected only the Authentication check because the accepted API Gateway
+request ID ended in Base64-style `=` padding, which the Rust verifier's
+character set excluded. No promotion, tag or registry upload occurred.
+
+The current correction admits one or two `=` characters only as trailing
+request-ID padding and preserves the existing length and character bounds.
+The focused regression failed before the change and all 13 hosted-verification
+tests pass after it, including an internal-padding rejection. Exact cleanup
+reruns prove all application, database/VPC/secret, bootstrap-IAM and local
+credential resources absent. Exact-head hosted qualification, merge,
+exact-main qualification and another live rehearsal remain required before
+tag creation or crates.io publication.
