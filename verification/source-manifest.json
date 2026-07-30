@@ -104,8 +104,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "c751244cfc8e88e90bf0a3aef8f431d4815fa2ae91965d8d9fca369140dff0e0",
-      "size_bytes": 2678
+      "sha256": "d3557590c754094fa4b541caca63b0f9f6b00e3999b4ff251ad55aed8725cc63",
+      "size_bytes": 2393
     },
     {
       "path": "SECURITY.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "970d8804bbc54698487e9c122363a90ddad8c37d2b37c6ea5a786e4349dc31f5",
-      "size_bytes": 74024
+      "sha256": "9f907e26e61411653270d402bb035ebec4ae5ba47e42db63b57d1276a970891c",
+      "size_bytes": 76612
     },
     {
       "path": "config/jj/repo.toml",
@@ -979,8 +979,8 @@
     },
     {
       "path": "crates/minco-plan/src/sam.rs",
-      "sha256": "8ba42e9cb939724ab9fcf7ea83b223c81493972c2a7926083473e502d7ce7fd0",
-      "size_bytes": 33102
+      "sha256": "43514559542f4e73a6109385a0c0f289fa383302c9e7868c2941044df0591f0d",
+      "size_bytes": 33263
     },
     {
       "path": "crates/minco-plan/tests/fixtures/api_only_v1.toml",
@@ -1904,8 +1904,8 @@
     },
     {
       "path": "infra/aws/generated/template.yaml",
-      "sha256": "ab8a21a9ebb6a4eeb501258bc773b1b760f5066e2ca70277d18f77caa157fa87",
-      "size_bytes": 8994
+      "sha256": "36f0e3752ab4fb7f4ed43218b7f2193e74dc5ed8c27804195553b57ca9172816",
+      "size_bytes": 9049
     },
     {
       "path": "infra/aws/smoke/temporary-postgres.yaml",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "0295c34c78cf4f2f00eb5eeeb8e7347adea3cdf398abd146c6b8ccf144ef05dc",
-      "size_bytes": 33788
+      "sha256": "ea7a31e3e5a4739cfe2ba21bed8582e0c6a9d92be02d13d8043fefc06e29cf2d",
+      "size_bytes": 35252
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -2934,7 +2934,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "863a1428af6e8bee05779fab90fc27b795c957f5a5360c9db694bd26f3036d7a",
+      "sha256": "86a54c3ff4717371f22bb8968f81e38f10ea7ad85269f9841523063b68695796",
       "size_bytes": 1817
     },
     {
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "36e552b42fe5c8a16d834e46e027bbb94dbdfa4d4ea7aca611d84517847dc2b7",
-  "total_size_bytes": 3705106,
+  "source_tree_sha256": "76546bcfcdb439354d10b1109a95f5c72957ef4d49d9e23448b0d4575e8e76b7",
+  "total_size_bytes": 3709089,
   "version": "0.4.0"
 }

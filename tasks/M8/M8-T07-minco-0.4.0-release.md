@@ -580,3 +580,26 @@ confirm both stacks, the bucket, Cognito pool, SSM parameter, RDS instance,
 managed secret and temporary IAM principals are absent. Exact-head hosted
 qualification, merge, exact-main qualification, a replacement live rehearsal,
 tag and registry publication remain blocked.
+
+That correction passed exact-head hosted run
+[`30519948680`](https://github.com/xicv/minco/actions/runs/30519948680) at
+`612dbf16fd998538d941308079e2b9437d4be87e`, merged as exact `main`
+`daae0595deffe945726df54c6f43ee82ff7bc7fd`, passed the complete local
+qualification and passed exact-main hosted run
+[`30521267303`](https://github.com/xicv/minco/actions/runs/30521267303),
+including explicit Rustack and E2E stages.
+
+Authorised live run `20260730t071445z-release040` migrated and verified private
+PostgreSQL, reproduced the deterministic native ARM64 artifact, sealed and
+verified exact-main release `minco.0b60a084c8c9029899e8fc27`, and applied its
+reviewed change-set receipt. Candidate `GET /health/live` reached Lambda and
+returned Minco's request ID, but Axum returned 404 because pinned
+`lambda_http 1.3.0` prefixes named stages into the request URI unless
+`AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH` is set. The replacement renderer sets
+that switch for the Lambda environment and a focused regression covers it
+alongside candidate/live alias isolation. The generated template is refreshed.
+Direct exact-name provider checks prove all application, database/VPC,
+managed-secret, storage, Cognito, SSM and bootstrap-IAM resources absent; three
+resource-tag index entries are stale and their direct lookups return not found.
+Exact-head hosted qualification, merge, exact-main qualification, another live
+rehearsal, tag and registry publication remain blocked.
