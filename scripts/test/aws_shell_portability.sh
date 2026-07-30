@@ -339,6 +339,39 @@ if drift_discovery_statement != {
 }:
     raise SystemExit("drift discovery policy exceeds or misses provider requirements")
 
+owned_function_statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "OwnedFunction"
+)
+if "lambda:GetProvisionedConcurrencyConfig" not in owned_function_statement["Action"]:
+    raise SystemExit(
+        "owned function policy misses the provider drift-read permission"
+    )
+if owned_function_statement["Resource"] != [
+    "arn:aws:lambda:ap-southeast-2:123456789012:function:test",
+    "arn:aws:lambda:ap-southeast-2:123456789012:function:test:*",
+]:
+    raise SystemExit(
+        "provider drift-read permission exceeds the exact function boundary"
+    )
+
+log_group_metadata_statement = next(
+    item for item in policy["Statement"]
+    if item["Sid"] == "LogGroupMetadataDiscovery"
+)
+if log_group_metadata_statement != {
+    "Sid": "LogGroupMetadataDiscovery",
+    "Effect": "Allow",
+    "Action": [
+        "logs:DescribeIndexPolicies",
+        "logs:DescribeLogGroups",
+    ],
+    "Resource": "*",
+}:
+    raise SystemExit(
+        "log group drift-read policy exceeds or misses provider requirements"
+    )
+
 stage_create_statement = next(
     item for item in policy["Statement"]
     if item["Sid"] == "CreateRunOwnedTemporaryHttpApiStage"

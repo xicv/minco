@@ -143,3 +143,25 @@ secret, temporary database/VPC, bootstrap principals, profiles and local
 credential files absent. No tag or registry upload occurred. Exact-head
 hosted qualification, merge, exact-main qualification and another live
 rehearsal remain required.
+
+That correction passed exact PR-head hosted run `30563657881` at
+`f952af63d3848333c8a56782fe3b42e73dd457fd`, merged as exact `main`
+`ff242141c98c4d555de3ed232dba4437ff59ee17`, passed the complete local release
+matrix and passed exact-main hosted run `30565805289`.
+
+Authorised live run `20260730t174217z-release040` reproduced the qualified
+native artifact, sealed and applied reviewed release
+`minco.b100be45a4972f08cb3a554f`, and passed all candidate hosted checks.
+Promotion stopped before a change set or live alias mutation because
+CloudFormation drift inspection additionally required
+`lambda:GetProvisionedConcurrencyConfig` and
+`logs:DescribeIndexPolicies`. No tag or registry upload occurred.
+
+The current correction grants only those two provider reads. The Lambda action
+is bound to the exact run-owned function and qualified ARN pattern; the Logs
+List action uses the provider-required wildcard resource in the existing
+metadata-discovery statement. The focused rendered-policy regression failed
+before the change and passes after it. Application and RDS cleanup evidence is
+all true, including the managed secret, VPC, bootstrap identities, profiles and
+local credential files. Exact-head hosted qualification, merge, exact-main
+qualification and another live rehearsal remain required.

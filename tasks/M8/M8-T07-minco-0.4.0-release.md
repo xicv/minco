@@ -761,3 +761,32 @@ temporary database, managed secret, VPC, bootstrap principals, profiles and
 local credential files absent. Exact-head hosted qualification, merge,
 exact-main qualification, another live rehearsal, tag and registry
 publication remain blocked.
+
+The response-field correction passed exact PR-head hosted run
+[`30563657881`](https://github.com/xicv/minco/actions/runs/30563657881) at
+`f952af63d3848333c8a56782fe3b42e73dd457fd`, merged as exact `main`
+`ff242141c98c4d555de3ed232dba4437ff59ee17`, passed the complete local release
+matrix and passed exact-main hosted run
+[`30565805289`](https://github.com/xicv/minco/actions/runs/30565805289).
+
+Authorised live run `20260730t174217z-release040` migrated and verified its
+private disposable PostgreSQL database, reproduced the 5,039,398-byte native
+ARM64 artifact with SHA-256
+`92dc989125a6032e378eaa660303939a9fadc0920bb3b2cbaaf86d11`,
+sealed release `minco.b100be45a4972f08cb3a554f`, applied the exact reviewed
+change set and passed every candidate hosted check. Promotion stopped before
+creating or executing a change set because CloudFormation drift inspection
+reported that the bounded role lacked
+`lambda:GetProvisionedConcurrencyConfig` for the exact function versions and
+aliases plus `logs:DescribeIndexPolicies`; no live alias changed.
+
+The current least-privilege correction adds the Lambda read only to the exact
+run-owned function ARN and qualified ARN pattern. It adds the CloudWatch Logs
+List action to the existing wildcard-resource metadata-discovery statement,
+matching AWS's service-authorization classification. The rendered-policy
+regression failed before the change and passes after it while retaining exact
+function boundaries. Application cleanup is all true; the exact RDS recovery
+rerun and all-true `final-cleanup.json` prove the temporary database, managed
+secret, VPC, bootstrap principals, profiles and local credential files absent.
+Exact-head hosted qualification, merge, exact-main qualification and another
+live rehearsal remain required before tag creation or registry publication.

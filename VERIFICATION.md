@@ -821,6 +821,33 @@ fail-closed controller defects before publication:
     profiles and local credential files absent. Exact-head hosted
     qualification, merge, exact-main qualification and another live rehearsal
     remain required before tag or registry publication.
+32. The response-field correction passed exact PR-head hosted run
+    [`30563657881`](https://github.com/xicv/minco/actions/runs/30563657881) at
+    `f952af63d3848333c8a56782fe3b42e73dd457fd`, merged as exact `main`
+    `ff242141c98c4d555de3ed232dba4437ff59ee17`, passed the complete local
+    release matrix and passed exact-main hosted run
+    [`30565805289`](https://github.com/xicv/minco/actions/runs/30565805289).
+
+    Authorised live run `20260730t174217z-release040` migrated and verified
+    private PostgreSQL, reproduced the 5,039,398-byte native ARM64 artifact,
+    sealed release `minco.b100be45a4972f08cb3a554f`, applied its reviewed
+    change set and passed every candidate hosted check. Promotion failed
+    closed before any change set or live alias mutation because
+    CloudFormation resource drift inspection required
+    `lambda:GetProvisionedConcurrencyConfig` for the run-owned function's
+    versions and aliases plus wildcard-resource
+    `logs:DescribeIndexPolicies`. No tag or registry upload occurred.
+
+    The focused rendered-policy regression failed before the correction with
+    `owned function policy misses the provider drift-read permission` and
+    passes after it. The Lambda action is confined to the exact run-owned
+    function ARN and qualified ARN pattern. AWS documents
+    `DescribeIndexPolicies` as a wildcard-resource List action, so it is added
+    to the existing log metadata discovery statement without an action
+    wildcard. The application cleanup receipt and exact RDS recovery rerun are
+    all true; `final-cleanup.json` also proves bootstrap principals, profiles
+    and local credential files absent. Exact-head hosted qualification, merge,
+    exact-main qualification and another live rehearsal remain required.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

@@ -608,6 +608,7 @@ jq -n \
           "lambda:GetFunction",
           "lambda:GetFunctionConfiguration",
           "lambda:GetPolicy",
+          "lambda:GetProvisionedConcurrencyConfig",
           "lambda:ListAliases",
           "lambda:ListTags",
           "lambda:ListVersionsByFunction",
@@ -638,7 +639,10 @@ jq -n \
       {
         Sid: "LogGroupMetadataDiscovery",
         Effect: "Allow",
-        Action: ["logs:DescribeLogGroups"],
+        Action: [
+          "logs:DescribeIndexPolicies",
+          "logs:DescribeLogGroups"
+        ],
         Resource: "*"
       },
       {
