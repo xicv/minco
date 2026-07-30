@@ -96,3 +96,26 @@ reruns prove all application, database/VPC/secret, bootstrap-IAM and local
 credential resources absent. Exact-head hosted qualification, merge,
 exact-main qualification and another live rehearsal remain required before
 tag creation or crates.io publication.
+
+That correction passed exact PR-head hosted run `30548150116` at
+`ade67d7f6d2866ed6bfde610742cf53660fe8ec9`, merged as exact `main`
+`25ffdd4c38eba8e8a759cf7e83404fbfebd36e60`, passed the complete local release
+matrix and passed exact-main hosted run `30550393414`.
+
+Authorised live run `20260730t142515z-release040` then migrated and verified
+private PostgreSQL, built the 5,039,398-byte native ARM64 artifact, sealed
+release `minco.31235789f783406088906750`, applied its reviewed change set and
+passed every candidate hosted check. Promotion failed closed before any change
+set or live alias mutation because the bounded role lacked
+`cloudformation:DetectStackResourceDrift`.
+
+The current least-privilege correction adds the two stack-scoped drift actions
+to the exact owned-stack ARNs and isolates the provider-required type
+configuration and drift-status reads in a wildcard-only discovery statement.
+The focused rendered-policy regression failed before the change and passes
+after it without introducing an action wildcard. Application cleanup is all
+true; the exact RDS recovery rerun and `final-cleanup.json` prove the managed
+secret, temporary database/VPC, bootstrap principals, profiles and local
+credential files absent. No tag or registry upload occurred. Exact-head hosted
+qualification, merge, exact-main qualification and another live rehearsal
+remain required.

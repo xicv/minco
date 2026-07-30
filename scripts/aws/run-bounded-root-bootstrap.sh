@@ -543,6 +543,8 @@ jq -n \
           "cloudformation:DescribeChangeSet",
           "cloudformation:DescribeStackEvents",
           "cloudformation:DescribeStacks",
+          "cloudformation:DetectStackDrift",
+          "cloudformation:DetectStackResourceDrift",
           "cloudformation:ExecuteChangeSet",
           "cloudformation:GetTemplate",
           "cloudformation:GetTemplateSummary",
@@ -550,6 +552,15 @@ jq -n \
           "cloudformation:ListStackResources"
         ],
         Resource: [$stack_arn, $rds_stack_arn]
+      },
+      {
+        Sid: "DriftDetectionDiscovery",
+        Effect: "Allow",
+        Action: [
+          "cloudformation:BatchDescribeTypeConfigurations",
+          "cloudformation:DescribeStackDriftDetectionStatus"
+        ],
+        Resource: "*"
       },
       {
         Sid: "ServerlessTransform",
