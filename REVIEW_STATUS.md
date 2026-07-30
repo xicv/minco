@@ -15,31 +15,37 @@ This record separates:
 - exact tag creation;
 - crates.io publication and independent registry/consumer/docs.rs proof.
 
-The deployment-role bucket-visibility correction passed exact-head hosted run
-`30519948680` at `612dbf16fd998538d941308079e2b9437d4be87e`,
-merged as exact `main`
-`daae0595deffe945726df54c6f43ee82ff7bc7fd`, passed the complete local
-qualification again and passed exact-main hosted run `30521267303`. All
+The stage-environment correction passed exact-head hosted run `30526281458` at
+`d5b4a76946a47bb4aeffb8be64b7460e1e61ce2d`, merged as exact `main`
+`83d1583e9a385070306c95665a5219700cbc1c5e`, passed the complete local
+qualification and passed exact-main hosted run `30527357088`. All
 authoritative quality, browser, 28-package dry-run, Plan/SAM/native ARM64,
 Rustack/SSM and explicit Orders E2E stages passed.
 
-Authorised live run `20260730t071445z-release040` migrated and verified its
-disposable private PostgreSQL database, built the deterministic 5,038,349-byte
-native ARM64 artifact with SHA-256
+Authorised live run `20260730t085318z-release040` migrated and verified its
+disposable private PostgreSQL database, reproduced the deterministic
+5,038,349-byte native ARM64 artifact with SHA-256
 `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
-sealed exact-main release `minco.0b60a084c8c9029899e8fc27`, and applied the
-reviewed change-set receipt. Candidate `GET /health/live` reached Lambda and
-returned Minco's request ID but Axum returned 404: pinned `lambda_http 1.3.0`
-prefixes named API Gateway stages into the URI unless
-`AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH` is set.
+sealed exact-main release `minco.faf23ae016624d15d0b8f11f`, applied reviewed
+change-set receipt
+`3d349a2be71b1aa04491f61f388780bb5c8d973e756aa4296c388103a8f27443`,
+and reached `CREATE_COMPLETE`. Candidate `GET /health/live` still reached
+Lambda and returned Minco request ID
+`1dcc9a69-cae5-4c68-ba8e-bac9fec24128`, but Axum returned an empty 404.
 
-The current correction sets that dependency switch in generated Lambda
-environment configuration and adds a focused SAM renderer regression. The
-checked-in template is regenerated. Exact provider checks prove all
-application, database/VPC, managed-secret, bucket, Cognito, SSM, Lambda/API
-and bootstrap-IAM resources absent. The tag index temporarily retained three
-stale deleted ARNs; direct provider calls for each return not found. No tag or
-registry upload occurred.
+The live event refines the root cause: API Gateway v2 already places
+`/candidate` in `rawPath`, so
+`AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH` leaves the prefixed path unchanged. The
+current correction normalizes the exact non-default API Gateway context stage
+in `minco-aws-lambda` before Axum route matching, preserves authority/query,
+rejects prefix lookalikes and leaves `$default` unchanged. A realistic event
+regression reaches the contract-owned `/health/live` route in-process. The
+ineffective SAM environment setting is removed. No promotion, tag or registry
+upload occurred. The application cleanup receipt is all true; a bounded
+follow-up check after AWS's asynchronous deletion window also proves the exact
+temporary PostgreSQL stack, instance, managed secret and VPC absent, with
+synthetic data and local database secret files absent. The bootstrap user, role,
+profiles and credential files are absent.
 
 Replacement live AWS proof, exact tag creation and crates.io publication remain
 separate pending gates. Current and historical command evidence is maintained

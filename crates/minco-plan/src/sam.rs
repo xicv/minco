@@ -156,7 +156,6 @@ pub fn render_sam_with_code_uris(
         yaml_quote(&plan.environment)
     )
     .expect("writing to String cannot fail");
-    output.push_str("          AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH: 'true'\n");
     if function.database_connections_per_instance > 0 {
         render_database_environment(&mut output, function);
     }
@@ -757,7 +756,6 @@ mod tests {
         assert!(yaml.contains("AutoPublishAlias: candidate"));
         assert!(yaml.contains("lambdaAlias: 'candidate'"));
         assert!(yaml.contains("lambdaAlias: 'live'"));
-        assert!(yaml.contains("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH: 'true'"));
         assert!(yaml.contains("${!stageVariables.lambdaAlias}/invocations"));
         assert!(yaml.contains("  CandidateApiInvokePermission:"));
         assert!(yaml.contains("      FunctionName: !Ref ApiFunction.Alias"));

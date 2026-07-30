@@ -143,7 +143,6 @@ Resources:
       Environment:
         Variables:
           APP_ENV: 'dev'
-          AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH: 'true'
           DATABASE_KIND: postgres
           DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName
           DATABASE_MAX_CONNECTIONS: '2'

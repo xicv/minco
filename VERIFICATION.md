@@ -642,6 +642,50 @@ fail-closed controller defects before publication:
     lookups for all three return not found. No release tag or registry upload
     occurred. Exact-head qualification, merge, exact-main qualification and a
     replacement live rehearsal remain required.
+27. The stage-environment correction passed exact PR-head hosted run
+    [`30526281458`](https://github.com/xicv/minco/actions/runs/30526281458) at
+    `d5b4a76946a47bb4aeffb8be64b7460e1e61ce2d`, merged as exact `main`
+    `83d1583e9a385070306c95665a5219700cbc1c5e`, passed the complete local
+    qualification and passed exact-main hosted run
+    [`30527357088`](https://github.com/xicv/minco/actions/runs/30527357088).
+    Both hosted boundaries passed authoritative quality, the coordinated
+    28-package dry run, Plan/SAM/native ARM64 Lambda, Rustack/SSM and explicit
+    Orders E2E stages.
+
+    Authorised live run `20260730t085318z-release040` migrated and verified its
+    disposable private PostgreSQL database, reproduced the deterministic
+    5,038,349-byte native ARM64 artifact with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-main release `minco.faf23ae016624d15d0b8f11f` with digest
+    `faf23ae016624d15d0b8f11f1e0d7cb20c13c3ea6d2ce247e416427e3b3e977e`.
+    The reviewed change-set receipt had digest
+    `3d349a2be71b1aa04491f61f388780bb5c8d973e756aa4296c388103a8f27443`;
+    its application stack reached `CREATE_COMPLETE`.
+
+    Candidate `GET /health/live` still reached Lambda and returned Minco
+    `x-request-id` `1dcc9a69-cae5-4c68-ba8e-bac9fec24128`, but Axum returned
+    404 with an empty body. The real API Gateway v2 event and pinned
+    `lambda_http 1.3.0` fixture show that named stages are already included in
+    `rawPath`. `AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH` suppresses additional
+    prefix insertion but does not strip `/candidate`, so the prior SAM
+    environment correction could not change the routed path.
+
+    The replacement normalizes API Gateway v2 requests in
+    `minco-aws-lambda` before Axum route matching. It removes only the exact
+    non-default context stage, preserves URI authority and query data, rejects
+    prefix lookalikes and leaves `$default` unchanged. A realistic named-stage
+    event regression first exposes `/candidate/health/live`, then proves the
+    wrapper reaches the contract-owned `/health/live` Router endpoint. The
+    ineffective SAM environment setting is removed. Focused adapter tests and
+    all-feature Clippy, plan tests and SAM validation pass. No promotion,
+    release tag or registry upload occurred. The application cleanup receipt is
+    all true. The initial database cleanup check caught the RDS-managed secret
+    during AWS's asynchronous deletion window and failed closed; a bounded
+    rerun then proved the exact temporary PostgreSQL stack, instance, managed
+    secret and VPC absent, with synthetic data and local database secret files
+    absent. The bootstrap user, role, profiles and credential files are absent.
+    Exact-head hosted qualification, merge, exact-main qualification and
+    another live rehearsal remain required.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

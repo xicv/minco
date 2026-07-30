@@ -24,6 +24,8 @@ owned_paths:
   - crates/minco-plan/src/sam.rs
   - docs/**
   - extensions/minco-aws-adapters/README.md
+  - extensions/minco-aws-lambda/Cargo.toml
+  - extensions/minco-aws-lambda/src/lib.rs
   - infra/aws/generated/template.yaml
   - roadmap/**
   - scripts/validate_static.py
@@ -603,3 +605,42 @@ managed-secret, storage, Cognito, SSM and bootstrap-IAM resources absent; three
 resource-tag index entries are stale and their direct lookups return not found.
 Exact-head hosted qualification, merge, exact-main qualification, another live
 rehearsal, tag and registry publication remain blocked.
+
+The stage-environment correction passed exact PR-head hosted run
+[`30526281458`](https://github.com/xicv/minco/actions/runs/30526281458) at
+`d5b4a76946a47bb4aeffb8be64b7460e1e61ce2d`, merged as exact `main`
+`83d1583e9a385070306c95665a5219700cbc1c5e`, passed the complete local
+qualification and passed exact-main hosted run
+[`30527357088`](https://github.com/xicv/minco/actions/runs/30527357088).
+Both hosted runs passed authoritative quality, the coordinated 28-package dry
+run, Plan/SAM/native ARM64 Lambda, Rustack/SSM and explicit Orders E2E stages.
+
+Authorised live run `20260730t085318z-release040` migrated and verified private
+PostgreSQL, reproduced the 5,038,349-byte artifact with SHA-256
+`ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+sealed exact-main release `minco.faf23ae016624d15d0b8f11f` with digest
+`faf23ae016624d15d0b8f11f1e0d7cb20c13c3ea6d2ce247e416427e3b3e977e`,
+and applied reviewed change-set receipt
+`3d349a2be71b1aa04491f61f388780bb5c8d973e756aa4296c388103a8f27443`.
+The application stack reached `CREATE_COMPLETE`, but candidate liveness still
+returned Axum's empty 404 with Minco request ID
+`1dcc9a69-cae5-4c68-ba8e-bac9fec24128`.
+
+The live event and pinned `lambda_http 1.3.0` fixture refine the cause: API
+Gateway v2 already supplies `/candidate/health/live` in `rawPath`. The
+environment switch only suppresses additional stage insertion and therefore
+cannot remove the existing prefix. The bounded release correction moves the
+normalization to `minco-aws-lambda` before Axum route matching, strips only the
+exact non-default stage from API Gateway v2 context, preserves URI authority
+and query, and rejects prefix lookalikes. A realistic named-stage event now
+matches the contract-owned `/health/live` route in-process. The ineffective
+SAM environment setting is removed. This exact first-party adapter path is
+added to the task boundary because no ready task owns the discovered release
+blocker. The application cleanup receipt is all true. The initial database
+cleanup check caught the RDS-managed secret during AWS's asynchronous deletion
+window and failed closed; a bounded rerun then proves the exact temporary
+PostgreSQL stack, instance, managed secret and VPC absent, with synthetic data
+and local database secret files absent. The bootstrap user, role, profiles and
+credential files are absent. Exact-head hosted qualification, merge, exact-main
+qualification, another live rehearsal, tag and registry publication remain
+blocked.
