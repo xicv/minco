@@ -554,3 +554,29 @@ local credential names from both failed runs are independently absent.
 isolated correction workspace. Exact-head hosted qualification, merge,
 exact-main qualification, another live rehearsal, tag and registry
 publication remain blocked.
+
+That correction passed exact PR-head hosted run
+[`30515135505`](https://github.com/xicv/minco/actions/runs/30515135505) at
+`5b269157f456591fb5167c32277067ee88c15bae`, merged as exact `main`
+`ccce06c180c29ba0f5c5471120b2d223a9baece9`, passed the complete local
+qualification again and passed exact-main hosted run
+[`30516228934`](https://github.com/xicv/minco/actions/runs/30516228934).
+
+Authorised live run `20260730t053430z-release040` migrated and verified its
+disposable private PostgreSQL database, built the deterministic 5,038,349-byte
+native ARM64 artifact and sealed exact-source release
+`minco.81b8b9d9bb94a9e711c28d3f`. The run-owned S3 bucket was created, blocked
+from public access, encrypted and visible to the smoke runner. The deployment
+controller's following `HeadBucket` nevertheless returned 404 before
+packaging or change-set creation.
+
+The current candidate adds the same bounded not-found policy at that second
+CLI provider boundary. It retries only `404`, `NoSuchBucket` and `Not Found`,
+fails every other error immediately and stops after 15 attempts. The focused
+regression failed with a missing boundary before implementation and now covers
+eventual success, non-404 fail-fast behavior and bounded exhaustion. The full
+CLI and AWS shell portability suites pass. Later exact-name provider checks
+confirm both stacks, the bucket, Cognito pool, SSM parameter, RDS instance,
+managed secret and temporary IAM principals are absent. Exact-head hosted
+qualification, merge, exact-main qualification, a replacement live rehearsal,
+tag and registry publication remain blocked.
