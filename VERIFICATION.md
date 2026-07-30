@@ -786,6 +786,41 @@ fail-closed controller defects before publication:
     principals, profiles and local credential files absent. Exact-head hosted
     qualification, merge, exact-main qualification and another live rehearsal
     remain required before tag or registry publication.
+31. The bounded drift-policy correction passed exact PR-head hosted run
+    [`30556566177`](https://github.com/xicv/minco/actions/runs/30556566177) at
+    `541e61e6fbb23a582011244539b2befddcd38fbf`, merged as exact `main`
+    `fbdcb002b5df7632e6233f3d08be97b13e571fb3`, passed the complete local
+    release matrix and passed exact-main hosted run
+    [`30558916893`](https://github.com/xicv/minco/actions/runs/30558916893).
+    Both hosted runs passed authoritative quality, all 40 Feedback browser
+    checks, the coordinated 28-package dry run, Plan/SAM/native ARM64 Lambda,
+    Rustack/SSM and Orders E2E.
+
+    Authorised live run `20260730t160831z-release040` migrated and verified its
+    disposable private PostgreSQL database, reproduced the 5,039,398-byte
+    native ARM64 artifact with SHA-256
+    `92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+    sealed release `minco.2b93b493fa3a454d51a4cbcb` with digest
+    `2b93b493fa3a454d51a4cbcb962a12c7d07942d0983f2060fd1352352b1c19ba`,
+    applied reviewed change-set digest
+    `3d68fbb34507f287fcc8f8d26cafcea21387a14124ba892d7fe2da3737376854`
+    and passed every candidate hosted check. CloudFormation drift detection
+    completed and the stack snapshot records `IN_SYNC`, but the controller
+    rejected the polling response because it required
+    `StackDriftDetectionStatus`. AWS returns that state in `DetectionStatus`.
+    Promotion stopped before creating or executing a change set, and no live
+    alias changed.
+
+    A provider-shaped unit regression failed before the correction with
+    `missing field StackDriftDetectionStatus`. The minimal field binding now
+    consumes `DetectionStatus`; the regression passes, while failed, unknown
+    and drifted responses retain their existing fail-closed behavior.
+    Application cleanup is all true. The exact bounded RDS cleanup rerun after
+    the managed-secret deletion window is all true, and recovery
+    `final-cleanup.json` proves the temporary database, bootstrap principals,
+    profiles and local credential files absent. Exact-head hosted
+    qualification, merge, exact-main qualification and another live rehearsal
+    remain required before tag or registry publication.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

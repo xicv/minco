@@ -104,8 +104,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "c8d79b27c3a334cc0fb8159aac5033c5d52541a1002059e6d186e12859c2ac2d",
-      "size_bytes": 6963
+      "sha256": "7ca0d01a61e2dfd01bd18a2985358457cf935025fc08693dafc0c2685f0dc1ce",
+      "size_bytes": 8415
     },
     {
       "path": "SECURITY.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "f80f67a96b46bfd291dd5daa0b40dc764eda8aee6ace69c50ec987b29feb5138",
-      "size_bytes": 85954
+      "sha256": "758262814cef2a7282630115cff695a210f134c147f5d9b38a676d251ea876fc",
+      "size_bytes": 88174
     },
     {
       "path": "config/jj/repo.toml",
@@ -204,8 +204,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "cafae4bec0dce48fc385078f532188bc9d55f575bd3f169e3507379a000e2ec2",
-      "size_bytes": 161149
+      "sha256": "96677b67467d60aaa04bb15542a737d40fd0971ac55cd0f0fe42ef69bc04ecc2",
+      "size_bytes": 161622
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "5a411d11f3a27e3b09bb534b7745b6ffe6ca8f78cdd5e5b6bdb3cfee37642b73",
-      "size_bytes": 43193
+      "sha256": "88c4302ecf5d58d6b3ba1649c5132fa1cfd900eb255608baa799ec9be0a18113",
+      "size_bytes": 44855
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -2934,7 +2934,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "751b6320fbb953b3001313c7114447ec4e14ba0752a66b8b2e1aa8a5cd09748c",
+      "sha256": "4edaa92693c7f30752e27073759238081057dc865c8935dac1125161f359964e",
       "size_bytes": 1817
     },
     {
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "bbe6b0a8826d8ead73eadb409452a72bce07337e1f49d379b5a4f3cb12640364",
-  "total_size_bytes": 3741945,
+  "source_tree_sha256": "8189236f612d8816f630c6db2b1684f48273f51ea36bea0898ea123588bf7a0b",
+  "total_size_bytes": 3747752,
   "version": "0.4.0"
 }
