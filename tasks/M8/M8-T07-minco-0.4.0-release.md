@@ -552,6 +552,33 @@ and credential files are absent. Exact-head hosted qualification, merge,
 exact-main qualification, another live rehearsal, tag and registry
 publication remain blocked.
 
+That correction passed exact PR-head hosted run
+[`30539721321`](https://github.com/xicv/minco/actions/runs/30539721321) at
+`8e97b38ef22608f849d531145f13dbf0e3e7243e`, merged as exact `main`
+`30260209c49acb048f6549a31eb1e375fd1e923e`, passed the complete local
+release matrix and passed exact-main hosted run
+[`30542710147`](https://github.com/xicv/minco/actions/runs/30542710147).
+
+Authorised live run `20260730t124426z-release040` migrated and verified its
+disposable private PostgreSQL database, built the 5,039,398-byte native ARM64
+artifact with SHA-256
+`92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+sealed release `minco.761bb0f73b895275c78858ff`, and applied its reviewed
+change set. Candidate liveness, readiness, unauthenticated 401, authenticated
+place/get and idempotent replay all passed. Strict hosted-report construction
+then rejected only the Authentication check because API Gateway's padded
+request ID did not satisfy the narrower Rust character set. No promotion, tag
+or registry upload occurred.
+
+The bounded correction accepts one or two `=` characters only as trailing
+request-ID padding. It retains the 128-byte limit and rejects empty IDs,
+internal padding and all other unsupported characters. The focused regression
+failed before the change and all 13 hosted-verification tests pass after it.
+Exact cleanup reruns prove all application, database/VPC/managed-secret,
+bootstrap-IAM and local credential resources absent. Exact-head hosted
+qualification, merge, exact-main qualification, another live rehearsal, tag
+and registry publication remain blocked.
+
 The corrected source boundary passes `cargo test -p minco-plan --all-targets
 --all-features --locked`, exact SAM translator `1.111.0` transformation, the
 complete `scripts/quality.sh` matrix, AWS validation and deployment planning,

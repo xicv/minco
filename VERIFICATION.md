@@ -721,6 +721,39 @@ fail-closed controller defects before publication:
     credentials are absent. No tag or registry upload occurred. Exact-head
     hosted qualification, merge, exact-main qualification and another live
     rehearsal remain required.
+29. The request-header correction passed exact PR-head hosted run
+    [`30539721321`](https://github.com/xicv/minco/actions/runs/30539721321) at
+    `8e97b38ef22608f849d531145f13dbf0e3e7243e`, merged as exact `main`
+    `30260209c49acb048f6549a31eb1e375fd1e923e`, passed the complete local
+    release matrix and passed exact-main hosted run
+    [`30542710147`](https://github.com/xicv/minco/actions/runs/30542710147).
+    The hosted main run passed authoritative quality, all 40 Feedback browser
+    checks, the coordinated 28-package dry run, Plan/SAM/native ARM64 Lambda,
+    Rustack/SSM and Orders E2E.
+
+    Authorised live run `20260730t124426z-release040` migrated and verified its
+    private disposable PostgreSQL database, built the 5,039,398-byte native
+    ARM64 artifact with SHA-256
+    `92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+    sealed release `minco.761bb0f73b895275c78858ff` with digest
+    `761bb0f73b895275c78858ffa2d04f72023c62a552d9bc99d3d22006319c5a36`,
+    and applied its exact reviewed change set. Candidate liveness, readiness,
+    unauthenticated 401, authenticated place/get and idempotent replay all
+    passed. Strict hosted-report construction then rejected only the
+    Authentication check because API Gateway's padded `apigw-requestid` did
+    not satisfy the report's narrower request-ID character set. No promotion,
+    tag or registry upload occurred.
+
+    The correction accepts one or two `=` characters only as trailing
+    request-ID padding. It retains the 128-byte limit and rejects empty IDs,
+    internal padding and all previously unsupported characters. The focused
+    regression first failed with `InvalidCheck { kind: Authentication }`; all
+    13 hosted-verification tests pass after the change. Exact cleanup reruns
+    prove the application stack, bucket, API, Lambda, log group, Cognito pool,
+    SSM parameter, temporary PostgreSQL stack/instance/managed secret/VPC,
+    synthetic data, bootstrap principals, profiles and local credential files
+    absent. Exact-head hosted qualification, merge, exact-main qualification
+    and another live rehearsal remain required.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

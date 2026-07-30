@@ -177,6 +177,59 @@ fn hosted_http_checks_require_request_ids_and_status_codes() {
 }
 
 #[test]
+fn hosted_authentication_accepts_api_gateway_request_id_padding() {
+    let request_id = format!("provider-request-id{}", '=');
+    let report = HostedVerificationReport::complete(HostedVerificationInput {
+        endpoint: "https://api.example.test/candidate".into(),
+        expected_artifact_digest: ARTIFACT_DIGEST.into(),
+        executed_artifact_digest: ARTIFACT_DIGEST.into(),
+        executed_version: "42".into(),
+        checks: vec![
+            passed(HostedCheckKind::Contract, "request-contract"),
+            passed(HostedCheckKind::Readiness, "request-readiness"),
+            passed(HostedCheckKind::Authentication, &request_id),
+            passed(HostedCheckKind::Smoke, "request-smoke"),
+            artifact_identity(),
+        ],
+    })
+    .expect("API Gateway request IDs may contain base64 padding");
+
+    assert_eq!(
+        report
+            .checks
+            .iter()
+            .find(|check| check.kind == HostedCheckKind::Authentication)
+            .and_then(|check| check.request_id.as_deref()),
+        Some(request_id.as_str())
+    );
+}
+
+#[test]
+fn hosted_request_id_padding_must_be_trailing() {
+    let request_id = format!("provider{}request-id", '=');
+    let result = HostedVerificationReport::complete(HostedVerificationInput {
+        endpoint: "https://api.example.test/candidate".into(),
+        expected_artifact_digest: ARTIFACT_DIGEST.into(),
+        executed_artifact_digest: ARTIFACT_DIGEST.into(),
+        executed_version: "42".into(),
+        checks: vec![
+            passed(HostedCheckKind::Contract, "request-contract"),
+            passed(HostedCheckKind::Readiness, "request-readiness"),
+            passed(HostedCheckKind::Authentication, &request_id),
+            passed(HostedCheckKind::Smoke, "request-smoke"),
+            artifact_identity(),
+        ],
+    });
+
+    assert_eq!(
+        result,
+        Err(HostedVerificationError::InvalidCheck {
+            kind: HostedCheckKind::Authentication,
+        })
+    );
+}
+
+#[test]
 fn passed_hosted_checks_require_their_exact_expected_status() {
     let result = HostedVerificationReport::complete(HostedVerificationInput {
         endpoint: "https://api.example.test/candidate".into(),
