@@ -2249,10 +2249,12 @@ dependencies = [
  "aws-config",
  "aws-sdk-ssm",
  "axum",
+ "http 1.4.2",
  "lambda_http",
  "minco-http",
  "serde_json",
  "tokio",
+ "tower",
  "tracing",
 ]
 
