@@ -57,10 +57,10 @@
     "native_arm64_artifacts": {
       "orders_lambda": {
         "cold_build_seconds": 127.87,
-        "compressed_bytes": 5035518,
+        "compressed_bytes": 5038349,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "42ae9c1056738dd2ccd39864a69965cb13b4de6eb1f3c4177bacc1575aafa04f",
-        "uncompressed_bytes": 11048288
+        "sha256": "ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474",
+        "uncompressed_bytes": 11052904
       },
       "sqs_worker": {
         "cold_build_seconds": 15.16,
@@ -70,15 +70,15 @@
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:65ee48bb48cc1ac7b1dbc046a3a9a2e08e5a9152adee9ea48b8e70ab01087b26"
+    "revision": "source-tree-sha256:6f891c4a9f2b0d0eeeb8e6c75790fee51a886fc8d5aaa6def6d077e564ea495e"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 0,
-    "orders_lambda_compressed_byte_delta": 22516,
-    "orders_lambda_compressed_percent_delta": 0.4492
+    "orders_lambda_compressed_byte_delta": 25347,
+    "orders_lambda_compressed_percent_delta": 0.5056
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",

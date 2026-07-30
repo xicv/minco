@@ -527,6 +527,43 @@ fail-closed controller defects before publication:
     subsequent exact-ARN `DescribeSecret` returns `ResourceNotFoundException`.
     A replacement exact-head qualification, merge, exact-main qualification
     and live rehearsal remain required. No tag or registry upload occurred.
+24. The public-route correction passed exact-head hosted run
+    [`30509848637`](https://github.com/xicv/minco/actions/runs/30509848637) at
+    `b42909c17febb20109f1fa6cb66b419757130d23`, merged as exact `main`
+    `d760b0d9f833cc88d23a34b852c4f79ffd5f9e0c`, and passed exact-main hosted
+    run [`30511095728`](https://github.com/xicv/minco/actions/runs/30511095728).
+
+    Authorised live runs `20260730t034110z-release040` and
+    `20260730t040531z-diag` both reached the candidate integration and
+    received API Gateway's generic `500` before Lambda created a log stream.
+    The second run captured the deployed policies before cleanup. The only
+    `lambda:InvokeFunction` statement was attached to the unqualified function
+    ARN; the exact `candidate` qualifier returned
+    `ResourceNotFoundException`. API Gateway invokes the qualified candidate
+    ARN, so provider authorization rejected the request before application
+    initialization.
+
+    The renderer correction now gives stable `candidate` and `live` aliases
+    separate API-scoped permissions. The initial sentinel makes both aliases
+    resolve to the generated immutable version, while a promoted numeric
+    `LiveFunctionVersion` keeps later infrastructure updates from moving live
+    traffic. Promotion admits only one `LiveFunctionAlias`
+    `AWS::Lambda::Alias` property modification and postchecks both alias
+    versions and `CodeSha256`. Exact SAM translator `1.111.0` resolves
+    `ApiFunction.Alias` and `ApiFunction.Version.Version` to the generated
+    candidate alias and published version resources. The deterministic
+    bootstrap renderer and checked-in SAM snapshot carry the same topology.
+
+    Independent exact-name checks prove both failed runs left no application
+    stack, RDS stack or instance, artifact bucket, Lambda function or log
+    group, HTTP API, Cognito pool, SSM parameter, managed secret, bootstrap
+    user/role, isolated profile or credential file. The aggregate cleanup
+    receipts observed short S3/Secrets Manager convergence windows, but later
+    exact-name provider calls returned absence. No tag or registry upload
+    occurred. `./scripts/quality.sh`, `./scripts/aws/validate.sh`,
+    `./scripts/aws/plan.sh`, and the regenerated source-manifest check pass in
+    the isolated correction workspace. Exact-head hosted qualification,
+    another live rehearsal, tag and publication remain blocked.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

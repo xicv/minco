@@ -18,11 +18,13 @@ owned_paths:
   - REVIEW_STATUS.md
   - VERIFICATION.md
   - crates/minco-cli/src/main.rs
+  - crates/minco-cli/tests/deploy_cli.rs
   - crates/minco-deploy-aws/**
   - crates/minco-dev/tests/supervisor.rs
   - crates/minco-plan/src/sam.rs
   - docs/**
   - extensions/minco-aws-adapters/README.md
+  - infra/aws/generated/template.yaml
   - roadmap/**
   - scripts/validate_static.py
   - scripts/aws/build-lambda.sh
@@ -30,6 +32,7 @@ owned_paths:
   - scripts/aws/cleanup.sh
   - scripts/aws/lib/common.sh
   - scripts/aws/run-bounded-root-bootstrap.sh
+  - scripts/generate_bootstrap_artifacts.py
   - scripts/quality.sh
   - scripts/release/publish.py
   - scripts/test/aws_shell_portability.sh
@@ -520,3 +523,34 @@ complete `scripts/quality.sh` matrix, AWS validation and deployment planning,
 and the final source-manifest guard. This completes the source-preparation
 task; exact-head and exact-main qualification remain release-controller gates
 before another live rehearsal.
+
+That correction passed exact-head hosted run
+[`30509848637`](https://github.com/xicv/minco/actions/runs/30509848637) at
+`b42909c17febb20109f1fa6cb66b419757130d23`, merged as exact `main`
+`d760b0d9f833cc88d23a34b852c4f79ffd5f9e0c`, and passed exact-main hosted
+run [`30511095728`](https://github.com/xicv/minco/actions/runs/30511095728).
+
+Authorised live runs `20260730t034110z-release040` and
+`20260730t040531z-diag` then reached the candidate integration but received
+API Gateway's generic `500` before any Lambda log stream was created. The
+diagnostic run captured the provider policy before cleanup: the unqualified
+function held the only `lambda:InvokeFunction` statement, while
+`get-policy --qualifier candidate` returned `ResourceNotFoundException`.
+API Gateway invokes the qualified `candidate` ARN, so the Rust process was
+never started.
+
+The current correction gives `candidate` and `live` stable Lambda aliases and
+separate API-scoped permissions. The initial `candidate`
+`LiveFunctionVersion` sentinel points `live` at the generated version; after
+promotion the preserved numeric parameter keeps ordinary updates from moving
+live traffic. Promotion is now guarded to exactly one property modification on
+`LiveFunctionAlias`, and its postcheck proves both aliases resolve to the
+hosted-verified version and artifact. Exact SAM translator `1.111.0` resolves
+the generated candidate alias/version references to concrete CloudFormation
+resources. All deterministic application, database, secret, bootstrap-IAM and
+local credential names from both failed runs are independently absent.
+`./scripts/quality.sh`, `./scripts/aws/validate.sh`,
+`./scripts/aws/plan.sh`, and the regenerated source-manifest check pass in the
+isolated correction workspace. Exact-head hosted qualification, merge,
+exact-main qualification, another live rehearsal, tag and registry
+publication remain blocked.

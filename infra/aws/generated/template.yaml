@@ -38,6 +38,7 @@ Rules:
             - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]
         AssertDescription: LambdaSubnetIds and LambdaSecurityGroupIds must be set together.
 Conditions:
+  LiveFunctionVersionIsCandidate: !Equals [!Ref LiveFunctionVersion, 'candidate']
   UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]
   UsesVpc: !And
     - !Not [!Equals [!Ref LambdaSubnetIds, '']]
@@ -48,7 +49,7 @@ Resources:
     Properties:
       StageName: '$default'
       StageVariables:
-        lambdaVersion: !Ref LiveFunctionVersion
+        lambdaAlias: 'live'
       CorsConfiguration:
         AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
         AllowHeaders:
@@ -82,7 +83,7 @@ Resources:
                 httpMethod: POST
                 payloadFormatVersion: '2.0'
                 type: aws_proxy
-                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'
               security: []
           '/orders/{orderId}':
             get:
@@ -94,7 +95,7 @@ Resources:
                 httpMethod: POST
                 payloadFormatVersion: '2.0'
                 type: aws_proxy
-                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'
               security:
                 - JwtAuthorizer: []
           '/health/ready':
@@ -107,7 +108,7 @@ Resources:
                 httpMethod: POST
                 payloadFormatVersion: '2.0'
                 type: aws_proxy
-                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'
               security: []
           '/orders':
             post:
@@ -119,7 +120,7 @@ Resources:
                 httpMethod: POST
                 payloadFormatVersion: '2.0'
                 type: aws_proxy
-                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'
               security:
                 - JwtAuthorizer: []
   ApiFunction:
@@ -174,11 +175,28 @@ Resources:
                   - ec2:UnassignPrivateIpAddresses
                 Resource: '*'
               - !Ref AWS::NoValue
-  ApiInvokePermission:
+  CandidateApiInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunction.Alias
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'
+  LiveFunctionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      Description: !Sub 'Minco live API routing target ${LiveFunctionVersion}'
       FunctionName: !Ref ApiFunction
+      FunctionVersion: !If
+        - LiveFunctionVersionIsCandidate
+        - !GetAtt ApiFunction.Version.Version
+        - !Ref LiveFunctionVersion
+      Name: live
+  LiveApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LiveFunctionAlias
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'
   CandidateStage:
@@ -188,7 +206,7 @@ Resources:
       AutoDeploy: true
       StageName: candidate
       StageVariables:
-        lambdaVersion: 'candidate'
+        lambdaAlias: 'candidate'
   ApiLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:

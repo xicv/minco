@@ -772,7 +772,7 @@ impl HostedVerificationReport {
 pub fn verify_promotion_boundary(
     change_set: &CloudFormationChangeSet,
     expected_stack_name: &str,
-    live_stage_logical_id: &str,
+    live_alias_logical_id: &str,
 ) -> Result<(), PromotionBoundaryError> {
     if change_set.change_set_type != ChangeSetType::Update
         || change_set.status != ChangeSetStatus::CreateComplete
@@ -782,10 +782,10 @@ pub fn verify_promotion_boundary(
         return Err(PromotionBoundaryError::InvalidProviderState);
     }
     let review = &change_set.review;
-    let only_live_stage = match review.modifications.as_slice() {
+    let only_live_alias = match review.modifications.as_slice() {
         [change] => {
-            change.logical_id == live_stage_logical_id
-                && change.resource_type == "AWS::ApiGatewayV2::Stage"
+            change.logical_id == live_alias_logical_id
+                && change.resource_type == "AWS::Lambda::Alias"
                 && change.action == ChangeAction::Modify
                 && matches!(change.replacement, None | Some(Replacement::Never))
                 && change.policy_action.is_none()
@@ -793,7 +793,7 @@ pub fn verify_promotion_boundary(
         }
         _ => false,
     };
-    if !only_live_stage
+    if !only_live_alias
         || !review.additions.is_empty()
         || !review.replacements.is_empty()
         || !review.deletions.is_empty()
@@ -832,7 +832,7 @@ pub struct PromotionReceiptInput {
     pub hosted_verification: FileDigest,
     pub operator_approval_digest: String,
     pub stack_name: String,
-    pub live_stage_logical_id: String,
+    pub live_alias_logical_id: String,
     pub previous_version: String,
     pub promoted_version: String,
     pub change_set: CloudFormationChangeSet,
@@ -851,7 +851,7 @@ pub struct PromotionReceipt {
     pub hosted_verification: FileDigest,
     pub operator_approval_digest: String,
     pub stack_name: String,
-    pub live_stage_logical_id: String,
+    pub live_alias_logical_id: String,
     pub previous_version: String,
     pub promoted_version: String,
     pub change_set: CloudFormationChangeSet,
@@ -864,7 +864,7 @@ impl PromotionReceipt {
         verify_promotion_boundary(
             &input.change_set,
             &input.stack_name,
-            &input.live_stage_logical_id,
+            &input.live_alias_logical_id,
         )?;
         let mut receipt = Self {
             schema_version: 1,
@@ -877,7 +877,7 @@ impl PromotionReceipt {
             hosted_verification: input.hosted_verification,
             operator_approval_digest: input.operator_approval_digest,
             stack_name: input.stack_name,
-            live_stage_logical_id: input.live_stage_logical_id,
+            live_alias_logical_id: input.live_alias_logical_id,
             previous_version: input.previous_version,
             promoted_version: input.promoted_version,
             change_set: input.change_set,
@@ -1077,7 +1077,7 @@ impl PromotionReceipt {
             && self.hosted_verification == other.hosted_verification
             && self.operator_approval_digest == other.operator_approval_digest
             && self.stack_name == other.stack_name
-            && self.live_stage_logical_id == other.live_stage_logical_id
+            && self.live_alias_logical_id == other.live_alias_logical_id
             && self.previous_version == other.previous_version
             && self.promoted_version == other.promoted_version
             && self.change_set == other.change_set
@@ -1090,7 +1090,7 @@ impl PromotionReceipt {
             || self.operator_approval_digest != self.hosted_verification.sha256
             || !stack_name_is_valid(&self.stack_name)
             || !self
-                .live_stage_logical_id
+                .live_alias_logical_id
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric())
             || !(self.previous_version == "candidate"
@@ -1109,7 +1109,7 @@ impl PromotionReceipt {
         verify_promotion_boundary(
             &self.change_set,
             &self.stack_name,
-            &self.live_stage_logical_id,
+            &self.live_alias_logical_id,
         )?;
         match self.outcome {
             PromotionOutcome::Started | PromotionOutcome::Succeeded
@@ -1149,7 +1149,7 @@ impl PromotionReceipt {
             hosted_verification: &'a FileDigest,
             operator_approval_digest: &'a str,
             stack_name: &'a str,
-            live_stage_logical_id: &'a str,
+            live_alias_logical_id: &'a str,
             previous_version: &'a str,
             promoted_version: &'a str,
             change_set: &'a CloudFormationChangeSet,
@@ -1166,7 +1166,7 @@ impl PromotionReceipt {
             hosted_verification: &self.hosted_verification,
             operator_approval_digest: &self.operator_approval_digest,
             stack_name: &self.stack_name,
-            live_stage_logical_id: &self.live_stage_logical_id,
+            live_alias_logical_id: &self.live_alias_logical_id,
             previous_version: &self.previous_version,
             promoted_version: &self.promoted_version,
             change_set: &self.change_set,
