@@ -601,6 +601,47 @@ fail-closed controller defects before publication:
     `ParameterNotFound` for the SSM parameter, `DBInstanceNotFound` for the
     database, and `NoSuchEntity` for both temporary IAM principals. No
     application change set, release tag or registry upload occurred.
+26. The deployment-role bucket-visibility correction passed exact-head hosted
+    run
+    [`30519948680`](https://github.com/xicv/minco/actions/runs/30519948680) at
+    `612dbf16fd998538d941308079e2b9437d4be87e`, merged as exact `main`
+    `daae0595deffe945726df54c6f43ee82ff7bc7fd`, passed the complete local
+    qualification again and passed exact-main hosted run
+    [`30521267303`](https://github.com/xicv/minco/actions/runs/30521267303).
+    Both hosted boundaries passed authoritative quality, the coordinated
+    28-package dry run, Plan/SAM/native ARM64 Lambda, Rustack/SSM and explicit
+    Orders E2E stages.
+
+    Authorised live run `20260730t071445z-release040` migrated and verified its
+    disposable private PostgreSQL database, built the deterministic
+    5,038,349-byte native ARM64 artifact with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-main release `minco.0b60a084c8c9029899e8fc27` with digest
+    `0b60a084c8c9029899e8fc27eb50527ce0557367bc776bd1b927e90030c5ceb2`.
+    The reviewed change-set receipt had digest
+    `be526ee291f73d284af0d46e136dc79775fb7fa4d50a34924beaf3780e70add5`;
+    its application stack reached `CREATE_COMPLETE`.
+
+    Candidate `GET /health/live` then reached the Lambda and returned Minco's
+    `x-request-id`, but Axum returned 404 with an empty body. Pinned
+    `lambda_http 1.3.0` deliberately prefixes a named API Gateway stage into
+    the request URI unless `AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH` is present,
+    so the router received `/candidate/health/live` instead of the
+    contract-owned `/health/live`.
+
+    The replacement renderer sets that documented dependency switch to
+    `'true'` for the Lambda environment. The focused SAM regression covers the
+    setting alongside the isolated candidate/live alias topology, and the
+    checked-in template is regenerated from the renderer. Application cleanup
+    contains only true values. The aggregate database cleanup receipt observed
+    the managed secret during its deletion-convergence window; a later
+    exact-ARN lookup returns `ResourceNotFoundException`. Both stacks, RDS,
+    VPC resources, bucket, SSM parameter, Cognito pool, Lambda/API resources,
+    bootstrap IAM and local credentials are independently absent. The resource
+    tagging index retained three stale ARNs after deletion; direct provider
+    lookups for all three return not found. No release tag or registry upload
+    occurred. Exact-head qualification, merge, exact-main qualification and a
+    replacement live rehearsal remain required.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
