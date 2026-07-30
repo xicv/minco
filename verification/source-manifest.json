@@ -104,8 +104,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "2c55e453a4e85df2ab2a0fe2e33194a972d826ef199f98439d2ef8f77f96efdd",
-      "size_bytes": 2831
+      "sha256": "5ccd23dd23ca8ad6c207beff68457f90d374cc68d8a7c012304520df194013fe",
+      "size_bytes": 4168
     },
     {
       "path": "SECURITY.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "872af8e2a08908eb6e6363f9f2141a25e85ce3779165d4d59a4f90baa7930431",
-      "size_bytes": 79504
+      "sha256": "d670a6d832692edff142eed4697802b858627bf7dd83baa1e2dc1b01e936b092",
+      "size_bytes": 81736
     },
     {
       "path": "config/jj/repo.toml",
@@ -2389,8 +2389,8 @@
     },
     {
       "path": "scripts/aws/lib/common.sh",
-      "sha256": "fc8a2547e9d874776e68f69cc831611c2a758898b6b4bef904802f8ba32f67dd",
-      "size_bytes": 13554
+      "sha256": "a1051c35046cbf78512fa9340486506b5f55802379ad5eb94b0ad7ec0d5ec6c5",
+      "size_bytes": 13865
     },
     {
       "path": "scripts/aws/plan.sh",
@@ -2414,8 +2414,8 @@
     },
     {
       "path": "scripts/aws/smoke.sh",
-      "sha256": "4f39543e5d16cde1896a7e6bb590d3ba9e3c2ba290ad2b01b93d47916a183a72",
-      "size_bytes": 7146
+      "sha256": "a19244bc012a3f336da5fd9776fecd2a21ebfe233183485ec6ae43e20c4f6f64",
+      "size_bytes": 6974
     },
     {
       "path": "scripts/aws/validate.sh",
@@ -2534,8 +2534,8 @@
     },
     {
       "path": "scripts/test/aws_shell_portability.sh",
-      "sha256": "c4e96b8dd313d2193374c01a43dec69d56aea732d53e3ee9a1a6c83f942ecbf2",
-      "size_bytes": 14274
+      "sha256": "31c0525cbd3bc71fd471397e5883c491ea61d7465ce1ec52fc045b2db40fe43f",
+      "size_bytes": 14910
     },
     {
       "path": "scripts/test/deep_review_exclusions.py",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "31c3913a8be39a963fb02d55b088c619b36962ae5f0c96838ae1084be04a2faf",
-      "size_bytes": 37830
+      "sha256": "2ad37e3bc6f2d0e81db338aa75adb96249367a8b250a67bd1ca383e3b038f12e",
+      "size_bytes": 39814
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "6872ded52f0167ca258474da897f39ba2b613b0585c278fb70d36a984304d9f8",
-  "total_size_bytes": 3721114,
+  "source_tree_sha256": "bd3c03b513ff6f0a37d727952afa243b990c7a98eb0c7b960a45270f4e8f6078",
+  "total_size_bytes": 3727442,
   "version": "0.4.0"
 }

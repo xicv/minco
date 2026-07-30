@@ -29,6 +29,22 @@ cleanup_review_fixture() {
 }
 trap cleanup_review_fixture EXIT
 
+request_id_headers="$review_fixture_dir/request-id.headers"
+for header_name in x-request-id x-amzn-requestid apigw-requestid; do
+  printf 'HTTP/2 401\r\n%s: request-123\r\n\r\n' \
+    "$header_name" >"$request_id_headers"
+  [[ "$(http_response_request_id "$request_id_headers")" == "request-123" ]] || {
+    printf 'did not recognize %s as an HTTP request ID\n' "$header_name" >&2
+    exit 1
+  }
+done
+printf 'HTTP/2 401\r\ncontent-type: application/json\r\n\r\n' \
+  >"$request_id_headers"
+[[ -z "$(http_response_request_id "$request_id_headers")" ]] || {
+  printf 'accepted an unrelated header as an HTTP request ID\n' >&2
+  exit 1
+}
+
 bucket_visibility_error="$review_fixture_dir/bucket-visibility-error.txt"
 bucket_visibility_calls=0
 aws_logged() {
