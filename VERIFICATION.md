@@ -564,6 +564,43 @@ fail-closed controller defects before publication:
     `./scripts/aws/plan.sh`, and the regenerated source-manifest check pass in
     the isolated correction workspace. Exact-head hosted qualification,
     another live rehearsal, tag and publication remain blocked.
+25. The qualified-alias correction passed exact PR-head hosted run
+    [`30515135505`](https://github.com/xicv/minco/actions/runs/30515135505) at
+    `5b269157f456591fb5167c32277067ee88c15bae`, merged as exact `main`
+    `ccce06c180c29ba0f5c5471120b2d223a9baece9`, passed the complete local
+    qualification again and passed exact-main hosted run
+    [`30516228934`](https://github.com/xicv/minco/actions/runs/30516228934).
+    Both hosted runs passed authoritative quality, Chromium/Firefox,
+    coordinated 28-package dry-run, Plan/SAM and both native ARM64 artifacts,
+    Rustack/SSM and Orders E2E.
+
+    Authorised live run `20260730t053430z-release040` migrated and verified its
+    disposable private PostgreSQL database, built the deterministic
+    5,038,349-byte native ARM64 artifact with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed exact-source release `minco.81b8b9d9bb94a9e711c28d3f` with
+    digest
+    `81b8b9d9bb94a9e711c28d3fc691608ea6e3a3ee208a9fb8b8c4373c6c868339`.
+    The smoke runner created, blocked and encrypted its run-owned artifact
+    bucket, and its bounded visibility check passed. The deployment
+    controller's immediately following `HeadBucket` returned 404 before SAM
+    packaging or CloudFormation change-set creation.
+
+    The replacement candidate applies the same bounded policy at that second
+    CLI provider boundary: retry only `404`, `NoSuchBucket` and `Not Found`,
+    fail immediately for every other response, and stop after 15 attempts. The
+    focused regression first failed because the boundary was absent, then
+    passed eventual success, authorization fail-fast and bounded exhaustion.
+    `cargo test -p cargo-minco --all-targets --all-features --locked` passes
+    all 54 CLI unit tests and 18 integration tests, and
+    `scripts/test/aws_shell_portability.sh` passes.
+
+    Application cleanup contains only true values. Later exact-name provider
+    calls return stack-not-found for both stacks, 404 for the bucket,
+    `ResourceNotFoundException` for the Cognito pool and managed secret,
+    `ParameterNotFound` for the SSM parameter, `DBInstanceNotFound` for the
+    database, and `NoSuchEntity` for both temporary IAM principals. No
+    application change set, release tag or registry upload occurred.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run

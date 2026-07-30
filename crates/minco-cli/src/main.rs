@@ -2220,18 +2220,27 @@ fn create_change_set(
         },
     )?;
 
-    run_cloud_output(
-        root,
-        "aws",
+    let head_bucket_args = [
+        "s3api".into(),
+        "head-bucket".into(),
+        "--bucket".into(),
+        target.artifact_bucket.clone(),
+        "--region".into(),
+        target.expected_region.clone(),
+    ];
+    wait_for_s3_bucket_visibility_with(
         "verify the pre-existing artifact bucket",
-        &[
-            "s3api".into(),
-            "head-bucket".into(),
-            "--bucket".into(),
-            target.artifact_bucket.clone(),
-            "--region".into(),
-            target.expected_region.clone(),
-        ],
+        15,
+        Duration::from_secs(2),
+        || {
+            let output = run_cloud_output_allow_failure(root, "aws", &head_bucket_args)?;
+            Ok(if output.status.success() {
+                None
+            } else {
+                Some(output.stderr)
+            })
+        },
+        thread::sleep,
     )?;
 
     let packaged_template_relative = PathBuf::from(format!(
@@ -2645,6 +2654,46 @@ fn run_cloud_output_allow_failure(root: &Path, program: &str, args: &[String]) -
         .stdin(Stdio::null())
         .output()
         .with_context(|| format!("run {program} for guarded cloud operation"))
+}
+
+fn wait_for_s3_bucket_visibility_with<F, W>(
+    label: &str,
+    max_attempts: u32,
+    delay: Duration,
+    mut check: F,
+    mut wait: W,
+) -> Result<()>
+where
+    F: FnMut() -> Result<Option<Vec<u8>>>,
+    W: FnMut(Duration),
+{
+    if max_attempts == 0 {
+        bail!("S3 bucket visibility attempts must be positive");
+    }
+
+    let mut last_error = Vec::new();
+    for attempt in 1..=max_attempts {
+        match check()? {
+            None => return Ok(()),
+            Some(stderr) if !is_s3_bucket_not_found(&stderr) => {
+                bail!("{label} failed: {}", bounded_provider_error(&stderr));
+            }
+            Some(stderr) => last_error = stderr,
+        }
+        if attempt < max_attempts {
+            wait(delay);
+        }
+    }
+
+    bail!(
+        "{label} failed after {max_attempts} attempts: {}",
+        bounded_provider_error(&last_error)
+    )
+}
+
+fn is_s3_bucket_not_found(stderr: &[u8]) -> bool {
+    let error = String::from_utf8_lossy(stderr);
+    error.contains("(404)") || error.contains("NoSuchBucket") || error.contains("Not Found")
 }
 
 fn bounded_provider_error(stderr: &[u8]) -> String {
@@ -3985,6 +4034,66 @@ mod cli_argument_tests {
             apply_stack_requires_drift(ChangeSetType::Update, Some("UPDATE_COMPLETE"))
                 .is_ok_and(|required| required)
         );
+    }
+
+    #[test]
+    fn artifact_bucket_visibility_retries_only_transient_not_found_responses() {
+        let mut calls = 0;
+        let mut waits = Vec::new();
+        wait_for_s3_bucket_visibility_with(
+            "verify the pre-existing artifact bucket",
+            3,
+            Duration::from_secs(2),
+            || {
+                calls += 1;
+                Ok(if calls < 3 {
+                    Some(b"An error occurred (404) when calling HeadBucket: Not Found".to_vec())
+                } else {
+                    None
+                })
+            },
+            |delay| waits.push(delay),
+        )
+        .expect("transient bucket visibility");
+
+        assert_eq!(calls, 3);
+        assert_eq!(waits, vec![Duration::from_secs(2); 2]);
+
+        let mut denied_calls = 0;
+        let denied = wait_for_s3_bucket_visibility_with(
+            "verify the pre-existing artifact bucket",
+            3,
+            Duration::ZERO,
+            || {
+                denied_calls += 1;
+                Ok(Some(b"AccessDenied".to_vec()))
+            },
+            |_| panic!("non-404 provider errors must fail without waiting"),
+        )
+        .expect_err("access denied must not be retried");
+
+        assert_eq!(denied_calls, 1);
+        assert!(denied.to_string().contains("AccessDenied"));
+    }
+
+    #[test]
+    fn artifact_bucket_visibility_fails_closed_after_the_retry_bound() {
+        let mut calls = 0;
+        let error = wait_for_s3_bucket_visibility_with(
+            "verify the pre-existing artifact bucket",
+            3,
+            Duration::ZERO,
+            || {
+                calls += 1;
+                Ok(Some(b"NoSuchBucket".to_vec()))
+            },
+            |_| {},
+        )
+        .expect_err("exhausted not-found responses must fail");
+
+        assert_eq!(calls, 3);
+        assert!(error.to_string().contains("failed after 3 attempts"));
+        assert!(error.to_string().contains("NoSuchBucket"));
     }
 
     #[test]
