@@ -147,6 +147,16 @@ several boundaries that local emulation could not prove:
   the run ID, managed and purpose request tags are present and every requested
   key is in the closed reviewed allowlist. Direct `/tags/*` mutation remains
   denied.
+- AWS SAM translator `1.111.0` treats an operation-level empty
+  `security: []` as missing while applying `Auth.DefaultAuthorizer`, so a
+  contract-public liveness route was transformed into a JWT-protected route.
+  The renderer now declares the JWT authorizer without a SAM default and emits
+  explicit `JwtAuthorizer` security on every protected operation while
+  retaining `security: []` on public operations. This also keeps the
+  stage-variable Lambda integration required for exact-artifact promotion;
+  the event-level `Authorizer: NONE` override documented by AWS SAM is not
+  applicable because these routes are defined inline rather than as function
+  events.
 - CloudFormation can delete an `--on-failure DELETE` stack before a later
   diagnostic pass. A failed create waiter now captures stack events before
   cleanup so the initial failure remains attributable without another cloud

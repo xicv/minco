@@ -59,7 +59,6 @@ Resources:
         AllowOrigins:
           - 'https://app.example.invalid'
       Auth:
-        DefaultAuthorizer: JwtAuthorizer
         Authorizers:
           JwtAuthorizer:
             IdentitySource: '$request.header.Authorization'
@@ -96,6 +95,8 @@ Resources:
                 payloadFormatVersion: '2.0'
                 type: aws_proxy
                 uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+              security:
+                - JwtAuthorizer: []
           '/health/ready':
             get:
               operationId: 'getReady'
@@ -119,6 +120,8 @@ Resources:
                 payloadFormatVersion: '2.0'
                 type: aws_proxy
                 uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'
+              security:
+                - JwtAuthorizer: []
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
