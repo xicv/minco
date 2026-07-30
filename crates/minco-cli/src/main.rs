@@ -70,7 +70,7 @@ use std::{
     time::Duration,
 };
 
-const LIVE_STAGE_LOGICAL_ID: &str = "HttpApiApiGatewayDefaultStage";
+const LIVE_ALIAS_LOGICAL_ID: &str = "LiveFunctionAlias";
 const LIVE_FUNCTION_VERSION_PARAMETER: &str = "LiveFunctionVersion";
 
 #[derive(Debug, Parser)]
@@ -629,7 +629,7 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
                 "external_aws_contact": false,
                 "rebuild": false,
                 "replan": false,
-                "routing_boundary": "api_gateway_stage",
+                "routing_boundary": "lambda_alias",
                 "release_manifest": args.manifest,
                 "deployment_receipt": args.receipt,
                 "hosted_verification": args.verification,
@@ -717,7 +717,7 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
     verify_promotion_boundary(
         &change_set,
         &evidence.target.stack_name,
-        LIVE_STAGE_LOGICAL_ID,
+        LIVE_ALIAS_LOGICAL_ID,
     )?;
 
     ensure_parent(&output_path)?;
@@ -730,7 +730,7 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
         hosted_verification,
         operator_approval_digest: approval.to_owned(),
         stack_name: evidence.target.stack_name.clone(),
-        live_stage_logical_id: LIVE_STAGE_LOGICAL_ID.into(),
+        live_alias_logical_id: LIVE_ALIAS_LOGICAL_ID.into(),
         previous_version,
         promoted_version: report.executed_version.clone(),
         change_set,
@@ -798,6 +798,14 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
             function_name,
             &report.executed_version,
             &report.executed_artifact_digest,
+        )?;
+        verify_function_alias(
+            root,
+            &evidence.target,
+            function_name,
+            "live",
+            &report.executed_version,
+            &report.executed_artifact_digest,
         )
     })();
     if let Err(error) = postcheck {
@@ -813,7 +821,7 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
             "promoted": true,
             "rebuild": false,
             "replan": false,
-            "routing_boundary": "api_gateway_stage",
+            "routing_boundary": "lambda_alias",
             "promotion_receipt": promotion,
             "promotion_receipt_path": args.output,
             "hosted_verification_path": args.verification,
@@ -1013,17 +1021,36 @@ fn verify_candidate_function(
     expected_version: &str,
     expected_artifact_digest: &str,
 ) -> Result<()> {
+    verify_function_alias(
+        root,
+        target,
+        function_name,
+        "candidate",
+        expected_version,
+        expected_artifact_digest,
+    )
+}
+
+fn verify_function_alias(
+    root: &Path,
+    target: &DeploymentTarget,
+    function_name: &str,
+    alias: &str,
+    expected_version: &str,
+    expected_artifact_digest: &str,
+) -> Result<()> {
+    let label = format!("verify hosted {alias} Lambda identity");
     let configuration: AwsFunctionConfiguration = aws_json(
         root,
         &target.expected_region,
-        "verify hosted candidate Lambda identity",
+        &label,
         &[
             "lambda",
             "get-function-configuration",
             "--function-name",
             function_name,
             "--qualifier",
-            "candidate",
+            alias,
         ],
     )?;
     if configuration.function_name != function_name
@@ -1031,7 +1058,7 @@ fn verify_candidate_function(
         || configuration.last_update_status != "Successful"
         || configuration.code_sha256 != expected_lambda_code_sha256(expected_artifact_digest)?
     {
-        bail!("candidate Lambda does not match the hosted-verified artifact and version");
+        bail!("{alias} Lambda does not match the hosted-verified artifact and version");
     }
     Ok(())
 }

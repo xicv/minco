@@ -6,7 +6,7 @@
 Internet
   -> API Gateway HTTP API
       -> candidate stage -> candidate Lambda alias
-      -> live $default stage -> approved published Lambda version
+      -> live $default stage -> live Lambda alias -> approved published version
           -> external/serverless PostgreSQL
 ```
 
@@ -26,7 +26,8 @@ explicit EventBridge Scheduler events. The default
 The generated HTTP API supports a generic JWT authorizer. API Gateway verifies
 the token and `minco-aws-lambda` maps authorizer claims into the provider-neutral
 `Principal`. Application use cases enforce permissions and business scope.
-Public health routes explicitly opt out of the default authorizer.
+Protected routes explicitly attach the authorizer, while public health routes
+retain an empty security requirement.
 
 The checked-in development config uses `.invalid` issuer and origin placeholders
 and is safe for planning only. `deploy.sh` rejects the placeholder JWT issuer.
@@ -142,7 +143,7 @@ cargo minco promote \
 Use `deploy verify --dry-run` and `promote --dry-run` to inspect local blockers.
 Both dry runs avoid AWS, HTTP calls, receipt transitions, rebuilds, and
 replanning. The live command uses the original packaged template and refuses
-any provider change beyond the exact live API Gateway stage property update.
+any provider change beyond the exact live Lambda alias property update.
 
 For the disposable development proof, use:
 

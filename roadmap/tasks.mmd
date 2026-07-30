@@ -42,6 +42,7 @@ flowchart LR
     NM6T08["M6-T08<br/>Support an enforced text-only Feedback profile"]
     NM6T09["M6-T09<br/>Isolate PostgreSQL and SQLite SQLx feature graphs"]
     NM6T10["M6-T10<br/>Add trigger-aware multi-runtime deployment planning"]
+    NM6T11["M6-T11<br/>Unify local and hosted Feedback browser quality"]
     NM7T01["M7-T01<br/>Validate Minco against bounded GarmentIQ and CGSP slices"]
     NM8T01["M8-T01<br/>Prepare the publishable Minco crate family"]
     NM8T02["M8-T02<br/>Run compiler and crates.io package gates"]
@@ -123,6 +124,7 @@ flowchart LR
     NM6T03 --> NM6T08
     NM6T08 --> NM6T09
     NM6T09 --> NM6T10
+    NM6T03 --> NM6T11
     NM6T10 --> NM7T01
     NM9T07 --> NM7T01
     NM10T05 --> NM7T01

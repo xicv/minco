@@ -137,7 +137,7 @@ fn default_promotion_dry_run_never_contacts_aws_or_rebuilds() {
     assert_eq!(plan["external_aws_contact"], false);
     assert_eq!(plan["rebuild"], false);
     assert_eq!(plan["replan"], false);
-    assert_eq!(plan["routing_boundary"], "api_gateway_stage");
+    assert_eq!(plan["routing_boundary"], "lambda_alias");
     assert_eq!(
         plan["blockers"],
         serde_json::json!([

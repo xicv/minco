@@ -127,7 +127,7 @@ authentication, smoke and artifact-identity checks. It advances the receipt
 only after the application-owned hosted command returns a strict successful
 observation. `promote` requires that immutable verification report and its
 exact digest, rechecks the release/deployment binding, and modifies only the
-guarded live API Gateway stage routing boundary. It never rebuilds or replans.
+guarded live Lambda alias routing boundary. It never rebuilds or replans.
 Its dry-run reports missing evidence and performs no AWS or HTTP contact.
 
 `inspect --json` includes the full deployment projection. `explain

@@ -61,15 +61,17 @@ transition, while execution or wait errors write terminal `failed`.
 
 ## Hosted verification
 
-The API function is published behind the `candidate` Lambda alias. The
-candidate API Gateway stage always routes to that alias, while the live
-`$default` stage reads its published function version from the
-`LiveFunctionVersion` stack parameter. Infrastructure apply does not make the
-new release live on a stack that already has this boundary; ordinary updates
-must preserve the previous parameter value. A pre-boundary existing stack is
-rejected instead of silently resetting live routing. A new stack initially has
-no prior live release, so both stages begin on `candidate` until the first
-numeric promotion anchors live traffic.
+The API function is published behind stable `candidate` and `live` Lambda
+aliases. Each API Gateway stage invokes its matching alias, and each alias has
+its own API-scoped resource policy. `LiveFunctionVersion` selects the published
+version behind `live`; the initial `candidate` sentinel points `live` at the
+same generated version without granting unqualified invocation.
+Infrastructure apply does not make the new release live on a stack that
+already has this boundary; ordinary updates must preserve the previous numeric
+parameter value. A pre-boundary existing stack is rejected instead of silently
+resetting live routing. A new stack initially has no prior live release, so
+both aliases begin on the same version until the first numeric promotion
+anchors `live`.
 
 Declare one hosted verification command:
 
@@ -116,12 +118,12 @@ caller, clean stack drift, candidate endpoint/version/digest, and every bound
 file. It creates an unexecuted CloudFormation update from the original packaged
 template with all parameters preserved except `LiveFunctionVersion`. Execution
 is allowed only when the provider reports exactly one ordinary property
-modification to `HttpApiApiGatewayDefaultStage`, the live
-`AWS::ApiGatewayV2::Stage`; any Lambda, IAM, API, replacement, deletion, import,
-dynamic, or provider-sync change is rejected.
+modification to `LiveFunctionAlias`, the live `AWS::Lambda::Alias`; any
+function, permission, API, replacement, deletion, import, dynamic, or
+provider-sync change is rejected.
 
 The promotion receipt is persisted `started` before execution and makes one
-terminal transition after the stack parameter and candidate identity are
-rechecked. Local qualification, hosted candidate verification, routing
-promotion, and production runtime proof remain separate evidence. Promotion
-does not synthesize production proof.
+terminal transition after the stack parameter plus candidate and live alias
+identities are rechecked. Local qualification, hosted candidate verification,
+routing promotion, and production runtime proof remain separate evidence.
+Promotion does not synthesize production proof.

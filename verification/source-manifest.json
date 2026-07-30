@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "c3ec445119c6f76b54349f8dc7d3482de70c6842e70a288f38527b906b96ad41",
-      "size_bytes": 69290
+      "sha256": "8fdb35d0eb967b34802ef76ab5e4f5140dfd2c89cc203eff40d31e414ab1cede",
+      "size_bytes": 71709
     },
     {
       "path": "config/jj/repo.toml",
@@ -204,8 +204,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "af9f3c83c724d45b394cfc984e29e61a7a36f9df2dd00b43e6b87878179f7941",
-      "size_bytes": 157224
+      "sha256": "9949dd226a2bb397ae7133b0b27137ee832f40d2ec765a1fdeb07013d394a3da",
+      "size_bytes": 157815
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -534,8 +534,8 @@
     },
     {
       "path": "crates/minco-cli/tests/deploy_cli.rs",
-      "sha256": "177e8d51d41cd4509bd0564b5dbf50441eacde8529152d57603cca43e712f5a0",
-      "size_bytes": 4727
+      "sha256": "ee73e75b9a89c9c3253014ad279f50c72f64258e8dc711ba3ea15303b4683d30",
+      "size_bytes": 4722
     },
     {
       "path": "crates/minco-cli/tests/dev_cli.rs",
@@ -824,8 +824,8 @@
     },
     {
       "path": "crates/minco-deploy-aws/src/lib.rs",
-      "sha256": "6be1d5fab3a61cf5b4f360a75806e8c82b40dfc44e2e15a4ba5773ed4d0ead80",
-      "size_bytes": 70786
+      "sha256": "8cabc3796097dc877d7e758823ed93648fa2154fec13826605a354356aa0c86b",
+      "size_bytes": 70780
     },
     {
       "path": "crates/minco-deploy-aws/tests/cloudformation.rs",
@@ -839,8 +839,8 @@
     },
     {
       "path": "crates/minco-deploy-aws/tests/promotion.rs",
-      "sha256": "2ed85beb375beabb8229d1f4620a39e44aab7efc0f529be04a58f7ea582684fc",
-      "size_bytes": 8766
+      "sha256": "6c3e11be460eea659adda9dc7fa32633fb8fbed5115f666d5b4ca65bc2a664d7",
+      "size_bytes": 8529
     },
     {
       "path": "crates/minco-deploy-aws/tests/receipt.rs",
@@ -979,8 +979,8 @@
     },
     {
       "path": "crates/minco-plan/src/sam.rs",
-      "sha256": "0b11e503e07272148f335052d07025863bfbd02338a67171f438f443ce78b979",
-      "size_bytes": 31070
+      "sha256": "8ba42e9cb939724ab9fcf7ea83b223c81493972c2a7926083473e502d7ce7fd0",
+      "size_bytes": 33102
     },
     {
       "path": "crates/minco-plan/tests/fixtures/api_only_v1.toml",
@@ -1274,8 +1274,8 @@
     },
     {
       "path": "docs/deployment/aws-minimal.md",
-      "sha256": "c4590d8f4439671119c9b7584ec3e1b35be10ff7d65c85647f40b8ec8068b403",
-      "size_bytes": 8721
+      "sha256": "cb16ddb6010c7a99e6ecd8a980a7b445e7de6704eeec9306c828373c3909c7ea",
+      "size_bytes": 8779
     },
     {
       "path": "docs/deployment/aws-plugin-adapters.md",
@@ -1314,13 +1314,13 @@
     },
     {
       "path": "docs/deployment/real-aws-smoke.md",
-      "sha256": "0a34b811058c5deb5e820b94ad75b2ca57f135cf0654c42a7f4c729ae7b0db43",
-      "size_bytes": 13659
+      "sha256": "df5c06da4f0ba1b55db4207ddc3a783b0ab43efb312a34661b8f3798307370c3",
+      "size_bytes": 13658
     },
     {
       "path": "docs/deployment/release.md",
-      "sha256": "6d6a1ef8ff237a3a9299f37a47fd07b371c899d030c32cb53d7c0e09bcc9a15d",
-      "size_bytes": 5778
+      "sha256": "edfac0952f59ed499dd80e528b6cd34c18fafd0a1289c8e9d49930d00b6f81c9",
+      "size_bytes": 5924
     },
     {
       "path": "docs/deployment/sqs-worker.md",
@@ -1374,8 +1374,8 @@
     },
     {
       "path": "docs/reference/cli.md",
-      "sha256": "5b85fc1ffb6dfdf49a28bc4b505a9c26244f60c562946d858fd85cc736a44594",
-      "size_bytes": 9934
+      "sha256": "1224f6029de47e37ee9ddbcf8d25786dfb7f1ddb6d9e2d52918a64bfc84c26ff",
+      "size_bytes": 9929
     },
     {
       "path": "docs/reference/compatibility.md",
@@ -1904,8 +1904,8 @@
     },
     {
       "path": "infra/aws/generated/template.yaml",
-      "sha256": "a4f242d765fc53adcbdbd084e8ca04655f566f8739f6a7126d0aa16d0ee4d3f5",
-      "size_bytes": 8277
+      "sha256": "ab8a21a9ebb6a4eeb501258bc773b1b760f5066e2ca70277d18f77caa157fa87",
+      "size_bytes": 8994
     },
     {
       "path": "infra/aws/smoke/temporary-postgres.yaml",
@@ -2334,8 +2334,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "3a9ebfc855b1c58e2e57f51ebc86904bd36faf733b8438396184a47726d1aea8",
-      "size_bytes": 6422
+      "sha256": "beb9f216e0189d34a2c3ea3b19c985c907c4b234d2b66e5118a9cf47e8727fc3",
+      "size_bytes": 6517
     },
     {
       "path": "rust-toolchain.toml",
@@ -2474,8 +2474,8 @@
     },
     {
       "path": "scripts/generate_bootstrap_artifacts.py",
-      "sha256": "77bbe590f87f042f283ee31896e848a05191d6e7c8509e4d299501d99942a11a",
-      "size_bytes": 13329
+      "sha256": "c263a5bd4ab36abed405a0d5da1cb70e5e55b9b52cdf9c7c80f76fab0a01970b",
+      "size_bytes": 14494
     },
     {
       "path": "scripts/jj/init.sh",
@@ -2614,8 +2614,8 @@
     },
     {
       "path": "scripts/validate_static.py",
-      "sha256": "9f4ebbc2cc4bd342c15c770eca71a5df85645e0da4c92665b2642f732d7ea0b1",
-      "size_bytes": 71148
+      "sha256": "59ebf699990bf015e5666796eeb052b0762daaa2ed41e0be19cd032ce3bb0777",
+      "size_bytes": 71923
     },
     {
       "path": "tasks/M0/M0-T01-constitution.md",
@@ -2874,8 +2874,8 @@
     },
     {
       "path": "tasks/M8/M8-T07-minco-0.4.0-release.md",
-      "sha256": "10fb820c8afd7f8892d269014d01fcee9a627e1682ec4dfb582dc88aa0d05a0a",
-      "size_bytes": 30179
+      "sha256": "3774613edda1ffbb52249fe28d1ce8b2d906b3269e292cd5b79247548f8426da",
+      "size_bytes": 32193
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -2934,7 +2934,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "d69cd9cd023f16daa1ce45eea234f5506864bb1b5ab60b4751791bd1ee304572",
+      "sha256": "79507864584626c0e7ade84e5a8dcba0440b4936dd73b58762a2808f2b103b0d",
       "size_bytes": 1817
     },
     {
@@ -3013,7 +3013,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "65ee48bb48cc1ac7b1dbc046a3a9a2e08e5a9152adee9ea48b8e70ab01087b26",
-  "total_size_bytes": 3688803,
+  "source_tree_sha256": "6f891c4a9f2b0d0eeeb8e6c75790fee51a886fc8d5aaa6def6d077e564ea495e",
+  "total_size_bytes": 3698561,
   "version": "0.4.0"
 }

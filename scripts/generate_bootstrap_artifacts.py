@@ -109,6 +109,7 @@ def render_sam(plan: dict) -> str:
         "            - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]",
         "        AssertDescription: LambdaSubnetIds and LambdaSecurityGroupIds must be set together.",
         "Conditions:",
+        "  LiveFunctionVersionIsCandidate: !Equals [!Ref LiveFunctionVersion, 'candidate']",
         "  UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]",
         "  UsesVpc: !And",
         "    - !Not [!Equals [!Ref LambdaSubnetIds, '']]",
@@ -119,7 +120,7 @@ def render_sam(plan: dict) -> str:
         "    Properties:",
         "      StageName: '$default'",
         "      StageVariables:",
-        "        lambdaVersion: !Ref LiveFunctionVersion",
+        "        lambdaAlias: 'live'",
         "      CorsConfiguration:",
         "        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]",
         "        AllowHeaders:",
@@ -132,7 +133,6 @@ def render_sam(plan: dict) -> str:
         lines.extend(
             [
                 "      Auth:",
-                "        DefaultAuthorizer: JwtAuthorizer",
                 "        Authorizers:",
                 "          JwtAuthorizer:",
                 "            IdentitySource: '$request.header.Authorization'",
@@ -165,11 +165,19 @@ def render_sam(plan: dict) -> str:
                 "                httpMethod: POST",
                 "                payloadFormatVersion: '2.0'",
                 "                type: aws_proxy",
-                "                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'",
+                "                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'",
             ]
         )
-        if not route["authenticated"] and auth["kind"] == "jwt":
-            lines.append("              security: []")
+        if auth["kind"] == "jwt":
+            if route["authenticated"]:
+                lines.extend(
+                    [
+                        "              security:",
+                        "                - JwtAuthorizer: []",
+                    ]
+                )
+            else:
+                lines.append("              security: []")
     lines.extend(
         [
             "  ApiFunction:",
@@ -224,11 +232,28 @@ def render_sam(plan: dict) -> str:
             "                  - ec2:UnassignPrivateIpAddresses",
             "                Resource: '*'",
             "              - !Ref AWS::NoValue",
-            "  ApiInvokePermission:",
+            "  CandidateApiInvokePermission:",
             "    Type: AWS::Lambda::Permission",
             "    Properties:",
             "      Action: lambda:InvokeFunction",
+            "      FunctionName: !Ref ApiFunction.Alias",
+            "      Principal: apigateway.amazonaws.com",
+            "      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'",
+            "  LiveFunctionAlias:",
+            "    Type: AWS::Lambda::Alias",
+            "    Properties:",
+            "      Description: !Sub 'Minco live API routing target ${LiveFunctionVersion}'",
             "      FunctionName: !Ref ApiFunction",
+            "      FunctionVersion: !If",
+            "        - LiveFunctionVersionIsCandidate",
+            "        - !GetAtt ApiFunction.Version.Version",
+            "        - !Ref LiveFunctionVersion",
+            "      Name: live",
+            "  LiveApiInvokePermission:",
+            "    Type: AWS::Lambda::Permission",
+            "    Properties:",
+            "      Action: lambda:InvokeFunction",
+            "      FunctionName: !Ref LiveFunctionAlias",
             "      Principal: apigateway.amazonaws.com",
             "      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'",
             "  CandidateStage:",
@@ -238,7 +263,7 @@ def render_sam(plan: dict) -> str:
             "      AutoDeploy: true",
             "      StageName: candidate",
             "      StageVariables:",
-            "        lambdaVersion: 'candidate'",
+            "        lambdaAlias: 'candidate'",
         ]
     )
     lines.extend(

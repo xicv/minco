@@ -68,13 +68,20 @@ pub fn render_sam_with_code_uris(
     if uses_database_parameter {
         render_database_parameters(&mut output);
     }
+    output.push_str("Conditions:\n");
+    output.push_str(
+        "  LiveFunctionVersionIsCandidate: !Equals [!Ref LiveFunctionVersion, 'candidate']\n",
+    );
+    if uses_database_parameter {
+        render_database_conditions(&mut output);
+    }
     output.push_str("Resources:\n");
     output.push_str("  HttpApi:\n");
     output.push_str("    Type: AWS::Serverless::HttpApi\n");
     output.push_str("    Properties:\n");
     output.push_str("      StageName: '$default'\n");
     output.push_str("      StageVariables:\n");
-    output.push_str("        lambdaVersion: !Ref LiveFunctionVersion\n");
+    output.push_str("        lambdaAlias: 'live'\n");
     output.push_str("      CorsConfiguration:\n");
     output.push_str("        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]\n");
     output.push_str("        AllowHeaders:\n");
@@ -164,11 +171,30 @@ pub fn render_sam_with_code_uris(
         output.push_str("        - Statement:\n");
         render_database_policy_statements(&mut output);
     }
-    output.push_str("  ApiInvokePermission:\n");
+    output.push_str("  CandidateApiInvokePermission:\n");
     output.push_str("    Type: AWS::Lambda::Permission\n");
     output.push_str("    Properties:\n");
     output.push_str("      Action: lambda:InvokeFunction\n");
+    output.push_str("      FunctionName: !Ref ApiFunction.Alias\n");
+    output.push_str("      Principal: apigateway.amazonaws.com\n");
+    output.push_str("      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'\n");
+    output.push_str("  LiveFunctionAlias:\n");
+    output.push_str("    Type: AWS::Lambda::Alias\n");
+    output.push_str("    Properties:\n");
+    output.push_str(
+        "      Description: !Sub 'Minco live API routing target ${LiveFunctionVersion}'\n",
+    );
     output.push_str("      FunctionName: !Ref ApiFunction\n");
+    output.push_str("      FunctionVersion: !If\n");
+    output.push_str("        - LiveFunctionVersionIsCandidate\n");
+    output.push_str("        - !GetAtt ApiFunction.Version.Version\n");
+    output.push_str("        - !Ref LiveFunctionVersion\n");
+    output.push_str("      Name: live\n");
+    output.push_str("  LiveApiInvokePermission:\n");
+    output.push_str("    Type: AWS::Lambda::Permission\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      Action: lambda:InvokeFunction\n");
+    output.push_str("      FunctionName: !Ref LiveFunctionAlias\n");
     output.push_str("      Principal: apigateway.amazonaws.com\n");
     output.push_str("      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'\n");
     output.push_str("  CandidateStage:\n");
@@ -178,7 +204,7 @@ pub fn render_sam_with_code_uris(
     output.push_str("      AutoDeploy: true\n");
     output.push_str("      StageName: candidate\n");
     output.push_str("      StageVariables:\n");
-    output.push_str("        lambdaVersion: 'candidate'\n");
+    output.push_str("        lambdaAlias: 'candidate'\n");
     for worker in plan
         .functions
         .iter()
@@ -253,7 +279,9 @@ fn render_database_parameters(output: &mut String) {
     output.push_str(
         "        AssertDescription: LambdaSubnetIds and LambdaSecurityGroupIds must be set together.\n",
     );
-    output.push_str("Conditions:\n");
+}
+
+fn render_database_conditions(output: &mut String) {
     output.push_str(
         "  UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]\n",
     );
@@ -299,7 +327,7 @@ fn render_http_api_definition(output: &mut String, plan: &DeploymentPlan) {
         output.push_str("                httpMethod: POST\n");
         output.push_str("                payloadFormatVersion: '2.0'\n");
         output.push_str("                type: aws_proxy\n");
-        output.push_str("                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'\n");
+        output.push_str("                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'\n");
         if matches!(&plan.auth, AuthPlan::Jwt { .. }) {
             if route.authenticated {
                 output.push_str("              security:\n");
@@ -726,8 +754,21 @@ mod tests {
         assert!(yaml.contains("StageName: '$default'"));
         assert!(yaml.contains("  CandidateStage:\n    Type: AWS::ApiGatewayV2::Stage"));
         assert!(yaml.contains("AutoPublishAlias: candidate"));
-        assert!(yaml.contains("lambdaVersion: 'candidate'"));
-        assert!(yaml.contains("lambdaVersion: !Ref LiveFunctionVersion"));
-        assert!(yaml.contains("${!stageVariables.lambdaVersion}/invocations"));
+        assert!(yaml.contains("lambdaAlias: 'candidate'"));
+        assert!(yaml.contains("lambdaAlias: 'live'"));
+        assert!(yaml.contains("${!stageVariables.lambdaAlias}/invocations"));
+        assert!(yaml.contains("  CandidateApiInvokePermission:"));
+        assert!(yaml.contains("      FunctionName: !Ref ApiFunction.Alias"));
+        assert!(yaml.contains("  LiveFunctionAlias:"));
+        assert!(yaml.contains("      FunctionVersion: !If"));
+        assert!(yaml.contains("        - !GetAtt ApiFunction.Version.Version"));
+        assert!(yaml.contains("  LiveApiInvokePermission:"));
+        assert!(yaml.contains("      FunctionName: !Ref LiveFunctionAlias"));
+        assert_eq!(
+            yaml.matches("      FunctionName: !Ref ApiFunction\n")
+                .count(),
+            1,
+            "only the live alias may name the unqualified function"
+        );
     }
 }

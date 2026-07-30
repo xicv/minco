@@ -1057,9 +1057,31 @@ class Validator:
             self.warning("STATIC-DB-001", "default minimal-idle plan is not using the expected Neon profile", plan_path)
         if template_path.is_file():
             text = template_path.read_text()
-            for token in ["AWS::EC2::NatGateway", "ProvisionedConcurrency", "Type: AWS::RDS::DBInstance", "AllowOrigins: ['*']"]:
+            for token in [
+                "AWS::EC2::NatGateway",
+                "ProvisionedConcurrency",
+                "Type: AWS::RDS::DBInstance",
+                "AllowOrigins: ['*']",
+                "DefaultAuthorizer:",
+                "lambdaVersion:",
+            ]:
                 if token in text:
                     self.error("STATIC-SAM-001", f"minimal template contains forbidden token {token}", template_path)
+            for token in [
+                "CandidateApiInvokePermission:",
+                "FunctionName: !Ref ApiFunction.Alias",
+                "LiveFunctionAlias:",
+                "LiveApiInvokePermission:",
+                "FunctionName: !Ref LiveFunctionAlias",
+                "lambdaAlias: 'candidate'",
+                "lambdaAlias: 'live'",
+            ]:
+                if token not in text:
+                    self.error(
+                        "STATIC-SAM-005",
+                        f"minimal template omits required alias boundary {token}",
+                        template_path,
+                    )
             for operation in self.contract_operations:
                 if operation["path"] not in text or operation["method"].upper() not in text:
                     self.error("STATIC-SAM-002", f"template omits route {operation['method'].upper()} {operation['path']}", template_path)

@@ -26,8 +26,8 @@ fn change_set(changes: Vec<ResourceChange>) -> CloudFormationChangeSet {
 fn promotion_refuses_any_non_routing_resource_change() {
     let changes = vec![
         ResourceChange::new(
-            "HttpApiApiGatewayDefaultStage",
-            "AWS::ApiGatewayV2::Stage",
+            "LiveFunctionAlias",
+            "AWS::Lambda::Alias",
             ChangeAction::Modify,
             Some(Replacement::Never),
         ),
@@ -40,47 +40,43 @@ fn promotion_refuses_any_non_routing_resource_change() {
     ];
 
     assert_eq!(
-        verify_promotion_boundary(
-            &change_set(changes),
-            "minco-orders",
-            "HttpApiApiGatewayDefaultStage",
-        ),
+        verify_promotion_boundary(&change_set(changes), "minco-orders", "LiveFunctionAlias",),
         Err(PromotionBoundaryError::NonRoutingChange)
     );
 }
 
 #[test]
-fn promotion_accepts_only_the_live_stage_property_update() {
-    let mut live_stage = ResourceChange::new(
-        "HttpApiApiGatewayDefaultStage",
-        "AWS::ApiGatewayV2::Stage",
+fn promotion_accepts_only_the_live_alias_property_update() {
+    let mut live_alias = ResourceChange::new(
+        "LiveFunctionAlias",
+        "AWS::Lambda::Alias",
         ChangeAction::Modify,
         Some(Replacement::Never),
     );
-    live_stage.scope = vec![ChangeScope::Properties];
+    live_alias.scope = vec![ChangeScope::Properties];
 
     verify_promotion_boundary(
-        &change_set(vec![live_stage]),
+        &change_set(vec![live_alias]),
         "minco-orders",
-        "HttpApiApiGatewayDefaultStage",
+        "LiveFunctionAlias",
     )
-    .expect("exact live stage routing update");
+    .expect("exact live alias routing update");
 }
 
 #[test]
 fn promotion_requires_provider_proof_of_a_property_scope_change() {
-    let live_stage = ResourceChange::new(
-        "HttpApiApiGatewayDefaultStage",
-        "AWS::ApiGatewayV2::Stage",
+    let live_alias = ResourceChange::new(
+        "LiveFunctionAlias",
+        "AWS::Lambda::Alias",
         ChangeAction::Modify,
         Some(Replacement::Never),
     );
 
     assert_eq!(
         verify_promotion_boundary(
-            &change_set(vec![live_stage]),
+            &change_set(vec![live_alias]),
             "minco-orders",
-            "HttpApiApiGatewayDefaultStage",
+            "LiveFunctionAlias",
         ),
         Err(PromotionBoundaryError::NonRoutingChange)
     );
@@ -110,18 +106,18 @@ fn promotion_receipt_is_persisted_started_before_one_terminal_transition() {
         hosted_verification: hosted_verification.clone(),
         operator_approval_digest: hosted_verification.sha256,
         stack_name: "minco-orders".into(),
-        live_stage_logical_id: "HttpApiApiGatewayDefaultStage".into(),
+        live_alias_logical_id: "LiveFunctionAlias".into(),
         previous_version: "41".into(),
         promoted_version: "42".into(),
         change_set: change_set(vec![{
-            let mut stage = ResourceChange::new(
-                "HttpApiApiGatewayDefaultStage",
-                "AWS::ApiGatewayV2::Stage",
+            let mut alias = ResourceChange::new(
+                "LiveFunctionAlias",
+                "AWS::Lambda::Alias",
                 ChangeAction::Modify,
                 Some(Replacement::Never),
             );
-            stage.scope = vec![ChangeScope::Properties];
-            stage
+            alias.scope = vec![ChangeScope::Properties];
+            alias
         }]),
     })
     .expect("start promotion receipt");
@@ -142,7 +138,7 @@ fn promotion_receipt_is_persisted_started_before_one_terminal_transition() {
 }
 
 #[test]
-fn initial_promotion_can_replace_candidate_live_routing_with_a_numeric_version() {
+fn initial_promotion_can_anchor_the_live_alias_to_a_numeric_version() {
     let hosted_verification = FileDigest {
         path: "target/minco/hosted-verification.json".into(),
         sha256: "b".repeat(64),
@@ -165,18 +161,18 @@ fn initial_promotion_can_replace_candidate_live_routing_with_a_numeric_version()
         hosted_verification: hosted_verification.clone(),
         operator_approval_digest: hosted_verification.sha256,
         stack_name: "minco-orders".into(),
-        live_stage_logical_id: "HttpApiApiGatewayDefaultStage".into(),
+        live_alias_logical_id: "LiveFunctionAlias".into(),
         previous_version: "candidate".into(),
         promoted_version: "42".into(),
         change_set: change_set(vec![{
-            let mut stage = ResourceChange::new(
-                "HttpApiApiGatewayDefaultStage",
-                "AWS::ApiGatewayV2::Stage",
+            let mut alias = ResourceChange::new(
+                "LiveFunctionAlias",
+                "AWS::Lambda::Alias",
                 ChangeAction::Modify,
                 Some(Replacement::Never),
             );
-            stage.scope = vec![ChangeScope::Properties];
-            stage
+            alias.scope = vec![ChangeScope::Properties];
+            alias
         }]),
     })
     .expect("initial candidate-to-version promotion");
@@ -209,18 +205,18 @@ fn persisted_promotion_receipts_reject_unknown_nested_fields() {
         hosted_verification: hosted_verification.clone(),
         operator_approval_digest: hosted_verification.sha256,
         stack_name: "minco-orders".into(),
-        live_stage_logical_id: "HttpApiApiGatewayDefaultStage".into(),
+        live_alias_logical_id: "LiveFunctionAlias".into(),
         previous_version: "41".into(),
         promoted_version: "42".into(),
         change_set: change_set(vec![{
-            let mut stage = ResourceChange::new(
-                "HttpApiApiGatewayDefaultStage",
-                "AWS::ApiGatewayV2::Stage",
+            let mut alias = ResourceChange::new(
+                "LiveFunctionAlias",
+                "AWS::Lambda::Alias",
                 ChangeAction::Modify,
                 Some(Replacement::Never),
             );
-            stage.scope = vec![ChangeScope::Properties];
-            stage
+            alias.scope = vec![ChangeScope::Properties];
+            alias
         }]),
     })
     .expect("start promotion receipt");
