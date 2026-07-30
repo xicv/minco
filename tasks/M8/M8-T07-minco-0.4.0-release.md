@@ -790,3 +790,31 @@ rerun and all-true `final-cleanup.json` prove the temporary database, managed
 secret, VPC, bootstrap principals, profiles and local credential files absent.
 Exact-head hosted qualification, merge, exact-main qualification and another
 live rehearsal remain required before tag creation or registry publication.
+
+That correction passed exact PR-head hosted run
+[`30570766634`](https://github.com/xicv/minco/actions/runs/30570766634) at
+`367d04e0476e9225e64626966245313340d54a71`, merged as exact `main`
+`982bc9bf2e58597b9d7df2b7fe3e39d5a89f83b9`, passed the complete local release
+matrix and passed exact-main hosted run
+[`30573067627`](https://github.com/xicv/minco/actions/runs/30573067627).
+
+Authorised live run `20260730t191908z-release040` migrated and verified its
+private disposable PostgreSQL database, reproduced the 5,039,398-byte native
+ARM64 artifact with SHA-256
+`92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+sealed release `minco.30360dc26d7e73b91c2657fe`, applied the exact reviewed
+change set and passed every candidate hosted check. Promotion stopped before
+creating or executing a change set because CloudFormation drift inspection
+reported that the bounded role lacked `lambda:GetRuntimeManagementConfig` for
+the published Lambda version; no live alias changed.
+
+The current least-privilege correction adds that read only to the existing
+exact run-owned function ARN and qualified ARN pattern. The rendered-policy
+regression failed before the source change with `owned function policy misses
+the version runtime drift-read permission` and passes after it; ShellCheck
+warning/error classes also pass. Application cleanup is all true; the exact
+RDS recovery rerun and all-true `final-cleanup.json` prove the temporary
+database, managed secret, VPC, bootstrap principals, profiles and local
+credential files absent. Exact-head hosted qualification, merge, exact-main
+qualification and another live rehearsal remain required before tag creation
+or registry publication.
