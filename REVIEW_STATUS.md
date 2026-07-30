@@ -119,3 +119,27 @@ secret, temporary database/VPC, bootstrap principals, profiles and local
 credential files absent. No tag or registry upload occurred. Exact-head hosted
 qualification, merge, exact-main qualification and another live rehearsal
 remain required.
+
+That least-privilege correction passed exact PR-head hosted run `30556566177`
+at `541e61e6fbb23a582011244539b2befddcd38fbf`, merged as exact `main`
+`fbdcb002b5df7632e6233f3d08be97b13e571fb3`, passed the complete local
+release matrix and passed exact-main hosted run `30558916893`.
+
+Authorised live run `20260730t160831z-release040` then migrated and verified
+private PostgreSQL, reproduced the 5,039,398-byte native ARM64 artifact,
+sealed release `minco.2b93b493fa3a454d51a4cbcb`, applied its reviewed change
+set and passed every candidate hosted check. CloudFormation drift detection
+also completed with the stack `IN_SYNC`, but promotion failed closed before
+any change set or live alias mutation because Minco required the nonexistent
+response key `StackDriftDetectionStatus` instead of the provider's
+`DetectionStatus`.
+
+The current correction changes only that response-field binding and adds a
+provider-shaped regression. The test failed before the change with the exact
+live parse error and passes after it; failed, unknown and drifted states retain
+their existing fail-closed handling. Application cleanup is all true. The
+exact RDS recovery rerun and all-true `final-cleanup.json` prove the managed
+secret, temporary database/VPC, bootstrap principals, profiles and local
+credential files absent. No tag or registry upload occurred. Exact-head
+hosted qualification, merge, exact-main qualification and another live
+rehearsal remain required.

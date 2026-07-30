@@ -733,3 +733,31 @@ required `final-cleanup.json` prove the temporary database, managed secret,
 VPC, bootstrap principals, profiles and local credential files absent.
 Exact-head hosted qualification, merge, exact-main qualification, another live
 rehearsal, tag and registry publication remain blocked.
+
+The bounded drift-policy correction passed exact PR-head hosted run
+[`30556566177`](https://github.com/xicv/minco/actions/runs/30556566177) at
+`541e61e6fbb23a582011244539b2befddcd38fbf`, merged as exact `main`
+`fbdcb002b5df7632e6233f3d08be97b13e571fb3`, passed the complete local
+release matrix and passed exact-main hosted run
+[`30558916893`](https://github.com/xicv/minco/actions/runs/30558916893).
+
+Authorised live run `20260730t160831z-release040` migrated and verified its
+private disposable PostgreSQL database, reproduced the 5,039,398-byte native
+ARM64 artifact with SHA-256
+`92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11`,
+sealed release `minco.2b93b493fa3a454d51a4cbcb`, applied the exact reviewed
+change set and passed every candidate hosted check. CloudFormation drift
+detection completed with the stack `IN_SYNC`, but promotion stopped before
+creating or executing a change set because Minco deserialized the provider's
+`DetectionStatus` as the nonexistent `StackDriftDetectionStatus`; no live
+alias changed.
+
+The current correction changes only the drift response-field binding. A
+provider-shaped regression failed before the change with the exact live parse
+error and passes after it. Failed, unknown and drifted responses retain their
+existing fail-closed handling. Application cleanup is all true; an exact RDS
+recovery rerun and the required all-true `final-cleanup.json` prove the
+temporary database, managed secret, VPC, bootstrap principals, profiles and
+local credential files absent. Exact-head hosted qualification, merge,
+exact-main qualification, another live rehearsal, tag and registry
+publication remain blocked.

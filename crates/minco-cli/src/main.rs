@@ -2148,7 +2148,7 @@ struct AwsDriftDetection {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct AwsDriftStatus {
-    stack_drift_detection_status: String,
+    detection_status: String,
     stack_drift_status: Option<String>,
     detection_status_reason: Option<String>,
 }
@@ -2488,7 +2488,7 @@ fn detect_clean_stack_drift(root: &Path, target: &DeploymentTarget) -> Result<St
                 &detection.stack_drift_detection_id,
             ],
         )?;
-        match status.stack_drift_detection_status.as_str() {
+        match status.detection_status.as_str() {
             "DETECTION_IN_PROGRESS" => thread::sleep(Duration::from_secs(5)),
             "DETECTION_FAILED" => {
                 bail!(
@@ -4034,6 +4034,20 @@ mod cli_argument_tests {
             apply_stack_requires_drift(ChangeSetType::Update, Some("UPDATE_COMPLETE"))
                 .is_ok_and(|required| required)
         );
+    }
+
+    #[test]
+    fn cloudformation_drift_status_uses_the_provider_detection_status_key() {
+        let status: AwsDriftStatus = serde_json::from_str(
+            r#"{
+                "DetectionStatus": "DETECTION_COMPLETE",
+                "StackDriftStatus": "IN_SYNC"
+            }"#,
+        )
+        .expect("provider drift status response");
+
+        assert_eq!(status.detection_status, "DETECTION_COMPLETE");
+        assert_eq!(status.stack_drift_status.as_deref(), Some("IN_SYNC"));
     }
 
     #[test]
