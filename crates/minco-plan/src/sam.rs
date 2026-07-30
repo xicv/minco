@@ -89,7 +89,6 @@ pub fn render_sam_with_code_uris(
     }
     if let AuthPlan::Jwt { issuer, audiences } = &plan.auth {
         output.push_str("      Auth:\n");
-        output.push_str("        DefaultAuthorizer: JwtAuthorizer\n");
         output.push_str("        Authorizers:\n");
         output.push_str("          JwtAuthorizer:\n");
         output.push_str("            IdentitySource: '$request.header.Authorization'\n");
@@ -301,8 +300,13 @@ fn render_http_api_definition(output: &mut String, plan: &DeploymentPlan) {
         output.push_str("                payloadFormatVersion: '2.0'\n");
         output.push_str("                type: aws_proxy\n");
         output.push_str("                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaVersion}/invocations'\n");
-        if !route.authenticated && matches!(&plan.auth, AuthPlan::Jwt { .. }) {
-            output.push_str("              security: []\n");
+        if matches!(&plan.auth, AuthPlan::Jwt { .. }) {
+            if route.authenticated {
+                output.push_str("              security:\n");
+                output.push_str("                - JwtAuthorizer: []\n");
+            } else {
+                output.push_str("              security: []\n");
+            }
         }
     }
 }
@@ -651,12 +655,20 @@ mod tests {
             queues: Vec::new(),
             triggers: Vec::new(),
             iam_intents: Vec::new(),
-            routes: vec![RoutePlan {
-                operation_id: "getHealth".into(),
-                method: HttpMethod::Get,
-                path: "/health".into(),
-                authenticated: false,
-            }],
+            routes: vec![
+                RoutePlan {
+                    operation_id: "getHealth".into(),
+                    method: HttpMethod::Get,
+                    path: "/health".into(),
+                    authenticated: false,
+                },
+                RoutePlan {
+                    operation_id: "getOrder".into(),
+                    method: HttpMethod::Get,
+                    path: "/orders/{orderId}".into(),
+                    authenticated: true,
+                },
+            ],
             application_graph: minco_core::ApplicationGraph::default(),
             local_aws_services: vec!["ssm".into(), "sts".into()],
             scheduled_wakeups: Vec::new(),
@@ -681,6 +693,10 @@ mod tests {
         assert!(yaml.contains("AWS::Serverless::HttpApi"));
         assert!(yaml.contains("operationId: 'getHealth'"));
         assert!(yaml.contains("security: []"));
+        assert!(yaml.contains("operationId: 'getOrder'"));
+        assert!(yaml.contains("security:\n                - JwtAuthorizer: []"));
+        assert!(yaml.contains("Authorizers:\n          JwtAuthorizer:"));
+        assert!(!yaml.contains("DefaultAuthorizer:"));
         assert!(!yaml.contains("AllowOrigins: ['*']"));
         assert!(yaml.contains("UsesCustomerManagedDatabaseKey"));
         assert!(yaml.contains("Resource: !Ref DatabaseUrlKmsKeyArn"));

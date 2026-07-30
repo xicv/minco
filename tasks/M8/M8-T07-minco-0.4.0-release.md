@@ -20,6 +20,7 @@ owned_paths:
   - crates/minco-cli/src/main.rs
   - crates/minco-deploy-aws/**
   - crates/minco-dev/tests/supervisor.rs
+  - crates/minco-plan/src/sam.rs
   - docs/**
   - extensions/minco-aws-adapters/README.md
   - roadmap/**
@@ -486,3 +487,36 @@ nine-test supervisor suite and 100 repeated focused runs pass locally. No
 production supervisor code changed. A replacement exact-head hosted run,
 merge, exact-main qualification, live AWS, tag and registry publication remain
 blocked.
+
+That test correction passed exact-head hosted run
+[`30505833178`](https://github.com/xicv/minco/actions/runs/30505833178) at
+`bab0e8ca63ce4917251f7b5c75f0c17d37f4ccf2`, merged as exact `main`
+`84598996a86067eb8b57015591a665445217af49`, and passed the full local suite,
+AWS Plan/SAM validation and exact-main hosted run
+[`30506695053`](https://github.com/xicv/minco/actions/runs/30506695053).
+
+Authorised live run `20260730t020609z-approved` then proved the corrected
+tagged-stage permissions: both API Gateway stages reached `CREATE_COMPLETE`.
+The run stopped during hosted verification because API Gateway returned its
+own `401 {"message":"Unauthorized"}` response for contract-public
+`GET /health/live`. Exact AWS SAM translator `1.111.0` treats empty
+operation-level `security: []` as absent when it applies
+`Auth.DefaultAuthorizer`, replacing it with the default JWT authorizer.
+
+The current renderer correction declares the JWT authorizer without a SAM
+default, emits explicit `JwtAuthorizer` security on protected routes, and
+retains `security: []` on public routes. The focused renderer regression covers
+both route classes. Transforming the generated template with exact
+`aws-sam-translator==1.111.0` preserves public security on both health routes
+and JWT security on both Orders routes. All application, database, managed
+secret, bootstrap-IAM and local credential resources from the failed run are
+independently absent. Exact-head hosted qualification, merge, exact-main
+qualification, another live rehearsal, tag and registry publication remain
+blocked.
+
+The corrected source boundary passes `cargo test -p minco-plan --all-targets
+--all-features --locked`, exact SAM translator `1.111.0` transformation, the
+complete `scripts/quality.sh` matrix, AWS validation and deployment planning,
+and the final source-manifest guard. This completes the source-preparation
+task; exact-head and exact-main qualification remain release-controller gates
+before another live rehearsal.

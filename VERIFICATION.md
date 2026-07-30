@@ -487,6 +487,46 @@ fail-closed controller defects before publication:
     nine-test supervisor suite and 100 repeated focused shutdown runs pass
     locally. Exact-head hosted qualification must be repeated before merge;
     live AWS, tag and registry publication remain blocked.
+23. corrected release candidate
+    `bab0e8ca63ce4917251f7b5c75f0c17d37f4ccf2` passed exact-head hosted run
+    [`30505833178`](https://github.com/xicv/minco/actions/runs/30505833178),
+    merged as exact `main`
+    `84598996a86067eb8b57015591a665445217af49`, and passed the complete local
+    suite, AWS Plan/SAM validation and exact-main hosted run
+    [`30506695053`](https://github.com/xicv/minco/actions/runs/30506695053).
+
+    Authorised live run `20260730t020609z-approved` migrated and verified its
+    disposable PostgreSQL database over TLS `verify-full`, removed the local
+    `/32`, proved the database private, built the 5,038,349-byte native ARM64
+    artifact with SHA-256
+    `ff9609127cedcf2aad6c563e1f524feda1258ec33f104f7973eccecaa80ea474`,
+    and sealed release `minco.1b974fc3ed8ee12979ac02dd` with digest
+    `1b974fc3ed8ee12979ac02dd0d12d29ad5bfd9a2264806ed0b2309260de0e3fb`.
+    The digest-approved application apply used change-set receipt
+    `31f2b394721f437192c982d91aebfe7de9790d6b71f140722a5e74b06f3f789e`.
+    Both tagged API Gateway stages reached `CREATE_COMPLETE`, proving the
+    bounded `apigateway:TagResource` correction against the live provider.
+
+    Hosted verification then stopped on its first request because
+    `GET /health/live` returned API Gateway's
+    `401 {"message":"Unauthorized"}` response. The generated definition
+    contained contract-correct `security: []`, but exact AWS SAM translator
+    `1.111.0` applies `Auth.DefaultAuthorizer` whenever the existing security
+    value is falsey, so it replaced the empty list with the JWT authorizer.
+    The renderer correction retains `Auth.Authorizers` only and emits explicit
+    `JwtAuthorizer` security on authenticated operations. A focused renderer
+    regression covers both route classes. An isolated transform with the exact
+    `aws-sam-translator==1.111.0` dependency preserves `[]` for both health
+    routes, emits `JwtAuthorizer` for both Orders routes and retains exactly
+    one `JwtAuthorizer` security scheme.
+
+    Application, artifact-bucket, Cognito, Lambda, API Gateway, log, SSM,
+    RDS/VPC/database, managed-secret, bootstrap-IAM and local credential
+    cleanup are independently absent. The aggregate cleanup receipt captured
+    the managed secret during its short deletion-convergence window, but a
+    subsequent exact-ARN `DescribeSecret` returns `ResourceNotFoundException`.
+    A replacement exact-head qualification, merge, exact-main qualification
+    and live rehearsal remain required. No tag or registry upload occurred.
 
 Corrected pull-request head
 `46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
