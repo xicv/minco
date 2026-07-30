@@ -90,6 +90,97 @@ bounded_review_stack_cleanup_is_authorized() {
       "$stack_resources_path" >/dev/null
 }
 
+access_analyzer_role_policy_is_accepted() {
+  local validation_path="$1"
+  local policy_path="$2"
+  local region="$3"
+  local run_id="$4"
+  require_command jq
+
+  jq -e \
+    --arg region "$region" \
+    --arg run_id "$run_id" \
+    --slurpfile validation "$validation_path" \
+    '
+      ($validation | length == 1) as $has_one_validation
+      | ($validation[0].findings? | type == "array") as $has_findings
+      | [$validation[0].findings[]? | select(.findingType == "ERROR")] as $errors
+      | if $has_one_validation and $has_findings and ($errors | length == 0)
+        then true
+        else
+          (
+            .Statement
+            | to_entries
+            | map(select(.value.Sid == "TagRunOwnedTemporaryHttpApiStage"))
+          ) as $stage_tag_statements
+          | ($stage_tag_statements | length == 1)
+          and (
+            [
+              .Statement[]
+              | .Action
+              | if type == "array" then .[] else . end
+              | select(. == "apigateway:TagResource")
+            ]
+            | length == 1
+          )
+          and (
+            [
+              .Statement[]
+              | .Action
+              | if type == "array" then .[] else . end
+              | select(type == "string" and contains("*"))
+            ]
+            | length == 0
+          )
+          and (
+            $stage_tag_statements[0].value == {
+              Sid: "TagRunOwnedTemporaryHttpApiStage",
+              Effect: "Allow",
+              Action: "apigateway:TagResource",
+              Resource: (
+                "arn:aws:apigateway:" + $region + "::/apis/*/stages"
+              ),
+              Condition: {
+                StringEquals: {
+                  "aws:RequestTag/minco:run-id": $run_id,
+                  "aws:RequestTag/minco:managed": "true",
+                  "aws:RequestTag/minco:purpose": "bounded-smoke"
+                },
+                "ForAllValues:StringEquals": {
+                  "aws:TagKeys": [
+                    "minco:run-id",
+                    "minco:managed",
+                    "minco:purpose",
+                    "MincoEnvironment",
+                    "MincoReleaseId",
+                    "MincoReleaseDigest",
+                    "httpapi:createdBy",
+                    "aws:cloudformation:stack-name",
+                    "aws:cloudformation:stack-id",
+                    "aws:cloudformation:logical-id"
+                  ]
+                }
+              }
+            }
+          )
+          and ($errors | length == 1)
+          and ($errors[0].issueCode == "INVALID_ACTION")
+          and (
+            $errors[0].findingDetails
+            == "The action apigateway:TagResource does not exist."
+          )
+          and ($errors[0].locations | type == "array" and length == 1)
+          and (
+            $errors[0].locations[0].path == [
+              {value: "Statement"},
+              {index: $stage_tag_statements[0].key},
+              {value: "Action"}
+            ]
+          )
+        end
+    ' "$policy_path" >/dev/null
+}
+
 s3_tagged_create_configuration() {
   local region="$1"
   local run_id="$2"
