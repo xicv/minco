@@ -14,11 +14,22 @@ retention, FIFO/redrive compatibility, partial-batch responses and minimal-idle
 schedule policy. It derives typed IAM intent rather than accepting secret
 values or free-form policy documents.
 
+Cost output classifies structural dimensions as `zero_compute`,
+`request_only`, `storage_only`, `scheduled_wakeup` or `fixed_monthly`, with
+`priced`, `unpriced`, `region_dependent`, `free_tier_dependent` or
+`eligibility_dependent` pricing confidence. Provider allowances never become a
+complete zero-dollar estimate solely because current usage fits.
+
 It also records only the AWS service set needed for local adapter conformance
 and can render deterministic AWS SAM/CloudFormation for PostgreSQL-compatible
 API/worker topologies. Local topology never runs schedules. Generic DynamoDB
 SAM fails closed because its table and IAM must be declared by an
 access-pattern-specific adapter.
+An optional one-time schedule cleanup contract records
+`ActionAfterCompletion: DELETE`, residual resources and a manual fallback; it
+is rejected for recurring schedules. SAM rendering fails closed because the
+current SAM and CloudFormation schedule schemas do not expose that Scheduler
+API property.
 `allowed_origins` and `allowed_headers` are exact configuration inputs: empty,
 wildcard, invalid, and duplicate header lists are rejected, and the normalized
 values are carried into both Plan IR and generated SAM CORS policy. A plugin

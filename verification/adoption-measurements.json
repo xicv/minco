@@ -32,10 +32,7 @@
     "revision": "6fe9121ea9284e2fa4e2dbfd76f21bd8a13e263a"
   },
   "candidate": {
-    "build_timings_seconds": {
-      "minco_all_features": 45.38,
-      "minco_no_default": 5.53
-    },
+    "build_timings_seconds": {},
     "facade": {
       "all_features": {
         "feature_tree_lines": 3457,
@@ -56,29 +53,29 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 127.87,
-        "compressed_bytes": 5039398,
+        "cold_build_seconds": 130.9,
+        "compressed_bytes": 5036567,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "92dc989125a6032e378eaa660303939a9fadc0920bb3b2d0606bc2bcaaf86d11",
-        "uncompressed_bytes": 11055792
+        "sha256": "50938b97d3007f0e4f34cc8c55255e3618163ecef88cb0dcdaa0bcdd5db6c706",
+        "uncompressed_bytes": 11051176
       },
       "sqs_worker": {
-        "cold_build_seconds": 15.16,
+        "cold_build_seconds": 16.02,
         "compressed_bytes": 574199,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
         "sha256": "c1508117d7329029aaedc85691b416f3321d1fa11831c5c162f9647465bd3a44",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:af3cc77e7a454d3f9c84e387f7c1531877dc1124847876f69b0f8fcc8dab23a7"
+    "revision": "source-tree-sha256:1a79eca9a659ab03d00d326a84e6d44655cd00b1953e097819b805a69d5a74cb"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 0,
-    "orders_lambda_compressed_byte_delta": 26396,
-    "orders_lambda_compressed_percent_delta": 0.5266
+    "orders_lambda_compressed_byte_delta": 23565,
+    "orders_lambda_compressed_percent_delta": 0.4701
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",

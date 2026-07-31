@@ -51,9 +51,16 @@ Pricing evidence uses these confidence labels:
 - `eligibility_dependent`: a plan or discount depends on account eligibility.
 
 This release records the vocabulary and operator doctrine without expanding
-Plan IR schema 2 into a general pricing engine. A later research task must
-prove the smallest useful structured extension against at least two provider
-profiles.
+Plan IR schema 2 into a general pricing engine.
+
+Research completed on 2026-07-31 proved the smallest useful structured
+extension against DynamoDB on-demand, Aurora Serverless v2, fixed RDS and Neon:
+cost output carries typed cost class and pricing confidence, while the input
+schema remains provider-neutral. An optional schema 2 schedule-cleanup contract
+records one-time completion deletion, residual resources and a manual fallback.
+The field defaults to absent, preserving serialized schema 2 compatibility.
+See
+[`../deployment/zero-idle-service-research.md`](../deployment/zero-idle-service-research.md).
 
 The Verified Review Loop is repository-native:
 
@@ -81,6 +88,9 @@ future M10 work.
   compute can scale to zero.
 - Account eligibility, Region availability, quotas and provider price changes
   are live operational gates.
+- A free-tier or flat-rate allowance cannot by itself make an estimate complete.
+- `ActionAfterCompletion=DELETE` deletes the schedule, not the target's output,
+  logs, database records or surrounding environment.
 - Feedback can participate in a traceable review workflow without becoming a
   hosted Minco product or trusted instruction channel.
 - Review identity and cleanup are explicit before any automation is added.

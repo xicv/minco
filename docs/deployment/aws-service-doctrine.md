@@ -1,7 +1,7 @@
 # AWS service and zero-provisioned-compute doctrine
 
 Status: accepted product doctrine
-Reviewed: 2026-07-28
+Reviewed: 2026-07-31
 Applies to: Minco `0.4.0` source and later planning
 
 Minco targets zero provisioned application compute at idle. Storage, retained
@@ -56,19 +56,24 @@ correctness, wake-source, connection, retention and cost behavior:
 - Cognito, SES, Transcribe and Bedrock only for explicitly selected product
   capabilities, quotas, data policy and regional availability.
 - EventBridge Scheduler only for a declared `scheduled_wakeup`. One-time
-  schedules set `ActionAfterCompletion=DELETE`; deletion is lifecycle hygiene,
-  not proof that the target invocation or retained resources disappeared.
+  cleanup plans record `ActionAfterCompletion=DELETE`; deletion is lifecycle
+  hygiene, not proof that the target invocation or retained resources
+  disappeared.
 
-Primary references reviewed 2026-07-28:
+Primary references reviewed 2026-07-31:
 [DynamoDB on-demand](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/on-demand-capacity-mode.html),
 [Aurora DSQL pricing](https://aws.amazon.com/rds/aurora/dsql/pricing/),
 [Aurora DSQL quotas](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/CHAP_quotas.html),
 [Aurora DSQL access and transactions](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/accessing.html),
 [Aurora Serverless v2 auto-pause](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html),
 [RDS Data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html),
-[RDS Data API limitations](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.troubleshooting.html),
+[RDS Data API limitations](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.limitations.html),
 and
 [EventBridge Scheduler cleanup](https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-schedule-delete.html).
+
+The detailed comparison, DSQL/SQLx experiment, CloudFront allowance evidence
+and Plan IR decision are recorded in
+[zero-idle service research](zero-idle-service-research.md).
 
 ## Not default
 
