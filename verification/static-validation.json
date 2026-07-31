@@ -7,7 +7,7 @@
   "metrics": {
     "toml_files": 71,
     "yaml_files": 19,
-    "json_files": 17,
+    "json_files": 33,
     "workspace_members": 33,
     "contract_sha256": "f0e0d1aee9858e54f814270b6f78a5c63ea6993311210f6a6f6ee7323838843f",
     "contract_operations": 7,
@@ -15,10 +15,10 @@
     "plugins": 16,
     "milestones": 13,
     "tasks": 63,
-    "rust_files": 130,
+    "rust_files": 132,
     "python_files": 20,
     "shell_files": 43,
-    "implementation_files_scanned": 297
+    "implementation_files_scanned": 299
   },
   "findings": [],
   "limitations": [

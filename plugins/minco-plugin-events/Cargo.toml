@@ -13,7 +13,10 @@ readme = "README.md"
 keywords = ["minco", "events", "outbox", "queue"]
 categories = ["web-programming", "asynchronous"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
 
 [dependencies]
 async-trait.workspace = true

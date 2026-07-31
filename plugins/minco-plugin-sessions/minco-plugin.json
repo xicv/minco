@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "id": "sessions",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "plugin-sessions",
+  "runtimes": ["native"],
+  "provides": [
+    { "name": "sessions.issue", "version": "1.0.0" },
+    { "name": "sessions.resolve", "version": "1.0.0" },
+    { "name": "sessions.revoke", "version": "1.0.0" },
+    { "name": "sessions.csrf", "version": "1.0.0" }
+  ],
+  "data_classes": ["personal", "secret"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Invalid, expired, or unresolvable sessions do not authenticate a principal."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-sessions" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-sessions --all-features --locked"]
+  }
+}

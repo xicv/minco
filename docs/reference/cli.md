@@ -164,6 +164,14 @@ cargo minco plugin new <id>
 cargo minco plugin validate
 ```
 
+`plugin list` returns catalog coordinates plus archive-visible distribution
+metadata without constructing plugin code. `plugin validate` also checks the
+published-file include, schema safety, catalog drift and overlapping fields in
+official linked runtime descriptors. `plugin new` scaffolds the Cargo metadata
+pointer and `minco-plugin.json` together with the Rust crate and catalog entry.
+See [`plugin-distribution.md`](plugin-distribution.md) for the schema and field
+authority.
+
 ## Tests
 
 ```text

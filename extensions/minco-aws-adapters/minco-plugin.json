@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "id": "aws-adapters",
+  "kind": "adapter",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "aws-adapters",
+  "runtimes": ["native", "aws-lambda"],
+  "requires": [
+    { "name": "storage.object", "version": "^1.0" },
+    { "name": "events.publish", "version": "^1.0" },
+    { "name": "notifications.send", "version": "^1.0" },
+    { "name": "identity.admin", "version": "^1.0" },
+    { "name": "static-site.provider", "version": "^1.0" }
+  ],
+  "provides": [
+    { "name": "aws.s3.object-storage", "version": "1.0.0" },
+    { "name": "aws.sqs.event-publication", "version": "1.0.0" },
+    { "name": "aws.ses.email-notifications", "version": "1.0.0" },
+    { "name": "aws.cognito.identity-administration", "version": "1.0.0" },
+    { "name": "aws.cloudfront.static-site", "version": "1.0.0" }
+  ],
+  "resources": [
+    {
+      "id": "aws-object-bucket",
+      "feature": "s3",
+      "kind": "s3_bucket",
+      "idle_cost": "storage_only",
+      "iam_actions": ["s3:DeleteObject", "s3:GetObject", "s3:PutObject"]
+    },
+    {
+      "id": "aws-events-queue",
+      "feature": "sqs",
+      "kind": "sqs_queue",
+      "idle_cost": "provider_managed",
+      "iam_actions": ["sqs:SendMessage"]
+    },
+    {
+      "id": "aws-ses-identity",
+      "feature": "ses",
+      "kind": { "custom": "ses-identity" },
+      "idle_cost": "provider_managed",
+      "iam_actions": ["ses:SendEmail"]
+    },
+    {
+      "id": "aws-cognito-user-pool",
+      "feature": "cognito",
+      "kind": { "custom": "cognito-user-pool" },
+      "idle_cost": "provider_managed",
+      "iam_actions": ["cognito-idp:AdminCreateUser", "cognito-idp:AdminDeleteUser", "cognito-idp:AdminDisableUser", "cognito-idp:AdminGetUser"]
+    },
+    {
+      "id": "aws-static-site-bucket",
+      "feature": "static-site",
+      "kind": "s3_bucket",
+      "idle_cost": "storage_only",
+      "iam_actions": ["s3:DeleteObject", "s3:ListBucket", "s3:PutObject"]
+    },
+    {
+      "id": "aws-static-site-distribution",
+      "feature": "static-site",
+      "kind": "cloud_front_distribution",
+      "idle_cost": "provider_managed",
+      "dependencies": ["aws-static-site-bucket"],
+      "iam_actions": ["cloudfront:CreateInvalidation"]
+    }
+  ],
+  "data_classes": ["customer_provided", "personal", "confidential"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Selected provider operations return their AWS failure and never substitute an in-memory or different provider."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-aws-adapters" },
+  "conformance": {
+    "profile": "minco-adapter-v1",
+    "evidence": ["cargo test -p minco-aws-adapters --all-features --locked"]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "id": "identity",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "plugin-identity",
+  "runtimes": ["native"],
+  "provides": [
+    { "name": "identity.resolve", "version": "1.0.0" },
+    { "name": "authorization.permissions", "version": "1.0.0" }
+  ],
+  "configuration": [
+    { "key": "permission_claim", "kind": "string", "required": false, "secret": false, "description": "Verified claim containing permissions", "default": "permissions" },
+    { "key": "scope_claim", "kind": "string", "required": false, "secret": false, "description": "Verified claim containing OAuth/OIDC scopes", "default": "scope" },
+    { "key": "groups_claim", "kind": "string", "required": false, "secret": false, "description": "Verified claim containing provider group names", "default": "groups" },
+    { "key": "separator", "kind": "string", "required": false, "secret": false, "description": "Single character separating claim values", "default": " " },
+    { "key": "group_permissions", "kind": "object", "required": false, "secret": false, "description": "Map of provider groups to application permissions", "default": {} }
+  ],
+  "data_classes": ["personal", "confidential"],
+  "retention": "none",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Invalid or unverifiable claims do not produce an identity or grant permissions."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-identity" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-identity --all-features --locked"]
+  }
+}

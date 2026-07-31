@@ -3,6 +3,8 @@ schema = 1
 [[plugin]]
 id = "health"
 crate = "minco-plugin-health"
+kind = "plugin"
+feature = "plugin-health"
 default_enabled = true
 stability = "stable"
 description = "Liveness, readiness and dependency health registry."
@@ -10,6 +12,8 @@ description = "Liveness, readiness and dependency health registry."
 [[plugin]]
 id = "observability"
 crate = "minco-plugin-observability"
+kind = "plugin"
+feature = "plugin-observability"
 default_enabled = true
 stability = "stable"
 description = "Structured tracing and CloudWatch-compatible logging."
@@ -17,6 +21,8 @@ description = "Structured tracing and CloudWatch-compatible logging."
 [[plugin]]
 id = "idempotency"
 crate = "minco-plugin-idempotency"
+kind = "plugin"
+feature = "plugin-idempotency"
 default_enabled = true
 stability = "stable"
 description = "Idempotency keys, request fingerprints and a storage port."

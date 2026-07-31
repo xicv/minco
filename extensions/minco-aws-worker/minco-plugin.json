@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "id": "aws-worker",
+  "kind": "runtime",
+  "plugin_version": "0.5.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "aws-worker",
+  "runtimes": ["aws-lambda-sqs"],
+  "resources": [
+    {
+      "id": "worker-queue",
+      "feature": "events",
+      "kind": "sqs_queue",
+      "idle_cost": "storage_only",
+      "wake_sources": ["queue_message"]
+    },
+    {
+      "id": "worker-lambda",
+      "kind": "lambda",
+      "idle_cost": "zero_compute",
+      "wake_sources": ["queue_message"],
+      "dependencies": ["worker-queue"],
+      "iam_actions": ["sqs:ChangeMessageVisibility", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]
+    }
+  ],
+  "data_classes": ["customer_provided", "confidential"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Failed records are reported through Lambda partial-batch failure responses and are not acknowledged as successful."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-aws-worker" },
+  "conformance": {
+    "profile": "minco-runtime-v1",
+    "evidence": ["cargo test -p minco-aws-worker --all-features --locked"]
+  }
+}

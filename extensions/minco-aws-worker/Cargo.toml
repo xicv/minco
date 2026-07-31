@@ -17,10 +17,14 @@ include = [
   "src/**",
   "examples/**",
   "Cargo.toml",
+  "minco-plugin.json",
   "README.md",
   "LICENSE-MIT",
   "LICENSE-APACHE",
 ]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
 
 [features]
 default = []

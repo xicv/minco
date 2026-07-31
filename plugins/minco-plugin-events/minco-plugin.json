@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "events",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "plugin-events",
+  "runtimes": ["native"],
+  "provides": [
+    { "name": "events.publish", "version": "1.0.0" },
+    { "name": "events.outbox", "version": "1.0.0" }
+  ],
+  "data_classes": ["internal", "customer_provided"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Publish and outbox failures remain explicit application errors; the plugin never creates a hidden retry schedule."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-events" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-events --all-features --locked"]
+  }
+}

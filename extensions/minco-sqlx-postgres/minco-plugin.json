@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "sqlx-postgres",
+  "kind": "adapter",
+  "plugin_version": "0.5.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "sqlx-postgres",
+  "runtimes": ["native", "aws-lambda"],
+  "databases": ["postgres"],
+  "provides": [
+    { "name": "audit.append", "version": "1.0.0" },
+    { "name": "events.outbox", "version": "1.0.0" },
+    { "name": "idempotency.store", "version": "1.0.0" },
+    { "name": "sessions.store", "version": "1.0.0" }
+  ],
+  "configuration": [
+    { "key": "url", "kind": "string", "required": true, "secret": true, "description": "PostgreSQL connection URL supplied through the application secret provider" },
+    { "key": "max_connections", "kind": "integer", "required": false, "secret": false, "description": "Bounded maximum pool size", "default": 2 },
+    { "key": "acquire_timeout_seconds", "kind": "integer", "required": false, "secret": false, "description": "Connection acquisition timeout", "default": 5 },
+    { "key": "idle_timeout_seconds", "kind": "integer", "required": false, "secret": false, "description": "Idle connection timeout", "default": 60 }
+  ],
+  "migrations": [{ "id": "plugin-storage-postgres-v1", "database": "postgres", "path": "migrations/plugins" }],
+  "resources": [{
+    "id": "postgres-database",
+    "kind": "external_postgres",
+    "idle_cost": "provider_managed"
+  }],
+  "health_checks": [{ "id": "postgres-ready", "critical": true }],
+  "data_classes": ["customer_provided", "personal", "confidential", "secret"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Connection, transaction, migration, and verification failures are returned and never marked successful."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-sqlx-postgres" },
+  "conformance": {
+    "profile": "minco-adapter-v1",
+    "evidence": ["cargo test -p minco-sqlx-postgres --all-features --locked"]
+  }
+}

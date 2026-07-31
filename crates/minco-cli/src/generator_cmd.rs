@@ -120,6 +120,7 @@ enum ChangeAction {
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum FileFormat {
+    Json,
     Markdown,
     Rust,
     Sql,
@@ -187,6 +188,7 @@ impl PlannedEdit {
                 ChangeAction::Create
             },
             format: match self.path.extension().and_then(|value| value.to_str()) {
+                Some("json") => FileFormat::Json,
                 Some("md") => FileFormat::Markdown,
                 Some("rs") => FileFormat::Rust,
                 Some("sql") => FileFormat::Sql,
@@ -928,7 +930,10 @@ fn plugin_plan(root: &Path, manifest: &MincoManifest, args: &NamedArgs) -> Resul
          edition.workspace = true\n\
          rust-version.workspace = true\n\
          license.workspace = true\n\
-         publish = false\n\n\
+         publish = false\n\
+         include = [\"src/**\", \"Cargo.toml\", \"minco-plugin.json\"]\n\n\
+         [package.metadata.minco]\n\
+         plugin = \"minco-plugin.json\"\n\n\
          [dependencies]\n\
          minco-core.workspace = true\n\
          semver.workspace = true\n\n\
@@ -967,6 +972,11 @@ fn plugin_plan(root: &Path, manifest: &MincoManifest, args: &NamedArgs) -> Resul
             root,
             format!("{member}/README.md"),
             render_stub(root, Stub::PluginReadme, &replacements)?,
+        )?,
+        PlannedEdit::create(
+            root,
+            format!("{member}/minco-plugin.json"),
+            crate::plugin_cmd::default_distribution_record(&names.kebab, &crate_name)?,
         )?,
         PlannedEdit::create(
             root,
@@ -1102,6 +1112,11 @@ fn add_plugin_catalog_entry(
         ("id".into(), toml::Value::String(id.into())),
         ("crate".into(), toml::Value::String(crate_name.into())),
         ("path".into(), toml::Value::String(member.into())),
+        ("kind".into(), toml::Value::String("plugin".into())),
+        (
+            "feature".into(),
+            toml::Value::String(format!("plugin-{id}")),
+        ),
         ("default_enabled".into(), toml::Value::Boolean(false)),
         (
             "stability".into(),

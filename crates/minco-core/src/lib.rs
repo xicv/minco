@@ -5,6 +5,7 @@
 pub const CORE_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod contribution;
+mod distribution;
 mod graph;
 mod plugin;
 mod provenance;
@@ -12,6 +13,11 @@ mod service;
 mod types;
 
 pub use contribution::{ContributionCollection, ContributionRegistrar, FrozenContributions};
+pub use distribution::{
+    ConformanceEvidence, DistributionOperation, DistributionResource, DistributionSeed,
+    DocumentationLinks, FailureMode, FailurePolicy, PluginDistributionKind,
+    PluginDistributionManifest, RetentionPolicy, SeedClass,
+};
 pub use graph::{ApplicationGraph, GraphBuilder, GraphError};
 pub use plugin::{
     ComposedApplication, Plugin, PluginContext, PluginError, PluginFinalizeContext, PluginManager,

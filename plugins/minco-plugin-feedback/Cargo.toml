@@ -20,10 +20,14 @@ include = [
   "/openapi/**",
   "/tests/persistence.rs",
   "/Cargo.toml",
+  "/minco-plugin.json",
   "/README.md",
   "/LICENSE-MIT",
   "/LICENSE-APACHE",
 ]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
 
 [features]
 default = ["http"]

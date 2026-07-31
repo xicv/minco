@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "observability",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "stable",
+  "default_enabled": true,
+  "feature": "plugin-observability",
+  "runtimes": ["native"],
+  "provides": [{ "name": "observability.tracing", "version": "1.0.0" }],
+  "configuration": [
+    { "key": "service_name", "kind": "string", "required": false, "secret": false, "description": "Stable service name included in operational telemetry", "default": "minco-app" },
+    { "key": "json", "kind": "boolean", "required": false, "secret": false, "description": "Emit structured JSON suitable for CloudWatch Logs", "default": true },
+    { "key": "default_filter", "kind": "string", "required": false, "secret": false, "description": "Fallback tracing filter when RUST_LOG is unset", "default": "info,tower_http=info" }
+  ],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "best_effort",
+    "description": "Telemetry failures do not turn an otherwise valid application response into a failure."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-observability" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-observability --all-features --locked"]
+  }
+}
