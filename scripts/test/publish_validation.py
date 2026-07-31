@@ -59,8 +59,15 @@ install_jj = next(
 )
 assert "jj-cli --version 0.43.0" in install_jj["run"]
 assert "jj --version" in install_jj["run"]
+install_ripgrep = next(
+    step
+    for step in release_steps
+    if step.get("name") == "Install pinned ripgrep for release scripts"
+)
+assert "ripgrep --version 15.2.0" in install_ripgrep["run"]
+assert "rg --version" in install_ripgrep["run"]
 
-print("Publish workflow tagged-checkout and JJ prerequisites passed.")
+print("Publish workflow tagged-checkout and pinned prerequisites passed.")
 
 
 def validate(package: dict[str, object]) -> list[tuple[str, str]]:

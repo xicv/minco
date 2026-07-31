@@ -19,8 +19,8 @@
     },
     {
       "path": ".github/workflows/publish-crates.yml",
-      "sha256": "544b0ce554c1415742165c66f69a9e1858dfd8f2c4d28662152d1d499bdd22ad",
-      "size_bytes": 4560
+      "sha256": "a09e667e2761ab850163f33e3c409f3b7a50b773e549ba0f06db6bc56d95b02e",
+      "size_bytes": 4713
     },
     {
       "path": ".gitignore",
@@ -2619,8 +2619,8 @@
     },
     {
       "path": "scripts/test/publish_validation.py",
-      "sha256": "edac75eafdb8b014be8ba98d6637de014fddded18a6b19ccaa65b84dc3f6708a",
-      "size_bytes": 10413
+      "sha256": "271ae48363f76382d38b684d991b32f660a4dbfd29d129a75b8fa0f497655a23",
+      "size_bytes": 10662
     },
     {
       "path": "scripts/test/repository_truth.py",
@@ -3083,7 +3083,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "e88ef1426b122ad523bd11fe106d0d0f884c01c4b3c1f50db19d637e34a500b7",
-  "total_size_bytes": 4007489,
+  "source_tree_sha256": "2a0c9c145afdebf01d01943d946a529cbf27af85d53cdb3c9252a11cfb23a762",
+  "total_size_bytes": 4007891,
   "version": "0.5.0"
 }
