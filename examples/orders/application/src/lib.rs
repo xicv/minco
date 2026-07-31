@@ -3,7 +3,9 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use orders_domain::{CustomerReference, DomainError, Order, OrderId, OrderLine, Quantity, Sku};
+use orders_domain::{
+    CustomerReference, DomainError, Order, OrderId, OrderLine, OrderStatus, Quantity, Sku,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, sync::Arc};
@@ -59,12 +61,90 @@ pub struct PlaceOrderTransaction {
 }
 
 #[async_trait]
-pub trait OrderStore: Send + Sync {
+pub trait PlaceOrderPort: Send + Sync {
     async fn place_order(
         &self,
         transaction: PlaceOrderTransaction,
     ) -> Result<PlaceOrderResult, StoreError>;
+}
+
+#[async_trait]
+pub trait GetOrderPort: Send + Sync {
     async fn get_order(&self, id: OrderId) -> Result<Option<Order>, StoreError>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OrderCursor {
+    pub created_at: DateTime<Utc>,
+    pub id: OrderId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OrderSortField {
+    CreatedAt,
+    Id,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OrderSortTerm {
+    pub field: OrderSortField,
+    pub direction: SortDirection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListOrdersQuery {
+    pub limit: u16,
+    pub after: Option<OrderCursor>,
+    pub sort: Vec<OrderSortTerm>,
+    pub status: Option<OrderStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrderPage {
+    pub orders: Vec<Order>,
+    pub next_cursor: Option<OrderCursor>,
+}
+
+#[async_trait]
+pub trait ListOrdersPort: Send + Sync {
+    async fn list_orders(&self, query: ListOrdersQuery) -> Result<OrderPage, StoreError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConditionalResult<T> {
+    Applied(T),
+    NotFound,
+    PreconditionFailed,
+}
+
+#[async_trait]
+pub trait UpdateOrderPort: Send + Sync {
+    async fn get_order_for_update(&self, id: OrderId) -> Result<Option<Order>, StoreError>;
+    async fn save_order(
+        &self,
+        order: Order,
+        expected_revision: u64,
+    ) -> Result<ConditionalResult<Order>, StoreError>;
+}
+
+#[async_trait]
+pub trait DeleteOrderPort: Send + Sync {
+    async fn delete_order(
+        &self,
+        id: OrderId,
+        expected_revision: u64,
+        deleted_at: DateTime<Utc>,
+    ) -> Result<ConditionalResult<()>, StoreError>;
+}
+
+#[async_trait]
+pub trait OrderReadiness: Send + Sync {
     async fn ready(&self) -> bool;
 }
 
@@ -89,7 +169,7 @@ pub struct PlaceOrder<S: ?Sized, C: ?Sized> {
 
 impl<S, C> PlaceOrder<S, C>
 where
-    S: OrderStore + ?Sized,
+    S: PlaceOrderPort + ?Sized,
     C: Clock + ?Sized,
 {
     #[must_use]
@@ -108,16 +188,7 @@ where
         }
         let idempotency_key = validate_idempotency_key(idempotency_key)?;
         let customer_reference = CustomerReference::parse(command.customer_reference.clone())?;
-        let lines = command
-            .lines
-            .iter()
-            .map(|line| {
-                Ok(OrderLine {
-                    sku: Sku::parse(line.sku.clone())?,
-                    quantity: Quantity::new(line.quantity)?,
-                })
-            })
-            .collect::<Result<Vec<_>, DomainError>>()?;
+        let lines = parse_lines(&command.lines)?;
         let fingerprint = request_fingerprint(actor, &command)?;
         let order = Order::new(customer_reference, lines, self.clock.now())?;
         self.store
@@ -138,7 +209,7 @@ pub struct GetOrder<S: ?Sized> {
 
 impl<S> GetOrder<S>
 where
-    S: OrderStore + ?Sized,
+    S: GetOrderPort + ?Sized,
 {
     #[must_use]
     pub const fn new(store: Arc<S>) -> Self {
@@ -154,6 +225,163 @@ where
             .await?
             .ok_or(ApplicationError::NotFound)
     }
+}
+
+#[derive(Debug)]
+pub struct ListOrders<S: ?Sized> {
+    store: Arc<S>,
+}
+
+impl<S> ListOrders<S>
+where
+    S: ListOrdersPort + ?Sized,
+{
+    #[must_use]
+    pub const fn new(store: Arc<S>) -> Self {
+        Self { store }
+    }
+
+    pub async fn execute(
+        &self,
+        actor: &Actor,
+        query: ListOrdersQuery,
+    ) -> Result<OrderPage, ApplicationError> {
+        if !actor.has_permission("orders.read") {
+            return Err(ApplicationError::Forbidden);
+        }
+        validate_list_query(&query)?;
+        self.store
+            .list_orders(query)
+            .await
+            .map_err(ApplicationError::from)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateOrderCommand {
+    pub customer_reference: Option<String>,
+    pub lines: Option<Vec<PlaceOrderLine>>,
+}
+
+#[derive(Debug)]
+pub struct UpdateOrder<S: ?Sized, C: ?Sized> {
+    store: Arc<S>,
+    clock: Arc<C>,
+}
+
+impl<S, C> UpdateOrder<S, C>
+where
+    S: UpdateOrderPort + ?Sized,
+    C: Clock + ?Sized,
+{
+    #[must_use]
+    pub const fn new(store: Arc<S>, clock: Arc<C>) -> Self {
+        Self { store, clock }
+    }
+
+    pub async fn execute(
+        &self,
+        actor: &Actor,
+        id: OrderId,
+        expected_revision: u64,
+        command: UpdateOrderCommand,
+    ) -> Result<Order, ApplicationError> {
+        if !actor.has_permission("orders.update") {
+            return Err(ApplicationError::Forbidden);
+        }
+        if command.customer_reference.is_none() && command.lines.is_none() {
+            return Err(ApplicationError::Validation(
+                "an order update must change at least one mutable field".into(),
+            ));
+        }
+        let customer_reference = command
+            .customer_reference
+            .map(CustomerReference::parse)
+            .transpose()?;
+        let lines = command.lines.as_deref().map(parse_lines).transpose()?;
+        let mut order = self
+            .store
+            .get_order_for_update(id)
+            .await?
+            .ok_or(ApplicationError::NotFound)?;
+        if order.revision != expected_revision {
+            return Err(ApplicationError::PreconditionFailed);
+        }
+        order.update(customer_reference, lines, self.clock.now())?;
+        match self.store.save_order(order, expected_revision).await? {
+            ConditionalResult::Applied(order) => Ok(order),
+            ConditionalResult::NotFound => Err(ApplicationError::NotFound),
+            ConditionalResult::PreconditionFailed => Err(ApplicationError::PreconditionFailed),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DeleteOrder<S: ?Sized, C: ?Sized> {
+    store: Arc<S>,
+    clock: Arc<C>,
+}
+
+impl<S, C> DeleteOrder<S, C>
+where
+    S: DeleteOrderPort + ?Sized,
+    C: Clock + ?Sized,
+{
+    #[must_use]
+    pub const fn new(store: Arc<S>, clock: Arc<C>) -> Self {
+        Self { store, clock }
+    }
+
+    pub async fn execute(
+        &self,
+        actor: &Actor,
+        id: OrderId,
+        expected_revision: u64,
+    ) -> Result<(), ApplicationError> {
+        if !actor.has_permission("orders.delete") {
+            return Err(ApplicationError::Forbidden);
+        }
+        match self
+            .store
+            .delete_order(id, expected_revision, self.clock.now())
+            .await?
+        {
+            ConditionalResult::Applied(()) => Ok(()),
+            ConditionalResult::NotFound => Err(ApplicationError::NotFound),
+            ConditionalResult::PreconditionFailed => Err(ApplicationError::PreconditionFailed),
+        }
+    }
+}
+
+fn parse_lines(lines: &[PlaceOrderLine]) -> Result<Vec<OrderLine>, DomainError> {
+    lines
+        .iter()
+        .map(|line| {
+            Ok(OrderLine {
+                sku: Sku::parse(line.sku.clone())?,
+                quantity: Quantity::new(line.quantity)?,
+            })
+        })
+        .collect()
+}
+
+fn validate_list_query(query: &ListOrdersQuery) -> Result<(), ApplicationError> {
+    if query.limit == 0 || query.limit > 100 || query.sort.is_empty() || query.sort.len() > 2 {
+        return Err(ApplicationError::Validation(
+            "order list query is outside the supported bounds".into(),
+        ));
+    }
+    let fields = query
+        .sort
+        .iter()
+        .map(|term| term.field)
+        .collect::<BTreeSet<_>>();
+    if fields.len() != query.sort.len() {
+        return Err(ApplicationError::Validation(
+            "order list sort fields must be unique".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_idempotency_key(value: &str) -> Result<String, ApplicationError> {
@@ -197,6 +425,8 @@ pub enum ApplicationError {
     Validation(String),
     #[error("the idempotency key conflicts with an earlier request")]
     IdempotencyConflict,
+    #[error("the resource changed after it was read")]
+    PreconditionFailed,
     #[error("a required service is unavailable")]
     Unavailable,
     #[error("an internal error occurred")]
@@ -237,7 +467,7 @@ mod tests {
         calls: Mutex<usize>,
     }
     #[async_trait]
-    impl OrderStore for FakeStore {
+    impl PlaceOrderPort for FakeStore {
         async fn place_order(
             &self,
             transaction: PlaceOrderTransaction,
@@ -247,12 +477,6 @@ mod tests {
                 order: transaction.order,
                 replayed: false,
             })
-        }
-        async fn get_order(&self, _id: OrderId) -> Result<Option<Order>, StoreError> {
-            Ok(None)
-        }
-        async fn ready(&self) -> bool {
-            true
         }
     }
 
@@ -291,5 +515,50 @@ mod tests {
             .expect("place order");
         assert!(!result.replayed);
         assert_eq!(result.order.customer_reference.as_str(), "PO-42");
+    }
+
+    #[tokio::test]
+    async fn empty_updates_fail_before_the_update_port_is_called() {
+        #[derive(Debug, Default)]
+        struct FakeUpdatePort {
+            calls: Mutex<usize>,
+        }
+        #[async_trait]
+        impl UpdateOrderPort for FakeUpdatePort {
+            async fn get_order_for_update(
+                &self,
+                _id: OrderId,
+            ) -> Result<Option<Order>, StoreError> {
+                *self.calls.lock().expect("test lock") += 1;
+                Ok(None)
+            }
+
+            async fn save_order(
+                &self,
+                _order: Order,
+                _expected_revision: u64,
+            ) -> Result<ConditionalResult<Order>, StoreError> {
+                *self.calls.lock().expect("test lock") += 1;
+                Ok(ConditionalResult::NotFound)
+            }
+        }
+
+        let store = Arc::new(FakeUpdatePort::default());
+        let use_case = UpdateOrder::new(Arc::clone(&store), Arc::new(FixedClock(Utc::now())));
+        let actor = Actor::service("user", ["orders.update".to_owned()]);
+        let result = use_case
+            .execute(
+                &actor,
+                OrderId::new(),
+                1,
+                UpdateOrderCommand {
+                    customer_reference: None,
+                    lines: None,
+                },
+            )
+            .await;
+
+        assert!(matches!(result, Err(ApplicationError::Validation(_))));
+        assert_eq!(*store.calls.lock().expect("test lock"), 0);
     }
 }

@@ -12,16 +12,16 @@
       "yaml_files": 18,
       "json_files": 14,
       "workspace_members": 33,
-      "contract_sha256": "84e48fb8460a6000e4055de391b8cb00f0e17f60df465967207a50bd7d7b910e",
-      "contract_operations": 4,
-      "contract_schemas": 10,
+      "contract_sha256": "f0e0d1aee9858e54f814270b6f78a5c63ea6993311210f6a6f6ee7323838843f",
+      "contract_operations": 7,
+      "contract_schemas": 13,
       "plugins": 16,
       "milestones": 13,
-      "tasks": 60,
-      "rust_files": 128,
+      "tasks": 61,
+      "rust_files": 130,
       "python_files": 17,
       "shell_files": 38,
-      "implementation_files_scanned": 284
+      "implementation_files_scanned": 288
     },
     "findings": [],
     "limitations": [
@@ -30,11 +30,11 @@
     ]
   },
   "metrics": {
-    "rust_files": 128,
-    "rust_lines": 53564,
+    "rust_files": 130,
+    "rust_lines": 57574,
     "unsafe_tokens": 8,
-    "production_unwrap_expect": 108,
-    "sql_files": 14
+    "production_unwrap_expect": 114,
+    "sql_files": 16
   },
   "findings": [
     {
@@ -54,6 +54,12 @@
       "code": "REVIEW-RUST-003",
       "path": "extensions/minco-aws-adapters/examples/render_smoke_assets.rs",
       "message": "dynamic error type in production path; confirm boundary use"
+    },
+    {
+      "severity": "warning",
+      "code": "REVIEW-SQL-001",
+      "path": "examples/orders/migrations/sqlite/0002_resource_concurrency.sql",
+      "message": "migration contains DROP TABLE"
     }
   ],
   "compiler_verification": {

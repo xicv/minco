@@ -11,7 +11,10 @@ use minco_plugin_idempotency::IdempotencyPlugin;
 use minco_plugin_observability::{ObservabilityConfig, ObservabilityPlugin};
 use orders_adapters::MemoryOrderStore;
 use orders_api::ApiState;
-use orders_application::{OrderStore, SystemClock};
+use orders_application::{
+    DeleteOrderPort, GetOrderPort, ListOrdersPort, OrderReadiness, PlaceOrderPort, SystemClock,
+    UpdateOrderPort,
+};
 use std::{env, net::IpAddr, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,10 +159,14 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
     let health = composed.services.get::<HealthRegistry>()?;
     let store = build_store(config).await?;
     health.register(Arc::new(StoreHealthCheck {
-        store: Arc::clone(&store),
+        store: Arc::clone(&store.readiness),
     }));
-    let state = ApiState::new(
-        store,
+    let state = ApiState::from_ports(
+        store.place_orders,
+        store.get_orders,
+        store.list_orders,
+        store.update_orders,
+        store.delete_orders,
         Arc::new(SystemClock),
         health,
         config.allow_development_headers,
@@ -189,16 +196,53 @@ pub async fn build_application(config: &AppConfig) -> Result<BuiltApplication> {
     })
 }
 
-async fn build_store(config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
+struct StoreBundle {
+    place_orders: Arc<dyn PlaceOrderPort>,
+    get_orders: Arc<dyn GetOrderPort>,
+    list_orders: Arc<dyn ListOrdersPort>,
+    update_orders: Arc<dyn UpdateOrderPort>,
+    delete_orders: Arc<dyn DeleteOrderPort>,
+    readiness: Arc<dyn OrderReadiness>,
+}
+
+impl StoreBundle {
+    fn new<S>(store: Arc<S>) -> Self
+    where
+        S: PlaceOrderPort
+            + GetOrderPort
+            + ListOrdersPort
+            + UpdateOrderPort
+            + DeleteOrderPort
+            + OrderReadiness
+            + 'static,
+    {
+        let place_orders: Arc<dyn PlaceOrderPort> = store.clone();
+        let get_orders: Arc<dyn GetOrderPort> = store.clone();
+        let list_orders: Arc<dyn ListOrdersPort> = store.clone();
+        let update_orders: Arc<dyn UpdateOrderPort> = store.clone();
+        let delete_orders: Arc<dyn DeleteOrderPort> = store.clone();
+        let readiness: Arc<dyn OrderReadiness> = store;
+        Self {
+            place_orders,
+            get_orders,
+            list_orders,
+            update_orders,
+            delete_orders,
+            readiness,
+        }
+    }
+}
+
+async fn build_store(config: &AppConfig) -> Result<StoreBundle> {
     match config.database_kind {
-        DatabaseKind::Memory => Ok(Arc::new(MemoryOrderStore::new())),
+        DatabaseKind::Memory => Ok(StoreBundle::new(Arc::new(MemoryOrderStore::new()))),
         DatabaseKind::Sqlite => build_sqlite_store(config).await,
         DatabaseKind::Postgres => build_postgres_store(config).await,
     }
 }
 
 #[cfg(feature = "sqlite")]
-async fn build_sqlite_store(config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
+async fn build_sqlite_store(config: &AppConfig) -> Result<StoreBundle> {
     use minco_sqlx_sqlite::SqlitePoolConfig;
     use orders_adapters::SqliteOrderStore;
     if let Some(parent) = config.sqlite_path.parent() {
@@ -208,16 +252,16 @@ async fn build_sqlite_store(config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
     database.max_connections = config.database_max_connections;
     let store = SqliteOrderStore::connect(&database).await?;
     store.migrate("examples/orders/migrations/sqlite").await?;
-    Ok(Arc::new(store))
+    Ok(StoreBundle::new(Arc::new(store)))
 }
 
 #[cfg(not(feature = "sqlite"))]
-async fn build_sqlite_store(_config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
+async fn build_sqlite_store(_config: &AppConfig) -> Result<StoreBundle> {
     bail!("the orders-service sqlite feature is disabled")
 }
 
 #[cfg(feature = "postgres")]
-async fn build_postgres_store(config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
+async fn build_postgres_store(config: &AppConfig) -> Result<StoreBundle> {
     use minco_sqlx_postgres::PostgresPoolConfig;
     use orders_adapters::PostgresOrderStore;
     let mut database = PostgresPoolConfig::serverless(
@@ -228,11 +272,11 @@ async fn build_postgres_store(config: &AppConfig) -> Result<Arc<dyn OrderStore>>
     );
     database.max_connections = config.database_max_connections;
     let store = PostgresOrderStore::connect(&database).await?;
-    Ok(Arc::new(store))
+    Ok(StoreBundle::new(Arc::new(store)))
 }
 
 #[cfg(not(feature = "postgres"))]
-async fn build_postgres_store(_config: &AppConfig) -> Result<Arc<dyn OrderStore>> {
+async fn build_postgres_store(_config: &AppConfig) -> Result<StoreBundle> {
     bail!("the orders-service postgres feature is disabled")
 }
 
@@ -249,7 +293,7 @@ fn parse_bool(name: &str, default: bool) -> Result<bool> {
 }
 
 struct StoreHealthCheck {
-    store: Arc<dyn OrderStore>,
+    store: Arc<dyn OrderReadiness>,
 }
 
 impl std::fmt::Debug for StoreHealthCheck {

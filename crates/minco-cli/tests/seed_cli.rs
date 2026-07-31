@@ -149,6 +149,30 @@ fn sqlite_execution_requires_the_reviewed_digest_and_emits_a_verified_receipt() 
         .as_str()
         .expect("migration plan digest");
     let migration_receipt = target.relative("migration-receipt.json");
+    let gated = run_minco(
+        &[
+            "db",
+            "migrate",
+            "--set",
+            "orders-sqlite",
+            "--database-url-env",
+            "MINCO_SEED_TEST_DATABASE_URL",
+            "--expected-plan-digest",
+            migration_digest,
+            "--receipt",
+            migration_receipt
+                .to_str()
+                .expect("UTF-8 migration receipt path"),
+        ],
+        Some(("MINCO_SEED_TEST_DATABASE_URL", &database_url)),
+    );
+    assert!(!gated.status.success());
+    assert!(
+        String::from_utf8_lossy(&gated.stderr)
+            .contains("migration plan contains gated data-rewrite or destructive migrations")
+    );
+    assert!(!target.absolute("migration-receipt.json").exists());
+
     let migration = run_minco(
         &[
             "db",
@@ -159,6 +183,7 @@ fn sqlite_execution_requires_the_reviewed_digest_and_emits_a_verified_receipt() 
             "MINCO_SEED_TEST_DATABASE_URL",
             "--expected-plan-digest",
             migration_digest,
+            "--allow-destructive",
             "--receipt",
             migration_receipt
                 .to_str()

@@ -5,6 +5,7 @@ mod error;
 mod middleware;
 mod plugin;
 mod principal;
+mod resource;
 
 pub use error::{ApiFailure, ProblemDetails, problem_response};
 pub use middleware::{
@@ -16,3 +17,8 @@ pub use plugin::{
     required_header_policy, required_request_body_bytes, validate_plugin_http_modules,
 };
 pub use principal::{Principal, PrincipalError, RequestMetadata, principal_from_headers};
+pub use resource::{
+    Cursor, CursorPageInfo, EntityTagError, ResourceCollection, ResourceDocument,
+    ResourceListPolicy, ResourceListQuery, ResourceQueryError, SortDirection, SortTerm,
+    StrongEntityTag, parse_if_match, parse_resource_list_query,
+};

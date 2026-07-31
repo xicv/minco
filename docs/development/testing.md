@@ -28,6 +28,9 @@ The framework's own tests cover:
 - duplicate/missing plugin capabilities and dependency cycles;
 - typed service registration and injection;
 - OpenAPI profile validation and deterministic generation;
+- resource envelopes, bounded cursor parsing, explicit compatibility
+  classification, strong entity tags, `428`/`412` preconditions and atomic
+  adapter revision writes, including immutable create replay after deletion;
 - route/operation bijection;
 - cost and performance policy diagnostics;
 - SAM rendering and public/authenticated route behavior;

@@ -11,7 +11,10 @@ pub use compatibility::{
     ContractSchemaChange, diff_contracts,
 };
 pub use generate::{generate_rust, generated_contract_digest};
-pub use model::{ContractDocument, ContractOperation, HttpMethod, OwnedOperation};
+pub use model::{
+    ContractDocument, ContractOperation, HttpMethod, OwnedOperation, OwnedResourceOperation,
+    ResourceAction,
+};
 pub use validate::{
     ContractError, ContractFinding, ContractReport, Severity, load_contract, load_contract_source,
 };

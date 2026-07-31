@@ -100,15 +100,17 @@ milestones:
     exists.
 - id: M9
   name: Application lifecycle and developer experience
-  status: complete
+  status: active
   depends_on:
   - M4
   outcome: One graph-driven control plane covers typed configuration, database lifecycle, safe seeders, local
-    development, vertical-slice generation, and compatibility reporting.
+    development, resource API conventions, vertical-slice generation, and compatibility reporting.
   exit_criteria:
   - Generated PostgreSQL and SQLite applications complete the documented local golden path.
   - Configuration, migration, seed, and process plans are strict, redacted, deterministic, and inspectable.
   - Generators produce reviewed structure and failing tests without fake business behavior.
+  - Resource APIs use one validated contract for success envelopes, cursor pagination, conditional writes, and
+    stable Problem responses without introducing a generic CRUD repository.
 - id: M10
   name: Safe deployment controller
   status: active

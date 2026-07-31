@@ -13,13 +13,14 @@ readme = "README.md"
 keywords = ["minco", "axum", "tower", "http", "web"]
 categories = ["web-programming::http-server"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 [dependencies]
 minco-core.workspace = true
 axum.workspace = true
 http.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_urlencoded.workspace = true
 thiserror.workspace = true
 tower.workspace = true
 tower-http.workspace = true

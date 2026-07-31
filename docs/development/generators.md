@@ -32,6 +32,7 @@ because the current command has no ambiguous implicit set selection.
 ```text
 cargo minco make module <name> [--dry-run]
 cargo minco make operation <operationId> [--dry-run]
+cargo minco make resource <name> [--dry-run]
 cargo minco make migration <name> [--dry-run]
 cargo minco make seeder <name> [--dry-run]
 cargo minco make worker <name> [--dry-run]
@@ -52,6 +53,13 @@ updates the operation trace in `minco.toml`, and adds a short implementation
 guide. Both specifications fail with an explicit `TODO(operationId)` until the
 business behavior and Axum contract assertions replace them. `make test`
 generates only the two specifications and trace update.
+
+`make resource` requires one already-reviewed, valid and complete OpenAPI
+family containing create, list, read, update and delete. It plans the five
+operation specification pairs, documentation files and traces as one atomic
+change. Missing actions fail before writes. The command never creates resource
+fields, authorization, domain rules, deletion policy, migrations or adapter
+code.
 
 `make migration` chooses the next integer version from the single configured
 migration set, creates an empty SQL file, and records a conservative

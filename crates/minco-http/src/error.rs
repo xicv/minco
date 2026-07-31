@@ -60,6 +60,36 @@ impl ApiFailure {
         )
     }
 
+    pub fn precondition_required(request_id: impl Into<String>) -> Self {
+        Self::new(
+            StatusCode::PRECONDITION_REQUIRED,
+            "precondition_required",
+            "Precondition required",
+            "This operation requires an If-Match header containing the current entity tag.",
+            request_id,
+        )
+    }
+
+    pub fn precondition_failed(request_id: impl Into<String>) -> Self {
+        Self::new(
+            StatusCode::PRECONDITION_FAILED,
+            "precondition_failed",
+            "Precondition failed",
+            "The resource changed after it was read. Fetch the current representation and retry.",
+            request_id,
+        )
+    }
+
+    pub fn invalid_if_match(request_id: impl Into<String>) -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_if_match",
+            "Invalid If-Match header",
+            "If-Match must contain exactly one strong entity tag returned by this API.",
+            request_id,
+        )
+    }
+
     pub fn internal(request_id: impl Into<String>) -> Self {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,

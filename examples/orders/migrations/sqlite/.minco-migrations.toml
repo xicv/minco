@@ -10,3 +10,8 @@ verify_tables = ["orders", "order_idempotency"]
 version = 1
 risk = "additive"
 reversible = false
+
+[[migration]]
+version = 2
+risk = "data_rewrite"
+reversible = false
