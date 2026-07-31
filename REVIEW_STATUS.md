@@ -6,11 +6,11 @@ release and available across all 28 crates.io packages. Exact-main local,
 hosted, disposable AWS verification, exact-artifact promotion and cleanup
 evidence are recorded separately in `VERIFICATION.md`.
 
-The current development boundary is post-`0.4.0`: local-first qualification,
-zero-idle cost evidence, the AWS application profile, rollback/static/preview
-lifecycle, plugin conformance, adoption evidence and finally the versioned
-documentation product. No later source is a release until independently
-qualified, tagged and published.
+The current workspace is an untagged, unpublished `0.5.0` candidate. It
+contains the opt-in five-action resource API convention, local-authoritative CI
+split and structured zero-idle cost evidence. M8-T09 must still prove the exact
+local, PostgreSQL, package and hosted release gates. No later source is a
+release until independently qualified, merged, tagged and published.
 
 This record separates:
 

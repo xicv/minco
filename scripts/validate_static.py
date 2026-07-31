@@ -223,6 +223,66 @@ class Validator:
                 "published_baseline must be an exact semantic version",
                 truth_path,
             )
+        published_baseline = str(truth.get("published_baseline", ""))
+        expected_release_state = (
+            "published" if published_baseline == workspace_version else "candidate"
+        )
+        if truth.get("workspace_release_state") != expected_release_state:
+            self.error(
+                "STATIC-TRUTH-RELEASE-001",
+                f"workspace_release_state must be {expected_release_state!r} when "
+                f"workspace version is {workspace_version} and published baseline is "
+                f"{published_baseline}",
+                truth_path,
+            )
+        if expected_release_state == "candidate":
+            version_parts = tuple(int(part) for part in workspace_version.split("."))
+            baseline_parts = tuple(int(part) for part in published_baseline.split("."))
+            if version_parts <= baseline_parts:
+                self.error(
+                    "STATIC-TRUTH-RELEASE-004",
+                    "candidate workspace version must be newer than the published baseline",
+                    truth_path,
+                )
+            guide_path = (
+                self.root
+                / "docs/adoption"
+                / f"{published_baseline}-to-{workspace_version}.md"
+            )
+            guide_source = guide_path.read_text() if guide_path.is_file() else ""
+            guide_markers = [
+                f"Published baseline: `{published_baseline}`",
+                f"Candidate workspace version: `{workspace_version}`",
+                "Candidate publication status: `unpublished`",
+            ]
+            if any(marker not in guide_source for marker in guide_markers):
+                self.error(
+                    "STATIC-TRUTH-RELEASE-002",
+                    "unpublished candidate requires a versioned upgrade guide with "
+                    "baseline, workspace-version and publication-state markers",
+                    guide_path,
+                )
+            changelog_path = self.root / "CHANGELOG.md"
+            changelog_source = (
+                changelog_path.read_text() if changelog_path.is_file() else ""
+            )
+            release_notes = re.search(
+                rf"^## \[{re.escape(workspace_version)}\] - \d{{4}}-\d{{2}}-\d{{2}}\n"
+                r"(?P<body>.*?)(?=^## \[|\Z)",
+                changelog_source,
+                flags=re.MULTILINE | re.DOTALL,
+            )
+            notes_body = release_notes.group("body").strip() if release_notes else ""
+            if (
+                not notes_body
+                or "No changes yet." in notes_body
+                or not re.search(r"(?m)^- \S", notes_body)
+            ):
+                self.error(
+                    "STATIC-TRUTH-RELEASE-003",
+                    "unpublished candidate requires dated, substantive changelog notes",
+                    changelog_path,
+                )
         worker_source_path = self.root / "extensions/minco-aws-worker/src/lib.rs"
         worker_source = worker_source_path.read_text() if worker_source_path.is_file() else ""
         worker_manifest_path = self.root / "extensions/minco-aws-worker/Cargo.toml"
@@ -625,32 +685,36 @@ class Validator:
             self.root / "README.md": [
                 f"Published baseline: `{truth['published_baseline']}`",
                 f"Current workspace version: `{workspace_version}`",
+                f"Workspace release state: `{truth['workspace_release_state']}`",
                 f"Current publishable package count: `{expected_package_count}`",
             ],
             self.root / "VERIFICATION.md": [
                 f"Current workspace version: `{workspace_version}`",
                 f"Published baseline: `{truth['published_baseline']}`",
+                f"Workspace release state: `{truth['workspace_release_state']}`",
             ],
             self.root / "CODEX_HANDOFF.md": [
                 f"Published baseline: `{truth['published_baseline']}`",
                 f"Current workspace version: `{workspace_version}`",
+                f"Workspace release state: `{truth['workspace_release_state']}`",
             ],
             self.root / "docs/adoption/incremental-adoption.md": [
                 f"Published baseline: `{truth['published_baseline']}`",
                 f"Current workspace version: `{workspace_version}`",
-            ],
-            self.root / "docs/adoption/0.3.1-to-0.4.0.md": [
-                f"Target published family: `{workspace_version}`",
+                f"Workspace release state: `{truth['workspace_release_state']}`",
             ],
             self.root / "docs/development/publishing.md": [
                 f"published `{truth['published_baseline']}` release",
             ],
             self.root / "docs/development/using-minco-crate.md": [
-                f"published baseline and current workspace are `{workspace_version}`",
+                f"Published baseline: `{truth['published_baseline']}`",
+                f"Current workspace version: `{workspace_version}`",
+                f"Workspace release state: `{truth['workspace_release_state']}`",
             ],
             self.root / "docs/vision/minco-framework-definition.md": [
                 f"Published baseline: `{truth['published_baseline']}`",
                 f"Current workspace version: `{workspace_version}`",
+                f"Workspace release state: `{truth['workspace_release_state']}`",
             ],
             self.root / "docs/reference/cli.md": [
                 "cargo minco deploy verify",

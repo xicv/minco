@@ -52,6 +52,7 @@ flowchart LR
     NM8T06["M8-T06<br/>Publish Minco 0.3.1 text-only and SQLx isolation patch"]
     NM8T07["M8-T07<br/>Prepare the Minco 0.4.0 source and package boundary"]
     NM8T08["M8-T08<br/>Close 0.4.0 published repository truth"]
+    NM8T09["M8-T09<br/>Prepare the Minco 0.5.0 resource API and zero-idle release candidate"]
     NM9T01["M9-T01<br/>Define the framework-completion golden path and documentation map"]
     NM9T02["M9-T02<br/>Add a typed environment and secret-reference graph"]
     NM9T03["M9-T03<br/>Add database status plan migrate and verification"]
@@ -59,6 +60,8 @@ flowchart LR
     NM9T05["M9-T05<br/>Add graph-driven cargo minco dev"]
     NM9T06["M9-T06<br/>Add contract-aware generators and customizable stubs"]
     NM9T07["M9-T07<br/>Add OpenAPI compatibility diff and application upgrade reports"]
+    NM9T08["M9-T08<br/>Standardize resource API conventions and scaffolding"]
+    NM9T09["M9-T09<br/>Make local quality authoritative and hosted CI essential-only"]
     NM0T01 --> NM0T02
     NM0T02 --> NM0T03
     NM0T01 --> NM1T01
@@ -139,6 +142,8 @@ flowchart LR
     NM9T07 --> NM8T07
     NM10T03 --> NM8T07
     NM8T07 --> NM8T08
+    NM9T09 --> NM8T09
+    NM10T07 --> NM8T09
     NM6T09 --> NM9T01
     NM6T10 --> NM9T02
     NM9T01 --> NM9T02
@@ -149,3 +154,5 @@ flowchart LR
     NM9T04 --> NM9T05
     NM9T05 --> NM9T06
     NM9T06 --> NM9T07
+    NM9T07 --> NM9T08
+    NM9T08 --> NM9T09

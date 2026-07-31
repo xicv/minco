@@ -2,7 +2,7 @@
 id: M8-T09
 title: Prepare the Minco 0.5.0 resource API and zero-idle release candidate
 milestone: M8
-status: ready
+status: active
 priority: critical
 area: release/crates-io
 depends_on: [M9-T09, M10-T07]

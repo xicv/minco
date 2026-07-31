@@ -6,6 +6,7 @@ import json
 import shutil
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
+TRUTH = tomllib.loads((ROOT / "verification/repository-truth.toml").read_text())
+WORKSPACE_VERSION = TRUTH["workspace_version"]
+PUBLISHED_BASELINE = TRUTH["published_baseline"]
 
 from validate_static import (  # noqa: E402
     Validator,
@@ -53,11 +57,39 @@ class RepositoryTruthTests(unittest.TestCase):
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text().replace(
-                'workspace_version = "0.4.0"',
+                f'workspace_version = "{WORKSPACE_VERSION}"',
                 'workspace_version = "9.9.9"',
             )
         )
         self.assertIn("STATIC-TRUTH-VERSION-001", self.truth_codes())
+
+    def test_unpublished_candidate_requires_an_explicit_release_state(self) -> None:
+        truth = self.root / "verification/repository-truth.toml"
+        truth.write_text(
+            truth.read_text().replace(
+                'workspace_release_state = "candidate"',
+                'workspace_release_state = "published"',
+            )
+        )
+        self.assertIn("STATIC-TRUTH-RELEASE-001", self.truth_codes())
+
+    def test_unpublished_candidate_requires_an_upgrade_guide(self) -> None:
+        guide = (
+            self.root
+            / "docs/adoption"
+            / f"{PUBLISHED_BASELINE}-to-{WORKSPACE_VERSION}.md"
+        )
+        guide.unlink()
+        self.assertIn("STATIC-TRUTH-RELEASE-002", self.truth_codes())
+
+    def test_unpublished_candidate_requires_substantive_changelog_notes(self) -> None:
+        changelog = self.root / "CHANGELOG.md"
+        changelog.write_text(
+            "# Changelog\n\n"
+            "## [Unreleased]\n\n"
+            "No changes yet.\n"
+        )
+        self.assertIn("STATIC-TRUTH-RELEASE-003", self.truth_codes())
 
     def test_readme_inventory_drift_has_a_stable_code(self) -> None:
         readme = self.root / "README.md"
@@ -111,9 +143,25 @@ class RepositoryTruthTests(unittest.TestCase):
         self.assertIn("STATIC-TRUTH-PACKAGES-004", self.truth_codes())
 
     def test_current_published_baseline_requires_the_full_package_count(self) -> None:
+        cargo = self.root / "Cargo.toml"
+        cargo.write_text(
+            cargo.read_text().replace(
+                f'version = "{WORKSPACE_VERSION}"',
+                f'version = "{PUBLISHED_BASELINE}"',
+            )
+        )
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
-            truth.read_text().replace(
+            truth.read_text()
+            .replace(
+                f'workspace_version = "{WORKSPACE_VERSION}"',
+                f'workspace_version = "{PUBLISHED_BASELINE}"',
+            )
+            .replace(
+                'workspace_release_state = "candidate"',
+                'workspace_release_state = "published"',
+            )
+            .replace(
                 "published_package_count = 28",
                 "published_package_count = 27",
             )
@@ -121,9 +169,25 @@ class RepositoryTruthTests(unittest.TestCase):
         self.assertIn("STATIC-TRUTH-PUBLISHED-002", self.truth_codes())
 
     def test_current_published_baseline_has_no_candidate_packages(self) -> None:
+        cargo = self.root / "Cargo.toml"
+        cargo.write_text(
+            cargo.read_text().replace(
+                f'version = "{WORKSPACE_VERSION}"',
+                f'version = "{PUBLISHED_BASELINE}"',
+            )
+        )
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
-            truth.read_text().replace(
+            truth.read_text()
+            .replace(
+                f'workspace_version = "{WORKSPACE_VERSION}"',
+                f'workspace_version = "{PUBLISHED_BASELINE}"',
+            )
+            .replace(
+                'workspace_release_state = "candidate"',
+                'workspace_release_state = "published"',
+            )
+            .replace(
                 "new_publishable_packages = []",
                 'new_publishable_packages = ["minco-config"]',
             )

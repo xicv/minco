@@ -14,6 +14,10 @@ crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
+The current workspace is an unpublished `0.5.0` candidate with the same
+28-package inventory. Candidate qualification must use the exact source and
+must not be described as registry, tag or deployment proof.
+
 | Package | Role |
 |---|---|
 | `minco-config` | Typed environment graph, strict schema, secret references, provenance and deterministic digest. |
@@ -136,9 +140,9 @@ trusted publishing is unavailable:
    qualified SHA using JJ:
 
    ```bash
-   jj tag set v0.4.0 -r <qualified-main-sha>
+   jj tag set v<workspace-version> -r <qualified-main-sha>
    jj git export
-   git push origin refs/tags/v0.4.0
+   git push origin refs/tags/v<workspace-version>
    ```
 
 5. Confirm the remote tag resolves to the qualified `main` SHA, then publish

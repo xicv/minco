@@ -1,10 +1,20 @@
 # Minco verification and release evidence
 
 Date: 2026-07-31
-Current workspace version: `0.4.0`
+Current workspace version: `0.5.0`
 Published baseline: `0.4.0`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish the published baseline
 from later source, deployment and release-candidate work.
+
+## M8-T09 `0.5.0` source and package candidate
+
+The candidate is active in the isolated
+`/Users/xicao/Projects/minco-task-m8-t09` JJ workspace. It includes the
+accepted M9-T08 resource API convention, M9-T09 local/hosted CI boundary and
+M10-T07 zero-idle cost evidence. Exact final-source local, PostgreSQL, package
+and hosted results remain pending; no merge, tag, crates.io publication,
+GitHub release or AWS mutation is claimed.
 
 ## `0.4.0` release closure
 

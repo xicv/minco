@@ -482,8 +482,13 @@ class PublishValidator:
                 else:
                     self.warning("PUBLISH-071", message, manifest)
                 continue
-            versions = {
-                item.get("num") for item in payload.get("versions", []) if not item.get("yanked", False)
+            all_versions = {
+                item.get("num") for item in payload.get("versions", [])
+            }
+            published_versions = {
+                item.get("num")
+                for item in payload.get("versions", [])
+                if not item.get("yanked", False)
             }
             if self.expect_unpublished:
                 self.error(
@@ -491,13 +496,13 @@ class PublishValidator:
                     f"crate name {name} already exists on crates.io; first publication cannot claim it",
                     manifest,
                 )
-            elif self.expect_published and version not in versions:
+            elif self.expect_published and version not in published_versions:
                 self.error(
                     "PUBLISH-074",
                     f"{name} {version} is not published on crates.io",
                     manifest,
                 )
-            elif not self.expect_published and version in versions:
+            elif not self.expect_published and version in all_versions:
                 self.error(
                     "PUBLISH-072",
                     f"{name} {version} already exists on crates.io; publishing this version will fail",

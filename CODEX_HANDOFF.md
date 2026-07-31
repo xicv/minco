@@ -1,11 +1,12 @@
-# Minco post-0.4.0 handoff
+# Minco 0.5.0 candidate handoff
 
 Date: 2026-07-31
 Published baseline: `0.4.0`
-Current workspace version: `0.4.0`
+Current workspace version: `0.5.0`
+Workspace release state: `candidate`
 Exact release source: `65bf94045448bdbeedd37e10b1a004c926513508`
-Last completed task: `M8-T08`
-Next ready task: `M10-T07`
+Last completed tasks: `M9-T09`, `M10-T07`
+Active task: `M8-T09`
 
 ## Closed release boundary
 
@@ -28,7 +29,9 @@ version. It does not treat registry unavailability as a pass.
 
 ## Approved continuation
 
-The post-`0.4.0` program targets a qualified `0.5.0` candidate:
+The post-`0.4.0` program now contains the standardized resource API,
+local-authoritative CI split and zero-idle cost research. M8-T09 is qualifying
+that exact source as an untagged, unpublished `0.5.0` candidate:
 
 1. close repository truth and release-state documentation;
 2. make comprehensive qualification local and source-bound;
