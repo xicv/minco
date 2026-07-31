@@ -11,7 +11,7 @@ composition.
 Enable only the required service features:
 
 ```toml
-minco-aws-adapters = { version = "0.4.0", features = ["s3", "sqs"] }
+minco-aws-adapters = { version = "0.5.0", features = ["s3", "sqs"] }
 ```
 
 The `full` feature enables S3, SQS, SES v2, Cognito user-pool administration,

@@ -9,7 +9,7 @@ Applications construct clients and adapters in their composition root.
 Enable only the services used by the application:
 
 ```toml
-minco-aws-adapters = { version = "0.4.0", features = ["s3", "sqs"] }
+minco-aws-adapters = { version = "0.5.0", features = ["s3", "sqs"] }
 ```
 
 Register `AwsAdaptersPlugin` with the matching `AwsAdapterSelection` alongside

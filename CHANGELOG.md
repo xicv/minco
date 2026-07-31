@@ -7,6 +7,60 @@ Semantic Versioning once public releases begin.
 
 No changes yet.
 
+## [0.5.0] - 2026-07-31
+
+### Added
+
+- Added the opt-in OpenAPI-first resource convention for complete create, list,
+  read, update and delete families. Resource operations carry validated
+  identity/action metadata; success responses use predictable data/page
+  envelopes; errors remain RFC 9457 Problem Details.
+- Added bounded opaque cursor pagination, deterministic sort/filter allowlists,
+  strong entity tags, required `If-Match` conditional updates/deletes and
+  immutable idempotent-create replay semantics.
+- Added `cargo minco make resource <name>` to select an already reviewed
+  five-action contract family and atomically plan failing application/HTTP
+  specifications, documentation and operation traces without generating
+  domain policy, persistence or fake success.
+- Completed the Orders reference resource through application-owned ports,
+  memory, PostgreSQL and SQLite adapters, Axum contract tests and real-service
+  HTTP lifecycle coverage.
+- Added typed Plan cost classes and pricing-confidence evidence for
+  zero-provisioned-compute profiles, including request/storage dimensions,
+  incomplete allowances and explicit one-time cleanup policy.
+
+### Changed
+
+- The Orders external contract now exposes all five resource actions. Create,
+  read and update return `{ "data": ... }`; list returns `data` plus bounded
+  cursor-page metadata; delete returns `204 No Content`.
+- Orders update and delete now require `If-Match`; missing and stale
+  preconditions return `428` and `412` before persistence. Create responses
+  return a stable replay snapshot even after later update or deletion.
+- Optional hosted CI now defaults to a small `essential` clean-Linux
+  qualification, while the authoritative full matrix remains local and a
+  separately dispatched `release` profile retains browser, package,
+  Plan/SAM, native ARM64, Rustack and E2E evidence.
+
+### Documentation
+
+- Added the `0.4.0` to `0.5.0` migration guide with the resource API wire
+  format, generator boundary, application-layer responsibilities, Plan/cost
+  additions and local/hosted verification profiles.
+- Documented the standardized resource contract, tests and generator workflow
+  without introducing a generic repository, ORM, Active Record layer or hidden
+  SQL.
+
+### Compatibility boundary
+
+This is a pre-1.0 minor release candidate. The standardized resource response
+shape, conditional-write behavior, operation family and serialized Plan cost
+surface are public compatibility changes. Existing applications opt in by
+declaring complete resource metadata and migrating their contract and client
+handling deliberately. The 28-package family is still unpublished at `0.5.0`;
+source/package qualification does not prove merge, tag, crates.io publication,
+live AWS deployment or production promotion.
+
 ## [0.4.0] - 2026-07-30
 
 ### Added

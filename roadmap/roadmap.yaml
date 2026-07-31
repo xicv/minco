@@ -87,7 +87,7 @@ milestones:
   - Adoption gaps are fixed in bounded Minco tasks or retained as explicit application policy.
 - id: M8
   name: Cargo publication and ecosystem bootstrap
-  status: complete
+  status: active
   depends_on:
   - M0
   outcome: A versioned Minco crate family, facade crate, Cargo subcommand, and application generator pass crates.io
@@ -98,6 +98,8 @@ milestones:
   - The facade feature matrix, workspace tests, documentation, and cargo publish dry-run pass on Rust 1.97.1.
   - The first release is uploaded in dependency order and trusted publishing is configured only after ownership
     exists.
+  - Later pre-1.0 minor candidates preserve the lock-step package family, publish from exact qualified tags, and
+    keep source, hosted, registry, documentation and deployment evidence separate.
 - id: M9
   name: Application lifecycle and developer experience
   status: active

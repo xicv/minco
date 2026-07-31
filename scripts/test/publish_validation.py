@@ -28,6 +28,9 @@ from publish import (  # noqa: E402
 )
 
 MANIFEST = ROOT / "crates" / "minco-contract" / "Cargo.toml"
+WORKSPACE_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"][
+    "package"
+]["version"]
 
 
 def validate(package: dict[str, object]) -> list[tuple[str, str]]:
@@ -77,18 +80,25 @@ assert "--dry-run" not in publish_command(selected, "crates-io", execute=True)
 with tempfile.TemporaryDirectory(prefix="minco-package-patches-") as temporary:
     package_root = Path(temporary)
     for name in selected:
-        manifest = package_root / "target" / "package" / f"{name}-0.4.0" / "Cargo.toml"
+        manifest = (
+            package_root
+            / "target"
+            / "package"
+            / f"{name}-{WORKSPACE_VERSION}"
+            / "Cargo.toml"
+        )
         manifest.parent.mkdir(parents=True)
         manifest.write_text("[package]\n")
-    patch_arguments = archive_patch_arguments(package_root, "0.4.0", selected)
+    patch_arguments = archive_patch_arguments(package_root, WORKSPACE_VERSION, selected)
     assert patch_arguments == [
         "--config",
-        f'patch.crates-io.minco-core.path="{package_root}/target/package/minco-core-0.4.0"',
+        f'patch.crates-io.minco-core.path="{package_root}/target/package/minco-core-{WORKSPACE_VERSION}"',
         "--config",
-        f'patch.crates-io.minco-config.path="{package_root}/target/package/minco-config-0.4.0"',
+        f'patch.crates-io.minco-config.path="{package_root}/target/package/minco-config-{WORKSPACE_VERSION}"',
     ]
     packaged_test = packaged_test_command(
-        package_root / "target/package/minco-config-0.4.0/Cargo.toml",
+        package_root
+        / f"target/package/minco-config-{WORKSPACE_VERSION}/Cargo.toml",
         patch_arguments,
     )
     assert "--offline" in packaged_test
@@ -98,11 +108,14 @@ print("Coordinated dry-run and unpacked-archive fixtures passed.")
 
 consumer_manifest = external_consumer_manifest(
     "minco-archive-no-default",
-    "0.4.0",
-    ['minco = { version = "=0.4.0", default-features = false }'],
+    WORKSPACE_VERSION,
+    [f'minco = {{ version = "={WORKSPACE_VERSION}", default-features = false }}'],
 )
 assert 'name = "minco-archive-no-default"' in consumer_manifest
-assert 'minco = { version = "=0.4.0", default-features = false }' in consumer_manifest
+assert (
+    f'minco = {{ version = "={WORKSPACE_VERSION}", default-features = false }}'
+    in consumer_manifest
+)
 
 print("External archive-consumer manifest fixtures passed.")
 
@@ -124,12 +137,12 @@ with tempfile.TemporaryDirectory(prefix="minco-release-ref-") as temporary:
         mock.patch.dict(os.environ, {}, clear=True),
         mock.patch("publish.run", return_value=tagged) as run_mock,
     ):
-        verify_release_ref("v0.4.0")
+        verify_release_ref(f"v{WORKSPACE_VERSION}")
         assert run_mock.call_args.args[0] == [
             "jj",
             "log",
             "-r",
-            '(@ | @-) & tags(exact:"v0.4.0")',
+            f'(@ | @-) & tags(exact:"v{WORKSPACE_VERSION}")',
             "--no-graph",
             "--template",
             'commit_id ++ "\n"',
@@ -145,9 +158,11 @@ with tempfile.TemporaryDirectory(prefix="minco-release-ref-") as temporary:
         mock.patch("publish.run", return_value=untagged),
     ):
         try:
-            verify_release_ref("v0.4.0")
+            verify_release_ref(f"v{WORKSPACE_VERSION}")
         except SystemExit as error:
-            assert str(error) == "release commit is not tagged v0.4.0"
+            assert str(error) == (
+                f"release commit is not tagged v{WORKSPACE_VERSION}"
+            )
         else:
             raise AssertionError("untagged JJ publication must fail closed")
 
@@ -171,7 +186,7 @@ published_validator.packages = {"minco-contract": (MANIFEST, package)}
 with mock.patch(
     "validate_publish.urllib.request.urlopen",
     return_value=registry_response(
-        {"versions": [{"num": "0.4.0", "yanked": False}]}
+        {"versions": [{"num": WORKSPACE_VERSION, "yanked": False}]}
     ),
 ):
     published_validator.validate_registry_names()
@@ -200,7 +215,7 @@ assert [
     (
         "PUBLISH-074",
         "error",
-        "minco-contract 0.4.0 is not published on crates.io",
+        f"minco-contract {WORKSPACE_VERSION} is not published on crates.io",
     )
 ]
 
@@ -215,7 +230,7 @@ yanked_version_validator.packages = {"minco-contract": (MANIFEST, package)}
 with mock.patch(
     "validate_publish.urllib.request.urlopen",
     return_value=registry_response(
-        {"versions": [{"num": "0.4.0", "yanked": True}]}
+        {"versions": [{"num": WORKSPACE_VERSION, "yanked": True}]}
     ),
 ):
     yanked_version_validator.validate_registry_names()
@@ -226,7 +241,35 @@ assert [
     (
         "PUBLISH-074",
         "error",
-        "minco-contract 0.4.0 is not published on crates.io",
+        f"minco-contract {WORKSPACE_VERSION} is not published on crates.io",
+    )
+]
+
+candidate_yanked_version_validator = PublishValidator(
+    ROOT,
+    check_registry=False,
+    expect_unpublished=False,
+    require_registry=False,
+)
+candidate_yanked_version_validator.packages = {
+    "minco-contract": (MANIFEST, package)
+}
+with mock.patch(
+    "validate_publish.urllib.request.urlopen",
+    return_value=registry_response(
+        {"versions": [{"num": WORKSPACE_VERSION, "yanked": True}]}
+    ),
+):
+    candidate_yanked_version_validator.validate_registry_names()
+assert [
+    (finding.code, finding.severity, finding.message)
+    for finding in candidate_yanked_version_validator.findings
+] == [
+    (
+        "PUBLISH-072",
+        "error",
+        f"minco-contract {WORKSPACE_VERSION} already exists on crates.io; "
+        "publishing this version will fail",
     )
 ]
 

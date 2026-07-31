@@ -1,7 +1,8 @@
 # Incrementally adopting Minco
 
 Published baseline: `0.4.0`
-Current workspace version: `0.4.0`
+Current workspace version: `0.5.0`
+Workspace release state: `candidate`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -140,6 +141,13 @@ Applications moving from `0.3.1` to the `0.4.0` family must use the dedicated
 [`0.3.1` to `0.4.0` guide](0.3.1-to-0.4.0.md); it covers Plan IR schema 2,
 typed configuration, database/dev/generator lifecycle, deployment receipts,
 hosted verification and the four new crates.
+
+The unpublished `0.5.0` candidate is documented separately in the
+[`0.4.0` to `0.5.0` guide](0.4.0-to-0.5.0.md). It covers the opt-in resource
+wire contract, pagination/concurrency/idempotency behavior, zero-idle cost
+evidence and local/hosted qualification split. Keep registry dependencies on
+the independently verified published baseline until the complete candidate
+family is published.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

@@ -1,10 +1,76 @@
 # Minco verification and release evidence
 
 Date: 2026-07-31
-Current workspace version: `0.4.0`
+Current workspace version: `0.5.0`
 Published baseline: `0.4.0`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish the published baseline
 from later source, deployment and release-candidate work.
+
+## M8-T09 `0.5.0` source and package candidate
+
+The candidate is active in the isolated
+`/Users/xicao/Projects/minco-task-m8-t09` JJ workspace. It includes the
+accepted M9-T08 resource API convention, M9-T09 local/hosted CI boundary and
+M10-T07 zero-idle cost evidence.
+
+Local source qualification passed on 2026-07-31:
+
+```text
+./scripts/quality.sh
+  repository/static/publish/deep-review validation: passed
+  contract, architecture and complete workspace test/clippy/doc gates: passed
+  Playwright: 40 passed
+  generated SQLite and PostgreSQL applications: passed
+  cargo audit: 0 vulnerabilities
+  npm audit: 0 vulnerabilities
+  gitleaks: no leaks
+  source manifest: verified
+
+MINCO_ORDERS_TEST_POSTGRES_URL='postgres://.../minco_release_m8_t09' \
+  cargo test -p orders-adapters --features postgres --test postgres \
+  --locked -- --ignored --test-threads=1
+  4 passed
+
+scripts/test/e2e.sh
+  complete SQLite Orders resource lifecycle: passed
+
+scripts/dev/rustack-smoke.sh
+  S3, SQS, SSM and STS plus Minco adapters: passed
+
+scripts/aws/plan.sh
+scripts/aws/validate.sh
+scripts/aws/build-lambda.sh
+scripts/aws/build-worker-lambda.sh
+  deterministic Plan and SAM validation: passed
+  Orders ARM64 ZIP: 5,102,572 bytes
+  Orders SHA-256:
+    eac3fb8534f55dc576cc56310291b254a0770f2d997ca7b038d1a948a2999d7f
+  worker ARM64 ZIP: 574,202 bytes
+  worker SHA-256:
+    dd53385da37c1069225210d6ebe714caf8f6fb2b77c744db1c556dd3e6860745
+```
+
+The clean-tree package boundary also passed:
+
+```text
+scripts/release/publish.sh --skip-quality
+  coordinated cargo publish --dry-run: 28/28 packages
+  configured unpacked-archive tests: passed
+  default, no-default, all-feature and new-package consumers: passed
+  unpacked cargo-minco installation: minco 0.5.0
+
+scripts/release/package-list.sh
+  release packages: 28
+  manifests present: 28
+```
+
+Registry validation reached all 28 package records and proved exact `0.5.0`
+absent before the candidate dry run. A new regression also proves an immutable
+yanked exact version is still treated as occupied rather than reusable.
+
+The exact pushed-head hosted `release` profile remains pending. No merge, tag,
+crates.io publication, GitHub release or AWS mutation is claimed.
 
 ## `0.4.0` release closure
 

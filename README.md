@@ -23,13 +23,15 @@ fixed/request dimensions remain explicit and bounded.
 
 > Published baseline: `0.4.0`
 >
-> Current workspace version: `0.4.0`
+> Current workspace version: `0.5.0`
+>
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `28`
 >
-> Minco is pre-1.0. The coordinated 28-package `0.4.0` family is published.
-> Later source changes, package candidates and live deployments retain their
-> own exact evidence boundaries.
+> Minco is pre-1.0. The coordinated 28-package `0.4.0` family is published;
+> `0.5.0` is an untagged, unpublished source/package candidate. Merge, tag,
+> registry publication and live deployment retain independent evidence.
 
 
 ## Use Minco as a dependency
@@ -76,6 +78,11 @@ for `minco-config`, `minco-db`, `minco-dev` and `minco-deploy-aws`. See the
 [`0.3.1` to `0.4.0` upgrade guide](docs/adoption/0.3.1-to-0.4.0.md) and
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
 publication, dry-run, ownership, and trusted-publishing process.
+
+The candidate [`0.4.0` to `0.5.0` upgrade guide](docs/adoption/0.4.0-to-0.5.0.md)
+documents the opt-in resource API conventions, Plan/cost additions and
+local/hosted CI split. Do not request `0.5.0` from crates.io until registry
+verification confirms the complete family.
 
 A complete application-consumer walkthrough is available in
 [`docs/development/using-minco-crate.md`](docs/development/using-minco-crate.md).
@@ -148,7 +155,10 @@ The Orders reference slice implements:
 GET  /health/live
 GET  /health/ready
 POST /orders              (authorization + Idempotency-Key replay/conflict)
+GET  /orders              (bounded opaque cursor + allowlisted sort/filter)
 GET  /orders/{orderId}
+PATCH /orders/{orderId}   (strong ETag + required If-Match)
+DELETE /orders/{orderId}  (strong ETag + required If-Match)
 ```
 
 It has pure domain/application tests, a memory adapter, transactional PostgreSQL
@@ -398,7 +408,8 @@ then use the facade/stability matrix in
 ## Crates.io release preparation
 
 Minco uses a lock-step release family. The published `0.4.0` release contains
-all 28 current publishable packages. Source and package qualification are not
+all 28 current publishable packages; the workspace is an unpublished `0.5.0`
+candidate with the same inventory. Source and package qualification are not
 registry proof.
 Static metadata and dependency validation can run without Cargo:
 

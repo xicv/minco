@@ -41,7 +41,7 @@
       "minco-deploy-aws",
       "minco-dev"
     ],
-    "workspace_version": "0.4.0",
+    "workspace_version": "0.5.0",
     "workspace_packages": 33,
     "publishable_packages": 28,
     "private_packages": 5,

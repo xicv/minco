@@ -192,8 +192,12 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 
 ## API stability
 
-The published baseline and current workspace are `0.4.0`. Pin the minor line
-in production applications and follow
-`docs/adoption/incremental-adoption.md` before upgrading. The framework follows
-lock-step versions across the publishable crate family during the initial
-stabilization period.
+Published baseline: `0.4.0`
+Current workspace version: `0.5.0`
+Workspace release state: `candidate`
+
+Pin the published minor line in production applications and follow
+`docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before
+upgrading. The framework follows lock-step versions across the publishable
+crate family during the initial stabilization period. Do not treat the
+workspace candidate as crates.io availability.
