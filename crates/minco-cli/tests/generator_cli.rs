@@ -134,6 +134,58 @@ fn operation_generation_rejects_unknown_contract_ids_before_writing() {
 }
 
 #[test]
+fn resource_dry_run_selects_the_complete_reviewed_contract_family() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("workspace root");
+    let output = run(root, &["make", "resource", "order", "--dry-run"]);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: Value = serde_json::from_slice(&output.stdout).expect("JSON generation plan");
+    assert_eq!(plan["generator"], "resource");
+    assert_eq!(plan["name"], "order");
+    assert_eq!(plan["resource"]["name"], "order");
+    assert_eq!(
+        plan["resource"]["operations"]
+            .as_array()
+            .expect("resource operations")
+            .iter()
+            .map(|operation| operation["action"].as_str().expect("resource action"))
+            .collect::<Vec<_>>(),
+        vec!["create", "list", "read", "update", "delete"]
+    );
+    assert_eq!(
+        plan["changes"]
+            .as_array()
+            .expect("resource changes")
+            .iter()
+            .filter(|change| change["format"] == "rust")
+            .count(),
+        10
+    );
+}
+
+#[test]
+fn resource_generation_rejects_an_incomplete_family_before_writing() {
+    let (_temporary, root) = create_application();
+    let before = snapshot(&root);
+    let output = run(&root, &["make", "resource", "order", "--dry-run"]);
+
+    assert!(!output.status.success());
+    assert_eq!(snapshot(&root), before);
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 generator error");
+    assert!(stderr.contains("not a complete reviewed contract family"));
+    for action in ["create", "list", "read", "update", "delete"] {
+        assert!(stderr.contains(action), "missing {action} evidence");
+    }
+}
+
+#[test]
 fn operation_apply_creates_failing_specs_and_refuses_a_second_write() {
     let (_temporary, root) = create_application();
 

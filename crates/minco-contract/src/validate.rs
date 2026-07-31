@@ -1,4 +1,4 @@
-use crate::{ContractDocument, HttpMethod, OwnedOperation};
+use crate::{ContractDocument, HttpMethod, OwnedOperation, ResourceAction};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -162,6 +162,20 @@ pub fn load_contract_source(
                         &location,
                     );
                 }
+                validate_resource_metadata(
+                    ResourceValidation {
+                        document: &raw,
+                        metadata: operation_object.get("x-minco-resource"),
+                        method,
+                        path_parameters: path_object.get("parameters"),
+                        operation_parameters: operation_object.get("parameters"),
+                        responses: operation_object.get("responses"),
+                        idempotent,
+                        has_idempotency_header,
+                        location: &location,
+                    },
+                    &mut findings,
+                );
                 let security = operation_object
                     .get("security")
                     .or_else(|| raw.get("security"));
@@ -185,6 +199,7 @@ pub fn load_contract_source(
         );
     }
     operations.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
+    validate_resource_families(&raw, &operations, &mut findings);
     let mut schema_names = Vec::new();
     if let Some(schemas) = raw
         .pointer("/components/schemas")
@@ -217,6 +232,566 @@ pub fn load_contract_source(
         },
         findings,
     })
+}
+
+fn validate_resource_families(
+    document: &Value,
+    operations: &[OwnedOperation],
+    findings: &mut Vec<ContractFinding>,
+) {
+    let mut seen = BTreeSet::new();
+    let mut paths: BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)> = BTreeMap::new();
+    for operation in operations {
+        let method = operation.method.as_str().to_ascii_lowercase();
+        let Some(metadata) = document
+            .pointer(&format!(
+                "/paths/{}/{method}/x-minco-resource",
+                escape_json_pointer(&operation.path)
+            ))
+            .and_then(Value::as_object)
+        else {
+            continue;
+        };
+        let Some(name) = metadata.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(action) = metadata
+            .get("action")
+            .and_then(Value::as_str)
+            .and_then(ResourceAction::from_openapi)
+        else {
+            continue;
+        };
+        if !seen.insert((name.to_owned(), action)) {
+            error(
+                findings,
+                "MINCO-CONTRACT-028",
+                &format!("resource {name} declares the {action:?} action more than once"),
+                &format!("paths.{}.{}", operation.path, method),
+            );
+        }
+        let (collection, member) = paths.entry(name.to_owned()).or_default();
+        if matches!(action, ResourceAction::Create | ResourceAction::List) {
+            collection.insert(operation.path.clone());
+        } else {
+            member.insert(operation.path.clone());
+        }
+    }
+    for (name, (collection, member)) in paths {
+        let coherent = collection.len() <= 1
+            && member.len() <= 1
+            && match (collection.first(), member.first()) {
+                (Some(collection), Some(member)) => {
+                    member.strip_prefix(collection).is_some_and(|suffix| {
+                        suffix.starts_with("/{")
+                            && suffix.ends_with('}')
+                            && !suffix[2..suffix.len() - 1].contains(['{', '}', '/'])
+                    })
+                }
+                _ => true,
+            };
+        if !coherent {
+            error(
+                findings,
+                "MINCO-CONTRACT-028",
+                &format!(
+                    "resource {name} actions must share one collection path and one direct member path"
+                ),
+                "paths",
+            );
+        }
+    }
+}
+
+fn escape_json_pointer(value: &str) -> String {
+    value.replace('~', "~0").replace('/', "~1")
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ResourceValidation<'a> {
+    document: &'a Value,
+    metadata: Option<&'a Value>,
+    method: HttpMethod,
+    path_parameters: Option<&'a Value>,
+    operation_parameters: Option<&'a Value>,
+    responses: Option<&'a Value>,
+    idempotent: bool,
+    has_idempotency_header: bool,
+    location: &'a str,
+}
+
+fn validate_resource_metadata(
+    context: ResourceValidation<'_>,
+    findings: &mut Vec<ContractFinding>,
+) {
+    let ResourceValidation {
+        document,
+        metadata,
+        method,
+        path_parameters,
+        operation_parameters,
+        responses,
+        idempotent,
+        has_idempotency_header,
+        location,
+    } = context;
+    let Some(metadata) = metadata else {
+        return;
+    };
+    let valid = metadata.as_object().is_some_and(|metadata| {
+        let name = metadata.get("name").and_then(Value::as_str);
+        let action = metadata
+            .get("action")
+            .and_then(Value::as_str)
+            .and_then(ResourceAction::from_openapi);
+        name.is_some_and(valid_resource_name)
+            && action.is_some_and(|action| resource_method_matches(action, method))
+            && (matches!(action, Some(ResourceAction::List)) || metadata.len() == 2)
+    });
+    if !valid {
+        error(
+            findings,
+            "MINCO-CONTRACT-022",
+            "x-minco-resource must contain only a lower-kebab-case name and a create, list, read, update, or delete action matching POST, GET, GET, PATCH, or DELETE",
+            location,
+        );
+        return;
+    }
+    let action = metadata
+        .get("action")
+        .and_then(Value::as_str)
+        .and_then(ResourceAction::from_openapi)
+        .expect("validated resource action");
+    if action == ResourceAction::List {
+        let valid_list = metadata.as_object().is_some_and(|metadata| {
+            valid_list_resource_policy(metadata)
+                && list_contract_realizes_policy(
+                    document,
+                    metadata,
+                    path_parameters,
+                    operation_parameters,
+                    responses,
+                    location,
+                    findings,
+                )
+        });
+        if !valid_list {
+            error(
+                findings,
+                "MINCO-CONTRACT-026",
+                "resource list operations require bounded page[limit]/page[after] cursor parameters, allowlisted sort/filter parameters, and a data/page response matching the declared list policy",
+                location,
+            );
+        }
+    }
+    if matches!(action, ResourceAction::Update | ResourceAction::Delete)
+        && !has_required_header(
+            document,
+            path_parameters,
+            operation_parameters,
+            "if-match",
+            location,
+            findings,
+        )
+    {
+        error(
+            findings,
+            "MINCO-CONTRACT-023",
+            "resource update and delete operations require an effective required If-Match header",
+            location,
+        );
+    }
+    if action == ResourceAction::Create
+        && (!idempotent
+            || !has_idempotency_header
+            || !response_has_headers(document, responses, "201", &["location"]))
+    {
+        error(
+            findings,
+            "MINCO-CONTRACT-027",
+            "resource create operations require Idempotency-Key semantics and a 201 Location header",
+            location,
+        );
+    }
+    if matches!(action, ResourceAction::Update | ResourceAction::Delete)
+        && !responses
+            .and_then(Value::as_object)
+            .is_some_and(|responses| responses.contains_key("412") && responses.contains_key("428"))
+    {
+        error(
+            findings,
+            "MINCO-CONTRACT-024",
+            "resource update and delete operations require explicit 412 and 428 Problem responses",
+            location,
+        );
+    }
+    let success_status = match action {
+        ResourceAction::Create => Some("201"),
+        ResourceAction::Read | ResourceAction::Update => Some("200"),
+        ResourceAction::List | ResourceAction::Delete => None,
+    };
+    if success_status.is_some_and(|status| {
+        !response_has_required_properties_and_headers(
+            document,
+            responses,
+            status,
+            &["data"],
+            &["etag"],
+        )
+    }) || (action == ResourceAction::Create
+        && responses
+            .and_then(Value::as_object)
+            .is_some_and(|responses| responses.contains_key("200"))
+        && !response_has_required_properties_and_headers(
+            document,
+            responses,
+            "200",
+            &["data"],
+            &["etag", "location"],
+        ))
+    {
+        error(
+            findings,
+            "MINCO-CONTRACT-025",
+            "resource create, read, and update success responses require an application/json data envelope and ETag header; declared create replays also require Location",
+            location,
+        );
+    }
+    if action == ResourceAction::Delete
+        && responses
+            .and_then(Value::as_object)
+            .and_then(|responses| responses.get("204"))
+            .and_then(|response| resolve_local_value(document, response))
+            .is_none_or(|response| response.get("content").is_some())
+    {
+        error(
+            findings,
+            "MINCO-CONTRACT-025",
+            "resource delete success requires a 204 response without content",
+            location,
+        );
+    }
+}
+
+fn response_has_headers(
+    document: &Value,
+    responses: Option<&Value>,
+    status: &str,
+    required: &[&str],
+) -> bool {
+    let Some(response) = responses
+        .and_then(Value::as_object)
+        .and_then(|responses| responses.get(status))
+        .and_then(|response| resolve_local_value(document, response))
+    else {
+        return false;
+    };
+    let headers = response
+        .get("headers")
+        .and_then(Value::as_object)
+        .map(|headers| {
+            headers
+                .keys()
+                .map(|name| name.to_ascii_lowercase())
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    required.iter().all(|name| headers.contains(*name))
+}
+
+fn list_contract_realizes_policy(
+    document: &Value,
+    metadata: &serde_json::Map<String, Value>,
+    path_parameters: Option<&Value>,
+    operation_parameters: Option<&Value>,
+    responses: Option<&Value>,
+    location: &str,
+    findings: &mut Vec<ContractFinding>,
+) -> bool {
+    let default_limit = metadata
+        .get("defaultLimit")
+        .and_then(Value::as_u64)
+        .expect("validated default limit");
+    let max_limit = metadata
+        .get("maxLimit")
+        .and_then(Value::as_u64)
+        .expect("validated maximum limit");
+    let filters =
+        unique_field_list(metadata.get("filterFields"), true).expect("validated filter field list");
+    let parameters = effective_parameters(
+        document,
+        path_parameters,
+        operation_parameters,
+        location,
+        findings,
+    );
+    let limit_valid = parameters
+        .get(&("page[limit]".to_owned(), "query".to_owned()))
+        .is_some_and(|parameter| {
+            parameter.get("required").and_then(Value::as_bool) != Some(true)
+                && parameter.get("schema").is_some_and(|schema| {
+                    schema.get("type").and_then(Value::as_str) == Some("integer")
+                        && schema.get("minimum").and_then(Value::as_u64) == Some(1)
+                        && schema.get("maximum").and_then(Value::as_u64) == Some(max_limit)
+                        && schema.get("default").and_then(Value::as_u64) == Some(default_limit)
+                })
+        });
+    let after_valid = parameters
+        .get(&("page[after]".to_owned(), "query".to_owned()))
+        .is_some_and(|parameter| {
+            parameter.get("required").and_then(Value::as_bool) != Some(true)
+                && parameter.get("schema").is_some_and(|schema| {
+                    schema.get("type").and_then(Value::as_str) == Some("string")
+                        && schema.get("minLength").and_then(Value::as_u64) == Some(1)
+                        && schema.get("maxLength").and_then(Value::as_u64) == Some(512)
+                })
+        });
+    let sort_valid = parameters
+        .get(&("sort".to_owned(), "query".to_owned()))
+        .is_some_and(|parameter| {
+            parameter.get("required").and_then(Value::as_bool) != Some(true)
+                && parameter
+                    .get("schema")
+                    .and_then(|schema| schema.get("type"))
+                    .and_then(Value::as_str)
+                    == Some("string")
+        });
+    let declared_filters = parameters
+        .keys()
+        .filter_map(|(name, location)| {
+            (location == "query")
+                .then(|| {
+                    name.strip_prefix("filter[")
+                        .and_then(|name| name.strip_suffix(']'))
+                })
+                .flatten()
+        })
+        .collect::<BTreeSet<_>>();
+    let filters_valid =
+        declared_filters == filters.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let Some(schema) = response_schema(document, responses, "200") else {
+        return false;
+    };
+    let required = required_schema_properties(schema);
+    let data_is_array = schema
+        .pointer("/properties/data")
+        .and_then(|value| resolve_local_value(document, value))
+        .is_some_and(|value| {
+            value.get("type").and_then(Value::as_str) == Some("array")
+                && value.get("items").is_some()
+        });
+    let page = schema
+        .pointer("/properties/page")
+        .and_then(|value| resolve_local_value(document, value));
+    let page_required = page.map(required_schema_properties).unwrap_or_default();
+    let page_properties = page
+        .and_then(|page| page.get("properties"))
+        .and_then(Value::as_object);
+    let page_shape_valid = page.is_some_and(|page| {
+        page.get("type").and_then(Value::as_str) == Some("object")
+            && page_properties
+                .and_then(|properties| properties.get("hasMore"))
+                .and_then(|schema| resolve_local_value(document, schema))
+                .and_then(|schema| schema.get("type"))
+                .and_then(Value::as_str)
+                == Some("boolean")
+            && page_properties
+                .and_then(|properties| properties.get("nextCursor"))
+                .and_then(|schema| resolve_local_value(document, schema))
+                .and_then(|schema| schema.get("type"))
+                .and_then(Value::as_array)
+                .is_some_and(|types| {
+                    types.iter().any(|value| value.as_str() == Some("string"))
+                        && types.iter().any(|value| value.as_str() == Some("null"))
+                })
+    });
+    limit_valid
+        && after_valid
+        && sort_valid
+        && filters_valid
+        && required.contains("data")
+        && required.contains("page")
+        && data_is_array
+        && page_shape_valid
+        && page_required.contains("hasMore")
+        && page_required.contains("nextCursor")
+}
+
+fn response_schema<'a>(
+    document: &'a Value,
+    responses: Option<&'a Value>,
+    status: &str,
+) -> Option<&'a Value> {
+    responses
+        .and_then(Value::as_object)
+        .and_then(|responses| responses.get(status))
+        .and_then(|response| resolve_local_value(document, response))
+        .and_then(|response| response.pointer("/content/application~1json/schema"))
+        .and_then(|schema| resolve_local_value(document, schema))
+}
+
+fn required_schema_properties(schema: &Value) -> BTreeSet<&str> {
+    schema
+        .get("required")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect()
+}
+
+fn valid_list_resource_policy(metadata: &serde_json::Map<String, Value>) -> bool {
+    const EXPECTED_KEYS: [&str; 8] = [
+        "action",
+        "cursorFields",
+        "defaultLimit",
+        "defaultSort",
+        "filterFields",
+        "maxLimit",
+        "name",
+        "sortFields",
+    ];
+    if metadata.len() != EXPECTED_KEYS.len()
+        || !EXPECTED_KEYS.iter().all(|key| metadata.contains_key(*key))
+    {
+        return false;
+    }
+    let Some(default_limit) = metadata.get("defaultLimit").and_then(Value::as_u64) else {
+        return false;
+    };
+    let Some(max_limit) = metadata.get("maxLimit").and_then(Value::as_u64) else {
+        return false;
+    };
+    if default_limit == 0 || max_limit > 1_000 || default_limit > max_limit {
+        return false;
+    }
+    let Some(sort_fields) = unique_field_list(metadata.get("sortFields"), false) else {
+        return false;
+    };
+    let Some(filter_fields) = unique_field_list(metadata.get("filterFields"), true) else {
+        return false;
+    };
+    let Some(cursor_fields) = unique_field_list(metadata.get("cursorFields"), false) else {
+        return false;
+    };
+    let Some(default_sort) = metadata.get("defaultSort").and_then(Value::as_array) else {
+        return false;
+    };
+    let mut default_fields = BTreeSet::new();
+    let valid_default = !default_sort.is_empty()
+        && default_sort.iter().all(|item| {
+            let Some(item) = item.as_str() else {
+                return false;
+            };
+            let field = item.strip_prefix('-').unwrap_or(item);
+            valid_api_field(field)
+                && sort_fields.contains(field)
+                && default_fields.insert(field.to_owned())
+        });
+    valid_default
+        && filter_fields.iter().all(|field| valid_api_field(field))
+        && cursor_fields
+            .iter()
+            .all(|field| default_fields.contains(field) && sort_fields.contains(field))
+}
+
+fn unique_field_list(value: Option<&Value>, empty_allowed: bool) -> Option<BTreeSet<String>> {
+    let values = value?.as_array()?;
+    if !empty_allowed && values.is_empty() {
+        return None;
+    }
+    let mut fields = BTreeSet::new();
+    values
+        .iter()
+        .all(|value| {
+            value
+                .as_str()
+                .is_some_and(|field| valid_api_field(field) && fields.insert(field.to_owned()))
+        })
+        .then_some(fields)
+}
+
+fn valid_api_field(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    matches!(bytes.next(), Some(first) if first.is_ascii_lowercase())
+        && bytes.all(|byte| byte.is_ascii_alphanumeric())
+}
+
+fn response_has_required_properties_and_headers(
+    document: &Value,
+    responses: Option<&Value>,
+    status: &str,
+    properties: &[&str],
+    headers: &[&str],
+) -> bool {
+    let Some(response) = responses
+        .and_then(Value::as_object)
+        .and_then(|responses| responses.get(status))
+        .and_then(|response| resolve_local_value(document, response))
+    else {
+        return false;
+    };
+    let Some(schema) = response_schema(document, responses, status) else {
+        return false;
+    };
+    let required = required_schema_properties(schema);
+    let declared = schema
+        .get("properties")
+        .and_then(Value::as_object)
+        .map(|properties| {
+            properties
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let response_headers = response
+        .get("headers")
+        .and_then(Value::as_object)
+        .map(|headers| {
+            headers
+                .keys()
+                .map(|name| name.to_ascii_lowercase())
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    schema.get("type").and_then(Value::as_str) == Some("object")
+        && properties
+            .iter()
+            .all(|property| required.contains(property) && declared.contains(property))
+        && headers
+            .iter()
+            .all(|header| response_headers.contains(*header))
+}
+
+fn resolve_local_value<'a>(document: &'a Value, value: &'a Value) -> Option<&'a Value> {
+    let Some(reference) = value.get("$ref").and_then(Value::as_str) else {
+        return Some(value);
+    };
+    reference
+        .strip_prefix('#')
+        .and_then(|pointer| document.pointer(pointer))
+}
+
+const fn resource_method_matches(action: ResourceAction, method: HttpMethod) -> bool {
+    matches!(
+        (action, method),
+        (ResourceAction::Create, HttpMethod::Post)
+            | (ResourceAction::List | ResourceAction::Read, HttpMethod::Get)
+            | (ResourceAction::Update, HttpMethod::Patch)
+            | (ResourceAction::Delete, HttpMethod::Delete)
+    )
+}
+
+fn valid_resource_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        })
 }
 
 fn validate_responses(
@@ -724,6 +1299,42 @@ fn has_required_idempotency_header(
     location: &str,
     findings: &mut Vec<ContractFinding>,
 ) -> bool {
+    has_required_header(
+        document,
+        path_parameters,
+        operation_parameters,
+        "idempotency-key",
+        location,
+        findings,
+    )
+}
+
+fn has_required_header(
+    document: &Value,
+    path_parameters: Option<&Value>,
+    operation_parameters: Option<&Value>,
+    header_name: &str,
+    location: &str,
+    findings: &mut Vec<ContractFinding>,
+) -> bool {
+    effective_parameters(
+        document,
+        path_parameters,
+        operation_parameters,
+        location,
+        findings,
+    )
+    .get(&(header_name.to_owned(), "header".to_owned()))
+    .is_some_and(|parameter| parameter.get("required").and_then(Value::as_bool) == Some(true))
+}
+
+fn effective_parameters<'a>(
+    document: &'a Value,
+    path_parameters: Option<&'a Value>,
+    operation_parameters: Option<&'a Value>,
+    location: &str,
+    findings: &mut Vec<ContractFinding>,
+) -> BTreeMap<(String, String), &'a serde_json::Map<String, Value>> {
     let mut effective = BTreeMap::new();
     for parameters in [path_parameters, operation_parameters] {
         let Some(parameters) = parameters.and_then(Value::as_array) else {
@@ -751,8 +1362,6 @@ fn has_required_idempotency_header(
         }
     }
     effective
-        .get(&("idempotency-key".to_owned(), "header".to_owned()))
-        .is_some_and(|parameter| parameter.get("required").and_then(Value::as_bool) == Some(true))
 }
 
 fn resolve_parameter_reference<'a>(

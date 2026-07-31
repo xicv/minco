@@ -750,6 +750,56 @@ fn unclassified_operation_structure_changes_are_uncertain() {
 }
 
 #[test]
+fn resource_convention_changes_are_explicitly_classified() {
+    let operation = operation("listWidgets", HttpMethod::Get, "/widgets");
+    let mut baseline = document("baseline", vec![operation.clone()]);
+    baseline.raw = json!({
+        "paths": {
+            "/widgets": {
+                "get": {
+                    "x-minco-resource": {
+                        "name": "widget",
+                        "action": "list",
+                        "defaultLimit": 20,
+                        "maxLimit": 100,
+                        "defaultSort": ["-id"],
+                        "sortFields": ["id"],
+                        "filterFields": [],
+                        "cursorFields": ["id"]
+                    }
+                }
+            }
+        }
+    });
+    let mut candidate = document("candidate", vec![operation]);
+    candidate.raw = json!({
+        "paths": {
+            "/widgets": {
+                "get": {
+                    "x-minco-resource": {
+                        "name": "widget",
+                        "action": "list",
+                        "defaultLimit": 20,
+                        "maxLimit": 50,
+                        "defaultSort": ["-id"],
+                        "sortFields": ["id"],
+                        "filterFields": [],
+                        "cursorFields": ["id"]
+                    }
+                }
+            }
+        }
+    });
+
+    let report = diff_contracts(&baseline, &candidate);
+
+    assert!(report.operation_changes.iter().any(|change| {
+        change.code == "operation.resource_convention_changed"
+            && change.classification == CompatibilityClassification::Breaking
+    }));
+}
+
+#[test]
 fn unresolved_operation_references_are_never_silently_compatible() {
     let mut baseline = document(
         "baseline",

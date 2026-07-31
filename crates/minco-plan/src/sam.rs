@@ -318,35 +318,43 @@ fn render_http_api_definition(output: &mut String, plan: &DeploymentPlan) {
     .expect("writing to String cannot fail");
     output.push_str("          version: '1.0'\n");
     output.push_str("        paths:\n");
+    let mut routes_by_path = BTreeMap::<&str, Vec<_>>::new();
     for route in &plan.routes {
-        writeln!(output, "          {}:", yaml_quote(&route.path))
+        routes_by_path
+            .entry(route.path.as_str())
+            .or_default()
+            .push(route);
+    }
+    for (path, routes) in routes_by_path {
+        writeln!(output, "          {}:", yaml_quote(path)).expect("writing to String cannot fail");
+        for route in routes {
+            writeln!(
+                output,
+                "            {}:",
+                method(route.method).to_ascii_lowercase()
+            )
             .expect("writing to String cannot fail");
-        writeln!(
-            output,
-            "            {}:",
-            method(route.method).to_ascii_lowercase()
-        )
-        .expect("writing to String cannot fail");
-        writeln!(
-            output,
-            "              operationId: {}",
-            yaml_quote(&route.operation_id)
-        )
-        .expect("writing to String cannot fail");
-        output.push_str("              responses:\n");
-        output.push_str("                default:\n");
-        output.push_str("                  description: Lambda proxy response\n");
-        output.push_str("              x-amazon-apigateway-integration:\n");
-        output.push_str("                httpMethod: POST\n");
-        output.push_str("                payloadFormatVersion: '2.0'\n");
-        output.push_str("                type: aws_proxy\n");
-        output.push_str("                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'\n");
-        if matches!(&plan.auth, AuthPlan::Jwt { .. }) {
-            if route.authenticated {
-                output.push_str("              security:\n");
-                output.push_str("                - JwtAuthorizer: []\n");
-            } else {
-                output.push_str("              security: []\n");
+            writeln!(
+                output,
+                "              operationId: {}",
+                yaml_quote(&route.operation_id)
+            )
+            .expect("writing to String cannot fail");
+            output.push_str("              responses:\n");
+            output.push_str("                default:\n");
+            output.push_str("                  description: Lambda proxy response\n");
+            output.push_str("              x-amazon-apigateway-integration:\n");
+            output.push_str("                httpMethod: POST\n");
+            output.push_str("                payloadFormatVersion: '2.0'\n");
+            output.push_str("                type: aws_proxy\n");
+            output.push_str("                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'\n");
+            if matches!(&plan.auth, AuthPlan::Jwt { .. }) {
+                if route.authenticated {
+                    output.push_str("              security:\n");
+                    output.push_str("                - JwtAuthorizer: []\n");
+                } else {
+                    output.push_str("              security: []\n");
+                }
             }
         }
     }
@@ -757,6 +765,31 @@ mod tests {
         let relocated =
             render_sam_with_code_uri(&plan, Some("../../../artifact.zip")).expect("SAM");
         assert!(relocated.contains("CodeUri: '../../../artifact.zip'"));
+    }
+
+    #[test]
+    fn groups_methods_under_one_openapi_path_item() {
+        let mut plan = minimal_http_plan();
+        plan.routes.push(RoutePlan {
+            operation_id: "updateOrder".into(),
+            method: HttpMethod::Patch,
+            path: "/orders/{orderId}".into(),
+            authenticated: true,
+        });
+
+        let yaml = render_sam(&plan).expect("SAM");
+
+        assert_eq!(
+            yaml.matches("          '/orders/{orderId}':\n").count(),
+            1,
+            "an OpenAPI path item must contain every method for that path"
+        );
+        assert!(yaml.contains(
+            "          '/orders/{orderId}':\n            get:\n              operationId: 'getOrder'"
+        ));
+        assert!(yaml.contains(
+            "              security:\n                - JwtAuthorizer: []\n            patch:\n              operationId: 'updateOrder'"
+        ));
     }
 
     #[test]

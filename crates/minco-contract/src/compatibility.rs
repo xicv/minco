@@ -118,6 +118,40 @@ pub fn diff_contracts(
                 evidence: format!("{operation_id} no longer guarantees idempotent retries"),
             });
         }
+        let baseline_resource = resource_metadata(baseline, baseline_operation);
+        let candidate_resource = resource_metadata(candidate, candidate_operation);
+        if baseline_resource != candidate_resource {
+            let (code, classification, evidence) = match (baseline_resource, candidate_resource) {
+                (None, Some(_)) => (
+                    "operation.resource_convention_added",
+                    CompatibilityClassification::Uncertain,
+                    format!(
+                        "{operation_id} now declares a resource convention; response and concurrency compatibility require review"
+                    ),
+                ),
+                (Some(_), None) => (
+                    "operation.resource_convention_removed",
+                    CompatibilityClassification::Breaking,
+                    format!("{operation_id} no longer declares its resource convention"),
+                ),
+                (Some(_), Some(_)) => (
+                    "operation.resource_convention_changed",
+                    CompatibilityClassification::Breaking,
+                    format!(
+                        "{operation_id} changed its resource action, pagination, filter, sort, or cursor policy"
+                    ),
+                ),
+                (None, None) => unreachable!("equal absent metadata was excluded"),
+            };
+            operation_changes.push(ContractOperationChange {
+                code: code.into(),
+                classification,
+                operation_id: (*operation_id).into(),
+                method: candidate_operation.method,
+                path: candidate_operation.path.clone(),
+                evidence,
+            });
+        }
         if operation_structure_changed(baseline, baseline_operation, candidate, candidate_operation)
         {
             operation_changes.push(ContractOperationChange {
@@ -241,6 +275,13 @@ pub fn diff_contracts(
         schema_changes,
         limitations: LIMITATIONS.into_iter().map(String::from).collect(),
     }
+}
+
+fn resource_metadata<'a>(
+    document: &'a ContractDocument,
+    operation: &OwnedOperation,
+) -> Option<&'a Value> {
+    operation_value(document, operation)?.get("x-minco-resource")
 }
 
 fn operations_by_id(operations: &[OwnedOperation]) -> BTreeMap<&str, &OwnedOperation> {

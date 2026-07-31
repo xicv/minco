@@ -59,6 +59,9 @@ paths:
       summary: Place an order exactly once
       tags: [orders]
       x-minco-idempotent: true
+      x-minco-resource:
+        name: order
+        action: create
       parameters:
         - in: header
           name: Idempotency-Key
@@ -77,37 +80,163 @@ paths:
       responses:
         '201':
           description: A new order was accepted
+          headers:
+            ETag:
+              description: Strong entity tag for conditional writes.
+              schema: { type: string }
+            Location:
+              description: Canonical URL of the new order.
+              schema: { type: string }
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlaceOrderResponse'
+                $ref: '#/components/schemas/OrderDocument'
         '200':
-          description: The original order result was replayed
+          description: The immutable original order result was replayed
+          headers:
+            ETag:
+              description: Strong entity tag for conditional writes.
+              schema: { type: string }
+            Location:
+              description: Canonical URL of the existing order.
+              schema: { type: string }
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlaceOrderResponse'
+                $ref: '#/components/schemas/OrderDocument'
+        default:
+          $ref: '#/components/responses/Problem'
+    get:
+      operationId: listOrders
+      summary: List orders with bounded cursor pagination
+      tags: [orders]
+      x-minco-resource:
+        name: order
+        action: list
+        defaultLimit: 20
+        maxLimit: 100
+        defaultSort: [-createdAt, -id]
+        sortFields: [createdAt, id]
+        filterFields: [status]
+        cursorFields: [createdAt, id]
+      parameters:
+        - in: query
+          name: page[limit]
+          description: Maximum number of orders to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: page[after]
+          description: Opaque cursor returned by the previous page.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - in: query
+          name: sort
+          description: Comma-separated allowlisted fields; prefix descending fields with `-`.
+          schema: { type: string }
+        - in: query
+          name: filter[status]
+          description: Exact order status.
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+      responses:
+        '200':
+          description: One bounded page of orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCollection'
         default:
           $ref: '#/components/responses/Problem'
   /orders/{orderId}:
+    parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema:
+          type: string
+          format: uuid
     get:
       operationId: getOrder
       summary: Retrieve one order
       tags: [orders]
-      parameters:
-        - in: path
-          name: orderId
-          required: true
-          schema:
-            type: string
-            format: uuid
+      x-minco-resource:
+        name: order
+        action: read
       responses:
         '200':
           description: Order detail
+          headers:
+            ETag:
+              description: Strong entity tag for conditional writes.
+              schema: { type: string }
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderResponse'
+                $ref: '#/components/schemas/OrderDocument'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateOrder
+      summary: Update an order if its entity tag is current
+      tags: [orders]
+      x-minco-resource:
+        name: order
+        action: update
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Strong entity tag from the current representation.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderRequest'
+      responses:
+        '200':
+          description: Updated order
+          headers:
+            ETag:
+              description: Strong entity tag for the updated representation.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDocument'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteOrder
+      summary: Delete an order if its entity tag is current
+      tags: [orders]
+      x-minco-resource:
+        name: order
+        action: delete
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          description: Strong entity tag from the current representation.
+          schema: { type: string }
+      responses:
+        '204':
+          description: Order deleted
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
         default:
           $ref: '#/components/responses/Problem'
 components:
@@ -154,10 +283,37 @@ components:
           maximum: 1000
         sku:
           type: string
+    CursorPageInfo:
+      type: object
+      additionalProperties: false
+      required: [hasMore, nextCursor]
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: [string, 'null']
+    OrderCollection:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderResponse'
+        page:
+          $ref: '#/components/schemas/CursorPageInfo'
+    OrderDocument:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/OrderResponse'
     OrderResponse:
       type: object
       additionalProperties: false
-      required: [createdAt, customerReference, id, lines, status]
+      required: [createdAt, customerReference, id, lines, revision, status, updatedAt]
       properties:
         createdAt:
           type: string
@@ -171,8 +327,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OrderLineResponse'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
         status:
           $ref: '#/components/schemas/OrderStatus'
+        updatedAt:
+          type: string
+          format: date-time
     OrderStatus:
       type: string
       enum: [accepted]
@@ -204,15 +367,6 @@ components:
           maxItems: 100
           items:
             $ref: '#/components/schemas/PlaceOrderLineRequest'
-    PlaceOrderResponse:
-      type: object
-      additionalProperties: false
-      required: [order, replayed]
-      properties:
-        order:
-          $ref: '#/components/schemas/OrderResponse'
-        replayed:
-          type: boolean
     ProblemDetails:
       type: object
       additionalProperties: false
@@ -252,3 +406,18 @@ components:
             rationale: Dependency check IDs are supplied by the selected plugin graph.
         ready:
           type: boolean
+    UpdateOrderRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        customerReference:
+          type: string
+          minLength: 1
+          maxLength: 64
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PlaceOrderLineRequest'

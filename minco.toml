@@ -129,6 +129,24 @@ application = "examples/orders/application/src/lib.rs#GetOrder"
 adapters = ["memory", "postgres", "sqlite"]
 tests = ["examples/orders/application/src/lib.rs#get_order", "examples/orders/api/src/lib.rs#get_order"]
 
+[operations.listOrders]
+handler = "examples/orders/api/src/lib.rs#list_orders"
+application = "examples/orders/application/src/lib.rs#ListOrders"
+adapters = ["memory", "postgres", "sqlite"]
+tests = ["examples/orders/api/src/lib.rs#list_orders_uses_opaque_bound_cursors_and_a_stable_page_shape", "examples/orders/adapters/tests/sqlite.rs#cursor_update_and_delete_are_revision_safe"]
+
+[operations.updateOrder]
+handler = "examples/orders/api/src/lib.rs#update_order"
+application = "examples/orders/application/src/lib.rs#UpdateOrder"
+adapters = ["memory", "postgres", "sqlite"]
+tests = ["examples/orders/application/src/lib.rs#empty_updates_fail_before_the_update_port_is_called", "examples/orders/api/src/lib.rs#resource_crud_is_shaped_and_conditionally_safe_through_the_real_router", "examples/orders/adapters/tests/sqlite.rs#cursor_update_and_delete_are_revision_safe"]
+
+[operations.deleteOrder]
+handler = "examples/orders/api/src/lib.rs#delete_order"
+application = "examples/orders/application/src/lib.rs#DeleteOrder"
+adapters = ["memory", "postgres", "sqlite"]
+tests = ["examples/orders/api/src/lib.rs#resource_crud_is_shaped_and_conditionally_safe_through_the_real_router", "examples/orders/adapters/tests/sqlite.rs#cursor_update_and_delete_are_revision_safe"]
+
 [operations.feedbackWidget]
 contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"
 handler = "plugins/minco-plugin-feedback/src/http.rs#widget_source"

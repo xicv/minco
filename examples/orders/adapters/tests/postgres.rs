@@ -2,7 +2,10 @@
 
 use chrono::Utc;
 use orders_adapters::PostgresOrderStore;
-use orders_application::{OrderStore, PlaceOrderTransaction, StoreError};
+use orders_application::{
+    ConditionalResult, DeleteOrderPort, GetOrderPort, PlaceOrderPort, PlaceOrderTransaction,
+    StoreError, UpdateOrderPort,
+};
 use orders_domain::{CustomerReference, Order, OrderId, OrderLine, Quantity, Sku};
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -67,6 +70,12 @@ async fn replays_the_original_result() {
         .place_order(transaction(&key, "same-fingerprint"))
         .await
         .expect("first command");
+    assert_eq!(
+        store
+            .delete_order(first.order.id, first.order.revision, Utc::now())
+            .await,
+        Ok(ConditionalResult::Applied(()))
+    );
     let replay = store
         .place_order(transaction(&key, "same-fingerprint"))
         .await
@@ -76,7 +85,7 @@ async fn replays_the_original_result() {
     store.pool().close().await;
     assert!(!first.replayed);
     assert!(replay.replayed);
-    assert_eq!(replay.order.id, first.order.id);
+    assert_eq!(replay.order, first.order);
 }
 
 #[tokio::test]
@@ -117,4 +126,41 @@ async fn concurrent_retries_commit_one_order_and_replay_it() {
     store.pool().close().await;
     assert_ne!(first.replayed, second.replayed);
     assert_eq!(first.order.id, second.order.id);
+}
+
+#[tokio::test]
+#[ignore = "requires MINCO_ORDERS_TEST_POSTGRES_URL"]
+async fn revision_checked_update_and_delete_are_atomic() {
+    let store = store().await;
+    let key = format!("postgres-resource-{}", Uuid::new_v4());
+    let mut order = store
+        .place_order(transaction(&key, "resource-fingerprint"))
+        .await
+        .expect("place order")
+        .order;
+    order
+        .update(
+            Some(CustomerReference::parse("PO-UPDATED").expect("reference")),
+            None,
+            Utc::now(),
+        )
+        .expect("domain update");
+    assert!(matches!(
+        store.save_order(order.clone(), 1).await,
+        Ok(ConditionalResult::Applied(_))
+    ));
+    assert_eq!(
+        store.save_order(order.clone(), 1).await,
+        Ok(ConditionalResult::PreconditionFailed)
+    );
+    assert_eq!(
+        store
+            .delete_order(order.id, order.revision, Utc::now())
+            .await,
+        Ok(ConditionalResult::Applied(()))
+    );
+    assert_eq!(store.get_order(order.id).await.expect("get"), None);
+
+    cleanup(&store, &key, order.id).await;
+    store.pool().close().await;
 }

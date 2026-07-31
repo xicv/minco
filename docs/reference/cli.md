@@ -67,6 +67,7 @@ is not semantic, deployment or data-migration proof. See
 ```text
 cargo minco make module <name> [--dry-run]
 cargo minco make operation <operationId> [--dry-run]
+cargo minco make resource <name> [--dry-run]
 cargo minco make migration <name> [--dry-run]
 cargo minco make seeder <name> [--dry-run]
 cargo minco make worker <name> [--dry-run]
@@ -83,6 +84,12 @@ never placeholder success. Existing paths, symlinked path components, unknown
 stub placeholders, and ambiguous migration/seed roots fail closed. See
 [`../development/generators.md`](../development/generators.md) for generated
 paths, safety defaults, and app-owned stub customization.
+
+`make resource` accepts a lower-kebab-case resource name and only selects a
+complete `x-minco-resource` family already present in the valid contract. Its
+JSON plan includes the contract digest and ordered create/list/read/update/delete
+operation selections. It generates failing specifications and traces, not
+business or persistence behavior.
 
 ## Deployment, cost and performance
 

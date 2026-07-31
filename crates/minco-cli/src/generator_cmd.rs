@@ -1,10 +1,12 @@
 use crate::{config::MincoManifest, print_value};
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
-use minco_contract::{OwnedOperation, Severity, load_contract};
+use minco_contract::{
+    OwnedOperation, OwnedResourceOperation, ResourceAction, Severity, load_contract,
+};
 use serde::Serialize;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, OpenOptions},
     io::Write,
     path::{Component, Path, PathBuf},
@@ -16,6 +18,8 @@ pub enum MakeCommand {
     Module(NamedArgs),
     /// Generate failing application and HTTP specifications for one contract operation.
     Operation(OperationArgs),
+    /// Generate failing specifications for one reviewed five-action resource contract.
+    Resource(NamedArgs),
     /// Generate an empty, explicitly classified SQL migration.
     Migration(NamedArgs),
     /// Generate an empty seeder with a fail-closed verification query.
@@ -69,6 +73,8 @@ struct GenerationPlan {
     dry_run: bool,
     applied: bool,
     contract: Option<ContractSelection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resource: Option<ResourceSelection>,
     changes: Vec<PlannedChange>,
     #[serde(skip)]
     edits: Vec<PlannedEdit>,
@@ -80,6 +86,21 @@ struct ContractSelection {
     method: String,
     path: String,
     contract_sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ResourceSelection {
+    name: String,
+    contract_sha256: String,
+    operations: Vec<ResourceOperationSelection>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ResourceOperationSelection {
+    action: ResourceAction,
+    operation_id: String,
+    method: String,
+    path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -186,6 +207,7 @@ pub fn execute(
     let mut plan = match command {
         MakeCommand::Module(args) => module_plan(root, &args)?,
         MakeCommand::Operation(args) => operation_plan(root, manifest, &args)?,
+        MakeCommand::Resource(args) => resource_plan(root, manifest, &args)?,
         MakeCommand::Migration(args) => migration_plan(root, manifest, &args)?,
         MakeCommand::Seeder(args) => seeder_plan(root, manifest, &args)?,
         MakeCommand::Worker(args) => worker_plan(root, manifest, &args)?,
@@ -299,6 +321,137 @@ fn operation_plan(
             path: operation.path.clone(),
             contract_sha256: report.document.sha256,
         }),
+        resource: None,
+        changes: edits.iter().map(PlannedEdit::summary).collect(),
+        edits,
+    })
+}
+
+fn resource_plan(
+    root: &Path,
+    manifest: &MincoManifest,
+    args: &NamedArgs,
+) -> Result<GenerationPlan> {
+    let names = GeneratorNames::new(&args.name)?;
+    let contract_path = root.join(&manifest.contract);
+    let report = load_contract(&contract_path)
+        .with_context(|| format!("load OpenAPI contract {}", manifest.contract.display()))?;
+    let errors = report
+        .findings
+        .iter()
+        .filter(|finding| finding.severity == Severity::Error)
+        .collect::<Vec<_>>();
+    if !errors.is_empty() {
+        bail!(
+            "OpenAPI contract is invalid; fix it before generating code: {}",
+            serde_json::to_string(&errors)?
+        );
+    }
+
+    let selected = report
+        .document
+        .resource_operations()
+        .into_iter()
+        .filter(|operation| operation.name == names.kebab)
+        .collect::<Vec<_>>();
+    let by_action = selected
+        .iter()
+        .map(|operation| (operation.action, operation))
+        .collect::<BTreeMap<_, _>>();
+    let required = [
+        ResourceAction::Create,
+        ResourceAction::List,
+        ResourceAction::Read,
+        ResourceAction::Update,
+        ResourceAction::Delete,
+    ];
+    let missing = required
+        .into_iter()
+        .filter(|action| !by_action.contains_key(action))
+        .collect::<Vec<_>>();
+    if !missing.is_empty() {
+        bail!(
+            "resource {} is not a complete reviewed contract family; missing actions: {}",
+            names.kebab,
+            missing
+                .iter()
+                .map(|action| format!("{action:?}").to_ascii_lowercase())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+
+    let operations_by_id = report
+        .document
+        .operations
+        .iter()
+        .map(|operation| (operation.operation_id.as_str(), operation))
+        .collect::<BTreeMap<_, _>>();
+    let mut operations = Vec::new();
+    let mut edits = Vec::new();
+    for action in required {
+        let resource_operation = *by_action
+            .get(&action)
+            .expect("complete resource family was checked");
+        let operation = operations_by_id
+            .get(resource_operation.operation_id.as_str())
+            .expect("resource metadata refers to a loaded operation");
+        let snake_name = lower_camel_to_snake(&operation.operation_id)?;
+        let type_name = lower_camel_to_pascal(&operation.operation_id)?;
+        let application_test = PathBuf::from(format!("crates/application/tests/{snake_name}.rs"));
+        let http_test = PathBuf::from(format!("crates/api/tests/{snake_name}.rs"));
+        let documentation = PathBuf::from(format!("docs/generated/operations/{snake_name}.md"));
+        edits.extend([
+            PlannedEdit::create(
+                root,
+                &application_test,
+                render_operation_stub(root, Stub::ApplicationTest, operation, &type_name)?,
+            )?,
+            PlannedEdit::create(
+                root,
+                &http_test,
+                render_operation_stub(root, Stub::HttpTest, operation, &type_name)?,
+            )?,
+            PlannedEdit::create(
+                root,
+                &documentation,
+                render_operation_stub(root, Stub::OperationDocumentation, operation, &type_name)?,
+            )?,
+        ]);
+        operations.push((
+            resource_operation,
+            *operation,
+            application_test,
+            http_test,
+            snake_name,
+            type_name,
+        ));
+    }
+    edits.push(plan_resource_manifest_update(root, &operations)?);
+    edits.sort_by(|left, right| left.path.cmp(&right.path));
+
+    Ok(GenerationPlan {
+        schema_version: 1,
+        generator: "resource",
+        name: names.kebab.clone(),
+        dry_run: args.dry_run,
+        applied: false,
+        contract: None,
+        resource: Some(ResourceSelection {
+            name: names.kebab,
+            contract_sha256: report.document.sha256,
+            operations: operations
+                .iter()
+                .map(
+                    |(resource, operation, _, _, _, _)| ResourceOperationSelection {
+                        action: resource.action,
+                        operation_id: operation.operation_id.clone(),
+                        method: operation.method.as_str().to_ascii_lowercase(),
+                        path: operation.path.clone(),
+                    },
+                )
+                .collect(),
+        }),
         changes: edits.iter().map(PlannedEdit::summary).collect(),
         edits,
     })
@@ -340,6 +493,56 @@ fn plan_operation_manifest_update(
     let path = Path::new("minco.toml");
     let source = fs::read_to_string(root.join(path)).context("read minco.toml")?;
     let mut document: toml::Value = toml::from_str(&source).context("parse minco.toml")?;
+    add_operation_trace(
+        &mut document,
+        operation,
+        application_test,
+        http_test,
+        snake_name,
+        type_name,
+    )?;
+    let rendered = toml::to_string_pretty(&document).context("render minco.toml")?;
+    PlannedEdit::update(root, path, rendered.into_bytes())
+}
+
+type ResourcePlanOperation<'a> = (
+    &'a OwnedResourceOperation,
+    &'a OwnedOperation,
+    PathBuf,
+    PathBuf,
+    String,
+    String,
+);
+
+fn plan_resource_manifest_update(
+    root: &Path,
+    operations: &[ResourcePlanOperation<'_>],
+) -> Result<PlannedEdit> {
+    let path = Path::new("minco.toml");
+    let source = fs::read_to_string(root.join(path)).context("read minco.toml")?;
+    let mut document: toml::Value = toml::from_str(&source).context("parse minco.toml")?;
+    for (_, operation, application_test, http_test, snake_name, type_name) in operations {
+        add_operation_trace(
+            &mut document,
+            operation,
+            application_test,
+            http_test,
+            snake_name,
+            type_name,
+        )?;
+    }
+    let rendered = toml::to_string_pretty(&document).context("render minco.toml")?;
+    PlannedEdit::update(root, path, rendered.into_bytes())
+}
+
+fn add_operation_trace(
+    document: &mut toml::Value,
+    operation: &OwnedOperation,
+    application_test: &Path,
+    http_test: &Path,
+    snake_name: &str,
+    type_name: &str,
+) -> Result<()> {
     let root_table = document
         .as_table_mut()
         .context("minco.toml root must be a TOML table")?;
@@ -382,8 +585,7 @@ fn plan_operation_manifest_update(
         "tests".into(),
         toml::Value::Array(tests.into_iter().map(toml::Value::String).collect()),
     );
-    let rendered = toml::to_string_pretty(&document).context("render minco.toml")?;
-    PlannedEdit::update(root, path, rendered.into_bytes())
+    Ok(())
 }
 
 fn module_plan(root: &Path, args: &NamedArgs) -> Result<GenerationPlan> {
@@ -817,6 +1019,7 @@ fn generation_plan(
         dry_run,
         applied: false,
         contract,
+        resource: None,
         changes: edits.iter().map(PlannedEdit::summary).collect(),
         edits,
     })

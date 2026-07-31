@@ -35,11 +35,11 @@
     "build_timings_seconds": {},
     "facade": {
       "all_features": {
-        "feature_tree_lines": 3457,
+        "feature_tree_lines": 3458,
         "normal_dependency_packages": 300
       },
       "default_features": {
-        "feature_tree_lines": 824,
+        "feature_tree_lines": 825,
         "normal_dependency_packages": 105
       },
       "no_default_features": {
@@ -47,35 +47,35 @@
         "normal_dependency_packages": 16
       },
       "official_plugins": {
-        "feature_tree_lines": 1050,
+        "feature_tree_lines": 1051,
         "normal_dependency_packages": 118
       }
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "cold_build_seconds": 130.9,
-        "compressed_bytes": 5036567,
+        "cold_build_seconds": 1.74,
+        "compressed_bytes": 5102419,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "50938b97d3007f0e4f34cc8c55255e3618163ecef88cb0dcdaa0bcdd5db6c706",
-        "uncompressed_bytes": 11051176
+        "sha256": "8a14f40778fea9f235a99a8ed3004eb2faffc505e2f7275be39f13bb409b9ffc",
+        "uncompressed_bytes": 11187952
       },
       "sqs_worker": {
-        "cold_build_seconds": 16.02,
+        "cold_build_seconds": 0.95,
         "compressed_bytes": 574199,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
         "sha256": "c1508117d7329029aaedc85691b416f3321d1fa11831c5c162f9647465bd3a44",
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:1a79eca9a659ab03d00d326a84e6d44655cd00b1953e097819b805a69d5a74cb"
+    "revision": "source-tree-sha256:46777fb1918b8fb29baedf722025a6ced5f8dcf20903e8c8a77a4a50bb5e9030"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 0,
-    "orders_lambda_compressed_byte_delta": 23565,
-    "orders_lambda_compressed_percent_delta": 0.4701
+    "orders_lambda_compressed_byte_delta": 89417,
+    "orders_lambda_compressed_percent_delta": 1.7837
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",

@@ -3893,6 +3893,28 @@ mod cli_argument_tests {
     }
 
     #[test]
+    fn resource_generator_has_dry_run_json_cli_shape() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "make",
+            "resource",
+            "order",
+            "--dry-run",
+            "--json",
+        ])
+        .expect("resource generator should expose a dry-run JSON plan");
+
+        assert!(matches!(
+            cli.command,
+            Command::Make(MakeCommand::Resource(generator_cmd::NamedArgs {
+                name,
+                dry_run: true,
+            })) if name == "order"
+        ));
+        assert!(cli.json);
+    }
+
+    #[test]
     fn package_is_a_first_class_top_level_command() {
         let cli = Cli::try_parse_from(["cargo-minco", "package"]).expect("package command");
         assert!(matches!(cli.command, Command::Package(_)));

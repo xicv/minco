@@ -2,7 +2,11 @@
 
 use chrono::Utc;
 use orders_adapters::SqliteOrderStore;
-use orders_application::{OrderStore, PlaceOrderTransaction, StoreError};
+use orders_application::{
+    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery,
+    OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderTransaction, SortDirection,
+    StoreError, UpdateOrderPort,
+};
 use orders_domain::{CustomerReference, Order, OrderLine, Quantity, Sku};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -71,6 +75,13 @@ async fn replays_the_original_result() {
         .place_order(transaction(&key, "same-fingerprint"))
         .await
         .expect("first command");
+    assert_eq!(
+        database
+            .store
+            .delete_order(first.order.id, first.order.revision, Utc::now())
+            .await,
+        Ok(ConditionalResult::Applied(()))
+    );
     let replay = database
         .store
         .place_order(transaction(&key, "same-fingerprint"))
@@ -79,7 +90,7 @@ async fn replays_the_original_result() {
 
     assert!(!first.replayed);
     assert!(replay.replayed);
-    assert_eq!(replay.order.id, first.order.id);
+    assert_eq!(replay.order, first.order);
     database.close().await;
 }
 
@@ -96,6 +107,60 @@ async fn uses_orders_specific_migration_history() {
 
     assert_eq!(orders_history, 1);
     database.close().await;
+}
+
+#[tokio::test]
+async fn migration_backfills_replay_snapshots_for_existing_idempotency_rows() {
+    let path = std::env::temp_dir().join(format!("minco-orders-upgrade-{}.db", Uuid::new_v4()));
+    let config = minco_sqlx_sqlite::SqlitePoolConfig::file(&path);
+    let store = SqliteOrderStore::connect(&config)
+        .await
+        .expect("connect to SQLite upgrade database");
+    sqlx::raw_sql(sqlx::AssertSqlSafe(include_str!(
+        "../../migrations/sqlite/0001_orders.sql"
+    )))
+    .execute(store.pool())
+    .await
+    .expect("apply legacy migration");
+    let order_id = Uuid::now_v7();
+    let created_at = "2026-07-31T00:00:00Z";
+    sqlx::query(
+        "INSERT INTO orders (id, customer_reference, lines, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+    .bind(order_id.to_string())
+    .bind("PO-UPGRADE")
+    .bind(r#"[{"sku":"SKU-UPGRADE","quantity":1}]"#)
+    .bind("accepted")
+    .bind(created_at)
+    .execute(store.pool())
+    .await
+    .expect("insert legacy order");
+    sqlx::query(
+        "INSERT INTO order_idempotency (idempotency_key, request_fingerprint, order_id) VALUES (?1, ?2, ?3)",
+    )
+    .bind("upgrade-key")
+    .bind("upgrade-fingerprint")
+    .bind(order_id.to_string())
+    .execute(store.pool())
+    .await
+    .expect("insert legacy idempotency row");
+
+    let migrations = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../migrations/sqlite");
+    store.migrate(migrations).await.expect("upgrade migrations");
+    let replay = store
+        .place_order(transaction("upgrade-key", "upgrade-fingerprint"))
+        .await
+        .expect("replay upgraded result");
+
+    assert!(replay.replayed);
+    assert_eq!(replay.order.id.into_uuid(), order_id);
+    assert_eq!(replay.order.customer_reference.as_str(), "PO-UPGRADE");
+    assert_eq!(
+        replay.order.created_at.to_rfc3339(),
+        "2026-07-31T00:00:00+00:00"
+    );
+    store.pool().close().await;
+    remove_database_files(&path);
 }
 
 #[tokio::test]
@@ -172,5 +237,92 @@ async fn concurrent_retries_commit_one_order_and_replay_it() {
 
     assert_ne!(first.replayed, second.replayed);
     assert_eq!(first.order.id, second.order.id);
+    database.close().await;
+}
+
+#[tokio::test]
+async fn cursor_update_and_delete_are_revision_safe() {
+    let database = TestDatabase::open().await;
+    let mut created = Vec::new();
+    for index in 0..3 {
+        created.push(
+            database
+                .store
+                .place_order(transaction(
+                    &format!("sqlite-resource-{index}-{}", Uuid::new_v4()),
+                    &format!("resource-{index}"),
+                ))
+                .await
+                .expect("place order")
+                .order,
+        );
+    }
+    let sort = vec![
+        OrderSortTerm {
+            field: OrderSortField::CreatedAt,
+            direction: SortDirection::Descending,
+        },
+        OrderSortTerm {
+            field: OrderSortField::Id,
+            direction: SortDirection::Descending,
+        },
+    ];
+    let first_page = database
+        .store
+        .list_orders(ListOrdersQuery {
+            limit: 2,
+            after: None,
+            sort: sort.clone(),
+            status: None,
+        })
+        .await
+        .expect("first page");
+    assert_eq!(first_page.orders.len(), 2);
+    let cursor = first_page.next_cursor.expect("next cursor");
+    let second_page = database
+        .store
+        .list_orders(ListOrdersQuery {
+            limit: 2,
+            after: Some(cursor),
+            sort,
+            status: None,
+        })
+        .await
+        .expect("second page");
+    assert_eq!(second_page.orders.len(), 1);
+    assert!(
+        first_page
+            .orders
+            .iter()
+            .all(|order| order.id != second_page.orders[0].id)
+    );
+
+    let mut changed = created.pop().expect("created order");
+    changed
+        .update(
+            Some(CustomerReference::parse("PO-UPDATED").expect("reference")),
+            None,
+            Utc::now(),
+        )
+        .expect("domain update");
+    assert!(matches!(
+        database.store.save_order(changed.clone(), 1).await,
+        Ok(ConditionalResult::Applied(_))
+    ));
+    assert_eq!(
+        database.store.save_order(changed.clone(), 1).await,
+        Ok(ConditionalResult::PreconditionFailed)
+    );
+    assert_eq!(
+        database
+            .store
+            .delete_order(changed.id, changed.revision, Utc::now())
+            .await,
+        Ok(ConditionalResult::Applied(()))
+    );
+    assert_eq!(
+        database.store.get_order(changed.id).await.expect("get"),
+        None
+    );
     database.close().await;
 }

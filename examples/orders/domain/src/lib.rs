@@ -110,6 +110,8 @@ pub struct Order {
     pub lines: Vec<OrderLine>,
     pub status: OrderStatus,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub revision: u64,
 }
 
 impl Order {
@@ -118,26 +120,63 @@ impl Order {
         lines: Vec<OrderLine>,
         created_at: DateTime<Utc>,
     ) -> Result<Self, DomainError> {
-        if lines.is_empty() {
-            return Err(DomainError::OrderHasNoLines);
-        }
-        if lines.len() > 100 {
-            return Err(DomainError::TooManyOrderLines(lines.len()));
-        }
-        let mut skus = std::collections::BTreeSet::new();
-        for line in &lines {
-            if !skus.insert(line.sku.as_str()) {
-                return Err(DomainError::DuplicateSku(line.sku.as_str().to_owned()));
-            }
-        }
+        validate_lines(&lines)?;
         Ok(Self {
             id: OrderId::new(),
             customer_reference,
             lines,
             status: OrderStatus::Accepted,
             created_at,
+            updated_at: created_at,
+            revision: 1,
         })
     }
+
+    pub fn update(
+        &mut self,
+        customer_reference: Option<CustomerReference>,
+        lines: Option<Vec<OrderLine>>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<(), DomainError> {
+        if customer_reference.is_none() && lines.is_none() {
+            return Err(DomainError::OrderUpdateHasNoChanges);
+        }
+        if updated_at < self.updated_at {
+            return Err(DomainError::OrderUpdateMovesBackward);
+        }
+        if let Some(lines) = lines.as_ref() {
+            validate_lines(lines)?;
+        }
+        let revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(DomainError::OrderRevisionExhausted)?;
+        if let Some(customer_reference) = customer_reference {
+            self.customer_reference = customer_reference;
+        }
+        if let Some(lines) = lines {
+            self.lines = lines;
+        }
+        self.updated_at = updated_at;
+        self.revision = revision;
+        Ok(())
+    }
+}
+
+fn validate_lines(lines: &[OrderLine]) -> Result<(), DomainError> {
+    if lines.is_empty() {
+        return Err(DomainError::OrderHasNoLines);
+    }
+    if lines.len() > 100 {
+        return Err(DomainError::TooManyOrderLines(lines.len()));
+    }
+    let mut skus = std::collections::BTreeSet::new();
+    for line in lines {
+        if !skus.insert(line.sku.as_str()) {
+            return Err(DomainError::DuplicateSku(line.sku.as_str().to_owned()));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -154,6 +193,12 @@ pub enum DomainError {
     TooManyOrderLines(usize),
     #[error("SKU {0} occurs more than once")]
     DuplicateSku(String),
+    #[error("an order update must change at least one mutable field")]
+    OrderUpdateHasNoChanges,
+    #[error("an order update timestamp cannot move backward")]
+    OrderUpdateMovesBackward,
+    #[error("the order revision cannot be incremented")]
+    OrderRevisionExhausted,
 }
 
 #[cfg(test)]
@@ -184,5 +229,35 @@ mod tests {
             CustomerReference::parse("PO\n42"),
             Err(DomainError::InvalidCustomerReference)
         );
+    }
+
+    #[test]
+    fn updates_increment_the_revision_and_require_a_real_change() {
+        let created_at = Utc::now();
+        let mut order = Order::new(
+            CustomerReference::parse("PO-42").expect("reference"),
+            vec![OrderLine {
+                sku: Sku::parse("SKU-1").expect("sku"),
+                quantity: Quantity::new(1).expect("quantity"),
+            }],
+            created_at,
+        )
+        .expect("order");
+
+        assert_eq!(order.revision, 1);
+        assert_eq!(
+            order.update(None, None, created_at),
+            Err(DomainError::OrderUpdateHasNoChanges)
+        );
+        order
+            .update(
+                Some(CustomerReference::parse("PO-43").expect("reference")),
+                None,
+                created_at + chrono::Duration::seconds(1),
+            )
+            .expect("update");
+        assert_eq!(order.customer_reference.as_str(), "PO-43");
+        assert_eq!(order.revision, 2);
+        assert!(order.updated_at > order.created_at);
     }
 }
