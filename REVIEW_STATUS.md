@@ -8,9 +8,12 @@ evidence are recorded separately in `VERIFICATION.md`.
 
 The current workspace is an untagged, unpublished `0.5.0` candidate. It
 contains the opt-in five-action resource API convention, local-authoritative CI
-split and structured zero-idle cost evidence. M8-T09 must still prove the exact
-local, PostgreSQL, package and hosted release gates. No later source is a
-release until independently qualified, merged, tagged and published.
+split and structured zero-idle cost evidence. The authoritative local quality
+suite, explicit PostgreSQL resource adapter tests, Orders E2E, Rustack smoke,
+Plan/SAM/native artifacts and coordinated 28-package dry run are green.
+M8-T09 must still pass the explicit hosted `release` profile on the exact
+pushed head. No later source is a release until independently qualified,
+merged, tagged and published.
 
 This record separates:
 

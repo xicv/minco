@@ -101,4 +101,23 @@ local-authoritative CI boundary added after `0.4.0`.
 
 ## Evidence
 
-Pending implementation and qualification.
+Local source and package qualification passed on 2026-07-31 in the isolated
+`minco-task-m8-t09` JJ workspace:
+
+- `./scripts/quality.sh` passed the authoritative static, repository-truth,
+  publish, deep-review, contract, architecture, workspace test/clippy/doc,
+  40-test Playwright, generated-application, security and source-manifest
+  gates;
+- resource contract check/sync, dry-run generation and `minco explain` passed
+  for `placeOrder`, `listOrders`, `getOrder`, `updateOrder` and `deleteOrder`;
+- Orders passed the memory and SQLite suites, explicit HTTP E2E lifecycle, and
+  four ignored adapter tests against disposable local PostgreSQL;
+- Plan generation, SAM validation, native ARM64 Orders/worker Lambda builds
+  and the Rustack S3/SQS/SSM/STS smoke passed without AWS contact;
+- `scripts/release/publish.sh --skip-quality` simulated all 28 uploads, tested
+  the configured unpacked archives, compiled the external consumer matrix and
+  installed the unpacked CLI, which reported `minco 0.5.0`;
+- `scripts/release/package-list.sh` listed a manifest for all 28 packages.
+
+The exact pushed-head hosted `release` profile remains pending. No merge, tag,
+crates.io publication, GitHub release or AWS mutation is claimed.

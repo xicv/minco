@@ -4,7 +4,7 @@ Date: 2026-07-31
 Published baseline: `0.4.0`
 Current workspace version: `0.5.0`
 Workspace release state: `candidate`
-Exact release source: `65bf94045448bdbeedd37e10b1a004c926513508`
+Published `0.4.0` source: `65bf94045448bdbeedd37e10b1a004c926513508`
 Last completed tasks: `M9-T09`, `M10-T07`
 Active task: `M8-T09`
 
@@ -31,7 +31,12 @@ version. It does not treat registry unavailability as a pass.
 
 The post-`0.4.0` program now contains the standardized resource API,
 local-authoritative CI split and zero-idle cost research. M8-T09 is qualifying
-that exact source as an untagged, unpublished `0.5.0` candidate:
+that exact source as an untagged, unpublished `0.5.0` candidate. Authoritative
+local quality, explicit PostgreSQL, Orders E2E, Rustack, Plan/SAM/native
+artifact and coordinated 28-package archive gates are green. The exact
+pushed-head hosted `release` profile remains pending.
+
+The remaining planned program is:
 
 1. close repository truth and release-state documentation;
 2. make comprehensive qualification local and source-bound;

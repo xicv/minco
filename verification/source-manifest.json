@@ -49,8 +49,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "2de72a15d5c0fb98dd425e4d192501703259d40b1d1ca2641dad12d65d609a98",
-      "size_bytes": 3094
+      "sha256": "0dcaebe099e879f4f7308b79cbf86f830ae1a690334f3baa18b079cbb6f7a7b4",
+      "size_bytes": 3345
     },
     {
       "path": "CONTRIBUTING.md",
@@ -104,8 +104,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "8f7b0095d80dc723a908fc9651780f86435bf13e2695a20027a14f6a7ae766dc",
-      "size_bytes": 11590
+      "sha256": "764565f2878b23d88394e15b49d675f44a7f53c3a909a7bba0e6093c16e89de2",
+      "size_bytes": 11772
     },
     {
       "path": "SECURITY.md",
@@ -114,8 +114,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "97cfc50c6b96f7ebe7fa2a73071493308972e5fd0cc6f8a7e1ff7d230d62baaf",
-      "size_bytes": 93876
+      "sha256": "6aa067473b9c5dd0e650747d0063f3d5f3dd3c68bb6a66ff594097e2f72e3059",
+      "size_bytes": 95646
     },
     {
       "path": "config/jj/repo.toml",
@@ -2929,8 +2929,8 @@
     },
     {
       "path": "tasks/M8/M8-T09-minco-0.5.0-release.md",
-      "sha256": "563024c35df41e3adcc4b239a0d682f99d7bd16a24d53960a7c7a5d38379765f",
-      "size_bytes": 3809
+      "sha256": "aaf3289d0288a3642094ded572984a6629729e188fddf20ed24bac117d550994",
+      "size_bytes": 4995
     },
     {
       "path": "tasks/M9/M9-T01-framework-completion-rfc.md",
@@ -3083,7 +3083,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "fd6494b53772d170646ba48b2e9460b3f479ae060a50280cc8fbed7d7cae6b2e",
-  "total_size_bytes": 4001868,
+  "source_tree_sha256": "5d9d9542925eeab49e19e5d3ccd0dbf00237ca7097cd2fddc318304897f0f0a2",
+  "total_size_bytes": 4005257,
   "version": "0.5.0"
 }
