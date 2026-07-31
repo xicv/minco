@@ -73,6 +73,10 @@ publish_step = next(
 )
 assert publish_step["env"]["MINCO_RELEASE_TAG"] == "${{ inputs.release_tag }}"
 assert "${{ inputs.release_tag }}" not in publish_step["run"]
+assert publish_step["run"] == (
+    'GITHUB_REF="refs/tags/${MINCO_RELEASE_TAG}" '
+    "scripts/release/publish.sh --execute --skip-quality"
+)
 
 print("Publish workflow tagged-checkout and pinned prerequisites passed.")
 
