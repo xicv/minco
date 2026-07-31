@@ -125,4 +125,4 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
           MINCO_RELEASE_TAG: ${{ inputs.release_tag }}
-        run: scripts/release/publish.sh --execute --skip-quality
+        run: GITHUB_REF="refs/tags/${MINCO_RELEASE_TAG}" scripts/release/publish.sh --execute --skip-quality
