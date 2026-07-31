@@ -202,22 +202,37 @@ class RepositoryTruthTests(unittest.TestCase):
             (self.root / ".github/workflows/minco-manual.yml").read_text()
         )
         steps = workflow["jobs"]["quality"]["steps"]
-        commands = {
-            step["name"]: step.get("run", "")
+        steps_by_name = {
+            step["name"]: step
             for step in steps
             if "name" in step
         }
-        self.assertEqual(
-            commands["Install pinned JJ"],
-            "cargo install --locked --bin jj jj-cli --version 0.43.0\njj --version\n",
+        commands = {
+            name: step.get("run", "")
+            for name, step in steps_by_name.items()
+        }
+        release_tools = commands["Install release qualification tools"]
+        self.assertIn(
+            "cargo install --locked --bin jj jj-cli --version 0.43.0",
+            release_tools,
         )
+        self.assertIn("jj --version", release_tools)
+        self.assertIn(
+            "cargo install --locked ripgrep --version 15.2.0",
+            release_tools,
+        )
+        self.assertIn("rg --version", release_tools)
         self.assertEqual(
-            commands["Install pinned ripgrep"],
-            "cargo install --locked ripgrep --version 15.2.0\nrg --version\n",
+            steps_by_name["Install release qualification tools"]["if"],
+            "${{ inputs.profile == 'release' }}",
         )
         self.assertEqual(
             commands["Install pinned Cargo Lambda"],
             "cargo install --locked cargo-lambda --version 1.9.1",
+        )
+        self.assertEqual(
+            steps_by_name["Install pinned Cargo Lambda"]["if"],
+            "${{ inputs.profile == 'release' }}",
         )
         zig_steps = [
             step
@@ -229,6 +244,7 @@ class RepositoryTruthTests(unittest.TestCase):
             [
                 {
                     "name": "Install pinned Zig",
+                    "if": "${{ inputs.profile == 'release' }}",
                     "uses": "mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29",
                     "with": {"version": "0.14.0"},
                 }
@@ -237,6 +253,10 @@ class RepositoryTruthTests(unittest.TestCase):
         qualification = commands[
             "Plan, SAM, and native ARM64 Lambda qualification"
         ]
+        self.assertEqual(
+            steps_by_name["Plan, SAM, and native ARM64 Lambda qualification"]["if"],
+            "${{ inputs.profile == 'release' }}",
+        )
         for required in [
             "cargo lambda --version",
             "sam --version",
