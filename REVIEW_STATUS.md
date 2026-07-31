@@ -1,19 +1,18 @@
 # Review status
 
-The Minco `0.4.0` release boundary is closed. Exact source
-`65bf94045448bdbeedd37e10b1a004c926513508` is tagged, published as a GitHub
-release and available across all 28 crates.io packages. Exact-main local,
-hosted, disposable AWS verification, exact-artifact promotion and cleanup
-evidence are recorded separately in `VERIFICATION.md`.
+The Minco `0.5.0` release boundary is closed. Exact source
+`485d67104a49f139820722eb73334415f69a653c` is tagged, published as a
+[GitHub release](https://github.com/xicv/minco/releases/tag/v0.5.0) and
+available across all 28 crates.io packages. Candidate hosted release run
+`30618708535`, merged-main release run `30623278437` and publication run
+`30632811070` passed. Independent registry metadata, owner, checksum, archive,
+installation, external consumer and all 28 exact docs.rs checks also passed.
 
-The current workspace is an untagged, unpublished `0.5.0` candidate. It
-contains the opt-in five-action resource API convention, local-authoritative CI
-split and structured zero-idle cost evidence. The authoritative local quality
-suite, explicit PostgreSQL resource adapter tests, Orders E2E, Rustack smoke,
-Plan/SAM/native artifacts and coordinated 28-package dry run are green.
-M8-T09 must still pass the explicit hosted `release` profile on the exact
-pushed head. No later source is a release until independently qualified,
-merged, tagged and published.
+The published source contains the opt-in five-action resource API convention,
+local-authoritative CI split and structured zero-idle cost evidence. No new AWS
+deployment was performed for `0.5.0`; the independently recorded `0.4.0`
+disposable AWS rehearsal remains the latest live runtime proof. M11-T01 is the
+next bounded source task.
 
 This record separates:
 

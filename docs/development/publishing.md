@@ -6,17 +6,17 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `0.4.0` release contains the complete lock-step 28-package
-inventory and added first releases for `minco-config`, `minco-db`, `minco-dev`
-and `minco-deploy-aws`. A workspace version or source tag is not registry
+The published `0.5.0` release contains the complete lock-step 28-package
+inventory. A workspace version or source tag is not registry
 proof: release status must be verified independently against the exact
 crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The current workspace is an unpublished `0.5.0` candidate with the same
-28-package inventory. Candidate qualification must use the exact source and
-must not be described as registry, tag or deployment proof.
+The exact published source is immutable tag `v0.5.0` at
+`485d67104a49f139820722eb73334415f69a653c`. Later candidate qualification
+must use its own exact source and must not be described as registry, tag or
+deployment proof.
 
 | Package | Role |
 |---|---|

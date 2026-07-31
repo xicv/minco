@@ -53,13 +53,13 @@ No changes yet.
 
 ### Compatibility boundary
 
-This is a pre-1.0 minor release candidate. The standardized resource response
+This is a pre-1.0 minor release. The standardized resource response
 shape, conditional-write behavior, operation family and serialized Plan cost
 surface are public compatibility changes. Existing applications opt in by
 declaring complete resource metadata and migrating their contract and client
-handling deliberately. The 28-package family is still unpublished at `0.5.0`;
-source/package qualification does not prove merge, tag, crates.io publication,
-live AWS deployment or production promotion.
+handling deliberately. The 28-package family is published at `0.5.0` from
+immutable tag `v0.5.0`; registry publication does not prove live AWS deployment
+or production promotion.
 
 ## [0.4.0] - 2026-07-30
 

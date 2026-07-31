@@ -2,15 +2,64 @@
 
 Date: 2026-07-31
 Current workspace version: `0.5.0`
-Published baseline: `0.4.0`
-Workspace release state: `candidate`
-Purpose: retain exact release evidence and distinguish the published baseline
-from later source, deployment and release-candidate work.
+Published baseline: `0.5.0`
+Workspace release state: `published`
+Purpose: retain exact release evidence and distinguish source, hosted,
+registry, documentation and live-deployment proof.
 
-## M8-T09 `0.5.0` source and package candidate
+## `0.5.0` release closure
 
-The candidate is active in the isolated
-`/Users/xicao/Projects/minco-task-m8-t09` JJ workspace. It includes the
+PR
+[`#61`](https://github.com/xicv/minco/pull/61) merged exact qualified source
+`485d67104a49f139820722eb73334415f69a653c`. Candidate hosted release run
+[`30618708535`](https://github.com/xicv/minco/actions/runs/30618708535) and
+merged-main release run
+[`30623278437`](https://github.com/xicv/minco/actions/runs/30623278437)
+passed. Immutable remote tag `v0.5.0` resolves to that exact source.
+
+Trusted-publishing workflow corrections merged through PRs `#62` to `#65`.
+The unsuccessful attempts failed before upload or were cancelled after exact
+registry sweeps confirmed `0/28` packages at `0.5.0`. Final publication run
+[`30632811070`](https://github.com/xicv/minco/actions/runs/30632811070)
+passed all static, feature, Clippy, test, generated-application, rustdoc and
+coordinated dry-run gates, obtained a short-lived OIDC token, uploaded all 28
+packages and completed token revocation.
+
+Independent post-publication verification passed:
+
+```text
+uv run --locked python scripts/validate_publish.py \
+  --expect-published --check-registry --require-registry \
+  --output verification/published-release-validation.json
+  exact non-yanked registry records: 28/28
+
+crates.io owner/archive verifier
+  owner xicv: 28/28
+  downloaded archive SHA-256 matched registry checksum: 28/28
+
+cargo +1.97.1 install cargo-minco --version 0.5.0 --locked \
+  --root target/minco/registry-install-0.5.0
+  external Cargo subcommand: minco 0.5.0
+
+external registry consumers
+  default features: passed
+  no default features: passed
+  every published facade feature: passed
+
+exact docs.rs library routes
+  HTTP 200: 28/28
+```
+
+The GitHub release is
+[`v0.5.0`](https://github.com/xicv/minco/releases/tag/v0.5.0). No AWS
+resource was created, modified, promoted or deleted for this publication. The
+separately authorised `0.4.0` disposable AWS rehearsal remains the latest live
+deployment proof.
+
+## M8-T09 `0.5.0` source and package qualification
+
+Qualification ran in the isolated `/Users/xicao/Projects/minco-task-m8-t09`
+JJ workspace. It includes the
 accepted M9-T08 resource API convention, M9-T09 local/hosted CI boundary and
 M10-T07 zero-idle cost evidence.
 
@@ -66,11 +115,9 @@ scripts/release/package-list.sh
 ```
 
 Registry validation reached all 28 package records and proved exact `0.5.0`
-absent before the candidate dry run. A new regression also proves an immutable
-yanked exact version is still treated as occupied rather than reusable.
-
-The exact pushed-head hosted `release` profile remains pending. No merge, tag,
-crates.io publication, GitHub release or AWS mutation is claimed.
+absent before publication. A regression also proves an immutable yanked exact
+version is still treated as occupied rather than reusable. The hosted,
+publication and independent post-publication evidence is recorded above.
 
 ## `0.4.0` release closure
 

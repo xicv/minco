@@ -21,17 +21,17 @@ always-on compute. Minco targets zero provisioned application compute at idle.
 Storage, retained logs, DNS, secrets, database storage, schedules and other
 fixed/request dimensions remain explicit and bounded.
 
-> Published baseline: `0.4.0`
+> Published baseline: `0.5.0`
 >
 > Current workspace version: `0.5.0`
 >
-> Workspace release state: `candidate`
+> Workspace release state: `published`
 >
 > Current publishable package count: `28`
 >
-> Minco is pre-1.0. The coordinated 28-package `0.4.0` family is published;
-> `0.5.0` is an untagged, unpublished source/package candidate. Merge, tag,
-> registry publication and live deployment retain independent evidence.
+> Minco is pre-1.0. The coordinated 28-package `0.5.0` family is published
+> from immutable tag `v0.5.0`. Registry publication, source qualification and
+> live AWS deployment retain independent evidence.
 
 
 ## Use Minco as a dependency
@@ -73,16 +73,12 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The published `0.4.0` baseline contains 28 packages. It added first releases
-for `minco-config`, `minco-db`, `minco-dev` and `minco-deploy-aws`. See the
-[`0.3.1` to `0.4.0` upgrade guide](docs/adoption/0.3.1-to-0.4.0.md) and
+The published `0.5.0` baseline contains 28 packages. It standardizes the
+opt-in resource API conventions, adds typed Plan/cost evidence and separates
+local-authoritative quality from bounded hosted CI. See the
+[`0.4.0` to `0.5.0` upgrade guide](docs/adoption/0.4.0-to-0.5.0.md) and
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
-publication, dry-run, ownership, and trusted-publishing process.
-
-The candidate [`0.4.0` to `0.5.0` upgrade guide](docs/adoption/0.4.0-to-0.5.0.md)
-documents the opt-in resource API conventions, Plan/cost additions and
-local/hosted CI split. Do not request `0.5.0` from crates.io until registry
-verification confirms the complete family.
+upgrade, publication, ownership and trusted-publishing process.
 
 A complete application-consumer walkthrough is available in
 [`docs/development/using-minco-crate.md`](docs/development/using-minco-crate.md).
@@ -407,9 +403,8 @@ then use the facade/stability matrix in
 
 ## Crates.io release preparation
 
-Minco uses a lock-step release family. The published `0.4.0` release contains
-all 28 current publishable packages; the workspace is an unpublished `0.5.0`
-candidate with the same inventory. Source and package qualification are not
+Minco uses a lock-step release family. The published `0.5.0` release contains
+all 28 current publishable packages. Source and package qualification are not
 registry proof.
 Static metadata and dependency validation can run without Cargo:
 
