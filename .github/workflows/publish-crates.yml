@@ -13,6 +13,11 @@ on:
         required: true
         default: false
         type: boolean
+      release_tag:
+        description: Immutable release tag to check out and publish
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -39,6 +44,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.11.32"
@@ -50,17 +56,35 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Install pinned JJ for compatibility tests
+        run: |
+          cargo install --locked --bin jj jj-cli --version 0.43.0
+          jj --version
       - name: Verify release tag
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
+          release_tag="$RELEASE_TAG"
+          if [[ -z "$release_tag" ]]; then
+            case "$GITHUB_REF" in
+              refs/tags/*) release_tag="${GITHUB_REF#refs/tags/}" ;;
+              *)
+                echo "release_tag is required unless the workflow runs from a tag" >&2
+                exit 1
+                ;;
+            esac
+          fi
           version="$(uv run --locked python - <<'PY'
           import tomllib
           from pathlib import Path
           print(tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version'])
           PY
           )"
-          test "$GITHUB_REF" = "refs/tags/v${version}"
+          test "$release_tag" = "v${version}"
+          tag_commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"
+          test "$tag_commit" = "$(git rev-parse HEAD)"
       - name: Static and packaging validation
         run: |
           uv run --locked python scripts/validate_static.py
