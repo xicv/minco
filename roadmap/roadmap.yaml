@@ -111,6 +111,8 @@ milestones:
   - Generators produce reviewed structure and failing tests without fake business behavior.
   - Resource APIs use one validated contract for success envelopes, cursor pagination, conditional writes, and
     stable Problem responses without introducing a generic CRUD repository.
+  - Complete quality remains authoritative locally while optional hosted CI defaults to bounded clean-runner
+    evidence and reserves the full matrix for explicit release qualification.
 - id: M10
   name: Safe deployment controller
   status: active
