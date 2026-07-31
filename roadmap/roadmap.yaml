@@ -129,7 +129,7 @@ milestones:
   - Bounded real-AWS rehearsal proves hosted verification and rollback behavior.
 - id: M11
   name: Plugin ecosystem and documentation
-  status: planned
+  status: active
   depends_on:
   - M9
   - M10

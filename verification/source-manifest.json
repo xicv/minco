@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 615,
+  "file_count": 648,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -11,6 +11,11 @@
       "path": ".env.example",
       "sha256": "d2f6936a9d407df26975ceaa1fa682120515b0be18b2ba4607746f98dbc826bc",
       "size_bytes": 605
+    },
+    {
+      "path": ".github/workflows/docs-pages.yml",
+      "sha256": "cd9d8a0bde022d9329ed3c1c8c1d97bfb33ab588cd40e3a6d80b2f0d9e7fa133",
+      "size_bytes": 1774
     },
     {
       "path": ".github/workflows/minco-manual.yml",
@@ -99,8 +104,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "0803d35a5eda50212080aa915fa34e9419e68573022ccb74bddc12e73709ecc3",
-      "size_bytes": 17412
+      "sha256": "be82b435b09b08297a448548cdfab91f24dcad9b79db3446bfedfc78d61733a1",
+      "size_bytes": 5924
     },
     {
       "path": "REVIEW_STATUS.md",
@@ -1384,8 +1389,8 @@
     },
     {
       "path": "docs/development/testing.md",
-      "sha256": "f3cb0353eb7ce04effe6563c4869df3601728eaf2791728385a09bd90b94280e",
-      "size_bytes": 5545
+      "sha256": "bca1ef0a3af49951a0a8afad60f5766955cecf69058b921a2a6db48aa3ebe426",
+      "size_bytes": 6320
     },
     {
       "path": "docs/development/update.md",
@@ -1446,6 +1451,136 @@
       "path": "docs/vision/minco-framework-definition.md",
       "sha256": "b874fe1c2c892c46a2e71fcd3d9296e3c55510bb57fd2d62daa45b2f869bdefa",
       "size_bytes": 18396
+    },
+    {
+      "path": "docs-site/.gitignore",
+      "sha256": "712655ad42a535eb02ae7d4366a0ef331ff1facc84afc0f05d2749f65b801ccf",
+      "size_bytes": 82
+    },
+    {
+      "path": "docs-site/.npmrc",
+      "sha256": "b962362ebe7560b534e834c2ede51186c2e3fceb94e12cc434a11180f22391f2",
+      "size_bytes": 20
+    },
+    {
+      "path": "docs-site/.vitepress/config.mts",
+      "sha256": "f1653aa7ecce806d571913fbf5521775ebfffa211d8cd161a2cb4cfd294b7520",
+      "size_bytes": 4145
+    },
+    {
+      "path": "docs-site/.vitepress/theme/index.ts",
+      "sha256": "79b3cc1810c19627b0a468eb7011fd26e808e6c2cd14e379ef0f78fdcfff7d47",
+      "size_bytes": 93
+    },
+    {
+      "path": "docs-site/.vitepress/theme/style.css",
+      "sha256": "c4fb9488ae082062528e21f28aa8ca5fad4b5e1defc49c9e1309b92465aef6c4",
+      "size_bytes": 3063
+    },
+    {
+      "path": "docs-site/0.5.0/explanation/architecture.md",
+      "sha256": "bddf5082bac064327708ee82c71afd82c2709323dc45c4a5163d7df4afad881e",
+      "size_bytes": 1468
+    },
+    {
+      "path": "docs-site/0.5.0/explanation/zero-idle.md",
+      "sha256": "b989c7390b694b1541eaa0fcb9e8a235526ffa48b61d7c3572f7c2b3f41caeb5",
+      "size_bytes": 1667
+    },
+    {
+      "path": "docs-site/0.5.0/how-to/configure-environments.md",
+      "sha256": "5804d54391848da19073b75afc329b2846a4310accc7b85f1dcec849a4bf1ec3",
+      "size_bytes": 1195
+    },
+    {
+      "path": "docs-site/0.5.0/how-to/plan-deployment.md",
+      "sha256": "de7854800a9edad11b29a5eff4eb834b2d69fee33822c1f079e1c4e2084444a0",
+      "size_bytes": 1347
+    },
+    {
+      "path": "docs-site/0.5.0/how-to/resource-api.md",
+      "sha256": "7bd2fbfd65b8bd994760b70bd4cf97ef15c6fd0d757f288af101be5227e4dbfd",
+      "size_bytes": 2032
+    },
+    {
+      "path": "docs-site/0.5.0/index.md",
+      "sha256": "46b8492db4ccdfcc3aeaa00540005712f33c43209f76fe36d3215a8a7d6edfc8",
+      "size_bytes": 1922
+    },
+    {
+      "path": "docs-site/0.5.0/installation.md",
+      "sha256": "dc4de8282e2ec0d6c1eea3ae1e9e23689c706427cc27c6c6c6557edf21b6272a",
+      "size_bytes": 1042
+    },
+    {
+      "path": "docs-site/0.5.0/reference/cli.md",
+      "sha256": "7ec9d6358d8644b5f2ec2811cdd633ae6f2166a5cfafd4b5a4fe04d8d205c9f0",
+      "size_bytes": 1476
+    },
+    {
+      "path": "docs-site/0.5.0/reference/resource-api.md",
+      "sha256": "0c6ed40d06cb9961782019c9f7b1b70abcbea4edd85f27ff0cf1d4a91d4a182b",
+      "size_bytes": 1378
+    },
+    {
+      "path": "docs-site/0.5.0/reference/testing.md",
+      "sha256": "37942c7c1323cd10ac3415486fd0a55faf7e40d7a647df631d154568e2dde679",
+      "size_bytes": 1250
+    },
+    {
+      "path": "docs-site/0.5.0/tutorials/build-a-plugin.md",
+      "sha256": "39da339fead53f69653b8492bf9f4c454cdc7aa2e08e0ea831722bea79f60487",
+      "size_bytes": 1494
+    },
+    {
+      "path": "docs-site/0.5.0/tutorials/deploy-to-aws.md",
+      "sha256": "37430c6b19c9a46f5525387fc0e1ad2dbf049c14de36bbf58a587c3cb8a8ecb8",
+      "size_bytes": 2107
+    },
+    {
+      "path": "docs-site/0.5.0/tutorials/first-api.md",
+      "sha256": "724f5b8564b4cf036befce0d3d911995478d2c14dea18a850a595d7ca8cee995",
+      "size_bytes": 1909
+    },
+    {
+      "path": "docs-site/index.md",
+      "sha256": "ef139bc52d394fa59a57d8882a863ef79c0c7f52dcd915455d1b23ce32f56fad",
+      "size_bytes": 1181
+    },
+    {
+      "path": "docs-site/next/index.md",
+      "sha256": "59daa34d063f34ce1dae9c9db4765899c748dfeefd238cf7e190981a1fe43dc2",
+      "size_bytes": 490
+    },
+    {
+      "path": "docs-site/package-lock.json",
+      "sha256": "33eaadbcc517b890c4c543c469f7c39b10231412d3b0d64a5ad769cd6b61b9c3",
+      "size_bytes": 94078
+    },
+    {
+      "path": "docs-site/package.json",
+      "sha256": "1f82e23e72b2fba67e0be8ef3bb8ff7d57e7d250df39cec7cb8b367154b5b5bd",
+      "size_bytes": 349
+    },
+    {
+      "path": "docs-site/playwright.config.mts",
+      "sha256": "395c9e4dc47ee2af29004481c6b81724dfb495724296b213d66f68dfbca8b6de",
+      "size_bytes": 923
+    },
+    {
+      "path": "docs-site/public/minco-icon.svg",
+      "sha256": "6ec6e77ee024fbce45a2c5eb73e868e642bd5e652232c7d9f05b8161202d22b2",
+      "size_bytes": 2552
+    },
+    {
+      "path": "docs-site/tests/docs.spec.mts",
+      "sha256": "a9cede8fbfe3221e6352ec1b38cb64949834a61ac760fe46dc8355740efbfbc1",
+      "size_bytes": 3494
+    },
+    {
+      "path": "docs-site/versions.md",
+      "sha256": "635174834bb5f0393f2b40eb99615c83fcc70adf9a1f8be626e82bf877f06f61",
+      "size_bytes": 592
     },
     {
       "path": "examples/orders/adapters/Cargo.toml",
@@ -2364,8 +2499,8 @@
     },
     {
       "path": "roadmap/roadmap.yaml",
-      "sha256": "9427e88a27a7643858a7533b9b526f831611a383c62c14aebd6ce865946041eb",
-      "size_bytes": 7038
+      "sha256": "01b4f3d4564d24837f7fa8a0a318378b8c36a332f0b1c2e5e9c43f11a8d17431",
+      "size_bytes": 7037
     },
     {
       "path": "roadmap/tasks.mmd",
@@ -2513,6 +2648,36 @@
       "size_bytes": 2070
     },
     {
+      "path": "scripts/docs/build.sh",
+      "sha256": "0b5004063ced64e21104413cca2fcc8c33c20a4331371de5b8a8e3536e9aeb99",
+      "size_bytes": 177
+    },
+    {
+      "path": "scripts/docs/check-links.sh",
+      "sha256": "97688eb09f0a9234c274f9e19de9e0075ff7c5fb0fa89dfcab614368a46c3ff2",
+      "size_bytes": 191
+    },
+    {
+      "path": "scripts/docs/check-snippets.sh",
+      "sha256": "31982f308c00a1baee1a97eac2e601224705863c388f4aed67dac61b1e806f6c",
+      "size_bytes": 120
+    },
+    {
+      "path": "scripts/docs/check_links.py",
+      "sha256": "9a615a7aace1f14165e221c4aa67ffd68a20aaeae2803245e0ad0cdac35dcbea",
+      "size_bytes": 3866
+    },
+    {
+      "path": "scripts/docs/check_snippets.py",
+      "sha256": "81145ee02b164048e8fa19028ad396e405e3015f862277e6cc9d0ddab1600e33",
+      "size_bytes": 2859
+    },
+    {
+      "path": "scripts/docs/test-browser.sh",
+      "sha256": "107d1da239b231a37aa5f6606f30885b0667f3b06c4671f2eab4bb2014104750",
+      "size_bytes": 188
+    },
+    {
       "path": "scripts/generate_bootstrap_artifacts.py",
       "sha256": "c263a5bd4ab36abed405a0d5da1cb70e5e55b9b52cdf9c7c80f76fab0a01970b",
       "size_bytes": 14494
@@ -2544,8 +2709,8 @@
     },
     {
       "path": "scripts/quality.sh",
-      "sha256": "35aec83cc754fa6d92bd08941f3655f4b177444324304ad110a2cb4b7d4cbc6f",
-      "size_bytes": 2059
+      "sha256": "a732f752b42a197de91d19ed9d116cbcae438e1042bb9d7d142a1f96b6c7402d",
+      "size_bytes": 2169
     },
     {
       "path": "scripts/release/package-list.sh",
@@ -2564,8 +2729,8 @@
     },
     {
       "path": "scripts/source_manifest.py",
-      "sha256": "9c00057283704beef06afc40a36231e4d86fa5c1692d8451a532200d35e623d2",
-      "size_bytes": 3428
+      "sha256": "a331ccf7c87e86f110b19d96a13cdf81d484359689d60104a7084bfd946669b1",
+      "size_bytes": 3739
     },
     {
       "path": "scripts/test/all.sh",
@@ -2724,8 +2889,8 @@
     },
     {
       "path": "tasks/M11/M11-T01-versioned-docs-site.md",
-      "sha256": "3faa4b1a6fc716b83400c9d06c3d5b5312a09a056e85beeb83d27737ca8eb4c2",
-      "size_bytes": 1220
+      "sha256": "96bc41d24497939cb3a9cc56e4ff6b6f7c46a425c6b8a4eab18699b0938ce872",
+      "size_bytes": 3434
     },
     {
       "path": "tasks/M11/M11-T02-plugin-distribution-manifest.md",
@@ -2999,7 +3164,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "7fc14121daac0129116d78a3b0ed1d28c76579b3d272e3174ded29210c84654a",
+      "sha256": "8d4d934ef3c33f526733d827895041b49c738ffd9d6a4f5c928c380fceef4bad",
       "size_bytes": 2021
     },
     {
@@ -3059,7 +3224,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "4332232be0d1a9d70e13322f0e2d9a85e554642e4d24201e5c8808e97d2a61c5",
+      "sha256": "5a1b35c71020264661e3d59193153730af52bffbd7d7da523a58d9e3e95a6df9",
       "size_bytes": 754
     },
     {
@@ -3080,10 +3245,12 @@
   ],
   "schema_version": 2,
   "source_tree_exclusions": [
+    "docs-site/.vitepress/cache/**",
+    "docs-site/.vitepress/dist/**",
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "abaf54f595dbea63818bc2b9854bc2ff1f611d5038e767e0ea81dc4fe57ced7d",
-  "total_size_bytes": 4011677,
+  "source_tree_sha256": "602d5975d0a9e6d535aa761083bfe9c7c7f1adb66864cf147d7ba927cfc4bb85",
+  "total_size_bytes": 4144122,
   "version": "0.5.0"
 }

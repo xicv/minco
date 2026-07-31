@@ -20,6 +20,10 @@ bash scripts/test/aws_shell_portability.sh
 bash scripts/test/sqlx_feature_isolation.sh
 node --check plugins/minco-plugin-feedback/assets/widget.js
 scripts/test/feedback_browser.sh
+scripts/docs/check-snippets.sh
+scripts/docs/build.sh
+scripts/docs/check-links.sh
+scripts/docs/test-browser.sh
 cargo fmt --all -- --check
 cargo check -p minco --no-default-features --locked
 cargo check -p minco --locked
