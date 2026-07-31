@@ -1574,8 +1574,8 @@
     },
     {
       "path": "docs-site/tests/docs.spec.mts",
-      "sha256": "a9cede8fbfe3221e6352ec1b38cb64949834a61ac760fe46dc8355740efbfbc1",
-      "size_bytes": 3494
+      "sha256": "d5906bb083e4f7ace561dfeb6e81e81d9e14e053931e0b7f400ddfcd54815e57",
+      "size_bytes": 3842
     },
     {
       "path": "docs-site/versions.md",
@@ -2889,8 +2889,8 @@
     },
     {
       "path": "tasks/M11/M11-T01-versioned-docs-site.md",
-      "sha256": "467637ea4f446bacc39f63b9ffb53a3feea23946d92e57d8ba3726299a6da556",
-      "size_bytes": 4426
+      "sha256": "72848621e869991601978990a7b8eaf7550c5c8a419ae2fca4291c109f3db0b2",
+      "size_bytes": 4721
     },
     {
       "path": "tasks/M11/M11-T02-plugin-distribution-manifest.md",
@@ -3250,7 +3250,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "3d50b900c8c94a97ac8648a354ff36c33d27bbbacbefd795aaeae55b3a2ee554",
-  "total_size_bytes": 4145114,
+  "source_tree_sha256": "b9ebc084ba6d37b08e9a9d99f9262e2d920166dd16e6df417c6d7547d6d8b73c",
+  "total_size_bytes": 4145757,
   "version": "0.5.0"
 }

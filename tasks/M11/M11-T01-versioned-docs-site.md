@@ -104,3 +104,7 @@ authors, operators, contributors, and AI coding agents.
   intentional desktop skip. Search, version navigation, mobile navigation,
   viewport containment, labelled semantics and browser-console errors were
   checked.
+- A post-deployment regression run exposed that assertions could race the
+  VitePress client hydration boundary. The browser harness now waits for the
+  appearance control's hydrated accessible title before exercising interactive
+  navigation or auditing labels; it does not use a timing delay.
