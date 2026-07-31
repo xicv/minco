@@ -1,7 +1,15 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+async function waitForHydration(page: Page) {
+  await expect(page.locator('.VPSwitchAppearance').first()).toHaveAttribute(
+    'title',
+    /^Switch to (dark|light) theme$/
+  )
+}
 
 test('landing page leads to stable documentation', async ({ page }) => {
   await page.goto('./')
+  await waitForHydration(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Minco' })).toBeVisible()
   await expect(
     page.getByText('Ship Rust web apps straight to AWS.', { exact: true })
@@ -14,6 +22,7 @@ test('landing page leads to stable documentation', async ({ page }) => {
 
 test('local search finds the resource API reference', async ({ page }) => {
   await page.goto('./0.5.0/')
+  await waitForHydration(page)
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   const search = page.locator('input[type="search"]')
   await search.fill('Resource API reference')
@@ -27,6 +36,7 @@ test('local search finds the resource API reference', async ({ page }) => {
 
 test('next is visibly unreleased and links back to stable', async ({ page }) => {
   await page.goto('./next/')
+  await waitForHydration(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Next' })).toBeVisible()
   await expect(page.getByText('Unreleased documentation.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Use stable 0.5.0' })).toHaveAttribute(
@@ -38,6 +48,7 @@ test('next is visibly unreleased and links back to stable', async ({ page }) => 
 test('navigation stays within the mobile viewport', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only')
   await page.goto('./0.5.0/tutorials/first-api')
+  await waitForHydration(page)
   const dimensions = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
     content: document.documentElement.scrollWidth
@@ -59,6 +70,7 @@ test('core pages have labelled semantics and no browser errors', async ({ page }
 
   for (const path of ['./', './0.5.0/', './0.5.0/reference/resource-api', './next/']) {
     await page.goto(path)
+    await waitForHydration(page)
     await expect(page.locator('h1')).toHaveCount(1)
     await expect(page.getByRole('banner')).toBeVisible()
     const missingLabels = await page.evaluate(() => {
