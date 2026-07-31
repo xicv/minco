@@ -15,11 +15,20 @@ use `uv run --locked` and fail rather than rewriting the lock.
 | Unit | `./scripts/test/unit.sh` | Domain invariants, graph validation, parsing, cost formulas, plugin ordering. |
 | Feature | `./scripts/test/feature.sh` | Application use cases, HTTP `oneshot`, adapter behavior, generated plan/contract checks. |
 | Feedback browser | `./scripts/test/feedback_browser.sh` | Locked npm install, exact Chromium headless shell and Firefox binaries, and the fully parallel widget matrix. |
+| Documentation | `./scripts/docs/build.sh`, `check-links.sh`, `check-snippets.sh`, `test-browser.sh` | Locked static build, audit, version markers, executable syntax, internal/external links, search, stable/next navigation, and desktop/mobile rendering. |
 | Local topology | `python3 scripts/dev/test_topology.py` | `cargo minco dev` default/SQLite plans, graph-derived Compose selection, standard endpoint wiring, and override behavior. |
 | Rustack conformance | `./scripts/dev/rustack-smoke.sh` | Isolated real S3, SQS, SSM SecureString, STS, and Minco SSM SDK-adapter operations against Rustack. |
 | E2E | `./scripts/test/e2e.sh` | Local service over TCP with contract requests; optional PostgreSQL/Rustack dependencies. |
 | All | `./scripts/test/all.sh` | Runs the three tiers and deep review. |
 | Quality | `./scripts/quality.sh` | Static checks, Feedback browser matrix, format, Clippy, all workspace targets, generation freshness, review. |
+
+The documentation site uses stable VitePress `1.6.4` with a patched Vite
+`6.4.3` override. Its locked npm tree must pass at moderate severity, and the
+site build fails on dead internal links. The bounded external checker accepts
+provider anti-automation statuses (`403`, `405`, and `429`) as reachable but
+fails missing pages and transport errors. Browser tests use the production
+build at the repository Pages base path and cover local search, stable/next
+version semantics, primary navigation, and mobile overflow.
 
 ## Stability requirements
 

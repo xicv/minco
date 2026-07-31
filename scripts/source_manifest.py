@@ -19,12 +19,18 @@ EXCLUDED_RELATIVE = {
     # This report contains the source-tree digest and is excluded to avoid self-reference.
     Path("verification/adoption-measurements.json"),
 }
+EXCLUDED_RELATIVE_PREFIXES = {
+    Path("docs-site/.vitepress/cache"),
+    Path("docs-site/.vitepress/dist"),
+}
 EXCLUDED_SUFFIXES = {".pyc", ".zip", ".db", ".sqlite"}
 
 
 def included(root: Path, path: Path) -> bool:
     relative = path.relative_to(root)
     if relative in EXCLUDED_RELATIVE:
+        return False
+    if any(relative.is_relative_to(prefix) for prefix in EXCLUDED_RELATIVE_PREFIXES):
         return False
     if any(part in EXCLUDED_PARTS for part in relative.parts):
         return False
@@ -66,7 +72,10 @@ def build_report(root: Path) -> dict[str, Any]:
         "artifact": "minco-cargo-ready-source",
         "version": version,
         "source_tree_sha256": aggregate_digest(files),
-        "source_tree_exclusions": sorted(str(path) for path in EXCLUDED_RELATIVE),
+        "source_tree_exclusions": sorted(
+            [str(path) for path in EXCLUDED_RELATIVE]
+            + [f"{path}/**" for path in EXCLUDED_RELATIVE_PREFIXES]
+        ),
         "file_count": len(files),
         "total_size_bytes": sum(item["size_bytes"] for item in files),
         "files": files,
