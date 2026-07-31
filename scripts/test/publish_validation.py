@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import copy
+import io
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import tomllib
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -149,3 +152,100 @@ with tempfile.TemporaryDirectory(prefix="minco-release-ref-") as temporary:
             raise AssertionError("untagged JJ publication must fail closed")
 
 print("Exact Git/JJ release-ref fixtures passed.")
+
+
+def registry_response(payload: dict[str, object]) -> mock.MagicMock:
+    response = mock.MagicMock()
+    response.__enter__.return_value = io.BytesIO(json.dumps(payload).encode())
+    return response
+
+
+published_validator = PublishValidator(
+    ROOT,
+    check_registry=False,
+    expect_unpublished=False,
+    require_registry=False,
+    expect_published=True,
+)
+published_validator.packages = {"minco-contract": (MANIFEST, package)}
+with mock.patch(
+    "validate_publish.urllib.request.urlopen",
+    return_value=registry_response(
+        {"versions": [{"num": "0.4.0", "yanked": False}]}
+    ),
+):
+    published_validator.validate_registry_names()
+assert published_validator.registry_checks_succeeded == 1
+assert published_validator.findings == []
+
+missing_version_validator = PublishValidator(
+    ROOT,
+    check_registry=False,
+    expect_unpublished=False,
+    require_registry=False,
+    expect_published=True,
+)
+missing_version_validator.packages = {"minco-contract": (MANIFEST, package)}
+with mock.patch(
+    "validate_publish.urllib.request.urlopen",
+    return_value=registry_response(
+        {"versions": [{"num": "0.3.1", "yanked": False}]}
+    ),
+):
+    missing_version_validator.validate_registry_names()
+assert [
+    (finding.code, finding.severity, finding.message)
+    for finding in missing_version_validator.findings
+] == [
+    (
+        "PUBLISH-074",
+        "error",
+        "minco-contract 0.4.0 is not published on crates.io",
+    )
+]
+
+yanked_version_validator = PublishValidator(
+    ROOT,
+    check_registry=False,
+    expect_unpublished=False,
+    require_registry=False,
+    expect_published=True,
+)
+yanked_version_validator.packages = {"minco-contract": (MANIFEST, package)}
+with mock.patch(
+    "validate_publish.urllib.request.urlopen",
+    return_value=registry_response(
+        {"versions": [{"num": "0.4.0", "yanked": True}]}
+    ),
+):
+    yanked_version_validator.validate_registry_names()
+assert [
+    (finding.code, finding.severity, finding.message)
+    for finding in yanked_version_validator.findings
+] == [
+    (
+        "PUBLISH-074",
+        "error",
+        "minco-contract 0.4.0 is not published on crates.io",
+    )
+]
+
+unavailable_registry_validator = PublishValidator(
+    ROOT,
+    check_registry=False,
+    expect_unpublished=False,
+    require_registry=False,
+    expect_published=True,
+)
+unavailable_registry_validator.packages = {"minco-contract": (MANIFEST, package)}
+with mock.patch(
+    "validate_publish.urllib.request.urlopen",
+    side_effect=urllib.error.URLError("offline"),
+):
+    unavailable_registry_validator.validate_registry_names()
+assert [
+    (finding.code, finding.severity)
+    for finding in unavailable_registry_validator.findings
+] == [("PUBLISH-071", "error")]
+
+print("Exact published-release registry fixtures passed.")

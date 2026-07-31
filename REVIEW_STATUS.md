@@ -1,10 +1,16 @@
 # Review status
 
-The current review boundary is the Minco `0.4.0` release-source and package
-candidate in M8-T07. It reconciles the accepted framework work through M10-T03,
-the 28-package family, the four first-publish crates, upgrade guidance,
-zero-provisioned-compute doctrine, Verified Review Loop and recurring truth
-diagnostics.
+The Minco `0.4.0` release boundary is closed. Exact source
+`65bf94045448bdbeedd37e10b1a004c926513508` is tagged, published as a GitHub
+release and available across all 28 crates.io packages. Exact-main local,
+hosted, disposable AWS verification, exact-artifact promotion and cleanup
+evidence are recorded separately in `VERIFICATION.md`.
+
+The current development boundary is post-`0.4.0`: local-first qualification,
+zero-idle cost evidence, the AWS application profile, rollback/static/preview
+lifecycle, plugin conformance, adoption evidence and finally the versioned
+documentation product. No later source is a release until independently
+qualified, tagged and published.
 
 This record separates:
 

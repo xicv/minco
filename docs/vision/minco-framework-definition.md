@@ -2,9 +2,9 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `0.3.1`
-Current source candidate: `0.4.0`
-Reviewed starting `main`: `12839f3e802b2e47bf9088c82787a8aa9b1ec93d`
+Published baseline: `0.4.0`
+Current workspace version: `0.4.0`
+Reviewed release source: `65bf94045448bdbeedd37e10b1a004c926513508`
 
 ## Product identity
 
@@ -17,15 +17,15 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The current classification is:
+The `0.4.0` classification is:
 
-> Source-coherent through the guarded hosted-verification and exact-artifact
-> promotion boundary; live deployment rehearsal and later lifecycle/ecosystem
-> programs remain incomplete.
+> Published-source coherent through guarded hosted verification, a bounded
+> disposable AWS rehearsal, exact-artifact promotion and cleanup; production
+> runtime and later lifecycle/ecosystem programs remain incomplete.
 
 The framework-completion program still prioritises one coherent path from a new
 contract to a safely deployed, observable, and upgradable application. Source
-implementation through M10-T03 does not substitute for a live AWS rehearsal,
+and bounded release qualification do not substitute for production proof,
 rollback/canary, static-site domains, review-environment cleanup, a
 documentation product, multi-application adoption or the 1.0 freeze.
 
@@ -114,7 +114,7 @@ The framework-completion program preserves the accepted ADRs and
 | Feedback | Stable vertical slice and Verified Review Loop foundation | Optional review-environment/delivery trace |
 | Local infrastructure | Graph-driven `cargo minco dev` with supervised process groups | Broader generated-app adoption |
 | Deployment Plan IR | Schema 2 API, workers, queues, DLQs, mappings and schedules | Profile research and compatibility freeze |
-| Deployment controller | Exact release, change set, apply, receipts, hosted verify and promote | Live rehearsal, rollback/canary and static-site domains |
+| Deployment controller | Exact release, change set, apply, receipts, hosted verify, promote and bounded disposable AWS rehearsal | Rollback/canary and static-site domains |
 | Configuration | Unified typed environment and opaque secret-reference graph | Measured application adoption |
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |

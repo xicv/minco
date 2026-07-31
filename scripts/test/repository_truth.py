@@ -69,12 +69,38 @@ class RepositoryTruthTests(unittest.TestCase):
         )
         self.assertIn("STATIC-TRUTH-DOCS-001", self.truth_codes())
 
+    def test_current_adoption_baseline_drift_has_a_stable_code(self) -> None:
+        guide = self.root / "docs/adoption/incremental-adoption.md"
+        guide.write_text(
+            guide.read_text().replace(
+                "Published baseline: `0.4.0`",
+                "Published baseline: `0.3.1`",
+            )
+        )
+        self.assertIn("STATIC-TRUTH-DOCS-001", self.truth_codes())
+
     def test_cli_deployment_surface_drift_has_a_stable_code(self) -> None:
         cli = self.root / "docs/reference/cli.md"
         cli.write_text(cli.read_text().replace("cargo minco promote", "cargo minco alias"))
         self.assertIn("STATIC-TRUTH-DOCS-001", self.truth_codes())
 
     def test_new_package_archive_test_drift_has_a_stable_code(self) -> None:
+        truth = self.root / "verification/repository-truth.toml"
+        truth.write_text(
+            truth.read_text()
+            .replace(
+                'published_baseline = "0.4.0"',
+                'published_baseline = "0.3.1"',
+            )
+            .replace(
+                "published_package_count = 28",
+                "published_package_count = 24",
+            )
+            .replace(
+                "new_publishable_packages = []",
+                'new_publishable_packages = ["minco-config"]',
+            )
+        )
         cargo = self.root / "Cargo.toml"
         cargo.write_text(
             cargo.read_text().replace(
@@ -83,6 +109,26 @@ class RepositoryTruthTests(unittest.TestCase):
             )
         )
         self.assertIn("STATIC-TRUTH-PACKAGES-004", self.truth_codes())
+
+    def test_current_published_baseline_requires_the_full_package_count(self) -> None:
+        truth = self.root / "verification/repository-truth.toml"
+        truth.write_text(
+            truth.read_text().replace(
+                "published_package_count = 28",
+                "published_package_count = 27",
+            )
+        )
+        self.assertIn("STATIC-TRUTH-PUBLISHED-002", self.truth_codes())
+
+    def test_current_published_baseline_has_no_candidate_packages(self) -> None:
+        truth = self.root / "verification/repository-truth.toml"
+        truth.write_text(
+            truth.read_text().replace(
+                "new_publishable_packages = []",
+                'new_publishable_packages = ["minco-config"]',
+            )
+        )
+        self.assertIn("STATIC-TRUTH-PUBLISHED-003", self.truth_codes())
 
     def test_catalog_workspace_drift_has_a_stable_code(self) -> None:
         catalog = self.root / "plugins/catalog.toml"

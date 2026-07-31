@@ -1,10 +1,38 @@
 # Minco verification and release evidence
 
-Date: 2026-07-30
+Date: 2026-07-31
 Current workspace version: `0.4.0`
-Published baseline: `0.3.1`
-Purpose: qualify the M8-T07 source/package candidate while preserving published
-M8 evidence and the independently qualified `0.3.1` release history.
+Published baseline: `0.4.0`
+Purpose: retain exact release evidence and distinguish the published baseline
+from later source, deployment and release-candidate work.
+
+## `0.4.0` release closure
+
+The remote tag `v0.4.0`, GitHub release, `main` and `origin/main` resolve to
+exact source `65bf94045448bdbeedd37e10b1a004c926513508`. Exact-main manual
+quality run
+[`30579590089`](https://github.com/xicv/minco/actions/runs/30579590089)
+completed successfully. The separately gated publication workflow
+[`30585166476`](https://github.com/xicv/minco/actions/runs/30585166476)
+completed successfully.
+
+All 28 lock-step package versions are published at `0.4.0`. The post-release
+registry command below requires successful crates.io evidence for every exact
+workspace version; an absent version, HTTP failure or unavailable registry is
+an error:
+
+```bash
+uv run --locked python scripts/validate_publish.py --expect-published
+```
+
+The final authorised disposable AWS rehearsal
+`20260730t204904z-release040` bound deployment and hosted verification to one
+exact release. Contract, readiness, authentication, smoke and artifact
+identity checks all passed. Promotion succeeded by changing only the live
+Lambda alias routing to the already verified version, with no rebuild or
+replan. The final cleanup receipt proves application and temporary database
+cleanup, temporary IAM-principal absence and local credential-file absence.
+This is bounded release qualification, not production-runtime proof.
 
 ## M8-T07 `0.4.0` source and package candidate
 

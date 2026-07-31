@@ -82,11 +82,11 @@
       "orders-domain",
       "orders-service"
     ],
-    "registry_check_performed": false,
-    "registry_checks_succeeded": 0,
+    "registry_check_performed": true,
+    "registry_checks_succeeded": 28,
     "expect_unpublished": false,
-    "expect_published": false,
-    "require_registry": false
+    "expect_published": true,
+    "require_registry": true
   },
   "findings": [],
   "limitations": [

@@ -6,12 +6,11 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `0.3.1` patch release retains the lock-step 24-package inventory
-from `0.3.0`. The coordinated `0.4.0` source candidate has 28 publishable
-packages and adds first releases for `minco-config`, `minco-db`, `minco-dev`
-and `minco-deploy-aws`. A workspace version or source tag is not registry proof: release
-status must be verified independently against the exact crates.io records. The
-package inventory is derived from
+The published `0.4.0` release contains the complete lock-step 28-package
+inventory and added first releases for `minco-config`, `minco-db`, `minco-dev`
+and `minco-deploy-aws`. A workspace version or source tag is not registry
+proof: release status must be verified independently against the exact
+crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
@@ -156,9 +155,8 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. Every package in the published 24-package family crossed that boundary
-with the `0.2.0` release. The four `0.4.0` additions require first-publish
-handling and separate post-upload trusted-publisher configuration.
+exists. Every package in the published 28-package `0.4.0` family has crossed
+that boundary.
 
 ## Trusted publishing after the first release
 
@@ -169,10 +167,9 @@ exists on crates.io, configure a trusted publisher for that package:
 - workflow: `publish-crates.yml`
 - environment: `crates-io`
 
-The 24 packages published in `0.3.1` have this configuration. `minco-config`,
-`minco-db`, `minco-dev` and `minco-deploy-aws` do not: their first publication
-and subsequent trusted-publisher configuration belong to the separately
-authorised publication phase of M8-T07.
+The complete published family has crossed the first-publication ownership
+boundary. Revalidate each package's current trusted-publisher configuration
+before a later upload rather than inferring it from historical release state.
 
 The checked-in workflow uses GitHub OIDC to obtain a short-lived crates.io token;
 it does not require a long-lived crates.io secret. Keep the workflow manual-only
@@ -208,6 +205,16 @@ The workflow refuses to publish unless:
 - all static and Rust gates pass;
 - the publish dry run passes;
 - the operator explicitly selects `publish=true`.
+
+After publication, require exact registry evidence for the complete workspace
+version:
+
+```bash
+uv run --locked python scripts/validate_publish.py --expect-published
+```
+
+This mode fails on an absent or yanked exact version and treats registry
+connectivity failure as an error.
 
 ## Ownership and recovery
 
