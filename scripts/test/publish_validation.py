@@ -14,6 +14,8 @@ import urllib.error
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "scripts" / "release"))
@@ -31,6 +33,34 @@ MANIFEST = ROOT / "crates" / "minco-contract" / "Cargo.toml"
 WORKSPACE_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"][
     "package"
 ]["version"]
+
+workflow = yaml.load(
+    (ROOT / ".github" / "workflows" / "publish-crates.yml").read_text(),
+    Loader=yaml.BaseLoader,
+)
+dispatch_inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+assert dispatch_inputs["release_tag"]["required"] == "false"
+release_steps = workflow["jobs"]["release"]["steps"]
+checkout = next(
+    step for step in release_steps if step.get("uses", "").startswith("actions/checkout@")
+)
+assert checkout["with"]["ref"] == "${{ inputs.release_tag || github.ref }}"
+verify_tag = next(step for step in release_steps if step.get("name") == "Verify release tag")
+assert verify_tag["env"]["RELEASE_TAG"] == "${{ inputs.release_tag }}"
+assert "${{ inputs.release_tag }}" not in verify_tag["run"]
+assert 'release_tag="$RELEASE_TAG"' in verify_tag["run"]
+assert 'test "$release_tag" = "v${version}"' in verify_tag["run"]
+assert 'tag_commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"' in verify_tag["run"]
+assert 'test "$tag_commit" = "$(git rev-parse HEAD)"' in verify_tag["run"]
+install_jj = next(
+    step
+    for step in release_steps
+    if step.get("name") == "Install pinned JJ for compatibility tests"
+)
+assert "jj-cli --version 0.43.0" in install_jj["run"]
+assert "jj --version" in install_jj["run"]
+
+print("Publish workflow tagged-checkout and JJ prerequisites passed.")
 
 
 def validate(package: dict[str, object]) -> list[tuple[str, str]]:
