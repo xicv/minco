@@ -21,15 +21,15 @@ always-on compute. Minco targets zero provisioned application compute at idle.
 Storage, retained logs, DNS, secrets, database storage, schedules and other
 fixed/request dimensions remain explicit and bounded.
 
-> Published baseline: `0.3.1`
+> Published baseline: `0.4.0`
 >
 > Current workspace version: `0.4.0`
 >
 > Current publishable package count: `28`
 >
-> Minco is pre-1.0. Source is preparing the coordinated `0.4.0` public CLI,
-> configuration, lifecycle and serialized-schema boundary. A source version is
-> not registry publication or live deployment proof.
+> Minco is pre-1.0. The coordinated 28-package `0.4.0` family is published.
+> Later source changes, package candidates and live deployments retain their
+> own exact evidence boundaries.
 
 
 ## Use Minco as a dependency
@@ -71,12 +71,11 @@ composition, migration, OpenAPI, test, plugin, roadmap, task, and quality files.
 It initializes a colocated JJ/Git repository by default; `--database sqlite` and
 `--vcs none` are explicit alternatives.
 
-The published `0.3.1` baseline contains 24 packages. The `0.4.0` source
-candidate contains 28: the existing family plus first-publish crates
-`minco-config`, `minco-db`, `minco-dev` and `minco-deploy-aws`. See the
+The published `0.4.0` baseline contains 28 packages. It added first releases
+for `minco-config`, `minco-db`, `minco-dev` and `minco-deploy-aws`. See the
 [`0.3.1` to `0.4.0` upgrade guide](docs/adoption/0.3.1-to-0.4.0.md) and
 [`docs/development/publishing.md`](docs/development/publishing.md) for the exact
-first-publish, dry-run, ownership, and trusted-publishing process.
+publication, dry-run, ownership, and trusted-publishing process.
 
 A complete application-consumer walkthrough is available in
 [`docs/development/using-minco-crate.md`](docs/development/using-minco-crate.md).
@@ -398,15 +397,20 @@ then use the facade/stability matrix in
 
 ## Crates.io release preparation
 
-Minco uses a lock-step release family. The published `0.3.1` release contains
-24 packages, unchanged from `0.3.0`. The `0.4.0` source candidate contains 28
-publishable packages, including first releases for `minco-config`, `minco-db`,
-`minco-dev` and `minco-deploy-aws`. Source and package qualification are not
+Minco uses a lock-step release family. The published `0.4.0` release contains
+all 28 current publishable packages. Source and package qualification are not
 registry proof.
 Static metadata and dependency validation can run without Cargo:
 
 ```bash
 uv run --locked python scripts/validate_publish.py
+```
+
+Independently verify that every exact workspace version is present after a
+release:
+
+```bash
+uv run --locked python scripts/validate_publish.py --expect-published
 ```
 
 The authoritative pre-upload gate requires the pinned Cargo toolchain and a
@@ -420,10 +424,10 @@ scripts/release/publish.sh --execute       # explicit irreversible upload
 ```
 
 `publish.sh` selects only the packages declared under
-`workspace.metadata.minco.release`, runs the complete quality suite, and refuses
-dirty workspaces. The first release is manual; the checked-in manual GitHub
-workflow supports crates.io OIDC trusted publishing after each crate has an
-initial owner.
+`workspace.metadata.minco.release`, runs the complete local quality suite, and
+refuses dirty workspaces. The checked-in manual GitHub workflow supports
+crates.io OIDC authentication and explicitly authorised publication; ordinary
+pull requests do not run the expensive release matrix.
 
 ## Handoff and status
 

@@ -47,11 +47,18 @@ class PublishValidator:
         check_registry: bool,
         expect_unpublished: bool,
         require_registry: bool,
+        expect_published: bool = False,
     ) -> None:
         self.root = root
-        self.check_registry = check_registry or expect_unpublished or require_registry
+        self.check_registry = (
+            check_registry
+            or expect_unpublished
+            or expect_published
+            or require_registry
+        )
         self.expect_unpublished = expect_unpublished
-        self.require_registry = require_registry
+        self.expect_published = expect_published
+        self.require_registry = require_registry or expect_published
         self.registry_checks_succeeded = 0
         self.findings: list[Finding] = []
         self.metrics: dict[str, Any] = {}
@@ -102,6 +109,7 @@ class PublishValidator:
                 "registry_check_performed": self.check_registry,
                 "registry_checks_succeeded": self.registry_checks_succeeded,
                 "expect_unpublished": self.expect_unpublished,
+                "expect_published": self.expect_published,
                 "require_registry": self.require_registry,
             }
         )
@@ -454,6 +462,12 @@ class PublishValidator:
             except urllib.error.HTTPError as exc:
                 if exc.code == 404:
                     self.registry_checks_succeeded += 1
+                    if self.expect_published:
+                        self.error(
+                            "PUBLISH-074",
+                            f"{name} {version} is not published on crates.io",
+                            manifest,
+                        )
                     continue
                 message = f"registry check failed for {name}: HTTP {exc.code}"
                 if self.require_registry:
@@ -477,7 +491,13 @@ class PublishValidator:
                     f"crate name {name} already exists on crates.io; first publication cannot claim it",
                     manifest,
                 )
-            elif version in versions:
+            elif self.expect_published and version not in versions:
+                self.error(
+                    "PUBLISH-074",
+                    f"{name} {version} is not published on crates.io",
+                    manifest,
+                )
+            elif not self.expect_published and version in versions:
                 self.error(
                     "PUBLISH-072",
                     f"{name} {version} already exists on crates.io; publishing this version will fail",
@@ -489,10 +509,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--check-registry", action="store_true")
-    parser.add_argument(
+    expected_state = parser.add_mutually_exclusive_group()
+    expected_state.add_argument(
         "--expect-unpublished",
         action="store_true",
         help="fail if any selected crate name already exists; use immediately before the first release",
+    )
+    expected_state.add_argument(
+        "--expect-published",
+        action="store_true",
+        help="require the exact workspace version of every selected crate on crates.io",
     )
     parser.add_argument(
         "--require-registry",
@@ -510,6 +536,7 @@ def main() -> int:
         args.check_registry,
         args.expect_unpublished,
         args.require_registry,
+        args.expect_published,
     ).run()
     rendered = json.dumps(report, indent=2) + "\n"
     if args.output:

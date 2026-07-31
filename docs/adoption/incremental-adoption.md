@@ -1,6 +1,6 @@
 # Incrementally adopting Minco
 
-Published baseline: `0.3.1`
+Published baseline: `0.4.0`
 Current workspace version: `0.4.0`
 
 Minco is designed so an application can adopt one boundary at a time. Do not

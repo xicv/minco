@@ -387,10 +387,20 @@ class Validator:
                 "release package inventory differs from publishable workspace packages",
                 cargo_path,
             )
+        published_package_count = truth.get("published_package_count")
+        if (
+            not isinstance(published_package_count, int)
+            or published_package_count <= 0
+            or published_package_count > len(publishable)
+        ):
+            self.error(
+                "STATIC-TRUTH-PUBLISHED-002",
+                "published_package_count must be positive and no larger than the publishable family",
+                truth_path,
+            )
         new_publishable_packages = truth.get("new_publishable_packages", [])
         if (
             not isinstance(new_publishable_packages, list)
-            or not new_publishable_packages
             or any(
                 not isinstance(package, str) or package not in publishable
                 for package in new_publishable_packages
@@ -408,6 +418,19 @@ class Validator:
                 f"new publishable packages lack archive tests: {missing}",
                 cargo_path,
             )
+        if truth.get("published_baseline") == workspace_version:
+            if published_package_count != len(publishable):
+                self.error(
+                    "STATIC-TRUTH-PUBLISHED-002",
+                    "the current published baseline must contain the full publishable family",
+                    truth_path,
+                )
+            if new_publishable_packages:
+                self.error(
+                    "STATIC-TRUTH-PUBLISHED-003",
+                    "the current published baseline cannot retain first-publication candidates",
+                    truth_path,
+                )
 
         features = facade.get("features", {})
         dependencies = facade.get("dependencies", {})
@@ -607,6 +630,27 @@ class Validator:
             self.root / "VERIFICATION.md": [
                 f"Current workspace version: `{workspace_version}`",
                 f"Published baseline: `{truth['published_baseline']}`",
+            ],
+            self.root / "CODEX_HANDOFF.md": [
+                f"Published baseline: `{truth['published_baseline']}`",
+                f"Current workspace version: `{workspace_version}`",
+            ],
+            self.root / "docs/adoption/incremental-adoption.md": [
+                f"Published baseline: `{truth['published_baseline']}`",
+                f"Current workspace version: `{workspace_version}`",
+            ],
+            self.root / "docs/adoption/0.3.1-to-0.4.0.md": [
+                f"Target published family: `{workspace_version}`",
+            ],
+            self.root / "docs/development/publishing.md": [
+                f"published `{truth['published_baseline']}` release",
+            ],
+            self.root / "docs/development/using-minco-crate.md": [
+                f"published baseline and current workspace are `{workspace_version}`",
+            ],
+            self.root / "docs/vision/minco-framework-definition.md": [
+                f"Published baseline: `{truth['published_baseline']}`",
+                f"Current workspace version: `{workspace_version}`",
             ],
             self.root / "docs/reference/cli.md": [
                 "cargo minco deploy verify",

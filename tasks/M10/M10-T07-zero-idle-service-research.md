@@ -2,7 +2,7 @@
 id: M10-T07
 title: Research zero-idle AWS profiles and cost evidence
 milestone: M10
-status: planned
+status: ready
 priority: high
 area: deployment/research
 depends_on: [M10-T03]

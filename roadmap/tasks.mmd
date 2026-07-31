@@ -51,6 +51,7 @@ flowchart LR
     NM8T05["M8-T05<br/>Publish Minco 0.1.1 with cargo-minco docs.rs support"]
     NM8T06["M8-T06<br/>Publish Minco 0.3.1 text-only and SQLx isolation patch"]
     NM8T07["M8-T07<br/>Prepare the Minco 0.4.0 source and package boundary"]
+    NM8T08["M8-T08<br/>Close 0.4.0 published repository truth"]
     NM9T01["M9-T01<br/>Define the framework-completion golden path and documentation map"]
     NM9T02["M9-T02<br/>Add a typed environment and secret-reference graph"]
     NM9T03["M9-T03<br/>Add database status plan migrate and verification"]
@@ -137,6 +138,7 @@ flowchart LR
     NM6T09 --> NM8T06
     NM9T07 --> NM8T07
     NM10T03 --> NM8T07
+    NM8T07 --> NM8T08
     NM6T09 --> NM9T01
     NM6T10 --> NM9T02
     NM9T01 --> NM9T02

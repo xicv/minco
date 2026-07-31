@@ -1,100 +1,73 @@
-# Minco 0.4.0 release handoff
+# Minco post-0.4.0 handoff
 
-Date: 2026-07-29
-Task: `M8-T07`
-Published baseline: `0.3.1`
-Candidate source: `0.4.0`
-Starting `main`: `12839f3e802b2e47bf9088c82787a8aa9b1ec93d`
-Workspace: `/Users/xicao/Projects/minco-m8-t07`
+Date: 2026-07-31
+Published baseline: `0.4.0`
+Current workspace version: `0.4.0`
+Exact release source: `65bf94045448bdbeedd37e10b1a004c926513508`
+Last completed task: `M8-T08`
+Next ready task: `M10-T07`
 
-## Current boundary
+## Closed release boundary
 
-M8-T07 reconciles the coordinated 28-package `0.4.0` source and package
-candidate. It includes accepted framework work through M10-T03 and prepares one
-reviewable release pull request.
+Minco `0.4.0` is tagged, published as a GitHub release and available across the
+complete 28-package crates.io family. Exact-main local and hosted
+qualification passed. The final authorised disposable AWS rehearsal passed
+contract, readiness, authentication, smoke and artifact-identity checks,
+promoted the exact verified Lambda version without rebuilding, and retained
+all-true cleanup evidence. See `VERIFICATION.md` for exact commands and
+evidence categories.
 
-Included:
+Post-release registry verification is:
 
-- lock-step version/dependency metadata and four first-publish archive tests;
-- changelog and `0.3.1` to `0.4.0` guide;
-- Plan IR 2, typed configuration, database/seed lifecycle, graph-driven dev,
-  generators/stubs, compatibility reports, packaging, change-set/apply
-  receipts, hosted verification and exact-artifact promotion documentation;
-- zero-provisioned-compute doctrine, residual cost vocabulary and the
-  repository-native Verified Review Loop decision;
-- recurring repository-truth diagnostics and generated roadmap/evidence;
-- exact local and hosted source/package qualification evidence.
+```bash
+uv run --locked python scripts/validate_publish.py --expect-published
+```
 
-Excluded without separate explicit approval:
+The command requires successful crates.io evidence for every exact workspace
+version. It does not treat registry unavailability as a pass.
 
-- any AWS resource mutation, hosted endpoint contact or alias promotion;
-- `v0.4.0` creation/push;
-- crates.io upload, ownership/trusted-publisher mutation or docs.rs claims.
+## Approved continuation
 
-Deferred product work:
+The post-`0.4.0` program targets a qualified `0.5.0` candidate:
 
-- M10-T04 rollback/canary;
-- M10-T05 static-site/custom-domain completion;
-- M10-T06 review-environment lifecycle;
-- M10-T07 database/service/cost research;
-- M11 documentation/plugin ecosystem;
-- M12 AI workbench and 1.0 freeze.
+1. close repository truth and release-state documentation;
+2. make comprehensive qualification local and source-bound;
+3. retain only essential merge-safety CI in GitHub Actions;
+4. complete zero-idle research, evidence and the deep AWS application profile;
+5. complete rollback/canary, static delivery and Verified Review Loop cleanup;
+6. complete plugin conformance and bounded two-application adoption evidence;
+7. build the tested, versioned Laravel-inspired documentation product last;
+8. prepare, but do not publish, the exact `0.5.0` candidate.
 
-## Continuation gates
+One task owns one isolated JJ workspace. Each task follows public-interface
+RED/GREEN/refactor cycles, focused checks, relevant local qualification,
+independent review and essential exact-head hosted checks before merge.
 
-Source/package readiness does not authorize a live deployment rehearsal.
-Before any later AWS phase, obtain explicit approval for the exact account,
-Region, role, environment, change set, migration target and cleanup plan. Bind
-all mutation to the exact merged-main release manifest and retain separate
-deployment, hosted-verification, promotion and rollback evidence.
+## CI and mutation boundary
 
-Before tag or publication, merge the reviewed pull request, rerun the complete
-hosted workflow on the exact resulting `main` SHA, independently confirm all 28
-`0.4.0` registry versions are absent, then obtain explicit tag/publication
-approval. Publication is non-atomic and the four new crates require
-first-release handling before trusted publishers can be configured.
+`quality.toml` and the local qualification command are authoritative. GitHub
+Actions should run only a small essential pull-request gate, plus separately
+dispatched release/authentication workflows. Expensive all-feature, browser,
+security, generated-application, package, native Lambda, Rustack, E2E and
+documentation matrices remain local unless a later release gate explicitly
+requires hosted evidence.
 
-## Recovery and safety
+No AWS apply, cleanup, domain change, tag, crates.io upload, GitHub release or
+production mutation is implicitly authorised by local qualification. Each
+requires its exact target, digest and applicable explicit gate.
 
-Use the primary colocated Git checkout only for transport:
+## Recovery
+
+Use the colocated primary checkout for GitHub transport and preserve unrelated
+working copies:
 
 ```bash
 cd /Users/xicao/Projects/minco
 git fetch --all --tags --prune
 jj git import
+jj workspace list
 ```
 
-Continue source work only in `/Users/xicao/Projects/minco-m8-t07`. Preserve the
-unrelated dirty `codex/production-closure` change in the primary checkout.
-Check available disk before broad Rust/package/Lambda builds and clean only
-this task workspace's disposable `target/` output when necessary.
-
-## Exact evidence
-
-Focused source, compiler, archive, external-consumer, generated-application,
-browser, Orders E2E, Rustack and static AWS gates pass locally. The guarded
-release controller performs one coordinated locked 28-package dry run, tests
-the five configured unpacked archives offline, compiles the required facade
-and new-package consumers from those archives, and installs the archive-only
-CLI. No package was uploaded.
-
-`VERIFICATION.md` records commands, measurements, hashes, diagnostic failures
-and residual limits. The complete quality suite and clean source package rerun
-pass locally. Corrected pull-request head
-`46be92f0b68e6759a897ef5e99c010d77c2bf32b` passed manual hosted run
-`30410242657`, including browser, coordinated package dry-run,
-Plan/SAM/native Lambda, Rustack and E2E stages. Later evidence-only head
-`edcb42c916114dc0c7bc3ffb10bcf8555190b0f1` reached the package dry run in
-hosted run `30411179583`, where a packaged `minco-dev` test exposed a PID-file
-synchronization race. The bounded fixture correction passes focused tests,
-strict Clippy and 600 repeated full-suite runs locally. Corrected exact head
-`b211b5083b43a0c9a0de9cd28ca4f748dfbbeb51` passed every stage of manual
-hosted run `30412849538`, including the coordinated package dry run,
-Plan/SAM/native Lambda, Rustack/SSM conformance and E2E. M8-T07 is complete and
-the pull request is ready for an exact-head guarded merge. Historical green
-runs still never qualify a different executable tree automatically.
-
-The handoff verdict after those source/package gates is
-`live_deployment_gate_pending`: no AWS account, role, Region, change set,
-migration target, budget or cleanup authority was approved for the separately
-bounded live rehearsal.
+Use `jj op log`, `jj undo` and `jj workspace update-stale` for recovery. Never
+delete a task workspace until its exact merged state and retained evidence have
+been verified.

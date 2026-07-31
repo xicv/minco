@@ -1,19 +1,13 @@
 schema = 1
 workspace_version = "0.4.0"
-published_baseline = "0.3.1"
-published_package_count = 24
+published_baseline = "0.4.0"
+published_package_count = 28
 adoption_gate_task = "M6-T07"
 
-# The independently verified 0.3.1 release retains 24 packages. Current source
-# adds minco-config, minco-db, minco-dev and minco-deploy-aws as candidates for
-# the next coordinated minor release.
+# The independently verified 0.4.0 release contains the full current family.
+# There are no first-publication package candidates in the current source.
 publishable_package_count = 28
-new_publishable_packages = [
-  "minco-config",
-  "minco-db",
-  "minco-dev",
-  "minco-deploy-aws",
-]
+new_publishable_packages = []
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760
