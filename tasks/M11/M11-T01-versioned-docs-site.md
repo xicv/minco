@@ -2,7 +2,7 @@
 id: M11-T01
 title: Build the versioned Diataxis documentation site
 milestone: M11
-status: active
+status: complete
 priority: critical
 area: documentation
 depends_on: [M9-T07, M10-T03]
@@ -66,6 +66,9 @@ authors, operators, contributors, and AI coding agents.
 - The locked dependency tree overrides Vite to patched `6.4.3` while retaining
   stable VitePress; npm audit reports zero vulnerabilities. Dependency
   lifecycle scripts are disabled for local and hosted documentation installs.
+- GitHub Pages actions use exact Node-24-native release commits:
+  `configure-pages` v6.0.0, `upload-pages-artifact` v5.0.0 and `deploy-pages`
+  v5.0.0.
 
 ## Local evidence
 
@@ -82,5 +85,22 @@ authors, operators, contributors, and AI coding agents.
   production bundle; no horizontal page overflow or browser-console error was
   observed.
 
-GitHub Pages deployment and production-URL verification remain pending until
-the exact source change is merged.
+## Hosted and production evidence
+
+- Source PR [#67](https://github.com/xicv/minco/pull/67) merged reviewed head
+  `cac4a57f8d569f784f16b7ff6a97a7c13f642185` as
+  `f33f3fc3b64d39cf913a9e4ba807d150644f818c`.
+- Hosted essential run
+  [30638412742](https://github.com/xicv/minco/actions/runs/30638412742)
+  passed against that exact source head.
+- Pages run
+  [30638618569](https://github.com/xicv/minco/actions/runs/30638618569)
+  built and deployed that exact merge commit.
+- [https://xicv.github.io/minco/](https://xicv.github.io/minco/) returned HTTPS
+  `200`, HSTS, the production canonical, and a sitemap containing all stable
+  version routes.
+- The unchanged browser suite ran against the production URL after edge
+  propagation: 9 applicable desktop/mobile journeys passed with one
+  intentional desktop skip. Search, version navigation, mobile navigation,
+  viewport containment, labelled semantics and browser-console errors were
+  checked.

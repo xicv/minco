@@ -14,7 +14,7 @@
     },
     {
       "path": ".github/workflows/docs-pages.yml",
-      "sha256": "cd9d8a0bde022d9329ed3c1c8c1d97bfb33ab588cd40e3a6d80b2f0d9e7fa133",
+      "sha256": "df4bbccbc9ecade198868b6ff0d562ed5ab2e9030f845c3c6e6dec10d1aa93ee",
       "size_bytes": 1774
     },
     {
@@ -2889,8 +2889,8 @@
     },
     {
       "path": "tasks/M11/M11-T01-versioned-docs-site.md",
-      "sha256": "96bc41d24497939cb3a9cc56e4ff6b6f7c46a425c6b8a4eab18699b0938ce872",
-      "size_bytes": 3434
+      "sha256": "467637ea4f446bacc39f63b9ffb53a3feea23946d92e57d8ba3726299a6da556",
+      "size_bytes": 4426
     },
     {
       "path": "tasks/M11/M11-T02-plugin-distribution-manifest.md",
@@ -3250,7 +3250,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "602d5975d0a9e6d535aa761083bfe9c7c7f1adb66864cf147d7ba927cfc4bb85",
-  "total_size_bytes": 4144122,
+  "source_tree_sha256": "3d50b900c8c94a97ac8648a354ff36c33d27bbbacbefd795aaeae55b3a2ee554",
+  "total_size_bytes": 4145114,
   "version": "0.5.0"
 }
