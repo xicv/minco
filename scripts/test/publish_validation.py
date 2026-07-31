@@ -66,6 +66,13 @@ install_ripgrep = next(
 )
 assert "ripgrep --version 15.2.0" in install_ripgrep["run"]
 assert "rg --version" in install_ripgrep["run"]
+publish_step = next(
+    step
+    for step in release_steps
+    if step.get("name") == "Publish selected crate family"
+)
+assert publish_step["env"]["MINCO_RELEASE_TAG"] == "${{ inputs.release_tag }}"
+assert "${{ inputs.release_tag }}" not in publish_step["run"]
 
 print("Publish workflow tagged-checkout and pinned prerequisites passed.")
 
@@ -165,6 +172,60 @@ with tempfile.TemporaryDirectory(prefix="minco-release-ref-") as temporary:
         stdout="0123456789abcdef\n",
     )
     untagged = subprocess.CompletedProcess(args=[], returncode=0, stdout="")
+    with (
+        mock.patch("publish.ROOT", release_root),
+        mock.patch(
+            "publish.shutil.which",
+            side_effect=lambda command: "/usr/bin/jj" if command == "jj" else None,
+        ),
+        mock.patch.dict(
+            os.environ,
+            {
+                "GITHUB_REF": "refs/heads/main",
+                "MINCO_RELEASE_TAG": f"v{WORKSPACE_VERSION}",
+            },
+            clear=True,
+        ),
+        mock.patch("publish.run", return_value=tagged) as run_mock,
+    ):
+        verify_release_ref(f"v{WORKSPACE_VERSION}")
+        assert run_mock.call_args.args[0] == [
+            "jj",
+            "log",
+            "-r",
+            f'(@ | @-) & tags(exact:"v{WORKSPACE_VERSION}")',
+            "--no-graph",
+            "--template",
+            'commit_id ++ "\n"',
+        ]
+
+    with (
+        mock.patch("publish.ROOT", release_root),
+        mock.patch(
+            "publish.shutil.which",
+            side_effect=lambda command: "/usr/bin/jj" if command == "jj" else None,
+        ),
+        mock.patch.dict(
+            os.environ,
+            {
+                "GITHUB_REF": "refs/heads/main",
+                "MINCO_RELEASE_TAG": "v0.0.0",
+            },
+            clear=True,
+        ),
+        mock.patch("publish.run", return_value=tagged) as run_mock,
+    ):
+        try:
+            verify_release_ref(f"v{WORKSPACE_VERSION}")
+        except SystemExit as error:
+            assert str(error) == (
+                f"publishing requires verified release tag v{WORKSPACE_VERSION}; "
+                "found v0.0.0"
+            )
+            run_mock.assert_not_called()
+        else:
+            raise AssertionError("mismatched verified release tag must fail closed")
+
     with (
         mock.patch("publish.ROOT", release_root),
         mock.patch(

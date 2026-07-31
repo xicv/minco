@@ -243,7 +243,17 @@ def expected_tag(data: dict) -> str:
 
 def verify_release_ref(tag: str) -> None:
     github_ref = os.environ.get("GITHUB_REF")
-    if github_ref is not None and github_ref != f"refs/tags/{tag}":
+    verified_release_tag = os.environ.get("MINCO_RELEASE_TAG")
+    if verified_release_tag and verified_release_tag != tag:
+        raise SystemExit(
+            f"publishing requires verified release tag {tag}; "
+            f"found {verified_release_tag}"
+        )
+    if (
+        not verified_release_tag
+        and github_ref is not None
+        and github_ref != f"refs/tags/{tag}"
+    ):
         raise SystemExit(f"publishing requires refs/tags/{tag}; found {github_ref}")
 
     if shutil.which("git") and (ROOT / ".git").exists():
