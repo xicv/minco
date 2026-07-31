@@ -46,6 +46,19 @@ pub fn render_sam_with_code_uris(
             "this renderer requires an externally provisioned PostgreSQL-compatible database; DynamoDB needs a dedicated adapter/rendering plugin and mutable SQLite is rejected on Lambda".into(),
         ));
     }
+    if plan.triggers.iter().any(|trigger| {
+        matches!(
+            trigger,
+            TriggerPlan::Schedule {
+                cleanup: Some(_),
+                ..
+            }
+        )
+    }) {
+        return Err(PlanError::UnsupportedDeployment(
+            "EventBridge Scheduler ActionAfterCompletion is not exposed by the current AWS SAM ScheduleV2 or AWS::Scheduler::Schedule CloudFormation schemas; apply requires a future guarded Scheduler API operation and receipt".into(),
+        ));
+    }
     let function = api_function(plan).ok_or(PlanError::MissingFunction)?;
     let mut output = String::new();
     output.push_str("AWSTemplateFormatVersion: '2010-09-09'\n");

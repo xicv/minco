@@ -19,6 +19,27 @@ There is no mutating migration command. `DeploymentPlan::migrate_to_latest`
 exists for consumers that already hold a validated plan. Application
 configuration should be upgraded explicitly and reviewed.
 
+### Optional one-time cleanup
+
+Schema 2 schedules created before the cleanup contract remain valid. The
+optional field is omitted when absent. A one-time `at(...)` schedule can opt in
+to completion cleanup:
+
+```toml
+[triggers.cleanup]
+action_after_completion = "delete"
+residual_resources = ["target outputs", "CloudWatch logs", "database records"]
+manual_fallback = "inspect the exact receipt and run guarded cleanup"
+```
+
+Recurring schedules cannot select completion deletion. Current SAM
+`ScheduleV2` and `AWS::Scheduler::Schedule` CloudFormation schemas do not
+expose the Scheduler API completion-action property, so SAM rendering fails
+closed for this cleanup contract. A future guarded Scheduler API apply must
+retain a receipt. The requested `ActionAfterCompletion: DELETE` value deletes
+only the completed schedule. Residual resources remain separately inspectable
+and require the declared manual fallback if provider cleanup is not observed.
+
 ## Upgrade an API-only configuration
 
 1. Keep the existing function values and add `role = "http_api"`.

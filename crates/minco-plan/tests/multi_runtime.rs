@@ -1,7 +1,8 @@
 use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
 use minco_plan::{
-    DeploymentConfig, DeploymentPlan, IamResource, QueuePlan, RuntimePlan, Severity, TriggerPlan,
-    estimate_runtime_cost, render_sam, render_sam_with_code_uris,
+    DeploymentConfig, DeploymentPlan, IamResource, QueuePlan, RuntimePlan, ScheduleCleanupPlan,
+    ScheduleCompletionAction, Severity, TriggerPlan, estimate_runtime_cost, render_sam,
+    render_sam_with_code_uris,
 };
 use std::collections::BTreeMap;
 
@@ -206,6 +207,7 @@ fn minimal_idle_policy_rejects_enabled_explicit_schedules() {
         expression: "rate(15 minutes)".into(),
         enabled: true,
         purpose: "recover stranded outbox records".into(),
+        cleanup: None,
     });
 
     assert!(
@@ -225,6 +227,7 @@ fn permitted_schedules_expose_wake_and_cost_diagnostics() {
         expression: "rate(15 minutes)".into(),
         enabled: true,
         purpose: "recover stranded outbox records".into(),
+        cleanup: None,
     });
 
     let diagnostic = plan
@@ -348,6 +351,7 @@ fn runtime_cost_report_exposes_schedule_wakes_and_worker_connection_pressure() {
         expression: "rate(15 minutes)".into(),
         enabled: true,
         purpose: "recover stranded outbox records".into(),
+        cleanup: None,
     });
 
     let report = estimate_runtime_cost(&plan);
@@ -414,6 +418,7 @@ fn sam_renders_only_an_explicitly_declared_schedule() {
         expression: "rate(15 minutes)".into(),
         enabled: true,
         purpose: "recover stranded outbox records".into(),
+        cleanup: None,
     });
 
     let yaml = render_sam(&plan).expect("scheduled SAM");
@@ -434,6 +439,7 @@ fn schedules_require_a_reviewable_purpose() {
         expression: "rate(15 minutes)".into(),
         enabled: false,
         purpose: " ".into(),
+        cleanup: None,
     });
 
     assert!(
@@ -452,6 +458,7 @@ fn schedules_accept_only_eventbridge_expression_forms() {
         expression: "every 15 minutes".into(),
         enabled: false,
         purpose: "recover stranded outbox records".into(),
+        cleanup: None,
     });
 
     assert!(
@@ -510,7 +517,7 @@ fn fifo_dlq_fixture_renders_compatible_redrive_resources() {
 }
 
 #[test]
-fn explicit_schedule_fixture_is_reviewable_and_renderable() {
+fn explicit_cleanup_schedule_fixture_is_reviewable_and_rendering_fails_closed() {
     let plan = plan_from_config(include_str!("fixtures/api_worker_schedule_v2.toml"));
 
     assert!(
@@ -527,7 +534,90 @@ fn explicit_schedule_fixture_is_reviewable_and_renderable() {
     }));
     assert!(
         render_sam(&plan)
-            .expect("scheduled SAM")
+            .expect_err("cleanup requires a guarded Scheduler API apply")
+            .to_string()
+            .contains("ActionAfterCompletion")
+    );
+}
+
+#[test]
+fn one_time_schedule_cleanup_is_explicit_and_sam_fails_closed() {
+    let plan = plan_from_config(include_str!("fixtures/api_worker_schedule_v2.toml"));
+
+    assert!(
+        plan.validate()
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error)
+    );
+    let schedule = &estimate_runtime_cost(&plan).schedules[0];
+    assert_eq!(
+        schedule.action_after_completion,
+        Some(ScheduleCompletionAction::Delete)
+    );
+    assert_eq!(schedule.residual_resources.len(), 3);
+    assert!(schedule.manual_fallback.is_some());
+
+    assert!(
+        render_sam(&plan)
+            .expect_err("cleanup requires a guarded Scheduler API apply")
+            .to_string()
+            .contains("ActionAfterCompletion")
+    );
+}
+
+#[test]
+fn completion_deletion_is_rejected_for_recurring_schedules() {
+    let mut plan = standard_worker_plan();
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "unsafe-cleanup".into(),
+        function_id: "orders-worker".into(),
+        expression: "rate(1 day)".into(),
+        enabled: false,
+        purpose: "must remain recurring".into(),
+        cleanup: Some(ScheduleCleanupPlan {
+            action_after_completion: ScheduleCompletionAction::Delete,
+            residual_resources: vec!["target outputs".into()],
+            manual_fallback: "run guarded cleanup".into(),
+        }),
+    });
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-SCHEDULE-004")
+    );
+}
+
+#[test]
+fn schema_v2_schedule_without_cleanup_remains_deserializable() {
+    let source = include_str!("fixtures/api_worker_schedule_v2.toml")
+        .split_once("[triggers.cleanup]")
+        .expect("cleanup section")
+        .0;
+    let plan = plan_from_config(source);
+    let cleanup = plan.triggers.iter().find_map(|trigger| {
+        let TriggerPlan::Schedule { cleanup, .. } = trigger else {
+            return None;
+        };
+        Some(cleanup)
+    });
+
+    assert_eq!(cleanup, Some(&None));
+    assert!(
+        serde_json::to_value(&plan)
+            .expect("serialized plan")
+            .to_string()
+            .contains("\"kind\":\"schedule\"")
+    );
+    assert!(
+        !serde_json::to_value(&plan)
+            .expect("serialized plan")
+            .to_string()
+            .contains("\"cleanup\"")
+    );
+    assert!(
+        render_sam(&plan)
+            .expect("legacy schema 2 schedule remains renderable")
             .contains("Type: ScheduleV2")
     );
 }

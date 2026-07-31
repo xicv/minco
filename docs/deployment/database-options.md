@@ -13,7 +13,9 @@ translated into key-value semantics.
 | Self-hosted PostgreSQL | VM/instance, disk, snapshots, transfer, monitoring and operator time | Fixed capacity while host runs | Maximum control; patching, backup/restore, HA and incident ownership | Supported planning profile |
 | RDS PostgreSQL | Instance/serverless capacity, storage, backup, I/O/transfer | Usually fixed or minimum capacity | AWS-managed patching/backups; VPC and connection planning | Supported planning profile |
 | Aurora Serverless v2 | ACU-seconds, storage, I/O/transfer, backups | Can auto-pause only on supported configuration and no wake activity | AWS-native elasticity; careful pooling/monitoring required | Supported planning profile |
+| Aurora DSQL | DPU usage, storage and optional multi-Region replication | DPU usage scales to zero; storage remains | PostgreSQL-compatible subset, optimistic conflicts and bounded transactions; IAM-token lifecycle | Research only; no production adapter |
 | DynamoDB on-demand | Read/write request units, storage, streams/backups/transfer | No provisioned compute | Excellent for key-value/event/idempotency workloads; no relational joins/constraints | Cost profile included; adapter roadmap item |
+| Aurora with RDS Data API | Aurora dimensions plus Data API calls/data, Secrets Manager and optional PrivateLink | Depends on the selected Aurora profile | HTTPS and IAM instead of an application-side pool; writer-only, payload and timeout limits | Specialist research profile |
 | Persistent SQLite | Host/storage cost | Depends on the host | Excellent local/single-process store | Official local/native adapter; mutable Lambda deployment rejected |
 
 ## Cost-estimation policy
@@ -31,6 +33,8 @@ Minco's estimator is evidence-oriented:
 4. Estimates show each component and assumption separately.
 5. Human operational cost for self-hosted databases is called out but not
    converted into a fictional universal hourly rate.
+6. Provider free allowances and account eligibility are classified but never
+   converted into a complete zero-dollar estimate.
 
 ## Selection guidance
 
@@ -55,3 +59,7 @@ maximum potential connections
 The plan fails when this exceeds the configured provider/database budget. The
 default example uses one small pool per execution environment and no provisioned
 concurrency.
+
+See [zero-idle service research](zero-idle-service-research.md) for the dated
+correctness, transaction, wake, connection, quota, Region and pricing evidence
+behind these profile boundaries.

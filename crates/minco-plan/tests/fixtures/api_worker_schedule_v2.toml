@@ -49,9 +49,18 @@ function_id = "api"
 kind = "schedule"
 id = "outbox-recovery"
 function_id = "recovery-worker"
-expression = "rate(15 minutes)"
+expression = "at(2026-08-01T00:00:00)"
 enabled = true
-purpose = "recover stranded outbox records"
+purpose = "expire a bounded review environment"
+
+[triggers.cleanup]
+action_after_completion = "delete"
+residual_resources = [
+  "target outputs",
+  "CloudWatch logs",
+  "database records",
+]
+manual_fallback = "inspect the exact review receipt and run guarded cleanup"
 
 [cost_policy]
 deny_fixed_compute = true

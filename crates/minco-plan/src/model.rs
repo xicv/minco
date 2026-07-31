@@ -846,6 +846,7 @@ fn validate_multi_runtime_topology(plan: &DeploymentPlan, diagnostics: &mut Vec<
                 function_id,
                 expression,
                 purpose,
+                cleanup,
                 ..
             } => {
                 if !functions.contains_key(function_id.as_str()) {
@@ -872,6 +873,41 @@ fn validate_multi_runtime_topology(plan: &DeploymentPlan, diagnostics: &mut Vec<
                             trigger.id()
                         ),
                     ));
+                }
+                if let Some(cleanup) = cleanup {
+                    if !expression.starts_with("at(") {
+                        diagnostics.push(error(
+                            "MINCO-SCHEDULE-004",
+                            &format!(
+                                "schedule {} can delete itself after completion only when it \
+                                 uses a one-time at(...) expression",
+                                trigger.id()
+                            ),
+                        ));
+                    }
+                    if cleanup.residual_resources.is_empty()
+                        || cleanup
+                            .residual_resources
+                            .iter()
+                            .any(|resource| resource.trim().is_empty())
+                    {
+                        diagnostics.push(error(
+                            "MINCO-SCHEDULE-005",
+                            &format!(
+                                "schedule {} cleanup must list residual resources explicitly",
+                                trigger.id()
+                            ),
+                        ));
+                    }
+                    if cleanup.manual_fallback.trim().is_empty() {
+                        diagnostics.push(error(
+                            "MINCO-SCHEDULE-006",
+                            &format!(
+                                "schedule {} cleanup requires a reviewable manual fallback",
+                                trigger.id()
+                            ),
+                        ));
+                    }
                 }
             }
         }
@@ -951,7 +987,6 @@ fn validate_sam_resource_identifiers(plan: &DeploymentPlan, diagnostics: &mut Ve
             format!("queue {}", queue.id),
         );
     }
-
     let mut events = std::collections::BTreeMap::new();
     for route in &plan.routes {
         let event_id = format!("{}Event", sam_logical_id(&route.operation_id));
@@ -1408,6 +1443,19 @@ pub struct QueuePlan {
     pub max_receive_count: Option<u32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScheduleCompletionAction {
+    Delete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleCleanupPlan {
+    pub action_after_completion: ScheduleCompletionAction,
+    pub residual_resources: Vec<String>,
+    pub manual_fallback: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TriggerPlan {
@@ -1430,6 +1478,8 @@ pub enum TriggerPlan {
         expression: String,
         enabled: bool,
         purpose: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cleanup: Option<ScheduleCleanupPlan>,
     },
 }
 
