@@ -1,15 +1,23 @@
-name: Minco manual quality gates
+name: Minco hosted qualification
 
 on:
   workflow_dispatch:
     inputs:
+      profile:
+        description: Select bounded clean-runner evidence or the full release matrix
+        required: true
+        default: essential
+        type: choice
+        options:
+          - essential
+          - release
       run_e2e:
-        description: Run the local HTTP end-to-end test
+        description: Run the HTTP end-to-end test during release qualification
         required: false
         default: false
         type: boolean
       run_rustack:
-        description: Run Rustack AWS and Minco SSM adapter conformance
+        description: Run Rustack conformance during release qualification
         required: false
         default: true
         type: boolean
@@ -17,16 +25,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24.18.0"
-          package-manager-cache: false
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.11.32"
@@ -38,24 +46,34 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - name: Install pinned JJ
+        with:
+          cache-targets: false
+          cache-on-failure: false
+      - name: Essential clean-runner gate
+        if: ${{ inputs.profile == 'essential' }}
+        run: scripts/ci/hosted-essential.sh
+      - name: Set up release Node runtime
+        if: ${{ inputs.profile == 'release' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          package-manager-cache: false
+      - name: Install release qualification tools
+        if: ${{ inputs.profile == 'release' }}
         run: |
           cargo install --locked --bin jj jj-cli --version 0.43.0
           jj --version
-      - name: Install pinned ripgrep
-        run: |
           cargo install --locked ripgrep --version 15.2.0
           rg --version
-      - name: Install security and dependency tools
-        run: |
           cargo install --locked cargo-deny --version 0.19.5
           cargo install --locked cargo-audit --version 0.22.2
           go install github.com/zricethezav/gitleaks/v8@v8.30.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Authoritative quality gate
+      - name: Full release quality reproduction
+        if: ${{ inputs.profile == 'release' }}
         run: ./scripts/quality.sh
       - name: Upload Feedback browser evidence
-        if: ${{ !cancelled() }}
+        if: ${{ inputs.profile == 'release' && !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: feedback-browser-${{ github.sha }}
@@ -63,14 +81,18 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Publish dry run
+        if: ${{ inputs.profile == 'release' }}
         run: scripts/release/publish.sh --skip-quality
       - name: Install pinned Cargo Lambda
+        if: ${{ inputs.profile == 'release' }}
         run: cargo install --locked cargo-lambda --version 1.9.1
       - name: Install pinned Zig
+        if: ${{ inputs.profile == 'release' }}
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: "0.14.0"
       - name: Plan, SAM, and native ARM64 Lambda qualification
+        if: ${{ inputs.profile == 'release' }}
         run: |
           cargo lambda --version
           sam --version
@@ -79,8 +101,8 @@ jobs:
           scripts/aws/build-lambda.sh
           scripts/aws/build-worker-lambda.sh
       - name: Rustack and Minco SSM adapter conformance
-        if: ${{ inputs.run_rustack }}
+        if: ${{ inputs.profile == 'release' && inputs.run_rustack }}
         run: scripts/dev/rustack-smoke.sh
       - name: E2E
-        if: ${{ inputs.run_e2e }}
+        if: ${{ inputs.profile == 'release' && inputs.run_e2e }}
         run: scripts/test/e2e.sh

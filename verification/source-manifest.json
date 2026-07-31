@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 610,
+  "file_count": 613,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -14,8 +14,8 @@
     },
     {
       "path": ".github/workflows/minco-manual.yml",
-      "sha256": "f6be9e0a68e6f123dffc979967baf9a2e449d9d025420419de1d819ecbdc2789",
-      "size_bytes": 3073
+      "sha256": "83fd9df13e3b8380129ae37817ed1bccc75fa9512b14e2c690311e4597095c84",
+      "size_bytes": 4004
     },
     {
       "path": ".github/workflows/publish-crates.yml",
@@ -1164,8 +1164,8 @@
     },
     {
       "path": "docs/adrs/0013-quality-and-update.md",
-      "sha256": "548ab0d8f68dc118379d663bf5333276f7e8412f5c22d5d57210dd9ba7a08f31",
-      "size_bytes": 799
+      "sha256": "a92ce1c21e66450a704db18dd78efeee2262cb0be97589c4a21ee0a9dae10fdd",
+      "size_bytes": 3237
     },
     {
       "path": "docs/adrs/0014-plugin-lifecycle-and-feedback.md",
@@ -1379,8 +1379,8 @@
     },
     {
       "path": "docs/development/testing.md",
-      "sha256": "072aeb20864a2de0136a9e657b60db951b971207fdd437b79a3c6f392081d721",
-      "size_bytes": 4486
+      "sha256": "f3cb0353eb7ce04effe6563c4869df3601728eaf2791728385a09bd90b94280e",
+      "size_bytes": 5545
     },
     {
       "path": "docs/development/update.md",
@@ -2359,8 +2359,8 @@
     },
     {
       "path": "roadmap/roadmap.yaml",
-      "sha256": "40a73f8bb8fe263a35b931f723bae5c40497bc77a32358c615dd7ced7d4f3f0d",
-      "size_bytes": 6655
+      "sha256": "ed4a2a035426ca81a45dc723669e9991f9367c7ed29bb844da4f883720a71663",
+      "size_bytes": 6842
     },
     {
       "path": "roadmap/tasks.mmd",
@@ -2458,6 +2458,11 @@
       "size_bytes": 1164
     },
     {
+      "path": "scripts/ci/hosted-essential.sh",
+      "sha256": "21492f2958e68634e0f06eb540eb439445bf0433bd7ce7d9e8ad657d213983b1",
+      "size_bytes": 470
+    },
+    {
       "path": "scripts/deep_review.py",
       "sha256": "b5c37ffe749d73b14300842455fb1a04c4abb2e6da2ec537212c8c4bf7f980ff",
       "size_bytes": 4214
@@ -2534,8 +2539,8 @@
     },
     {
       "path": "scripts/quality.sh",
-      "sha256": "e221ed64495cfbb24d0aecb998d3dc6c85a284f05a56963f023237871e5d54ed",
-      "size_bytes": 2003
+      "sha256": "35aec83cc754fa6d92bd08941f3655f4b177444324304ad110a2cb4b7d4cbc6f",
+      "size_bytes": 2059
     },
     {
       "path": "scripts/release/package-list.sh",
@@ -2598,6 +2603,11 @@
       "size_bytes": 3256
     },
     {
+      "path": "scripts/test/hosted_ci_policy.py",
+      "sha256": "36a3a1b1990c4813fe19e121caef85c34253972731aa9f06ac089e308eba7f22",
+      "size_bytes": 5798
+    },
+    {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
       "sha256": "7b7b3831f24afdf6f4f827a706647b09f1b3765baf6934eed5b13181d946df22",
       "size_bytes": 3714
@@ -2609,8 +2619,8 @@
     },
     {
       "path": "scripts/test/repository_truth.py",
-      "sha256": "efc039a0169b3a94f95d84a731b25fc649fd08ed9c32e40d3c2a2a1ba002f989",
-      "size_bytes": 11350
+      "sha256": "23f7afe5e8dcc0c57f2fc749ea5380a2ea986ed18d3fdc8d287bc1cbe00b4863",
+      "size_bytes": 12107
     },
     {
       "path": "scripts/test/rust_dependency_hygiene.py",
@@ -2953,6 +2963,11 @@
       "size_bytes": 6369
     },
     {
+      "path": "tasks/M9/M9-T09-local-first-ci.md",
+      "sha256": "ad743ec0e6903dddc18cbb69b5368ed1be6e7293001b31ce4d0a96c1c9caec0d",
+      "size_bytes": 4415
+    },
+    {
       "path": "uv.lock",
       "sha256": "f17e423cc1d6b378958c3a33fee6c072d86a4651a662d38b1472fb69ccd6bd41",
       "size_bytes": 15917
@@ -2974,7 +2989,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "ec481c577a5554dbf584c5b8f48924a0dce6234757f87de7a579c8a43648ec8f",
+      "sha256": "2a392d2c4bc2631bc0e135cd11bee093aa830723558b06565c10ffc3c56c4059",
       "size_bytes": 2021
     },
     {
@@ -3034,7 +3049,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "1d234351945f84c61db78eb2c890d3f75bddaba0e16165104993a4b2bdf0f094",
+      "sha256": "f5ceb4c0faf4ad0a83ac0c69cac8e235aa20fe66763cc25f33bb70813a5e4cdb",
       "size_bytes": 754
     },
     {
@@ -3058,7 +3073,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "46777fb1918b8fb29baedf722025a6ced5f8dcf20903e8c8a77a4a50bb5e9030",
-  "total_size_bytes": 3963162,
+  "source_tree_sha256": "c2733a2bd7dea4bb301906423136ca71a59f3e0a8d9a0748af5209a9cdbb22fc",
+  "total_size_bytes": 3979273,
   "version": "0.4.0"
 }

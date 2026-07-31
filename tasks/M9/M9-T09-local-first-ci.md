@@ -2,7 +2,7 @@
 id: M9-T09
 title: Make local quality authoritative and hosted CI essential-only
 milestone: M9
-status: ready
+status: complete
 priority: high
 area: developer-experience/quality
 depends_on: [M9-T08]
@@ -15,6 +15,7 @@ owned_paths:
   - scripts/ci/**
   - scripts/quality.sh
   - scripts/test/hosted_ci_policy.py
+  - scripts/test/repository_truth.py
   - tasks/M9/M9-T09-local-first-ci.md
   - verification/adoption-measurements.json
   - verification/deep-review.json
@@ -62,3 +63,34 @@ actually required.
 - changing application behavior, deployment behavior, release authorization or
   crates.io publication;
 - deleting historical workflow runs or artifacts.
+
+## Evidence
+
+Implemented and locally qualified on 2026-07-31 in the isolated
+`minco-task-m9-t09` JJ workspace.
+
+- TDD first proved the missing bounded hosted script, missing workflow profile,
+  and missing local-policy integration as separate red failures. Three policy
+  tests now exercise the script command boundary, manual workflow profile and
+  complete local matrix.
+- The prior twenty full hosted jobs consumed 320.5 runner wall-minutes with a
+  16.2-minute median. The repository is public, so standard runner minutes are
+  currently unbilled; the reduction targets runner time, queueing, cache and
+  artifact pressure, and future private-repository cost.
+- Existing GitHub caches showed a 4,594,842,607-byte task-branch Rust cache and
+  a 4,458,880,196-byte main Rust cache. The workflow now sets
+  `cache-targets: false`; registry caching remains enabled and failures do not
+  save caches.
+- `scripts/ci/hosted-essential.sh` passed end to end. A cold local target took
+  55.9 seconds and the warmed run took 29.3 seconds.
+- The focused policy suite passed 3 tests, repository-truth passed 19 tests,
+  and shellcheck plus actionlint passed.
+- `./scripts/quality.sh` passed the complete authoritative local matrix in
+  17m37s, including 40 browser tests, workspace compilation/tests/Clippy,
+  generated PostgreSQL and SQLite applications, documentation, RustSec with
+  zero vulnerabilities, npm audit and gitleaks with zero leaks.
+- Four live Orders PostgreSQL adapter tests remain ignored without
+  `MINCO_ORDERS_TEST_POSTGRES_URL`; no live PostgreSQL claim is made.
+- No GitHub workflow was dispatched by this local qualification. Exact-head
+  essential hosted evidence is required before merge. No AWS call, deployment,
+  publication, promotion or release was performed.

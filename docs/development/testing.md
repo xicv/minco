@@ -1,7 +1,8 @@
 # Testing and Quality Gates
 
-Minco tests itself at several boundaries. The local runner is authoritative;
-the optional GitHub workflow merely invokes the same commands.
+Minco tests itself at several boundaries. The local runner is authoritative.
+Optional hosted qualification adds bounded clean-runner evidence without
+silently replacing the local matrix.
 
 Repository Python dependencies are declared in `pyproject.toml` and pinned in
 `uv.lock`. Run `uv sync --locked --only-dev` after checkout; quality commands
@@ -53,22 +54,52 @@ not substitute for those gates.
 ## Optional GitHub Actions
 
 `.github/workflows/minco-manual.yml` is deliberately `workflow_dispatch` only.
-It does not run until a maintainer explicitly invokes it. The workflow installs
-the exact uv release and locked Python dependency group used locally. It also
-uses the same self-bootstrapping Feedback browser gate as `scripts/quality.sh`;
-Playwright failures receive inline GitHub annotations, and the HTML, JUnit,
-trace, screenshot and video evidence under `target/minco/feedback-browser/` is
-retained for 14 days. The runner pins Node 24.18.0 and Playwright 1.62.0.
-Browser binaries are not cached because Playwright's CI guidance says restore
-time is comparable to downloading them; CI installs only the Chromium headless
-shell plus Firefox. The workflow also pins Cargo Lambda,
-builds both native ARM64 Lambda ZIPs, and runs deterministic Plan/SAM validation
-without AWS credentials or provider calls. This avoids making hosted CI a
-prerequisite while retaining a reproducible runner config; it does not replace
-the separately authorised bounded real-AWS smoke gate.
+It does not run until a maintainer explicitly invokes it and defaults to the
+`essential` profile:
+
+```bash
+EXACT_REF=task/your-task
+gh workflow run minco-manual.yml --ref "$EXACT_REF" -f profile=essential
+```
+
+That profile installs the pinned uv and Rust toolchains, restores only Cargo
+registry state, and runs `scripts/ci/hosted-essential.sh`. The script verifies
+static/repository truth, the CI policy itself, formatting, a clean Linux
+all-workspace/all-target/all-feature compiler check, and the exact source
+manifest. It deliberately omits browser tests, the full workspace test suite,
+generated applications, dependency/security scanners, documentation, package
+dry-run, native builds, Rustack and E2E because those already belong to the
+authoritative local gate. Same-ref replacement runs cancel stale work.
+
+Use the explicit `release` profile only for a release candidate or when Linux
+reproduction of the complete matrix is materially useful:
+
+```bash
+gh workflow run minco-manual.yml \
+  --ref "$EXACT_REF" \
+  -f profile=release \
+  -f run_rustack=true \
+  -f run_e2e=true
+```
+
+The release profile pins Node 24.18.0 and Playwright 1.62.0, runs the complete
+`scripts/quality.sh` matrix, retains Feedback browser evidence for 14 days,
+performs the coordinated publish dry-run, builds both native ARM64 Lambda ZIPs,
+and runs deterministic Plan/SAM validation without AWS credentials or provider
+calls. Browser binaries are not cached: the release path is deliberately rare,
+and persistent browser caches would trade runner time for repository cache
+storage. This hosted profile does not replace the separately authorised bounded
+real-AWS smoke gate.
+
 The Lambda build helpers normalize the Cargo Lambda ZIP timestamp, permissions
 and entry order and reject unexpected entries so exact-artifact digests are
 reproducible when the compiled binaries are byte-identical.
+
+On 2026-07-31, the prior twenty full hosted jobs totalled 320.5 runner
+wall-minutes with a 16.2-minute median. Standard runner minutes are currently
+unbilled because Minco is public. The split still reduces queue time, cache
+pressure and artifact churn, and keeps the workflow economical if repository
+visibility changes.
 
 ## Evidence
 
