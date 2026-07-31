@@ -1,8 +1,8 @@
 ---
 id: M8-T09
-title: Prepare the Minco 0.5.0 resource API and zero-idle release candidate
+title: Release Minco 0.5.0 resource API and zero-idle foundation
 milestone: M8
-status: active
+status: complete
 priority: critical
 area: release/crates-io
 depends_on: [M9-T09, M10-T07]
@@ -59,14 +59,14 @@ checks:
 
 ## Goal
 
-Prepare one exact, reviewable `0.5.0` source and package candidate for the
+Qualify and publish one exact `0.5.0` source and package family for the
 accepted zero-idle cost model, standardized resource API conventions and
 local-authoritative CI boundary added after `0.4.0`.
 
 ## Release boundary
 
-- Published baseline: `0.4.0`, 28 packages.
-- Candidate: `0.5.0`, the same 28-package lock-step family.
+- Previous published baseline: `0.4.0`, 28 packages.
+- Published release: `0.5.0`, the same 28-package lock-step family.
 - Included: M10-T07, M9-T08 and M9-T09.
 - Deferred: M10-T04 through M10-T06, M11, M12 and the 1.0 freeze.
 - MSRV: Rust `1.97.1`.
@@ -77,8 +77,8 @@ local-authoritative CI boundary added after `0.4.0`.
   `0.5.0`, while historical `0.4.0` release records remain immutable;
 - the changelog and `0.4.0` to `0.5.0` guide explain the resource response,
   cursor, conditional-write, idempotency, Plan/cost and CI boundaries;
-- repository truth distinguishes the published `0.4.0` baseline from the
-  untagged, unpublished `0.5.0` candidate;
+- repository truth identifies the independently verified published `0.5.0`
+  baseline;
 - the complete five-action Orders resource family is contract-valid,
   explainable, generator-selectable and exercised through memory, SQLite,
   PostgreSQL and real-service HTTP tests;
@@ -93,9 +93,6 @@ local-authoritative CI boundary added after `0.4.0`.
 
 ## Non-goals
 
-- merging the candidate pull request without a separate exact-head decision;
-- creating or pushing `v0.5.0`;
-- publishing to crates.io or creating a GitHub release;
 - creating, modifying, promoting or deleting AWS resources;
 - claiming the planned M10, M11 or M12 program is complete.
 
@@ -119,5 +116,16 @@ Local source and package qualification passed on 2026-07-31 in the isolated
   installed the unpacked CLI, which reported `minco 0.5.0`;
 - `scripts/release/package-list.sh` listed a manifest for all 28 packages.
 
-The exact pushed-head hosted `release` profile remains pending. No merge, tag,
-crates.io publication, GitHub release or AWS mutation is claimed.
+PR #61 merged exact qualified source
+`485d67104a49f139820722eb73334415f69a653c`. Candidate hosted release run
+`30618708535` and merged-main release run `30623278437` passed. Immutable tag
+`v0.5.0` resolves to that exact source.
+
+Trusted-publishing workflow run `30632811070` passed and uploaded all 28
+packages. Independent checks proved exact unyanked registry records owned by
+`xicv`, archive checksums matching crates.io, a fresh `cargo-minco 0.5.0`
+installation, default/no-default/all-feature external consumers, and all 28
+exact docs.rs routes. The GitHub release is
+`https://github.com/xicv/minco/releases/tag/v0.5.0`.
+
+No AWS mutation was performed for this release.

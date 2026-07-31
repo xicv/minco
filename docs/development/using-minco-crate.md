@@ -192,9 +192,9 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 
 ## API stability
 
-Published baseline: `0.4.0`
+Published baseline: `0.5.0`
 Current workspace version: `0.5.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
 Pin the published minor line in production applications and follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before

@@ -87,7 +87,7 @@ milestones:
   - Adoption gaps are fixed in bounded Minco tasks or retained as explicit application policy.
 - id: M8
   name: Cargo publication and ecosystem bootstrap
-  status: active
+  status: complete
   depends_on:
   - M0
   outcome: A versioned Minco crate family, facade crate, Cargo subcommand, and application generator pass crates.io

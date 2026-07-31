@@ -2,10 +2,9 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current source boundary is an unpublished 28-package lock-step `0.5.0`
-candidate over the independently published 28-package `0.4.0` baseline.
+The current published boundary is the 28-package lock-step `0.5.0` family.
 Source/package qualification, merge, tag, upload and registry verification
-remain separate states.
+remain separate states for every later release.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:

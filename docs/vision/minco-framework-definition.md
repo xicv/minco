@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `0.4.0`
+Published baseline: `0.5.0`
 Current workspace version: `0.5.0`
-Workspace release state: `candidate`
-Reviewed release source: `65bf94045448bdbeedd37e10b1a004c926513508`
+Workspace release state: `published`
+Reviewed release source: `485d67104a49f139820722eb73334415f69a653c`
 
 ## Product identity
 
@@ -18,11 +18,13 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The published `0.4.0` classification is:
+The published `0.5.0` classification is:
 
-> Published-source coherent through guarded hosted verification, a bounded
-> disposable AWS rehearsal, exact-artifact promotion and cleanup; production
-> runtime and later lifecycle/ecosystem programs remain incomplete.
+> Published-source coherent through resource API conventions, guarded hosted
+> verification, coordinated registry publication and independent consumer
+> verification. The earlier bounded disposable AWS rehearsal and exact-artifact
+> promotion remain the latest live deployment proof; production runtime and
+> later lifecycle/ecosystem programs remain incomplete.
 
 The framework-completion program still prioritises one coherent path from a new
 contract to a safely deployed, observable, and upgradable application. Source
@@ -103,7 +105,7 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current `0.5.0` candidate source state | Remaining boundary |
+| Area | Current published `0.5.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong | Distribution metadata and conformance |
@@ -120,7 +122,7 @@ The framework-completion program preserves the accepted ADRs and
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Substantial checked Markdown plus `0.4.0` and candidate `0.5.0` upgrade guides | Versioned Diátaxis product |
+| Documentation | Substantial checked Markdown plus the published `0.5.0` upgrade guide | Versioned Diátaxis product |
 | AI support | Stable paths and JSON inspection | Local read-only MCP and optional workbench |
 | Compatibility | Pre-1.0 policy | Explicit public API and feature freeze |
 
@@ -305,7 +307,7 @@ Minco remains a lock-step pre-1.0 crate family while the golden path is built.
   serialized planning/configuration/release structures, package inventory and
   the lifecycle/deployment CLI.
 - The resource response/concurrency contract and structured Plan cost evidence
-  advance the unpublished candidate to `0.5.0`.
+  define the published `0.5.0` boundary.
 - New Cargo features stay opt-in unless a separately reviewed default-surface
   decision proves the dependency and behavior impact.
 - Every significant public change includes a compatibility note, migration
