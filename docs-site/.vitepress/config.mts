@@ -114,9 +114,44 @@ export default defineConfig({
       ],
       '/next/': [
         {
-          text: 'Next',
+          text: 'Current Development',
           items: [
-            { text: 'Unreleased documentation', link: '/next/' },
+            { text: 'Overview', link: '/next/' },
+            { text: 'Framework tour', link: '/next/getting-started/framework-tour' },
+            { text: 'Project structure', link: '/next/getting-started/project-structure' }
+          ]
+        },
+        {
+          text: 'Guides',
+          collapsed: false,
+          items: [
+            { text: 'Build a resource API', link: '/next/guides/resource-api' },
+            {
+              text: 'Test a plugin',
+              link: '/next/guides/plugin-conformance'
+            },
+            { text: 'Plan an AWS deployment', link: '/next/guides/deployment' }
+          ]
+        },
+        {
+          text: 'Reference',
+          collapsed: false,
+          items: [
+            { text: 'CLI', link: '/next/reference/cli' },
+            { text: 'Resource API', link: '/next/reference/resource-api' },
+            {
+              text: 'Plugin conformance',
+              link: '/next/reference/plugin-conformance'
+            },
+            { text: 'Testing and evidence', link: '/next/reference/testing' }
+          ]
+        },
+        {
+          text: 'Examples & Concepts',
+          collapsed: false,
+          items: [
+            { text: 'Exercised examples', link: '/next/examples/' },
+            { text: 'Zero idle, precisely', link: '/next/explanation/zero-idle' },
             { text: 'Stable 0.5.0', link: '/0.5.0/' }
           ]
         }

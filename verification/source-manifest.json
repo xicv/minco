@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 677,
+  "file_count": 690,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1504,18 +1504,23 @@
     },
     {
       "path": "docs-site/.vitepress/config.mts",
-      "sha256": "f1653aa7ecce806d571913fbf5521775ebfffa211d8cd161a2cb4cfd294b7520",
-      "size_bytes": 4145
+      "sha256": "0dfa83b0bf7d4dd680b4a975c72f5c22663fee736cbb069f43b8a16b7b6b9dea",
+      "size_bytes": 5428
+    },
+    {
+      "path": "docs-site/.vitepress/theme/Layout.vue",
+      "sha256": "aa0f0838ab023f93863edc6b0cc864435522f94b15305a01801cbbf6eb88f7d7",
+      "size_bytes": 730
     },
     {
       "path": "docs-site/.vitepress/theme/index.ts",
-      "sha256": "79b3cc1810c19627b0a468eb7011fd26e808e6c2cd14e379ef0f78fdcfff7d47",
-      "size_bytes": 93
+      "sha256": "2d4ef03b54708f187dcfc3b54b6a81803e6b090c72b6d420caa12d027283606f",
+      "size_bytes": 152
     },
     {
       "path": "docs-site/.vitepress/theme/style.css",
-      "sha256": "c4fb9488ae082062528e21f28aa8ca5fad4b5e1defc49c9e1309b92465aef6c4",
-      "size_bytes": 3063
+      "sha256": "cba82255fced3f8e3e46122ca0bda682c2583918a1eb02ee3588021da7820e07",
+      "size_bytes": 4469
     },
     {
       "path": "docs-site/0.5.0/explanation/architecture.md",
@@ -1588,9 +1593,64 @@
       "size_bytes": 1181
     },
     {
+      "path": "docs-site/next/examples/index.md",
+      "sha256": "b6953b64b1128bb09a79f508071ee08fd938315b0f023924ae0874df3bdd1e3b",
+      "size_bytes": 3556
+    },
+    {
+      "path": "docs-site/next/explanation/zero-idle.md",
+      "sha256": "85e293aa94f5df9f74077ec77f181092c9816fc4fb6227752918a90294659f71",
+      "size_bytes": 2743
+    },
+    {
+      "path": "docs-site/next/getting-started/framework-tour.md",
+      "sha256": "160f34ce247a8c4621de85d206999901a6001397c7bf2db8e38af834006a77c1",
+      "size_bytes": 3182
+    },
+    {
+      "path": "docs-site/next/getting-started/project-structure.md",
+      "sha256": "563411f8226d8a58b01083111d6f676ae179ab5d4b92cf7da2816ae7b6f84bca",
+      "size_bytes": 3272
+    },
+    {
+      "path": "docs-site/next/guides/deployment.md",
+      "sha256": "db4e02cefe49537fb1aac551bb30b29a84c3dc66dabcd784e5737a890617ffae",
+      "size_bytes": 3149
+    },
+    {
+      "path": "docs-site/next/guides/plugin-conformance.md",
+      "sha256": "fcde63d431cd104b8acb4f9e4951332766b7d2ce9fff06525cf8aab621792eba",
+      "size_bytes": 3359
+    },
+    {
+      "path": "docs-site/next/guides/resource-api.md",
+      "sha256": "77fa60dc327ad7f594ba442f21537fcf6c38268d68e64050fa6fe7301161eac0",
+      "size_bytes": 4210
+    },
+    {
       "path": "docs-site/next/index.md",
-      "sha256": "59daa34d063f34ce1dae9c9db4765899c748dfeefd238cf7e190981a1fe43dc2",
-      "size_bytes": 490
+      "sha256": "4f4a3c2570ba239bb61c649b1431c4af8950f946e35805aa58d1d9678e3aab09",
+      "size_bytes": 1905
+    },
+    {
+      "path": "docs-site/next/reference/cli.md",
+      "sha256": "bd5584673164fe3c5f1b4c19cf6532c38ef5da61ce978e86c892a4ad443488b1",
+      "size_bytes": 2876
+    },
+    {
+      "path": "docs-site/next/reference/plugin-conformance.md",
+      "sha256": "c677c44a1d16d97f282e407cb37fcbfa74c6c4757e377285f65c628c180b25ea",
+      "size_bytes": 3538
+    },
+    {
+      "path": "docs-site/next/reference/resource-api.md",
+      "sha256": "389bdb8abee0872e9cbdb4fbc05a645f5e9155d1fa2fc5187269d5eb08a9582a",
+      "size_bytes": 3750
+    },
+    {
+      "path": "docs-site/next/reference/testing.md",
+      "sha256": "c48a5f97d9203bc717df39e52650f904040771cbc5dd43f2723ebd2b3e2b4af8",
+      "size_bytes": 2834
     },
     {
       "path": "docs-site/package-lock.json",
@@ -1614,8 +1674,8 @@
     },
     {
       "path": "docs-site/tests/docs.spec.mts",
-      "sha256": "d5906bb083e4f7ace561dfeb6e81e81d9e14e053931e0b7f400ddfcd54815e57",
-      "size_bytes": 3842
+      "sha256": "29fd3fad1380d21fe0e4bf3c35b175552ccaaf6f512fb46bb0f070f622e479f4",
+      "size_bytes": 5460
     },
     {
       "path": "docs-site/versions.md",
@@ -2649,8 +2709,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "5ce3446e433cb748ee7f4608c99f64ae4ebba98db60dbfdb80220b228e5605ae",
-      "size_bytes": 6951
+      "sha256": "54d4f1daff3a3012a0c5246f703dbf842b52cb7eaa5e90b988db1a555249cb44",
+      "size_bytes": 7079
     },
     {
       "path": "rust-toolchain.toml",
@@ -2814,8 +2874,8 @@
     },
     {
       "path": "scripts/docs/check_snippets.py",
-      "sha256": "81145ee02b164048e8fa19028ad396e405e3015f862277e6cc9d0ddab1600e33",
-      "size_bytes": 2859
+      "sha256": "8aa632115eb5d40fa1e8a7e19f4add19647ad96d9432f7bf7aeb23e033027e53",
+      "size_bytes": 3339
     },
     {
       "path": "scripts/docs/test-browser.sh",
@@ -3061,6 +3121,11 @@
       "path": "tasks/M11/M11-T06-generated-reference.md",
       "sha256": "381241068ce549cbc76a4ea30310f30eb49c15da7ca904c31bb5ba16f6ad2a14",
       "size_bytes": 1270
+    },
+    {
+      "path": "tasks/M11/M11-T07-deepen-documentation-site.md",
+      "sha256": "e3d86a1fe7677db978c550aca386754f568f32faa93150d350e7584fe04b1944",
+      "size_bytes": 4724
     },
     {
       "path": "tasks/M12/M12-T01-local-read-only-mcp.md",
@@ -3309,7 +3374,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "508fbd16e4e6585b6350742c2c1a5079f9a250679516d38d0ffadb4d0c31e0c4",
+      "sha256": "d3632976afe11d1246a81a3b5e84fe517952f00d0110df9d7b55535cfcd7e3bd",
       "size_bytes": 2021
     },
     {
@@ -3369,7 +3434,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "e632749b5238d3fcf6abf311ad9b72c5db9e06f53bd43e3afb834584dff755d5",
+      "sha256": "3e922956f8578a037c8ae58d0d65c0d248b23d55e3fe881f73c10bbebc1efaac",
       "size_bytes": 754
     },
     {
@@ -3395,7 +3460,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "9ae2d15c6ce2e6842e9a5cf806b49800a8ca98e2c1f11524fa3360348a8561cc",
-  "total_size_bytes": 4329674,
+  "source_tree_sha256": "b7632d2e97782b44e8fe0861ca94f8b711f079bdd1e25a7c0d89b7ee4300322f",
+  "total_size_bytes": 4377986,
   "version": "0.5.0"
 }

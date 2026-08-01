@@ -5,12 +5,41 @@ description: Unreleased Minco documentation.
 
 # Next
 
-<div class="version-banner next-warning" role="note">
-  <span><strong>Unreleased documentation.</strong> APIs and commands here may change before the next Minco release.</span>
-  <a href="../0.5.0/">Use stable 0.5.0</a>
-</div>
-
 This area records only behavior merged after Minco 0.5.0. It never changes the
 meaning of the [stable 0.5.0 documentation](/0.5.0/).
 
-No unreleased user-facing changes are documented yet.
+Current development adds a standardized resource API, strict plugin
+distribution records, and one public plugin conformance kit. Choose the path
+that matches what you need to do.
+
+<div class="doc-path-grid">
+  <a class="doc-path-card" href="./getting-started/framework-tour">
+    <strong>Build an application</strong>
+    <span>Understand the contract-to-cloud path, project layers, and development loop.</span>
+  </a>
+  <a class="doc-path-card" href="./guides/resource-api">
+    <strong>Use resource APIs</strong>
+    <span>Implement create, list, read, update, and delete with one client-facing convention.</span>
+  </a>
+  <a class="doc-path-card" href="./guides/plugin-conformance">
+    <strong>Author a plugin</strong>
+    <span>Package a statically linked plugin and exercise the public conformance boundary.</span>
+  </a>
+  <a class="doc-path-card" href="./guides/deployment">
+    <strong>Operate on AWS</strong>
+    <span>Review Plan IR, residual cost, exact artifacts, and mutation evidence.</span>
+  </a>
+</div>
+
+## What Is Documented Here
+
+| Area | Current development boundary |
+|---|---|
+| HTTP resources | JSON data envelopes, bounded cursor pages, strong entity tags, and Problem Details |
+| Plugins | Archive-visible distribution metadata and public offline conformance reports |
+| Testing | Domain, application, adapter, HTTP, plugin, deployment, and release evidence remain distinct |
+| AWS | Zero provisioned application compute is enforced structurally; residual managed-service cost stays visible |
+
+Start with the [framework tour](./getting-started/framework-tour), browse the
+[exercised examples](./examples/), or go directly to the
+[current CLI reference](./reference/cli).
