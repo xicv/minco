@@ -11,6 +11,7 @@
   --vp-font-family-mono:
     "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
   --vp-layout-max-width: 1504px;
+  color-scheme: light;
 }
 
 .dark {
@@ -18,6 +19,7 @@
   --vp-c-brand-2: #9285ff;
   --vp-c-brand-3: #7d6df2;
   --vp-c-brand-soft: rgba(169, 158, 255, 0.14);
+  color-scheme: dark;
 }
 
 .VPNav {
@@ -95,11 +97,17 @@
 
 .vp-doc h1 {
   letter-spacing: -0.042em;
+  text-wrap: balance;
 }
 
 .vp-doc h2 {
   border-top: 0;
   letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.vp-doc :is(h2, h3, h4, h5, h6) {
+  scroll-margin-top: 96px;
 }
 
 .vp-doc a {
@@ -129,9 +137,70 @@
   color: var(--vp-c-text-1);
 }
 
+.version-banner > a {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .next-warning {
   border-left: 4px solid #e6a700;
   background: rgba(230, 167, 0, 0.1);
+}
+
+.doc-path-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2.5rem;
+}
+
+.doc-path-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1.15rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 16px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1) !important;
+  text-decoration: none !important;
+  touch-action: manipulation;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.doc-path-card:hover {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+  transform: translateY(-2px);
+}
+
+.doc-path-card:focus-visible {
+  outline: 3px solid var(--vp-c-brand-1);
+  outline-offset: 3px;
+}
+
+.doc-path-card strong {
+  font-size: 1.05rem;
+}
+
+.doc-path-card span {
+  color: var(--vp-c-text-2);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.evidence-table td:first-child,
+.evidence-table th:first-child {
+  white-space: nowrap;
+}
+
+.vp-doc table td:first-child,
+.vp-doc table th:first-child {
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 640px) {
@@ -150,6 +219,10 @@
 
   .vp-doc table {
     display: block;
+  }
+
+  .doc-path-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

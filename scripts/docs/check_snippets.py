@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "docs-site"
 FENCE = re.compile(r"^```([^\n]*)\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
 TUTORIAL = SITE / "0.5.0" / "tutorials"
+NEXT = SITE / "next"
 
 
 def fail(message: str, failures: list[str]) -> None:
@@ -57,9 +58,18 @@ def main() -> int:
                 fail(f"{tutorial.relative_to(ROOT)} lacks {marker}", failures)
 
     stable_sources = []
-    for path in sorted((SITE / "0.5.0").rglob("*.md")):
+    checked_sources = sorted((SITE / "0.5.0").rglob("*.md"))
+    next_sources = sorted(NEXT.rglob("*.md"))
+    if len(next_sources) < 10:
+        fail(
+            f"next documentation has {len(next_sources)} pages; expected at least 10 detailed pages",
+            failures,
+        )
+    checked_sources.extend(next_sources)
+    for path in checked_sources:
         source = path.read_text()
-        stable_sources.append(source)
+        if path.is_relative_to(SITE / "0.5.0"):
+            stable_sources.append(source)
         for match in FENCE.finditer(source):
             checked += 1
             check_fence(path, match.group(1), match.group(2), failures)
@@ -69,9 +79,10 @@ def main() -> int:
         if forbidden in combined:
             fail(f"stable documentation contains stale release language: {forbidden}", failures)
 
-    next_source = (SITE / "next" / "index.md").read_text()
-    if "Unreleased documentation." not in next_source:
-        fail("next documentation lacks the unreleased warning", failures)
+    next_layout = (SITE / ".vitepress" / "theme" / "Layout.vue").read_text()
+    for marker in ("relativePath.startsWith('next/')", "Unreleased documentation."):
+        if marker not in next_layout:
+            fail(f"next documentation layout lacks persistent marker: {marker}", failures)
 
     if failures:
         print("\n".join(failures), file=sys.stderr)
