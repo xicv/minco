@@ -895,6 +895,7 @@ dependencies = [
  "minco-release",
  "minco-sqlx-postgres",
  "minco-sqlx-sqlite",
+ "minco-test",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -2616,9 +2617,12 @@ dependencies = [
  "axum",
  "http 1.4.2",
  "http-body-util",
+ "minco-core",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
+ "toml",
  "tower",
 ]
 

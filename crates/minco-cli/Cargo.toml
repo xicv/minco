@@ -36,6 +36,7 @@ minco-plugin-feedback = { workspace = true, default-features = false, features =
 minco-release.workspace = true
 minco-sqlx-postgres.workspace = true
 minco-sqlx-sqlite.workspace = true
+minco-test.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true

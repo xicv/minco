@@ -377,10 +377,21 @@ enum TaskCommand {
 #[derive(Debug, Subcommand)]
 enum PluginCommand {
     List,
-    Enable { id: String },
-    Disable { id: String },
-    New { id: String },
+    Enable {
+        id: String,
+    },
+    Disable {
+        id: String,
+    },
+    New {
+        id: String,
+    },
     Validate,
+    Test {
+        /// Test every local catalog component with the public offline conformance kit.
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Subcommand)]
@@ -3354,6 +3365,38 @@ fn plugin_command(
             print_value(&findings, as_json)?;
             if !findings.is_empty() {
                 bail!("plugin catalog validation failed");
+            }
+            Ok(())
+        }
+        PluginCommand::Test { all } => {
+            if !all {
+                bail!("plugin test currently requires --all");
+            }
+            let catalog = load_catalog(root, &manifest.plugin_catalog)?;
+            let descriptors = minco::default_plugin_manager()?
+                .descriptors()
+                .into_iter()
+                .map(|descriptor| (descriptor.id.as_str().to_owned(), descriptor))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let mut reports = Vec::with_capacity(catalog.plugin.len());
+            for plugin in &catalog.plugin {
+                let relative = plugin.path.as_ref().with_context(|| {
+                    format!(
+                        "plugin {} is registry-backed; run the public minco-test kit from its package workspace",
+                        plugin.id
+                    )
+                })?;
+                let mut conformance =
+                    minco_test::PluginConformance::for_package(root.join(relative));
+                if let Some(descriptor) = descriptors.get(plugin.id.as_str()) {
+                    conformance = conformance.with_descriptor(descriptor.clone());
+                }
+                reports.push(conformance.run());
+            }
+            let failed = reports.iter().any(|report| !report.is_passed());
+            print_value(&reports, as_json)?;
+            if failed {
+                bail!("plugin conformance failed");
             }
             Ok(())
         }

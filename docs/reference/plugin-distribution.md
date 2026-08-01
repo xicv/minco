@@ -61,6 +61,12 @@ cargo minco plugin new example
 `plugin validate` never runs a conformance evidence string. A CI or release
 workflow chooses and executes the reviewed command separately.
 
+`cargo minco plugin test --all` also treats every evidence string as inert. It
+loads every local catalog package through the public `minco-test` conformance
+API and emits one deterministic report per component. A passed report is not
+application, provider/live, deployment, or production-readiness evidence. See
+[`plugin-conformance.md`](plugin-conformance.md).
+
 For registry dependencies, an application-local validation does not fetch or
 execute the package. Inspect the downloaded `.crate` archive (or validate the
 same package as a path dependency) to verify its embedded record. Local path

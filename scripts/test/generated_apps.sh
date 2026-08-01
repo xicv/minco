@@ -27,6 +27,7 @@ append_local_patches() {
 minco = { path = $(toml_path "$root/crates/minco") }
 minco-core = { path = $(toml_path "$root/crates/minco-core") }
 minco-contract = { path = $(toml_path "$root/crates/minco-contract") }
+minco-test = { path = $(toml_path "$root/crates/minco-test") }
 PATCH
 }
 

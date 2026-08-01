@@ -8,6 +8,14 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, process::Output};
 use tower::ServiceExt;
 
+mod plugin_conformance;
+
+pub use plugin_conformance::{
+    ADAPTER_CONFORMANCE_PROFILE, ConformanceAssurance, ConformanceDiagnostic, ConformanceStatus,
+    PLUGIN_CONFORMANCE_PROFILE, PluginConformance, PluginConformanceReport,
+    RUNTIME_CONFORMANCE_PROFILE,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FixtureIdentity {
     pub namespace: String,

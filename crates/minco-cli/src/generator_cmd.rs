@@ -937,6 +937,8 @@ fn plugin_plan(root: &Path, manifest: &MincoManifest, args: &NamedArgs) -> Resul
          [dependencies]\n\
          minco-core.workspace = true\n\
          semver.workspace = true\n\n\
+         [dev-dependencies]\n\
+         minco-test.workspace = true\n\n\
          [lints]\n\
          workspace = true\n"
     );

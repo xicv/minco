@@ -186,7 +186,7 @@ pub fn scaffold_plugin(root: &Path, plugin_id: &str) -> Result<()> {
     std::fs::write(
         directory.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"{crate_name}\"\nversion.workspace = true\nedition.workspace = true\nrust-version.workspace = true\nlicense.workspace = true\nrepository.workspace = true\npublish = false\ninclude = [\"src/**\", \"Cargo.toml\", \"minco-plugin.json\"]\n\n[package.metadata.minco]\nplugin = \"minco-plugin.json\"\n\n[dependencies]\nminco-core.workspace = true\nsemver.workspace = true\n\n[lints]\nworkspace = true\n"
+            "[package]\nname = \"{crate_name}\"\nversion.workspace = true\nedition.workspace = true\nrust-version.workspace = true\nlicense.workspace = true\nrepository.workspace = true\npublish = false\ninclude = [\"src/**\", \"Cargo.toml\", \"minco-plugin.json\"]\n\n[package.metadata.minco]\nplugin = \"minco-plugin.json\"\n\n[dependencies]\nminco-core.workspace = true\nsemver.workspace = true\n\n[dev-dependencies]\nminco-test.workspace = true\n\n[lints]\nworkspace = true\n"
         ),
     )?;
     std::fs::write(
@@ -206,7 +206,7 @@ pub fn scaffold_plugin(root: &Path, plugin_id: &str) -> Result<()> {
     std::fs::write(
         directory.join("src/lib.rs"),
         format!(
-            "//! Minco plugin `{plugin_id}`.\n#![forbid(unsafe_code)]\n\nuse minco_core::{{Plugin, PluginContext, PluginDescriptor, PluginError, PluginId}};\nuse semver::Version;\n\n#[derive(Debug, Clone, Default)]\npub struct {type_name}Plugin;\n\nimpl Plugin for {type_name}Plugin {{\n    fn descriptor(&self) -> PluginDescriptor {{\n        PluginDescriptor::new(\n            PluginId::new(\"{plugin_id}\").expect(\"static plugin ID\"),\n            Version::new(0, 1, 0),\n            \"Describe the plugin capability\",\n        )\n    }}\n\n    fn install(&self, _context: &mut PluginContext<'_>) -> Result<(), PluginError> {{\n        Ok(())\n    }}\n}}\n\n#[cfg(test)]\nmod tests {{\n    use super::*;\n\n    #[test]\n    fn descriptor_has_the_expected_identity() {{\n        assert_eq!({type_name}Plugin.descriptor().id.as_str(), \"{plugin_id}\");\n    }}\n}}\n"
+            "//! Minco plugin `{plugin_id}`.\n#![forbid(unsafe_code)]\n\nuse minco_core::{{Plugin, PluginContext, PluginDescriptor, PluginError, PluginId}};\nuse semver::Version;\n\n#[derive(Debug, Clone, Default)]\npub struct {type_name}Plugin;\n\nimpl Plugin for {type_name}Plugin {{\n    fn descriptor(&self) -> PluginDescriptor {{\n        PluginDescriptor::new(\n            PluginId::new(\"{plugin_id}\").expect(\"static plugin ID\"),\n            Version::new(0, 1, 0),\n            \"Describe the plugin capability\",\n        )\n    }}\n\n    fn install(&self, _context: &mut PluginContext<'_>) -> Result<(), PluginError> {{\n        Ok(())\n    }}\n}}\n\n#[cfg(test)]\nmod tests {{\n    use super::*;\n    use minco_test::PluginConformance;\n\n    #[test]\n    fn passes_the_public_plugin_conformance_kit() {{\n        PluginConformance::for_package(env!(\"CARGO_MANIFEST_DIR\"))\n            .with_plugin({type_name}Plugin)\n            .run()\n            .assert_passed();\n    }}\n}}\n"
         ),
     )?;
     add_workspace_member(root, &format!("plugins/{crate_name}"), &crate_name)?;
@@ -989,6 +989,13 @@ default-members = []
         assert!(manifest.contains("[package.metadata.minco]"));
         assert!(manifest.contains("plugin = \"minco-plugin.json\""));
         assert!(manifest.contains("include = [\"src/**\", \"Cargo.toml\", \"minco-plugin.json\"]"));
+        assert!(manifest.contains("[dev-dependencies]"));
+        assert!(manifest.contains("minco-test.workspace = true"));
+        let source =
+            fs::read_to_string(root.path().join("plugins/minco-plugin-example/src/lib.rs"))
+                .expect("generated plugin source");
+        assert!(source.contains("PluginConformance::for_package"));
+        assert!(source.contains(".with_plugin(ExamplePlugin)"));
         let distribution: PluginDistributionManifest = serde_json::from_str(
             &fs::read_to_string(
                 root.path()

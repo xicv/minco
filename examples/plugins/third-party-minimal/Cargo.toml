@@ -1,0 +1,27 @@
+[workspace]
+
+[package]
+name = "minco-third-party-plugin-example"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT OR Apache-2.0"
+description = "Standalone third-party-style Minco plugin conformance fixture"
+include = ["src/**", "Cargo.toml", "minco-plugin.json"]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
+
+[dependencies]
+minco-core = { version = "0.5.0", path = "../../../crates/minco-core" }
+
+[dev-dependencies]
+minco-test = { version = "0.5.0", path = "../../../crates/minco-test" }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
