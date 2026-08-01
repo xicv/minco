@@ -5,12 +5,12 @@ description: Unreleased Minco documentation.
 
 # Next
 
-This area records only behavior merged after Minco 0.5.0. It never changes the
-meaning of the [stable 0.5.0 documentation](/0.5.0/).
+This area records only behavior merged after Minco 0.6.0. It never changes the
+meaning of the [stable 0.6.0 documentation](/0.6.0/).
 
-Current development adds a standardized resource API, strict plugin
-distribution records, and one public plugin conformance kit. Choose the path
-that matches what you need to do.
+No post-0.6.0 compatibility change is claimed yet. These mutable pages retain
+the current framework paths as the starting point for future development.
+Choose the path that matches what you need to do.
 
 <div class="doc-path-grid">
   <a class="doc-path-card" href="./getting-started/framework-tour">

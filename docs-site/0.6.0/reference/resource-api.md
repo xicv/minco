@@ -115,5 +115,4 @@ pub use resource::{
 ```
 
 The authoritative contract remains
-[`examples/orders/openapi/openapi.yaml`](https://github.com/xicv/minco/blob/main/examples/orders/openapi/openapi.yaml).
-
+[`examples/orders/openapi/openapi.yaml`](https://github.com/xicv/minco/blob/v0.6.0/examples/orders/openapi/openapi.yaml).

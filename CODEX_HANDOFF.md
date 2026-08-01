@@ -1,46 +1,46 @@
-# Minco 0.6.0 release-candidate handoff
+# Minco 0.6.0 release handoff
 
-Date: 2026-07-31
-Published baseline: `0.5.0`
+Date: 2026-08-01
+Published baseline: `0.6.0`
 Current workspace version: `0.6.0`
-Workspace release state: `candidate`
-Published `0.5.0` source: `485d67104a49f139820722eb73334415f69a653c`
+Workspace release state: `published`
+Published `0.6.0` source: `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`
 Last completed tasks: `M11-T01`, `M11-T02`, `M11-T03`, `M11-T07`
 Active task: `M11-T08`
 
 ## Closed release boundary
 
-Minco `0.5.0` is tagged, published as a GitHub release and available across the
-complete 28-package crates.io family. Exact candidate and merged-main hosted
+Minco `0.6.0` is tagged, published as a GitHub release and available across the
+complete 28-package crates.io family. Exact PR-head and merged-main hosted
 release qualification passed. Independent registry metadata, owner, checksum,
 archive, installation, external consumer and docs.rs checks passed. No new AWS
-deployment was part of the `0.5.0` publication; the separately authorised
+deployment was part of the `0.6.0` publication; the separately authorised
 `0.4.0` disposable AWS rehearsal remains the latest live proof. See
 `VERIFICATION.md` for exact evidence categories.
 
 Post-release registry verification is:
 
 ```bash
-uv run --locked python scripts/validate_publish.py --expect-published
+uv run --locked python scripts/validate_publish.py \
+  --expect-published --check-registry --require-registry
 ```
 
 The command requires successful crates.io evidence for every exact workspace
 version. It does not treat registry unavailability as a pass.
 
-## Current release work
+## Current closeout work
 
-The `0.6.0` candidate adds archive-visible plugin distribution records, one
-public conformance kit and a detailed versioned documentation set. It must pass
-exact local/package qualification and hosted release qualification before an
-exact merge commit is tagged or uploaded. Website stable status changes only
-after independent registry verification.
+The `0.6.0` release adds archive-visible plugin distribution records, one
+public conformance kit and a detailed versioned documentation set. Tag,
+registry, GitHub release, external-consumer and docs.rs proof are complete.
+M11-T08 remains active only until the stable website commit is deployed and
+verified from its exact source.
 
 The remaining planned program is:
 
-1. build and deploy the tested, versioned documentation product;
-2. complete plugin conformance and bounded two-application adoption evidence;
-3. complete rollback/canary, static delivery and Verified Review Loop cleanup;
-4. continue the planned AI workbench and 1.0 compatibility-freeze program.
+1. complete bounded two-application adoption evidence;
+2. complete rollback/canary, static delivery and Verified Review Loop cleanup;
+3. continue the planned AI workbench and 1.0 compatibility-freeze program.
 
 One task owns one isolated JJ workspace. Each task follows public-interface
 RED/GREEN/refactor cycles, focused checks, relevant local qualification,

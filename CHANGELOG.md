@@ -47,12 +47,14 @@ No changes yet.
 
 ### Compatibility boundary
 
-This is a pre-1.0 minor release candidate. Plugin distribution schema 1, the
+This is a pre-1.0 minor release. Plugin distribution schema 1, the
 public conformance report/builder types and new CLI output are public API
 additions. Existing `0.5.0` application/resource behavior remains supported,
 but plugin packages should update their exact Minco dependencies and
 `core_compatibility` together. Source qualification, hosted checks, merge,
 tag, crates.io publication, docs.rs and live AWS proof remain separate states.
+The exact 28-package family is published from immutable tag `v0.6.0`; no AWS
+resource mutation was part of the publication.
 
 ## [0.5.0] - 2026-07-31
 

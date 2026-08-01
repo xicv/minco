@@ -2,14 +2,14 @@
 
 Date: 2026-08-01
 Current workspace version: `0.6.0`
-Published baseline: `0.5.0`
-Workspace release state: `candidate`
+Published baseline: `0.6.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M11-T08 `0.6.0` candidate
+## M11-T08 `0.6.0` release closure
 
-The candidate includes the completed versioned documentation site, strict
+The release includes the completed versioned documentation site, strict
 plugin distribution manifests, public plugin conformance kit and detailed
 framework/API/plugin/testing/deployment documentation added after `0.5.0`.
 Local candidate qualification passed on 2026-08-01:
@@ -49,9 +49,36 @@ one larger than a clean checkout. Static validation now excludes the exact
 VitePress cache/dist prefixes already excluded from the source manifest; the
 regression keeps source `docs-site/release.json` in scope.
 
-Exact hosted PR-head and merged-main qualification, merge, tag, registry,
-docs.rs and website evidence remain pending. No AWS resource was created,
-modified, promoted or deleted by these gates.
+PR [`#73`](https://github.com/xicv/minco/pull/73) merged exact qualified head
+`13840cb4dc507037e8d7fc7fbf66bc59597f91c1` as
+`2c4605b7d4abcd865035196ffc0484c4a0e82f1e`. Exact PR-head hosted release run
+[`30688694186`](https://github.com/xicv/minco/actions/runs/30688694186) and
+merged-main run
+[`30689722134`](https://github.com/xicv/minco/actions/runs/30689722134)
+passed every release-quality, package, Plan/SAM/native ARM64, Rustack and E2E
+gate. Immutable remote tag `v0.6.0` resolves to the merged commit.
+
+Trusted publication run
+[`30690519946`](https://github.com/xicv/minco/actions/runs/30690519946)
+verified the exact tag, repeated the static/compiler/test/generated-app/docs
+and 28-package archive gates, obtained a short-lived OIDC token, uploaded the
+complete family and revoked the token. Independent post-publication proof is:
+
+```text
+exact non-yanked crates.io records: 28/28
+owner xicv: 28/28
+downloaded archive SHA-256 matched registry checksum: 28/28
+downloaded archive bytes checked: 811,608
+fresh cargo-minco installation: minco 0.6.0
+external registry consumers: default/no-default/full passed
+exact docs.rs library routes: 28/28 HTTP 200
+```
+
+The public GitHub release is
+[`v0.6.0`](https://github.com/xicv/minco/releases/tag/v0.6.0). Stable website
+source promotion and live browser verification remain the final active
+closeout boundary. No AWS resource was created, modified, promoted or deleted
+for the `0.6.0` release.
 
 ## `0.5.0` release closure
 

@@ -64,7 +64,7 @@ versioned detailed documentation added after `0.5.0`.
 ## Release boundary
 
 - Previous published baseline: `0.5.0`, 28 packages.
-- Candidate release: `0.6.0`, the same 28-package lock-step family.
+- Published release: `0.6.0`, the same 28-package lock-step family.
 - Included: M11-T01, M11-T02, M11-T03 and M11-T07.
 - Deferred: M10-T04 through M10-T06, M11-T04 through M11-T06, M12 and the 1.0 freeze.
 - MSRV: Rust `1.97.1`.
@@ -72,8 +72,8 @@ versioned detailed documentation added after `0.5.0`.
 ## Acceptance
 
 - the workspace and every publishable internal dependency use lock-step
-  `0.6.0`, while historical release records and stable `0.5.0` docs remain
-  immutable;
+  `0.6.0`, while historical release records and versioned `0.5.0` API content
+  remain preserved;
 - a `0.5.0` to `0.6.0` guide explains plugin distribution metadata,
   conformance, CLI additions and compatibility boundaries;
 - the detailed `next` documentation is promoted into immutable `0.6.0` docs,
@@ -130,7 +130,20 @@ isolated `task-m11-t08` JJ workspace:
   VitePress cache/dist prefixes shared by the source-manifest policy, with a
   regression proving source `docs-site/release.json` remains included.
 
-Exact PR-head hosted release qualification, merge, merged-main release
-qualification, tag, OIDC publication, independent registry/consumer/docs.rs
-proof and stable website promotion remain pending. No AWS resource was
-created, modified, promoted or deleted.
+PR #73 merged exact qualified head
+`13840cb4dc507037e8d7fc7fbf66bc59597f91c1` as
+`2c4605b7d4abcd865035196ffc0484c4a0e82f1e`. PR-head hosted release run
+`30688694186` and merged-main run `30689722134` passed. Remote tag `v0.6.0`
+resolves exactly to the merged commit.
+
+Trusted publication run `30690519946` passed exact-tag, compiler, test,
+generated-application, documentation and coordinated archive gates, uploaded
+all 28 packages with a short-lived OIDC token and completed revocation.
+Independent checks proved 28/28 exact non-yanked records owned by `xicv`,
+28/28 downloaded archive checksum matches, a fresh CLI reporting
+`minco 0.6.0`, default/no-default/full registry consumers and 28/28 exact
+docs.rs routes. The GitHub release is
+`https://github.com/xicv/minco/releases/tag/v0.6.0`.
+
+Stable website source promotion and live browser verification remain pending.
+No AWS resource was created, modified, promoted or deleted.

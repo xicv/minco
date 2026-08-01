@@ -30,9 +30,9 @@ include = ["src/**", "Cargo.toml", "minco-plugin.json"]
 plugin = "minco-plugin.json"
 ```
 
-Until this unreleased API is published, test it with reviewed path dependencies
-from a Minco source checkout. Do not imply that crates.io `0.6.0` already
-contains this post-release boundary.
+Use exact `0.6.0` registry dependencies for published packages. Use reviewed
+path dependencies only while developing coordinated changes from a Minco
+source checkout.
 
 ## 2. Declare Distribution Intent
 
@@ -116,4 +116,3 @@ fitness.
 
 See the [Plugin Conformance reference](../reference/plugin-conformance) and the
 [standalone exercised example](../examples/).
-

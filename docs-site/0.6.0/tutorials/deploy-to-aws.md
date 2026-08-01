@@ -48,7 +48,7 @@ review, not authorization to mutate AWS.
 ## 4. Apply only with explicit authority
 
 When the exact target and digests have been reviewed, follow the complete
-[deployment lifecycle reference](https://github.com/xicv/minco/blob/main/docs/deployment/dev-to-deploy.md).
+[deployment lifecycle reference](https://github.com/xicv/minco/blob/v0.6.0/docs/deployment/dev-to-deploy.md).
 Do not copy historical account, role, stack, database, or approval values into
 a new environment.
 

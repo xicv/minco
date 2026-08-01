@@ -92,5 +92,5 @@ all supported profiles without claiming that every resource is provisioned.
 Nothing in the record performs runtime discovery, registration, provisioning,
 migration or seed execution.
 
-See [ADR 0027](https://github.com/xicv/minco/blob/main/docs/adrs/0027-static-plugin-distribution-manifest.md) for the
+See [ADR 0027](https://github.com/xicv/minco/blob/v0.6.0/docs/adrs/0027-static-plugin-distribution-manifest.md) for the
 decision and rejected alternatives.
