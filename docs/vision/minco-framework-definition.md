@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `0.5.0`
-Current workspace version: `0.5.0`
-Workspace release state: `published`
+Current workspace version: `0.6.0`
+Workspace release state: `candidate`
 Reviewed release source: `485d67104a49f139820722eb73334415f69a653c`
 
 ## Product identity
@@ -105,10 +105,10 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `0.5.0` state | Remaining boundary |
+| Area | Current published `0.5.0` and `0.6.0` candidate state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
-| Static plugin kernel | Strong | Distribution metadata and conformance |
+| Static plugin kernel | Strong, with archive-visible distribution metadata and a public conformance kit in the `0.6.0` candidate | Planned mutation workflows and measured external adoption |
 | OpenAPI contract | Strong constrained profile plus structural diff and operation generators | Measured adoption and compatibility freeze |
 | HTTP runtime | Strong | Adoption fixtures, not redesign |
 | PostgreSQL and SQLite | Status, digest plan, lock, apply, verify and classified seeds | Live application evidence and operational recipes |
@@ -122,7 +122,7 @@ The framework-completion program preserves the accepted ADRs and
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Substantial checked Markdown plus the published `0.5.0` upgrade guide | Versioned Diátaxis product |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with immutable stable lines and detailed `0.6.0` candidate docs | Generated reference and broader exercised recipe matrix |
 | AI support | Stable paths and JSON inspection | Local read-only MCP and optional workbench |
 | Compatibility | Pre-1.0 policy | Explicit public API and feature freeze |
 

@@ -15,7 +15,11 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "docs-site"
 FENCE = re.compile(r"^```([^\n]*)\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
-TUTORIAL = SITE / "0.5.0" / "tutorials"
+RELEASE = json.loads((SITE / "release.json").read_text())
+STABLE_VERSION = RELEASE["stable"]
+WORKSPACE_VERSION = RELEASE["workspace"]
+TUTORIAL = SITE / STABLE_VERSION / "tutorials"
+WORKSPACE_TUTORIAL = SITE / WORKSPACE_VERSION / "tutorials"
 NEXT = SITE / "next"
 
 
@@ -51,14 +55,19 @@ def check_fence(path: Path, language: str, body: str, failures: list[str]) -> No
 def main() -> int:
     failures: list[str] = []
     checked = 0
-    for tutorial in sorted(TUTORIAL.glob("*.md")):
-        source = tutorial.read_text()
-        for marker in ("minco_version: 0.5.0", "rust_version: 1.97.1"):
-            if marker not in source:
-                fail(f"{tutorial.relative_to(ROOT)} lacks {marker}", failures)
+    tutorial_roots = {TUTORIAL, WORKSPACE_TUTORIAL}
+    for tutorial_root in sorted(tutorial_roots):
+        version = tutorial_root.parent.name
+        for tutorial in sorted(tutorial_root.glob("*.md")):
+            source = tutorial.read_text()
+            for marker in (f"minco_version: {version}", "rust_version: 1.97.1"):
+                if marker not in source:
+                    fail(f"{tutorial.relative_to(ROOT)} lacks {marker}", failures)
 
     stable_sources = []
-    checked_sources = sorted((SITE / "0.5.0").rglob("*.md"))
+    checked_sources = sorted((SITE / STABLE_VERSION).rglob("*.md"))
+    if WORKSPACE_VERSION != STABLE_VERSION:
+        checked_sources.extend(sorted((SITE / WORKSPACE_VERSION).rglob("*.md")))
     next_sources = sorted(NEXT.rglob("*.md"))
     if len(next_sources) < 10:
         fail(
@@ -68,14 +77,18 @@ def main() -> int:
     checked_sources.extend(next_sources)
     for path in checked_sources:
         source = path.read_text()
-        if path.is_relative_to(SITE / "0.5.0"):
+        if path.is_relative_to(SITE / STABLE_VERSION):
             stable_sources.append(source)
         for match in FENCE.finditer(source):
             checked += 1
             check_fence(path, match.group(1), match.group(2), failures)
 
     combined = "\n".join(stable_sources).lower()
-    for forbidden in ("candidate publication status", "0.5.0 candidate", "0.5.0 is unpublished"):
+    for forbidden in (
+        "candidate publication status",
+        f"{STABLE_VERSION} candidate",
+        f"{STABLE_VERSION} is unpublished",
+    ):
         if forbidden in combined:
             fail(f"stable documentation contains stale release language: {forbidden}", failures)
 
@@ -83,6 +96,14 @@ def main() -> int:
     for marker in ("relativePath.startsWith('next/')", "Unreleased documentation."):
         if marker not in next_layout:
             fail(f"next documentation layout lacks persistent marker: {marker}", failures)
+
+    if RELEASE["state"] == "candidate":
+        for marker in (
+            "release.state === 'candidate'",
+            "Release candidate documentation.",
+        ):
+            if marker not in next_layout:
+                fail(f"candidate documentation layout lacks marker: {marker}", failures)
 
     if failures:
         print("\n".join(failures), file=sys.stderr)

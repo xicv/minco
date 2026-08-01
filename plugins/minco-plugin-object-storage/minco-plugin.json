@@ -3,7 +3,7 @@
   "id": "object-storage",
   "kind": "plugin",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^0.5.0",
+  "core_compatibility": "^0.6.0",
   "stability": "beta",
   "default_enabled": false,
   "feature": "plugin-object-storage",

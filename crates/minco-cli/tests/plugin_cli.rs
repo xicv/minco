@@ -71,7 +71,7 @@ fn plugin_list_reads_archive_visible_distribution_metadata_without_loading_plugi
 
     assert_eq!(health["distribution"]["schema"], 1);
     assert_eq!(health["distribution"]["plugin_version"], "1.0.0");
-    assert_eq!(health["distribution"]["core_compatibility"], "^0.5.0");
+    assert_eq!(health["distribution"]["core_compatibility"], "^0.6.0");
     assert_eq!(
         health["distribution"]["runtimes"],
         serde_json::json!(["native"])

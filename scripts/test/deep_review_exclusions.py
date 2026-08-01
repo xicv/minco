@@ -46,6 +46,18 @@ def main() -> int:
     assert VALIDATE_STATIC.report_root(ROOT, ROOT) == "."
     assert VALIDATE_STATIC.report_root(ROOT / "nested", ROOT) == str(ROOT / "nested")
     assert ".venv" in VALIDATE_STATIC.IGNORED_PARTS
+    assert VALIDATE_STATIC.ignored_path(
+        ROOT,
+        ROOT / "docs-site/.vitepress/cache/deps/metadata.json",
+    )
+    assert VALIDATE_STATIC.ignored_path(
+        ROOT,
+        ROOT / "docs-site/.vitepress/dist/release.json",
+    )
+    assert not VALIDATE_STATIC.ignored_path(
+        ROOT,
+        ROOT / "docs-site/release.json",
+    )
     assert not SOURCE_MANIFEST.included(
         ROOT,
         ROOT / ".venv" / "lib" / "dependency.py",

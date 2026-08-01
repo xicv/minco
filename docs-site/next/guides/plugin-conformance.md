@@ -46,7 +46,7 @@ cost intent only when the plugin really supports them.
   "id": "example",
   "kind": "plugin",
   "plugin_version": "0.1.0",
-  "core_compatibility": "^0.5.0",
+  "core_compatibility": "^0.6.0",
   "stability": "experimental",
   "default_enabled": false,
   "feature": "plugin-example",
@@ -116,4 +116,3 @@ fitness.
 
 See the [Plugin Conformance reference](../reference/plugin-conformance) and the
 [standalone exercised example](../examples/).
-

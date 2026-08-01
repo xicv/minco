@@ -23,7 +23,7 @@ are labels only; the CLI never runs those strings.
 
 ```toml
 [dev-dependencies]
-minco-test = "0.5.0"
+minco-test = "0.6.0"
 ```
 
 Keep `minco-core` and `minco-test` on the same Minco release.

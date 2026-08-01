@@ -13,6 +13,10 @@ crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
+The current workspace is an unpublished `0.6.0` candidate with the same
+inventory. Its plugin distribution and conformance additions do not change the
+ordered package list or cross the first-publication boundary for a new name.
+
 The exact published source is immutable tag `v0.5.0` at
 `485d67104a49f139820722eb73334415f69a653c`. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
