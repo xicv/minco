@@ -6,9 +6,12 @@ Minco `0.6.0` is published from exact source
 `30690519946` passed. All 28 exact crates are non-yanked and owned by `xicv`;
 downloaded archive checksums, a fresh CLI installation, default/no-default/
 full-feature consumers and all exact docs.rs routes passed independently.
-Stable website source promotion and live browser verification remain the only
-active M11-T08 closeout gates. Planned M11-T04 through M11-T06 remain deferred
-and are not represented as shipped behavior.
+PR #74 passed exact-head essential run `30691699436`, merged as exact commit
+`651a1886476556805991d83cbc71f9054f7703fe`, and deployed through merged-main
+Pages run `30691854137`. The four key public routes return HTTP 200 with the
+expected canonical and latest-stable metadata, and 13/13 applicable live
+desktop/mobile browser checks pass. M11-T08 is complete. Planned M11-T04
+through M11-T06 remain deferred and are not represented as shipped behavior.
 
 The Minco `0.5.0` release boundary is closed. Exact source
 `485d67104a49f139820722eb73334415f69a653c` is tagged, published as a
