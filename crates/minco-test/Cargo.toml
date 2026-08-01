@@ -18,10 +18,15 @@ include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICE
 axum.workspace = true
 http.workspace = true
 http-body-util.workspace = true
+minco-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+toml.workspace = true
 tower.workspace = true
+
+[dev-dependencies]
+tempfile = "3.20"
 
 [package.metadata.docs.rs]
 all-features = true

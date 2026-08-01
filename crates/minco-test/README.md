@@ -1,6 +1,37 @@
 # minco-test
 
-In-process HTTP test utilities for Minco and Axum applications.
+Public plugin conformance, in-process HTTP utilities, deterministic fixtures,
+and command evidence for Minco applications and extensions.
+
+## Plugin conformance
+
+`PluginConformance` reads the package's archive-visible
+`minco-plugin.json`, checks its Cargo packaging and provider boundary, and can
+compare a linked descriptor or exercise a concrete plugin through registration,
+graph construction, configuration, composition, and bounded provenance.
+
+```rust
+use minco_test::{ConformanceStatus, PluginConformance};
+# use minco_core::Plugin;
+# fn check<P: Plugin>(plugin: P) {
+let report = PluginConformance::for_package(env!("CARGO_MANIFEST_DIR"))
+    .with_plugin(plugin)
+    .run();
+
+report.assert_passed();
+assert_eq!(report.assurance.provider_live, ConformanceStatus::NotRun);
+# }
+```
+
+Conformance evidence strings are inert labels and are never executed. A passed
+report covers the plugin contract only. Application readiness, provider/live
+integration, and production readiness remain separate evidence boundaries.
+
+See the [conformance reference](../../docs/reference/plugin-conformance.md) and
+the standalone
+[`third-party-minimal`](../../examples/plugins/third-party-minimal) fixture.
+
+## HTTP and fixtures
 
 `TestClient` calls an `axum::Router` directly as a Tower service, avoiding a
 socket while exercising the real router and middleware stack. The crate also

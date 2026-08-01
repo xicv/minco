@@ -35,7 +35,7 @@
     "build_timings_seconds": {},
     "facade": {
       "all_features": {
-        "feature_tree_lines": 3458,
+        "feature_tree_lines": 3460,
         "normal_dependency_packages": 300
       },
       "default_features": {
@@ -65,7 +65,7 @@
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:7a7f726eea01159b098a3cd4b0feb4ecbd1f8f1bc9c60c5d666d9c870d8b9af3"
+    "revision": "source-tree-sha256:9ae2d15c6ce2e6842e9a5cf806b49800a8ca98e2c1f11524fa3360348a8561cc"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 10,

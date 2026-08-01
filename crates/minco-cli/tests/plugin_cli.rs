@@ -103,3 +103,24 @@ fn every_official_catalog_entry_has_a_valid_distribution_record() {
     let findings: Value = serde_json::from_slice(&output.stdout).expect("validation JSON");
     assert_eq!(findings, serde_json::json!([]));
 }
+
+#[test]
+fn plugin_test_all_uses_the_public_offline_conformance_boundary() {
+    let output = run(&["plugin", "test", "--all"]);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}\nstdout: {}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let reports: Value = serde_json::from_slice(&output.stdout).expect("conformance JSON");
+    let reports = reports.as_array().expect("conformance reports");
+    assert_eq!(reports.len(), 16);
+    for report in reports {
+        assert_eq!(report["status"], "passed", "{report:#}");
+        assert_eq!(report["assurance"]["application_readiness"], "not_assessed");
+        assert_eq!(report["assurance"]["provider_live"], "not_run");
+        assert_eq!(report["assurance"]["production_readiness"], "not_assessed");
+    }
+}

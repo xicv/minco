@@ -24,10 +24,19 @@ impl Plugin for {{PASCAL_NAME}}Plugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use minco_test::PluginConformance;
 
     #[test]
     fn descriptor_has_the_reviewed_identity() {
         assert_eq!({{PASCAL_NAME}}Plugin.descriptor().id.as_str(), "{{NAME}}");
+    }
+
+    #[test]
+    fn passes_the_public_plugin_conformance_kit() {
+        PluginConformance::for_package(env!("CARGO_MANIFEST_DIR"))
+            .with_plugin({{PASCAL_NAME}}Plugin)
+            .run()
+            .assert_passed();
     }
 
     #[test]
