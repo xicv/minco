@@ -5,8 +5,8 @@ Published baseline: `0.6.0`
 Current workspace version: `0.6.0`
 Workspace release state: `published`
 Published `0.6.0` source: `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`
-Last completed tasks: `M11-T01`, `M11-T02`, `M11-T03`, `M11-T07`
-Active task: `M11-T08`
+Last completed tasks: `M11-T01`, `M11-T02`, `M11-T03`, `M11-T07`, `M11-T08`
+Active task: none
 
 ## Closed release boundary
 
@@ -28,13 +28,15 @@ uv run --locked python scripts/validate_publish.py \
 The command requires successful crates.io evidence for every exact workspace
 version. It does not treat registry unavailability as a pass.
 
-## Current closeout work
+## Current state
 
 The `0.6.0` release adds archive-visible plugin distribution records, one
 public conformance kit and a detailed versioned documentation set. Tag,
-registry, GitHub release, external-consumer and docs.rs proof are complete.
-M11-T08 remains active only until the stable website commit is deployed and
-verified from its exact source.
+registry, GitHub release, external-consumer, docs.rs and live stable-website
+proof are complete. PR #74 merged the stable documentation as exact commit
+`651a1886476556805991d83cbc71f9054f7703fe`; Pages run `30691854137`
+deployed it and all 13 applicable live desktop/mobile browser checks passed.
+M11-T08 is complete.
 
 The remaining planned program is:
 

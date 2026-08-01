@@ -2,7 +2,7 @@
 id: M11-T08
 title: Release Minco 0.6.0 plugin ecosystem and documentation
 milestone: M11
-status: active
+status: complete
 priority: critical
 area: release/crates-io
 depends_on: [M11-T01, M11-T02, M11-T03, M11-T07]
@@ -145,5 +145,15 @@ Independent checks proved 28/28 exact non-yanked records owned by `xicv`,
 docs.rs routes. The GitHub release is
 `https://github.com/xicv/minco/releases/tag/v0.6.0`.
 
-Stable website source promotion and live browser verification remain pending.
+PR #74 passed exact-head essential run `30691699436` at
+`c0dbcc2e0e4037c272ca8521e04f9c0717169f66` and merged as
+`651a1886476556805991d83cbc71f9054f7703fe`. The manual branch Pages run
+`30691820803` passed its build but was correctly denied deployment by the
+protected `github-pages` environment, which permits `main`. Exact merged-main
+Pages run `30691854137` then built and deployed successfully. Live checks
+proved the landing, immutable `0.6.0`, versions and sitemap routes return HTTP
+200 with the expected canonical URLs and latest-stable labels; Playwright
+passed all 13 applicable desktop/mobile checks with the one desktop-only
+mobile-viewport case intentionally skipped.
+
 No AWS resource was created, modified, promoted or deleted.

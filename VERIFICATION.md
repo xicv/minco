@@ -75,10 +75,29 @@ exact docs.rs library routes: 28/28 HTTP 200
 ```
 
 The public GitHub release is
-[`v0.6.0`](https://github.com/xicv/minco/releases/tag/v0.6.0). Stable website
-source promotion and live browser verification remain the final active
-closeout boundary. No AWS resource was created, modified, promoted or deleted
-for the `0.6.0` release.
+[`v0.6.0`](https://github.com/xicv/minco/releases/tag/v0.6.0).
+
+Stable documentation PR
+[`#74`](https://github.com/xicv/minco/pull/74) passed exact-head essential run
+[`30691699436`](https://github.com/xicv/minco/actions/runs/30691699436) at
+`c0dbcc2e0e4037c272ca8521e04f9c0717169f66` and merged as
+`651a1886476556805991d83cbc71f9054f7703fe`. Manual branch Pages run
+[`30691820803`](https://github.com/xicv/minco/actions/runs/30691820803)
+passed the build and was correctly denied deployment because the protected
+environment permits only `main`. Exact merged-main Pages run
+[`30691854137`](https://github.com/xicv/minco/actions/runs/30691854137)
+built and deployed successfully. Public verification then passed:
+
+```text
+https://xicv.github.io/minco/: HTTP 200; canonical root; latest stable 0.6.0
+https://xicv.github.io/minco/0.6.0/: HTTP 200; canonical immutable release
+https://xicv.github.io/minco/versions: HTTP 200
+https://xicv.github.io/minco/sitemap.xml: HTTP 200
+live Playwright: 13 passed; 1 intentional desktop skip
+```
+
+No AWS resource was created, modified, promoted or deleted for the `0.6.0`
+release.
 
 ## `0.5.0` release closure
 

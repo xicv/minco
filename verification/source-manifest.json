@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "f621de7fa89f57b635afcd0181b08de59a9824ec9b90a3569186823a2804e187",
-      "size_bytes": 3009
+      "sha256": "df96748826fbcdc934ea37ae5c304a0dd12861e80fced496f50320dc990f0dd3",
+      "size_bytes": 3141
     },
     {
       "path": "CONTRIBUTING.md",
@@ -109,8 +109,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "63f597deabdcfebfc97b514a621ed66ac49393fa279e45248a3ed75675ce74d7",
-      "size_bytes": 12353
+      "sha256": "52113407e44b85b6831613da01c8215e1e1a48268430d6ad92358c33c22ab03f",
+      "size_bytes": 12605
     },
     {
       "path": "SECURITY.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "3215b6e7690f5603dbf1d6a731fde5c863f5151557e9cb617001e37a3a76d5b9",
-      "size_bytes": 100786
+      "sha256": "4546556b4e6642d29881284680e84147e909a475f9e72d5306263a07bb795b99",
+      "size_bytes": 101651
     },
     {
       "path": "config/jj/repo.toml",
@@ -3244,8 +3244,8 @@
     },
     {
       "path": "tasks/M11/M11-T08-minco-0.6.0-release.md",
-      "sha256": "77b369e0e7767c3c8d4ab1e18128306180ce09f6689fca545d67ebcaee74cd63",
-      "size_bytes": 6424
+      "sha256": "cda95b7a3729c6f490c4c521ee694820cbe5c42012312cf3fd51f69fe4c78d3a",
+      "size_bytes": 7030
     },
     {
       "path": "tasks/M12/M12-T01-local-read-only-mcp.md",
@@ -3580,7 +3580,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "a9243adb2974cdf5ced96e5278315be47aa9f3bea2d6f180f2a76c30db42f328",
-  "total_size_bytes": 4461140,
+  "source_tree_sha256": "13350952e7437a37e0562331c757ebad37d7810d7ebab71917ee5e47586ee198",
+  "total_size_bytes": 4462995,
   "version": "0.6.0"
 }
