@@ -1,6 +1,12 @@
 import { defineConfig } from 'vitepress'
+import release from '../release.json'
 
-const stable = '/0.5.0/'
+const stable = `/${release.stable}/`
+const workspace = `/${release.workspace}/`
+const candidateItem =
+  release.state === 'candidate'
+    ? [{ text: `${release.workspace} · Release candidate`, link: workspace }]
+    : []
 
 export default defineConfig({
   lang: 'en-US',
@@ -42,9 +48,10 @@ export default defineConfig({
     nav: [
       { text: 'Documentation', link: stable },
       {
-        text: 'Version 0.5.0',
+        text: `Version ${release.stable}`,
         items: [
-          { text: '0.5.0 · Stable', link: stable },
+          { text: `${release.stable} · Stable`, link: stable },
+          ...candidateItem,
           { text: 'Next · Unreleased', link: '/next/' },
           { text: 'All versions', link: '/versions' }
         ]
@@ -53,10 +60,13 @@ export default defineConfig({
         text: 'Ecosystem',
         items: [
           { text: 'Crates.io', link: 'https://crates.io/crates/minco' },
-          { text: 'Rust API docs', link: 'https://docs.rs/minco/0.5.0/minco/' },
+          {
+            text: 'Rust API docs',
+            link: `https://docs.rs/minco/${release.stable}/minco/`
+          },
           {
             text: 'Release notes',
-            link: 'https://github.com/xicv/minco/releases/tag/v0.5.0'
+            link: `https://github.com/xicv/minco/releases/tag/v${release.stable}`
           }
         ]
       }
@@ -112,6 +122,57 @@ export default defineConfig({
           ]
         }
       ],
+      '/0.6.0/': [
+        {
+          text: 'Minco 0.6.0',
+          items: [
+            { text: 'Introduction', link: '/0.6.0/' },
+            { text: 'Installation', link: '/0.6.0/installation' },
+            { text: 'Framework tour', link: '/0.6.0/getting-started/framework-tour' },
+            { text: 'Project structure', link: '/0.6.0/getting-started/project-structure' }
+          ]
+        },
+        {
+          text: 'Tutorials',
+          collapsed: false,
+          items: [
+            { text: 'Build your first API', link: '/0.6.0/tutorials/first-api' },
+            { text: 'Deploy to AWS', link: '/0.6.0/tutorials/deploy-to-aws' },
+            { text: 'Build a plugin', link: '/0.6.0/tutorials/build-a-plugin' }
+          ]
+        },
+        {
+          text: 'Guides',
+          collapsed: false,
+          items: [
+            { text: 'Build a resource API', link: '/0.6.0/guides/resource-api' },
+            { text: 'Test a plugin', link: '/0.6.0/guides/plugin-conformance' },
+            { text: 'Plan an AWS deployment', link: '/0.6.0/guides/deployment' },
+            { text: 'Configure environments', link: '/0.6.0/how-to/configure-environments' },
+            { text: 'Review a deployment plan', link: '/0.6.0/how-to/plan-deployment' }
+          ]
+        },
+        {
+          text: 'Reference',
+          collapsed: false,
+          items: [
+            { text: 'CLI', link: '/0.6.0/reference/cli' },
+            { text: 'Resource API', link: '/0.6.0/reference/resource-api' },
+            { text: 'Plugin distribution', link: '/0.6.0/reference/plugin-distribution' },
+            { text: 'Plugin conformance', link: '/0.6.0/reference/plugin-conformance' },
+            { text: 'Testing and evidence', link: '/0.6.0/reference/testing' }
+          ]
+        },
+        {
+          text: 'Examples & Concepts',
+          collapsed: false,
+          items: [
+            { text: 'Exercised examples', link: '/0.6.0/examples/' },
+            { text: 'Architecture', link: '/0.6.0/explanation/architecture' },
+            { text: 'Zero idle, precisely', link: '/0.6.0/explanation/zero-idle' }
+          ]
+        }
+      ],
       '/next/': [
         {
           text: 'Current Development',
@@ -152,7 +213,7 @@ export default defineConfig({
           items: [
             { text: 'Exercised examples', link: '/next/examples/' },
             { text: 'Zero idle, precisely', link: '/next/explanation/zero-idle' },
-            { text: 'Stable 0.5.0', link: '/0.5.0/' }
+            { text: `Stable ${release.stable}`, link: stable }
           ]
         }
       ]

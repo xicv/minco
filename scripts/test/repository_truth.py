@@ -17,7 +17,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 TRUTH = tomllib.loads((ROOT / "verification/repository-truth.toml").read_text())
 WORKSPACE_VERSION = TRUTH["workspace_version"]
 PUBLISHED_BASELINE = TRUTH["published_baseline"]
-PREVIOUS_PUBLISHED_BASELINE = "0.4.0"
+RELEASE_STATE = TRUTH["workspace_release_state"]
+PREVIOUS_PUBLISHED_BASELINE = "0.5.0"
+DRIFTED_PUBLISHED_BASELINE = "9.9.8"
+CANDIDATE_BASELINE = (
+    PUBLISHED_BASELINE if RELEASE_STATE == "candidate" else PREVIOUS_PUBLISHED_BASELINE
+)
 
 from validate_static import (  # noqa: E402
     Validator,
@@ -39,6 +44,8 @@ class RepositoryTruthTests(unittest.TestCase):
                 ".venv",
                 "target",
                 "node_modules",
+                "dist",
+                "cache",
                 "__pycache__",
             ),
         )
@@ -52,6 +59,8 @@ class RepositoryTruthTests(unittest.TestCase):
         return {finding.code for finding in validator.findings}
 
     def make_unpublished_candidate(self) -> None:
+        if RELEASE_STATE == "candidate":
+            return
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text()
@@ -67,7 +76,7 @@ class RepositoryTruthTests(unittest.TestCase):
         guide = (
             self.root
             / "docs/adoption"
-            / f"{PREVIOUS_PUBLISHED_BASELINE}-to-{WORKSPACE_VERSION}.md"
+            / f"{CANDIDATE_BASELINE}-to-{WORKSPACE_VERSION}.md"
         )
         guide.write_text(
             guide.read_text()
@@ -78,6 +87,22 @@ class RepositoryTruthTests(unittest.TestCase):
             .replace(
                 "Publication status: `published`",
                 "Candidate publication status: `unpublished`",
+            )
+        )
+
+    def make_workspace_published(self) -> None:
+        if RELEASE_STATE == "published":
+            return
+        truth = self.root / "verification/repository-truth.toml"
+        truth.write_text(
+            truth.read_text()
+            .replace(
+                f'published_baseline = "{PUBLISHED_BASELINE}"',
+                f'published_baseline = "{WORKSPACE_VERSION}"',
+            )
+            .replace(
+                'workspace_release_state = "candidate"',
+                'workspace_release_state = "published"',
             )
         )
 
@@ -94,12 +119,13 @@ class RepositoryTruthTests(unittest.TestCase):
         )
         self.assertIn("STATIC-TRUTH-VERSION-001", self.truth_codes())
 
-    def test_published_release_requires_an_explicit_release_state(self) -> None:
+    def test_release_requires_an_explicit_matching_state(self) -> None:
         truth = self.root / "verification/repository-truth.toml"
+        mismatched = "published" if RELEASE_STATE == "candidate" else "candidate"
         truth.write_text(
             truth.read_text().replace(
-                'workspace_release_state = "published"',
-                'workspace_release_state = "candidate"',
+                f'workspace_release_state = "{RELEASE_STATE}"',
+                f'workspace_release_state = "{mismatched}"',
             )
         )
         self.assertIn("STATIC-TRUTH-RELEASE-001", self.truth_codes())
@@ -109,7 +135,7 @@ class RepositoryTruthTests(unittest.TestCase):
         guide = (
             self.root
             / "docs/adoption"
-            / f"{PREVIOUS_PUBLISHED_BASELINE}-to-{WORKSPACE_VERSION}.md"
+            / f"{CANDIDATE_BASELINE}-to-{WORKSPACE_VERSION}.md"
         )
         guide.unlink()
         self.assertIn("STATIC-TRUTH-RELEASE-002", self.truth_codes())
@@ -139,7 +165,7 @@ class RepositoryTruthTests(unittest.TestCase):
         guide.write_text(
             guide.read_text().replace(
                 f"Published baseline: `{PUBLISHED_BASELINE}`",
-                f"Published baseline: `{PREVIOUS_PUBLISHED_BASELINE}`",
+                f"Published baseline: `{DRIFTED_PUBLISHED_BASELINE}`",
             )
         )
         self.assertIn("STATIC-TRUTH-DOCS-001", self.truth_codes())
@@ -173,6 +199,7 @@ class RepositoryTruthTests(unittest.TestCase):
         self.assertIn("STATIC-TRUTH-PACKAGES-004", self.truth_codes())
 
     def test_current_published_baseline_requires_the_full_package_count(self) -> None:
+        self.make_workspace_published()
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text().replace(
@@ -183,6 +210,7 @@ class RepositoryTruthTests(unittest.TestCase):
         self.assertIn("STATIC-TRUTH-PUBLISHED-002", self.truth_codes())
 
     def test_current_published_baseline_has_no_candidate_packages(self) -> None:
+        self.make_workspace_published()
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text().replace(

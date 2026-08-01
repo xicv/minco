@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `0.5.0`
 >
-> Current workspace version: `0.5.0`
+> Current workspace version: `0.6.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `28`
 
@@ -35,6 +35,7 @@ start directly with:
 - [Deploy to AWS](https://xicv.github.io/minco/0.5.0/tutorials/deploy-to-aws)
 - [CLI reference](https://xicv.github.io/minco/0.5.0/reference/cli)
 - [Zero idle, precisely](https://xicv.github.io/minco/0.5.0/explanation/zero-idle)
+- [Preview the 0.6.0 candidate](https://xicv.github.io/minco/0.6.0/)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -88,6 +89,24 @@ ORM or generic repository:
 Errors use `application/problem+json` with stable codes and request IDs.
 Authorization, validation, domain invariants, audit, retention, deletion
 policy, and transaction boundaries remain in application use cases.
+
+## Static plugin distribution and conformance
+
+The `0.6.0` candidate adds strict, archive-visible plugin distribution records
+and one public offline conformance kit. Metadata can be inspected without
+loading plugin code; it never enables a crate or replaces explicit Cargo
+dependencies and typed constructor registration.
+
+```bash
+cargo minco plugin list --json
+cargo minco plugin validate --json
+cargo minco plugin test --all --json
+```
+
+Passing conformance proves the declared package and, when supplied, concrete
+composition behavior. Application, provider/live, deployment and production
+readiness remain distinct evidence states. See the
+[`0.6.0` plugin guide](https://xicv.github.io/minco/0.6.0/guides/plugin-conformance).
 
 ## Core guarantees
 
@@ -148,8 +167,13 @@ The coordinated 28-crate `0.5.0` family is published from immutable tag
 ownership, archive checksums, the CLI installation, default/no-default/all-
 feature consumers, and all exact docs.rs routes were independently verified.
 
+The workspace is a `0.6.0` candidate with the same package inventory. Do not
+request it from crates.io until independent registry verification confirms the
+complete family.
+
 See [`CHANGELOG.md`](CHANGELOG.md),
-[`docs/adoption/0.4.0-to-0.5.0.md`](docs/adoption/0.4.0-to-0.5.0.md), and
+[`docs/adoption/0.4.0-to-0.5.0.md`](docs/adoption/0.4.0-to-0.5.0.md),
+[`docs/adoption/0.5.0-to-0.6.0.md`](docs/adoption/0.5.0-to-0.6.0.md), and
 [`docs/development/publishing.md`](docs/development/publishing.md).
 
 ## License

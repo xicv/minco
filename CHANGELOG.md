@@ -7,6 +7,53 @@ Semantic Versioning once public releases begin.
 
 No changes yet.
 
+## [0.6.0] - 2026-08-01
+
+### Added
+
+- Added strict archive-visible `minco-plugin.json` distribution records for
+  official plugins, adapters and runtimes. Records expose compatibility,
+  capabilities, configuration, operations, database assets, resources, IAM,
+  wake sources, idle-cost intent, health, sensitivity and inert conformance
+  evidence without loading plugin code.
+- Added `cargo minco plugin list --json` and strengthened `plugin validate` so
+  package inclusion, catalog/schema safety and overlapping statically linked
+  descriptor fields fail deterministically before release.
+- Added the public `minco-test` plugin conformance builder and `cargo minco
+  plugin test --all --json`. Official and third-party-style packages now share
+  the same bounded offline contract and stable diagnostic shapes.
+- Added a standalone external-style plugin fixture using versioned public
+  dependencies, archive metadata and deterministic composition tests.
+
+### Changed
+
+- Plugin, adapter and runtime archives now carry an explicit Minco `0.6.0`
+  compatibility requirement. Metadata remains descriptive: Cargo dependency
+  selection and typed constructor registration are still required.
+- Plugin assurance now reports package/descriptor checks, concrete lifecycle,
+  application readiness, provider/live evidence and production readiness as
+  separate states instead of collapsing them into one pass.
+
+### Documentation
+
+- Promoted the detailed framework, resource API, plugin, testing, AWS,
+  zero-idle and example documentation into a versioned `0.6.0` site while
+  retaining immutable `0.5.0` pages.
+- Added stable installation and tutorials, a complete plugin distribution
+  reference, local search, responsive browser journeys and a candidate/stable
+  switch that cannot claim registry publication early.
+- Added the `0.5.0` to `0.6.0` upgrade guide with exact dependency,
+  distribution-record and conformance migration steps.
+
+### Compatibility boundary
+
+This is a pre-1.0 minor release candidate. Plugin distribution schema 1, the
+public conformance report/builder types and new CLI output are public API
+additions. Existing `0.5.0` application/resource behavior remains supported,
+but plugin packages should update their exact Minco dependencies and
+`core_compatibility` together. Source qualification, hosted checks, merge,
+tag, crates.io publication, docs.rs and live AWS proof remain separate states.
+
 ## [0.5.0] - 2026-07-31
 
 ### Added

@@ -3,6 +3,7 @@
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
 The current published boundary is the 28-package lock-step `0.5.0` family.
+The workspace is an unpublished `0.6.0` candidate with the same inventory.
 Source/package qualification, merge, tag, upload and registry verification
 remain separate states for every later release.
 

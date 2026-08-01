@@ -23,6 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head"}
 MUTATING_METHODS = {"post", "put", "patch", "delete"}
 IGNORED_PARTS = {"target", ".git", ".jj", ".venv", "__pycache__", "node_modules"}
+IGNORED_RELATIVE_PREFIXES = {
+    Path("docs-site/.vitepress/cache"),
+    Path("docs-site/.vitepress/dist"),
+}
+
+
+def ignored_path(root: Path, path: Path) -> bool:
+    """Return whether a generated or dependency path is outside source validation."""
+    relative = path.relative_to(root)
+    return any(part in IGNORED_PARTS for part in relative.parts) or any(
+        relative.is_relative_to(prefix) for prefix in IGNORED_RELATIVE_PREFIXES
+    )
 
 
 def report_root(root: Path, default_root: Path = ROOT) -> str:
@@ -134,7 +146,7 @@ class Validator:
     def validate_data_files(self) -> None:
         counts = {"toml": 0, "yaml": 0, "json": 0}
         for path in sorted(self.root.rglob("*")):
-            if not path.is_file() or any(part in IGNORED_PARTS for part in path.parts):
+            if not path.is_file() or ignored_path(self.root, path):
                 continue
             try:
                 if path.suffix == ".toml":
@@ -1062,7 +1074,7 @@ class Validator:
     def validate_rust_lexically(self) -> None:
         count = 0
         for path in sorted(self.root.rglob("*.rs")):
-            if any(part in IGNORED_PARTS for part in path.parts):
+            if ignored_path(self.root, path):
                 continue
             count += 1
             issue = balanced_rust(path.read_text())
@@ -1073,7 +1085,7 @@ class Validator:
     def validate_python(self) -> None:
         count = 0
         for path in sorted(self.root.rglob("*.py")):
-            if any(part in IGNORED_PARTS for part in path.parts):
+            if ignored_path(self.root, path):
                 continue
             count += 1
             try:
@@ -1085,7 +1097,7 @@ class Validator:
     def validate_shell(self) -> None:
         count = 0
         for path in sorted(self.root.rglob("*.sh")):
-            if any(part in IGNORED_PARTS for part in path.parts):
+            if ignored_path(self.root, path):
                 continue
             count += 1
             result = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True)
@@ -1211,7 +1223,7 @@ class Validator:
         ]
         count = 0
         for path in sorted(self.root.rglob("*")):
-            if not path.is_file() or any(part in IGNORED_PARTS for part in path.parts):
+            if not path.is_file() or ignored_path(self.root, path):
                 continue
             if path.resolve() in {Path(__file__).resolve(), (self.root / "scripts/deep_review.py").resolve()}:
                 continue

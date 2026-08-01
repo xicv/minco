@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
 Published baseline: `0.5.0`
-Current workspace version: `0.5.0`
-Workspace release state: `published`
+Current workspace version: `0.6.0`
+Workspace release state: `candidate`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -146,6 +146,11 @@ The published `0.5.0` release is documented separately in the
 [`0.4.0` to `0.5.0` guide](0.4.0-to-0.5.0.md). It covers the opt-in resource
 wire contract, pagination/concurrency/idempotency behavior, zero-idle cost
 evidence and local/hosted qualification split.
+
+Applications preparing for the `0.6.0` plugin metadata and conformance APIs
+must use the candidate
+[`0.5.0` to `0.6.0` guide](0.5.0-to-0.6.0.md). Do not change registry
+dependencies until the complete exact family is independently published.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

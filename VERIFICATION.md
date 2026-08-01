@@ -1,11 +1,57 @@
 # Minco verification and release evidence
 
-Date: 2026-07-31
-Current workspace version: `0.5.0`
+Date: 2026-08-01
+Current workspace version: `0.6.0`
 Published baseline: `0.5.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M11-T08 `0.6.0` candidate
+
+The candidate includes the completed versioned documentation site, strict
+plugin distribution manifests, public plugin conformance kit and detailed
+framework/API/plugin/testing/deployment documentation added after `0.5.0`.
+Local candidate qualification passed on 2026-08-01:
+
+```text
+./scripts/quality.sh
+  static/repository/publish/deep-review validation: passed
+  workspace test, Clippy, rustdoc and generated applications: passed
+  Feedback Playwright: 40 passed
+  VitePress build/link/browser: passed
+  cargo audit: 0 vulnerabilities; 1 explicitly allowed upstream warning
+  npm audit: 0 vulnerabilities
+  gitleaks: no leaks
+
+Orders SQLite HTTP E2E: passed
+Orders disposable PostgreSQL 18 adapter tests: 4 passed
+Rustack S3/SQS/SSM/STS and Minco adapter conformance: passed
+Plan and SAM validation: passed
+Orders ARM64 ZIP: 5,102,303 bytes
+Orders SHA-256: 7864a2533e14dbb21abec1d7757e1ace047dc1c2b9c9b4c7e3081ff08288a5f7
+Worker ARM64 ZIP: 574,199 bytes
+Worker SHA-256: 80d7f8bb3c82a4ead305696437dcad88f5c1473b82373e8a606e5d61749b11f8
+
+crates.io exact-version preflight: 28/28 exact 0.6.0 versions absent
+coordinated cargo publish --dry-run: 28/28 packages
+configured unpacked-archive tests: passed
+external archive consumers: no-default/default/all-features/new-package passed
+unpacked cargo-minco installation: minco 0.6.0
+```
+
+Candidate hosted run
+[`30687931439`](https://github.com/xicv/minco/actions/runs/30687931439)
+passed the Feedback browser suite but stopped at the final source-manifest
+check. The static report had counted local generated
+`docs-site/.vitepress/dist/release.json`, making its committed JSON-file metric
+one larger than a clean checkout. Static validation now excludes the exact
+VitePress cache/dist prefixes already excluded from the source manifest; the
+regression keeps source `docs-site/release.json` in scope.
+
+Exact hosted PR-head and merged-main qualification, merge, tag, registry,
+docs.rs and website evidence remain pending. No AWS resource was created,
+modified, promoted or deleted by these gates.
 
 ## `0.5.0` release closure
 

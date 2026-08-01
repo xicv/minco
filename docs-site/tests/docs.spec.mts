@@ -1,4 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+
+const release = JSON.parse(
+  readFileSync(new URL('../release.json', import.meta.url), 'utf8')
+) as { stable: string; workspace: string; state: 'candidate' | 'published' }
+
+const stablePath = `./${release.stable}/`
+const workspacePath = `./${release.workspace}/`
 
 async function waitForHydration(page: Page) {
   await expect(page.locator('.VPSwitchAppearance').first()).toHaveAttribute(
@@ -14,14 +22,16 @@ test('landing page leads to stable documentation', async ({ page }) => {
   await expect(
     page.getByText('Ship Rust web apps straight to AWS.', { exact: true })
   ).toBeVisible()
-  await page.getByRole('link', { name: 'Read the 0.5.0 docs' }).click()
-  await expect(page).toHaveURL(/\/minco\/0\.5\.0\/$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Minco 0.5.0' })).toBeVisible()
+  await page.getByRole('link', { name: `Read the ${release.stable} docs` }).click()
+  await expect(page).toHaveURL(new RegExp(`/minco/${release.stable.replaceAll('.', '\\.')}\\/$`))
+  await expect(
+    page.getByRole('heading', { level: 1, name: `Minco ${release.stable}` })
+  ).toBeVisible()
   await expect(page.getByText('Latest stable release.')).toBeVisible()
 })
 
 test('local search finds the resource API reference', async ({ page }) => {
-  await page.goto('./0.5.0/')
+  await page.goto(stablePath)
   await waitForHydration(page)
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   const search = page.locator('input[type="search"]')
@@ -30,7 +40,7 @@ test('local search finds the resource API reference', async ({ page }) => {
   await expect(result).toBeVisible()
   await result.click()
   await expect(page).toHaveURL(
-    /\/0\.5\.0\/reference\/resource-api#resource-api-reference$/
+    new RegExp(`/${release.stable.replaceAll('.', '\\.')}\/reference\/resource-api#resource-api-reference$`)
   )
 })
 
@@ -39,9 +49,11 @@ test('next is visibly unreleased and exposes detailed learning paths', async ({ 
   await waitForHydration(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Next' })).toBeVisible()
   await expect(page.getByText('Unreleased documentation.')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Use stable 0.5.0' })).toHaveAttribute(
+  await expect(
+    page.getByRole('link', { name: `Use stable ${release.stable}` })
+  ).toHaveAttribute(
     'href',
-    '/minco/0.5.0/'
+    `/minco/${release.stable}/`
   )
   await expect(page.getByRole('link', { name: 'Build an application' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Use resource APIs' })).toBeVisible()
@@ -57,7 +69,7 @@ test('next is visibly unreleased and exposes detailed learning paths', async ({ 
   await expect(page.getByRole('heading', { level: 2, name: 'Complete Request Flow' })).toBeVisible()
 })
 
-test('local search finds current plugin conformance documentation', async ({ page }) => {
+test('local search finds workspace plugin conformance documentation', async ({ page }) => {
   await page.goto('./next/')
   await waitForHydration(page)
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
@@ -66,12 +78,31 @@ test('local search finds current plugin conformance documentation', async ({ pag
   const result = page.getByText('Plugin Conformance', { exact: true }).first()
   await expect(result).toBeVisible()
   await result.click()
-  await expect(page).toHaveURL(/\/next\/reference\/plugin-conformance#plugin-conformance$/)
+  await expect(page).toHaveURL(
+    new RegExp(`/${release.workspace.replaceAll('.', '\\.')}\/reference\/plugin-conformance#plugin-conformance$`)
+  )
+})
+
+test('stable documentation includes the released plugin conformance API', async ({ page }) => {
+  await page.goto(`${workspacePath}reference/plugin-conformance`)
+  await waitForHydration(page)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Plugin Conformance' })
+  ).toBeVisible()
+  if (release.state === 'published') {
+    await expect(page.getByText('Release candidate documentation.')).toHaveCount(0)
+  } else {
+    await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+  }
+  await expect(page.getByText('Unreleased documentation.')).toHaveCount(0)
 })
 
 test('navigation stays within the mobile viewport', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only')
-  for (const path of ['./0.5.0/tutorials/first-api', './next/guides/resource-api']) {
+  for (const path of [
+    `${stablePath}tutorials/first-api`,
+    './next/guides/resource-api'
+  ]) {
     await page.goto(path)
     await waitForHydration(page)
     const dimensions = await page.evaluate(() => ({
@@ -95,8 +126,9 @@ test('core pages have labelled semantics and no browser errors', async ({ page }
 
   for (const path of [
     './',
-    './0.5.0/',
-    './0.5.0/reference/resource-api',
+    stablePath,
+    `${stablePath}reference/resource-api`,
+    `${workspacePath}reference/plugin-conformance`,
     './next/',
     './next/guides/resource-api',
     './next/reference/plugin-conformance',

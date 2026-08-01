@@ -12,10 +12,10 @@ Add version-matched dependencies to a plugin package:
 
 ```toml
 [dependencies]
-minco-core = "0.5.0"
+minco-core = "0.6.0"
 
 [dev-dependencies]
-minco-test = "0.5.0"
+minco-test = "0.6.0"
 ```
 
 Exercise a concrete plugin from its own package workspace:

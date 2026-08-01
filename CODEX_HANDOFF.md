@@ -1,12 +1,12 @@
-# Minco 0.5.0 published handoff
+# Minco 0.6.0 release-candidate handoff
 
 Date: 2026-07-31
 Published baseline: `0.5.0`
-Current workspace version: `0.5.0`
-Workspace release state: `published`
+Current workspace version: `0.6.0`
+Workspace release state: `candidate`
 Published `0.5.0` source: `485d67104a49f139820722eb73334415f69a653c`
-Last completed tasks: `M9-T09`, `M10-T07`, `M8-T09`
-Next task: `M11-T01`
+Last completed tasks: `M11-T01`, `M11-T02`, `M11-T03`, `M11-T07`
+Active task: `M11-T08`
 
 ## Closed release boundary
 
@@ -27,12 +27,13 @@ uv run --locked python scripts/validate_publish.py --expect-published
 The command requires successful crates.io evidence for every exact workspace
 version. It does not treat registry unavailability as a pass.
 
-## Approved continuation
+## Current release work
 
-The published `0.5.0` program contains the standardized resource API,
-local-authoritative CI split and zero-idle cost research. M11-T01 is the next
-bounded step: build and deploy the tested, versioned, Laravel-inspired
-documentation product without changing the published source tag.
+The `0.6.0` candidate adds archive-visible plugin distribution records, one
+public conformance kit and a detailed versioned documentation set. It must pass
+exact local/package qualification and hosted release qualification before an
+exact merge commit is tagged or uploaded. Website stable status changes only
+after independent registry verification.
 
 The remaining planned program is:
 

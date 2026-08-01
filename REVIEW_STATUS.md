@@ -1,5 +1,14 @@
 # Review status
 
+The workspace is now a locally qualified `0.6.0` release candidate for
+completed M11-T01, M11-T02, M11-T03 and M11-T07 work. The authoritative local
+quality matrix, Orders E2E/PostgreSQL, Rustack, Plan/SAM/native ARM64 and
+28-package clean-archive gates passed on 2026-08-01. Exact-head hosted release
+qualification, merge, merged-main qualification, tag, publication, registry
+verification and website stable promotion remain separate pending gates.
+Planned M11-T04 through M11-T06 are explicitly deferred and are not
+represented as shipped behavior.
+
 The Minco `0.5.0` release boundary is closed. Exact source
 `485d67104a49f139820722eb73334415f69a653c` is tagged, published as a
 [GitHub release](https://github.com/xicv/minco/releases/tag/v0.5.0) and
