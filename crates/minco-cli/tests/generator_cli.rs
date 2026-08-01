@@ -117,6 +117,53 @@ fn operation_dry_run_is_deterministic_and_does_not_write() {
 }
 
 #[test]
+fn plugin_generator_keeps_the_generated_application_inspectable() {
+    let (_temporary, root) = create_application();
+
+    let generated = run(&root, &["make", "plugin", "metrics"]);
+    assert!(
+        generated.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+
+    let package = root.join("plugins/minco-plugin-metrics");
+    let cargo = fs::read_to_string(package.join("Cargo.toml")).expect("plugin Cargo manifest");
+    assert!(cargo.contains("[package.metadata.minco]"));
+    assert!(cargo.contains("plugin = \"minco-plugin.json\""));
+    let distribution: Value = serde_json::from_slice(
+        &fs::read(package.join("minco-plugin.json")).expect("distribution record"),
+    )
+    .expect("valid distribution JSON");
+    assert_eq!(distribution["id"], "metrics");
+    assert_eq!(distribution["feature"], "plugin-metrics");
+
+    let inspect = run(&root, &["inspect"]);
+    assert!(
+        inspect.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&inspect.stderr)
+    );
+    let inspected: Value = serde_json::from_slice(&inspect.stdout).expect("inspect JSON");
+    let metrics = inspected["plugins"]
+        .as_array()
+        .expect("plugins")
+        .iter()
+        .find(|plugin| plugin["id"] == "metrics")
+        .expect("generated plugin");
+    assert_eq!(metrics["kind"], "plugin");
+    assert_eq!(metrics["distribution"]["schema"], 1);
+
+    let validate = run(&root, &["plugin", "validate"]);
+    assert!(
+        validate.status.success(),
+        "stderr: {}\nstdout: {}",
+        String::from_utf8_lossy(&validate.stderr),
+        String::from_utf8_lossy(&validate.stdout)
+    );
+}
+
+#[test]
 fn operation_generation_rejects_unknown_contract_ids_before_writing() {
     let (_temporary, root) = create_application();
     let before = snapshot(&root);

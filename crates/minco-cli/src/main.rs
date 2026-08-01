@@ -52,7 +52,10 @@ use minco_release::{
     ReleaseManifest, ReleaseManifestInput, ToolchainIdentity, VerificationEvidence,
 };
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
-use plugin_cmd::{load_catalog, scaffold_plugin, set_plugin_state, validate_catalog};
+use plugin_cmd::{
+    load_catalog, scaffold_plugin, set_plugin_state, validate_catalog,
+    validate_distribution_contracts,
+};
 use process::{capture, command_available, run_shell};
 use roadmap::{
     load_roadmap, load_tasks, ready_tasks, render_roadmap_mermaid, render_task_mermaid,
@@ -3342,7 +3345,12 @@ fn plugin_command(
         }
         PluginCommand::Validate => {
             let catalog = load_catalog(root, &manifest.plugin_catalog)?;
-            let findings = validate_catalog(root, &catalog)?;
+            let mut findings = validate_catalog(root, &catalog)?;
+            let manager = minco::default_plugin_manager()?;
+            findings.extend(validate_distribution_contracts(
+                &catalog,
+                &manager.descriptors(),
+            ));
             print_value(&findings, as_json)?;
             if !findings.is_empty() {
                 bail!("plugin catalog validation failed");

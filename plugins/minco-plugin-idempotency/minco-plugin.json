@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "id": "idempotency",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "stable",
+  "default_enabled": true,
+  "feature": "plugin-idempotency",
+  "runtimes": ["native"],
+  "provides": [
+    { "name": "http.idempotency", "version": "1.0.0" },
+    { "name": "idempotency.store", "version": "1.0.0" },
+    { "name": "idempotency.claim", "version": "1.0.0" }
+  ],
+  "configuration": [{
+    "key": "claim_timeout_seconds",
+    "kind": "integer",
+    "required": false,
+    "secret": false,
+    "description": "Time after which an abandoned in-progress claim may be recovered",
+    "default": 300
+  }],
+  "data_classes": ["internal"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "A storage or fingerprint error rejects the protected request instead of risking a duplicate side effect."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-idempotency" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-idempotency --all-features --locked"]
+  }
+}

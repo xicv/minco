@@ -16,10 +16,14 @@ publish = ["crates-io"]
 include = [
   "src/**",
   "Cargo.toml",
+  "minco-plugin.json",
   "README.md",
   "LICENSE-MIT",
   "LICENSE-APACHE",
 ]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
 
 [dependencies]
 async-trait.workspace = true

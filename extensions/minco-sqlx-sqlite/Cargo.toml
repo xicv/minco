@@ -18,10 +18,14 @@ include = [
   "migrations/plugins/**",
   "tests/**",
   "Cargo.toml",
+  "minco-plugin.json",
   "README.md",
   "LICENSE-MIT",
   "LICENSE-APACHE",
 ]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true

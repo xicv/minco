@@ -13,7 +13,7 @@ readme = "README.md"
 keywords = ["minco", "health", "readiness", "plugin"]
 categories = ["web-programming"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "minco-plugin.json", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 [dependencies]
 async-trait.workspace = true
 minco-core.workspace = true
@@ -23,6 +23,9 @@ tokio.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
 
 [lints]
 workspace = true

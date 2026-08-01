@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "health",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "stable",
+  "default_enabled": true,
+  "feature": "plugin-health",
+  "runtimes": ["native"],
+  "databases": [],
+  "requires": [],
+  "provides": [
+    {
+      "name": "health.registry",
+      "version": "1.0.0"
+    }
+  ],
+  "configuration": [],
+  "operations": [],
+  "migrations": [],
+  "seeds": [],
+  "resources": [],
+  "health_checks": [
+    {
+      "id": "minco-core",
+      "critical": true
+    }
+  ],
+  "data_classes": [],
+  "retention": "none",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Critical readiness failures keep the application unready."
+  },
+  "documentation": {
+    "reference": "https://docs.rs/minco-plugin-health"
+  },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-health --all-features --locked"]
+  }
+}

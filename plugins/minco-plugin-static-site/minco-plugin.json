@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "id": "static-site",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "plugin-static-site",
+  "runtimes": ["native"],
+  "provides": [{ "name": "static-site.publish", "version": "1.0.0" }],
+  "configuration": [
+    { "key": "source_directory", "kind": "string", "required": false, "secret": false, "description": "Directory containing the built static artifact", "default": "dist" },
+    { "key": "index_document", "kind": "string", "required": false, "secret": false, "description": "Default document served at the site root", "default": "index.html" },
+    { "key": "spa_fallback", "kind": "boolean", "required": false, "secret": false, "description": "Rewrite missing browser routes to the index document", "default": true },
+    { "key": "immutable_cache_seconds", "kind": "integer", "required": false, "secret": false, "description": "Cache lifetime for fingerprinted immutable assets", "default": 31536000 },
+    { "key": "html_cache_seconds", "kind": "integer", "required": false, "secret": false, "description": "Cache lifetime for HTML entrypoints", "default": 0 },
+    { "key": "price_class", "kind": "string", "required": false, "secret": false, "description": "CloudFront price class: price_class100, price_class200, or price_class_all", "default": "price_class100" },
+    { "key": "ipv6_enabled", "kind": "boolean", "required": false, "secret": false, "description": "Enable IPv6 on the CDN distribution", "default": true },
+    { "key": "custom_domain", "kind": "string", "required": false, "secret": false, "description": "Optional application hostname" },
+    { "key": "manage_dns_alias", "kind": "boolean", "required": false, "secret": false, "description": "Create a DNS alias for custom_domain in the selected deployment renderer", "default": false }
+  ],
+  "retention": "persistent",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Publication fails when the immutable asset or routing contract cannot be satisfied."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-static-site" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-static-site --all-features --locked"]
+  }
+}

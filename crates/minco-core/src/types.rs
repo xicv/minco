@@ -50,12 +50,14 @@ pub enum IdentifierError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CapabilityProvision {
     pub name: String,
     pub version: Version,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CapabilityRequirement {
     pub name: String,
     pub version: VersionReq,
@@ -71,6 +73,7 @@ pub struct OperationDescriptor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MigrationSet {
     pub id: String,
     pub database: String,
@@ -78,6 +81,7 @@ pub struct MigrationSet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HealthCheckDescriptor {
     pub id: String,
     pub critical: bool,
@@ -178,6 +182,7 @@ pub enum ConfigurationValueKind {
 /// Secret fields are intentionally described but their values are never placed
 /// in an application graph or deployment plan.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConfigurationField {
     pub key: String,
     pub kind: ConfigurationValueKind,

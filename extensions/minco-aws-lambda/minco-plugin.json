@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "id": "aws-lambda",
+  "kind": "runtime",
+  "plugin_version": "0.5.0",
+  "core_compatibility": "^0.5.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "aws-lambda",
+  "runtimes": ["aws-lambda"],
+  "operations": [],
+  "resources": [
+    {
+      "id": "http-api",
+      "kind": "api_gateway_http_api",
+      "idle_cost": "zero_compute",
+      "wake_sources": ["http_request"],
+      "dependencies": ["http-lambda"]
+    },
+    {
+      "id": "http-lambda",
+      "kind": "lambda",
+      "idle_cost": "zero_compute",
+      "wake_sources": ["http_request"],
+      "iam_actions": ["ssm:GetParameter"]
+    }
+  ],
+  "data_classes": ["personal", "confidential", "secret"],
+  "retention": "none",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Malformed API Gateway identity and unavailable secure parameters do not yield authenticated principals or empty secret values."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-aws-lambda" },
+  "conformance": {
+    "profile": "minco-runtime-v1",
+    "evidence": ["cargo test -p minco-aws-lambda --all-features --locked"]
+  }
+}
