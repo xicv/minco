@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `0.5.0`
+Published baseline: `0.6.0`
 Current workspace version: `0.6.0`
-Workspace release state: `candidate`
-Reviewed release source: `485d67104a49f139820722eb73334415f69a653c`
+Workspace release state: `published`
+Reviewed release source: `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`
 
 ## Product identity
 
@@ -18,13 +18,14 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The published `0.5.0` classification is:
+The published `0.6.0` classification is:
 
-> Published-source coherent through resource API conventions, guarded hosted
-> verification, coordinated registry publication and independent consumer
-> verification. The earlier bounded disposable AWS rehearsal and exact-artifact
-> promotion remain the latest live deployment proof; production runtime and
-> later lifecycle/ecosystem programs remain incomplete.
+> Published-source coherent through resource API conventions, static plugin
+> distribution, public conformance, detailed versioned documentation, guarded
+> hosted verification, coordinated registry publication and independent
+> consumer verification. The earlier bounded disposable AWS rehearsal and
+> exact-artifact promotion remain the latest live deployment proof; production
+> runtime and later lifecycle/ecosystem programs remain incomplete.
 
 The framework-completion program still prioritises one coherent path from a new
 contract to a safely deployed, observable, and upgradable application. Source
@@ -105,10 +106,10 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `0.5.0` and `0.6.0` candidate state | Remaining boundary |
+| Area | Current published `0.6.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
-| Static plugin kernel | Strong, with archive-visible distribution metadata and a public conformance kit in the `0.6.0` candidate | Planned mutation workflows and measured external adoption |
+| Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |
 | OpenAPI contract | Strong constrained profile plus structural diff and operation generators | Measured adoption and compatibility freeze |
 | HTTP runtime | Strong | Adoption fixtures, not redesign |
 | PostgreSQL and SQLite | Status, digest plan, lock, apply, verify and classified seeds | Live application evidence and operational recipes |
@@ -122,7 +123,7 @@ The framework-completion program preserves the accepted ADRs and
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Versioned, searchable and browser-checked Diátaxis product with immutable stable lines and detailed `0.6.0` candidate docs | Generated reference and broader exercised recipe matrix |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with a detailed stable `0.6.0` line | Generated reference and broader exercised recipe matrix |
 | AI support | Stable paths and JSON inspection | Local read-only MCP and optional workbench |
 | Compatibility | Pre-1.0 policy | Explicit public API and feature freeze |
 

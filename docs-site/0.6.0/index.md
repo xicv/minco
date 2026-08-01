@@ -5,8 +5,12 @@ description: Stable documentation for Minco 0.6.0, the AWS-native Rust framework
 
 # Minco 0.6.0
 
-Versioned documentation for the `0.6.0` release line. The site banner records
-whether the exact package family is still a candidate or is published.
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 0.6.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
+
+Versioned documentation for the published `0.6.0` release line.
 
 Minco turns a reviewed OpenAPI contract into layered Rust, deterministic
 application and plugin graphs, explicit AWS infrastructure, and exact release

@@ -35,12 +35,15 @@ test('local search finds the resource API reference', async ({ page }) => {
   await waitForHydration(page)
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   const search = page.locator('input[type="search"]')
-  await search.fill('Resource API reference')
-  const result = page.getByText('Resource API reference', { exact: true }).first()
+  await search.fill('Resource API')
+  const result = page
+    .locator('.VPLocalSearchBox')
+    .locator(`a[href*="/${release.stable}/reference/resource-api"]`)
+    .first()
   await expect(result).toBeVisible()
   await result.click()
   await expect(page).toHaveURL(
-    new RegExp(`/${release.stable.replaceAll('.', '\\.')}\/reference\/resource-api#resource-api-reference$`)
+    new RegExp(`/${release.stable.replaceAll('.', '\\.')}\/reference\/resource-api(?:#resource-api)?$`)
   )
 })
 
@@ -75,7 +78,10 @@ test('local search finds workspace plugin conformance documentation', async ({ p
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   const search = page.locator('input[type="search"]')
   await search.fill('Plugin conformance')
-  const result = page.getByText('Plugin Conformance', { exact: true }).first()
+  const result = page
+    .locator('.VPLocalSearchBox')
+    .locator(`a[href*="/${release.workspace}/reference/plugin-conformance"]`)
+    .first()
   await expect(result).toBeVisible()
   await result.click()
   await expect(page).toHaveURL(

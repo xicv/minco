@@ -17,11 +17,11 @@ contains no NAT Gateway, provisioned concurrency, scheduled poller, or
 always-on application compute. Storage, retained logs, DNS, secrets, database
 storage, schedules, requests, and other residual dimensions remain explicit.
 
-> Published baseline: `0.5.0`
+> Published baseline: `0.6.0`
 >
 > Current workspace version: `0.6.0`
 >
-> Workspace release state: `candidate`
+> Workspace release state: `published`
 >
 > Current publishable package count: `28`
 
@@ -30,12 +30,12 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 Read the [versioned Minco documentation](https://xicv.github.io/minco/), or
 start directly with:
 
-- [Build your first API](https://xicv.github.io/minco/0.5.0/tutorials/first-api)
-- [Build a resource API](https://xicv.github.io/minco/0.5.0/how-to/resource-api)
-- [Deploy to AWS](https://xicv.github.io/minco/0.5.0/tutorials/deploy-to-aws)
-- [CLI reference](https://xicv.github.io/minco/0.5.0/reference/cli)
-- [Zero idle, precisely](https://xicv.github.io/minco/0.5.0/explanation/zero-idle)
-- [Preview the 0.6.0 candidate](https://xicv.github.io/minco/0.6.0/)
+- [Build your first API](https://xicv.github.io/minco/0.6.0/tutorials/first-api)
+- [Build a resource API](https://xicv.github.io/minco/0.6.0/guides/resource-api)
+- [Deploy to AWS](https://xicv.github.io/minco/0.6.0/tutorials/deploy-to-aws)
+- [CLI reference](https://xicv.github.io/minco/0.6.0/reference/cli)
+- [Plugin conformance](https://xicv.github.io/minco/0.6.0/guides/plugin-conformance)
+- [Zero idle, precisely](https://xicv.github.io/minco/0.6.0/explanation/zero-idle)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -47,7 +47,7 @@ Install the exact stable control plane:
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 0.5.0 --locked
+cargo +1.97.1 install cargo-minco --version 0.6.0 --locked
 ```
 
 Generate and inspect a layered SQLite application:
@@ -64,19 +64,19 @@ cargo minco check --with-cargo
 Applications normally depend on the feature-gated facade:
 
 ```bash
-cargo add minco@0.5.0
+cargo add minco@0.6.0
 
 # PostgreSQL API on native Lambda
-cargo add minco@0.5.0 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@0.6.0 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Provider-neutral core only
-cargo add minco@0.5.0 --no-default-features
+cargo add minco@0.6.0 --no-default-features
 ```
 
 ## The resource API convention
 
-Minco 0.5.0 includes an opt-in, OpenAPI-first CRUD convention without adding an
-ORM or generic repository:
+Minco 0.6.0 retains the opt-in, OpenAPI-first CRUD convention without adding
+an ORM or generic repository:
 
 | Action | Success | Control |
 |---|---|---|
@@ -92,8 +92,8 @@ policy, and transaction boundaries remain in application use cases.
 
 ## Static plugin distribution and conformance
 
-The `0.6.0` candidate adds strict, archive-visible plugin distribution records
-and one public offline conformance kit. Metadata can be inspected without
+The published `0.6.0` release adds strict, archive-visible plugin distribution
+records and one public offline conformance kit. Metadata can be inspected without
 loading plugin code; it never enables a crate or replaces explicit Cargo
 dependencies and typed constructor registration.
 
@@ -162,14 +162,10 @@ deployment, promotion, and production runtime are separate evidence states.
 
 ## Release
 
-The coordinated 28-crate `0.5.0` family is published from immutable tag
-[`v0.5.0`](https://github.com/xicv/minco/releases/tag/v0.5.0). Registry
+The coordinated 28-crate `0.6.0` family is published from immutable tag
+[`v0.6.0`](https://github.com/xicv/minco/releases/tag/v0.6.0). Registry
 ownership, archive checksums, the CLI installation, default/no-default/all-
 feature consumers, and all exact docs.rs routes were independently verified.
-
-The workspace is a `0.6.0` candidate with the same package inventory. Do not
-request it from crates.io until independent registry verification confirms the
-complete family.
 
 See [`CHANGELOG.md`](CHANGELOG.md),
 [`docs/adoption/0.4.0-to-0.5.0.md`](docs/adoption/0.4.0-to-0.5.0.md),

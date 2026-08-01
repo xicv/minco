@@ -26,7 +26,7 @@ is the reference contract-to-cloud application.
 | Lambda and worker | native runtime entry points | local build/release qualification |
 
 Start with the
-[`openapi.yaml`](https://github.com/xicv/minco/blob/main/examples/orders/openapi/openapi.yaml),
+[`openapi.yaml`](https://github.com/xicv/minco/blob/v0.6.0/examples/orders/openapi/openapi.yaml),
 then follow one operation through `domain`, `application`, `adapters`, `api`,
 and `service`.
 
@@ -79,4 +79,3 @@ are compiled evidence, not a claim that the provider ran.
 - External plugin package: [Test a Plugin](../guides/plugin-conformance).
 - Deployment review: [Plan an AWS Deployment](../guides/deployment).
 - Evidence interpretation: [Testing and Evidence](../reference/testing).
-

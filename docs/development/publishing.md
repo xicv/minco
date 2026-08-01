@@ -6,19 +6,19 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `0.5.0` release contains the complete lock-step 28-package
+The published `0.6.0` release contains the complete lock-step 28-package
 inventory. A workspace version or source tag is not registry
 proof: release status must be verified independently against the exact
 crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The current workspace is an unpublished `0.6.0` candidate with the same
-inventory. Its plugin distribution and conformance additions do not change the
-ordered package list or cross the first-publication boundary for a new name.
+The current workspace is published at `0.6.0` with the same inventory. Its
+plugin distribution and conformance additions did not change the ordered
+package list or cross the first-publication boundary for a new name.
 
-The exact published source is immutable tag `v0.5.0` at
-`485d67104a49f139820722eb73334415f69a653c`. Later candidate qualification
+The exact published source is immutable tag `v0.6.0` at
+`2c4605b7d4abcd865035196ffc0484c4a0e82f1e`. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
@@ -218,7 +218,8 @@ After publication, require exact registry evidence for the complete workspace
 version:
 
 ```bash
-uv run --locked python scripts/validate_publish.py --expect-published
+uv run --locked python scripts/validate_publish.py \
+  --expect-published --check-registry --require-registry
 ```
 
 This mode fails on an absent or yanked exact version and treats registry

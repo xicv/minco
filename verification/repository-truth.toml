@@ -1,12 +1,11 @@
 schema = 1
 workspace_version = "0.6.0"
-published_baseline = "0.5.0"
-workspace_release_state = "candidate"
+published_baseline = "0.6.0"
+workspace_release_state = "published"
 published_package_count = 28
 adoption_gate_task = "M6-T07"
 
-# The independently verified 0.5.0 release contains the full package family.
-# The 0.6.0 candidate adds no first-publication package names.
+# The independently verified 0.6.0 release contains the full package family.
 publishable_package_count = 28
 new_publishable_packages = []
 
