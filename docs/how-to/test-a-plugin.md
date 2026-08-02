@@ -52,12 +52,14 @@ calls.
 ```bash
 cargo test --all-features --locked
 cargo minco plugin validate
+cargo minco plugin test <id>
 cargo minco plugin test --all
 ```
 
 `plugin validate` checks catalog and linked-descriptor drift. `plugin test`
-checks every local catalog package. A standalone or registry plugin should run
-its direct Rust conformance test from its own workspace.
+checks one selected local catalog package; `--all` checks each local entry. A
+standalone or registry plugin should run its direct Rust conformance test from
+its own workspace.
 
 ## 5. Prove provider behavior separately
 

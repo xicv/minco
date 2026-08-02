@@ -149,14 +149,32 @@ should not create a second independent HTTP server or copy middleware policy.
 ## Create and register
 
 ```bash
-cargo minco plugin new audit-export --path plugins/minco-plugin-audit-export
-cargo minco plugin validate audit-export
-cargo minco plugin enable audit-export
+cargo minco plugin new audit-export --dry-run --json
+cargo minco plugin new audit-export
+cargo minco plugin validate
+cargo minco plugin test audit-export
 ```
 
-Add the crate as a normal Cargo dependency and register its constructor in the
-composition root. The catalog controls selection metadata; it does not download
-or execute code at runtime.
+`plugin new` is the compatibility spelling of `make plugin`; both create an
+application-owned package and catalog entry. For an existing local package,
+use `cargo minco plugin init plugins/minco-plugin-audit-export --dry-run --json`
+before applying the catalog edit.
+
+Add an app-owned or third-party crate as a normal Cargo dependency and register
+its typed constructor in the composition root:
+
+```rust
+let mut manager = minco::default_plugin_manager()?;
+manager.register(AuditExportPlugin::new(reviewed_configuration))?;
+let plugins = manager.compose(&minco::core::PluginSelection::default())?;
+```
+
+`plugin add` automates only known Minco facade features, whose constructors are
+already explicitly compiled into the facade. It refuses app-owned packages so
+that it never guesses a Rust constructor or configuration expression. The
+catalog controls inspectable selection metadata; it does not download, discover,
+or execute code at runtime. Run `cargo minco plugin doctor --json` after the
+composition edit.
 
 ## Official plugin tiers
 

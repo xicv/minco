@@ -49,23 +49,47 @@ examples of every field family.
 ```text
 # Static inspection only: does not construct plugin code.
 cargo minco plugin list --json
+cargo minco plugin explain <id-or-crate> --json
 
 # Validate package inclusion, schema, catalog drift, safety rules and linked
 # first-party runtime-descriptor overlap.
 cargo minco plugin validate --json
+cargo minco plugin doctor --json
 
 # Scaffold a crate, metadata pointer, distribution record and catalog entry.
-cargo minco plugin new example
+cargo minco plugin new example --dry-run --json
+
+# Adopt an existing local package's record into the catalog without executing it.
+cargo minco plugin init plugins/minco-plugin-example --dry-run --json
+
+# Plan a known facade feature and safe removal boundary.
+cargo minco plugin add minco-plugin-health --dry-run --json
+cargo minco plugin remove health --dry-run --json
 ```
 
 `plugin validate` never runs a conformance evidence string. A CI or release
 workflow chooses and executes the reviewed command separately.
 
-`cargo minco plugin test --all` also treats every evidence string as inert. It
-loads every local catalog package through the public `minco-test` conformance
-API and emits one deterministic report per component. A passed report is not
-application, provider/live, deployment, or production-readiness evidence. See
+`cargo minco plugin test <id>` and `cargo minco plugin test --all` also treat
+every evidence string as inert. They load the selected local catalog packages
+through the public `minco-test` conformance API and emit one deterministic
+report per component. A passed report is not application, provider/live,
+deployment, or production-readiness evidence. See
 [`plugin-conformance.md`](plugin-conformance.md).
+
+`plugin explain` exposes the full decision surface without constructing plugin
+code. `plugin doctor` additionally verifies local package records, compatibility,
+selection IDs, the exact Minco Cargo version, and the supported static facade
+registration boundary. `plugin init` changes catalog metadata only. None of
+these commands fetches a registry package or interprets a constructor from
+metadata.
+
+`plugin remove --dry-run --json` is deliberately conservative. Traced
+operations, enabled dependents, migrations, seeds, data classes, or unavailable
+distribution metadata are reported as blockers. Declared resources also require
+explicit infrastructure teardown or retention evidence. Removing source or a
+Cargo feature is not evidence that persisted data was migrated, exported, or
+erased, or that provisioned resources were safely retired.
 
 For registry dependencies, an application-local validation does not fetch or
 execute the package. Inspect the downloaded `.crate` archive (or validate the

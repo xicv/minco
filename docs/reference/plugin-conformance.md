@@ -88,9 +88,10 @@ Every report separates these states:
 | `provider_live` | Always `not_run` in this kit; provider tests are explicit separate commands. |
 | `production_readiness` | Always `not_assessed`; conformance is not deployment or production certification. |
 
-`cargo minco plugin test --all --json` runs all local catalog packages through
-this boundary. Registry-backed dependencies are not fetched or executed; run
-the API in that plugin's package workspace instead.
+`cargo minco plugin test <id-or-crate> --json` runs one local catalog package
+through this boundary; `cargo minco plugin test --all --json` runs all local
+packages. Registry-backed dependencies are not fetched or executed; run the API
+in that plugin's package workspace instead.
 
 ## Stable diagnostic families
 
