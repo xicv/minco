@@ -1,6 +1,7 @@
 //! Fail-closed AWS deployment guards and `CloudFormation` change-set review.
 #![forbid(unsafe_code)]
 
+use minco_plugin_static_site::{StaticSitePublication, StaticSiteReleaseManifest};
 use minco_release::{DeploymentOutcome, DeploymentReceipt, FileDigest, ReleaseEnvironment};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -769,6 +770,638 @@ impl HostedVerificationReport {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StaticSiteDistributionStatus {
+    Deployed,
+    InProgress,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StaticSiteInvalidationStatus {
+    Completed,
+    InProgress,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudFrontBillingModel {
+    RequestAndTransfer,
+    FlatRate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FlatRateEligibility {
+    Ineligible,
+    EligibleNotSelected,
+    EligibleSelected,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteCertificateObservation {
+    pub arn: String,
+    pub status: String,
+    pub names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteDnsObservation {
+    pub hosted_zone_id: String,
+    pub hosted_zone_name: String,
+    pub private_zone: bool,
+    pub a_target: String,
+    pub aaaa_target: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteObjectObservation {
+    pub path: String,
+    pub s3_bytes: u64,
+    pub s3_sha256: String,
+    pub s3_content_type: String,
+    pub s3_cache_control: String,
+    pub cloudfront_bytes: u64,
+    pub cloudfront_sha256: String,
+    pub cloudfront_content_type: String,
+    pub cloudfront_cache_control: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSitePricingEvidence {
+    pub checked_on: String,
+    pub source: String,
+    pub billing_model: CloudFrontBillingModel,
+    pub price_class: String,
+    pub flat_rate_eligibility: FlatRateEligibility,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteProviderObservation {
+    pub bucket: String,
+    pub distribution_id: String,
+    pub distribution_domain: String,
+    pub distribution_status: StaticSiteDistributionStatus,
+    pub distribution_aliases: Vec<String>,
+    pub distribution_certificate_arn: Option<String>,
+    pub origin_domain: String,
+    pub origin_access_control_id: String,
+    pub invalidation_id: String,
+    pub invalidation_status: StaticSiteInvalidationStatus,
+    pub certificate: Option<StaticSiteCertificateObservation>,
+    pub dns: Option<StaticSiteDnsObservation>,
+    pub objects: Vec<StaticSiteObjectObservation>,
+    pub pricing: StaticSitePricingEvidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticSiteVerificationInput {
+    pub release_digest: String,
+    pub expected_account_id: String,
+    pub deployment_region: String,
+    pub manifest: StaticSiteReleaseManifest,
+    pub observation: StaticSiteProviderObservation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteVerificationReport {
+    pub schema_version: u32,
+    pub release_digest: String,
+    pub expected_account_id: String,
+    pub deployment_region: String,
+    pub static_site_manifest_digest: String,
+    pub manifest: StaticSiteReleaseManifest,
+    pub observation: StaticSiteProviderObservation,
+}
+
+impl StaticSiteVerificationReport {
+    pub fn complete(
+        mut input: StaticSiteVerificationInput,
+    ) -> Result<Self, StaticSiteVerificationError> {
+        if !sha256_is_valid(&input.release_digest)
+            || !account_id_is_valid(&input.expected_account_id)
+            || !region_is_valid(&input.deployment_region)
+            || input.manifest.schema_version != 1
+            || input.manifest.plan.validate().is_err()
+        {
+            return Err(StaticSiteVerificationError::InvalidIdentity);
+        }
+        let manifest_digest = input
+            .manifest
+            .digest_sha256()
+            .map_err(|_| StaticSiteVerificationError::ManifestInvalid)?;
+        validate_static_site_provider_identity(&input.observation, &input.deployment_region)?;
+        validate_static_site_pricing(&input.manifest, &input.observation.pricing)?;
+
+        input.observation.distribution_aliases.sort_unstable();
+        if input
+            .observation
+            .distribution_aliases
+            .windows(2)
+            .any(|aliases| aliases[0] == aliases[1])
+        {
+            return Err(StaticSiteVerificationError::DistributionMismatch);
+        }
+        validate_static_site_domain(
+            &input.manifest,
+            &input.expected_account_id,
+            &input.observation,
+        )?;
+
+        input
+            .observation
+            .objects
+            .sort_by(|left, right| left.path.cmp(&right.path));
+        if input.observation.objects.len() != input.manifest.assets.len()
+            || input
+                .observation
+                .objects
+                .windows(2)
+                .any(|objects| objects[0].path == objects[1].path)
+        {
+            return Err(StaticSiteVerificationError::AssetSetMismatch);
+        }
+        for (expected, observed) in input.manifest.assets.iter().zip(&input.observation.objects) {
+            let s3_matches = expected.bytes == observed.s3_bytes
+                && expected.sha256 == observed.s3_sha256
+                && expected.content_type == observed.s3_content_type
+                && expected.cache_control == observed.s3_cache_control;
+            let cloudfront_matches = expected.bytes == observed.cloudfront_bytes
+                && expected.sha256 == observed.cloudfront_sha256
+                && expected.content_type == observed.cloudfront_content_type
+                && expected.cache_control == observed.cloudfront_cache_control;
+            if expected.path != observed.path || !s3_matches || !cloudfront_matches {
+                return Err(StaticSiteVerificationError::AssetMismatch {
+                    path: expected.path.clone(),
+                });
+            }
+        }
+
+        Ok(Self {
+            schema_version: 1,
+            release_digest: input.release_digest,
+            expected_account_id: input.expected_account_id,
+            deployment_region: input.deployment_region,
+            static_site_manifest_digest: manifest_digest,
+            manifest: input.manifest,
+            observation: input.observation,
+        })
+    }
+
+    pub fn verify_structure(&self) -> Result<(), StaticSiteVerificationError> {
+        if self.schema_version != 1 {
+            return Err(StaticSiteVerificationError::UnsupportedSchema);
+        }
+        let rebuilt = Self::complete(StaticSiteVerificationInput {
+            release_digest: self.release_digest.clone(),
+            expected_account_id: self.expected_account_id.clone(),
+            deployment_region: self.deployment_region.clone(),
+            manifest: self.manifest.clone(),
+            observation: self.observation.clone(),
+        })?;
+        if &rebuilt != self {
+            return Err(StaticSiteVerificationError::ManifestInvalid);
+        }
+        Ok(())
+    }
+}
+
+fn validate_static_site_provider_identity(
+    observation: &StaticSiteProviderObservation,
+    deployment_region: &str,
+) -> Result<(), StaticSiteVerificationError> {
+    let distribution_id = provider_identifier_is_valid(&observation.distribution_id, 'E');
+    let invalidation_id = provider_identifier_is_valid(&observation.invalidation_id, 'I');
+    let distribution_domain = normalized_dns_name(&observation.distribution_domain)
+        .is_some_and(|domain| domain.ends_with(".cloudfront.net"));
+    let origin_is_private_s3 = private_s3_origin_is_valid(
+        &observation.origin_domain,
+        &observation.bucket,
+        deployment_region,
+    );
+    if !bucket_name_is_valid(&observation.bucket)
+        || !distribution_id
+        || !invalidation_id
+        || !distribution_domain
+        || !origin_is_private_s3
+        || !provider_identifier_is_valid(&observation.origin_access_control_id, 'E')
+        || observation.distribution_status != StaticSiteDistributionStatus::Deployed
+        || observation.invalidation_status != StaticSiteInvalidationStatus::Completed
+    {
+        return Err(StaticSiteVerificationError::DistributionMismatch);
+    }
+    Ok(())
+}
+
+fn private_s3_origin_is_valid(origin: &str, bucket: &str, region: &str) -> bool {
+    let suffix = if region.starts_with("cn-") {
+        "amazonaws.com.cn"
+    } else {
+        "amazonaws.com"
+    };
+    normalized_dns_name(origin) == Some(format!("{bucket}.s3.{region}.{suffix}").as_str())
+}
+
+fn validate_static_site_domain(
+    manifest: &StaticSiteReleaseManifest,
+    account_id: &str,
+    observation: &StaticSiteProviderObservation,
+) -> Result<(), StaticSiteVerificationError> {
+    let custom_domain = manifest.plan.custom_domain.as_deref();
+    let expected_aliases = custom_domain.map_or_else(Vec::new, |domain| vec![domain.to_owned()]);
+    if observation.distribution_aliases != expected_aliases {
+        return Err(StaticSiteVerificationError::DistributionMismatch);
+    }
+    match (custom_domain, &observation.certificate) {
+        (None, None) if observation.distribution_certificate_arn.is_none() => {}
+        (Some(domain), Some(certificate))
+            if cloudfront_certificate_arn_is_valid(&certificate.arn, account_id)
+                && observation.distribution_certificate_arn.as_deref()
+                    == Some(certificate.arn.as_str())
+                && certificate.status == "ISSUED"
+                && certificate
+                    .names
+                    .iter()
+                    .any(|name| certificate_name_covers(name, domain)) => {}
+        _ => return Err(StaticSiteVerificationError::CertificateMismatch),
+    }
+    match (
+        manifest.plan.manage_dns_alias,
+        custom_domain,
+        &observation.dns,
+    ) {
+        (false, _, None) => {}
+        (true, Some(domain), Some(dns))
+            if dns_observation_matches(
+                dns,
+                domain,
+                &observation.distribution_domain,
+                manifest.plan.ipv6_enabled,
+            ) => {}
+        _ => return Err(StaticSiteVerificationError::DnsMismatch),
+    }
+    Ok(())
+}
+
+fn validate_static_site_pricing(
+    manifest: &StaticSiteReleaseManifest,
+    pricing: &StaticSitePricingEvidence,
+) -> Result<(), StaticSiteVerificationError> {
+    let source = url::Url::parse(&pricing.source).ok();
+    let official_source = source.as_ref().is_some_and(|source| {
+        source.scheme() == "https"
+            && matches!(
+                source.host_str(),
+                Some("aws.amazon.com" | "docs.aws.amazon.com")
+            )
+            && source.username().is_empty()
+            && source.password().is_none()
+    });
+    let selection_valid = match pricing.billing_model {
+        CloudFrontBillingModel::RequestAndTransfer => {
+            pricing.flat_rate_eligibility != FlatRateEligibility::EligibleSelected
+        }
+        CloudFrontBillingModel::FlatRate => {
+            pricing.flat_rate_eligibility == FlatRateEligibility::EligibleSelected
+        }
+    };
+    if pricing.price_class != manifest.plan.price_class
+        || !iso_date_is_valid(&pricing.checked_on)
+        || !official_source
+        || !selection_valid
+    {
+        return Err(StaticSiteVerificationError::PricingEvidenceInvalid);
+    }
+    Ok(())
+}
+
+fn provider_identifier_is_valid(value: &str, prefix: char) -> bool {
+    value.len() >= 8
+        && value.starts_with(prefix)
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+}
+
+fn normalized_dns_name(value: &str) -> Option<&str> {
+    let value = value.strip_suffix('.').unwrap_or(value);
+    (!value.is_empty()
+        && value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'-')
+        }))
+    .then_some(value)
+}
+
+fn cloudfront_certificate_arn_is_valid(value: &str, account_id: &str) -> bool {
+    let parts = value.splitn(6, ':').collect::<Vec<_>>();
+    parts.len() == 6
+        && parts[0] == "arn"
+        && parts[1].starts_with("aws")
+        && parts[2] == "acm"
+        && parts[3] == "us-east-1"
+        && parts[4] == account_id
+        && parts[5]
+            .strip_prefix("certificate/")
+            .is_some_and(|id| !id.is_empty() && !id.chars().any(char::is_control))
+}
+
+fn certificate_name_covers(name: &str, domain: &str) -> bool {
+    if name == domain {
+        return true;
+    }
+    name.strip_prefix("*.").is_some_and(|suffix| {
+        domain.strip_suffix(suffix).is_some_and(|prefix| {
+            prefix.ends_with('.') && !prefix[..prefix.len() - 1].contains('.')
+        })
+    })
+}
+
+fn dns_observation_matches(
+    dns: &StaticSiteDnsObservation,
+    domain: &str,
+    distribution_domain: &str,
+    ipv6_enabled: bool,
+) -> bool {
+    let zone = normalized_dns_name(&dns.hosted_zone_name);
+    let distribution = normalized_dns_name(distribution_domain);
+    let zone_owns_domain = zone.is_some_and(|zone| {
+        domain == zone
+            || domain
+                .strip_suffix(zone)
+                .is_some_and(|prefix| prefix.ends_with('.'))
+    });
+    let target_matches = normalized_dns_name(&dns.a_target) == distribution;
+    let ipv6_matches = match (&dns.aaaa_target, ipv6_enabled) {
+        (Some(target), true) => normalized_dns_name(target) == distribution,
+        (None, false) => true,
+        _ => false,
+    };
+    !dns.private_zone
+        && dns.hosted_zone_id.starts_with('Z')
+        && dns.hosted_zone_id.len() >= 8
+        && dns
+            .hosted_zone_id
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+        && zone_owns_domain
+        && target_matches
+        && ipv6_matches
+}
+
+fn iso_date_is_valid(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != 10
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes
+            .iter()
+            .enumerate()
+            .any(|(index, byte)| !matches!(index, 4 | 7) && !byte.is_ascii_digit())
+    {
+        return false;
+    }
+    let year = value[..4].parse::<u16>().ok();
+    let month = value[5..7].parse::<u8>().ok();
+    let day = value[8..10].parse::<u8>().ok();
+    let Some((year, month, day)) = year.zip(month).zip(day).map(|((y, m), d)| (y, m, d)) else {
+        return false;
+    };
+    let leap_year =
+        year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap_year => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum StaticSiteVerificationError {
+    #[error("static-site verification report uses an unsupported schema")]
+    UnsupportedSchema,
+    #[error("static-site verification identity is invalid")]
+    InvalidIdentity,
+    #[error("static-site release manifest is invalid")]
+    ManifestInvalid,
+    #[error("static-site distribution or invalidation does not match")]
+    DistributionMismatch,
+    #[error("static-site certificate does not cover the custom domain")]
+    CertificateMismatch,
+    #[error("static-site DNS evidence does not own or target the custom domain")]
+    DnsMismatch,
+    #[error("static-site provider object set does not match the release")]
+    AssetSetMismatch,
+    #[error("static-site provider object {path} does not match the release")]
+    AssetMismatch { path: String },
+    #[error("static-site pricing evidence is invalid")]
+    PricingEvidenceInvalid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticSitePublicationReceiptInput {
+    pub release_digest: String,
+    pub manifest_file: FileDigest,
+    pub bucket: String,
+    pub distribution_id: String,
+    pub distribution_domain: String,
+    pub publication: StaticSitePublication,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSitePublicationReceipt {
+    pub schema_version: u32,
+    pub receipt_digest: String,
+    pub release_digest: String,
+    pub manifest_file: FileDigest,
+    pub bucket: String,
+    pub distribution_id: String,
+    pub distribution_domain: String,
+    pub publication: StaticSitePublication,
+}
+
+impl StaticSitePublicationReceipt {
+    pub fn seal(
+        input: StaticSitePublicationReceiptInput,
+    ) -> Result<Self, StaticSitePublicationReceiptError> {
+        let mut receipt = Self {
+            schema_version: 1,
+            receipt_digest: String::new(),
+            release_digest: input.release_digest,
+            manifest_file: input.manifest_file,
+            bucket: input.bucket,
+            distribution_id: input.distribution_id,
+            distribution_domain: input.distribution_domain,
+            publication: input.publication,
+        };
+        receipt.receipt_digest = receipt.calculate_digest()?;
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    pub fn verify_structure(&self) -> Result<(), StaticSitePublicationReceiptError> {
+        validate_bound_file(&self.manifest_file, "static-site release manifest")
+            .map_err(|error| StaticSitePublicationReceiptError::Invalid(error.to_string()))?;
+        let distribution_domain = normalized_dns_name(&self.distribution_domain);
+        let url = url::Url::parse(&self.publication.url).ok();
+        if self.schema_version != 1
+            || !sha256_is_valid(&self.release_digest)
+            || !sha256_is_valid(&self.receipt_digest)
+            || !sha256_is_valid(&self.publication.release_manifest_digest)
+            || !bucket_name_is_valid(&self.bucket)
+            || !provider_identifier_is_valid(&self.distribution_id, 'E')
+            || !distribution_domain.is_some_and(|domain| domain.ends_with(".cloudfront.net"))
+            || self.publication.assets.is_empty()
+            || self.publication.uploaded != self.publication.assets.len()
+            || !self
+                .publication
+                .invalidation_id
+                .as_deref()
+                .is_some_and(|id| provider_identifier_is_valid(id, 'I'))
+            || !self.publication.invalidation_completed
+            || url.as_ref().is_none_or(|url| {
+                url.scheme() != "https"
+                    || url.username() != ""
+                    || url.password().is_some()
+                    || url.query().is_some()
+                    || url.fragment().is_some()
+                    || url.path() != "/"
+            })
+            || self
+                .publication
+                .assets
+                .windows(2)
+                .any(|assets| assets[0].path >= assets[1].path)
+        {
+            return Err(StaticSitePublicationReceiptError::Invalid(
+                "publication identity or completion evidence is invalid".into(),
+            ));
+        }
+        if self.calculate_digest()? != self.receipt_digest {
+            return Err(StaticSitePublicationReceiptError::DigestMismatch);
+        }
+        Ok(())
+    }
+
+    pub fn verify_at(
+        &self,
+        root: impl AsRef<Path>,
+    ) -> Result<(), StaticSitePublicationReceiptError> {
+        self.verify_structure()?;
+        let root = root.as_ref();
+        self.manifest_file
+            .verify_at(root)
+            .map_err(|error| StaticSitePublicationReceiptError::Invalid(error.to_string()))?;
+        let source = std::fs::read(root.join(&self.manifest_file.path))?;
+        let manifest: StaticSiteReleaseManifest = serde_json::from_slice(&source)?;
+        manifest
+            .verify_at(root)
+            .map_err(|error| StaticSitePublicationReceiptError::Invalid(error.to_string()))?;
+        let public_host = url::Url::parse(&self.publication.url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned));
+        let expected_host = manifest
+            .plan
+            .custom_domain
+            .as_ref()
+            .unwrap_or(&self.distribution_domain);
+        if public_host.as_deref() != Some(expected_host.as_str())
+            || manifest
+                .digest_sha256()
+                .map_err(|error| StaticSitePublicationReceiptError::Invalid(error.to_string()))?
+                != self.publication.release_manifest_digest
+            || manifest.assets != self.publication.assets
+        {
+            return Err(StaticSitePublicationReceiptError::Invalid(
+                "publication does not match the exact static-site release manifest".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn write_json(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<(), StaticSitePublicationReceiptError> {
+        self.verify_structure()?;
+        let path = path.as_ref();
+        let mut rendered = serde_json::to_vec_pretty(self)?;
+        rendered.push(b'\n');
+        if path.exists() {
+            if std::fs::read(path)? == rendered {
+                return Ok(());
+            }
+            return Err(StaticSitePublicationReceiptError::Conflict(
+                path.display().to_string(),
+            ));
+        }
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)?;
+        output.write_all(&rendered)?;
+        output.sync_all()?;
+        Ok(())
+    }
+
+    pub fn read_json(path: impl AsRef<Path>) -> Result<Self, StaticSitePublicationReceiptError> {
+        let source = std::fs::read(path)?;
+        let receipt: Self = serde_json::from_slice(&source)?;
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    fn calculate_digest(&self) -> Result<String, StaticSitePublicationReceiptError> {
+        #[derive(Serialize)]
+        struct DigestPayload<'a> {
+            schema_version: u32,
+            release_digest: &'a str,
+            manifest_file: &'a FileDigest,
+            bucket: &'a str,
+            distribution_id: &'a str,
+            distribution_domain: &'a str,
+            publication: &'a StaticSitePublication,
+        }
+        let payload = DigestPayload {
+            schema_version: self.schema_version,
+            release_digest: &self.release_digest,
+            manifest_file: &self.manifest_file,
+            bucket: &self.bucket,
+            distribution_id: &self.distribution_id,
+            distribution_domain: &self.distribution_domain,
+            publication: &self.publication,
+        };
+        Ok(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&payload)?)
+        ))
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum StaticSitePublicationReceiptError {
+    #[error("static-site publication receipt is invalid: {0}")]
+    Invalid(String),
+    #[error("static-site publication receipt digest does not match its contents")]
+    DigestMismatch,
+    #[error("immutable static-site publication receipt already exists at {0}")]
+    Conflict(String),
+    #[error("static-site publication receipt JSON is invalid: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("static-site publication receipt I/O failed: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 pub fn verify_promotion_boundary(
     change_set: &CloudFormationChangeSet,
     expected_stack_name: &str,
@@ -1008,17 +1641,45 @@ impl PromotionReceipt {
                 "promotion does not bind a successful deployment of the exact release".into(),
             ));
         }
-        let [verification] = deployment.verification() else {
+        let hosted = deployment
+            .verification()
+            .iter()
+            .filter(|verification| verification.kind == "hosted_verification")
+            .collect::<Vec<_>>();
+        let [verification] = hosted.as_slice() else {
             return Err(PromotionReceiptError::Invalid(
                 "deployment must bind exactly one hosted verification report".into(),
             ));
         };
-        if verification.kind != "hosted_verification"
-            || verification.file != self.hosted_verification
-        {
+        if verification.file != self.hosted_verification {
             return Err(PromotionReceiptError::Invalid(
                 "deployment hosted verification binding does not match promotion".into(),
             ));
+        }
+        for verification in deployment.verification() {
+            match verification.kind.as_str() {
+                "hosted_verification" => {}
+                "static_site_verification" => {
+                    let value: serde_json::Value = serde_json::from_slice(&std::fs::read(
+                        root.join(&verification.file.path),
+                    )?)?;
+                    let report: StaticSiteVerificationReport =
+                        serde_json::from_value(value.clone())?;
+                    if serde_json::to_value(&report)? != value
+                        || report.verify_structure().is_err()
+                        || report.release_digest != self.release_digest
+                    {
+                        return Err(PromotionReceiptError::Invalid(
+                            "static-site verification does not bind the promoted release".into(),
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(PromotionReceiptError::Invalid(
+                        "deployment contains an unsupported verification kind".into(),
+                    ));
+                }
+            }
         }
         let release_value: serde_json::Value = serde_json::from_slice(&std::fs::read(
             root.join(&deployment.release_manifest.path),
@@ -1796,6 +2457,18 @@ pub struct DeploymentTarget {
     pub database_url_parameter_name: String,
     pub database_kms_key_arn: Option<String>,
     #[serde(default)]
+    pub static_site_certificate_arn: Option<String>,
+    #[serde(default)]
+    pub static_site_hosted_zone_id: Option<String>,
+    #[serde(default)]
+    pub static_site_pricing_checked_on: Option<String>,
+    #[serde(default)]
+    pub static_site_pricing_source: Option<String>,
+    #[serde(default)]
+    pub static_site_billing_model: Option<CloudFrontBillingModel>,
+    #[serde(default)]
+    pub static_site_flat_rate_eligibility: Option<FlatRateEligibility>,
+    #[serde(default)]
     pub lambda_subnet_ids: Vec<String>,
     #[serde(default)]
     pub lambda_security_group_ids: Vec<String>,
@@ -1906,6 +2579,26 @@ fn validate_deployment_target(
             }),
         ),
         (
+            "static_site_certificate_arn",
+            target
+                .static_site_certificate_arn
+                .as_deref()
+                .is_none_or(|arn| {
+                    cloudfront_certificate_arn_is_valid(arn, &target.expected_account_id)
+                }),
+        ),
+        (
+            "static_site_hosted_zone_id",
+            target
+                .static_site_hosted_zone_id
+                .as_deref()
+                .is_none_or(hosted_zone_id_is_valid),
+        ),
+        (
+            "static_site_pricing",
+            static_site_target_pricing_is_valid(target),
+        ),
+        (
             "lambda_network",
             target.lambda_subnet_ids.is_empty() == target.lambda_security_group_ids.is_empty()
                 && resource_ids_are_valid(&target.lambda_subnet_ids, "subnet-")
@@ -1951,6 +2644,60 @@ fn stack_name_is_valid(value: &str) -> bool {
     value.len() <= 128
         && bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic())
         && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+}
+
+fn hosted_zone_id_is_valid(value: &str) -> bool {
+    value.len() >= 8
+        && value.starts_with('Z')
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+}
+
+fn static_site_target_pricing_is_valid(target: &DeploymentTarget) -> bool {
+    let values_present = [
+        target.static_site_pricing_checked_on.is_some(),
+        target.static_site_pricing_source.is_some(),
+        target.static_site_billing_model.is_some(),
+        target.static_site_flat_rate_eligibility.is_some(),
+    ];
+    if values_present.iter().all(|present| !present) {
+        return true;
+    }
+    if !values_present.iter().all(|present| *present) {
+        return false;
+    }
+    let source = target
+        .static_site_pricing_source
+        .as_deref()
+        .and_then(|source| url::Url::parse(source).ok());
+    let source_is_official = source.is_some_and(|source| {
+        source.scheme() == "https"
+            && matches!(
+                source.host_str(),
+                Some("aws.amazon.com" | "docs.aws.amazon.com")
+            )
+            && source.username().is_empty()
+            && source.password().is_none()
+    });
+    let selection_is_consistent = match (
+        target.static_site_billing_model,
+        target.static_site_flat_rate_eligibility,
+    ) {
+        (Some(CloudFrontBillingModel::FlatRate), Some(FlatRateEligibility::EligibleSelected)) => {
+            true
+        }
+        (Some(CloudFrontBillingModel::RequestAndTransfer), Some(eligibility)) => {
+            eligibility != FlatRateEligibility::EligibleSelected
+        }
+        _ => false,
+    };
+    target
+        .static_site_pricing_checked_on
+        .as_deref()
+        .is_some_and(iso_date_is_valid)
+        && source_is_official
+        && selection_is_consistent
 }
 
 fn bucket_name_is_valid(value: &str) -> bool {

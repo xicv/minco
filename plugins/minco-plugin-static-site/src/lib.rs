@@ -9,8 +9,11 @@ use minco_core::{
 };
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
-    path::Path,
+    fs,
+    io::{BufReader, Read},
+    path::{Component, Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
@@ -35,6 +38,7 @@ impl CloudFrontPriceClass {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StaticSiteConfig {
     #[serde(default = "default_source_directory")]
     pub source_directory: String,
@@ -95,6 +99,7 @@ impl StaticSiteConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StaticSitePlan {
     pub source_directory: String,
     pub index_document: String,
@@ -124,19 +129,23 @@ impl From<StaticSiteConfig> for StaticSitePlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StaticSitePublication {
     pub url: String,
+    pub release_manifest_digest: String,
+    pub assets: Vec<StaticSiteAsset>,
     pub uploaded: usize,
     pub removed: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub invalidation_id: Option<String>,
+    pub invalidation_completed: bool,
 }
 
 #[async_trait]
 pub trait StaticSitePublisher: Send + Sync + std::fmt::Debug {
-    async fn publish(
+    async fn publish_manifest(
         &self,
-        plan: &StaticSitePlan,
+        manifest: &StaticSiteReleaseManifest,
         repository_root: &Path,
     ) -> Result<StaticSitePublication, StaticSiteError>;
 }
@@ -160,8 +169,17 @@ impl StaticSitePublisherService {
         plan: &StaticSitePlan,
         repository_root: &Path,
     ) -> Result<StaticSitePublication, StaticSiteError> {
-        plan.validate()?;
-        self.0.publish(plan, repository_root).await
+        let manifest = StaticSiteReleaseManifest::build(plan, repository_root)?;
+        self.publish_manifest(&manifest, repository_root).await
+    }
+
+    pub async fn publish_manifest(
+        &self,
+        manifest: &StaticSiteReleaseManifest,
+        repository_root: &Path,
+    ) -> Result<StaticSitePublication, StaticSiteError> {
+        manifest.verify_at(repository_root)?;
+        self.0.publish_manifest(manifest, repository_root).await
     }
 }
 
@@ -195,6 +213,299 @@ impl StaticSitePlan {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteAsset {
+    pub path: String,
+    pub bytes: u64,
+    pub sha256: String,
+    pub content_type: String,
+    pub cache_control: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteReleaseManifest {
+    pub schema_version: u32,
+    pub plan: StaticSitePlan,
+    pub assets: Vec<StaticSiteAsset>,
+}
+
+impl StaticSiteReleaseManifest {
+    pub fn build(plan: &StaticSitePlan, repository_root: &Path) -> Result<Self, StaticSiteError> {
+        plan.validate()?;
+        let repository_root = fs::canonicalize(repository_root)
+            .map_err(|error| manifest_error("repository root", &error))?;
+        let source = fs::canonicalize(repository_root.join(&plan.source_directory))
+            .map_err(|error| manifest_error("static-site source", &error))?;
+        if !source.starts_with(&repository_root) {
+            return Err(StaticSiteError::Publish(
+                "static-site source resolves outside the repository root".into(),
+            ));
+        }
+
+        let mut paths = Vec::new();
+        collect_release_files(&source, &source, &mut paths)?;
+        paths.sort_by(|left, right| left.0.cmp(&right.0));
+        if paths
+            .iter()
+            .any(|(relative, _)| relative == ".minco" || relative.starts_with(".minco/"))
+        {
+            return Err(StaticSiteError::Publish(
+                "static-site assets cannot use the reserved .minco provider-control prefix".into(),
+            ));
+        }
+        if !paths
+            .iter()
+            .any(|(relative, _)| relative == &plan.index_document)
+        {
+            return Err(StaticSiteError::Publish(format!(
+                "static-site index document {} is missing",
+                plan.index_document
+            )));
+        }
+
+        let assets = paths
+            .into_iter()
+            .map(|(relative, absolute)| release_asset(plan, relative, &absolute))
+            .collect::<Result<Vec<_>, _>>()?;
+        let manifest = Self {
+            schema_version: 1,
+            plan: plan.clone(),
+            assets,
+        };
+        manifest.validate_structure()?;
+        Ok(manifest)
+    }
+
+    pub fn verify_at(&self, repository_root: &Path) -> Result<(), StaticSiteError> {
+        self.validate_structure()?;
+        let actual = Self::build(&self.plan, repository_root)?;
+        if &actual == self {
+            return Ok(());
+        }
+        let changed = self
+            .assets
+            .iter()
+            .zip(&actual.assets)
+            .find_map(|(expected, actual)| (expected != actual).then(|| expected.path.clone()))
+            .or_else(|| {
+                self.assets
+                    .get(actual.assets.len())
+                    .or_else(|| actual.assets.get(self.assets.len()))
+                    .map(|asset| asset.path.clone())
+            })
+            .unwrap_or_else(|| "manifest".into());
+        Err(StaticSiteError::Publish(format!(
+            "static-site release asset {changed} no longer matches the manifest"
+        )))
+    }
+
+    pub fn validate_structure(&self) -> Result<(), StaticSiteError> {
+        if self.schema_version != 1 {
+            return Err(StaticSiteError::Publish(format!(
+                "unsupported static-site release manifest schema {}",
+                self.schema_version
+            )));
+        }
+        self.plan.validate()?;
+        if self.assets.is_empty()
+            || self
+                .assets
+                .windows(2)
+                .any(|assets| assets[0].path >= assets[1].path)
+            || !self
+                .assets
+                .iter()
+                .any(|asset| asset.path == self.plan.index_document)
+        {
+            return Err(StaticSiteError::Publish(
+                "static-site release asset set is empty, unsorted, duplicated, or missing its index"
+                    .into(),
+            ));
+        }
+        for asset in &self.assets {
+            validate_relative_path("static-site asset path", &asset.path)?;
+            if asset.path.len() > 1_024
+                || asset.path == ".minco"
+                || asset.path.starts_with(".minco/")
+                || asset.sha256.len() != 64
+                || !asset
+                    .sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+                || !safe_metadata_value(&asset.content_type, 255)
+                || !safe_metadata_value(&asset.cache_control, 1_024)
+            {
+                return Err(StaticSiteError::Publish(format!(
+                    "static-site release asset {} has invalid path, digest, or metadata",
+                    asset.path
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn digest_sha256(&self) -> Result<String, StaticSiteError> {
+        self.validate_structure()?;
+        let encoded = serde_json::to_vec(self).map_err(|error| {
+            StaticSiteError::Publish(format!(
+                "static-site release manifest cannot be encoded: {error}"
+            ))
+        })?;
+        Ok(format!("{:x}", Sha256::digest(encoded)))
+    }
+}
+
+fn safe_metadata_value(value: &str, max_bytes: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= max_bytes
+        && value.bytes().all(|byte| matches!(byte, b' '..=b'~'))
+}
+
+fn collect_release_files(
+    source: &Path,
+    directory: &Path,
+    output: &mut Vec<(String, PathBuf)>,
+) -> Result<(), StaticSiteError> {
+    let entries = fs::read_dir(directory)
+        .map_err(|error| manifest_error("static-site source directory", &error))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| manifest_error("static-site directory entry", &error))?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| manifest_error("static-site asset", &error))?;
+        if metadata.file_type().is_symlink() {
+            return Err(StaticSiteError::Publish(
+                "static-site source contains a symlink".into(),
+            ));
+        }
+        if metadata.is_dir() {
+            collect_release_files(source, &path, output)?;
+            continue;
+        }
+        if !metadata.is_file() {
+            return Err(StaticSiteError::Publish(
+                "static-site source contains a non-regular file".into(),
+            ));
+        }
+        let canonical =
+            fs::canonicalize(&path).map_err(|error| manifest_error("static-site asset", &error))?;
+        if !canonical.starts_with(source) {
+            return Err(StaticSiteError::Publish(
+                "static-site asset resolves outside the source directory".into(),
+            ));
+        }
+        let relative = canonical
+            .strip_prefix(source)
+            .map_err(|_| StaticSiteError::Publish("static-site asset prefix changed".into()))?;
+        output.push((slash_path(relative)?, canonical));
+    }
+    Ok(())
+}
+
+fn release_asset(
+    plan: &StaticSitePlan,
+    relative: String,
+    absolute: &Path,
+) -> Result<StaticSiteAsset, StaticSiteError> {
+    let file = fs::File::open(absolute).map_err(|error| manifest_error(&relative, &error))?;
+    let bytes = file
+        .metadata()
+        .map_err(|error| manifest_error(&relative, &error))?
+        .len();
+    let mut reader = BufReader::new(file);
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
+    loop {
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|error| manifest_error(&relative, &error))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(StaticSiteAsset {
+        content_type: asset_content_type(&relative).into(),
+        cache_control: asset_cache_control(plan, &relative),
+        path: relative,
+        bytes,
+        sha256: format!("{:x}", hasher.finalize()),
+    })
+}
+
+fn asset_content_type(relative: &str) -> &'static str {
+    let extension = Path::new(relative)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase);
+    match extension.as_deref() {
+        Some("html" | "htm") => "text/html",
+        Some("css") => "text/css",
+        Some("js" | "mjs") => "text/javascript",
+        Some("json" | "map" | "webmanifest") => "application/json",
+        Some("txt") => "text/plain",
+        Some("csv") => "text/csv",
+        Some("xml") => "application/xml",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("ico") => "image/x-icon",
+        Some("avif") => "image/avif",
+        Some("wasm") => "application/wasm",
+        Some("pdf") => "application/pdf",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("ttf") => "font/ttf",
+        Some("otf") => "font/otf",
+        Some("mp3") => "audio/mpeg",
+        Some("wav") => "audio/wav",
+        Some("mp4") => "video/mp4",
+        Some("webm") => "video/webm",
+        _ => "application/octet-stream",
+    }
+}
+
+fn slash_path(path: &Path) -> Result<String, StaticSiteError> {
+    let mut parts = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(value) => parts.push(value.to_str().ok_or_else(|| {
+                StaticSiteError::Publish("static-site asset paths must be valid UTF-8".into())
+            })?),
+            _ => {
+                return Err(StaticSiteError::Publish(
+                    "static-site asset path is not relative".into(),
+                ));
+            }
+        }
+    }
+    if parts.is_empty() {
+        return Err(StaticSiteError::Publish(
+            "static-site asset path is empty".into(),
+        ));
+    }
+    Ok(parts.join("/"))
+}
+
+fn asset_cache_control(plan: &StaticSitePlan, relative: &str) -> String {
+    let fingerprinted = relative
+        .split(|character: char| !character.is_ascii_hexdigit())
+        .any(|token| token.len() >= 8);
+    if fingerprinted {
+        format!("public,max-age={},immutable", plan.immutable_cache_seconds)
+    } else {
+        format!("public,max-age={},must-revalidate", plan.html_cache_seconds)
+    }
+}
+
+fn manifest_error(context: &str, error: &std::io::Error) -> StaticSiteError {
+    StaticSiteError::Publish(format!("{context} is unavailable: {error}"))
+}
+
 #[derive(Debug)]
 pub struct MemoryStaticSitePublisher {
     public_url: String,
@@ -222,20 +533,23 @@ impl MemoryStaticSitePublisher {
 
 #[async_trait]
 impl StaticSitePublisher for MemoryStaticSitePublisher {
-    async fn publish(
+    async fn publish_manifest(
         &self,
-        plan: &StaticSitePlan,
+        manifest: &StaticSiteReleaseManifest,
         _repository_root: &Path,
     ) -> Result<StaticSitePublication, StaticSiteError> {
         self.publications
             .lock()
             .map_err(|_| StaticSiteError::Publish("static-site memory lock was poisoned".into()))?
-            .push(plan.clone());
+            .push(manifest.plan.clone());
         Ok(StaticSitePublication {
             url: self.public_url.clone(),
+            release_manifest_digest: manifest.digest_sha256()?,
+            assets: manifest.assets.clone(),
             uploaded: 0,
             removed: 0,
             invalidation_id: None,
+            invalidation_completed: false,
         })
     }
 }
@@ -576,6 +890,9 @@ mod tests {
 
     #[tokio::test]
     async fn publisher_is_an_explicit_injected_service() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("dist")).unwrap();
+        fs::write(root.path().join("dist/index.html"), b"<!doctype html>").unwrap();
         let publisher = Arc::new(MemoryStaticSitePublisher::default());
         let mut manager = PluginManager::default();
         manager
@@ -597,7 +914,7 @@ mod tests {
             .get::<StaticSitePublisherService>()
             .unwrap();
         let plan = application.services.get::<StaticSitePlan>().unwrap();
-        service.publish(&plan, Path::new(".")).await.unwrap();
+        service.publish(&plan, root.path()).await.unwrap();
         assert_eq!(publisher.published().unwrap().len(), 1);
     }
 }

@@ -17,6 +17,12 @@ minco-aws-adapters = { version = "0.6.0", features = ["s3", "sqs"] }
 The `full` feature enables S3, SQS, SES v2, Cognito user-pool administration,
 signed webhooks, and S3/CloudFront static-site publication.
 
+The `static-site` adapter consumes an exact `StaticSiteReleaseManifest`. It
+uses a conditional `.minco/deployment-lock`, uploads each object with SHA-256,
+rechecks S3 checksum/size/media/cache metadata before deleting stale keys, and
+waits for the deterministic CloudFront invalidation. A missing or ambiguous
+lock cleanup fails closed; the adapter never steals or silently expires a lock.
+
 Register the crate's explicit `AwsAdaptersPlugin` marker with the selected
 provider flags so Plan resource/cost intent and least-privilege IAM are derived
 from AWS selections, not from generic capabilities that may be backed by

@@ -14,6 +14,12 @@ expected_role_arn = "arn:aws:iam::000000000000:role/minco-dev"
 stack_name = "minco-dev"
 artifact_bucket = "minco-dev-artifacts-placeholder"
 database_url_parameter_name = "/minco/dev/database-url"
+static_site_certificate_arn = "arn:aws:acm:us-east-1:000000000000:certificate/example"
+static_site_hosted_zone_id = "Z1234567890ABC"
+static_site_pricing_checked_on = "2026-08-02"
+static_site_pricing_source = "https://aws.amazon.com/cloudfront/pricing/"
+static_site_billing_model = "request_and_transfer"
+static_site_flat_rate_eligibility = "ineligible"
 stack_tags = { "minco:managed" = "true", "minco:purpose" = "bounded-smoke", "minco:run-id" = "run-123" }
 "#;
 
@@ -31,6 +37,18 @@ stack_tags = { "minco:managed" = "true", "minco:purpose" = "bounded-smoke", "min
     assert!(output.contains("database_url_parameter_name"));
     assert!(!output.contains("password"));
     assert!(!output.contains("secret_value"));
+
+    let wrong_static_certificate = source.replace(
+        "arn:aws:acm:us-east-1:000000000000:certificate/example",
+        "arn:aws:acm:ap-southeast-2:000000000000:certificate/example",
+    );
+    assert!(DeploymentTargetCatalog::from_toml(&wrong_static_certificate).is_err());
+
+    let partial_pricing = source.replace(
+        "static_site_pricing_source = \"https://aws.amazon.com/cloudfront/pricing/\"",
+        "",
+    );
+    assert!(DeploymentTargetCatalog::from_toml(&partial_pricing).is_err());
 
     let with_secret_value = source.replace(
         "database_url_parameter_name = \"/minco/dev/database-url\"",

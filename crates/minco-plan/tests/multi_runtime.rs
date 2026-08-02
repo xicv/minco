@@ -1,8 +1,8 @@
 use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
 use minco_plan::{
     DeploymentConfig, DeploymentPlan, IamResource, QueuePlan, RuntimePlan, ScheduleCleanupPlan,
-    ScheduleCompletionAction, Severity, TriggerPlan, estimate_runtime_cost, render_sam,
-    render_sam_with_code_uris,
+    ScheduleCompletionAction, Severity, StaticSiteDeployment, TriggerPlan, estimate_runtime_cost,
+    render_sam, render_sam_with_code_uris,
 };
 use std::collections::BTreeMap;
 
@@ -35,6 +35,39 @@ fn schema_v2_plans_one_api_and_one_explicit_sqs_worker() {
         plan.validate()
             .iter()
             .all(|diagnostic| diagnostic.severity != Severity::Error)
+    );
+}
+
+#[test]
+fn sam_renders_private_static_site_resources_from_explicit_plan() {
+    let mut plan = standard_worker_plan();
+    plan.static_site = Some(StaticSiteDeployment {
+        source_directory: "dist".into(),
+        index_document: "index.html".into(),
+        spa_fallback: true,
+        immutable_cache_seconds: 31_536_000,
+        html_cache_seconds: 0,
+        price_class: "PriceClass_100".into(),
+        ipv6_enabled: true,
+        custom_domain: Some("app.example.com".into()),
+        manage_dns_alias: true,
+    });
+
+    let yaml = render_sam(&plan).expect("static-site SAM");
+    assert!(yaml.contains("StaticSiteOriginAccessControl:"));
+    assert!(yaml.contains("SigningBehavior: always"));
+    assert!(yaml.contains("StaticSiteCachePolicy:"));
+    assert!(yaml.contains("CachePolicyId: !Ref StaticSiteCachePolicy"));
+    assert!(!yaml.contains("ForwardedValues:"));
+    assert!(yaml.contains("StaticSiteCertificateArn:"));
+    assert!(yaml.contains("StaticSiteHostedZoneId:"));
+    assert!(yaml.contains("StaticSiteDnsIpv6Alias:"));
+    assert!(yaml.contains("StaticSiteDistributionId:"));
+    let parsed: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&yaml).expect("syntactically valid static-site SAM YAML");
+    assert_eq!(
+        parsed["Resources"]["StaticSiteDistribution"]["Type"],
+        "AWS::CloudFront::Distribution"
     );
 }
 

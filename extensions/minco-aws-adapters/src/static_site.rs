@@ -1,18 +1,23 @@
 use async_trait::async_trait;
-use aws_sdk_cloudfront::types::{InvalidationBatch, Paths};
-use aws_sdk_s3::{primitives::ByteStream, types::ServerSideEncryption};
+use aws_sdk_cloudfront::{
+    client::Waiters,
+    types::{InvalidationBatch, Paths},
+};
+use aws_sdk_s3::{
+    primitives::ByteStream,
+    types::{ChecksumMode, ServerSideEncryption},
+};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use minco_plugin_static_site::{
-    StaticSiteError, StaticSitePlan, StaticSitePublication, StaticSitePublisher,
+    StaticSiteAsset, StaticSiteError, StaticSitePlan, StaticSitePublication, StaticSitePublisher,
+    StaticSiteReleaseManifest,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
-use tokio::fs;
-use uuid::Uuid;
-use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
 pub struct AwsStaticSitePublisher {
@@ -122,52 +127,103 @@ impl AwsStaticSitePublisher {
     }
 }
 
-#[async_trait]
-impl StaticSitePublisher for AwsStaticSitePublisher {
-    async fn publish(
+impl AwsStaticSitePublisher {
+    async fn acquire_publication_lock(
         &self,
-        plan: &StaticSitePlan,
-        repository_root: &Path,
-    ) -> Result<StaticSitePublication, StaticSiteError> {
-        plan.validate()?;
-        let files = publication_files(plan, repository_root).await?;
-        if !files
-            .iter()
-            .any(|file| file.relative == plan.index_document)
-        {
-            return Err(publish_error(format!(
-                "static-site index document {} is missing",
-                plan.index_document
-            )));
-        }
+        key: &str,
+        manifest: &StaticSiteReleaseManifest,
+    ) -> Result<(), StaticSiteError> {
+        self.s3
+            .put_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .if_none_match("*")
+            .body(ByteStream::from(manifest.digest_sha256()?.into_bytes()))
+            .content_type("text/plain")
+            .cache_control("no-store")
+            .server_side_encryption(ServerSideEncryption::Aes256)
+            .send()
+            .await
+            .map_err(|error| {
+                publish_error(format!(
+                    "failed to acquire the exclusive S3 static-site publication lock: {error}"
+                ))
+            })?;
+        Ok(())
+    }
 
-        let mut expected = BTreeSet::new();
+    async fn release_publication_lock(&self, key: &str) -> Result<(), StaticSiteError> {
+        self.s3
+            .delete_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|error| {
+                publish_error(format!(
+                    "failed to release the S3 static-site publication lock: {error}"
+                ))
+            })?;
+        Ok(())
+    }
+
+    async fn publish_verified_manifest(
+        &self,
+        manifest: &StaticSiteReleaseManifest,
+        repository_root: &Path,
+        lock_key: &str,
+    ) -> Result<StaticSitePublication, StaticSiteError> {
+        let source = repository_root.join(&manifest.plan.source_directory);
+        let files = manifest
+            .assets
+            .iter()
+            .map(|asset| PublicationFile {
+                absolute: source.join(&asset.path),
+                asset: asset.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        let mut expected = BTreeSet::from([lock_key.to_owned()]);
         for file in &files {
-            let key = self.provider_key(&file.relative);
+            let key = self.provider_key(&file.asset.path);
             expected.insert(key.clone());
+            let checksum = s3_sha256_checksum(&file.asset.sha256)?;
             let body = ByteStream::from_path(&file.absolute)
                 .await
                 .map_err(|error| {
                     publish_error(format!(
                         "failed to read static-site file {}: {error}",
-                        file.relative
+                        file.asset.path
                     ))
                 })?;
-            let content_type = mime_guess::from_path(&file.relative)
-                .first_or_octet_stream()
-                .essence_str()
-                .to_owned();
             self.s3
                 .put_object()
                 .bucket(&self.bucket)
                 .key(key)
                 .body(body)
-                .content_type(content_type)
-                .cache_control(cache_control(plan, &file.relative))
+                .checksum_sha256(&checksum)
+                .content_type(&file.asset.content_type)
+                .cache_control(&file.asset.cache_control)
                 .server_side_encryption(ServerSideEncryption::Aes256)
                 .send()
                 .await
                 .map_err(|error| publish_error(format!("S3 PutObject failed: {error}")))?;
+            let uploaded = self
+                .s3
+                .head_object()
+                .bucket(&self.bucket)
+                .key(self.provider_key(&file.asset.path))
+                .checksum_mode(ChecksumMode::Enabled)
+                .send()
+                .await
+                .map_err(|error| publish_error(format!("S3 HeadObject failed: {error}")))?;
+            verify_uploaded_object(
+                &file.asset,
+                uploaded.content_length(),
+                uploaded.checksum_sha256(),
+                uploaded.content_type(),
+                uploaded.cache_control(),
+            )?;
         }
 
         let existing = self.existing_keys().await?;
@@ -196,7 +252,7 @@ impl StaticSitePublisher for AwsStaticSitePublisher {
                     .map_err(|error| publish_error(error.to_string()))?;
                 let batch = InvalidationBatch::builder()
                     .paths(paths)
-                    .caller_reference(format!("minco-{}", Uuid::new_v4()))
+                    .caller_reference(invalidation_caller_reference(manifest)?)
                     .build()
                     .map_err(|error| publish_error(error.to_string()))?;
                 let output = self
@@ -209,113 +265,130 @@ impl StaticSitePublisher for AwsStaticSitePublisher {
                     .map_err(|error| {
                         publish_error(format!("CloudFront CreateInvalidation failed: {error}"))
                     })?;
-                Some(
-                    output
-                        .invalidation()
-                        .map(|value| value.id().to_owned())
-                        .ok_or_else(|| {
-                            publish_error("CloudFront CreateInvalidation returned no invalidation")
-                        })?,
-                )
+                let invalidation_id = output
+                    .invalidation()
+                    .map(|value| value.id().to_owned())
+                    .ok_or_else(|| {
+                        publish_error("CloudFront CreateInvalidation returned no invalidation")
+                    })?;
+                self.cloudfront
+                    .wait_until_invalidation_completed()
+                    .distribution_id(distribution_id)
+                    .id(&invalidation_id)
+                    .wait(std::time::Duration::from_mins(15))
+                    .await
+                    .map_err(|error| {
+                        publish_error(format!(
+                            "CloudFront invalidation {invalidation_id} did not complete: {error}"
+                        ))
+                    })?;
+                Some(invalidation_id)
             }
             None => None,
         };
 
         Ok(StaticSitePublication {
             url: self.public_url.clone(),
+            release_manifest_digest: manifest.digest_sha256()?,
+            assets: manifest.assets.clone(),
             uploaded: files.len(),
             removed: stale.len(),
             invalidation_id,
+            invalidation_completed: self.distribution_id.is_some(),
         })
+    }
+}
+
+#[async_trait]
+impl StaticSitePublisher for AwsStaticSitePublisher {
+    async fn publish_manifest(
+        &self,
+        manifest: &StaticSiteReleaseManifest,
+        repository_root: &Path,
+    ) -> Result<StaticSitePublication, StaticSiteError> {
+        manifest.verify_at(repository_root)?;
+        let lock_key = self.provider_key(".minco/deployment-lock");
+        self.acquire_publication_lock(&lock_key, manifest).await?;
+        let publication = self
+            .publish_verified_manifest(manifest, repository_root, &lock_key)
+            .await;
+        match publication {
+            Ok(publication) => {
+                self.release_publication_lock(&lock_key).await?;
+                Ok(publication)
+            }
+            Err(error) => Err(publish_error(format!(
+                "{error}; publication lock retained for explicit recovery because provider state may be partial"
+            ))),
+        }
     }
 }
 
 #[derive(Debug)]
 struct PublicationFile {
     absolute: PathBuf,
-    relative: String,
+    asset: StaticSiteAsset,
 }
 
-async fn publication_files(
-    plan: &StaticSitePlan,
-    repository_root: &Path,
-) -> Result<Vec<PublicationFile>, StaticSiteError> {
-    validate_relative(&plan.source_directory)?;
-    validate_relative(&plan.index_document)?;
-    let repository_root = fs::canonicalize(repository_root)
-        .await
-        .map_err(|error| publish_error(format!("repository root is unavailable: {error}")))?;
-    let source = fs::canonicalize(repository_root.join(&plan.source_directory))
-        .await
-        .map_err(|error| publish_error(format!("static-site source is unavailable: {error}")))?;
-    if !source.starts_with(&repository_root) {
+fn s3_sha256_checksum(hex_digest: &str) -> Result<String, StaticSiteError> {
+    if hex_digest.len() != 64 || !hex_digest.bytes().all(|value| value.is_ascii_hexdigit()) {
         return Err(publish_error(
-            "static-site source resolves outside the repository root",
+            "static-site release manifest contains an invalid SHA-256 digest",
         ));
     }
-    let mut files = Vec::new();
-    for entry in WalkDir::new(&source).follow_links(false) {
-        let entry =
-            entry.map_err(|error| publish_error(format!("static-site walk failed: {error}")))?;
-        if entry.file_type().is_symlink() {
-            return Err(publish_error(format!(
-                "static-site source contains a symlink: {}",
-                entry.path().display()
-            )));
-        }
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let absolute = fs::canonicalize(entry.path())
-            .await
-            .map_err(|error| publish_error(format!("static-site file is unavailable: {error}")))?;
-        if !absolute.starts_with(&source) {
-            return Err(publish_error(
-                "static-site file resolves outside the source directory",
-            ));
-        }
-        let relative = absolute
-            .strip_prefix(&source)
-            .map_err(|_| publish_error("static-site path prefix changed during publication"))?;
-        let relative = slash_path(relative)?;
-        files.push(PublicationFile { absolute, relative });
-    }
-    files.sort_by(|left, right| left.relative.cmp(&right.relative));
-    Ok(files)
+    let bytes = hex_digest
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let pair = std::str::from_utf8(pair)
+                .map_err(|_| publish_error("static-site SHA-256 digest is not ASCII"))?;
+            u8::from_str_radix(pair, 16)
+                .map_err(|_| publish_error("static-site SHA-256 digest is invalid"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(STANDARD.encode(bytes))
 }
 
-fn validate_relative(value: &str) -> Result<(), StaticSiteError> {
-    let path = Path::new(value);
-    if value.trim().is_empty()
-        || value.chars().any(char::is_control)
-        || path.is_absolute()
-        || path
-            .components()
-            .any(|component| !matches!(component, Component::Normal(_)))
-    {
-        return Err(publish_error(
-            "static-site path must be a safe relative path",
-        ));
+fn verify_uploaded_object(
+    asset: &StaticSiteAsset,
+    content_length: Option<i64>,
+    checksum_sha256: Option<&str>,
+    content_type: Option<&str>,
+    cache_control: Option<&str>,
+) -> Result<(), StaticSiteError> {
+    let expected_length = i64::try_from(asset.bytes)
+        .map_err(|_| publish_error(format!("static-site asset {} is too large", asset.path)))?;
+    if content_length != Some(expected_length) {
+        return Err(publish_error(format!(
+            "S3 object {} has an unexpected content length",
+            asset.path
+        )));
+    }
+    if checksum_sha256 != Some(s3_sha256_checksum(&asset.sha256)?.as_str()) {
+        return Err(publish_error(format!(
+            "S3 object {} failed SHA-256 checksum verification",
+            asset.path
+        )));
+    }
+    if content_type != Some(asset.content_type.as_str()) {
+        return Err(publish_error(format!(
+            "S3 object {} has an unexpected content type",
+            asset.path
+        )));
+    }
+    if cache_control != Some(asset.cache_control.as_str()) {
+        return Err(publish_error(format!(
+            "S3 object {} has unexpected cache metadata",
+            asset.path
+        )));
     }
     Ok(())
 }
 
-fn slash_path(path: &Path) -> Result<String, StaticSiteError> {
-    let mut parts = Vec::new();
-    for component in path.components() {
-        match component {
-            Component::Normal(value) => parts.push(
-                value
-                    .to_str()
-                    .ok_or_else(|| publish_error("static-site paths must be valid UTF-8"))?,
-            ),
-            _ => return Err(publish_error("static-site path is not relative")),
-        }
-    }
-    if parts.is_empty() {
-        return Err(publish_error("static-site file path is empty"));
-    }
-    Ok(parts.join("/"))
+fn invalidation_caller_reference(
+    manifest: &StaticSiteReleaseManifest,
+) -> Result<String, StaticSiteError> {
+    Ok(format!("minco-static-{}", manifest.digest_sha256()?))
 }
 
 fn normalize_prefix(value: &str) -> Result<String, StaticSiteError> {
@@ -329,20 +402,6 @@ fn normalize_prefix(value: &str) -> Result<String, StaticSiteError> {
         return Err(publish_error("static-site S3 prefix is invalid"));
     }
     Ok(prefix.to_owned())
-}
-
-fn cache_control(plan: &StaticSitePlan, relative: &str) -> String {
-    if is_fingerprinted(relative) {
-        format!("public,max-age={},immutable", plan.immutable_cache_seconds)
-    } else {
-        format!("public,max-age={},must-revalidate", plan.html_cache_seconds)
-    }
-}
-
-fn is_fingerprinted(relative: &str) -> bool {
-    relative
-        .split(|character: char| !character.is_ascii_hexdigit())
-        .any(|token| token.len() >= 8)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -451,6 +510,28 @@ pub fn render_cloudformation(
         json!([])
     };
     resources.insert(
+        "StaticSiteCachePolicy".into(),
+        json!({
+            "Type": "AWS::CloudFront::CachePolicy",
+            "Properties": {
+                "CachePolicyConfig": {
+                    "Comment": "Minco static-site cache policy; asset Cache-Control headers remain authoritative",
+                    "DefaultTTL": 0,
+                    "MaxTTL": plan.immutable_cache_seconds,
+                    "MinTTL": 0,
+                    "Name": {"Fn::Sub": "minco-static-${AWS::StackName}"},
+                    "ParametersInCacheKeyAndForwardedToOrigin": {
+                        "CookiesConfig": {"CookieBehavior": "none"},
+                        "EnableAcceptEncodingBrotli": true,
+                        "EnableAcceptEncodingGzip": true,
+                        "HeadersConfig": {"HeaderBehavior": "none"},
+                        "QueryStringsConfig": {"QueryStringBehavior": "none"}
+                    }
+                }
+            }
+        }),
+    );
+    resources.insert(
         "StaticSiteDistribution".into(),
         json!({
             "Type": "AWS::CloudFront::Distribution",
@@ -462,11 +543,8 @@ pub fn render_cloudformation(
                     "DefaultCacheBehavior": {
                         "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
                         "CachedMethods": ["GET", "HEAD"],
+                        "CachePolicyId": {"Ref": "StaticSiteCachePolicy"},
                         "Compress": true,
-                        "ForwardedValues": {
-                            "Cookies": {"Forward": "none"},
-                            "QueryString": false
-                        },
                         "TargetOriginId": "StaticSiteS3Origin",
                         "ViewerProtocolPolicy": "redirect-to-https"
                     },
@@ -588,6 +666,7 @@ fn publish_error(message: impl Into<String>) -> StaticSiteError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use minco_plugin_static_site::StaticSiteAsset;
 
     fn plan() -> StaticSitePlan {
         StaticSitePlan {
@@ -604,13 +683,54 @@ mod tests {
     }
 
     #[test]
-    fn immutable_caching_requires_a_hash_token() {
-        assert!(is_fingerprinted("assets/app.0123abcd.js"));
-        assert!(!is_fingerprinted("assets/application.js"));
-        assert_eq!(
-            cache_control(&plan(), "assets/application.js"),
-            "public,max-age=0,must-revalidate"
-        );
+    fn uploaded_object_must_match_the_release_manifest_metadata() {
+        let asset = StaticSiteAsset {
+            path: "index.html".into(),
+            bytes: 5,
+            sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824".into(),
+            content_type: "text/html".into(),
+            cache_control: "public,max-age=0,must-revalidate".into(),
+        };
+        let checksum = s3_sha256_checksum(&asset.sha256).expect("valid release checksum");
+        assert_eq!(checksum, "LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=");
+        verify_uploaded_object(
+            &asset,
+            Some(5),
+            Some(&checksum),
+            Some("text/html"),
+            Some("public,max-age=0,must-revalidate"),
+        )
+        .expect("matching provider metadata");
+
+        let error = verify_uploaded_object(
+            &asset,
+            Some(5),
+            Some("wrong"),
+            Some("text/html"),
+            Some("public,max-age=0,must-revalidate"),
+        )
+        .expect_err("provider checksum mismatch must fail");
+        assert!(error.to_string().contains("checksum"));
+    }
+
+    #[test]
+    fn invalidation_reference_is_deterministic_for_the_exact_release() {
+        let manifest = StaticSiteReleaseManifest {
+            schema_version: 1,
+            plan: plan(),
+            assets: vec![StaticSiteAsset {
+                path: "index.html".into(),
+                bytes: 5,
+                sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824".into(),
+                content_type: "text/html".into(),
+                cache_control: "public,max-age=0,must-revalidate".into(),
+            }],
+        };
+        let first = invalidation_caller_reference(&manifest).expect("release reference");
+        let second = invalidation_caller_reference(&manifest).expect("stable release reference");
+        assert_eq!(first, second);
+        assert!(first.starts_with("minco-static-"));
+        assert_eq!(first.len(), "minco-static-".len() + 64);
     }
 
     #[test]
@@ -638,6 +758,22 @@ mod tests {
             template["Resources"]["StaticSiteBucketPolicy"]
                 .to_string()
                 .contains("AWS:SourceArn")
+        );
+        assert_eq!(
+            template["Resources"]["StaticSiteDistribution"]["Properties"]["DistributionConfig"]["DefaultCacheBehavior"]
+                ["CachePolicyId"]["Ref"],
+            "StaticSiteCachePolicy"
+        );
+        assert!(
+            template["Resources"]["StaticSiteDistribution"]["Properties"]
+                ["DistributionConfig"]["DefaultCacheBehavior"]
+                .get("ForwardedValues")
+                .is_none()
+        );
+        assert_eq!(
+            template["Resources"]["StaticSiteCachePolicy"]["Properties"]["CachePolicyConfig"]["ParametersInCacheKeyAndForwardedToOrigin"]
+                ["CookiesConfig"]["CookieBehavior"],
+            "none"
         );
         assert!(!template.to_string().contains("WebsiteConfiguration"));
     }

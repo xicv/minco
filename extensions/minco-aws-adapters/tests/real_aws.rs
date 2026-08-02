@@ -18,7 +18,7 @@ use minco_plugin_object_storage::{
     ObjectAccessSigner, ObjectKey, ObjectStore, PresignGetObject, PresignPutObject,
     PresignedMethod, PutObject,
 };
-use minco_plugin_static_site::{StaticSitePlan, StaticSitePublisher};
+use minco_plugin_static_site::{StaticSitePlan, StaticSitePublisher, StaticSiteReleaseManifest};
 use serde_json::json;
 use std::{collections::BTreeMap, fs::OpenOptions, io::Write, path::Path};
 use uuid::Uuid;
@@ -266,8 +266,9 @@ async fn adapters_conform_on_bounded_real_aws() {
         "StaticSitePublish",
         "list and upload run-owned static-site prefix without CloudFront creation",
     );
+    let manifest = StaticSiteReleaseManifest::build(&static_plan(), temp.path()).unwrap();
     let publication = static_publisher
-        .publish(&static_plan(), temp.path())
+        .publish_manifest(&manifest, temp.path())
         .await
         .unwrap();
     assert_eq!(publication.uploaded, 2);

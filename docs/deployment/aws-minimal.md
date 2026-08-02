@@ -192,3 +192,9 @@ appropriate runtime adapter/deployment plugin is selected. See
 
 The schema 2 compatibility and migration procedure is documented in
 [`plan-schema-v2-migration.md`](plan-schema-v2-migration.md).
+
+For an explicitly selected static frontend, the same exact-release workflow
+can add a private S3 origin, CloudFront OAC, an optional reviewed certificate,
+and Route 53 aliases without fixed compute. See
+[`static-site.md`](static-site.md) for packaging, publication locks, hosted
+byte/hash verification, pricing evidence, rollback, and removal.

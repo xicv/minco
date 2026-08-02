@@ -46,10 +46,8 @@ webhook = ["dep:minco-plugin-notifications", "dep:reqwest", "dep:tokio"]
 static-site = [
   "s3",
   "dep:aws-sdk-cloudfront",
-  "dep:mime_guess",
   "dep:minco-plugin-static-site",
   "dep:tokio",
-  "dep:walkdir",
 ]
 full = ["s3", "sqs", "ses", "cognito", "webhook", "static-site"]
 
@@ -65,7 +63,6 @@ base64 = { workspace = true, optional = true }
 chrono.workspace = true
 hmac.workspace = true
 http = { workspace = true, optional = true }
-mime_guess = { workspace = true, optional = true }
 minco-core.workspace = true
 minco-plugin-events = { workspace = true, optional = true }
 minco-plugin-identity = { workspace = true, optional = true }
@@ -79,7 +76,6 @@ sha2.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 uuid.workspace = true
-walkdir = { workspace = true, optional = true }
 
 [dev-dependencies]
 aws-config.workspace = true

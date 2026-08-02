@@ -112,6 +112,81 @@ fn default_hosted_verification_dry_run_is_local_and_requires_deployment_evidence
 }
 
 #[test]
+fn static_site_publication_plan_is_local_and_names_destructive_ordering() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root");
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
+        .args([
+            "--root",
+            root.to_str().expect("UTF-8 root"),
+            "--json",
+            "deploy",
+            "static-site",
+            "plan",
+        ])
+        .output()
+        .expect("execute static-site publication plan");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON plan");
+    assert_eq!(plan["external_aws_contact"], false);
+    assert_eq!(plan["infrastructure_change"], false);
+    assert_eq!(
+        plan["stale_object_deletion_after_checksum_verification"],
+        true
+    );
+    assert_eq!(plan["cloudfront_invalidation_wait"], true);
+    assert_eq!(
+        plan["blockers"],
+        serde_json::json!(["release_manifest_missing", "deployment_receipt_missing"])
+    );
+}
+
+#[test]
+fn static_site_verification_dry_run_requires_both_runtime_and_publication_evidence() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root");
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
+        .args([
+            "--root",
+            root.to_str().expect("UTF-8 root"),
+            "--json",
+            "deploy",
+            "verify",
+            "--static-site",
+            "--dry-run",
+        ])
+        .output()
+        .expect("execute static-site verification plan");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON plan");
+    assert_eq!(plan["external_aws_contact"], false);
+    assert_eq!(plan["external_http_contact"], false);
+    assert_eq!(plan["static_site"], true);
+    assert_eq!(
+        plan["blockers"],
+        serde_json::json!([
+            "release_manifest_missing",
+            "deployment_receipt_missing",
+            "static_site_publication_missing"
+        ])
+    );
+}
+
+#[test]
 fn default_promotion_dry_run_never_contacts_aws_or_rebuilds() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

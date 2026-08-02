@@ -31,3 +31,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0025](adrs/0025-zero-provisioned-compute-review-loop.md) | Define zero provisioned application compute, explicit residual cost, and a repository-native Verified Review Loop. | Accepted |
 | [ADR-0026](adrs/0026-resource-api-conventions.md) | Standardize opt-in OpenAPI resource shapes, bounded cursors and strong conditional writes without a generic repository or ORM. | Accepted |
 | [ADR-0027](adrs/0027-static-plugin-distribution-manifest.md) | Publish a strict archive-visible plugin distribution record while preserving static Cargo composition and runtime descriptors. | Accepted |
+| [ADR-0028](adrs/0028-exact-static-site-deployment.md) | Bind static assets to releases and guard private S3, CloudFront, domain publication and hosted byte verification with immutable receipts. | Accepted |
