@@ -158,22 +158,55 @@ coordinated release boundary.
 
 ```text
 cargo minco plugin list
-cargo minco plugin enable <id>
-cargo minco plugin disable <id>
-cargo minco plugin new <id>
+cargo minco plugin add <id-or-crate> [--dry-run]
+cargo minco plugin init <local-package-path> [--dry-run]
+cargo minco plugin explain <id-or-crate>
+cargo minco plugin new <id> [--dry-run]
+cargo minco plugin enable <id> [--dry-run]
+cargo minco plugin disable <id> [--dry-run]
 cargo minco plugin validate
+cargo minco plugin test <id-or-crate>
 cargo minco plugin test --all
+cargo minco plugin remove <id-or-crate> [--dry-run]
+cargo minco plugin doctor
 ```
 
 `plugin list` returns catalog coordinates plus archive-visible distribution
 metadata without constructing plugin code. `plugin validate` also checks the
 published-file include, schema safety, catalog drift and overlapping fields in
-official linked runtime descriptors. `plugin new` scaffolds the Cargo metadata
-pointer and `minco-plugin.json` together with the Rust crate and catalog entry.
-`plugin test --all` runs every local catalog component through the public,
-offline `minco-test` conformance boundary. It does not execute manifest evidence
-strings or contact providers. Registry-backed packages must run the kit from
-their own package workspace. See
+official linked runtime descriptors.
+
+`plugin add` accepts an ID or crate name, resolves the application's exact
+`minco` Cargo version, verifies the known static composition root, and plans the
+facade feature plus manifest selection. It supports reviewed Minco facade
+features; it deliberately refuses to invent a constructor for an app-owned or
+third-party plugin. `plugin enable` and `plugin disable` are selection-only
+workflows; an app-owned enable plan reports its explicit application
+registration as unverified instead of guessing it. `plugin remove` removes the
+facade feature and selection only when no traced application
+operation, enabled dependent, migration, seed, declared data class, or resource
+ownership blocks safe removal. A blocked dry-run succeeds so tools can inspect its ordered
+`blockers`; a real removal fails before writing.
+
+`plugin new` is the compatibility alias for `make plugin` and scaffolds the
+Cargo metadata pointer, `minco-plugin.json`, Rust crate, conformance test, and
+catalog entry. `plugin init` adopts an existing local package's reviewed
+distribution record into the catalog; it does not register or execute the
+package. All mutating plugin commands accept `--dry-run`, and global `--json`
+returns paths and actions without file contents or secret values.
+
+For a locally inspectable distribution record, `plugin explain` returns
+capabilities, plugin dependencies, operations,
+migrations, seeds, data classes, resources, wake sources, idle-cost classes,
+configuration metadata, and inert conformance evidence. `plugin doctor` checks
+catalog validity, distribution compatibility, known and non-contradictory
+selection IDs, an exact version match between the application and CLI, active
+Cargo features, and
+verified linked static facade registration. `plugin test <id>` or `--all` runs
+local packages through the public, offline `minco-test`
+conformance boundary. Neither command executes manifest evidence strings or
+contacts providers. Registry-backed packages must run the kit from their own
+package workspace. See [`../how-to/manage-plugins.md`](../how-to/manage-plugins.md),
 [`plugin-distribution.md`](plugin-distribution.md) for schema authority and
 [`plugin-conformance.md`](plugin-conformance.md) for assurance boundaries and
 stable diagnostics.

@@ -24,7 +24,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use config::{MincoManifest, discover_root};
 use config_cmd::ConfigCommand;
 use feedback_cmd::FeedbackArgs;
-use generator_cmd::{MakeCommand, StubsCommand};
+use generator_cmd::{MakeCommand, NamedArgs, StubsCommand};
 use minco_config::EnvironmentClass;
 use minco_contract::{
     Severity as ContractSeverity, diff_contracts, generate_rust, load_contract,
@@ -53,8 +53,8 @@ use minco_release::{
 };
 use new_cmd::{DatabaseChoice, NewProjectOptions, VcsChoice, create_project};
 use plugin_cmd::{
-    load_catalog, scaffold_plugin, set_plugin_state, validate_catalog,
-    validate_distribution_contracts,
+    add_plugin, doctor_plugins, explain_plugin, init_plugin, load_catalog, remove_plugin,
+    set_plugin_state_workflow, validate_catalog, validate_distribution_contracts,
 };
 use process::{capture, command_available, run_shell};
 use roadmap::{
@@ -377,17 +377,57 @@ enum TaskCommand {
 #[derive(Debug, Subcommand)]
 enum PluginCommand {
     List,
+    /// Add a catalog plugin through Minco's static facade registration.
+    Add {
+        /// Stable plugin ID or catalog crate name.
+        plugin: String,
+        /// Print the complete deterministic plan without changing files.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Explain a plugin's complete archive-visible contract without loading its code.
+    Explain {
+        /// Stable plugin ID or catalog crate name.
+        plugin: String,
+    },
+    /// Diagnose catalog, compatibility, selection, Cargo, and static registration drift.
+    Doctor,
+    /// Adopt an existing local plugin package into the reviewed catalog.
+    Init {
+        /// Project-relative local plugin package directory.
+        path: PathBuf,
+        /// Print the complete deterministic plan without changing files.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Plan removal and refuse while application behavior or data remains owned by the plugin.
+    Remove {
+        /// Stable plugin ID or catalog crate name.
+        plugin: String,
+        /// Print the complete deterministic plan and blockers without changing files.
+        #[arg(long)]
+        dry_run: bool,
+    },
     Enable {
         id: String,
+        #[arg(long)]
+        dry_run: bool,
     },
     Disable {
         id: String,
+        #[arg(long)]
+        dry_run: bool,
     },
     New {
         id: String,
+        #[arg(long)]
+        dry_run: bool,
     },
     Validate,
     Test {
+        /// Stable plugin ID or catalog crate name.
+        #[arg(required_unless_present = "all", conflicts_with = "all")]
+        plugin: Option<String>,
         /// Test every local catalog component with the public offline conformance kit.
         #[arg(long)]
         all: bool,
@@ -3342,18 +3382,50 @@ fn plugin_command(
                 as_json,
             )
         }
-        PluginCommand::Enable { id } => {
-            set_plugin_state(root, &id, true)?;
-            print_value(&json!({"plugin": id, "enabled": true}), as_json)
+        PluginCommand::Add { plugin, dry_run } => {
+            let plan = add_plugin(root, manifest, &plugin, dry_run)?;
+            print_value(&plan, as_json)
         }
-        PluginCommand::Disable { id } => {
-            set_plugin_state(root, &id, false)?;
-            print_value(&json!({"plugin": id, "enabled": false}), as_json)
+        PluginCommand::Explain { plugin } => {
+            print_value(&explain_plugin(root, manifest, &plugin)?, as_json)
         }
-        PluginCommand::New { id } => {
-            scaffold_plugin(root, &id)?;
-            print_value(&json!({"plugin": id, "created": true}), as_json)
+        PluginCommand::Doctor => {
+            let descriptors = minco::default_plugin_manager()?.descriptors();
+            let report = doctor_plugins(root, manifest, &descriptors)?;
+            let passed = report.is_passed();
+            print_value(&report, as_json)?;
+            if !passed {
+                bail!("plugin doctor found blocking drift");
+            }
+            Ok(())
         }
+        PluginCommand::Init { path, dry_run } => {
+            let plan = init_plugin(root, manifest, &path, dry_run)?;
+            print_value(&plan, as_json)
+        }
+        PluginCommand::Remove { plugin, dry_run } => {
+            let plan = remove_plugin(root, manifest, &plugin, dry_run)?;
+            let safe = plan.is_safe();
+            print_value(&plan, as_json)?;
+            if !dry_run && !safe {
+                bail!("plugin {plugin} cannot be removed safely");
+            }
+            Ok(())
+        }
+        PluginCommand::Enable { id, dry_run } => {
+            let plan = set_plugin_state_workflow(root, manifest, &id, true, "enable", dry_run)?;
+            print_value(&plan, as_json)
+        }
+        PluginCommand::Disable { id, dry_run } => {
+            let plan = set_plugin_state_workflow(root, manifest, &id, false, "disable", dry_run)?;
+            print_value(&plan, as_json)
+        }
+        PluginCommand::New { id, dry_run } => generator_cmd::execute(
+            root,
+            manifest,
+            MakeCommand::Plugin(NamedArgs { name: id, dry_run }),
+            as_json,
+        ),
         PluginCommand::Validate => {
             let catalog = load_catalog(root, &manifest.plugin_catalog)?;
             let mut findings = validate_catalog(root, &catalog)?;
@@ -3368,18 +3440,32 @@ fn plugin_command(
             }
             Ok(())
         }
-        PluginCommand::Test { all } => {
-            if !all {
-                bail!("plugin test currently requires --all");
-            }
+        PluginCommand::Test { plugin, all } => {
             let catalog = load_catalog(root, &manifest.plugin_catalog)?;
             let descriptors = minco::default_plugin_manager()?
                 .descriptors()
                 .into_iter()
                 .map(|descriptor| (descriptor.id.as_str().to_owned(), descriptor))
                 .collect::<std::collections::BTreeMap<_, _>>();
-            let mut reports = Vec::with_capacity(catalog.plugin.len());
-            for plugin in &catalog.plugin {
+            let selected = if all {
+                catalog.plugin.iter().collect::<Vec<_>>()
+            } else {
+                let requested = plugin.context("plugin test requires an ID or --all")?;
+                let matches = catalog
+                    .plugin
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.id == requested || candidate.crate_name == requested
+                    })
+                    .collect::<Vec<_>>();
+                match matches.as_slice() {
+                    [candidate] => vec![*candidate],
+                    [] => bail!("unknown plugin {requested}"),
+                    _ => bail!("plugin reference {requested} is ambiguous in the catalog"),
+                }
+            };
+            let mut reports = Vec::with_capacity(selected.len());
+            for plugin in selected {
                 let relative = plugin.path.as_ref().with_context(|| {
                     format!(
                         "plugin {} is registry-backed; run the public minco-test kit from its package workspace",

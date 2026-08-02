@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 714,
+  "file_count": 715,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -209,8 +209,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "d51324e9e66ff04d514f85d9a6e0fb39f8ab17a48206ffc1ab0f178266d787f5",
-      "size_bytes": 164146
+      "sha256": "6afc93eb4ceff2877018d16712d67f0cd0f7dfabb3f8e0a37773a202e6ba8b12",
+      "size_bytes": 167691
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -219,8 +219,8 @@
     },
     {
       "path": "crates/minco-cli/src/plugin_cmd.rs",
-      "sha256": "d290e94ee822d5bfac64c828930f8c71e0924d169c53ddb2246881983f40465c",
-      "size_bytes": 40989
+      "sha256": "540bf01fe728e9d187bb62ee4cdbcb4c9393441997aa25524b464c64ef212e3e",
+      "size_bytes": 79444
     },
     {
       "path": "crates/minco-cli/src/process.rs",
@@ -554,8 +554,8 @@
     },
     {
       "path": "crates/minco-cli/tests/plugin_cli.rs",
-      "sha256": "57b180d72ea6ad5c7bea4859d27d87cae9038b0c9d751711bfe2a2fc12f4189c",
-      "size_bytes": 4013
+      "sha256": "cdd822bccd48843c7f6b47428f09d8cab8cb85a3c01fff363c6c281d04ccd14b",
+      "size_bytes": 32945
     },
     {
       "path": "crates/minco-cli/tests/seed_cli.rs",
@@ -1314,8 +1314,8 @@
     },
     {
       "path": "docs/architecture/plugin-authoring.md",
-      "sha256": "88367c9950a43d36680ce54c73cadfca745b185be2eb32640eb886721e8c02ef",
-      "size_bytes": 7548
+      "sha256": "dbb7c5b7703a820d14c835fd223907873f85295f8ecfa829c29d084325c88677",
+      "size_bytes": 8368
     },
     {
       "path": "docs/assets/minco-icon.png",
@@ -1433,14 +1433,19 @@
       "size_bytes": 6260
     },
     {
+      "path": "docs/how-to/manage-plugins.md",
+      "sha256": "ebcfa4ecb586d6a92baa7c939a93331df5635ab3b176c678b5ae060bf52452da",
+      "size_bytes": 5242
+    },
+    {
       "path": "docs/how-to/test-a-plugin.md",
-      "sha256": "768952d9254bf46a8289559d3641510bc97306cab98f5c87df3d30283a511da2",
-      "size_bytes": 2053
+      "sha256": "c8dfcd012a001f1310aed485ab12f7d4036279b81d1d9a1634e9599498cb4660",
+      "size_bytes": 2122
     },
     {
       "path": "docs/reference/cli.md",
-      "sha256": "bf164ac7c78aa4665362a9071d7a2cbb9db0f478f8c12ef1a765e23fdbe66410",
-      "size_bytes": 11181
+      "sha256": "62b81055897dc9b93e11ecfd5c6d657f38aad047991db01f5e2970060c8c19bc",
+      "size_bytes": 13174
     },
     {
       "path": "docs/reference/compatibility.md",
@@ -1454,13 +1459,13 @@
     },
     {
       "path": "docs/reference/plugin-conformance.md",
-      "sha256": "48bfbfcbcc022ab44dc449743eea295e53c96fbf2c64f51040bd8480871c3205",
-      "size_bytes": 4503
+      "sha256": "3232ca09dbbc00962e515aa3427c050405277375300b4bb8af1855560086e370",
+      "size_bytes": 4574
     },
     {
       "path": "docs/reference/plugin-distribution.md",
-      "sha256": "c0c0b9e14a3a0277609e0bf036a2c087e662dc6dfb8f6f83a40aaf507a779419",
-      "size_bytes": 4373
+      "sha256": "a1b31d5cad4c9da2d4b17dcd451b22bafb9259c89c62e07722c3a27cec4dd8fd",
+      "size_bytes": 5679
     },
     {
       "path": "docs/research/aws-plugin-adapters-2026-07.md",
@@ -3224,8 +3229,8 @@
     },
     {
       "path": "tasks/M11/M11-T04-plugin-workflows.md",
-      "sha256": "db7ff9ef4593b69da6efe967393ef55a36cc01a14fa74260451cc48f2beff813",
-      "size_bytes": 1351
+      "sha256": "53f1e902524ea0d0c287666ae911497fcd4de523257b0d2216ff85be3a3ea3e7",
+      "size_bytes": 4700
     },
     {
       "path": "tasks/M11/M11-T05-examples-recipes.md",
@@ -3494,7 +3499,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "f1c75c5287d45e9a9ed43eba1115aef23fcc82b28c2e3b818a64d58101a72701",
+      "sha256": "53ebae11a681921c527b94457df556a16d23475cb6f43427dec9049f7a6eb3de",
       "size_bytes": 2021
     },
     {
@@ -3580,7 +3585,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "13350952e7437a37e0562331c757ebad37d7810d7ebab71917ee5e47586ee198",
-  "total_size_bytes": 4462995,
+  "source_tree_sha256": "cc669d327c34485dec05e6a377c5fedc9f67ef4e8f45f9439366dea752bb10df",
+  "total_size_bytes": 4546777,
   "version": "0.6.0"
 }
