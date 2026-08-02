@@ -12,6 +12,11 @@ A Minco release manifest includes:
 - Rust, Minco and artifact-builder toolchain versions;
 - optional repository-relative offline signatures or attestations.
 
+When the static-site plugin is selected, `cargo minco package` automatically
+adds a deterministic asset manifest attestation. See
+[`static-site.md`](static-site.md) for the private S3/CloudFront publication,
+domain, rollback and byte-verification stages.
+
 Declare the artifact build under `[commands]`:
 
 ```toml
@@ -97,6 +102,12 @@ Every HTTP check includes a bounded request ID and status. A missing, duplicate,
 invalid, or failed check makes the deployment receipt terminal `failed`;
 success binds the immutable hosted report and makes that receipt terminal
 `succeeded`.
+
+`deploy verify --static-site` keeps every API check above and additionally
+requires the exact static publication receipt plus current S3, CloudFront,
+certificate and DNS evidence. The generic deployment receipt binds both report
+files; promotion still requires exactly one hosted API report and rejects any
+unknown evidence kind.
 
 ## Exact-artifact promotion
 

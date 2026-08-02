@@ -137,6 +137,16 @@ exact digest, rechecks the release/deployment binding, and modifies only the
 guarded live Lambda alias routing boundary. It never rebuilds or replans.
 Its dry-run reports missing evidence and performs no AWS or HTTP contact.
 
+An enabled static-site plan adds two explicit stages. `deploy static-site plan`
+reports release, receipt and destination blockers without provider contact.
+`deploy static-site apply --approve-release-digest <sha256>` publishes only the
+release-bound asset manifest, verifies S3 checksums before stale deletion,
+waits for CloudFront invalidation and writes an immutable publication receipt.
+`deploy verify --static-site` then combines the normal hosted API checks with
+current S3/CloudFront byte hashes, OAC, certificate, DNS, pricing and
+invalidation evidence before succeeding the generic deployment receipt. See
+[`../deployment/static-site.md`](../deployment/static-site.md).
+
 `inspect --json` includes the full deployment projection. `explain
 <operationId> --json` identifies the HTTP deployment function and trigger for
 the operation.

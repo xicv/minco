@@ -30,21 +30,25 @@ use minco_contract::{
     Severity as ContractSeverity, diff_contracts, generate_rust, load_contract,
     load_contract_source,
 };
-use minco_core::{ApplicationGraph, PluginId, PluginManager, PluginSelection};
+use minco_core::{PluginId, PluginManager, PluginSelection};
 use minco_deploy_aws::{
     ChangeSetReceipt, ChangeSetReceiptInput, ChangeSetType, CloudFormationChangeSet,
     DeploymentTarget, DeploymentTargetCatalog, DriftState, EnvironmentExpectation,
     EnvironmentObservation, HostedCheckResult, HostedVerificationInput, HostedVerificationReport,
     MigrationState as DeploymentMigrationState, PromotionReceipt, PromotionReceiptInput,
-    SourceState, StackDrift, caller_role_arn, verify_guards, verify_promotion_boundary,
+    SourceState, StackDrift, StaticSiteCertificateObservation, StaticSiteDistributionStatus,
+    StaticSiteDnsObservation, StaticSiteInvalidationStatus, StaticSiteObjectObservation,
+    StaticSitePricingEvidence, StaticSiteProviderObservation, StaticSitePublicationReceipt,
+    StaticSitePublicationReceiptInput, StaticSiteVerificationInput, StaticSiteVerificationReport,
+    caller_role_arn, verify_guards, verify_promotion_boundary,
 };
 use minco_dev::{
     DevDatabase, DevEvent, DevGraph, DevOptions, DevPlan, DevStream, ServiceKind, Supervisor,
 };
 use minco_plan::{
     DatabaseCostEstimate, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionRole,
-    Severity as PlanSeverity, TriggerPlan, estimate_database_cost, estimate_runtime_cost,
-    render_sam_with_code_uris,
+    Severity as PlanSeverity, StaticSiteDeployment, TriggerPlan, estimate_database_cost,
+    estimate_runtime_cost, render_sam_with_code_uris,
 };
 use minco_release::{
     DatabasePlanBinding, DatabasePlanKind, DatabaseSourceDigests, DeploymentOutcome,
@@ -64,11 +68,13 @@ use roadmap::{
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sha2::{Digest as _, Sha256};
 use std::{
     ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, Output, Stdio},
+    sync::Arc,
     thread,
     time::Duration,
 };
@@ -245,6 +251,8 @@ struct PackageArgs {
     template: PathBuf,
     #[arg(long, default_value = "target/minco/release.json")]
     output: PathBuf,
+    #[arg(long, default_value = "target/minco/static-site-release.json")]
+    static_site_manifest: PathBuf,
     /// Repository-relative detached signature or provenance statement.
     #[arg(long = "attestation")]
     attestations: Vec<PathBuf>,
@@ -291,7 +299,41 @@ struct DeployVerifyArgs {
     #[arg(long, default_value = "target/minco/hosted-verification.json")]
     output: PathBuf,
     #[arg(long)]
+    static_site: bool,
+    #[arg(long, default_value = "target/minco/static-site-publication.json")]
+    static_site_publication: PathBuf,
+    #[arg(long, default_value = "target/minco/static-site-verification.json")]
+    static_site_output: PathBuf,
+    #[arg(long)]
     dry_run: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+struct StaticSitePublishInput {
+    #[arg(long, default_value = "infra/aws/deployment-targets.toml")]
+    target_config: PathBuf,
+    #[arg(long)]
+    environment: Option<String>,
+    #[arg(long, default_value = "target/minco/release.json")]
+    manifest: PathBuf,
+    #[arg(long, default_value = "target/minco/deployment-receipt.json")]
+    deployment_receipt: PathBuf,
+    #[arg(long, default_value = "target/minco/static-site-publication.json")]
+    output: PathBuf,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+enum StaticSiteCommand {
+    Plan {
+        #[command(flatten)]
+        input: StaticSitePublishInput,
+    },
+    Apply {
+        #[command(flatten)]
+        input: StaticSitePublishInput,
+        #[arg(long)]
+        approve_release_digest: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -338,6 +380,10 @@ enum DeployCommand {
     Changeset(ChangeSetArgs),
     Apply(ApplyArgs),
     Verify(DeployVerifyArgs),
+    StaticSite {
+        #[command(subcommand)]
+        command: StaticSiteCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -625,7 +671,7 @@ async fn main() -> Result<()> {
         Command::Stubs(command) => generator_cmd::execute_stubs(&root, &command, as_json),
         Command::Inspect => inspect(&root, &manifest, as_json),
         Command::Explain(args) => explain(&root, &manifest, &args.operation_id, as_json),
-        Command::Deploy(command) => deploy(&root, &manifest, command, as_json),
+        Command::Deploy(command) => Box::pin(deploy(&root, &manifest, command, as_json)).await,
         Command::Cost(input) => cost(&root, &manifest, input, as_json),
         Command::Perf(input) => perf(&root, &manifest, input, as_json),
         Command::Architecture => architecture(&root, &manifest, as_json),
@@ -713,11 +759,33 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
     }
     let api_artifact = exact_api_artifact(&evidence.release)?;
     let hosted_verification = FileDigest::from_rooted_path(root, root.join(&args.verification))?;
-    let [verification] = evidence.deployment.verification() else {
-        bail!("deployment receipt must contain exactly one verification evidence binding");
+    let hosted_bindings = evidence
+        .deployment
+        .verification()
+        .iter()
+        .filter(|verification| verification.kind == "hosted_verification")
+        .collect::<Vec<_>>();
+    let [verification] = hosted_bindings.as_slice() else {
+        bail!("deployment receipt must contain exactly one hosted verification binding");
     };
-    if verification.kind != "hosted_verification" || verification.file != hosted_verification {
+    if verification.file != hosted_verification {
         bail!("deployment receipt does not bind the selected hosted verification report");
+    }
+    for verification in evidence.deployment.verification() {
+        match verification.kind.as_str() {
+            "hosted_verification" => {}
+            "static_site_verification" => {
+                let report: StaticSiteVerificationReport = read_strict_json(
+                    &root.join(&verification.file.path),
+                    "static-site verification report",
+                )?;
+                report.verify_structure()?;
+                if report.release_digest != evidence.release.release_digest {
+                    bail!("static-site verification does not bind the promoted release");
+                }
+            }
+            kind => bail!("deployment receipt contains unsupported verification kind {kind}"),
+        }
     }
     let report = HostedVerificationReport::read_json(
         root.join(&args.verification),
@@ -1781,7 +1849,7 @@ fn explain_value(
     }))
 }
 
-fn deploy(
+async fn deploy(
     root: &Path,
     manifest: &MincoManifest,
     command: DeployCommand,
@@ -1834,20 +1902,48 @@ fn deploy(
         }
         DeployCommand::Changeset(args) => change_set_command(root, &args, as_json),
         DeployCommand::Apply(args) => apply_change_set_command(root, &args, as_json),
-        DeployCommand::Verify(args) => verify_deployment_command(root, manifest, &args, as_json),
+        DeployCommand::Verify(args) => {
+            verify_deployment_command(root, manifest, &args, as_json).await
+        }
+        DeployCommand::StaticSite { command } => {
+            Box::pin(static_site_command(root, command, as_json)).await
+        }
     }
 }
 
-fn verify_deployment_command(
+async fn static_site_command(root: &Path, command: StaticSiteCommand, as_json: bool) -> Result<()> {
+    match command {
+        StaticSiteCommand::Plan { input } => {
+            Box::pin(static_site_publication(root, &input, None, true, as_json)).await
+        }
+        StaticSiteCommand::Apply {
+            input,
+            approve_release_digest,
+        } => {
+            Box::pin(static_site_publication(
+                root,
+                &input,
+                Some(&approve_release_digest),
+                false,
+                as_json,
+            ))
+            .await
+        }
+    }
+}
+
+async fn static_site_publication(
     root: &Path,
-    manifest: &MincoManifest,
-    args: &DeployVerifyArgs,
+    input: &StaticSitePublishInput,
+    approval: Option<&str>,
+    dry_run: bool,
     as_json: bool,
 ) -> Result<()> {
     for (path, label) in [
-        (&args.manifest, "release manifest"),
-        (&args.receipt, "deployment receipt"),
-        (&args.output, "hosted verification output"),
+        (&input.target_config, "deployment target configuration"),
+        (&input.manifest, "release manifest"),
+        (&input.deployment_receipt, "deployment receipt"),
+        (&input.output, "static-site publication receipt"),
     ] {
         if path.as_os_str().is_empty()
             || path.is_absolute()
@@ -1858,7 +1954,653 @@ fn verify_deployment_command(
             bail!("{label} must be a normalized project-relative path");
         }
     }
+    let output = package_output_path(root, &input.output)?;
+    let mut blockers = Vec::new();
+    for (path, code) in [
+        (&input.target_config, "target_config_missing"),
+        (&input.manifest, "release_manifest_missing"),
+        (&input.deployment_receipt, "deployment_receipt_missing"),
+    ] {
+        if !root.join(path).is_file() {
+            blockers.push(code);
+        }
+    }
+    if output.exists() {
+        blockers.push("publication_receipt_exists");
+    }
+
+    let evidence = if blockers.iter().any(|code| {
+        matches!(
+            *code,
+            "target_config_missing" | "release_manifest_missing" | "deployment_receipt_missing"
+        )
+    }) {
+        None
+    } else if let Ok(evidence) =
+        verified_deployment_evidence(root, &input.manifest, &input.deployment_receipt)
+    {
+        Some(evidence)
+    } else {
+        blockers.push("deployment_evidence_invalid");
+        None
+    };
+    let mut static_manifest_path = None;
+    if let Some(evidence) = &evidence {
+        if evidence.deployment.outcome() != DeploymentOutcome::Started {
+            blockers.push("deployment_not_started");
+        }
+        if FileDigest::from_rooted_path(root, root.join(&input.target_config)).ok()
+            != Some(evidence.change_set.target_config.clone())
+        {
+            blockers.push("target_config_mismatch");
+        }
+        match exact_static_site_manifest(root, &evidence.release) {
+            Ok((file, _)) => static_manifest_path = Some(file.path),
+            Err(_) => blockers.push("static_site_release_manifest_invalid"),
+        }
+        if !dry_run {
+            match approval {
+                None => blockers.push("release_approval_missing"),
+                Some(digest) if digest != evidence.release.release_digest => {
+                    blockers.push("release_approval_mismatch");
+                }
+                Some(_) => {}
+            }
+        }
+    } else if !dry_run && approval.is_none() {
+        blockers.push("release_approval_missing");
+    }
+
+    let plan = json!({
+        "schema_version": 1,
+        "operation": if dry_run { "static_site_publication_plan" } else { "static_site_publication_apply" },
+        "external_aws_contact": false,
+        "infrastructure_change": false,
+        "exact_release_required": true,
+        "stale_object_deletion_after_checksum_verification": true,
+        "cloudfront_invalidation_wait": true,
+        "release_manifest": input.manifest,
+        "deployment_receipt": input.deployment_receipt,
+        "static_site_manifest": static_manifest_path,
+        "publication_receipt": input.output,
+        "blockers": blockers,
+    });
+    if dry_run {
+        return print_value(&plan, as_json);
+    }
+    if !blockers.is_empty() {
+        bail!(
+            "static-site publication is blocked: {}",
+            blockers.join(", ")
+        );
+    }
+    let evidence = evidence.context("verified deployment evidence is required")?;
+    let (manifest_file, manifest) = exact_static_site_manifest(root, &evidence.release)?;
+    require_exact_source(root, &evidence.release)?;
+    verify_current_caller(root, &evidence.target)?;
+    let stack = describe_target_stack(root, &evidence.target)?
+        .context("static-site deployment stack no longer exists")?;
+    require_stable_update_stack(&stack.stack_status)?;
+    let bucket = stack_output(&stack, "StaticSiteBucketName")?.to_owned();
+    let distribution_id = stack_output(&stack, "StaticSiteDistributionId")?.to_owned();
+    let distribution_domain = stack_output(&stack, "StaticSiteDistributionDomainName")?.to_owned();
+    let public_url = stack_output(&stack, "StaticSiteUrl")?.to_owned();
+
+    let shared = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .region(aws_config::Region::new(
+            evidence.target.expected_region.clone(),
+        ))
+        .load()
+        .await;
+    let publisher = minco_aws_adapters::static_site::AwsStaticSitePublisher::new(
+        aws_sdk_s3::Client::new(&shared),
+        aws_sdk_cloudfront::Client::new(&shared),
+        &bucket,
+        "",
+        Some(distribution_id.clone()),
+        &public_url,
+        true,
+    )?;
+    let publisher = minco::plugin_static_site::StaticSitePublisherService::new(Arc::new(publisher));
+    let publication = publisher.publish_manifest(&manifest, root).await?;
+    require_exact_source(root, &evidence.release)?;
+    let receipt = StaticSitePublicationReceipt::seal(StaticSitePublicationReceiptInput {
+        release_digest: evidence.release.release_digest,
+        manifest_file,
+        bucket,
+        distribution_id,
+        distribution_domain,
+        publication,
+    })?;
+    ensure_parent(&output)?;
+    receipt.write_json(&output)?;
+    receipt.verify_at(root)?;
+    print_value(
+        &json!({
+            "published": true,
+            "receipt": receipt,
+            "receipt_path": input.output,
+        }),
+        as_json,
+    )
+}
+
+fn exact_static_site_manifest(
+    root: &Path,
+    release: &ReleaseManifest,
+) -> Result<(
+    FileDigest,
+    minco::plugin_static_site::StaticSiteReleaseManifest,
+)> {
+    let deployment_plan = release_deployment_plan(root, release)?;
+    let expected = deployment_plan
+        .static_site
+        .as_ref()
+        .context("release deployment plan does not contain a static site")?;
+    let expected = provider_static_site_plan(expected);
+    let matching = release
+        .attestations
+        .iter()
+        .filter_map(|file| {
+            let manifest =
+                read_strict_json::<minco::plugin_static_site::StaticSiteReleaseManifest>(
+                    &root.join(&file.path),
+                    "static-site release manifest",
+                )
+                .ok()?;
+            (manifest.plan == expected).then(|| (file.clone(), manifest))
+        })
+        .collect::<Vec<_>>();
+    let [(file, manifest)] = matching.as_slice() else {
+        bail!("release must bind exactly one static-site release manifest");
+    };
+    file.verify_at(root)?;
+    manifest.verify_at(root)?;
+    Ok((file.clone(), manifest.clone()))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsGetDistributionOutput {
+    distribution: AwsDistributionObservation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDistributionObservation {
+    id: String,
+    status: String,
+    domain_name: String,
+    distribution_config: AwsDistributionConfigObservation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDistributionConfigObservation {
+    aliases: AwsCloudFrontAliases,
+    origins: AwsCloudFrontOrigins,
+    viewer_certificate: AwsCloudFrontViewerCertificate,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsCloudFrontAliases {
+    #[serde(default)]
+    items: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsCloudFrontOrigins {
+    items: Vec<AwsCloudFrontOrigin>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsCloudFrontOrigin {
+    domain_name: String,
+    origin_access_control_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AwsCloudFrontViewerCertificate {
+    #[serde(rename = "ACMCertificateArn")]
+    acm_certificate_arn: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsGetInvalidationOutput {
+    invalidation: AwsInvalidationObservation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsInvalidationObservation {
+    id: String,
+    status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsS3HeadObjectObservation {
+    content_length: i64,
+    #[serde(rename = "ChecksumSHA256")]
+    checksum_sha256: Option<String>,
+    content_type: Option<String>,
+    cache_control: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDescribeCertificateOutput {
+    certificate: AwsCertificateObservation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsCertificateObservation {
+    certificate_arn: String,
+    domain_name: String,
+    #[serde(default)]
+    subject_alternative_names: Vec<String>,
+    status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsGetHostedZoneOutput {
+    hosted_zone: AwsHostedZoneObservation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsHostedZoneObservation {
+    id: String,
+    name: String,
+    config: AwsHostedZoneConfig,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsHostedZoneConfig {
+    private_zone: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsResourceRecordSetsOutput {
+    resource_record_sets: Vec<AwsResourceRecordSet>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsResourceRecordSet {
+    name: String,
+    #[serde(rename = "Type")]
+    record_type: String,
+    alias_target: Option<AwsAliasTarget>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AwsAliasTarget {
+    #[serde(rename = "DNSName")]
+    dns_name: String,
+}
+
+async fn collect_static_site_verification(
+    root: &Path,
+    release: &ReleaseManifest,
+    target: &DeploymentTarget,
+    stack: &AwsStack,
+    publication_path: &Path,
+) -> Result<StaticSiteVerificationReport> {
+    validate_project_file(root, publication_path, "static-site publication receipt")?;
+    let publication = StaticSitePublicationReceipt::read_json(root.join(publication_path))?;
+    publication.verify_at(root)?;
+    let (manifest_file, manifest) = exact_static_site_manifest(root, release)?;
+    if publication.release_digest != release.release_digest
+        || publication.manifest_file != manifest_file
+        || publication.bucket != stack_output(stack, "StaticSiteBucketName")?
+        || publication.distribution_id != stack_output(stack, "StaticSiteDistributionId")?
+        || publication.distribution_domain
+            != stack_output(stack, "StaticSiteDistributionDomainName")?
+    {
+        bail!("static-site publication receipt does not match the current release and stack");
+    }
+    let invalidation_id = publication
+        .publication
+        .invalidation_id
+        .as_deref()
+        .context("static-site publication receipt has no completed invalidation")?;
+    let distribution: AwsGetDistributionOutput = aws_json(
+        root,
+        &target.expected_region,
+        "inspect the static-site CloudFront distribution",
+        &[
+            "cloudfront",
+            "get-distribution",
+            "--id",
+            &publication.distribution_id,
+        ],
+    )?;
+    let invalidation: AwsGetInvalidationOutput = aws_json(
+        root,
+        &target.expected_region,
+        "inspect the static-site CloudFront invalidation",
+        &[
+            "cloudfront",
+            "get-invalidation",
+            "--distribution-id",
+            &publication.distribution_id,
+            "--id",
+            invalidation_id,
+        ],
+    )?;
+    let [origin] = distribution
+        .distribution
+        .distribution_config
+        .origins
+        .items
+        .as_slice()
+    else {
+        bail!("static-site distribution must contain exactly one private origin");
+    };
+
+    let client = reqwest::Client::builder()
+        .https_only(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(30))
+        .build()?;
+    let base_url = url::Url::parse(&publication.publication.url)?;
+    let mut objects = Vec::with_capacity(manifest.assets.len());
+    for asset in &manifest.assets {
+        let head: AwsS3HeadObjectObservation = aws_json(
+            root,
+            &target.expected_region,
+            "verify a static-site S3 object",
+            &[
+                "s3api",
+                "head-object",
+                "--bucket",
+                &publication.bucket,
+                "--key",
+                &asset.path,
+                "--checksum-mode",
+                "ENABLED",
+            ],
+        )?;
+        let s3_sha256 = base64_sha256_to_hex(
+            head.checksum_sha256
+                .as_deref()
+                .context("S3 HeadObject omitted the release SHA-256 checksum")?,
+        )?;
+        let asset_url = base_url.join(&asset.path)?;
+        let response = client
+            .get(asset_url)
+            .header(reqwest::header::ACCEPT_ENCODING, "identity")
+            .send()
+            .await?;
+        if response.status() != reqwest::StatusCode::OK {
+            bail!(
+                "CloudFront static asset {} returned status {}",
+                asset.path,
+                response.status()
+            );
+        }
+        if response.content_length() != Some(asset.bytes) {
+            bail!(
+                "CloudFront static asset {} omitted or changed its bounded content length",
+                asset.path
+            );
+        }
+        let cloudfront_content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .context("CloudFront static asset omitted content type")?
+            .to_str()
+            .context("CloudFront static asset returned non-ASCII content type")?
+            .to_owned();
+        let cloudfront_cache_control = response
+            .headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .context("CloudFront static asset omitted cache metadata")?
+            .to_str()
+            .context("CloudFront static asset returned non-ASCII cache metadata")?
+            .to_owned();
+        let bytes = response.bytes().await?;
+        let cloudfront_sha256 = format!("{:x}", Sha256::digest(&bytes));
+        objects.push(StaticSiteObjectObservation {
+            path: asset.path.clone(),
+            s3_bytes: u64::try_from(head.content_length)
+                .context("S3 returned a negative static-site content length")?,
+            s3_sha256,
+            s3_content_type: head
+                .content_type
+                .context("S3 HeadObject omitted static-site content type")?,
+            s3_cache_control: head
+                .cache_control
+                .context("S3 HeadObject omitted static-site cache metadata")?,
+            cloudfront_bytes: u64::try_from(bytes.len()).context("asset length overflow")?,
+            cloudfront_sha256,
+            cloudfront_content_type,
+            cloudfront_cache_control,
+        });
+    }
+
+    let certificate = collect_static_site_certificate(root, target)?;
+    let dns = collect_static_site_dns(root, target, &manifest)?;
+    let pricing = StaticSitePricingEvidence {
+        checked_on: target
+            .static_site_pricing_checked_on
+            .clone()
+            .context("reviewed static-site pricing date is missing")?,
+        source: target
+            .static_site_pricing_source
+            .clone()
+            .context("reviewed static-site pricing source is missing")?,
+        billing_model: target
+            .static_site_billing_model
+            .context("reviewed CloudFront billing model is missing")?,
+        price_class: manifest.plan.price_class.clone(),
+        flat_rate_eligibility: target
+            .static_site_flat_rate_eligibility
+            .context("reviewed CloudFront flat-rate eligibility is missing")?,
+    };
+    let distribution_status = match distribution.distribution.status.as_str() {
+        "Deployed" => StaticSiteDistributionStatus::Deployed,
+        "InProgress" => StaticSiteDistributionStatus::InProgress,
+        status => bail!("unsupported CloudFront distribution status {status}"),
+    };
+    let invalidation_status = match invalidation.invalidation.status.as_str() {
+        "Completed" => StaticSiteInvalidationStatus::Completed,
+        "InProgress" => StaticSiteInvalidationStatus::InProgress,
+        status => bail!("unsupported CloudFront invalidation status {status}"),
+    };
+    if distribution.distribution.id != publication.distribution_id
+        || invalidation.invalidation.id != invalidation_id
+    {
+        bail!("CloudFront returned a different distribution or invalidation identity");
+    }
+    StaticSiteVerificationReport::complete(StaticSiteVerificationInput {
+        release_digest: release.release_digest.clone(),
+        expected_account_id: target.expected_account_id.clone(),
+        deployment_region: target.expected_region.clone(),
+        manifest,
+        observation: StaticSiteProviderObservation {
+            bucket: publication.bucket,
+            distribution_id: distribution.distribution.id,
+            distribution_domain: distribution.distribution.domain_name,
+            distribution_status,
+            distribution_aliases: distribution.distribution.distribution_config.aliases.items,
+            distribution_certificate_arn: distribution
+                .distribution
+                .distribution_config
+                .viewer_certificate
+                .acm_certificate_arn,
+            origin_domain: origin.domain_name.clone(),
+            origin_access_control_id: origin.origin_access_control_id.clone(),
+            invalidation_id: invalidation.invalidation.id,
+            invalidation_status,
+            certificate,
+            dns,
+            objects,
+            pricing,
+        },
+    })
+    .map_err(Into::into)
+}
+
+fn collect_static_site_certificate(
+    root: &Path,
+    target: &DeploymentTarget,
+) -> Result<Option<StaticSiteCertificateObservation>> {
+    let Some(arn) = target.static_site_certificate_arn.as_deref() else {
+        return Ok(None);
+    };
+    let described: AwsDescribeCertificateOutput = aws_json(
+        root,
+        "us-east-1",
+        "inspect the existing static-site ACM certificate",
+        &["acm", "describe-certificate", "--certificate-arn", arn],
+    )?;
+    if described.certificate.certificate_arn != arn {
+        bail!("ACM returned a different static-site certificate");
+    }
+    let mut names = described.certificate.subject_alternative_names;
+    names.push(described.certificate.domain_name);
+    names.sort_unstable();
+    names.dedup();
+    Ok(Some(StaticSiteCertificateObservation {
+        arn: described.certificate.certificate_arn,
+        status: described.certificate.status,
+        names,
+    }))
+}
+
+fn collect_static_site_dns(
+    root: &Path,
+    target: &DeploymentTarget,
+    manifest: &minco::plugin_static_site::StaticSiteReleaseManifest,
+) -> Result<Option<StaticSiteDnsObservation>> {
+    if !manifest.plan.manage_dns_alias {
+        return Ok(None);
+    }
+    let zone_id = target
+        .static_site_hosted_zone_id
+        .as_deref()
+        .context("reviewed static-site hosted-zone ID is missing")?;
+    let domain = manifest
+        .plan
+        .custom_domain
+        .as_deref()
+        .context("managed static-site DNS requires a custom domain")?;
+    let zone: AwsGetHostedZoneOutput = aws_json(
+        root,
+        &target.expected_region,
+        "inspect the static-site Route 53 hosted zone",
+        &["route53", "get-hosted-zone", "--id", zone_id],
+    )?;
+    if zone.hosted_zone.id.trim_start_matches("/hostedzone/") != zone_id {
+        bail!("Route 53 returned a different hosted zone");
+    }
+    let records: AwsResourceRecordSetsOutput = aws_json(
+        root,
+        &target.expected_region,
+        "inspect the static-site Route 53 aliases",
+        &[
+            "route53",
+            "list-resource-record-sets",
+            "--hosted-zone-id",
+            zone_id,
+        ],
+    )?;
+    Ok(Some(StaticSiteDnsObservation {
+        hosted_zone_id: zone_id.to_owned(),
+        hosted_zone_name: zone.hosted_zone.name,
+        private_zone: zone.hosted_zone.config.private_zone,
+        a_target: exact_route53_alias(&records.resource_record_sets, domain, "A")?
+            .context("static-site Route 53 A alias is missing")?,
+        aaaa_target: exact_route53_alias(&records.resource_record_sets, domain, "AAAA")?,
+    }))
+}
+
+fn exact_route53_alias(
+    records: &[AwsResourceRecordSet],
+    domain: &str,
+    record_type: &str,
+) -> Result<Option<String>> {
+    let matching = records
+        .iter()
+        .filter(|record| {
+            record.name.trim_end_matches('.') == domain && record.record_type == record_type
+        })
+        .collect::<Vec<_>>();
+    match matching.as_slice() {
+        [] => Ok(None),
+        [record] => Ok(Some(
+            record
+                .alias_target
+                .as_ref()
+                .context("static-site DNS record is not an alias")?
+                .dns_name
+                .clone(),
+        )),
+        _ => bail!("static-site DNS contains duplicate {record_type} aliases"),
+    }
+}
+
+fn base64_sha256_to_hex(value: &str) -> Result<String> {
+    use std::fmt::Write as _;
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(value)
+        .context("decode S3 SHA-256 checksum")?;
+    if bytes.len() != 32 {
+        bail!("S3 SHA-256 checksum has an invalid length");
+    }
+    let mut digest = String::with_capacity(64);
+    for byte in bytes {
+        write!(&mut digest, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    Ok(digest)
+}
+
+async fn verify_deployment_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    args: &DeployVerifyArgs,
+    as_json: bool,
+) -> Result<()> {
+    let mut paths = vec![
+        (&args.manifest, "release manifest"),
+        (&args.receipt, "deployment receipt"),
+        (&args.output, "hosted verification output"),
+    ];
+    if args.static_site {
+        paths.extend([
+            (
+                &args.static_site_publication,
+                "static-site publication receipt",
+            ),
+            (&args.static_site_output, "static-site verification output"),
+        ]);
+    }
+    for (path, label) in paths {
+        if path.as_os_str().is_empty()
+            || path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            bail!("{label} must be a normalized project-relative path");
+        }
+    }
     let output_path = package_output_path(root, &args.output)?;
+    let static_site_output_path = args
+        .static_site
+        .then(|| package_output_path(root, &args.static_site_output))
+        .transpose()?;
     let mut blockers = Vec::new();
     if !root.join(&args.manifest).is_file() {
         blockers.push("release_manifest_missing");
@@ -1869,6 +2611,15 @@ fn verify_deployment_command(
     if output_path.exists() {
         blockers.push("hosted_verification_output_exists");
     }
+    if args.static_site && !root.join(&args.static_site_publication).is_file() {
+        blockers.push("static_site_publication_missing");
+    }
+    if static_site_output_path
+        .as_ref()
+        .is_some_and(|path| path.exists())
+    {
+        blockers.push("static_site_verification_output_exists");
+    }
     if args.dry_run {
         return print_value(
             &json!({
@@ -1878,6 +2629,9 @@ fn verify_deployment_command(
                 "release_manifest": args.manifest,
                 "deployment_receipt": args.receipt,
                 "hosted_verification_output": args.output,
+                "static_site": args.static_site,
+                "static_site_publication": args.static_site.then_some(&args.static_site_publication),
+                "static_site_verification_output": args.static_site.then_some(&args.static_site_output),
                 "blockers": blockers,
             }),
             as_json,
@@ -1975,10 +2729,62 @@ fn verify_deployment_command(
     };
     let _ = fs::remove_file(&observation_path);
     let verification_file = FileDigest::from_rooted_path(root, &output_path)?;
-    deployment.succeed(vec![VerificationEvidence {
+    let mut verification = vec![VerificationEvidence {
         kind: "hosted_verification".into(),
         file: verification_file,
-    }])?;
+    }];
+    let static_site_report = if args.static_site {
+        let static_output = static_site_output_path
+            .as_ref()
+            .context("static-site verification output is required")?;
+        let collection = collect_static_site_verification(
+            root,
+            &evidence.release,
+            &evidence.target,
+            &stack,
+            &args.static_site_publication,
+        )
+        .await;
+        let report = match collection {
+            Ok(report) => report,
+            Err(error) => {
+                deployment.fail("static_site_verification_failed")?;
+                deployment.write_json(root.join(&args.receipt))?;
+                return Err(error);
+            }
+        };
+        let materialized = (|| -> Result<VerificationEvidence> {
+            use std::io::Write as _;
+
+            ensure_parent(static_output)?;
+            let mut output = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(static_output)?;
+            output.write_all(&canonical_json(&report)?)?;
+            output.sync_all()?;
+            let strict: StaticSiteVerificationReport =
+                read_strict_json(static_output, "static-site verification report")?;
+            strict.verify_structure()?;
+            Ok(VerificationEvidence {
+                kind: "static_site_verification".into(),
+                file: FileDigest::from_rooted_path(root, static_output)?,
+            })
+        })();
+        match materialized {
+            Ok(evidence) => verification.push(evidence),
+            Err(error) => {
+                let _ = fs::remove_file(static_output);
+                deployment.fail("static_site_verification_failed")?;
+                deployment.write_json(root.join(&args.receipt))?;
+                return Err(error);
+            }
+        }
+        Some(report)
+    } else {
+        None
+    };
+    deployment.succeed(verification)?;
     deployment.write_json(root.join(&args.receipt))?;
     deployment.verify_at(root)?;
     print_value(
@@ -1986,6 +2792,8 @@ fn verify_deployment_command(
             "hosted_verified": true,
             "report": report,
             "report_path": args.output,
+            "static_site_report": static_site_report,
+            "static_site_report_path": args.static_site.then_some(&args.static_site_output),
             "deployment_receipt": deployment,
             "deployment_receipt_path": args.receipt,
         }),
@@ -2035,6 +2843,10 @@ fn change_set_command(root: &Path, args: &ChangeSetArgs, as_json: bool) -> Resul
                 }
                 Some(_) => {}
             }
+            match release_deployment_plan(root, &release) {
+                Ok(plan) => blockers.extend(static_site_target_blockers(&plan, &selected.target)),
+                Err(_) => blockers.push("deployment_plan_invalid"),
+            }
             Some(release)
         } else {
             blockers.push("release_manifest_invalid");
@@ -2066,6 +2878,8 @@ fn change_set_command(root: &Path, args: &ChangeSetArgs, as_json: bool) -> Resul
             "expected_role_arn": selected.target.expected_role_arn,
             "stack_name": selected.target.stack_name,
             "artifact_bucket": selected.target.artifact_bucket,
+            "static_site_certificate_configured": selected.target.static_site_certificate_arn.is_some(),
+            "static_site_hosted_zone_configured": selected.target.static_site_hosted_zone_id.is_some(),
         },
         "release_manifest": args.manifest,
         "release": release.as_ref().map(|release| json!({
@@ -2338,7 +3152,7 @@ fn create_change_set(
     let packaged_template_digest = FileDigest::from_rooted_path(root, &packaged_template)?;
 
     let change_set_name = format!("minco-{}", &release.release_digest[..24]);
-    let parameters = aws_change_set_parameters(&[
+    let mut parameters = vec![
         AwsChangeSetParameter::value(
             "DatabaseUrlParameterName",
             &target.database_url_parameter_name,
@@ -2353,7 +3167,12 @@ fn create_change_set(
             target.lambda_security_group_ids.join(","),
         ),
         live_version_parameter,
-    ])?;
+    ];
+    parameters.extend(static_site_change_set_parameters(
+        &release_deployment_plan(root, release)?,
+        target,
+    )?);
+    let parameters = aws_change_set_parameters(&parameters)?;
     let tags = aws_change_set_tags(
         environment,
         &release.release_id,
@@ -2638,6 +3457,66 @@ fn live_version_change_set_parameter(
         }
         ChangeSetType::Import => bail!("import change sets are not supported"),
     }
+}
+
+fn release_deployment_plan(root: &Path, release: &ReleaseManifest) -> Result<DeploymentPlan> {
+    let plan: DeploymentPlan =
+        serde_json::from_slice(&fs::read(root.join(&release.deployment_plan.path))?)
+            .context("parse exact release deployment plan")?;
+    ensure_plan_valid(&plan)?;
+    Ok(plan)
+}
+
+fn static_site_target_blockers(
+    plan: &DeploymentPlan,
+    target: &DeploymentTarget,
+) -> Vec<&'static str> {
+    let mut blockers = Vec::new();
+    if let Some(static_site) = &plan.static_site {
+        if static_site.custom_domain.is_some() && target.static_site_certificate_arn.is_none() {
+            blockers.push("static_site_certificate_missing");
+        }
+        if static_site.manage_dns_alias && target.static_site_hosted_zone_id.is_none() {
+            blockers.push("static_site_hosted_zone_missing");
+        }
+        if target.static_site_pricing_checked_on.is_none()
+            || target.static_site_pricing_source.is_none()
+            || target.static_site_billing_model.is_none()
+            || target.static_site_flat_rate_eligibility.is_none()
+        {
+            blockers.push("static_site_pricing_evidence_missing");
+        }
+    }
+    blockers
+}
+
+fn static_site_change_set_parameters(
+    plan: &DeploymentPlan,
+    target: &DeploymentTarget,
+) -> Result<Vec<AwsChangeSetParameter>> {
+    let Some(static_site) = &plan.static_site else {
+        return Ok(Vec::new());
+    };
+    let mut parameters = Vec::new();
+    if static_site.custom_domain.is_some() {
+        parameters.push(AwsChangeSetParameter::value(
+            "StaticSiteCertificateArn",
+            target
+                .static_site_certificate_arn
+                .as_deref()
+                .context("static-site custom domain requires a reviewed certificate ARN")?,
+        ));
+    }
+    if static_site.manage_dns_alias {
+        parameters.push(AwsChangeSetParameter::value(
+            "StaticSiteHostedZoneId",
+            target
+                .static_site_hosted_zone_id
+                .as_deref()
+                .context("static-site DNS management requires a reviewed hosted-zone ID")?,
+        ));
+    }
+    Ok(parameters)
 }
 
 fn aws_change_set_parameters(parameters: &[AwsChangeSetParameter]) -> Result<String> {
@@ -3599,6 +4478,33 @@ fn package_command(
         );
     }
 
+    let mut attestations = args.attestations;
+    if let Some(static_site) = &plan.static_site {
+        let static_site_output = package_output_path(root, &args.static_site_manifest)?;
+        if [
+            plan_path.as_path(),
+            template_path.as_path(),
+            output.as_path(),
+        ]
+        .contains(&static_site_output.as_path())
+        {
+            bail!("static-site manifest output must be distinct from other package outputs");
+        }
+        if attestations.contains(&args.static_site_manifest) {
+            bail!(
+                "static-site release manifest is attached automatically and must not be repeated"
+            );
+        }
+        let release_manifest = minco::plugin_static_site::StaticSiteReleaseManifest::build(
+            &provider_static_site_plan(static_site),
+            root,
+        )?;
+        ensure_parent(&static_site_output)?;
+        fs::write(&static_site_output, canonical_json(&release_manifest)?)?;
+        release_manifest.verify_at(root)?;
+        attestations.push(args.static_site_manifest);
+    }
+
     let release = seal_release(
         root,
         manifest,
@@ -3608,12 +4514,28 @@ fn package_command(
         &source.change,
         args.environment.as_deref(),
         None,
-        &args.attestations,
+        &attestations,
     )?;
     ensure_parent(&output)?;
     release.write_json(&output)?;
     release.verify_at(root)?;
     print_value(&release, as_json)
+}
+
+fn provider_static_site_plan(
+    plan: &StaticSiteDeployment,
+) -> minco::plugin_static_site::StaticSitePlan {
+    minco::plugin_static_site::StaticSitePlan {
+        source_directory: plan.source_directory.clone(),
+        index_document: plan.index_document.clone(),
+        spa_fallback: plan.spa_fallback,
+        immutable_cache_seconds: plan.immutable_cache_seconds,
+        html_cache_seconds: plan.html_cache_seconds,
+        price_class: plan.price_class.clone(),
+        ipv6_enabled: plan.ipv6_enabled,
+        custom_domain: plan.custom_domain.clone(),
+        manage_dns_alias: plan.manage_dns_alias,
+    }
 }
 
 fn package_output_path(root: &Path, relative: &Path) -> Result<PathBuf> {
@@ -3896,14 +4818,26 @@ fn load_plan(
             .with_context(|| format!("read {}", config_path.display()))?,
     )
     .with_context(|| format!("parse {}", config_path.display()))?;
-    let application_graph = load_application_graph(manifest)?;
-    Ok(config.into_plan_with_graph(&contract.document, application_graph))
-}
-
-fn load_application_graph(manifest: &MincoManifest) -> Result<ApplicationGraph> {
     let manager = minco::default_plugin_manager()?;
     let selection = load_plugin_selection(manifest, &manager)?;
-    Ok(manager.build_graph(&selection)?)
+    let composed = manager.compose(&selection)?;
+    let static_site = composed
+        .services
+        .get_optional::<minco::plugin_static_site::StaticSitePlan>()?
+        .map(|site| StaticSiteDeployment {
+            source_directory: site.source_directory.clone(),
+            index_document: site.index_document.clone(),
+            spa_fallback: site.spa_fallback,
+            immutable_cache_seconds: site.immutable_cache_seconds,
+            html_cache_seconds: site.html_cache_seconds,
+            price_class: site.price_class.clone(),
+            ipv6_enabled: site.ipv6_enabled,
+            custom_domain: site.custom_domain.clone(),
+            manage_dns_alias: site.manage_dns_alias,
+        });
+    let mut plan = config.into_plan_with_graph(&contract.document, composed.graph);
+    plan.static_site = static_site;
+    Ok(plan)
 }
 
 pub(crate) fn load_plugin_selection(
@@ -4758,6 +5692,21 @@ mod cli_argument_tests {
                 .contains_key("static-site-bucket")
         );
         assert_eq!(plan.local_aws_services, ["s3", "ssm", "sts"]);
+        let static_site = plan
+            .static_site
+            .expect("typed static-site deployment intent");
+        assert_eq!(static_site.source_directory, "dist");
+        assert_eq!(static_site.price_class, "PriceClass_100");
+    }
+
+    #[test]
+    fn s3_checksum_evidence_is_normalized_to_release_hex() {
+        assert_eq!(
+            base64_sha256_to_hex("LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=")
+                .expect("valid SHA-256"),
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+        assert!(base64_sha256_to_hex("too-short").is_err());
     }
 
     #[test]

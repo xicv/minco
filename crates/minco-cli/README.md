@@ -37,6 +37,13 @@ dry-run resolves no secret values.
 Publishing and mutating deployment actions remain explicit; the CLI does not
 silently upload crates or change cloud resources.
 
+When the typed `static-site` plugin is selected, `package` binds a deterministic
+asset manifest into the release. `deploy static-site plan` is local;
+`deploy static-site apply` requires the exact release digest and publishes
+through the reviewed private S3/CloudFront stack. `deploy verify --static-site`
+then binds current S3, `CloudFront`, certificate, DNS, cache, and pricing evidence
+into the ordinary deployment receipt.
+
 Database migration is also explicit and digest-bound:
 
 ```bash
@@ -87,5 +94,4 @@ Plan IR schema 2 adds explicit worker artifacts, queues, mappings, DLQs and
 reviewed schedules while retaining schema 1 API-only input. `cost --json`
 exposes runtime wake/request dimensions and `perf --json` reports each
 function's artifact digest when built. See the repository's
-`docs/deployment/plan-schema-v2-migration.md` before adopting the likely 0.4
-serialized boundary.
+`docs/deployment/plan-schema-v2-migration.md` before adopting schema 2.

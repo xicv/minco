@@ -110,6 +110,7 @@ impl DeploymentConfig {
             iam_intents,
             routes,
             application_graph,
+            static_site: None,
             local_aws_services,
             scheduled_wakeups: self.scheduled_wakeups,
             uses_nat_gateway: self.uses_nat_gateway,
@@ -142,6 +143,8 @@ pub struct DeploymentPlan {
     pub routes: Vec<RoutePlan>,
     #[serde(default)]
     pub application_graph: ApplicationGraph,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub static_site: Option<StaticSiteDeployment>,
     #[serde(default)]
     pub local_aws_services: Vec<String>,
     pub scheduled_wakeups: Vec<String>,
@@ -151,6 +154,59 @@ pub struct DeploymentPlan {
     pub log_retention_days: u32,
     pub cost_policy: CostPolicy,
     pub performance_policy: PerformancePolicy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticSiteDeployment {
+    pub source_directory: String,
+    pub index_document: String,
+    pub spa_fallback: bool,
+    pub immutable_cache_seconds: u32,
+    pub html_cache_seconds: u32,
+    pub price_class: String,
+    pub ipv6_enabled: bool,
+    pub custom_domain: Option<String>,
+    pub manage_dns_alias: bool,
+}
+
+impl StaticSiteDeployment {
+    fn is_valid(&self) -> bool {
+        let safe_path = |value: &str| {
+            let path = std::path::Path::new(value);
+            !value.is_empty()
+                && !value.chars().any(char::is_control)
+                && !path.is_absolute()
+                && path
+                    .components()
+                    .all(|component| matches!(component, std::path::Component::Normal(_)))
+        };
+        let domain_valid = self.custom_domain.as_deref().is_none_or(|domain| {
+            domain.len() <= 253
+                && !domain.starts_with('.')
+                && !domain.ends_with('.')
+                && domain.split('.').count() >= 2
+                && domain.split('.').all(|label| {
+                    !label.is_empty()
+                        && label.len() <= 63
+                        && !label.starts_with('-')
+                        && !label.ends_with('-')
+                        && label.bytes().all(|byte| {
+                            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                        })
+                })
+        });
+        safe_path(&self.source_directory)
+            && safe_path(&self.index_document)
+            && self.immutable_cache_seconds <= 31_536_000
+            && self.html_cache_seconds <= 86_400
+            && matches!(
+                self.price_class.as_str(),
+                "PriceClass_100" | "PriceClass_200" | "PriceClass_All"
+            )
+            && (!self.manage_dns_alias || self.custom_domain.is_some())
+            && domain_valid
+    }
 }
 
 fn local_aws_services(
@@ -299,6 +355,16 @@ impl DeploymentPlan {
             diagnostics.push(error(
                 "MINCO-PLAN-003",
                 "local_aws_services does not match the configured application graph",
+            ));
+        }
+        if self
+            .static_site
+            .as_ref()
+            .is_some_and(|static_site| !static_site.is_valid())
+        {
+            diagnostics.push(error(
+                "MINCO-STATIC-001",
+                "static-site deployment intent is invalid",
             ));
         }
         if self.routes.iter().any(|route| route.authenticated)

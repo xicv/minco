@@ -25,6 +25,11 @@ and can render deterministic AWS SAM/CloudFormation for PostgreSQL-compatible
 API/worker topologies. Local topology never runs schedules. Generic DynamoDB
 SAM fails closed because its table and IAM must be declared by an
 access-pattern-specific adapter.
+
+An explicitly selected static-site intent can add a retained, encrypted,
+publicly blocked S3 bucket, CloudFront OAC with SigV4 signing, an explicit cache
+policy, SPA fallback, and optional certificate/Route 53 parameters. The default
+plan remains API-only and adds none of those resources.
 An optional one-time schedule cleanup contract records
 `ActionAfterCompletion: DELETE`, residual resources and a manual fallback; it
 is rejected for recurring schedules. SAM rendering fails closed because the
@@ -41,4 +46,4 @@ not as an exact cloud bill forecast.
 
 See
 [`docs/deployment/plan-schema-v2-migration.md`](../../docs/deployment/plan-schema-v2-migration.md)
-for the likely 0.4 compatibility boundary and explicit upgrade procedure.
+for the schema 2 compatibility boundary and explicit upgrade procedure.

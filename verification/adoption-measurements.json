@@ -35,8 +35,8 @@
     "build_timings_seconds": {},
     "facade": {
       "all_features": {
-        "feature_tree_lines": 3460,
-        "normal_dependency_packages": 300
+        "feature_tree_lines": 3453,
+        "normal_dependency_packages": 298
       },
       "default_features": {
         "feature_tree_lines": 825,
@@ -47,7 +47,7 @@
         "normal_dependency_packages": 16
       },
       "official_plugins": {
-        "feature_tree_lines": 1051,
+        "feature_tree_lines": 1052,
         "normal_dependency_packages": 118
       }
     },
@@ -65,10 +65,10 @@
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:cc669d327c34485dec05e6a377c5fedc9f67ef4e8f45f9439366dea752bb10df"
+    "revision": "source-tree-sha256:740f8297b98ab118f9901d89d004bd67351cbb76db08c0c965253799bb53c6ce"
   },
   "comparison": {
-    "all_feature_dependency_package_delta": 10,
+    "all_feature_dependency_package_delta": 8,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 0,

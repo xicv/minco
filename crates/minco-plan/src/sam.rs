@@ -1,6 +1,6 @@
 use crate::{
     AuthPlan, DatabaseDeployment, DeploymentPlan, FunctionPlan, FunctionRole, IngressPlan,
-    PlanError, QueuePlan, RuntimePlan, TriggerPlan, sam_logical_id,
+    PlanError, QueuePlan, RuntimePlan, StaticSiteDeployment, TriggerPlan, sam_logical_id,
 };
 use minco_contract::HttpMethod;
 use std::{collections::BTreeMap, fmt::Write as _};
@@ -81,6 +81,9 @@ pub fn render_sam_with_code_uris(
     if uses_database_parameter {
         render_database_parameters(&mut output);
     }
+    if let Some(static_site) = &plan.static_site {
+        render_static_site_parameters(&mut output, static_site);
+    }
     output.push_str("Conditions:\n");
     output.push_str(
         "  LiveFunctionVersionIsCandidate: !Equals [!Ref LiveFunctionVersion, 'candidate']\n",
@@ -89,6 +92,9 @@ pub fn render_sam_with_code_uris(
         render_database_conditions(&mut output);
     }
     output.push_str("Resources:\n");
+    if let Some(static_site) = &plan.static_site {
+        render_static_site_resources(&mut output, static_site);
+    }
     output.push_str("  HttpApi:\n");
     output.push_str("    Type: AWS::Serverless::HttpApi\n");
     output.push_str("    Properties:\n");
@@ -244,7 +250,204 @@ pub fn render_sam_with_code_uris(
     output.push_str("    Value: !Ref ApiFunction\n");
     output.push_str("  CandidateAliasName:\n");
     output.push_str("    Value: candidate\n");
+    if let Some(static_site) = &plan.static_site {
+        render_static_site_outputs(&mut output, static_site);
+    }
     Ok(output)
+}
+
+fn render_static_site_parameters(output: &mut String, plan: &StaticSiteDeployment) {
+    if plan.custom_domain.is_some() {
+        output.push_str("  StaticSiteCertificateArn:\n");
+        output.push_str("    Type: String\n");
+        output.push_str(
+            "    AllowedPattern: '^arn:[a-z0-9-]+:acm:us-east-1:[0-9]{12}:certificate/.+$'\n",
+        );
+        output.push_str("    Description: Existing ISSUED us-east-1 ACM certificate covering the exact static-site alias.\n");
+    }
+    if plan.manage_dns_alias {
+        output.push_str("  StaticSiteHostedZoneId:\n");
+        output.push_str("    Type: String\n");
+        output.push_str("    AllowedPattern: '^Z[A-Z0-9]+$'\n");
+        output.push_str("    Description: Existing Route 53 public hosted zone that owns the configured alias.\n");
+    }
+}
+
+fn render_static_site_resources(output: &mut String, plan: &StaticSiteDeployment) {
+    output.push_str("  StaticSiteBucket:\n");
+    output.push_str("    Type: AWS::S3::Bucket\n");
+    output.push_str("    DeletionPolicy: Retain\n");
+    output.push_str("    UpdateReplacePolicy: Retain\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      BucketEncryption:\n");
+    output.push_str("        ServerSideEncryptionConfiguration:\n");
+    output.push_str("          - ServerSideEncryptionByDefault:\n");
+    output.push_str("              SSEAlgorithm: AES256\n");
+    output.push_str("      OwnershipControls:\n");
+    output.push_str("        Rules:\n");
+    output.push_str("          - ObjectOwnership: BucketOwnerEnforced\n");
+    output.push_str("      PublicAccessBlockConfiguration:\n");
+    output.push_str("        BlockPublicAcls: true\n");
+    output.push_str("        BlockPublicPolicy: true\n");
+    output.push_str("        IgnorePublicAcls: true\n");
+    output.push_str("        RestrictPublicBuckets: true\n");
+    output.push_str("  StaticSiteOriginAccessControl:\n");
+    output.push_str("    Type: AWS::CloudFront::OriginAccessControl\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      OriginAccessControlConfig:\n");
+    output.push_str("        Description: Minco private static-site S3 origin\n");
+    output.push_str("        Name: !Sub 'minco-static-${AWS::StackName}'\n");
+    output.push_str("        OriginAccessControlOriginType: s3\n");
+    output.push_str("        SigningBehavior: always\n");
+    output.push_str("        SigningProtocol: sigv4\n");
+    output.push_str("  StaticSiteCachePolicy:\n");
+    output.push_str("    Type: AWS::CloudFront::CachePolicy\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      CachePolicyConfig:\n");
+    output.push_str("        Comment: Minco static-site policy; origin Cache-Control metadata remains authoritative\n");
+    output.push_str("        DefaultTTL: 0\n");
+    writeln!(output, "        MaxTTL: {}", plan.immutable_cache_seconds)
+        .expect("writing to String cannot fail");
+    output.push_str("        MinTTL: 0\n");
+    output.push_str("        Name: !Sub 'minco-static-${AWS::StackName}'\n");
+    output.push_str("        ParametersInCacheKeyAndForwardedToOrigin:\n");
+    output.push_str("          CookiesConfig:\n");
+    output.push_str("            CookieBehavior: none\n");
+    output.push_str("          EnableAcceptEncodingBrotli: true\n");
+    output.push_str("          EnableAcceptEncodingGzip: true\n");
+    output.push_str("          HeadersConfig:\n");
+    output.push_str("            HeaderBehavior: none\n");
+    output.push_str("          QueryStringsConfig:\n");
+    output.push_str("            QueryStringBehavior: none\n");
+    output.push_str("  StaticSiteDistribution:\n");
+    output.push_str("    Type: AWS::CloudFront::Distribution\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      DistributionConfig:\n");
+    if let Some(domain) = &plan.custom_domain {
+        output.push_str("        Aliases:\n");
+        writeln!(output, "          - {}", yaml_quote(domain))
+            .expect("writing to String cannot fail");
+    } else {
+        output.push_str("        Aliases: []\n");
+    }
+    output.push_str("        Comment: !Sub 'Minco static site ${AWS::StackName}'\n");
+    if plan.spa_fallback {
+        output.push_str("        CustomErrorResponses:\n");
+        for error_code in [403, 404] {
+            writeln!(output, "          - ErrorCode: {error_code}")
+                .expect("writing to String cannot fail");
+            output.push_str("            ResponseCode: 200\n");
+            writeln!(
+                output,
+                "            ResponsePagePath: {}",
+                yaml_quote(&format!("/{}", plan.index_document))
+            )
+            .expect("writing to String cannot fail");
+            output.push_str("            ErrorCachingMinTTL: 0\n");
+        }
+    }
+    output.push_str("        DefaultCacheBehavior:\n");
+    output.push_str("          AllowedMethods: [GET, HEAD, OPTIONS]\n");
+    output.push_str("          CachedMethods: [GET, HEAD]\n");
+    output.push_str("          CachePolicyId: !Ref StaticSiteCachePolicy\n");
+    output.push_str("          Compress: true\n");
+    output.push_str("          TargetOriginId: StaticSiteS3Origin\n");
+    output.push_str("          ViewerProtocolPolicy: redirect-to-https\n");
+    writeln!(
+        output,
+        "        DefaultRootObject: {}",
+        yaml_quote(&plan.index_document)
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("        Enabled: true\n");
+    output.push_str("        HttpVersion: http2and3\n");
+    writeln!(output, "        IPV6Enabled: {}", plan.ipv6_enabled)
+        .expect("writing to String cannot fail");
+    output.push_str("        Origins:\n");
+    output.push_str("          - DomainName: !GetAtt StaticSiteBucket.RegionalDomainName\n");
+    output.push_str("            Id: StaticSiteS3Origin\n");
+    output.push_str("            OriginAccessControlId: !Ref StaticSiteOriginAccessControl\n");
+    output.push_str("            S3OriginConfig:\n");
+    output.push_str("              OriginAccessIdentity: ''\n");
+    writeln!(output, "        PriceClass: {}", plan.price_class)
+        .expect("writing to String cannot fail");
+    output.push_str("        ViewerCertificate:\n");
+    if plan.custom_domain.is_some() {
+        output.push_str("          AcmCertificateArn: !Ref StaticSiteCertificateArn\n");
+        output.push_str("          MinimumProtocolVersion: TLSv1.2_2021\n");
+        output.push_str("          SslSupportMethod: sni-only\n");
+    } else {
+        output.push_str("          CloudFrontDefaultCertificate: true\n");
+    }
+    output.push_str("  StaticSiteBucketPolicy:\n");
+    output.push_str("    Type: AWS::S3::BucketPolicy\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      Bucket: !Ref StaticSiteBucket\n");
+    output.push_str("      PolicyDocument:\n");
+    output.push_str("        Version: '2012-10-17'\n");
+    output.push_str("        Statement:\n");
+    output.push_str("          - Sid: AllowCloudFrontReadOnly\n");
+    output.push_str("            Effect: Allow\n");
+    output.push_str("            Principal:\n");
+    output.push_str("              Service: cloudfront.amazonaws.com\n");
+    output.push_str("            Action: s3:GetObject\n");
+    output.push_str("            Resource: !Sub '${StaticSiteBucket.Arn}/*'\n");
+    output.push_str("            Condition:\n");
+    output.push_str("              StringEquals:\n");
+    output.push_str("                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${StaticSiteDistribution}'\n");
+    if plan.manage_dns_alias {
+        render_static_site_dns_record(output, "StaticSiteDnsAlias", "A", plan);
+        if plan.ipv6_enabled {
+            render_static_site_dns_record(output, "StaticSiteDnsIpv6Alias", "AAAA", plan);
+        }
+    }
+}
+
+fn render_static_site_dns_record(
+    output: &mut String,
+    logical_id: &str,
+    record_type: &str,
+    plan: &StaticSiteDeployment,
+) {
+    writeln!(output, "  {logical_id}:").expect("writing to String cannot fail");
+    output.push_str("    Type: AWS::Route53::RecordSet\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      AliasTarget:\n");
+    output.push_str("        DNSName: !GetAtt StaticSiteDistribution.DomainName\n");
+    output.push_str("        EvaluateTargetHealth: false\n");
+    output.push_str("        HostedZoneId: Z2FDTNDATAQYW2\n");
+    output.push_str("      HostedZoneId: !Ref StaticSiteHostedZoneId\n");
+    writeln!(
+        output,
+        "      Name: {}",
+        yaml_quote(
+            plan.custom_domain
+                .as_deref()
+                .expect("validated custom domain")
+        )
+    )
+    .expect("writing to String cannot fail");
+    writeln!(output, "      Type: {record_type}").expect("writing to String cannot fail");
+}
+
+fn render_static_site_outputs(output: &mut String, plan: &StaticSiteDeployment) {
+    output.push_str("  StaticSiteBucketName:\n");
+    output.push_str("    Value: !Ref StaticSiteBucket\n");
+    output.push_str("  StaticSiteDistributionId:\n");
+    output.push_str("    Value: !Ref StaticSiteDistribution\n");
+    output.push_str("  StaticSiteDistributionDomainName:\n");
+    output.push_str("    Value: !GetAtt StaticSiteDistribution.DomainName\n");
+    output.push_str("  StaticSiteUrl:\n");
+    if let Some(domain) = &plan.custom_domain {
+        writeln!(
+            output,
+            "    Value: {}",
+            yaml_quote(&format!("https://{domain}"))
+        )
+        .expect("writing to String cannot fail");
+    } else {
+        output.push_str("    Value: !Sub 'https://${StaticSiteDistribution.DomainName}'\n");
+    }
 }
 
 fn render_live_function_version_parameter(output: &mut String) {
@@ -719,6 +922,7 @@ mod tests {
                 },
             ],
             application_graph: minco_core::ApplicationGraph::default(),
+            static_site: None,
             local_aws_services: vec!["ssm".into(), "sts".into()],
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
