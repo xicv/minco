@@ -13,6 +13,8 @@ owned_paths:
   - crates/minco-cli/**
   - crates/minco-plan/**
   - docs/deployment/**
+  - docs/reference/generated/cli.md
+  - docs/reference/generated/diagnostics.md
   - infra/aws/**
   - scripts/aws/**
   - tasks/M10/M10-T08-real-aws-controller-rehearsal.md
@@ -107,3 +109,14 @@ same stack before teardown. Do not weaken source provenance or reuse a
 historical hosted report to bypass that gate. Complete local and hosted quality,
 the closed multi-release design, exact provider authority and the live evidence
 remain required before this task can complete.
+
+The first post-merge multi-release slice now makes rollback assessment
+explicitly multi-root. Current and prior promotion chains stay in separate
+absolute, existing, non-symlink clean checkouts that resolve to canonical paths;
+a complete assessment verifies each checkout is at the exact source revision
+sealed by its release. Dry-run is still local-only and names both roots while
+explicitly prohibiting historical hosted-report reuse. Red-green CLI coverage
+proved the new arguments, canonical root reporting and rejection of relative
+roots. The remaining controller work must parent the shared provider resources,
+phase-specific immutable evidence and one cleanup trap before the single-release
+runner's immediate cleanup can be relaxed.

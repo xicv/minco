@@ -169,8 +169,8 @@
     },
     {
       "path": "crates/minco-cli/README.md",
-      "sha256": "060f6a71ac2835deeb458b30d474154235fec1e13f27699d38365574b417da83",
-      "size_bytes": 5686
+      "sha256": "193f2535943c0e60ec53932e12800f90d52dc34daeee472c5011cd98cc75fa7f",
+      "size_bytes": 6500
     },
     {
       "path": "crates/minco-cli/src/architecture.rs",
@@ -209,8 +209,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "0b0a3ac603af15da9ea62e967dd9d215e052af3bfa2357450d22d1a7e39a1ce5",
-      "size_bytes": 279923
+      "sha256": "7a79f0a500d016a51850627e543c736e056fdf773e747d2d7141b94c9952b3c4",
+      "size_bytes": 283532
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -539,8 +539,8 @@
     },
     {
       "path": "crates/minco-cli/tests/deploy_cli.rs",
-      "sha256": "f48aabb7f421c0c09d206e8ed093cee0579d11c036bd9a0d56b96fb04a024924",
-      "size_bytes": 14012
+      "sha256": "bb0e26d6f9244ab5ce48a7a219e6efd5dd01318028c37e8932eabd6820d664da",
+      "size_bytes": 15462
     },
     {
       "path": "crates/minco-cli/tests/dev_cli.rs",
@@ -1414,8 +1414,8 @@
     },
     {
       "path": "docs/deployment/real-aws-smoke.md",
-      "sha256": "01373a16571c21ee10aea979f172c783cc9da4cb04db12ad2b68f4d8ad31bae0",
-      "size_bytes": 18679
+      "sha256": "59720e8b4b6a19e520fc4a11ff0e9354679b78419b22b47c788f91bd2c58dc00",
+      "size_bytes": 20330
     },
     {
       "path": "docs/deployment/release.md",
@@ -1544,12 +1544,12 @@
     },
     {
       "path": "docs/reference/generated/cli.md",
-      "sha256": "24fb94fb58a888bdbaa8da7075b74839f6b3d3bfa105364afe03cb16d18439ad",
-      "size_bytes": 39319
+      "sha256": "af2aef7d983a4f354a109e2612c58d0320e3f459bf15dd44c3f8d7c36004ebc9",
+      "size_bytes": 39554
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "36c436869acac103f4e4def2d16595486ef8b5e4e77258e8fe249462156b3dcc",
+      "sha256": "106ec5a95216dfdf6c20619acd58d370131fe11e5f565309dbceb958053d7731",
       "size_bytes": 28401
     },
     {
@@ -3389,8 +3389,8 @@
     },
     {
       "path": "tasks/M10/M10-T08-real-aws-controller-rehearsal.md",
-      "sha256": "5fdfb5e6fe30b9b8687aa1ded1e2fac57ed3bfca7afe2b884edddfc9e9e99dc5",
-      "size_bytes": 5168
+      "sha256": "f0adb85de97fc171a75200952d478ea6abfc14d00a1d4924dec0d187365bd536",
+      "size_bytes": 5990
     },
     {
       "path": "tasks/M11/M11-T01-versioned-docs-site.md",
@@ -3689,7 +3689,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "29885edfc33f5291ca88f0e37a5ce75a3eff08506d7c649258523b4ccc74d028",
+      "sha256": "21107a5aa172209a130ae1dc125c79660e8dc5c998424028f5d81f86252a6f41",
       "size_bytes": 2021
     },
     {
@@ -3775,7 +3775,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "030a222f4f8ca02acb4f0ca447998fc989d182f5898560e56cc03b6eb2c7247b",
-  "total_size_bytes": 5166390,
+  "source_tree_sha256": "3b296093a1ac31080ec8f230083b5b27c20aab040d7740a568acb3a6977b17c2",
+  "total_size_bytes": 5174971,
   "version": "0.6.0"
 }

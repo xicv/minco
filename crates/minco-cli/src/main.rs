@@ -419,6 +419,12 @@ struct PromoteArgs {
 
 #[derive(Debug, Clone, Args)]
 struct RollbackArgs {
+    /// Clean exact-source checkout containing the current promotion evidence.
+    #[arg(long)]
+    current_root: Option<PathBuf>,
+    /// Clean exact-source checkout containing the older target promotion evidence.
+    #[arg(long)]
+    target_root: Option<PathBuf>,
     #[arg(long, default_value = "target/minco/promotion-receipt.json")]
     current_promotion: PathBuf,
     #[arg(
@@ -1164,12 +1170,14 @@ fn rollback_command(root: &Path, args: &RollbackArgs, as_json: bool) -> Result<(
     {
         bail!("data compatibility evidence must be a normalized project-relative path");
     }
+    let current_root = rollback_evidence_root(root, args.current_root.as_deref(), "current")?;
+    let target_root = rollback_evidence_root(root, args.target_root.as_deref(), "target")?;
 
     let mut blockers = Vec::new();
-    if !root.join(&args.current_promotion).is_file() {
+    if !current_root.join(&args.current_promotion).is_file() {
         blockers.push("current_promotion_receipt_missing");
     }
-    if !root.join(&args.target_promotion).is_file() {
+    if !target_root.join(&args.target_promotion).is_file() {
         blockers.push("target_promotion_receipt_missing");
     }
     if args
@@ -1189,6 +1197,9 @@ fn rollback_command(root: &Path, args: &RollbackArgs, as_json: bool) -> Result<(
                     "replan": false,
                     "reverse_sql": false,
                     "automatic_data_repair": false,
+                    "reuse_historical_hosted_report": false,
+                    "current_evidence_root": current_root,
+                    "target_evidence_root": target_root,
                     "current_promotion_receipt": args.current_promotion,
                     "target_promotion_receipt": args.target_promotion,
                     "assessment": null,
@@ -1199,18 +1210,30 @@ fn rollback_command(root: &Path, args: &RollbackArgs, as_json: bool) -> Result<(
         }
         bail!("rollback assessment is blocked: {}", blockers.join(", "));
     }
-    validate_project_file(root, &args.current_promotion, "current promotion receipt")?;
-    validate_project_file(root, &args.target_promotion, "target promotion receipt")?;
+    validate_project_file(
+        &current_root,
+        &args.current_promotion,
+        "current promotion receipt",
+    )?;
+    validate_project_file(
+        &target_root,
+        &args.target_promotion,
+        "target promotion receipt",
+    )?;
     if let Some(path) = &args.data_compatibility_evidence {
         validate_project_file(root, path, "rollback data compatibility evidence")?;
     }
 
     let (current_promotion, current_deployment, current_release, current_target) =
-        successful_promotion_release(root, &args.current_promotion, "current")?;
+        successful_promotion_release(&current_root, &args.current_promotion, "current")?;
     let (target_promotion, target_deployment, target_release, target_target) =
-        successful_promotion_release(root, &args.target_promotion, "target")?;
-    let current_contract = load_contract(root.join(&current_release.contract.path))?;
-    let target_contract = load_contract(root.join(&target_release.contract.path))?;
+        successful_promotion_release(&target_root, &args.target_promotion, "target")?;
+    require_exact_source(&current_root, &current_release)
+        .context("current rollback evidence root is not at its sealed source revision")?;
+    require_exact_source(&target_root, &target_release)
+        .context("target rollback evidence root is not at its sealed source revision")?;
+    let current_contract = load_contract(current_root.join(&current_release.contract.path))?;
+    let target_contract = load_contract(target_root.join(&target_release.contract.path))?;
     if !current_contract.is_valid() || !target_contract.is_valid() {
         bail!("rollback assessment requires two valid sealed OpenAPI contracts");
     }
@@ -1319,12 +1342,17 @@ fn rollback_command(root: &Path, args: &RollbackArgs, as_json: bool) -> Result<(
             "replan": false,
             "reverse_sql": false,
             "automatic_data_repair": false,
+            "reuse_historical_hosted_report": false,
+            "current_evidence_root": current_root,
+            "target_evidence_root": target_root,
             "assessment": assessment,
             "contract_report": contract_report,
             "routing_authorized": assessment.classification == minco_deploy_aws::RollbackClassification::Compatible,
             "next_required_boundary": {
                 "action": "redeploy_exact_target_release_as_candidate_then_verify_and_promote",
-                "target_release_manifest": target_release_path(root, &target_promotion)?,
+                "target_release_manifest": target_release_path(&target_root, &target_promotion)?,
+                "target_release_root": target_root,
+                "target_source_revision": target_release.source_change,
                 "rebuild": false,
                 "replan": false,
                 "reuse_historical_hosted_report_for_new_candidate": false,
@@ -1335,6 +1363,30 @@ fn rollback_command(root: &Path, args: &RollbackArgs, as_json: bool) -> Result<(
         }),
         as_json,
     )
+}
+
+fn rollback_evidence_root(
+    command_root: &Path,
+    explicit_root: Option<&Path>,
+    label: &str,
+) -> Result<PathBuf> {
+    let candidate = if let Some(root) = explicit_root {
+        if !root.is_absolute() {
+            bail!("{label} rollback evidence root must be an absolute path");
+        }
+        root
+    } else {
+        command_root
+    };
+    let metadata = candidate
+        .symlink_metadata()
+        .with_context(|| format!("inspect {label} rollback evidence root"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        bail!("{label} rollback evidence root must be a non-symlink directory");
+    }
+    candidate
+        .canonicalize()
+        .with_context(|| format!("canonicalize {label} rollback evidence root"))
 }
 
 fn successful_promotion_release(
@@ -6840,6 +6892,44 @@ mod cli_argument_tests {
             })
         ));
         assert!(canary.json);
+    }
+
+    #[test]
+    fn rollback_evidence_roots_are_absolute_canonical_directories() {
+        let command_root = tempfile::tempdir().expect("command root");
+        let current_root = tempfile::tempdir().expect("current root");
+        let resolved =
+            rollback_evidence_root(command_root.path(), Some(current_root.path()), "current")
+                .expect("absolute evidence root");
+
+        assert_eq!(
+            resolved,
+            current_root.path().canonicalize().expect("canonical root")
+        );
+        let relative = rollback_evidence_root(
+            command_root.path(),
+            Some(Path::new("../historical")),
+            "target",
+        )
+        .expect_err("relative evidence root must fail");
+        assert!(relative.to_string().contains("must be an absolute path"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rollback_evidence_roots_reject_symlink_directories() {
+        let command_root = tempfile::tempdir().expect("command root");
+        let evidence_root = tempfile::tempdir().expect("evidence root");
+        let link = command_root.path().join("historical-release");
+        std::os::unix::fs::symlink(evidence_root.path(), &link).expect("create directory symlink");
+
+        let error = rollback_evidence_root(command_root.path(), Some(&link), "target")
+            .expect_err("symlink evidence root must fail");
+        assert!(
+            error
+                .to_string()
+                .contains("must be a non-symlink directory")
+        );
     }
 
     #[test]
