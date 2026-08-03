@@ -220,6 +220,41 @@ scripts/aws/validate-multi-release-rehearsal-authority.sh \
   cleanup-bounded-multi-release-smoke-v1
 ```
 
+Before implementing or authorizing provider execution, render the closed local
+phase plan from the two exact checkouts and the same reviewed authority:
+
+```bash
+MINCO_PRIOR_ROOT=/absolute/path/to/prior-clean-checkout \
+MINCO_CURRENT_ROOT=/absolute/path/to/current-clean-checkout \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_AWS_RUN_ID=reviewed-multi-release-run-id \
+MINCO_REHEARSAL_PROFILE=exact-reviewed-profile \
+AWS_REGION=ap-southeast-2 \
+MINCO_REHEARSAL_DATABASE_BOUNDARY_JSON='{"mode":"existing-ssm-secure-string","parameter_name":"/minco/rehearsal/database-url","parameter_owned":false,"instance_owned":false}' \
+MINCO_REHEARSAL_RESOURCE_ALLOWLIST=bounded-multi-release-smoke-v1 \
+MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS=cleanup-bounded-multi-release-smoke-v1 \
+  scripts/aws/plan-multi-release-rehearsal.sh \
+  >/absolute/path/outside/both/checkouts/multi-release-plan.json
+```
+
+Planning is local-only and reports `external_aws_contact: false`. It rejects a
+relative, missing, symlinked, dirty or duplicated checkout, resolves both roots
+canonically, rejects nested directories without their own Git or JJ metadata,
+and requires their current revisions to match the authority. The plan fixes one
+shared stack lifecycle (`create`, `update`,
+`update`, `delete`), one whole-run artifact bucket, three unique evidence
+namespaces and exactly one parent-owned cleanup trap. The rollback phase reuses
+the exact prior release from the initial phase only after an exact current-to-
+prior compatibility assessment returns `compatible`. It fixes `build: false`,
+`replan: false` and historical hosted-report reuse to false, but still requires
+a fresh hosted verification and promotion. Every phase evidence namespace is
+create-only.
+Write the output outside both checkouts so shell redirection does not make a
+checkout dirty before validation. The output contains local absolute paths and
+is an operator preflight, not a redacted publication artifact or authority to
+run AWS commands.
+
 ## Multi-release rollback evidence
 
 Keep the current and prior releases in separate clean exact-source checkouts.
@@ -246,10 +281,10 @@ qualification: the prior checkout must redeploy its exact artifact as a new
 candidate, create a fresh deployment receipt and hosted report, and pass
 ordinary `promote` again.
 
-The current bounded runner remains single-release until the parent controller
-owns the shared stack, evidence namespaces and cleanup trap across the complete
-prior → current → freshly prior sequence. Do not disable its immediate cleanup
-or create-only review gate independently; that would leave a partially owned
+The current bounded runner remains single-release. The local plan now closes
+the parent ownership and phase contract, but no provider-capable parent runner
+consumes it yet. Do not disable the single-release runner's immediate cleanup or
+create-only review gate independently; that would leave a partially owned
 provider boundary rather than a recoverable rehearsal.
 
 ## Bounded execution

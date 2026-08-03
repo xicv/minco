@@ -131,3 +131,20 @@ bounds but redacts account, role and database identifiers. Both validators use
 one shared read-only policy for account, time, spend and database semantics; no
 provider-capable command or sensitive temporary authority copy is introduced by
 this slice.
+
+The third controller slice adds a provider-free, schema-stable phase plan. It
+accepts only two distinct absolute, existing, non-symlink clean Git or JJ
+checkouts whose current revisions exactly match the multi-release authority.
+The emitted lifecycle fixes one shared stack and artifact-bucket boundary,
+unique `01-prior-initial`, `02-current` and `03-prior-rollback` evidence
+namespaces, and exactly one parent-owned cleanup trap. The rollback phase must
+first bind the initial prior and current promotion receipts in a compatibility
+assessment, accept only `compatible`, then reuse the initial prior release
+without build, replan or historical hosted-report reuse while still producing
+fresh hosted verification and promotion evidence. Every phase namespace is
+create-only. Red-first shell coverage
+proves relative, duplicate, symlinked, nested, dirty and revision-mismatched roots fail,
+and fakes provider/build commands to prove planning makes no external contact.
+The bounded runner remains single-release: a later slice must make its deploy,
+verify and promote work phase-capable under the parent without weakening its
+standalone cleanup or create-only guards.
