@@ -193,6 +193,28 @@
   text-wrap: pretty;
 }
 
+.doc-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0.35rem 0.75rem 0;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.025em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.doc-badge-stable {
+  border-color: color-mix(in srgb, var(--vp-c-tip-1) 45%, var(--vp-c-divider));
+  background: var(--vp-c-tip-soft);
+  color: var(--vp-c-tip-1);
+}
+
 .evidence-table td:first-child,
 .evidence-table th:first-child {
   white-space: nowrap;

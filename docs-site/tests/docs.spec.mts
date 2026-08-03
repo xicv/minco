@@ -62,6 +62,9 @@ test('next is visibly unreleased and exposes detailed learning paths', async ({ 
   await expect(page.getByRole('link', { name: 'Use resource APIs' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Author a plugin' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Operate on AWS' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Browse all features' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Choose built-in plugins' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Follow practical recipes' })).toBeVisible()
 
   await page.getByRole('link', { name: 'Use resource APIs' }).click()
   await expect(page).toHaveURL(/\/next\/guides\/resource-api$/)
@@ -70,6 +73,35 @@ test('next is visibly unreleased and exposes detailed learning paths', async ({ 
   ).toBeVisible()
   await expect(page.getByText('Unreleased documentation.')).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: 'Complete Request Flow' })).toBeVisible()
+})
+
+test('next documents the complete built-in component catalog', async ({ page }) => {
+  await page.goto('./next/plugins/')
+  await waitForHydration(page)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Built-in Plugins and Adapters' })
+  ).toBeVisible()
+  await expect(page.getByText('16 built-in components')).toBeVisible()
+  for (const name of [
+    'Health',
+    'Idempotency',
+    'Identity',
+    'Sessions',
+    'Feedback',
+    'AWS Lambda',
+    'AWS Worker',
+    'SQLx PostgreSQL',
+    'SQLx SQLite'
+  ]) {
+    await expect(page.getByRole('heading', { level: 2, name })).toBeVisible()
+  }
+
+  await page.getByRole('button', { name: 'Search Minco documentation' }).click()
+  const search = page.locator('input[type="search"]')
+  await search.fill('partial batch worker')
+  await expect(
+    page.locator('.VPLocalSearchBox').locator('a[href*="/next/guides/background-work"]').first()
+  ).toBeVisible()
 })
 
 test('local search finds workspace plugin conformance documentation', async ({ page }) => {
@@ -107,7 +139,9 @@ test('navigation stays within the mobile viewport', async ({ page, isMobile }) =
   test.skip(!isMobile, 'mobile project only')
   for (const path of [
     `${stablePath}tutorials/first-api`,
-    './next/guides/resource-api'
+    './next/guides/resource-api',
+    './next/plugins/',
+    './next/cookbook/'
   ]) {
     await page.goto(path)
     await waitForHydration(page)
@@ -138,7 +172,10 @@ test('core pages have labelled semantics and no browser errors', async ({ page }
     './next/',
     './next/guides/resource-api',
     './next/reference/plugin-conformance',
-    './next/examples/'
+    './next/examples/',
+    './next/features/',
+    './next/plugins/',
+    './next/cookbook/'
   ]) {
     await page.goto(path)
     await waitForHydration(page)

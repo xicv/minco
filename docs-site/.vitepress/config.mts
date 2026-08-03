@@ -175,44 +175,79 @@ export default defineConfig({
       ],
       '/next/': [
         {
-          text: 'Current Development',
+          text: 'Start Here',
+          collapsed: false,
           items: [
             { text: 'Overview', link: '/next/' },
+            { text: 'Installation', link: '/next/getting-started/installation' },
+            { text: 'Build your first application', link: '/next/getting-started/first-application' },
             { text: 'Framework tour', link: '/next/getting-started/framework-tour' },
             { text: 'Project structure', link: '/next/getting-started/project-structure' }
           ]
         },
         {
-          text: 'Guides',
+          text: 'Essentials',
           collapsed: false,
           items: [
+            { text: 'Feature catalog', link: '/next/features/' },
+            { text: 'Configuration', link: '/next/guides/configuration' },
+            { text: 'Local development', link: '/next/guides/local-development' },
             { text: 'Build a resource API', link: '/next/guides/resource-api' },
-            {
-              text: 'Test a plugin',
-              link: '/next/guides/plugin-conformance'
-            },
-            { text: 'Plan an AWS deployment', link: '/next/guides/deployment' }
-          ]
-        },
-        {
-          text: 'Reference',
-          collapsed: false,
-          items: [
-            { text: 'CLI', link: '/next/reference/cli' },
-            { text: 'Resource API', link: '/next/reference/resource-api' },
-            {
-              text: 'Plugin conformance',
-              link: '/next/reference/plugin-conformance'
-            },
+            { text: 'Migrations and seeders', link: '/next/guides/database-lifecycle' },
+            { text: 'Queues and workers', link: '/next/guides/background-work' },
             { text: 'Testing and evidence', link: '/next/reference/testing' }
           ]
         },
         {
-          text: 'Examples & Concepts',
+          text: 'Application Services',
           collapsed: false,
           items: [
-            { text: 'Exercised examples', link: '/next/examples/' },
+            { text: 'Identity and sessions', link: '/next/guides/identity-and-sessions' },
+            { text: 'Files and static sites', link: '/next/guides/files-and-static-sites' },
+            { text: 'Events and notifications', link: '/next/guides/events-and-notifications' },
+            { text: 'Client feedback loop', link: '/next/guides/feedback' },
+            { text: 'Resource API conventions', link: '/next/reference/resource-api' }
+          ]
+        },
+        {
+          text: 'Plugins and Extensions',
+          collapsed: false,
+          items: [
+            { text: 'Built-in catalog', link: '/next/plugins/' },
+            { text: 'Install and compose plugins', link: '/next/plugins/using-plugins' },
+            {
+              text: 'Test a plugin',
+              link: '/next/guides/plugin-conformance'
+            }
+          ]
+        },
+        {
+          text: 'Deploy and Operate',
+          collapsed: false,
+          items: [
+            { text: 'Plan an AWS deployment', link: '/next/guides/deployment' },
             { text: 'Zero idle, precisely', link: '/next/explanation/zero-idle' },
+            { text: 'Testing and evidence', link: '/next/reference/testing' }
+          ]
+        },
+        {
+          text: 'Cookbook',
+          collapsed: false,
+          items: [
+            { text: 'Practical recipes', link: '/next/cookbook/' },
+            { text: 'Orders API end to end', link: '/next/cookbook/orders-api' },
+            { text: 'Exercised examples', link: '/next/examples/' }
+          ]
+        },
+        {
+          text: 'Reference',
+          items: [
+            { text: 'CLI commands', link: '/next/reference/cli' },
+            { text: 'Cargo feature flags', link: '/next/reference/feature-flags' },
+            {
+              text: 'Plugin conformance',
+              link: '/next/reference/plugin-conformance'
+            },
             { text: `Stable ${release.stable}`, link: stable }
           ]
         }

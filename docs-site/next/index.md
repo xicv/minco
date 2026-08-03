@@ -5,12 +5,14 @@ description: Unreleased Minco documentation.
 
 # Next
 
-This area records only behavior merged after Minco 0.6.0. It never changes the
-meaning of the [stable 0.6.0 documentation](/0.6.0/).
+This is the current-development manual for Minco: a contract-to-cloud Rust
+framework for low-idle-cost web applications on AWS. It documents the source on
+`main`; it never changes the meaning of the
+[stable 0.6.0 documentation](/0.6.0/).
 
-No post-0.6.0 compatibility change is claimed yet. These mutable pages retain
-the current framework paths as the starting point for future development.
-Choose the path that matches what you need to do.
+The manual is organized progressively: begin with one working application,
+then reach for focused guides, the component catalog, practical recipes, or
+exact reference when you need them.
 
 <div class="doc-path-grid">
   <a class="doc-path-card" href="./getting-started/framework-tour">
@@ -29,6 +31,18 @@ Choose the path that matches what you need to do.
     <strong>Operate on AWS</strong>
     <span>Review Plan IR, residual cost, exact artifacts, and mutation evidence.</span>
   </a>
+  <a class="doc-path-card" href="./features/">
+    <strong>Browse all features</strong>
+    <span>See the framework surface by contract, data, runtime, deployment, and evidence plane.</span>
+  </a>
+  <a class="doc-path-card" href="./plugins/">
+    <strong>Choose built-in plugins</strong>
+    <span>Compare all 16 plugins, adapters, and runtimes by purpose, stability, and cost behavior.</span>
+  </a>
+  <a class="doc-path-card" href="./cookbook/">
+    <strong>Follow practical recipes</strong>
+    <span>Combine the pieces for CRUD, background work, feedback, files, and safe AWS delivery.</span>
+  </a>
 </div>
 
 ## What Is Documented Here
@@ -39,6 +53,33 @@ Choose the path that matches what you need to do.
 | Plugins | Archive-visible distribution metadata and public offline conformance reports |
 | Testing | Domain, application, adapter, HTTP, plugin, deployment, and release evidence remain distinct |
 | AWS | Zero provisioned application compute is enforced structurally; residual managed-service cost stays visible |
+
+## The Golden Path
+
+```text
+new -> contract -> generate -> dev -> migrate -> seed -> test -> inspect
+    -> package -> change set -> migrate target -> deploy -> verify
+    -> promote exact artifact -> observe or compatibility-checked rollback
+```
+
+Each arrow is explicit and inspectable. Minco does not add a runtime service
+locator, Active Record layer, hosted control plane, hidden scheduler, or
+boot-time production migrations.
+
+## Popular Topics
+
+- [Install Minco](./getting-started/installation) and
+  [build the first application](./getting-started/first-application).
+- Use [typed configuration](./guides/configuration),
+  [database lifecycle controls](./guides/database-lifecycle), and
+  [graph-driven local development](./guides/local-development).
+- Add [identity and sessions](./guides/identity-and-sessions),
+  [events and notifications](./guides/events-and-notifications),
+  [files and static sites](./guides/files-and-static-sites), or the
+  [client feedback loop](./guides/feedback).
+- Review the [complete feature catalog](./features/),
+  [built-in component catalog](./plugins/), and
+  [Cargo feature reference](./reference/feature-flags).
 
 Start with the [framework tour](./getting-started/framework-tour), browse the
 [exercised examples](./examples/), or go directly to the

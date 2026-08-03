@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 760,
+  "file_count": 777,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1644,8 +1644,8 @@
     },
     {
       "path": "docs-site/.vitepress/config.mts",
-      "sha256": "bab0a01bf5d2fb4dad4381f414b1e836ffbd277ed5a8cdc0f21131c1db94a90f",
-      "size_bytes": 7931
+      "sha256": "3569be0a660d53ce56e56bcbec4514eed60cac2473241790fe956dc6144c128f",
+      "size_bytes": 9700
     },
     {
       "path": "docs-site/.vitepress/theme/Layout.vue",
@@ -1659,8 +1659,8 @@
     },
     {
       "path": "docs-site/.vitepress/theme/style.css",
-      "sha256": "cba82255fced3f8e3e46122ca0bda682c2583918a1eb02ee3588021da7820e07",
-      "size_bytes": 4469
+      "sha256": "fa29d8956d213bd9414645143435be7cb6916dae5e973a1c711e52f197aac796",
+      "size_bytes": 5005
     },
     {
       "path": "docs-site/0.5.0/explanation/architecture.md",
@@ -1838,9 +1838,19 @@
       "size_bytes": 1181
     },
     {
+      "path": "docs-site/next/cookbook/index.md",
+      "sha256": "cd6aaac46ad78bd28034b674b54dfc9872744bf13cca5f887433f10989fc0233",
+      "size_bytes": 3740
+    },
+    {
+      "path": "docs-site/next/cookbook/orders-api.md",
+      "sha256": "fda1315c4b83cbb32e3e497c7b1b48e8a657228653470bf516d093fa81fd8c03",
+      "size_bytes": 4153
+    },
+    {
       "path": "docs-site/next/examples/index.md",
-      "sha256": "b6953b64b1128bb09a79f508071ee08fd938315b0f023924ae0874df3bdd1e3b",
-      "size_bytes": 3556
+      "sha256": "4f3a243c751ced345772b2fb45e14f4dcef020894e938527a673b752a4cb685b",
+      "size_bytes": 4196
     },
     {
       "path": "docs-site/next/explanation/zero-idle.md",
@@ -1848,9 +1858,24 @@
       "size_bytes": 2743
     },
     {
+      "path": "docs-site/next/features/index.md",
+      "sha256": "c3236166064485ca7bf0f79e02e9f9a33f673bc61895e891889928d2af342ac2",
+      "size_bytes": 5067
+    },
+    {
+      "path": "docs-site/next/getting-started/first-application.md",
+      "sha256": "65593749d7f2eb3189ddf5018d7cea93550f8f8b9431e08d76ee03929ddfa7ee",
+      "size_bytes": 2689
+    },
+    {
       "path": "docs-site/next/getting-started/framework-tour.md",
       "sha256": "160f34ce247a8c4621de85d206999901a6001397c7bf2db8e38af834006a77c1",
       "size_bytes": 3182
+    },
+    {
+      "path": "docs-site/next/getting-started/installation.md",
+      "sha256": "7f9b106234fbb7ef54176fb252c682dffde48a09e21776d955b95cbbcb4766c5",
+      "size_bytes": 2224
     },
     {
       "path": "docs-site/next/getting-started/project-structure.md",
@@ -1858,9 +1883,49 @@
       "size_bytes": 3272
     },
     {
+      "path": "docs-site/next/guides/background-work.md",
+      "sha256": "ce854d5b3b54bf9131afc35240b71f982cf595468ca8706dd4f1164ec2fedbe9",
+      "size_bytes": 2332
+    },
+    {
+      "path": "docs-site/next/guides/configuration.md",
+      "sha256": "cda36805600c09b7738a34c8edd2ef9ff40a0616497fb53aa9095c65c890b5bb",
+      "size_bytes": 3509
+    },
+    {
+      "path": "docs-site/next/guides/database-lifecycle.md",
+      "sha256": "3d13978f5db18ab022e8df8e67b40dbca65c3f46f368315e5d9444a3a4cb29a2",
+      "size_bytes": 2759
+    },
+    {
       "path": "docs-site/next/guides/deployment.md",
       "sha256": "db4e02cefe49537fb1aac551bb30b29a84c3dc66dabcd784e5737a890617ffae",
       "size_bytes": 3149
+    },
+    {
+      "path": "docs-site/next/guides/events-and-notifications.md",
+      "sha256": "fb21f35fa7f357d797b84eecc91c53761b168eab9bcf9bcf0e7fec8b0cf16ee6",
+      "size_bytes": 2525
+    },
+    {
+      "path": "docs-site/next/guides/feedback.md",
+      "sha256": "3f6dd51cbccf1b0395cc61f26117cc7d267c76089e7184c7fc14680c37e4d594",
+      "size_bytes": 3000
+    },
+    {
+      "path": "docs-site/next/guides/files-and-static-sites.md",
+      "sha256": "fc68556fe9ab66eab859d53e8613480f7054c5a61c7be056c0cbc9cfae7a65f3",
+      "size_bytes": 2665
+    },
+    {
+      "path": "docs-site/next/guides/identity-and-sessions.md",
+      "sha256": "d77d639fbb1a28b58445bb2083f1b7edad24db2ab1ec2c65dd6d9c5aef8b91f2",
+      "size_bytes": 2999
+    },
+    {
+      "path": "docs-site/next/guides/local-development.md",
+      "sha256": "df28e6188111fb1df959c5045e0919a0d8120531400496684d7459a49ff731b9",
+      "size_bytes": 2470
     },
     {
       "path": "docs-site/next/guides/plugin-conformance.md",
@@ -1874,13 +1939,28 @@
     },
     {
       "path": "docs-site/next/index.md",
-      "sha256": "56aeb07d3f71df4cb0d8015ad26dce6e502dd169cbea71101edfb49d61e77c89",
-      "size_bytes": 1928
+      "sha256": "2f74e6cef82e3d4b060261177c33340f27846c22bf741facdbb8abdf022e223c",
+      "size_bytes": 3781
+    },
+    {
+      "path": "docs-site/next/plugins/index.md",
+      "sha256": "e5483d6b2048252a2f991b82806211d3e525e3be7f9345a2b116dc568e80d63d",
+      "size_bytes": 7002
+    },
+    {
+      "path": "docs-site/next/plugins/using-plugins.md",
+      "sha256": "d8d8d79007fa6537fa9a0aebfa33c3d4c82c6fa1c7b1b9441b99b6974afef0e9",
+      "size_bytes": 3923
     },
     {
       "path": "docs-site/next/reference/cli.md",
       "sha256": "bd5584673164fe3c5f1b4c19cf6532c38ef5da61ce978e86c892a4ad443488b1",
       "size_bytes": 2876
+    },
+    {
+      "path": "docs-site/next/reference/feature-flags.md",
+      "sha256": "680f6b60606dc5f377ea9128255008e650d83401997b5453a17ca80d5343ea4e",
+      "size_bytes": 3092
     },
     {
       "path": "docs-site/next/reference/plugin-conformance.md",
@@ -1924,8 +2004,8 @@
     },
     {
       "path": "docs-site/tests/docs.spec.mts",
-      "sha256": "927483693daf61dec7b75f9dd443392f40524eb3dfa106fa04a585add904e293",
-      "size_bytes": 6757
+      "sha256": "5ae51c1a90420be0cb50c3033fac3a5103d2630af931810d9383c855f34cf3c9",
+      "size_bytes": 8068
     },
     {
       "path": "docs-site/versions.md",
@@ -2969,8 +3049,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "47a61cc25d74c9ba02347da455b8c2677cd4a3c2515b0db1faa73863bd2f10b9",
-      "size_bytes": 7771
+      "sha256": "c34b05d896868344f9d35a7e9f7bfa26897ed7649b2150dea1a9a164c44fed80",
+      "size_bytes": 7865
     },
     {
       "path": "rust-toolchain.toml",
@@ -3179,8 +3259,8 @@
     },
     {
       "path": "scripts/docs/check_snippets.py",
-      "sha256": "e0b2a44249fb916ad15478ba4364327f856473590463859f03d601d5c8cd9c54",
-      "size_bytes": 4209
+      "sha256": "e1ed1b0c23118d87395976a106603fec3071b19ed326e6f9efeb343733d912cf",
+      "size_bytes": 4952
     },
     {
       "path": "scripts/docs/generate-reference.sh",
@@ -3468,6 +3548,11 @@
       "size_bytes": 7030
     },
     {
+      "path": "tasks/M11/M11-T09-expand-documentation-catalog.md",
+      "sha256": "51cb8536eebad3651b093ea5d0f2d79b21878912ececfc68c4749c9e75904f82",
+      "size_bytes": 4606
+    },
+    {
       "path": "tasks/M12/M12-T01-local-read-only-mcp.md",
       "sha256": "ec9a3ed7f212f7749aaf112c4e8bdc35edf6889974bf793b614c58e398d3970d",
       "size_bytes": 1274
@@ -3724,7 +3809,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "c6cfe8929cf699f4f8e7b535a028ad369665f282e0843985247964324576bd36",
+      "sha256": "c0a6e9cc4d4413e23af0e94803ba2a091cc721b0600b5a26c158bb5f316673d0",
       "size_bytes": 2021
     },
     {
@@ -3784,7 +3869,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "c8606f472bcd96de0cba6555447c626a20338a38d1fe84ebe972a90bf66c394e",
+      "sha256": "6e7c972fbb7a51890a34786a9d5b2281fd83490a6aeb40a59a116af2b9397a3a",
       "size_bytes": 754
     },
     {
@@ -3810,7 +3895,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "4dcfc64517ae2d8e404a79c89db591943a7eb8ea29d80749acf9afbcad7fcfea",
-  "total_size_bytes": 5234716,
+  "source_tree_sha256": "632bfa1e30501523b8cccb295ad3992a5f425bf7ac4aa47681c90223a8652f81",
+  "total_size_bytes": 5300417,
   "version": "0.6.0"
 }
