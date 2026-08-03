@@ -210,6 +210,188 @@ bounded_review_stack_cleanup_is_authorized() {
       "$stack_resources_path" >/dev/null
 }
 
+bounded_phase_change_set_is_authorized() {
+  local receipt_path="$1"
+  local review_policy="$2"
+  require_command jq
+
+  [[ -f "$receipt_path" && ! -L "$receipt_path" ]] || return 1
+  jq -e '
+    def resource_change:
+      type == "object"
+      and keys == [
+        "action",
+        "logical_id",
+        "policy_action",
+        "replacement",
+        "resource_type",
+        "scope"
+      ]
+      and (.logical_id | type == "string" and length > 0)
+      and (.resource_type | type == "string" and length > 0)
+      and (
+        .action
+        | . == "add"
+          or . == "modify"
+          or . == "remove"
+          or . == "import"
+          or . == "dynamic"
+          or . == "sync_with_actual"
+      )
+      and (
+        .replacement == null
+        or .replacement == "never"
+        or .replacement == "conditional"
+        or .replacement == "always"
+      )
+      and (
+        .policy_action == null
+        or .policy_action == "delete"
+        or .policy_action == "retain"
+        or .policy_action == "snapshot"
+        or .policy_action == "replace_and_delete"
+        or .policy_action == "replace_and_retain"
+        or .policy_action == "replace_and_snapshot"
+      )
+      and (
+        .scope
+        | type == "array"
+          and all(
+            . == "properties"
+            or . == "metadata"
+            or . == "creation_policy"
+            or . == "update_policy"
+            or . == "deletion_policy"
+            or . == "update_replace_policy"
+            or . == "tags"
+          )
+      );
+    .change_set.review
+    | type == "object"
+      and keys == [
+        "additions",
+        "deletions",
+        "imports",
+        "indeterminate",
+        "metadata_syncs",
+        "modifications",
+        "replacements"
+      ]
+      and ([.[] | type] | all(. == "array"))
+      and ([.[] | .[] | resource_change] | all)
+  ' "$receipt_path" >/dev/null || return 1
+  case "$review_policy" in
+    bounded_create_v1)
+      jq -e '
+        .change_set.change_set_type == "create"
+        and (.change_set.review.additions | length > 0)
+        and (.change_set.review.modifications | length == 0)
+        and (.change_set.review.replacements | length == 0)
+        and (.change_set.review.deletions | length == 0)
+        and (.change_set.review.imports | length == 0)
+        and (.change_set.review.indeterminate | length == 0)
+        and (.change_set.review.metadata_syncs | length == 0)
+        and (
+          [
+            .change_set.review.additions[]
+            | .action == "add"
+              and .replacement == null
+              and .policy_action == null
+              and .scope == []
+          ]
+          | all
+        )
+        and (
+          [.change_set.review.additions[].resource_type]
+          | all(
+              . == "AWS::ApiGatewayV2::Api"
+              or . == "AWS::ApiGatewayV2::Stage"
+              or . == "AWS::IAM::Role"
+              or . == "AWS::Lambda::Alias"
+              or . == "AWS::Lambda::Function"
+              or . == "AWS::Lambda::Permission"
+              or . == "AWS::Lambda::Version"
+              or . == "AWS::Logs::LogGroup"
+            )
+        )
+      ' "$receipt_path" >/dev/null
+      ;;
+    bounded_release_update_v1)
+      jq -e '
+        def candidate_version:
+          .resource_type == "AWS::Lambda::Version"
+          and (.logical_id | startswith("ApiFunctionVersion"));
+        def candidate_update:
+          (
+            .resource_type == "AWS::Lambda::Function"
+            and .logical_id == "ApiFunction"
+          )
+          or (
+            .resource_type == "AWS::Lambda::Alias"
+            and .logical_id == "ApiFunctionAliascandidate"
+          );
+        def addition:
+          .action == "add"
+          and .replacement == null
+          and .policy_action == null
+          and .scope == [];
+        def modification:
+          .action == "modify"
+          and (.replacement == null or .replacement == "never")
+          and .policy_action == null
+          and (.scope | length > 0 and all(. == "properties"));
+        def replacement:
+          .action == "modify"
+          and (.replacement == "conditional" or .replacement == "always")
+          and (
+            .policy_action == null
+            or .policy_action == "replace_and_delete"
+          )
+          and (.scope | length > 0 and all(. == "properties"));
+        def deletion:
+          .action == "remove"
+          and .replacement == null
+          and (.policy_action == null or .policy_action == "delete")
+          and .scope == [];
+        .change_set.change_set_type == "update"
+        and (.change_set.review.imports | length == 0)
+        and (.change_set.review.indeterminate | length == 0)
+        and (.change_set.review.metadata_syncs | length == 0)
+        and (
+          [
+            .change_set.review.additions[],
+            .change_set.review.modifications[],
+            .change_set.review.replacements[],
+            .change_set.review.deletions[]
+          ]
+          | length > 0
+        )
+        and (
+          [.change_set.review.additions[] | candidate_version and addition]
+          | all
+        )
+        and (
+          [.change_set.review.modifications[] | candidate_update and modification]
+          | all
+        )
+        and (
+          [.change_set.review.replacements[] | candidate_version and replacement]
+          | all
+        )
+        and (
+          [.change_set.review.deletions[] | candidate_version and deletion]
+          | all
+        )
+      ' "$receipt_path" >/dev/null
+      ;;
+    *)
+      printf 'unsupported bounded change-set review policy: %s\n' \
+        "$review_policy" >&2
+      return 1
+      ;;
+  esac
+}
+
 access_analyzer_role_policy_is_accepted() {
   local validation_path="$1"
   local policy_path="$2"

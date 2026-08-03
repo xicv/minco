@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$repo_root"
+# shellcheck source=scripts/aws/lib/common.sh
+source scripts/aws/lib/common.sh
 
 fixture_dir="$(mktemp -d)"
 fixture_dir="$(cd "$fixture_dir" && pwd -P)"
@@ -160,6 +162,11 @@ jq -e \
     }
     and [.phases[].release] == ["prior", "current", "prior"]
     and [.phases[].stack_action] == ["create", "update", "update"]
+    and [.phases[].change_set_review_policy] == [
+      "bounded_create_v1",
+      "bounded_release_update_v1",
+      "bounded_release_update_v1"
+    ]
     and [.phases[].evidence_namespace] == [
       "phases/01-prior-initial",
       "phases/02-current",
@@ -200,6 +207,169 @@ jq -e \
   jq . "$plan" >&2
   exit 1
 }
+
+create_review="$fixture_dir/create-change-set-receipt.json"
+update_review="$fixture_dir/update-change-set-receipt.json"
+broadened_update_review="$fixture_dir/broadened-update-change-set-receipt.json"
+jq -n '
+  {
+    change_set: {
+      change_set_type: "create",
+      review: {
+        additions: [{
+          logical_id: "HttpApi",
+          resource_type: "AWS::ApiGatewayV2::Api",
+          action: "add",
+          replacement: null,
+          policy_action: null,
+          scope: []
+        }],
+        modifications: [],
+        replacements: [],
+        deletions: [],
+        imports: [],
+        indeterminate: [],
+        metadata_syncs: []
+      }
+    }
+  }
+' >"$create_review"
+bounded_phase_change_set_is_authorized "$create_review" bounded_create_v1 || {
+  echo "exact bounded create review was rejected" >&2
+  exit 1
+}
+
+jq -n '
+  {
+    change_set: {
+      change_set_type: "update",
+      review: {
+        additions: [{
+          logical_id: "ApiFunctionVersionA1B2C3",
+          resource_type: "AWS::Lambda::Version",
+          action: "add",
+          replacement: null,
+          policy_action: null,
+          scope: []
+        }],
+        modifications: [
+          {
+            logical_id: "ApiFunction",
+            resource_type: "AWS::Lambda::Function",
+            action: "modify",
+            replacement: "never",
+            policy_action: null,
+            scope: ["properties"]
+          },
+          {
+            logical_id: "ApiFunctionAliascandidate",
+            resource_type: "AWS::Lambda::Alias",
+            action: "modify",
+            replacement: null,
+            policy_action: null,
+            scope: ["properties"]
+          }
+        ],
+        replacements: [],
+        deletions: [{
+          logical_id: "ApiFunctionVersionOld",
+          resource_type: "AWS::Lambda::Version",
+          action: "remove",
+          replacement: null,
+          policy_action: "delete",
+          scope: []
+        }],
+        imports: [],
+        indeterminate: [],
+        metadata_syncs: []
+      }
+    }
+  }
+' >"$update_review"
+bounded_phase_change_set_is_authorized \
+  "$update_review" bounded_release_update_v1 || {
+  echo "exact bounded release update review was rejected" >&2
+  exit 1
+}
+
+jq '
+  .change_set.review.modifications += [
+    {
+      logical_id: "ExecutionRole",
+      resource_type: "AWS::IAM::Role",
+      action: "modify",
+      replacement: null,
+      policy_action: null,
+      scope: ["properties"]
+    }
+  ]
+' "$update_review" >"$broadened_update_review"
+if bounded_phase_change_set_is_authorized \
+  "$broadened_update_review" bounded_release_update_v1; then
+  echo "release update review accepted expanded IAM resources" >&2
+  exit 1
+fi
+
+live_alias_update_review="$fixture_dir/live-alias-update-change-set-receipt.json"
+jq '
+  .change_set.review.modifications += [
+    {
+      logical_id: "LiveFunctionAlias",
+      resource_type: "AWS::Lambda::Alias",
+      action: "modify",
+      replacement: null,
+      policy_action: null,
+      scope: ["properties"]
+    }
+  ]
+' "$update_review" >"$live_alias_update_review"
+if bounded_phase_change_set_is_authorized \
+  "$live_alias_update_review" bounded_release_update_v1; then
+  echo "release update review accepted live routing mutation" >&2
+  exit 1
+fi
+
+if bounded_phase_change_set_is_authorized \
+  "$update_review" operator_defined_update 2>/dev/null; then
+  echo "release update review accepted an operator-defined policy" >&2
+  exit 1
+fi
+
+incomplete_update_review="$fixture_dir/incomplete-update-change-set-receipt.json"
+jq 'del(.change_set.review.metadata_syncs)' \
+  "$update_review" >"$incomplete_update_review"
+if bounded_phase_change_set_is_authorized \
+  "$incomplete_update_review" bounded_release_update_v1; then
+  echo "release update review accepted an incomplete provider classification" >&2
+  exit 1
+fi
+
+incomplete_resource_review="$fixture_dir/incomplete-resource-change-set-receipt.json"
+jq 'del(.change_set.review.modifications[0].action)' \
+  "$update_review" >"$incomplete_resource_review"
+if bounded_phase_change_set_is_authorized \
+  "$incomplete_resource_review" bounded_release_update_v1; then
+  echo "release update review accepted an incomplete resource change" >&2
+  exit 1
+fi
+
+retained_update_review="$fixture_dir/retained-update-change-set-receipt.json"
+jq '.change_set.review.deletions[0].policy_action = "retain"' \
+  "$update_review" >"$retained_update_review"
+if bounded_phase_change_set_is_authorized \
+  "$retained_update_review" bounded_release_update_v1; then
+  echo "release update review accepted retained generated resources" >&2
+  exit 1
+fi
+
+metadata_update_review="$fixture_dir/metadata-update-change-set-receipt.json"
+jq '.change_set.review.modifications[0].scope = ["metadata"]' \
+  "$update_review" >"$metadata_update_review"
+if bounded_phase_change_set_is_authorized \
+  "$metadata_update_review" bounded_release_update_v1; then
+  echo "release update review accepted a non-property mutation" >&2
+  exit 1
+fi
 
 plan_digest="$(shasum -a 256 "$plan" | awk '{print $1}')"
 phase_projection="$fixture_dir/phase-projection.json"
@@ -255,6 +425,7 @@ jq -e \
       root: $prior_root
     }
     and .phase.stack_action == "update"
+    and .phase.change_set_review_policy == "bounded_release_update_v1"
     and .phase.artifact_policy == {
       build: false,
       replan: false,
@@ -323,6 +494,24 @@ if PATH="$fake_bin:$PATH" \
   MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
   scripts/aws/plan-multi-release-phase.sh >/dev/null 2>&1; then
   echo "phase projection accepted a digest-matched plan outside fixed policy" >&2
+  exit 1
+fi
+
+broadened_review_plan="$fixture_dir/broadened-review-plan.json"
+jq '.phases[1].change_set_review_policy = "operator_defined_update"' \
+  "$plan" >"$broadened_review_plan"
+broadened_review_digest="$(
+  shasum -a 256 "$broadened_review_plan" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$broadened_review_plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$broadened_review_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  scripts/aws/plan-multi-release-phase.sh >/dev/null 2>&1; then
+  echo "phase projection accepted an operator-defined change-set review policy" >&2
   exit 1
 fi
 

@@ -255,6 +255,18 @@ prior compatibility assessment returns `compatible`. It fixes `build: false`,
 `replan: false` and historical hosted-report reuse to false, but still requires
 a fresh hosted verification and promotion. Every phase evidence namespace is
 create-only.
+Each phase also names one closed CloudFormation review policy. The initial
+phase uses `bounded_create_v1`, preserving the existing eight-resource
+create-only allowlist. The current and rollback phases use
+`bounded_release_update_v1`: additions, removals and replacements are confined
+to generated `ApiFunctionVersion*` resources, while ordinary modifications are
+confined to the candidate `ApiFunction` and `ApiFunctionAliascandidate`. Imports,
+indeterminate actions, provider metadata sync, IAM/API expansion and any
+deployment-phase mutation of `LiveFunctionAlias` fail closed. Live routing
+remains exclusively owned by the separately approved promotion operation.
+Every admitted resource change must also retain the exact serialized action,
+replacement, policy-action and scope shape; an incomplete or retention-bearing
+receipt cannot pass merely because its logical ID is allowlisted.
 Write the output outside both checkouts so shell redirection does not make a
 checkout dirty before validation. The output contains local absolute paths and
 is an operator preflight, not a redacted publication artifact or authority to
@@ -312,8 +324,10 @@ qualification: the prior checkout must redeploy its exact artifact as a new
 candidate, create a fresh deployment receipt and hosted report, and pass
 ordinary `promote` again.
 
-The current bounded runner remains single-release. The local plan and per-phase
-projection now close the parent ownership and handoff contracts, but no
+The current bounded runner remains single-release. Its create review now uses
+the same centralized policy evaluator carried by the phase plan, so future
+update execution cannot substitute a broader ad hoc review. The local plan and
+per-phase projection close the parent ownership and handoff contracts, but no
 provider-capable parent runner consumes them yet. Do not disable the
 single-release runner's immediate cleanup or create-only review gate
 independently; that would leave a partially owned provider boundary rather than
