@@ -192,6 +192,7 @@ jq -n \
         evidence_namespace: "phases/01-prior-initial",
         evidence_write_policy: "create_only",
         stack_action: "create",
+        change_set_review_policy: "bounded_create_v1",
         artifact_policy: {
           build: true,
           replan: true,
@@ -207,6 +208,7 @@ jq -n \
         evidence_namespace: "phases/02-current",
         evidence_write_policy: "create_only",
         stack_action: "update",
+        change_set_review_policy: "bounded_release_update_v1",
         artifact_policy: {
           build: true,
           replan: true,
@@ -222,6 +224,7 @@ jq -n \
         evidence_namespace: "phases/03-prior-rollback",
         evidence_write_policy: "create_only",
         stack_action: "update",
+        change_set_review_policy: "bounded_release_update_v1",
         artifact_policy: {
           build: false,
           replan: false,

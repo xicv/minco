@@ -64,6 +64,11 @@ and (.phases | length) == 3
 and ([.phases[].id] == ["01-prior-initial", "02-current", "03-prior-rollback"])
 and ([.phases[].release] == ["prior", "current", "prior"])
 and ([.phases[].stack_action] == ["create", "update", "update"])
+and ([.phases[].change_set_review_policy] == [
+  "bounded_create_v1",
+  "bounded_release_update_v1",
+  "bounded_release_update_v1"
+])
 and ([.phases[].evidence_namespace] == [
   "phases/01-prior-initial",
   "phases/02-current",
@@ -74,6 +79,7 @@ and ([.phases[].fresh_hosted_verification] | all(. == true))
 and ([.phases[].promotion_required] | all(. == true))
 and ([.phases[] | keys] | all(. == [
   "artifact_policy",
+  "change_set_review_policy",
   "evidence_namespace",
   "evidence_write_policy",
   "fresh_hosted_verification",

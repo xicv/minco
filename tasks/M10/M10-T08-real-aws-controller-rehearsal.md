@@ -164,3 +164,21 @@ post-plan source drift fail closed while fake provider/build commands remain
 untouched. The remaining implementation gate is still provider-capable parent
 orchestration with one shared resource boundary and one cleanup owner; this
 slice does not authorize or contact AWS.
+
+The fifth controller slice closes the previously ambiguous provider review
+policy for those handoffs. The whole-run plan and every projected phase now
+carry one of two fixed policies: the existing eight-resource create allowlist
+for `01-prior-initial`, or a release-update allowlist for `02-current` and
+`03-prior-rollback`. Update reviews admit only generated Lambda versions and
+candidate Function/Alias changes; IAM/API expansion, imports, dynamic or
+provider-sync actions and live-alias mutation fail closed. The standalone
+bounded runner now delegates its create receipt to the same evaluator instead
+of retaining a second inline policy. Red-first shell coverage proved the plan
+omitted this boundary before implementation, and then proved exact create and
+update examples plus rejection of broadened IAM, live routing and arbitrary
+operator-defined policies. Security review added a second red regression for
+an incomplete resource-change object; the evaluator now also closes action,
+replacement, retention policy and property-scope semantics instead of trusting
+an allowlisted logical ID alone. This slice remains provider-free; shared
+resource setup, phase execution, compatibility assessment and one parent-owned
+cleanup trap are still required before live rehearsal authority can be used.

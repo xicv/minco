@@ -322,29 +322,8 @@ MINCO_DEPLOY_TARGET_CONFIG="target/minco/aws/$MINCO_AWS_RUN_ID/deployment-target
 MINCO_APPROVE_RELEASE_DIGEST="$release_digest" \
   scripts/aws/deploy.sh
 change_set_receipt="$MINCO_AWS_EVIDENCE_DIR/change-set-receipt.json"
-jq -e '
-  .change_set.change_set_type == "create"
-  and (.change_set.review.additions | length > 0)
-  and (.change_set.review.modifications | length == 0)
-  and (.change_set.review.replacements | length == 0)
-  and (.change_set.review.deletions | length == 0)
-  and (.change_set.review.imports | length == 0)
-  and (.change_set.review.indeterminate | length == 0)
-  and (.change_set.review.metadata_syncs | length == 0)
-  and (
-    [.change_set.review.additions[].resource_type]
-    | all(
-        . == "AWS::ApiGatewayV2::Api"
-        or . == "AWS::ApiGatewayV2::Stage"
-        or . == "AWS::IAM::Role"
-        or . == "AWS::Lambda::Alias"
-        or . == "AWS::Lambda::Function"
-        or . == "AWS::Lambda::Permission"
-        or . == "AWS::Lambda::Version"
-        or . == "AWS::Logs::LogGroup"
-      )
-  )
-' "$change_set_receipt" >/dev/null || {
+bounded_phase_change_set_is_authorized \
+  "$change_set_receipt" bounded_create_v1 || {
   echo "bounded change set is not an approved create-only resource set" >&2
   exit 1
 }
