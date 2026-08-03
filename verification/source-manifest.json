@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 746,
+  "file_count": 748,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1154,8 +1154,13 @@
     },
     {
       "path": "docs/adoption/incremental-adoption.md",
-      "sha256": "6b8122cba5e20a5115180e635a4e45a508558f9723c3da56ec851e63334f9830",
-      "size_bytes": 9256
+      "sha256": "dca02d204de491df3644c3cd616455d01d9dbe9433e5e1e6a2da39dd26fe894a",
+      "size_bytes": 9496
+    },
+    {
+      "path": "docs/adoption/two-application-validation-2026-08-03.md",
+      "sha256": "9bacae9c7fda5208b6d72a36a9d043e67ef22570020033a68baf845542671aee",
+      "size_bytes": 10211
     },
     {
       "path": "docs/adrs/0001-openapi-contract.md",
@@ -2954,8 +2959,8 @@
     },
     {
       "path": "roadmap/roadmap.yaml",
-      "sha256": "01b4f3d4564d24837f7fa8a0a318378b8c36a332f0b1c2e5e9c43f11a8d17431",
-      "size_bytes": 7037
+      "sha256": "399c7896612c9b986357a97d7798829bed2e779108c09581d224da6b76bbabf2",
+      "size_bytes": 7036
     },
     {
       "path": "roadmap/tasks.mmd",
@@ -3539,8 +3544,13 @@
     },
     {
       "path": "tasks/M7/M7-T01-two-app-validation.md",
-      "sha256": "e4fe940da09a7044332478f907d949ebadf505013da1a7871c705236d43df0d5",
-      "size_bytes": 1230
+      "sha256": "89ae822e02e960d05b9e0e0935c5079d3ebc2d1b40baca34e3b48db03c26570b",
+      "size_bytes": 3415
+    },
+    {
+      "path": "tasks/M7/M7-T02-garmentiq-contract-evidence.md",
+      "sha256": "ab3f7361a28f42ac8319cf654c6df04e16ba5cd21d5430aa422b9c303f67340c",
+      "size_bytes": 2229
     },
     {
       "path": "tasks/M8/M8-T01-publishable-crate-family.md",
@@ -3654,7 +3664,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "6b8797cf1cec7169c1b87b633a9483b93894a1bf89e154151224f6b37d46e18e",
+      "sha256": "7979d1a06cd38c1e8e3bab189e1cb57799bb2dbaa5eee3d99696e98856bb7894",
       "size_bytes": 2021
     },
     {
@@ -3714,7 +3724,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "0104c43c797179f4d38f4a19862e581ab8cd1bbfe374078870b026b3b2f0d22f",
+      "sha256": "d211f3af94b7539f507b92f15c51114b708c1780b8c0f81bd643d5fa970a88e7",
       "size_bytes": 754
     },
     {
@@ -3740,7 +3750,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "4425354452b820169548e413a1deda082cbe029d54916709e7d05d9365f05184",
-  "total_size_bytes": 5091456,
+  "source_tree_sha256": "ac3f0944d047cf7292c74d3da9e35f5ba192ad865a42338c47f29a61452afa61",
+  "total_size_bytes": 5106320,
   "version": "0.6.0"
 }

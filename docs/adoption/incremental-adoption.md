@@ -215,3 +215,8 @@ Local compiler, contract, Rustack, package and SAM evidence is not a live
 deployment. AWS deployment, SES delivery, CloudFront creation, load/soak,
 product data migration, rollback rehearsal and physical operational proof
 remain separate approvals and evidence.
+
+The dated
+[`CGSP and GarmentIQ validation`](two-application-validation-2026-08-03.md)
+shows how those evidence states are kept separate for real applications. It
+also records why native product quality is not automatically Minco adoption.
