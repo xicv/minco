@@ -52,6 +52,21 @@ scripts/aws/validate-rehearsal-authority.sh \
   bounded-direct-smoke-v1 \
   cleanup-bounded-direct-smoke-v1
 
+(
+  cd "$fixture_dir"
+  "$repo_root/scripts/aws/validate-rehearsal-authority.sh" \
+    "$authority_file" \
+    "$approval_digest" \
+    reviewed-run \
+    0123456789abcdef0123456789abcdef01234567 \
+    ap-southeast-2 \
+    minco-rehearsal \
+    dev \
+    "$database_boundary" \
+    bounded-direct-smoke-v1 \
+    cleanup-bounded-direct-smoke-v1
+)
+
 # shellcheck source=scripts/aws/lib/common.sh
 source scripts/aws/lib/common.sh
 authority_receipt="$fixture_dir/authority-receipt.json"

@@ -63,6 +63,31 @@ write_rehearsal_authority_receipt() {
   chmod 600 "$output_path"
 }
 
+write_multi_release_rehearsal_authority_receipt() {
+  local authority_file="$1"
+  local approval_digest="$2"
+  local output_path="$3"
+  jq \
+    --arg approval_digest "$approval_digest" \
+    '{
+      schema_version,
+      authority_kind,
+      run_id,
+      source_revisions,
+      release_sequence,
+      environment,
+      database_boundary_mode: .database_boundary.mode,
+      resource_allowlist,
+      cleanup_blast_radius,
+      max_duration_minutes,
+      max_spend_usd,
+      approved_at,
+      expires_at,
+      approval_digest: $approval_digest
+    }' "$authority_file" >"$output_path"
+  chmod 600 "$output_path"
+}
+
 initialize_rehearsal_deadline() {
   local authority_file="$1"
   local duration_minutes
