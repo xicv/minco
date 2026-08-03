@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 748,
+  "file_count": 749,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1153,14 +1153,19 @@
       "size_bytes": 5468
     },
     {
+      "path": "docs/adoption/garmentiq-contract-only-2026-08-03.md",
+      "sha256": "d4ee65812488ce0ff1270205b755d02faf02c9df9ffa8edfeb68aa4f743aef2b",
+      "size_bytes": 7794
+    },
+    {
       "path": "docs/adoption/incremental-adoption.md",
       "sha256": "dca02d204de491df3644c3cd616455d01d9dbe9433e5e1e6a2da39dd26fe894a",
       "size_bytes": 9496
     },
     {
       "path": "docs/adoption/two-application-validation-2026-08-03.md",
-      "sha256": "9bacae9c7fda5208b6d72a36a9d043e67ef22570020033a68baf845542671aee",
-      "size_bytes": 10211
+      "sha256": "b48e23b16aa570199d12e93ceec99bfa0a9981bc96e97df922bd96aa3bd7fe09",
+      "size_bytes": 10385
     },
     {
       "path": "docs/adrs/0001-openapi-contract.md",
@@ -3549,8 +3554,8 @@
     },
     {
       "path": "tasks/M7/M7-T02-garmentiq-contract-evidence.md",
-      "sha256": "ab3f7361a28f42ac8319cf654c6df04e16ba5cd21d5430aa422b9c303f67340c",
-      "size_bytes": 2229
+      "sha256": "85d0455e79580e626d1771b9d9e3fb842d0b60f7bd417aeffa23b687657a2e28",
+      "size_bytes": 4941
     },
     {
       "path": "tasks/M8/M8-T01-publishable-crate-family.md",
@@ -3750,7 +3755,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "ac3f0944d047cf7292c74d3da9e35f5ba192ad865a42338c47f29a61452afa61",
-  "total_size_bytes": 5106320,
+  "source_tree_sha256": "0de360efa8d87dc8ac1c8cbfdf1b7750e38234ae54ee8d61b7290e6e17cc9312",
+  "total_size_bytes": 5117000,
   "version": "0.6.0"
 }
