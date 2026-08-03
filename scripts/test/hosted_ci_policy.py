@@ -47,6 +47,8 @@ class HostedCiPolicyTests(unittest.TestCase):
                 command_log.read_text().splitlines(),
                 [
                     "uv <run> <--locked> <python> <scripts/validate_static.py>",
+                    "cargo <build> <--quiet> <--locked> <-p> <cargo-minco>",
+                    "uv <run> <--locked> <python> <scripts/docs/generate_reference.py> <--check>",
                     "uv <run> <--locked> <python> <scripts/test/repository_truth.py>",
                     "uv <run> <--locked> <python> <scripts/test/hosted_ci_policy.py>",
                     "cargo <fmt> <--all> <--> <--check>",
@@ -113,6 +115,7 @@ class HostedCiPolicyTests(unittest.TestCase):
         quality = (ROOT / "scripts/quality.sh").read_text()
         required_commands = [
             "scripts/validate_static.py --output verification/static-validation.json",
+            "scripts/docs/generate-reference.sh --check",
             "scripts/test/repository_truth.py",
             "scripts/test/hosted_ci_policy.py",
             "scripts/validate_publish.py --output verification/publish-validation.json",

@@ -1,5 +1,9 @@
 # CLI Reference
 
+The [generated CLI command tree and exact Clap help](generated/cli.md) is the
+authority for the current checkout. This page explains workflow, evidence, and
+mutation boundaries without maintaining a second exhaustive command inventory.
+
 The published binary is `cargo-minco`; Cargo exposes it as `cargo minco`. The
 workspace also defines a local `cargo minco` alias. Global options are
 `--root PATH` and `--json`.

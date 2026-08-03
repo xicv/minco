@@ -5,6 +5,7 @@ export CARGO_INCREMENTAL=0
 export CARGO_PROFILE_DEV_DEBUG=0
 export CARGO_PROFILE_TEST_DEBUG=0
 uv run --locked python scripts/validate_static.py --output verification/static-validation.json
+scripts/docs/generate-reference.sh --check
 uv run --locked python scripts/test/repository_truth.py
 uv run --locked python scripts/test/hosted_ci_policy.py
 uv run --locked python scripts/validate_publish.py --output verification/publish-validation.json

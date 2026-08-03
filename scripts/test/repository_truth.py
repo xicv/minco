@@ -2,6 +2,7 @@
 """Regression fixtures for cross-source repository truth diagnostics."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
 import sys
@@ -29,6 +30,15 @@ from validate_static import (  # noqa: E402
     security_allows_anonymous,
     walk_openapi_schema_objects,
 )
+
+REFERENCE_GENERATOR_PATH = ROOT / "scripts" / "docs" / "generate_reference.py"
+REFERENCE_GENERATOR_SPEC = importlib.util.spec_from_file_location(
+    "minco_generate_reference", REFERENCE_GENERATOR_PATH
+)
+if REFERENCE_GENERATOR_SPEC is None or REFERENCE_GENERATOR_SPEC.loader is None:
+    raise RuntimeError(f"cannot load {REFERENCE_GENERATOR_PATH}")
+REFERENCE_GENERATOR = importlib.util.module_from_spec(REFERENCE_GENERATOR_SPEC)
+REFERENCE_GENERATOR_SPEC.loader.exec_module(REFERENCE_GENERATOR)
 
 
 class RepositoryTruthTests(unittest.TestCase):
@@ -108,6 +118,127 @@ class RepositoryTruthTests(unittest.TestCase):
 
     def test_current_repository_truth_is_consistent(self) -> None:
         self.assertEqual(self.truth_codes(), set())
+
+    def test_generated_reference_is_current(self) -> None:
+        self.assertEqual(REFERENCE_GENERATOR.stale_outputs(ROOT), [])
+
+    def test_generated_reference_detects_facade_feature_drift(self) -> None:
+        facade = self.root / "crates" / "minco" / "Cargo.toml"
+        facade.write_text(
+            facade.read_text().replace(
+                'test = ["dep:minco-test", "http"]',
+                'test = ["dep:minco-test", "http", "contract"]',
+            )
+        )
+        self.assertIn(
+            "docs/reference/generated/features.md",
+            REFERENCE_GENERATOR.stale_outputs(self.root),
+        )
+
+    def test_generated_reference_detects_plugin_catalog_drift(self) -> None:
+        catalog = self.root / "plugins" / "catalog.toml"
+        catalog.write_text(
+            catalog.read_text().replace(
+                "Append-only audit history independent of operational logs.",
+                "Append-only audited history independent of operational logs.",
+            )
+        )
+        self.assertIn(
+            "docs/reference/generated/plugins.md",
+            REFERENCE_GENERATOR.stale_outputs(self.root),
+        )
+
+    def test_generated_reference_detects_distribution_value_drift(self) -> None:
+        distribution = self.root / "plugins" / "minco-plugin-audit" / "minco-plugin.json"
+        distribution.write_text(
+            distribution.read_text().replace('"plugin_version": "1.0.0"', '"plugin_version": "1.0.1"')
+        )
+        self.assertIn(
+            "docs/reference/generated/plugins.md",
+            REFERENCE_GENERATOR.stale_outputs(self.root),
+        )
+
+    def test_generated_reference_rejects_distribution_symlinks(self) -> None:
+        distribution = self.root / "plugins" / "minco-plugin-audit" / "minco-plugin.json"
+        outside = Path(self.temporary.name) / "outside-plugin.json"
+        outside.write_text(distribution.read_text())
+        distribution.unlink()
+        distribution.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "cannot be a symlink"):
+            REFERENCE_GENERATOR.stale_outputs(self.root)
+
+    def test_generated_reference_detects_configuration_schema_drift(self) -> None:
+        manifest = self.root / "minco.toml"
+        manifest.write_text(
+            manifest.read_text().replace(
+                "Stable application service name",
+                "Stable application and service name",
+            )
+        )
+        self.assertIn(
+            "docs/reference/generated/schemas.md",
+            REFERENCE_GENERATOR.stale_outputs(self.root),
+        )
+
+    def test_generated_reference_detects_diagnostic_drift(self) -> None:
+        model = self.root / "crates" / "minco-plan" / "src" / "model.rs"
+        old_code = "MINCO-PLAN-" + "003"
+        new_code = "MINCO-PLAN-" + "099"
+        model.write_text(model.read_text().replace(old_code, new_code))
+        self.assertIn(
+            "docs/reference/generated/diagnostics.md",
+            REFERENCE_GENERATOR.stale_outputs(self.root),
+        )
+
+    def test_generated_reference_detects_cli_page_drift(self) -> None:
+        cli = self.root / "docs" / "reference" / "generated" / "cli.md"
+        cli.write_text(cli.read_text() + "\nmanual drift\n")
+        self.assertIn(
+            "docs/reference/generated/cli.md",
+            REFERENCE_GENERATOR.stale_outputs(self.root),
+        )
+
+    def test_generated_reference_rejects_output_symlinks(self) -> None:
+        features = self.root / "docs" / "reference" / "generated" / "features.md"
+        outside = Path(self.temporary.name) / "outside-features.md"
+        outside.write_text(features.read_text())
+        features.unlink()
+        features.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "cannot be a symlink"):
+            REFERENCE_GENERATOR.stale_outputs(self.root)
+
+    def test_generated_schema_reference_redacts_secret_defaults(self) -> None:
+        schemas = REFERENCE_GENERATOR.render_outputs(ROOT)[
+            "docs/reference/generated/schemas.md"
+        ]
+        database_row = next(
+            line for line in schemas.splitlines() if line.startswith("| `database.url`")
+        )
+        self.assertIn("| yes | — |", database_row)
+        self.assertNotIn("env:", database_row)
+        self.assertNotIn("ssm:", database_row)
+
+    def test_generated_reference_is_byte_stable(self) -> None:
+        first = REFERENCE_GENERATOR.render_outputs(ROOT)
+        second = REFERENCE_GENERATOR.render_outputs(ROOT)
+        self.assertEqual(first, second)
+
+    def test_generated_reference_has_no_trailing_whitespace(self) -> None:
+        for relative, content in REFERENCE_GENERATOR.render_outputs(ROOT).items():
+            with self.subTest(relative=relative):
+                self.assertFalse(
+                    any(line.endswith((" ", "\t")) for line in content.splitlines())
+                )
+
+    def test_generated_reference_rejects_cli_binary_symlinks(self) -> None:
+        binary = self.root / "target" / "debug" / "cargo-minco"
+        binary.parent.mkdir(parents=True)
+        outside = Path(self.temporary.name) / "outside-cargo-minco"
+        outside.write_text("#!/usr/bin/env bash\nexit 0\n")
+        outside.chmod(0o755)
+        binary.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "cannot be a symlink"):
+            REFERENCE_GENERATOR.cli_binary(self.root)
 
     def test_workspace_version_drift_has_a_stable_code(self) -> None:
         truth = self.root / "verification/repository-truth.toml"

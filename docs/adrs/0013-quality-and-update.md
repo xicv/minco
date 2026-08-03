@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-23
-- Last reviewed: 2026-07-31
+- Last reviewed: 2026-08-03
 
 ## Context
 
@@ -29,15 +29,20 @@ GitHub Actions remains optional, read-only and
 [`workflow_dispatch`-only][workflow-dispatch]. Its default `essential` profile
 runs a bounded clean-Linux-runner gate:
 
-1. static and cross-source repository truth;
-2. the hosted-CI policy regression;
-3. Rust formatting;
-4. an all-workspace, all-target, all-feature locked compiler check;
-5. exact source-manifest verification.
+1. static repository truth;
+2. byte-for-byte generated package, feature, plugin, CLI, configuration, Plan
+   and diagnostic reference freshness, using the exact-ref `cargo-minco` binary;
+3. cross-source repository truth and the hosted-CI policy regression;
+4. Rust formatting;
+5. an all-workspace, all-target, all-feature locked compiler check;
+6. exact source-manifest verification.
 
-The default profile does not install browsers, JJ, ripgrep, security tooling,
-Cargo Lambda or Zig; it does not run the full tests, publish dry-run, native
-artifact build, Rustack or E2E; and it does not upload browser artifacts.
+The reference freshness step builds only the locked `cargo-minco` control-plane
+binary and runs read-only help, schema and plan inspection against the checkout.
+It performs no provider contact. The default profile does not install browsers,
+JJ, ripgrep, security tooling, Cargo Lambda or Zig; it does not run the full
+tests, publish dry-run, native Lambda artifact build, Rustack or E2E; and it does
+not upload browser artifacts.
 Workspace target caching is disabled. Registry caching remains available, with
 no cache save on failure.
 
