@@ -1,4 +1,4 @@
-use crate::sam_logical_id;
+use crate::{cost::CostClass, sam_logical_id};
 use minco_contract::{ContractDocument, HttpMethod};
 use minco_core::{ApplicationGraph, ResourceKind};
 use serde::{Deserialize, Serialize};
@@ -111,6 +111,7 @@ impl DeploymentConfig {
             routes,
             application_graph,
             static_site: None,
+            preview: None,
             local_aws_services,
             scheduled_wakeups: self.scheduled_wakeups,
             uses_nat_gateway: self.uses_nat_gateway,
@@ -145,6 +146,8 @@ pub struct DeploymentPlan {
     pub application_graph: ApplicationGraph,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub static_site: Option<StaticSiteDeployment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview: Option<PreviewLifecyclePlan>,
     #[serde(default)]
     pub local_aws_services: Vec<String>,
     pub scheduled_wakeups: Vec<String>,
@@ -154,6 +157,44 @@ pub struct DeploymentPlan {
     pub log_retention_days: u32,
     pub cost_policy: CostPolicy,
     pub performance_policy: PerformancePolicy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PreviewResourceRetention {
+    Delete,
+    Retain,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewResource {
+    pub logical_id: String,
+    pub resource_type: String,
+    pub retention: PreviewResourceRetention,
+    pub idle_cost_class: CostClass,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewCleanupSchedule {
+    pub expression: String,
+    pub action_after_completion: ScheduleCompletionAction,
+    pub residual_resources: Vec<String>,
+    pub manual_fallback: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewLifecyclePlan {
+    pub owner: String,
+    pub ttl_seconds: u32,
+    pub expected_account_id: String,
+    pub expected_region: String,
+    pub resources: Vec<PreviewResource>,
+    pub pricing_complete: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cleanup_schedule: Option<PreviewCleanupSchedule>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -366,6 +407,75 @@ impl DeploymentPlan {
                 "MINCO-STATIC-001",
                 "static-site deployment intent is invalid",
             ));
+        }
+        if let Some(preview) = &self.preview {
+            let owner_valid = !preview.owner.trim().is_empty()
+                && preview.owner.len() <= 256
+                && !preview.owner.chars().any(char::is_control);
+            let account_valid = preview.expected_account_id.len() == 12
+                && preview
+                    .expected_account_id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit());
+            let resource_identity_valid = preview.resources.iter().all(|resource| {
+                is_cloudformation_logical_id(&resource.logical_id)
+                    && !resource.resource_type.trim().is_empty()
+                    && !resource.resource_type.chars().any(char::is_control)
+            });
+            let resources_are_ordered = !preview.resources.is_empty()
+                && preview
+                    .resources
+                    .windows(2)
+                    .all(|resources| resources[0].logical_id < resources[1].logical_id);
+            if !owner_valid
+                || !(300..=2_592_000).contains(&preview.ttl_seconds)
+                || !account_valid
+                || preview.expected_region != self.region
+                || !resource_identity_valid
+                || !resources_are_ordered
+            {
+                diagnostics.push(error(
+                    "MINCO-PREVIEW-001",
+                    "preview lifecycle requires a bounded owner, TTL, exact target, and sorted unique resources",
+                ));
+            }
+            if self.environment != "preview" && !self.environment.starts_with("preview-") {
+                diagnostics.push(error(
+                    "MINCO-PREVIEW-002",
+                    "preview lifecycle is allowed only for an explicit preview environment",
+                ));
+            }
+            if let Some(cleanup) = &preview.cleanup_schedule {
+                let retained = preview
+                    .resources
+                    .iter()
+                    .filter(|resource| resource.retention == PreviewResourceRetention::Retain)
+                    .map(|resource| resource.logical_id.clone())
+                    .collect::<Vec<_>>();
+                if !cleanup.expression.starts_with("at(")
+                    || !is_schedule_expression(&cleanup.expression)
+                    || cleanup.residual_resources != retained
+                    || cleanup.manual_fallback.trim().is_empty()
+                    || cleanup.manual_fallback.chars().any(char::is_control)
+                {
+                    diagnostics.push(error(
+                        "MINCO-PREVIEW-003",
+                        "preview cleanup must be one-time, self-deleting, list exact retained resources, and keep a manual fallback",
+                    ));
+                }
+                if self.cost_policy.deny_scheduled_wakeups {
+                    diagnostics.push(error(
+                        "MINCO-PREVIEW-004",
+                        "preview cleanup scheduling requires explicit scheduled-wakeup permission",
+                    ));
+                }
+            }
+            if !preview.pricing_complete {
+                diagnostics.push(warning(
+                    "MINCO-PREVIEW-006",
+                    "preview pricing is incomplete; retained and provider-priced dimensions remain visible",
+                ));
+            }
         }
         if self.routes.iter().any(|route| route.authenticated)
             && matches!(&self.auth, AuthPlan::None)
@@ -654,6 +764,13 @@ impl DeploymentPlan {
         }
         diagnostics
     }
+}
+
+fn is_cloudformation_logical_id(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    value.len() <= 255
+        && bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic())
+        && bytes.all(|byte| byte.is_ascii_alphanumeric())
 }
 
 fn validate_multi_runtime_topology(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiagnostic>) {

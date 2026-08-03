@@ -18,3 +18,63 @@ database_url_parameter_name = "/minco/dev/database-url"
 # static_site_pricing_source = "https://aws.amazon.com/cloudfront/pricing/"
 # static_site_billing_model = "request_and_transfer"
 # static_site_flat_rate_eligibility = "ineligible"
+
+# Repository-native preview planning target. It is intentionally disabled for
+# live AWS use; account, role, bucket and parameter names must be reviewed and
+# enabled explicitly before any provider operation.
+[environments.preview]
+enabled = false
+lifecycle = "preview"
+expected_account_id = "000000000000"
+expected_region = "ap-southeast-2"
+expected_role_arn = "arn:aws:iam::000000000000:role/minco-preview"
+stack_name = "minco-orders-preview"
+artifact_bucket = "minco-preview-artifacts-placeholder"
+database_url_parameter_name = "/minco/preview/database-url"
+
+[environments.preview.preview]
+owner = "repository-reviewer"
+ttl_seconds = 86400
+pricing_complete = false
+
+[[environments.preview.preview.resources]]
+logical_id = "ApiFunction"
+resource_type = "AWS::Lambda::Function"
+retention = "delete"
+idle_cost_class = "request_only"
+
+[[environments.preview.preview.resources]]
+logical_id = "ApiLogGroup"
+resource_type = "AWS::Logs::LogGroup"
+retention = "delete"
+idle_cost_class = "storage_only"
+
+[[environments.preview.preview.resources]]
+logical_id = "CandidateApiInvokePermission"
+resource_type = "AWS::Lambda::Permission"
+retention = "delete"
+idle_cost_class = "zero_compute"
+
+[[environments.preview.preview.resources]]
+logical_id = "CandidateStage"
+resource_type = "AWS::ApiGatewayV2::Stage"
+retention = "delete"
+idle_cost_class = "request_only"
+
+[[environments.preview.preview.resources]]
+logical_id = "HttpApi"
+resource_type = "AWS::ApiGatewayV2::Api"
+retention = "delete"
+idle_cost_class = "request_only"
+
+[[environments.preview.preview.resources]]
+logical_id = "LiveApiInvokePermission"
+resource_type = "AWS::Lambda::Permission"
+retention = "delete"
+idle_cost_class = "zero_compute"
+
+[[environments.preview.preview.resources]]
+logical_id = "LiveFunctionAlias"
+resource_type = "AWS::Lambda::Alias"
+retention = "delete"
+idle_cost_class = "zero_compute"

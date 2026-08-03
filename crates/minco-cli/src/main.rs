@@ -32,23 +32,27 @@ use minco_contract::{
 };
 use minco_core::{PluginId, PluginManager, PluginSelection};
 use minco_deploy_aws::{
-    ChangeSetReceipt, ChangeSetReceiptInput, ChangeSetType, CloudFormationChangeSet,
-    DeploymentTarget, DeploymentTargetCatalog, DriftState, EnvironmentExpectation,
-    EnvironmentObservation, HostedCheckResult, HostedVerificationInput, HostedVerificationReport,
-    MigrationState as DeploymentMigrationState, PromotionReceipt, PromotionReceiptInput,
-    SourceState, StackDrift, StaticSiteCertificateObservation, StaticSiteDistributionStatus,
+    ChangeSetReceipt, ChangeSetReceiptInput, ChangeSetType, CleanupReceipt, CleanupReceiptInput,
+    CloudFormationChangeSet, DeploymentTarget, DeploymentTargetCatalog, DeploymentTargetLifecycle,
+    DriftState, EnvironmentExpectation, EnvironmentObservation, HostedCheckResult,
+    HostedVerificationInput, HostedVerificationReport, MigrationState as DeploymentMigrationState,
+    PromotionReceipt, PromotionReceiptInput, ReviewCostClass, ReviewManifest, ReviewManifestInput,
+    ReviewResource, ReviewResourceRetention, ReviewScheduleCompletionAction, SourceState,
+    StackDrift, StaticSiteCertificateObservation, StaticSiteDistributionStatus,
     StaticSiteDnsObservation, StaticSiteInvalidationStatus, StaticSiteObjectObservation,
     StaticSitePricingEvidence, StaticSiteProviderObservation, StaticSitePublicationReceipt,
     StaticSitePublicationReceiptInput, StaticSiteVerificationInput, StaticSiteVerificationReport,
-    caller_role_arn, verify_guards, verify_promotion_boundary,
+    UntrustedFeedbackReference, caller_role_arn, verify_guards, verify_promotion_boundary,
 };
 use minco_dev::{
     DevDatabase, DevEvent, DevGraph, DevOptions, DevPlan, DevStream, ServiceKind, Supervisor,
 };
 use minco_plan::{
-    DatabaseCostEstimate, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionRole,
-    Severity as PlanSeverity, StaticSiteDeployment, TriggerPlan, estimate_database_cost,
-    estimate_runtime_cost, render_sam_with_code_uris,
+    CostClass, DatabaseCostEstimate, DatabaseDeployment, DeploymentConfig, DeploymentPlan,
+    FunctionRole, PreviewCleanupSchedule, PreviewLifecyclePlan, PreviewResource,
+    PreviewResourceRetention, ScheduleCompletionAction, Severity as PlanSeverity,
+    StaticSiteDeployment, TriggerPlan, estimate_database_cost, estimate_runtime_cost,
+    render_sam_with_code_uris,
 };
 use minco_release::{
     DatabasePlanBinding, DatabasePlanKind, DatabaseSourceDigests, DeploymentOutcome,
@@ -116,6 +120,8 @@ enum Command {
     Explain(ExplainArgs),
     #[command(subcommand)]
     Deploy(DeployCommand),
+    /// Plan or apply exact, preview-only environment cleanup.
+    Destroy(DestroyArgs),
     Cost(PlanInput),
     Perf(PlanInput),
     Architecture,
@@ -291,6 +297,22 @@ struct ApplyArgs {
 }
 
 #[derive(Debug, Clone, Args)]
+struct DestroyArgs {
+    #[arg(long, default_value = "infra/aws/deployment-targets.toml")]
+    target_config: PathBuf,
+    #[arg(long)]
+    environment: Option<String>,
+    #[arg(long, default_value = "target/minco/review.json")]
+    review: PathBuf,
+    #[arg(long, default_value = "target/minco/cleanup-receipt.json")]
+    receipt: PathBuf,
+    #[arg(long)]
+    approve_review_digest: Option<String>,
+    #[arg(long)]
+    dry_run: bool,
+}
+
+#[derive(Debug, Clone, Args)]
 struct DeployVerifyArgs {
     #[arg(long, default_value = "target/minco/release.json")]
     manifest: PathBuf,
@@ -304,6 +326,26 @@ struct DeployVerifyArgs {
     static_site_publication: PathBuf,
     #[arg(long, default_value = "target/minco/static-site-verification.json")]
     static_site_output: PathBuf,
+    #[arg(long)]
+    dry_run: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+struct ReviewArgs {
+    #[arg(long, default_value = "infra/aws/deployment-targets.toml")]
+    target_config: PathBuf,
+    #[arg(long)]
+    environment: Option<String>,
+    #[arg(long, default_value = "target/minco/release.json")]
+    manifest: PathBuf,
+    #[arg(long, default_value = "target/minco/deployment-receipt.json")]
+    deployment_receipt: PathBuf,
+    #[arg(long = "feedback")]
+    feedback: Vec<String>,
+    #[arg(long = "delivery-trace")]
+    delivery_trace: Vec<PathBuf>,
+    #[arg(long, default_value = "target/minco/review.json")]
+    output: PathBuf,
     #[arg(long)]
     dry_run: bool,
 }
@@ -366,6 +408,10 @@ enum DeployCommand {
     Plan {
         #[command(flatten)]
         input: PlanInput,
+        #[arg(long)]
+        environment: Option<String>,
+        #[arg(long, default_value = "infra/aws/deployment-targets.toml")]
+        target_config: PathBuf,
         #[arg(long, conflicts_with = "stdout")]
         output: Option<PathBuf>,
         #[arg(long)]
@@ -380,6 +426,7 @@ enum DeployCommand {
     Changeset(ChangeSetArgs),
     Apply(ApplyArgs),
     Verify(DeployVerifyArgs),
+    Review(ReviewArgs),
     StaticSite {
         #[command(subcommand)]
         command: StaticSiteCommand,
@@ -672,6 +719,7 @@ async fn main() -> Result<()> {
         Command::Inspect => inspect(&root, &manifest, as_json),
         Command::Explain(args) => explain(&root, &manifest, &args.operation_id, as_json),
         Command::Deploy(command) => Box::pin(deploy(&root, &manifest, command, as_json)).await,
+        Command::Destroy(args) => destroy_command(&root, &args, as_json),
         Command::Cost(input) => cost(&root, &manifest, input, as_json),
         Command::Perf(input) => perf(&root, &manifest, input, as_json),
         Command::Architecture => architecture(&root, &manifest, as_json),
@@ -953,10 +1001,286 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
     )
 }
 
+fn destroy_command(root: &Path, args: &DestroyArgs, as_json: bool) -> Result<()> {
+    validate_project_file(root, &args.target_config, "deployment target configuration")?;
+    if root.join(&args.review).exists() {
+        validate_project_file(root, &args.review, "review manifest")?;
+    } else if args.review.is_absolute()
+        || !args
+            .review
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        bail!("review manifest must be a project-relative path");
+    }
+    let receipt_output = package_output_path(root, &args.receipt)?;
+    let catalog =
+        DeploymentTargetCatalog::from_toml(&fs::read_to_string(root.join(&args.target_config))?)?;
+    let selected = catalog.select(args.environment.as_deref())?;
+    let mut blockers = Vec::new();
+    if !selected.target.enabled {
+        blockers.push("target_disabled");
+    }
+    if selected.target.lifecycle != DeploymentTargetLifecycle::Preview {
+        blockers.push("target_not_preview");
+    }
+    let preview = selected.target.preview.as_ref();
+    let review = if root.join(&args.review).is_file() {
+        if let Ok(review) = ReviewManifest::from_json(&fs::read(root.join(&args.review))?)
+            .and_then(|review| review.verify_at(root).map(|()| review))
+        {
+            let configured_resources_match = preview.is_some_and(|preview| {
+                preview
+                    .resources
+                    .iter()
+                    .all(|resource| review.resources.contains(resource))
+            });
+            if review.environment.environment != selected.environment
+                || review.environment.region != selected.target.expected_region
+                || review.expected_account_id != selected.target.expected_account_id
+                || review.expected_role_arn != selected.target.expected_role_arn
+                || review.stack_name != selected.target.stack_name
+                || !configured_resources_match
+            {
+                blockers.push("review_target_mismatch");
+            }
+            Some(review)
+        } else {
+            blockers.push("review_manifest_invalid");
+            None
+        }
+    } else {
+        blockers.push("review_manifest_missing");
+        None
+    };
+    match (review.as_ref(), args.approve_review_digest.as_deref()) {
+        (_, None) => blockers.push("review_approval_missing"),
+        (Some(review), Some(approval)) if approval != review.manifest_digest => {
+            blockers.push("review_approval_mismatch");
+        }
+        _ => {}
+    }
+    if receipt_output.exists() {
+        blockers.push("cleanup_receipt_exists");
+    }
+    let reviewed_resources = review
+        .as_ref()
+        .map(|review| review.resources.as_slice())
+        .or_else(|| preview.map(|preview| preview.resources.as_slice()))
+        .unwrap_or_default();
+    let deleted_resources = reviewed_resources
+        .iter()
+        .filter(|resource| resource.retention == ReviewResourceRetention::Delete)
+        .cloned()
+        .collect::<Vec<_>>();
+    let retained_resources = reviewed_resources
+        .iter()
+        .filter(|resource| resource.retention == ReviewResourceRetention::Retain)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let plan = json!({
+        "schema_version": 1,
+        "operation": "destroy_preview",
+        "dry_run": args.dry_run,
+        "external_aws_contact": false,
+        "infrastructure_change": false,
+        "cleanup_receipt_written": false,
+        "target_config": args.target_config,
+        "target": {
+            "environment": selected.environment,
+            "lifecycle": selected.target.lifecycle,
+            "enabled": selected.target.enabled,
+            "expected_account_id": selected.target.expected_account_id,
+            "expected_region": selected.target.expected_region,
+            "expected_role_arn": selected.target.expected_role_arn,
+            "stack_name": selected.target.stack_name,
+        },
+        "review_manifest": args.review,
+        "review": review.as_ref().map(|review| json!({
+            "review_id": review.review_id,
+            "manifest_digest": review.manifest_digest,
+            "owner": review.owner,
+            "expires_at": review.expires_at,
+            "pricing_complete": review.pricing_complete,
+        })),
+        "deleted_resources": deleted_resources,
+        "retained_resources": retained_resources,
+        "cleanup_receipt": args.receipt,
+        "guard_requirements": [
+            "exact_preview_lifecycle",
+            "exact_review_manifest",
+            "exact_target_account_region_role_stack",
+            "exact_resource_inventory",
+            "termination_protection_disabled",
+            "exact_review_digest_approval",
+        ],
+        "blockers": blockers,
+    });
+    if args.dry_run {
+        return print_value(&plan, as_json);
+    }
+    if !blockers.is_empty() {
+        bail!("preview cleanup is blocked: {}", blockers.join(", "));
+    }
+    let review = review.context("exact review manifest is required")?;
+    apply_preview_cleanup(
+        root,
+        args,
+        &selected.target,
+        &review,
+        &receipt_output,
+        as_json,
+    )
+}
+
+fn apply_preview_cleanup(
+    root: &Path,
+    args: &DestroyArgs,
+    target: &DeploymentTarget,
+    review: &ReviewManifest,
+    receipt_output: &Path,
+    as_json: bool,
+) -> Result<()> {
+    if !command_available("aws") {
+        bail!("preview cleanup requires `aws`");
+    }
+    if vcs::source_snapshot(root)?.change != review.source_change {
+        bail!("current source does not match the exact reviewed preview release");
+    }
+    review.verify_at(root)?;
+    verify_current_caller(root, target)?;
+    let stack = describe_target_stack(root, target)?
+        .context("reviewed preview CloudFormation stack no longer exists")?;
+    require_stable_update_stack(&stack.stack_status)?;
+    if stack.enable_termination_protection != Some(false) {
+        bail!("preview cleanup refuses enabled or unproved CloudFormation termination protection");
+    }
+    let provider_resources: AwsStackResources = aws_json(
+        root,
+        &target.expected_region,
+        "inspect exact preview stack resources",
+        &[
+            "cloudformation",
+            "list-stack-resources",
+            "--stack-name",
+            &target.stack_name,
+        ],
+    )?;
+    verify_preview_resource_inventory(&review.resources, &provider_resources)?;
+    let processed_template: AwsProcessedTemplate = aws_json(
+        root,
+        &target.expected_region,
+        "inspect preview stack retention policy",
+        &[
+            "cloudformation",
+            "get-template",
+            "--stack-name",
+            &target.stack_name,
+            "--template-stage",
+            "Processed",
+        ],
+    )?;
+    verify_preview_retention_policy(&review.resources, &processed_template.template_body)?;
+
+    let current_review = FileDigest::from_rooted_path(root, root.join(&args.review))?;
+    let current_target = FileDigest::from_rooted_path(root, root.join(&args.target_config))?;
+    if current_target != review.target_config {
+        bail!("deployment target changed after the exact review was created");
+    }
+    let mut receipt = CleanupReceipt::start(CleanupReceiptInput {
+        attempt_id: uuid::Uuid::now_v7().to_string(),
+        review_manifest: current_review,
+        review_id: review.review_id.clone(),
+        review_digest: review.manifest_digest.clone(),
+        environment: review.environment.clone(),
+        expected_account_id: review.expected_account_id.clone(),
+        expected_role_arn: review.expected_role_arn.clone(),
+        stack_name: review.stack_name.clone(),
+        target_config: current_target,
+        deleted_resources: review
+            .resources
+            .iter()
+            .filter(|resource| resource.retention == ReviewResourceRetention::Delete)
+            .cloned()
+            .collect(),
+        retained_resources: review
+            .resources
+            .iter()
+            .filter(|resource| resource.retention == ReviewResourceRetention::Retain)
+            .cloned()
+            .collect(),
+    })?;
+    receipt.verify_at(root)?;
+    ensure_parent(receipt_output)?;
+    receipt.write_json(receipt_output)?;
+
+    if let Err(error) = run_cloud_output(
+        root,
+        "aws",
+        "delete the exact reviewed preview stack",
+        &[
+            "cloudformation".into(),
+            "delete-stack".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--client-request-token".into(),
+            receipt.receipt_digest.clone(),
+            "--deletion-mode".into(),
+            "STANDARD".into(),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    ) {
+        receipt.fail("cloudformation_delete_start_failed")?;
+        receipt.write_json(receipt_output)?;
+        return Err(error);
+    }
+    if let Err(error) = run_cloud_output(
+        root,
+        "aws",
+        "wait for exact preview stack deletion",
+        &[
+            "cloudformation".into(),
+            "wait".into(),
+            "stack-delete-complete".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    ) {
+        receipt.fail("cloudformation_delete_failed")?;
+        receipt.write_json(receipt_output)?;
+        return Err(error);
+    }
+    if describe_target_stack(root, target)?.is_some() {
+        receipt.fail("cloudformation_absence_unproved")?;
+        receipt.write_json(receipt_output)?;
+        bail!("CloudFormation waiter completed but stack absence was not verified");
+    }
+    receipt.succeed(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string())?;
+    receipt.verify_at(root)?;
+    receipt.write_json(receipt_output)?;
+    CleanupReceipt::read_json(receipt_output)?.verify_at(root)?;
+    print_value(
+        &json!({
+            "preview_destroyed": true,
+            "stack_absence_verified": true,
+            "deleted_resources": receipt.deleted_resources,
+            "retained_resources": receipt.retained_resources,
+            "cleanup_receipt": receipt,
+            "cleanup_receipt_path": args.receipt,
+        }),
+        as_json,
+    )
+}
+
 struct VerifiedDeploymentEvidence {
     release: ReleaseManifest,
     deployment: DeploymentReceipt,
     deployment_receipt: FileDigest,
+    change_set_receipt: FileDigest,
     change_set: ChangeSetReceipt,
     target: DeploymentTarget,
 }
@@ -1019,6 +1343,7 @@ fn verified_deployment_evidence(
         release,
         deployment,
         deployment_receipt: FileDigest::from_rooted_path(root, deployment_path)?,
+        change_set_receipt: change_set_file,
         change_set,
         target: selected.target,
     })
@@ -1858,17 +2183,33 @@ async fn deploy(
     match command {
         DeployCommand::Plan {
             input,
+            environment,
+            target_config,
             output,
             stdout,
         } => {
-            let plan = load_plan(root, manifest, input.config)?;
+            let mut plan = load_plan(root, manifest, input.config)?;
+            if let Some(environment) = environment {
+                validate_project_file(root, &target_config, "deployment target configuration")?;
+                let catalog = DeploymentTargetCatalog::from_toml(&fs::read_to_string(
+                    root.join(&target_config),
+                )?)?;
+                let selected = catalog.select(Some(&environment))?;
+                apply_plan_target(&mut plan, &selected.environment, &selected.target)?;
+            }
             ensure_plan_valid(&plan)?;
             if stdout {
                 use std::io::Write as _;
                 std::io::stdout().write_all(&canonical_json(&plan)?)?;
                 return Ok(());
             }
-            let output = output.unwrap_or_else(|| PathBuf::from("infra/aws/generated/plan.json"));
+            let output = output.unwrap_or_else(|| {
+                if plan.preview.is_some() {
+                    PathBuf::from("target/minco/preview-plan.json")
+                } else {
+                    PathBuf::from("infra/aws/generated/plan.json")
+                }
+            });
             let output = root.join(output);
             ensure_parent(&output)?;
             fs::write(&output, canonical_json(&plan)?)?;
@@ -1905,6 +2246,7 @@ async fn deploy(
         DeployCommand::Verify(args) => {
             verify_deployment_command(root, manifest, &args, as_json).await
         }
+        DeployCommand::Review(args) => create_review_command(root, &args, as_json),
         DeployCommand::StaticSite { command } => {
             Box::pin(static_site_command(root, command, as_json)).await
         }
@@ -1930,6 +2272,237 @@ async fn static_site_command(root: &Path, command: StaticSiteCommand, as_json: b
             .await
         }
     }
+}
+
+fn create_review_command(root: &Path, args: &ReviewArgs, as_json: bool) -> Result<()> {
+    validate_project_file(root, &args.target_config, "deployment target configuration")?;
+    for (path, label) in [
+        (&args.manifest, "release manifest"),
+        (&args.deployment_receipt, "deployment receipt"),
+    ] {
+        if root.join(path).exists() {
+            validate_project_file(root, path, label)?;
+        } else if path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            bail!("{label} must be a project-relative path");
+        }
+    }
+    for trace in &args.delivery_trace {
+        validate_project_file(root, trace, "delivery trace")?;
+    }
+    let output = package_output_path(root, &args.output)?;
+    let catalog =
+        DeploymentTargetCatalog::from_toml(&fs::read_to_string(root.join(&args.target_config))?)?;
+    let selected = catalog.select(args.environment.as_deref())?;
+    let mut blockers = Vec::new();
+    if !selected.target.enabled {
+        blockers.push("target_disabled");
+    }
+    if selected.target.lifecycle != DeploymentTargetLifecycle::Preview {
+        blockers.push("target_not_preview");
+    }
+    if !root.join(&args.manifest).is_file() {
+        blockers.push("release_manifest_missing");
+    }
+    if !root.join(&args.deployment_receipt).is_file() {
+        blockers.push("deployment_receipt_missing");
+    }
+    if output.exists() {
+        blockers.push("review_manifest_exists");
+    }
+    if args.feedback.iter().any(|reference| {
+        reference
+            .split_once('=')
+            .is_none_or(|(id, digest)| id.is_empty() || !lower_sha256_is_valid(digest))
+    }) {
+        blockers.push("feedback_reference_invalid");
+    }
+    let plan = json!({
+        "schema_version": 1,
+        "operation": "create_preview_review",
+        "dry_run": args.dry_run,
+        "external_aws_contact": false,
+        "review_manifest_written": false,
+        "target": {
+            "environment": selected.environment,
+            "lifecycle": selected.target.lifecycle,
+            "enabled": selected.target.enabled,
+            "expected_account_id": selected.target.expected_account_id,
+            "expected_region": selected.target.expected_region,
+            "expected_role_arn": selected.target.expected_role_arn,
+            "stack_name": selected.target.stack_name,
+        },
+        "release_manifest": args.manifest,
+        "deployment_receipt": args.deployment_receipt,
+        "review_manifest": args.output,
+        "feedback_reference_count": args.feedback.len(),
+        "explicit_delivery_trace_count": args.delivery_trace.len(),
+        "guard_requirements": [
+            "exact_source_and_release",
+            "successful_hosted_verification",
+            "exact_preview_target",
+            "current_expected_account_region_role_stack",
+            "termination_protection_disabled",
+            "exact_provider_resource_and_retention_inventory",
+        ],
+        "blockers": blockers,
+    });
+    if args.dry_run {
+        return print_value(&plan, as_json);
+    }
+    if !blockers.is_empty() {
+        bail!("preview review is blocked: {}", blockers.join(", "));
+    }
+    materialize_preview_review(
+        root,
+        args,
+        &selected.environment,
+        &selected.target,
+        &output,
+        as_json,
+    )
+}
+
+fn materialize_preview_review(
+    root: &Path,
+    args: &ReviewArgs,
+    selected_environment: &str,
+    selected_target: &DeploymentTarget,
+    output: &Path,
+    as_json: bool,
+) -> Result<()> {
+    if !command_available("aws") {
+        bail!("preview review creation requires `aws`");
+    }
+    let evidence = verified_deployment_evidence(root, &args.manifest, &args.deployment_receipt)?;
+    if evidence.deployment.outcome() != DeploymentOutcome::Succeeded {
+        bail!("preview review requires a successfully hosted-verified deployment receipt");
+    }
+    if evidence.target != *selected_target
+        || evidence.release.environment.environment != selected_environment
+    {
+        bail!("preview deployment evidence does not match the selected reviewed target");
+    }
+    require_exact_source(root, &evidence.release)?;
+    verify_current_caller(root, selected_target)?;
+    let stack = describe_target_stack(root, selected_target)?
+        .context("preview deployment stack does not exist")?;
+    require_stable_update_stack(&stack.stack_status)?;
+    if stack.enable_termination_protection != Some(false) {
+        bail!("preview review refuses enabled or unproved CloudFormation termination protection");
+    }
+    let provider_resources: AwsStackResources = aws_json(
+        root,
+        &selected_target.expected_region,
+        "inspect preview stack resources for review",
+        &[
+            "cloudformation",
+            "list-stack-resources",
+            "--stack-name",
+            &selected_target.stack_name,
+        ],
+    )?;
+    let processed_template: AwsProcessedTemplate = aws_json(
+        root,
+        &selected_target.expected_region,
+        "inspect preview stack retention for review",
+        &[
+            "cloudformation",
+            "get-template",
+            "--stack-name",
+            &selected_target.stack_name,
+            "--template-stage",
+            "Processed",
+        ],
+    )?;
+    let preview = selected_target
+        .preview
+        .as_ref()
+        .context("selected target has no preview lifecycle policy")?;
+    let resources = review_resources_from_provider(
+        &preview.resources,
+        &provider_resources,
+        &processed_template.template_body,
+    )?;
+    let created_at = chrono::Utc::now();
+    let expires_at = created_at + chrono::Duration::seconds(i64::from(preview.ttl_seconds));
+    let verification = std::iter::once(evidence.deployment_receipt.clone())
+        .chain(
+            evidence
+                .deployment
+                .verification()
+                .iter()
+                .map(|verification| verification.file.clone()),
+        )
+        .collect();
+    let mut delivery_trace = vec![evidence.change_set_receipt];
+    delivery_trace.extend(
+        args.delivery_trace
+            .iter()
+            .map(|path| FileDigest::from_rooted_path(root, root.join(path)))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    let feedback = args
+        .feedback
+        .iter()
+        .map(|reference| {
+            let (feedback_id, sha256) = reference
+                .split_once('=')
+                .context("Feedback reference must use ID=SHA256")?;
+            Ok(UntrustedFeedbackReference {
+                feedback_id: feedback_id.into(),
+                sha256: sha256.into(),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let review = ReviewManifest::seal(ReviewManifestInput {
+        source_change: evidence.release.source_change.clone(),
+        release_manifest: evidence.deployment.release_manifest.clone(),
+        release_id: evidence.release.release_id.clone(),
+        release_digest: evidence.release.release_digest.clone(),
+        artifacts: evidence
+            .release
+            .artifacts
+            .iter()
+            .map(|artifact| artifact.file.clone())
+            .collect(),
+        environment: evidence.release.environment,
+        expected_account_id: selected_target.expected_account_id.clone(),
+        expected_role_arn: selected_target.expected_role_arn.clone(),
+        stack_name: selected_target.stack_name.clone(),
+        target_config: FileDigest::from_rooted_path(root, root.join(&args.target_config))?,
+        owner: preview.owner.clone(),
+        created_at: created_at.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        expires_at: expires_at.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        resources,
+        pricing_complete: preview.pricing_complete,
+        cleanup_schedule: preview.cleanup_schedule.clone(),
+        verification,
+        feedback,
+        delivery_trace,
+    })?;
+    review.verify_at(root)?;
+    ensure_parent(output)?;
+    review.write_json(output)?;
+    print_value(
+        &json!({
+            "review_created": true,
+            "external_aws_contact": true,
+            "review_manifest": review,
+            "review_manifest_path": args.output,
+        }),
+        as_json,
+    )
+}
+
+fn lower_sha256_is_valid(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
 async fn static_site_publication(
@@ -2944,9 +3517,232 @@ struct AwsDescribeStacks {
 struct AwsStack {
     stack_status: String,
     #[serde(default)]
+    enable_termination_protection: Option<bool>,
+    #[serde(default)]
     outputs: Vec<AwsStackOutput>,
     #[serde(default)]
     parameters: Vec<AwsStackParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsStackResources {
+    stack_resource_summaries: Vec<AwsStackResource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsStackResource {
+    logical_resource_id: String,
+    resource_type: String,
+    resource_status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsProcessedTemplate {
+    template_body: serde_json::Value,
+}
+
+fn verify_preview_resource_inventory(
+    expected: &[minco_deploy_aws::ReviewResource],
+    provider: &AwsStackResources,
+) -> Result<()> {
+    let mut expected_identity = expected
+        .iter()
+        .map(|resource| {
+            (
+                resource.logical_id.as_str(),
+                resource.resource_type.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
+    expected_identity.sort_unstable();
+    let mut provider_identity = provider
+        .stack_resource_summaries
+        .iter()
+        .map(|resource| {
+            (
+                resource.logical_resource_id.as_str(),
+                resource.resource_type.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
+    provider_identity.sort_unstable();
+    if expected_identity != provider_identity {
+        bail!("CloudFormation stack resources do not match the exact reviewed inventory");
+    }
+    if provider.stack_resource_summaries.iter().any(|resource| {
+        !matches!(
+            resource.resource_status.as_str(),
+            "CREATE_COMPLETE"
+                | "UPDATE_COMPLETE"
+                | "UPDATE_ROLLBACK_COMPLETE"
+                | "IMPORT_COMPLETE"
+                | "IMPORT_ROLLBACK_COMPLETE"
+        )
+    }) {
+        bail!("CloudFormation stack contains a resource in a non-terminal cleanup state");
+    }
+    Ok(())
+}
+
+fn verify_preview_retention_policy(
+    expected: &[minco_deploy_aws::ReviewResource],
+    template_body: &serde_json::Value,
+) -> Result<()> {
+    let template = normalized_processed_template(template_body)?;
+    let resources = template
+        .get("Resources")
+        .and_then(serde_json::Value::as_object)
+        .context("processed CloudFormation template has no resource map")?;
+    for expected in expected {
+        let resource = resources
+            .get(&expected.logical_id)
+            .and_then(serde_json::Value::as_object)
+            .with_context(|| {
+                format!(
+                    "processed CloudFormation template lacks reviewed resource {}",
+                    expected.logical_id
+                )
+            })?;
+        if resource.get("Type").and_then(serde_json::Value::as_str)
+            != Some(expected.resource_type.as_str())
+        {
+            bail!(
+                "processed CloudFormation resource {} changed type",
+                expected.logical_id
+            );
+        }
+        let deletion_policy = resource
+            .get("DeletionPolicy")
+            .and_then(serde_json::Value::as_str);
+        match expected.retention {
+            ReviewResourceRetention::Retain if deletion_policy != Some("Retain") => {
+                bail!(
+                    "reviewed retained resource {} lacks DeletionPolicy Retain",
+                    expected.logical_id
+                );
+            }
+            ReviewResourceRetention::Delete
+                if matches!(deletion_policy, Some("Retain" | "Snapshot")) =>
+            {
+                bail!(
+                    "reviewed deleted resource {} has a retaining deletion policy",
+                    expected.logical_id
+                );
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn normalized_processed_template(template_body: &serde_json::Value) -> Result<serde_json::Value> {
+    if let Some(source) = template_body.as_str() {
+        return if let Ok(value) = serde_json::from_str(source) {
+            Ok(value)
+        } else {
+            let yaml: serde_yaml_ng::Value = serde_yaml_ng::from_str(source)?;
+            Ok(serde_json::to_value(yaml)?)
+        };
+    }
+    Ok(template_body.clone())
+}
+
+fn review_resources_from_provider(
+    configured: &[ReviewResource],
+    provider: &AwsStackResources,
+    template_body: &serde_json::Value,
+) -> Result<Vec<ReviewResource>> {
+    let template = normalized_processed_template(template_body)?;
+    let resources = template
+        .get("Resources")
+        .and_then(serde_json::Value::as_object)
+        .context("processed CloudFormation template has no resource map")?;
+    let mut reviewed = Vec::with_capacity(provider.stack_resource_summaries.len());
+    for provider_resource in &provider.stack_resource_summaries {
+        let template_resource = resources
+            .get(&provider_resource.logical_resource_id)
+            .and_then(serde_json::Value::as_object)
+            .with_context(|| {
+                format!(
+                    "processed template lacks provider resource {}",
+                    provider_resource.logical_resource_id
+                )
+            })?;
+        let template_type = template_resource
+            .get("Type")
+            .and_then(serde_json::Value::as_str)
+            .context("processed template resource has no type")?;
+        if template_type != provider_resource.resource_type {
+            bail!(
+                "processed template and provider disagree about resource {}",
+                provider_resource.logical_resource_id
+            );
+        }
+        let deletion_policy = template_resource
+            .get("DeletionPolicy")
+            .and_then(serde_json::Value::as_str);
+        let retention = match deletion_policy {
+            Some("Retain") => ReviewResourceRetention::Retain,
+            None | Some("Delete") => ReviewResourceRetention::Delete,
+            Some(other) => bail!(
+                "preview resource {} uses unsupported deletion policy {other}",
+                provider_resource.logical_resource_id
+            ),
+        };
+        if let Some(configured) = configured
+            .iter()
+            .find(|resource| resource.logical_id == provider_resource.logical_resource_id)
+        {
+            if configured.resource_type != provider_resource.resource_type
+                || configured.retention != retention
+            {
+                bail!(
+                    "provider resource {} contradicts preview target policy",
+                    provider_resource.logical_resource_id
+                );
+            }
+            reviewed.push(configured.clone());
+        } else {
+            reviewed.push(ReviewResource {
+                logical_id: provider_resource.logical_resource_id.clone(),
+                resource_type: provider_resource.resource_type.clone(),
+                retention,
+                idle_cost_class: review_resource_cost_class(&provider_resource.resource_type),
+            });
+        }
+    }
+    reviewed.sort_by(|left, right| left.logical_id.cmp(&right.logical_id));
+    if configured
+        .iter()
+        .any(|configured| !reviewed.contains(configured))
+    {
+        bail!("preview target policy names a resource absent from the provider stack");
+    }
+    verify_preview_resource_inventory(&reviewed, provider)?;
+    verify_preview_retention_policy(&reviewed, template_body)?;
+    Ok(reviewed)
+}
+
+fn review_resource_cost_class(resource_type: &str) -> ReviewCostClass {
+    match resource_type {
+        "AWS::S3::Bucket" | "AWS::Logs::LogGroup" | "AWS::DynamoDB::Table" => {
+            ReviewCostClass::StorageOnly
+        }
+        "AWS::Scheduler::Schedule" => ReviewCostClass::ScheduledWakeup,
+        "AWS::Lambda::Function"
+        | "AWS::ApiGatewayV2::Api"
+        | "AWS::ApiGatewayV2::Stage"
+        | "AWS::SQS::Queue"
+        | "AWS::SNS::Topic" => ReviewCostClass::RequestOnly,
+        "AWS::IAM::Role"
+        | "AWS::Lambda::Alias"
+        | "AWS::Lambda::Permission"
+        | "AWS::Lambda::Version" => ReviewCostClass::ZeroCompute,
+        _ => ReviewCostClass::FixedMonthly,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -4840,6 +5636,73 @@ fn load_plan(
     Ok(plan)
 }
 
+fn apply_plan_target(
+    plan: &mut DeploymentPlan,
+    environment: &str,
+    target: &DeploymentTarget,
+) -> Result<()> {
+    if plan.region != target.expected_region {
+        bail!(
+            "deployment config Region {} does not match reviewed target Region {}",
+            plan.region,
+            target.expected_region
+        );
+    }
+    environment.clone_into(&mut plan.environment);
+    plan.preview = match target.lifecycle {
+        DeploymentTargetLifecycle::Persistent => None,
+        DeploymentTargetLifecycle::Preview => {
+            let preview = target
+                .preview
+                .as_ref()
+                .context("preview target has no lifecycle policy")?;
+            let resources = preview
+                .resources
+                .iter()
+                .map(|resource| PreviewResource {
+                    logical_id: resource.logical_id.clone(),
+                    resource_type: resource.resource_type.clone(),
+                    retention: match resource.retention {
+                        ReviewResourceRetention::Delete => PreviewResourceRetention::Delete,
+                        ReviewResourceRetention::Retain => PreviewResourceRetention::Retain,
+                    },
+                    idle_cost_class: match resource.idle_cost_class {
+                        ReviewCostClass::ZeroCompute => CostClass::ZeroCompute,
+                        ReviewCostClass::RequestOnly => CostClass::RequestOnly,
+                        ReviewCostClass::StorageOnly => CostClass::StorageOnly,
+                        ReviewCostClass::ScheduledWakeup => CostClass::ScheduledWakeup,
+                        ReviewCostClass::FixedMonthly => CostClass::FixedMonthly,
+                    },
+                })
+                .collect();
+            let cleanup_schedule =
+                preview
+                    .cleanup_schedule
+                    .as_ref()
+                    .map(|cleanup| PreviewCleanupSchedule {
+                        expression: cleanup.expression.clone(),
+                        action_after_completion: match cleanup.action_after_completion {
+                            ReviewScheduleCompletionAction::Delete => {
+                                ScheduleCompletionAction::Delete
+                            }
+                        },
+                        residual_resources: cleanup.residual_resources.clone(),
+                        manual_fallback: cleanup.manual_fallback.clone(),
+                    });
+            Some(PreviewLifecyclePlan {
+                owner: preview.owner.clone(),
+                ttl_seconds: preview.ttl_seconds,
+                expected_account_id: target.expected_account_id.clone(),
+                expected_region: target.expected_region.clone(),
+                resources,
+                pricing_complete: preview.pricing_complete,
+                cleanup_schedule,
+            })
+        }
+    };
+    Ok(())
+}
+
 pub(crate) fn load_plugin_selection(
     manifest: &MincoManifest,
     manager: &PluginManager,
@@ -5568,6 +6431,7 @@ mod cli_argument_tests {
     fn stack_routing_evidence_requires_exactly_one_value() {
         let stack = AwsStack {
             stack_status: "UPDATE_COMPLETE".into(),
+            enable_termination_protection: Some(false),
             outputs: vec![
                 AwsStackOutput {
                     output_key: "ApiFunctionName".into(),
@@ -5589,6 +6453,95 @@ mod cli_argument_tests {
             stack_parameter(&stack, LIVE_FUNCTION_VERSION_PARAMETER).expect("exact live parameter"),
             "42"
         );
+    }
+
+    #[test]
+    fn preview_cleanup_requires_exact_stable_provider_resource_inventory() {
+        let expected = vec![
+            minco_deploy_aws::ReviewResource {
+                logical_id: "ApiFunction".into(),
+                resource_type: "AWS::Lambda::Function".into(),
+                retention: ReviewResourceRetention::Delete,
+                idle_cost_class: ReviewCostClass::RequestOnly,
+            },
+            minco_deploy_aws::ReviewResource {
+                logical_id: "ApiLogGroup".into(),
+                resource_type: "AWS::Logs::LogGroup".into(),
+                retention: ReviewResourceRetention::Delete,
+                idle_cost_class: ReviewCostClass::StorageOnly,
+            },
+        ];
+        let provider = AwsStackResources {
+            stack_resource_summaries: vec![
+                AwsStackResource {
+                    logical_resource_id: "ApiLogGroup".into(),
+                    resource_type: "AWS::Logs::LogGroup".into(),
+                    resource_status: "UPDATE_COMPLETE".into(),
+                },
+                AwsStackResource {
+                    logical_resource_id: "ApiFunction".into(),
+                    resource_type: "AWS::Lambda::Function".into(),
+                    resource_status: "CREATE_COMPLETE".into(),
+                },
+            ],
+        };
+
+        verify_preview_resource_inventory(&expected, &provider).expect("exact inventory");
+        let mut unexpected = provider.clone();
+        unexpected.stack_resource_summaries.push(AwsStackResource {
+            logical_resource_id: "UnreviewedBucket".into(),
+            resource_type: "AWS::S3::Bucket".into(),
+            resource_status: "CREATE_COMPLETE".into(),
+        });
+        assert!(verify_preview_resource_inventory(&expected, &unexpected).is_err());
+
+        let mut unstable = provider;
+        unstable.stack_resource_summaries[0].resource_status = "UPDATE_IN_PROGRESS".into();
+        assert!(verify_preview_resource_inventory(&expected, &unstable).is_err());
+    }
+
+    #[test]
+    fn preview_review_captures_provider_generated_resources_and_retention() {
+        let configured = vec![minco_deploy_aws::ReviewResource {
+            logical_id: "ApiFunction".into(),
+            resource_type: "AWS::Lambda::Function".into(),
+            retention: ReviewResourceRetention::Delete,
+            idle_cost_class: ReviewCostClass::RequestOnly,
+        }];
+        let provider = AwsStackResources {
+            stack_resource_summaries: vec![
+                AwsStackResource {
+                    logical_resource_id: "GeneratedExecutionRole".into(),
+                    resource_type: "AWS::IAM::Role".into(),
+                    resource_status: "CREATE_COMPLETE".into(),
+                },
+                AwsStackResource {
+                    logical_resource_id: "ApiFunction".into(),
+                    resource_type: "AWS::Lambda::Function".into(),
+                    resource_status: "UPDATE_COMPLETE".into(),
+                },
+            ],
+        };
+        let template = serde_json::json!({
+            "Resources": {
+                "ApiFunction": { "Type": "AWS::Lambda::Function" },
+                "GeneratedExecutionRole": {
+                    "Type": "AWS::IAM::Role",
+                    "DeletionPolicy": "Retain"
+                }
+            }
+        });
+
+        let reviewed = review_resources_from_provider(&configured, &provider, &template)
+            .expect("capture processed provider inventory");
+
+        assert_eq!(reviewed.len(), 2);
+        let generated = reviewed
+            .iter()
+            .find(|resource| resource.logical_id == "GeneratedExecutionRole")
+            .expect("generated role");
+        assert_eq!(generated.retention, ReviewResourceRetention::Retain);
+        assert_eq!(generated.idle_cost_class, ReviewCostClass::ZeroCompute);
     }
 
     #[test]

@@ -1,13 +1,126 @@
 use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
 use minco_plan::{
-    DeploymentConfig, DeploymentPlan, IamResource, QueuePlan, RuntimePlan, ScheduleCleanupPlan,
-    ScheduleCompletionAction, Severity, StaticSiteDeployment, TriggerPlan, estimate_runtime_cost,
-    render_sam, render_sam_with_code_uris,
+    CostClass, DeploymentConfig, DeploymentPlan, IamResource, PreviewCleanupSchedule,
+    PreviewLifecyclePlan, PreviewResource, PreviewResourceRetention, QueuePlan, RuntimePlan,
+    ScheduleCleanupPlan, ScheduleCompletionAction, Severity, StaticSiteDeployment, TriggerPlan,
+    estimate_runtime_cost, render_sam, render_sam_with_code_uris,
 };
 use std::collections::BTreeMap;
 
 fn standard_worker_plan() -> DeploymentPlan {
     plan_from_config(include_str!("fixtures/api_worker_standard_v2.toml"))
+}
+
+fn preview_lifecycle() -> PreviewLifecyclePlan {
+    PreviewLifecyclePlan {
+        owner: "team-orders".into(),
+        ttl_seconds: 86_400,
+        expected_account_id: "111122223333".into(),
+        expected_region: "ap-southeast-2".into(),
+        resources: vec![
+            PreviewResource {
+                logical_id: "OrdersApi".into(),
+                resource_type: "AWS::ApiGatewayV2::Api".into(),
+                retention: PreviewResourceRetention::Delete,
+                idle_cost_class: CostClass::RequestOnly,
+            },
+            PreviewResource {
+                logical_id: "StaticSiteBucket".into(),
+                resource_type: "AWS::S3::Bucket".into(),
+                retention: PreviewResourceRetention::Retain,
+                idle_cost_class: CostClass::StorageOnly,
+            },
+        ],
+        pricing_complete: false,
+        cleanup_schedule: None,
+    }
+}
+
+#[test]
+fn preview_plan_exposes_bounded_lifecycle_retention_and_incomplete_pricing() {
+    let mut plan = standard_worker_plan();
+    plan.environment = "preview".into();
+    plan.preview = Some(preview_lifecycle());
+
+    let diagnostics = plan.validate();
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error),
+        "{diagnostics:#?}"
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "MINCO-PREVIEW-006" && diagnostic.severity == Severity::Warning
+    }));
+    assert!(estimate_runtime_cost(&plan).schedules.is_empty());
+
+    let value = serde_json::to_value(&plan).expect("serialize preview plan");
+    assert_eq!(value["preview"]["owner"], "team-orders");
+    assert_eq!(value["preview"]["ttl_seconds"], 86_400);
+    assert_eq!(value["preview"]["resources"][1]["retention"], "retain");
+    assert_eq!(value["preview"]["pricing_complete"], false);
+}
+
+#[test]
+fn opt_in_preview_cleanup_is_a_visible_one_time_scheduled_wakeup() {
+    let mut plan = standard_worker_plan();
+    plan.environment = "preview".into();
+    plan.cost_policy.deny_scheduled_wakeups = false;
+    let mut preview = preview_lifecycle();
+    preview.cleanup_schedule = Some(PreviewCleanupSchedule {
+        expression: "at(2026-08-04T00:00:00)".into(),
+        action_after_completion: ScheduleCompletionAction::Delete,
+        residual_resources: vec!["StaticSiteBucket".into()],
+        manual_fallback: "cargo minco destroy --environment preview --dry-run".into(),
+    });
+    plan.preview = Some(preview);
+
+    let diagnostics = plan.validate();
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error),
+        "{diagnostics:#?}"
+    );
+    let estimate = estimate_runtime_cost(&plan);
+    assert_eq!(estimate.schedules.len(), 1);
+    let cleanup = &estimate.schedules[0];
+    assert_eq!(cleanup.trigger_id, "preview-cleanup");
+    assert_eq!(cleanup.estimated_monthly_invocations, Some(1));
+    assert_eq!(
+        cleanup.action_after_completion,
+        Some(ScheduleCompletionAction::Delete)
+    );
+    assert_eq!(cleanup.residual_resources, ["StaticSiteBucket"]);
+    assert_eq!(
+        cleanup.manual_fallback.as_deref(),
+        Some("cargo minco destroy --environment preview --dry-run")
+    );
+    assert!(estimate.evidence.iter().any(|evidence| {
+        evidence.name == "schedule:preview-cleanup"
+            && evidence.cost_class == CostClass::ScheduledWakeup
+    }));
+}
+
+#[test]
+fn preview_cleanup_rejects_recurring_or_incomplete_schedule_authority() {
+    let mut plan = standard_worker_plan();
+    plan.environment = "preview".into();
+    plan.cost_policy.deny_scheduled_wakeups = false;
+    let mut preview = preview_lifecycle();
+    preview.cleanup_schedule = Some(PreviewCleanupSchedule {
+        expression: "rate(1 day)".into(),
+        action_after_completion: ScheduleCompletionAction::Delete,
+        residual_resources: vec!["UnknownBucket".into()],
+        manual_fallback: String::new(),
+    });
+    plan.preview = Some(preview);
+
+    assert!(
+        plan.validate()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "MINCO-PREVIEW-003")
+    );
 }
 
 fn plan_from_config(source: &str) -> DeploymentPlan {

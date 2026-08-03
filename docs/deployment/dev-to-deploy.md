@@ -33,5 +33,11 @@ The evidence boundaries are intentionally separate:
 | staging | Release acceptance | Persistent; reset is exceptional and explicit. |
 | production | Live traffic | No demo seed/reset; protected account/role. |
 
+An explicit `preview` or `preview-*` environment is a fifth, disposable class:
+it retains the same release and verification boundaries but adds owner, TTL,
+exact resource/cost/retention evidence, Feedback linkage, and separately
+approved cleanup. Expiry creates no default schedule or deletion authority.
+See [Preview Verified Review Loop](preview-review-loop.md).
+
 The same contract, router, release artifact, and Plan IR move forward. Environment config
 selects credentials and resource settings; it does not rebuild business code.
