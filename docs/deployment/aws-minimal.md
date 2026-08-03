@@ -148,7 +148,10 @@ any provider change beyond the exact live Lambda alias property update.
 For the disposable development proof, use:
 
 ```bash
+MINCO_REHEARSAL_AUTHORITY_FILE=/absolute/path/to/reviewed-authority.json \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST=REVIEWED_SHA256 \
 MINCO_DATABASE_URL_PARAMETER=/minco/dev/database-url \
+AWS_PROFILE=exact-reviewed-nonroot-profile \
 AWS_REGION=ap-southeast-2 \
 ./scripts/aws/run-bounded-smoke.sh
 ```
@@ -160,10 +163,16 @@ role session and run-owned `SecureString`, then deletes the access key, user,
 role, profiles and credential files:
 
 ```bash
+MINCO_REHEARSAL_AUTHORITY_FILE=/absolute/path/to/reviewed-authority.json \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST=REVIEWED_SHA256 \
 MINCO_DATABASE_URL_FILE=/absolute/path/to/mode-0600-minco-database-url \
 AWS_REGION=ap-southeast-2 \
 ./scripts/aws/run-bounded-root-bootstrap.sh
 ```
+
+The exact authority schema, closed resource/cleanup scopes, duration/spend
+limits and redacted receipt are documented in
+[`real-aws-smoke.md`](real-aws-smoke.md#before-the-first-account-call).
 
 If no development database exists, set `MINCO_CREATE_TEMP_RDS=true` instead.
 That bounded harness briefly creates a minimal encrypted RDS PostgreSQL

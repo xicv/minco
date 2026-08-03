@@ -14,6 +14,9 @@ done
 : "${MINCO_DATABASE_PARAMETER_OWNED:=false}"
 : "${MINCO_DATABASE_INSTANCE_OWNED:=false}"
 : "${MINCO_DATABASE_MIGRATION_COMPLETE:=false}"
+: "${MINCO_REHEARSAL_AUTHORITY_FILE:?set MINCO_REHEARSAL_AUTHORITY_FILE to the exact reviewed authority document}"
+: "${MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST:?set MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST to the reviewed authority SHA-256}"
+: "${MINCO_REHEARSAL_PROFILE:=${AWS_PROFILE:?set AWS_PROFILE to the approved non-root profile}}"
 [[ "$MINCO_DATABASE_URL_PARAMETER" == /* ]] || {
   echo "MINCO_DATABASE_URL_PARAMETER must be an absolute SSM parameter name" >&2
   exit 1
@@ -32,7 +35,40 @@ done
 }
 
 : "${MINCO_AWS_RUN_ID:=$(date -u +%Y%m%dt%H%M%Sz)-$$}"
+source_revision="$(current_source_revision)"
+authority_database_boundary="${MINCO_REHEARSAL_DATABASE_BOUNDARY_JSON:-$(
+  jq -cn \
+    --arg parameter_name "$MINCO_DATABASE_URL_PARAMETER" \
+    --argjson parameter_owned "$MINCO_DATABASE_PARAMETER_OWNED" \
+    --argjson instance_owned "$MINCO_DATABASE_INSTANCE_OWNED" \
+    '{
+      mode: "existing-ssm-secure-string",
+      parameter_name: $parameter_name,
+      parameter_owned: $parameter_owned,
+      instance_owned: $instance_owned
+    }'
+)}"
+authority_resource_allowlist="${MINCO_REHEARSAL_RESOURCE_ALLOWLIST:-bounded-direct-smoke-v1}"
+authority_cleanup_blast_radius="${MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS:-cleanup-bounded-direct-smoke-v1}"
+scripts/aws/validate-rehearsal-authority.sh \
+  "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+  "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+  "$MINCO_AWS_RUN_ID" \
+  "$source_revision" \
+  "$AWS_REGION" \
+  "$MINCO_REHEARSAL_PROFILE" \
+  dev \
+  "$authority_database_boundary" \
+  "$authority_resource_allowlist" \
+  "$authority_cleanup_blast_radius"
+initialize_rehearsal_deadline "$MINCO_REHEARSAL_AUTHORITY_FILE"
+authority_account_id="$(jq -er '.expected_account_id' "$MINCO_REHEARSAL_AUTHORITY_FILE")"
+authority_role_arn="$(jq -er '.expected_role_arn' "$MINCO_REHEARSAL_AUTHORITY_FILE")"
 initialize_cloud_journal
+write_rehearsal_authority_receipt \
+  "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+  "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+  "$MINCO_AWS_EVIDENCE_DIR/rehearsal-authority-receipt.json"
 run_suffix="$(printf '%s' "$MINCO_AWS_RUN_ID" | shasum -a 256 | cut -c1-12)"
 : "${MINCO_STACK_NAME:=minco-smoke-$run_suffix}"
 : "${MINCO_AWS_ARTIFACT_BUCKET:=minco-smoke-$run_suffix}"
@@ -82,6 +118,11 @@ case "$caller_arn" in
     ;;
 esac
 unset caller_arn
+[[ "$account_id" == "$authority_account_id" && "$expected_role_arn" == "$authority_role_arn" ]] || {
+  echo "AWS caller does not match the exact account and role in rehearsal authority" >&2
+  exit 1
+}
+unset authority_account_id authority_role_arn
 
 aws_logged ssm describe-parameters \
   "capture existing database parameter metadata before use; no value requested" \

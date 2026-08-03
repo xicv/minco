@@ -14,7 +14,8 @@ done
 : "${MINCO_ROOT_PROFILE:=default}"
 : "${MINCO_AWS_RUN_ID:=$(date -u +%Y%m%dt%H%M%Sz)-approved}"
 : "${MINCO_CREATE_TEMP_RDS:=false}"
-initialize_cloud_journal
+: "${MINCO_REHEARSAL_AUTHORITY_FILE:?set MINCO_REHEARSAL_AUTHORITY_FILE to the exact reviewed authority document}"
+: "${MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST:?set MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST to the reviewed authority SHA-256}"
 
 [[ "$MINCO_CREATE_TEMP_RDS" == "true" || "$MINCO_CREATE_TEMP_RDS" == "false" ]] || {
   echo "MINCO_CREATE_TEMP_RDS must equal true or false" >&2
@@ -58,6 +59,98 @@ user_name="MincoSmokeBootstrap-$run_suffix"
 user_policy_name="MincoSmokeAssumeRole"
 source_profile="minco-smoke-source-$run_suffix"
 deploy_profile="minco-smoke-$run_suffix"
+source_revision="$(current_source_revision)"
+if [[ "$MINCO_CREATE_TEMP_RDS" == "true" ]]; then
+  rehearsal_database_boundary="$(
+    jq -cn \
+      --arg rds_stack_name "${MINCO_RDS_STACK_NAME:-minco-rds-$run_suffix}" \
+      --arg instance_id "${MINCO_RDS_INSTANCE_ID:-minco-$run_suffix}" \
+      --arg parameter_name "${MINCO_DATABASE_URL_PARAMETER:-/minco/smoke/$run_suffix/database-url}" \
+      '{
+        mode: "disposable-rds",
+        rds_stack_name: $rds_stack_name,
+        instance_id: $instance_id,
+        parameter_name: $parameter_name
+      }'
+  )"
+  rehearsal_resource_allowlist="bounded-root-temp-rds-v1"
+  rehearsal_cleanup_blast_radius="cleanup-bounded-root-temp-rds-v1"
+elif [[ -n "${MINCO_DATABASE_URL_SOURCE_PARAMETER:-}" ]]; then
+  rehearsal_database_boundary="$(
+    jq -cn \
+      --arg source_parameter_name "$MINCO_DATABASE_URL_SOURCE_PARAMETER" \
+      --arg parameter_name "${MINCO_DATABASE_URL_PARAMETER:-/minco/smoke/$run_suffix/database-url}" \
+      '{
+        mode: "run-owned-ssm-copy",
+        source_kind: "ssm-secure-string",
+        source_parameter_name: $source_parameter_name,
+        parameter_name: $parameter_name
+      }'
+  )"
+  rehearsal_resource_allowlist="bounded-root-bootstrap-v1"
+  rehearsal_cleanup_blast_radius="cleanup-bounded-root-bootstrap-v1"
+elif [[ -n "${MINCO_DATABASE_URL_FILE:-}" ]]; then
+  rehearsal_database_boundary="$(
+    jq -cn \
+      --arg source_file "$MINCO_DATABASE_URL_FILE" \
+      --arg parameter_name "${MINCO_DATABASE_URL_PARAMETER:-/minco/smoke/$run_suffix/database-url}" \
+      '{
+        mode: "run-owned-ssm-copy",
+        source_kind: "local-mode-0600-file",
+        source_file: $source_file,
+        parameter_name: $parameter_name
+      }'
+  )"
+  rehearsal_resource_allowlist="bounded-root-bootstrap-v1"
+  rehearsal_cleanup_blast_radius="cleanup-bounded-root-bootstrap-v1"
+else
+  rehearsal_database_boundary="$(
+    jq -cn \
+      --arg parameter_name "${MINCO_DATABASE_URL_PARAMETER:-/minco/smoke/$run_suffix/database-url}" \
+      '{
+        mode: "run-owned-ssm-copy",
+        source_kind: "process-environment",
+        source_environment_variable: "MINCO_DATABASE_URL",
+        parameter_name: $parameter_name
+      }'
+  )"
+  rehearsal_resource_allowlist="bounded-root-bootstrap-v1"
+  rehearsal_cleanup_blast_radius="cleanup-bounded-root-bootstrap-v1"
+fi
+scripts/aws/validate-rehearsal-authority.sh \
+  "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+  "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+  "$MINCO_AWS_RUN_ID" \
+  "$source_revision" \
+  "$AWS_REGION" \
+  "$MINCO_ROOT_PROFILE" \
+  dev \
+  "$rehearsal_database_boundary" \
+  "$rehearsal_resource_allowlist" \
+  "$rehearsal_cleanup_blast_radius"
+initialize_rehearsal_deadline "$MINCO_REHEARSAL_AUTHORITY_FILE"
+authority_account_id="$(jq -er '.expected_account_id' "$MINCO_REHEARSAL_AUTHORITY_FILE")"
+authority_role_arn="$(jq -er '.expected_role_arn' "$MINCO_REHEARSAL_AUTHORITY_FILE")"
+[[ "$authority_role_arn" == "arn:aws:iam::$authority_account_id:role/$role_name" ]] || {
+  echo "rehearsal authority role does not match the exact run-owned bootstrap role" >&2
+  exit 1
+}
+MINCO_REHEARSAL_PROFILE="$MINCO_ROOT_PROFILE"
+MINCO_REHEARSAL_DATABASE_BOUNDARY_JSON="$rehearsal_database_boundary"
+MINCO_REHEARSAL_RESOURCE_ALLOWLIST="$rehearsal_resource_allowlist"
+MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS="$rehearsal_cleanup_blast_radius"
+export \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST \
+  MINCO_REHEARSAL_AUTHORITY_FILE \
+  MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS \
+  MINCO_REHEARSAL_DATABASE_BOUNDARY_JSON \
+  MINCO_REHEARSAL_PROFILE \
+  MINCO_REHEARSAL_RESOURCE_ALLOWLIST
+initialize_cloud_journal
+write_rehearsal_authority_receipt \
+  "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+  "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+  "$MINCO_AWS_EVIDENCE_DIR/rehearsal-authority-receipt.json"
 profile_config="$(mktemp /tmp/minco-aws-config.XXXXXX)"
 source_credentials="$(mktemp /tmp/minco-aws-user-credentials.XXXXXX)"
 role_credentials="$(mktemp /tmp/minco-aws-role-credentials.XXXXXX)"
@@ -133,6 +226,8 @@ remove_request_files() {
 cleanup_bootstrap() {
   local status="${1:-0}"
   local cleanup_failure=0
+  MINCO_REHEARSAL_CLEANUP_MODE=true
+  export MINCO_REHEARSAL_CLEANUP_MODE
   bootstrap_cleanup_started=true
 
   application_cleanup=false
@@ -423,7 +518,7 @@ root_identity="$(
 )"
 account_id="$(jq -er '.Account' <<<"$root_identity")"
 root_arn="$(jq -er '.Arn' <<<"$root_identity")"
-[[ "$root_arn" == "arn:aws:iam::$account_id:root" ]] || {
+[[ "$account_id" == "$authority_account_id" && "$root_arn" == "arn:aws:iam::$account_id:root" ]] || {
   echo "MINCO_ROOT_PROFILE must resolve to the reviewed account root" >&2
   exit 1
 }

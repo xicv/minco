@@ -65,7 +65,7 @@
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:3dbed923b5079f226960544dc16752159629f25583f5fcbd6bdf441e0eb70a84"
+    "revision": "source-tree-sha256:030a222f4f8ca02acb4f0ca447998fc989d182f5898560e56cc03b6eb2c7247b"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 8,
@@ -74,41 +74,6 @@
     "official_plugin_dependency_package_delta": 0,
     "orders_lambda_compressed_byte_delta": 89301,
     "orders_lambda_compressed_percent_delta": 1.7814
-  },
-  "downstream_application_adoption": {
-    "garmentiq": {
-      "contract": {
-        "idempotent_operation_count": 6,
-        "operation_count": 25,
-        "policy_status": "green"
-      },
-      "dependency_boundary": {
-        "default_features": false,
-        "features": [
-          "contract"
-        ],
-        "forbidden_domain_dependencies": [],
-        "forbidden_minco_closure_dependencies": [],
-        "selected_minco_packages": [
-          "minco",
-          "minco-contract",
-          "minco-core"
-        ],
-        "version": "0.6.0"
-      },
-      "merge_revision": "8d6e8146a3954db11c64b264f1990f5b853c3192",
-      "minco_tag_revision": "2c4605b7d4abcd865035196ffc0484c4a0e82f1e",
-      "pull_request": 55,
-      "qualified_head_revision": "2262349989b0df8ad2d202092666e8aaed012b10",
-      "repository": "xicv/garmentiq",
-      "verification": {
-        "exact_merge_head_hosted": "passed",
-        "exact_pr_head_hosted": "passed",
-        "live_provider": "not_performed",
-        "local_source": "passed",
-        "product_deployment": "not_performed"
-      }
-    }
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",
