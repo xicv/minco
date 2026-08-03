@@ -34,6 +34,7 @@ start directly with:
 - [Build a resource API](https://xicv.github.io/minco/0.6.0/guides/resource-api)
 - [Deploy to AWS](https://xicv.github.io/minco/0.6.0/tutorials/deploy-to-aws)
 - [CLI reference](https://xicv.github.io/minco/0.6.0/reference/cli)
+- [Generated package, feature, plugin, CLI, schema, and diagnostic reference](docs/reference/generated/index.md)
 - [Plugin conformance](https://xicv.github.io/minco/0.6.0/guides/plugin-conformance)
 - [Zero idle, precisely](https://xicv.github.io/minco/0.6.0/explanation/zero-idle)
 

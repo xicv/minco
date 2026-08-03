@@ -1,5 +1,9 @@
 # Typed configuration reference
 
+See the [generated composed configuration schema](generated/schemas.md) for the
+exact current application and statically linked plugin fields. This page owns
+the human-readable precedence, redaction, and operational rules.
+
 Minco composes application defaults, environment files, enabled-plugin schema,
 explicit environment overrides and CLI overrides into one
 `ConfigurationGraph`. Graph construction is provider-neutral and performs no

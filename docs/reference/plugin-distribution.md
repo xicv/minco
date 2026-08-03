@@ -1,5 +1,9 @@
 # Plugin distribution records
 
+See the [generated plugin and adapter inventory](generated/plugins.md) for the
+exact current catalog and distribution fields. This page defines their meaning,
+authority split, and safety boundary.
+
 Minco keeps plugin composition static while making compatibility inspectable
 before code is linked. Each catalog package contains an archive-visible
 `minco-plugin.json` selected by Cargo metadata:

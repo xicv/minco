@@ -5,7 +5,21 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- Added compatibility-checked rollback assessment across exact historical
+  release, deployment, environment and data boundaries, plus optional
+  metric-alarm-guarded Lambda alias canaries with deterministic cleanup and
+  durable receipts.
+- Added checked-in generated package, facade-feature, plugin, CLI,
+  configuration, Plan and diagnostic reference derived from authoritative
+  Cargo metadata, validated plugin manifests, Clap help and typed read models.
+
+### Changed
+
+- Local and bounded hosted quality now fail when generated reference bytes
+  drift from their authorities. Secret values and secret-reference names remain
+  excluded, and reference generation performs no provider contact.
 
 ## [0.6.0] - 2026-08-01
 
