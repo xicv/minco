@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$repo_root"
 
 fixture_dir="$(mktemp -d)"
+fixture_dir="$(cd "$fixture_dir" && pwd -P)"
 cleanup_fixture() {
   rm -r -- "$fixture_dir"
 }
@@ -28,6 +29,7 @@ create_checkout() {
 
 prior_root="$fixture_dir/prior"
 current_root="$fixture_dir/current"
+evidence_root="$fixture_dir/evidence/target/minco/aws/reviewed-multi-release-run"
 create_checkout "$prior_root" prior
 create_checkout "$current_root" current
 prior_revision="$(git -C "$prior_root" rev-parse HEAD)"
@@ -84,11 +86,13 @@ done
 plan_rehearsal() {
   local selected_prior_root="$1"
   local selected_current_root="$2"
+  local selected_evidence_root="${3:-$evidence_root}"
 
   PATH="$fake_bin:$PATH" \
   MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
   MINCO_PRIOR_ROOT="$selected_prior_root" \
   MINCO_CURRENT_ROOT="$selected_current_root" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$selected_evidence_root" \
   MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
   MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
   MINCO_AWS_RUN_ID=reviewed-multi-release-run \
@@ -111,6 +115,7 @@ plan_rehearsal "$prior_root" "$current_root" >"$plan"
 jq -e \
   --arg prior_root "$(cd "$prior_root" && pwd -P)" \
   --arg current_root "$(cd "$current_root" && pwd -P)" \
+  --arg evidence_root "$(dirname "$evidence_root")/$(basename "$evidence_root")" \
   --arg prior_revision "$prior_revision" \
   --arg current_revision "$current_revision" \
   '
@@ -134,7 +139,7 @@ jq -e \
       run_id: "reviewed-multi-release-run"
     }
     and (.authority.approval_digest | test("^[0-9a-f]{64}$"))
-    and .evidence_root == "target/minco/aws/reviewed-multi-release-run"
+    and .evidence_root == $evidence_root
     and .provider_boundary == {
       artifact_bucket_lifetime: "whole_run",
       shared_stack: true,
@@ -196,6 +201,177 @@ jq -e \
   exit 1
 }
 
+plan_digest="$(shasum -a 256 "$plan" | awk '{print $1}')"
+phase_projection="$fixture_dir/phase-projection.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
+  scripts/aws/plan-multi-release-phase.sh >"$phase_projection"
+
+jq -e \
+  --arg controller_root "$(cd "$current_root" && pwd -P)" \
+  --arg prior_root "$(cd "$prior_root" && pwd -P)" \
+  --arg prior_revision "$prior_revision" \
+  --arg evidence_root "$evidence_root" \
+  --arg plan_digest "$plan_digest" \
+  '
+    keys == [
+      "authority",
+      "controller",
+      "evidence",
+      "external_aws_contact",
+      "operation",
+      "phase",
+      "plan_digest",
+      "rollback",
+      "schema_version"
+    ]
+    and .schema_version == 1
+    and .operation == "multi_release_phase"
+    and .external_aws_contact == false
+    and .plan_digest == $plan_digest
+    and .authority == {
+      approval_digest: .authority.approval_digest,
+      kind: "minco.aws-multi-release-controller-rehearsal.v1",
+      run_id: "reviewed-multi-release-run"
+    }
+    and .controller == {
+      cleanup_owner: "parent_controller",
+      root: $controller_root
+    }
+    and .evidence == {
+      namespace: "phases/03-prior-rollback",
+      path: ($evidence_root + "/phases/03-prior-rollback"),
+      write_policy: "create_only"
+    }
+    and .phase.id == "03-prior-rollback"
+    and .phase.release == "prior"
+    and .phase.source == {
+      revision: $prior_revision,
+      root: $prior_root
+    }
+    and .phase.stack_action == "update"
+    and .phase.artifact_policy == {
+      build: false,
+      replan: false,
+      reuse_exact_release_from_phase: "01-prior-initial"
+    }
+    and .phase.fresh_hosted_verification == true
+    and .phase.promotion_required == true
+    and .rollback == {
+      accepted_result: "compatible",
+      compatibility_assessment_required: true,
+      current_promotion_phase: "02-current",
+      historical_hosted_report_reuse: false,
+      target_promotion_phase: "01-prior-initial"
+    }
+  ' "$phase_projection" >/dev/null || {
+  echo "phase projection omitted or weakened the sealed rollback handoff" >&2
+  jq . "$phase_projection" >&2
+  exit 1
+}
+
+first_phase_projection="$fixture_dir/first-phase-projection.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  scripts/aws/plan-multi-release-phase.sh >"$first_phase_projection"
+first_phase_evidence_path="$(jq -er '.evidence.path' "$first_phase_projection")"
+mkdir -p "$first_phase_evidence_path"
+
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  scripts/aws/plan-multi-release-phase.sh >/dev/null || {
+  echo "earlier phase evidence blocked the next exact-source handoff" >&2
+  exit 1
+}
+
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST=0000000000000000000000000000000000000000000000000000000000000000 \
+  scripts/aws/plan-multi-release-phase.sh >/dev/null 2>&1; then
+  echo "phase projection accepted an authority digest outside the whole-run plan" >&2
+  exit 1
+fi
+
+broadened_plan="$fixture_dir/broadened-plan.json"
+jq '.cleanup.owner = "inner_phase"' "$plan" >"$broadened_plan"
+broadened_digest="$(shasum -a 256 "$broadened_plan" | awk '{print $1}')"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$broadened_plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$broadened_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
+  scripts/aws/plan-multi-release-phase.sh >/dev/null 2>&1; then
+  echo "phase projection accepted a digest-matched plan outside fixed policy" >&2
+  exit 1
+fi
+
+traversal_root="$fixture_dir/missing/../current/target/minco/aws/reviewed-multi-release-run"
+traversal_plan="$fixture_dir/traversal-plan.json"
+jq --arg evidence_root "$traversal_root" \
+  '.evidence_root = $evidence_root' "$plan" >"$traversal_plan"
+traversal_digest="$(shasum -a 256 "$traversal_plan" | awk '{print $1}')"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$traversal_plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$traversal_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  scripts/aws/plan-multi-release-phase.sh >/dev/null 2>&1; then
+  echo "phase projection accepted an evidence path traversing into a source checkout" >&2
+  exit 1
+fi
+
+phase_evidence_path="$evidence_root/phases/03-prior-rollback"
+mkdir -p "$phase_evidence_path"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
+  scripts/aws/plan-multi-release-phase.sh >/dev/null 2>&1; then
+  echo "phase projection accepted a pre-existing create-only evidence namespace" >&2
+  exit 1
+fi
+rm -r -- "$evidence_root"
+
+printf '# post-plan drift\n' >>"$current_root/minco.toml"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  scripts/aws/plan-multi-release-phase.sh >/dev/null 2>&1; then
+  echo "phase projection accepted source drift after whole-run planning" >&2
+  exit 1
+fi
+git -C "$current_root" restore minco.toml
+
 if (
   cd "$fixture_dir"
   plan_rehearsal prior "$current_root" >/dev/null 2>&1
@@ -208,6 +384,28 @@ if plan_rehearsal "$prior_root" "$prior_root" >/dev/null 2>&1; then
   echo "multi-release planning accepted one checkout for both releases" >&2
   exit 1
 fi
+
+if plan_rehearsal \
+  "$prior_root" "$current_root" \
+  "$current_root/target/minco/aws/reviewed-multi-release-run" \
+  >/dev/null 2>&1; then
+  echo "multi-release planning accepted an evidence root inside a source checkout" >&2
+  exit 1
+fi
+
+if plan_rehearsal \
+  "$prior_root" "$current_root" "$traversal_root" \
+  >/dev/null 2>&1; then
+  echo "multi-release planning accepted traversal in the evidence root" >&2
+  exit 1
+fi
+
+mkdir -p "$evidence_root"
+if plan_rehearsal "$prior_root" "$current_root" >/dev/null 2>&1; then
+  echo "multi-release planning accepted a pre-existing whole-run evidence root" >&2
+  exit 1
+fi
+rm -r -- "$evidence_root"
 
 prior_link="$fixture_dir/prior-link"
 ln -s "$prior_root" "$prior_link"
