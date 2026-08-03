@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+MINCO_REHEARSAL_CLEANUP_MODE=true
+export MINCO_REHEARSAL_CLEANUP_MODE
+
 # shellcheck source=scripts/aws/lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 repo_root="$(minco_repo_root)"

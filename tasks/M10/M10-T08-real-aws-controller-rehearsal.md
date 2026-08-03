@@ -2,7 +2,7 @@
 id: M10-T08
 title: Run a bounded real-AWS controller promotion and rollback rehearsal
 milestone: M10
-status: ready
+status: in_progress
 priority: critical
 area: deployment/aws/recovery
 depends_on: [M10-T04, M10-T05, M10-T06, M10-T07]
@@ -74,4 +74,36 @@ login or approval for another task is not authority for this rehearsal.
 
 ## Evidence
 
-Not run. Provider execution remains blocked on the authority gate above.
+Provider execution has not run and remains blocked on the authority gate above.
+
+Local preflight on 2026-08-03 found that the bounded runners previously relied
+on an out-of-band review statement and could reach STS without a digest-bound
+account, role/profile, source, database, resource, duration/spend and cleanup
+approval. A red-first shell regression now proves that the direct runner, root
+bootstrap and account inspection fail before build or AWS contact when that
+authority is absent. The exact local document is schema-closed, expires within
+24 hours, accepts only three fixed resource/cleanup profiles, limits new work to
+60 minutes, preserves cleanup authority after expiry and writes only a redacted
+receipt. Caller account and role are rechecked after STS without retaining them
+in the authority receipt.
+
+Local non-provider evidence currently passes:
+
+- `scripts/aws/validate.sh`, including the authority regression, static
+  validation and real SAM lint;
+- `scripts/dev/rustack-smoke.sh` for S3, SQS, SSM, STS and the Minco adapters;
+- `cargo minco deploy plan --environment dev --json --stdout`, retaining the
+  no-NAT, no-fixed-compute, no-provisioned-concurrency and no-schedule plan;
+- `cargo minco rollback --dry-run --json`, which made no AWS contact and failed
+  closed on the intentionally absent current and target promotion receipts;
+- Bash syntax and ShellCheck for every AWS script.
+
+The remaining source-design gate is the multi-release rehearsal boundary. The
+current bounded runner creates, verifies and promotes one release, then cleans
+the stack immediately. It cannot yet establish a prior live release, promote
+the current release, assess their exact evidence chains, redeploy the prior
+artifact from its clean source checkout, reverify it and restore traffic in the
+same stack before teardown. Do not weaken source provenance or reuse a
+historical hosted report to bypass that gate. Complete local and hosted quality,
+the closed multi-release design, exact provider authority and the live evidence
+remain required before this task can complete.

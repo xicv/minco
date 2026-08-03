@@ -22,6 +22,87 @@ require_safe_name() {
   }
 }
 
+current_source_revision() {
+  local revision
+  if [[ -d .jj ]] && command -v jj >/dev/null; then
+    revision="$(jj log -r @ --no-graph -T 'commit_id')"
+  elif command -v git >/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    revision="$(git rev-parse HEAD)"
+  else
+    printf 'a JJ or Git checkout is required to bind rehearsal authority\n' >&2
+    return 1
+  fi
+  [[ "$revision" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || {
+    printf 'could not resolve an exact source revision for rehearsal authority\n' >&2
+    return 1
+  }
+  printf '%s\n' "$revision"
+}
+
+write_rehearsal_authority_receipt() {
+  local authority_file="$1"
+  local approval_digest="$2"
+  local output_path="$3"
+  jq \
+    --arg approval_digest "$approval_digest" \
+    '{
+      schema_version,
+      authority_kind,
+      run_id,
+      source_revision,
+      environment,
+      database_boundary_mode: .database_boundary.mode,
+      resource_allowlist,
+      cleanup_blast_radius,
+      max_duration_minutes,
+      max_spend_usd,
+      approved_at,
+      expires_at,
+      approval_digest: $approval_digest
+    }' "$authority_file" >"$output_path"
+  chmod 600 "$output_path"
+}
+
+initialize_rehearsal_deadline() {
+  local authority_file="$1"
+  local duration_minutes
+  local now_epoch
+  duration_minutes="$(jq -er '.max_duration_minutes' "$authority_file")"
+  now_epoch="$(date -u +%s)"
+  if [[ -n "${MINCO_REHEARSAL_STARTED_EPOCH:-}" ||
+    -n "${MINCO_REHEARSAL_DEADLINE_EPOCH:-}" ]]; then
+    [[ "${MINCO_REHEARSAL_STARTED_EPOCH:-}" =~ ^[0-9]+$ &&
+      "${MINCO_REHEARSAL_DEADLINE_EPOCH:-}" =~ ^[0-9]+$ &&
+      "$MINCO_REHEARSAL_STARTED_EPOCH" -le "$now_epoch" &&
+      "$MINCO_REHEARSAL_DEADLINE_EPOCH" -eq \
+        $((MINCO_REHEARSAL_STARTED_EPOCH + duration_minutes * 60)) ]] || {
+      printf 'inherited rehearsal duration boundary is invalid\n' >&2
+      return 1
+    }
+  else
+    MINCO_REHEARSAL_STARTED_EPOCH="$now_epoch"
+    MINCO_REHEARSAL_DEADLINE_EPOCH="$((now_epoch + duration_minutes * 60))"
+  fi
+  MINCO_REHEARSAL_CLEANUP_MODE=false
+  export \
+    MINCO_REHEARSAL_CLEANUP_MODE \
+    MINCO_REHEARSAL_DEADLINE_EPOCH \
+    MINCO_REHEARSAL_STARTED_EPOCH
+}
+
+enforce_rehearsal_duration() {
+  [[ -n "${MINCO_REHEARSAL_DEADLINE_EPOCH:-}" ]] || return 0
+  [[ "$MINCO_REHEARSAL_DEADLINE_EPOCH" =~ ^[0-9]+$ ]] || {
+    printf 'rehearsal duration boundary is invalid\n' >&2
+    return 1
+  }
+  [[ "${MINCO_REHEARSAL_CLEANUP_MODE:-false}" == true ]] && return 0
+  if (( $(date -u +%s) > MINCO_REHEARSAL_DEADLINE_EPOCH )); then
+    printf 'rehearsal duration authority expired; only cleanup may continue\n' >&2
+    return 1
+  fi
+}
+
 normalized_ssm_parameter_name() {
   local parameter_name="$1"
   [[ "$parameter_name" =~ ^/[A-Za-z0-9_./-]+$ &&
@@ -292,6 +373,7 @@ record_cloud_touch() {
   local service="$1"
   local action="$2"
   local detail="$3"
+  enforce_rehearsal_duration || return
   jq -cn \
     --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg run_id "$MINCO_AWS_RUN_ID" \

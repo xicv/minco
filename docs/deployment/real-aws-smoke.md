@@ -15,6 +15,8 @@ uses an isolated one-hour role session for every application resource, and
 deletes the access key, user, role, profiles and credential files after cleanup:
 
 ```bash
+MINCO_REHEARSAL_AUTHORITY_FILE=/absolute/path/to/reviewed-authority.json \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST=REVIEWED_SHA256 \
 MINCO_DATABASE_URL_FILE=/absolute/path/to/mode-0600-minco-database-url \
 AWS_REGION=ap-southeast-2 \
 ./scripts/aws/run-bounded-root-bootstrap.sh
@@ -38,6 +40,8 @@ When no PostgreSQL URL exists, the same wrapper can create a disposable
 single-AZ RDS PostgreSQL test boundary:
 
 ```bash
+MINCO_REHEARSAL_AUTHORITY_FILE=/absolute/path/to/reviewed-authority.json \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST=REVIEWED_SHA256 \
 MINCO_CREATE_TEMP_RDS=true \
 AWS_REGION=ap-southeast-2 \
 ./scripts/aws/run-bounded-root-bootstrap.sh
@@ -58,15 +62,101 @@ the owned database is the proof that all synthetic rows are gone.
 
 1. Run the scoped Rust tests, ShellCheck, static validation, SAM lint and
    `scripts/dev/rustack-smoke.sh`.
-2. Confirm the target Region. For the direct runner, confirm the existing
+2. Create a local, uncommitted authority document using the exact schema below.
+   Review it independently, then pass its SHA-256 as the separate approval.
+   Missing, stale, tampered, extended or mismatched authority fails before a
+   build or AWS command.
+3. Confirm the target Region. For the direct runner, confirm the existing
    absolute SSM parameter name. For the bootstrap wrapper, select exactly one
    documented Minco database source or set `MINCO_CREATE_TEMP_RDS=true`.
-3. Do not retrieve or print a parameter value during discovery. For the direct
-   runner, use `scripts/aws/inspect-account.sh` to retain caller identity and
-   SecureString metadata under ignored `target/minco/aws/<run-id>/`.
-4. Check that no intended stack or temporary bucket already exists. The deploy
+4. Do not retrieve or print a parameter value during discovery. After authority
+   approval, the direct runner may use `scripts/aws/inspect-account.sh` to
+   verify only the exact account, role and parameter. It retains booleans and
+   non-identifying parameter properties, not account IDs, ARNs or names, under
+   ignored `target/minco/aws/<run-id>/`.
+5. Check that no intended stack or temporary bucket already exists. The deploy
    script treats access errors and ambiguous responses as failures, not as
    proof of absence.
+
+The authority file is deliberately local because it contains account, role,
+profile and database-boundary identifiers. Never commit or copy it into run
+evidence. The runner retains only a redacted receipt with the approval digest,
+source revision, scope IDs, time/spend ceilings and approval window.
+
+```json
+{
+  "schema_version": 1,
+  "authority_kind": "minco.aws-controller-rehearsal.v1",
+  "run_id": "reviewed-run-id",
+  "source_revision": "EXACT_40_OR_64_HEX_TASK_HEAD",
+  "expected_account_id": "REVIEWED_12_DIGIT_NONPROD_ACCOUNT",
+  "expected_region": "ap-southeast-2",
+  "expected_role_arn": "arn:aws:iam::REVIEWED_ACCOUNT:role/EXACT_ROLE",
+  "aws_profile": "exact-reviewed-profile",
+  "environment": "dev",
+  "database_boundary": {
+    "mode": "existing-ssm-secure-string",
+    "parameter_name": "/minco/rehearsal/database-url",
+    "parameter_owned": false,
+    "instance_owned": false
+  },
+  "resource_allowlist": "bounded-direct-smoke-v1",
+  "cleanup_blast_radius": "cleanup-bounded-direct-smoke-v1",
+  "max_duration_minutes": 60,
+  "max_spend_usd": 25,
+  "approved_by": "release-owner",
+  "approved_at": "2026-08-03T10:00:00Z",
+  "expires_at": "2026-08-03T11:00:00Z"
+}
+```
+
+For root bootstrap, `aws_profile` is the exact root bootstrap profile and
+`expected_role_arn` is the deterministic `MincoSmoke-<run-hash>` role that the
+wrapper will create. Use `run-owned-ssm-copy` with the exact selected source and
+temporary parameter for an existing database, or this boundary for the
+disposable database path:
+
+```json
+{
+  "mode": "disposable-rds",
+  "rds_stack_name": "minco-rds-RUN_HASH",
+  "instance_id": "minco-RUN_HASH",
+  "parameter_name": "/minco/smoke/RUN_HASH/database-url"
+}
+```
+
+The closed scope profiles mean:
+
+| Authority profile | Provider/resource boundary | Cleanup boundary |
+| --- | --- | --- |
+| `bounded-direct-smoke-v1` | One run-tagged artifact bucket and Cognito harness; one create-only CloudFormation stack/change set containing the API, stages, Lambda function/version/aliases/permissions, execution role and log group; metadata/value access to the exact external SSM parameter; explicit migration and synthetic requests against the exact external PostgreSQL boundary. | Synthetic rows, stack resources, Cognito harness and artifact bucket only. The external parameter must byte-match its before metadata; schema migration history is retained. |
+| `bounded-root-bootstrap-v1` | Direct scope plus one deterministic temporary IAM user/key/inline policy, one temporary assume-role session/profile and one run-owned SSM copy of the reviewed PostgreSQL source. | Direct cleanup plus the exact temporary parameter, IAM user/key/policies/role and isolated local credential/config files. |
+| `bounded-root-temp-rds-v1` | Root-bootstrap scope plus one encrypted single-AZ RDS instance and managed secret, and one isolated VPC with its subnets, routes, internet gateway, security groups and exact SSM VPC endpoint; no NAT Gateway. | Root-bootstrap cleanup plus the run-owned database/secret, RDS stack, endpoint, network resources, CA/database files and synthetic data. |
+
+Each resource profile has the corresponding `cleanup-<resource-profile>` ID
+shown by the examples. The
+validator accepts only these fixed pairings and exact database shapes. Duration
+is limited to 60 minutes and checked before every journalled AWS, SAM or external
+database touch; after expiry, only cleanup calls may continue. The spend value
+is an operator-approved ceiling limited to USD 25, not a live billing alarm;
+the closed resource profile, duration boundary and bounded call loops are the
+enforced controls that keep this disposable rehearsal within that ceiling.
+
+Validate locally, inspect the document, then approve its exact bytes:
+
+```bash
+authority=/absolute/path/to/reviewed-authority.json
+approval_digest="$(shasum -a 256 "$authority" | awk '{print $1}')"
+jq . "$authority"
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+scripts/aws/validate-rehearsal-authority.sh \
+  "$authority" "$approval_digest" \
+  reviewed-run-id EXACT_SOURCE_REVISION ap-southeast-2 \
+  exact-reviewed-profile dev \
+  '{"mode":"existing-ssm-secure-string","parameter_name":"/minco/rehearsal/database-url","parameter_owned":false,"instance_owned":false}' \
+  bounded-direct-smoke-v1 cleanup-bounded-direct-smoke-v1
+```
 
 ## Bounded execution
 
