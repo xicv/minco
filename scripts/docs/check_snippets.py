@@ -21,6 +21,24 @@ WORKSPACE_VERSION = RELEASE["workspace"]
 TUTORIAL = SITE / STABLE_VERSION / "tutorials"
 WORKSPACE_TUTORIAL = SITE / WORKSPACE_VERSION / "tutorials"
 NEXT = SITE / "next"
+REQUIRED_NEXT_PAGES = (
+    "getting-started/installation.md",
+    "getting-started/first-application.md",
+    "features/index.md",
+    "guides/configuration.md",
+    "guides/local-development.md",
+    "guides/database-lifecycle.md",
+    "guides/background-work.md",
+    "guides/identity-and-sessions.md",
+    "guides/files-and-static-sites.md",
+    "guides/events-and-notifications.md",
+    "guides/feedback.md",
+    "plugins/index.md",
+    "plugins/using-plugins.md",
+    "cookbook/index.md",
+    "cookbook/orders-api.md",
+    "reference/feature-flags.md",
+)
 
 
 def fail(message: str, failures: list[str]) -> None:
@@ -69,11 +87,14 @@ def main() -> int:
     if WORKSPACE_VERSION != STABLE_VERSION:
         checked_sources.extend(sorted((SITE / WORKSPACE_VERSION).rglob("*.md")))
     next_sources = sorted(NEXT.rglob("*.md"))
-    if len(next_sources) < 10:
+    if len(next_sources) < 28:
         fail(
-            f"next documentation has {len(next_sources)} pages; expected at least 10 detailed pages",
+            f"next documentation has {len(next_sources)} pages; expected at least 28 detailed pages",
             failures,
         )
+    for relative_path in REQUIRED_NEXT_PAGES:
+        if not (NEXT / relative_path).is_file():
+            fail(f"next documentation lacks required page: {relative_path}", failures)
     checked_sources.extend(next_sources)
     for path in checked_sources:
         source = path.read_text()

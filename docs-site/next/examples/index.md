@@ -6,8 +6,9 @@ description: Find current examples by application, plugin, runtime, database, an
 # Exercised Examples
 
 These examples already exist in the repository and run in current quality
-gates. This is a curated map, not the full examples matrix planned for later
-M11 work.
+gates. For outcome-oriented walkthroughs, start with the
+[practical cookbook](../cookbook/) or the complete
+[Orders API recipe](../cookbook/orders-api).
 
 ## Orders Application
 
@@ -75,8 +76,12 @@ are compiled evidence, not a claim that the provider ran.
 
 ## Pick an Example by Goal
 
-- Standard HTTP CRUD: [Build a Resource API](../guides/resource-api).
-- External plugin package: [Test a Plugin](../guides/plugin-conformance).
-- Deployment review: [Plan an AWS Deployment](../guides/deployment).
-- Evidence interpretation: [Testing and Evidence](../reference/testing).
-
+| Goal | Example or guide | Strongest default evidence |
+|---|---|---|
+| Standard HTTP CRUD | [Orders API end to end](../cookbook/orders-api) | local contract/domain/application/SQLite/HTTP tests |
+| Generated application | [Build your first application](../getting-started/first-application) | compiler and local profile |
+| External plugin package | [Test a Plugin](../guides/plugin-conformance) | public offline conformance |
+| SQS partial batches | [Queues and workers](../guides/background-work) | local runtime and Plan IR tests |
+| Client review loop | [Feedback](../guides/feedback) | local persistence/API/widget/browser tests |
+| Deployment review | [Plan an AWS Deployment](../guides/deployment) | deterministic offline plan/package evidence |
+| Evidence interpretation | [Testing and Evidence](../reference/testing) | explicit boundary vocabulary |
