@@ -117,3 +117,68 @@ stack_tags = { "minco:run-id" = "run-123" }
     );
     assert!(DeploymentTargetCatalog::from_toml(&too_many).is_err());
 }
+
+#[test]
+fn canary_policy_is_opt_in_alarm_guarded_and_api_only() {
+    let source = r#"
+schema_version = 1
+default_environment = "production"
+
+[environments.production]
+enabled = true
+expected_account_id = "111122223333"
+expected_region = "ap-southeast-2"
+expected_role_arn = "arn:aws:iam::111122223333:role/minco-production"
+stack_name = "minco-orders-production"
+artifact_bucket = "minco-orders-production-artifacts"
+database_url_parameter_name = "/minco/production/database-url"
+
+[environments.production.canary]
+initial_traffic_percent = 10
+monitoring_minutes = 15
+alarm_arns = ["arn:aws:cloudwatch:ap-southeast-2:111122223333:alarm:minco-api-errors"]
+"#;
+
+    let catalog = DeploymentTargetCatalog::from_toml(source).expect("canary target catalog");
+    let policy = catalog
+        .select(None)
+        .expect("default target")
+        .target
+        .canary
+        .expect("canary policy");
+    assert_eq!(policy.initial_traffic_percent, 10);
+    assert_eq!(policy.monitoring_minutes, 15);
+    assert_eq!(policy.api_routing, "weighted_live_alias");
+    assert_eq!(policy.worker_routing, "preserve_current_event_sources");
+    assert!(!policy.provisioned_concurrency);
+
+    let no_alarms = source.replace(
+        "alarm_arns = [\"arn:aws:cloudwatch:ap-southeast-2:111122223333:alarm:minco-api-errors\"]",
+        "alarm_arns = []",
+    );
+    assert!(DeploymentTargetCatalog::from_toml(&no_alarms).is_err());
+
+    let wrong_region = source.replace(
+        "arn:aws:cloudwatch:ap-southeast-2:111122223333:alarm:minco-api-errors",
+        "arn:aws:cloudwatch:us-east-1:111122223333:alarm:minco-api-errors",
+    );
+    assert!(DeploymentTargetCatalog::from_toml(&wrong_region).is_err());
+
+    let preview_canary = source
+        .replace(
+            "default_environment = \"production\"",
+            "default_environment = \"preview\"",
+        )
+        .replace("[environments.production]", "[environments.preview]")
+        .replace(
+            "[environments.production.canary]",
+            "[environments.preview.canary]",
+        )
+        .replace("enabled = true", "enabled = false")
+        .replace(
+            "stack_name = \"minco-orders-production\"",
+            "lifecycle = \"preview\"\nstack_name = \"minco-orders-preview\"",
+        )
+        + "\n[environments.preview.preview]\nowner = \"reviewer\"\nttl_seconds = 3600\npricing_complete = false\n\n[[environments.preview.preview.resources]]\nlogical_id = \"ApiFunction\"\nresource_type = \"AWS::Lambda::Function\"\nretention = \"delete\"\nidle_cost_class = \"request_only\"\n";
+    assert!(DeploymentTargetCatalog::from_toml(&preview_canary).is_err());
+}
