@@ -117,11 +117,25 @@ boundary:
 
 ```bash
 cargo minco rollback --dry-run --json
+cargo minco rollback \
+  --current-root /absolute/path/to/current-clean-checkout \
+  --target-root /absolute/path/to/prior-clean-checkout \
+  --current-promotion target/minco/current/promotion-receipt.json \
+  --target-promotion target/minco/prior/promotion-receipt.json \
+  --data-compatibility-evidence target/minco/rollback-data-compatibility.json \
+  --json
 cargo minco promote --canary --dry-run --json
 ```
 
 `rollback` compares successful current and target promotion receipts and never
 contacts AWS, rebuilds, replans, reverses SQL, repairs data, or rewires workers.
+Each receipt chain may live under a distinct absolute, existing, non-symlink
+checkout root, which Minco resolves to its canonical path. A complete assessment
+rechecks that each clean checkout is at the exact source revision sealed by its
+release, preserving every original repository-relative manifest, artifact,
+contract, plan and receipt binding.
+The compatibility decision file remains relative to the command root and binds
+both exact release IDs.
 An exact data-compatibility decision can be supplied as strict release-bound
 JSON. A compatible result is still only qualification: the exact older artifact
 must be redeployed as the current candidate without rebuilding or replanning,

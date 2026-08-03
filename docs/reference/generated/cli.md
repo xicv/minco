@@ -572,12 +572,16 @@ Assess an exact older promoted release before routing with `promote`
 Usage: cargo-minco rollback [OPTIONS]
 
 Options:
-      --current-promotion <CURRENT_PROMOTION>
-          [default: target/minco/promotion-receipt.json]
+      --current-root <CURRENT_ROOT>
+          Clean exact-source checkout containing the current promotion evidence
       --root <ROOT>
 
       --json
 
+      --target-root <TARGET_ROOT>
+          Clean exact-source checkout containing the older target promotion evidence
+      --current-promotion <CURRENT_PROMOTION>
+          [default: target/minco/promotion-receipt.json]
       --target-promotion <TARGET_PROMOTION>
           [default: target/minco/rollback-target-promotion-receipt.json]
       --data-compatibility-evidence <DATA_COMPATIBILITY_EVIDENCE>

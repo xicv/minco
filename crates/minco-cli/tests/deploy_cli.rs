@@ -35,6 +35,49 @@ fn rollback_dry_run_is_local_and_never_promises_reverse_sql() {
 }
 
 #[test]
+fn rollback_dry_run_names_distinct_exact_source_roots() {
+    let root = workspace_root();
+    let current = tempfile::tempdir().expect("current exact-source root");
+    let target = tempfile::tempdir().expect("target exact-source root");
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
+        .args([
+            "--root",
+            root.to_str().expect("UTF-8 root"),
+            "--json",
+            "rollback",
+            "--dry-run",
+            "--current-root",
+            current.path().to_str().expect("UTF-8 current root"),
+            "--target-root",
+            target.path().to_str().expect("UTF-8 target root"),
+        ])
+        .output()
+        .expect("execute multi-root rollback dry-run");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("rollback plan");
+    assert_eq!(plan["external_aws_contact"], false);
+    assert_eq!(
+        plan["current_evidence_root"],
+        serde_json::json!(
+            current
+                .path()
+                .canonicalize()
+                .expect("canonical current root")
+        )
+    );
+    assert_eq!(
+        plan["target_evidence_root"],
+        serde_json::json!(target.path().canonicalize().expect("canonical target root"))
+    );
+    assert_eq!(plan["reuse_historical_hosted_report"], false);
+}
+
+#[test]
 fn canary_dry_run_is_local_and_fail_closed_without_opt_in_policy() {
     let root = workspace_root();
     let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))

@@ -158,6 +158,38 @@ scripts/aws/validate-rehearsal-authority.sh \
   bounded-direct-smoke-v1 cleanup-bounded-direct-smoke-v1
 ```
 
+## Multi-release rollback evidence
+
+Keep the current and prior releases in separate clean exact-source checkouts.
+Do not copy their manifest trees into one checkout, rewrite bound paths, or
+reuse the prior hosted report. The local assessment accepts two explicit roots
+so each release keeps its original repository-relative evidence chain:
+
+```bash
+cargo minco rollback \
+  --current-root /absolute/path/to/current-clean-checkout \
+  --target-root /absolute/path/to/prior-clean-checkout \
+  --current-promotion target/minco/current/promotion-receipt.json \
+  --target-promotion target/minco/prior/promotion-receipt.json \
+  --data-compatibility-evidence target/minco/rollback-data-compatibility.json \
+  --json
+```
+
+Both roots must be absolute, existing non-symlink directories and are resolved
+to canonical paths. A complete assessment verifies both promotion, deployment
+and release chains, and requires each checkout's current Git or JJ revision to
+equal its sealed release source. The data decision is read from the command root
+and must bind the two release IDs. The result is still non-mutating
+qualification: the prior checkout must redeploy its exact artifact as a new
+candidate, create a fresh deployment receipt and hosted report, and pass
+ordinary `promote` again.
+
+The current bounded runner remains single-release until the parent controller
+owns the shared stack, evidence namespaces and cleanup trap across the complete
+prior → current → freshly prior sequence. Do not disable its immediate cleanup
+or create-only review gate independently; that would leave a partially owned
+provider boundary rather than a recoverable rehearsal.
+
 ## Bounded execution
 
 `scripts/aws/run-bounded-smoke.sh` performs these ordered stages:
