@@ -198,3 +198,19 @@ the exact controller-root check, a schema-closed receipt validator and
 authority/receipt digest rechecks. Provider-capable state transitions, shared
 resource phase execution, compatibility handoff, the actual single cleanup
 trap and the separately approved live rehearsal remain.
+
+The seventh controller slice adds the first durable phase transition without
+crossing the provider boundary. From the exact current checkout, the command
+accepts only the initialized controller's `01-prior-initial` phase and exact
+controller and authority approvals. It revalidates the sealed plan, all three
+projections, both clean source revisions, fixed create review policy, private
+access modes and the absence of unsealed state. It then publishes the complete
+first-phase namespace with one atomic rename, preserving the immutable parent
+receipt and later create-only namespaces. Red-first coverage proved the
+command was absent, then exposed and fixed broadly accessible evidence,
+adoption of a pre-existing `phases` directory, partial state after a failed
+publish and injected unsealed root entries. The resulting schema-closed
+`started` receipt is redacted and explicitly records no AWS contact. Provider
+execution, successful/failed phase completion transitions, shared stack and
+bucket ownership, compatibility handoff, the one parent cleanup trap and the
+separately approved live rehearsal remain required.

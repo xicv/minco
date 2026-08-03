@@ -31,11 +31,18 @@ create_checkout() {
       scripts/aws/plan-multi-release-phase.sh \
       scripts/aws/validate-multi-release-rehearsal-authority.sh \
       "$root/scripts/aws/"
+    if [[ -f scripts/aws/begin-multi-release-phase.sh ]]; then
+      cp scripts/aws/begin-multi-release-phase.sh "$root/scripts/aws/"
+    fi
     cp scripts/aws/lib/common.sh \
       scripts/aws/lib/validate-multi-release-controller-receipt.jq \
       scripts/aws/lib/validate-multi-release-plan.jq \
       scripts/aws/lib/validate-rehearsal-authority-common.jq \
       "$root/scripts/aws/lib/"
+    if [[ -f scripts/aws/lib/validate-multi-release-phase-start-receipt.jq ]]; then
+      cp scripts/aws/lib/validate-multi-release-phase-start-receipt.jq \
+        "$root/scripts/aws/lib/"
+    fi
     chmod +x "$root/scripts/aws/"*.sh
   fi
   git -C "$root" add .
@@ -636,6 +643,323 @@ jq -e \
 }
 [[ ! -e "$provider_contact_log" ]] || {
   echo "multi-release initialization contacted a provider or build command" >&2
+  exit 1
+}
+
+controller_receipt_digest="$(jq -er '.receipt_digest' "$controller_receipt")"
+phase_beginner="$current_root/scripts/aws/begin-multi-release-phase.sh"
+phase_start_output="$fixture_dir/phase-start-output.json"
+controller_file_digest_before_phase="$(
+  shasum -a 256 "$controller_receipt" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted a phase outside initialized order" >&2
+  exit 1
+fi
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST=0000000000000000000000000000000000000000000000000000000000000000 \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted the wrong controller approval" >&2
+  exit 1
+fi
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  scripts/aws/begin-multi-release-phase.sh >/dev/null 2>&1; then
+  echo "multi-release phase start accepted code outside the exact controller checkout" >&2
+  exit 1
+fi
+mismatched_authority="$fixture_dir/mismatched-multi-release-authority.json"
+jq '.approved_by = "different-release-owner"' \
+  "$authority_file" >"$mismatched_authority"
+mismatched_authority_digest="$(
+  shasum -a 256 "$mismatched_authority" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$mismatched_authority" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$mismatched_authority_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted authority outside the initialized controller" >&2
+  exit 1
+fi
+chmod 644 "$controller_receipt"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted broadly accessible control evidence" >&2
+  exit 1
+fi
+chmod 600 "$controller_receipt"
+sealed_first_projection="$evidence_root/control/phases/01-prior-initial.json"
+projection_backup="$fixture_dir/01-prior-initial-projection.json"
+cp "$sealed_first_projection" "$projection_backup"
+jq '.phase.stack_action = "update"' \
+  "$projection_backup" >"$sealed_first_projection"
+chmod 600 "$sealed_first_projection"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted a tampered phase projection" >&2
+  exit 1
+fi
+cp "$projection_backup" "$sealed_first_projection"
+chmod 600 "$sealed_first_projection"
+sealed_future_projection="$evidence_root/control/phases/02-current.json"
+future_projection_backup="$fixture_dir/02-current-projection.json"
+cp "$sealed_future_projection" "$future_projection_backup"
+jq '.phase.stack_action = "create"' \
+  "$future_projection_backup" >"$sealed_future_projection"
+chmod 600 "$sealed_future_projection"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted a tampered future projection" >&2
+  exit 1
+fi
+cp "$future_projection_backup" "$sealed_future_projection"
+chmod 600 "$sealed_future_projection"
+authority_receipt_backup="$fixture_dir/authority-receipt.json"
+cp "$authority_receipt" "$authority_receipt_backup"
+jq '.max_spend_usd = 1' \
+  "$authority_receipt_backup" >"$authority_receipt"
+chmod 600 "$authority_receipt"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted a tampered authority receipt" >&2
+  exit 1
+fi
+cp "$authority_receipt_backup" "$authority_receipt"
+chmod 600 "$authority_receipt"
+chmod 755 "$evidence_root"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted a broadly accessible evidence root" >&2
+  exit 1
+fi
+chmod 700 "$evidence_root"
+mkdir -m 700 "$evidence_root/phases"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted a pre-existing phases boundary" >&2
+  exit 1
+fi
+rmdir "$evidence_root/phases"
+failing_move_bin="$fixture_dir/failing-move-bin"
+mkdir -p "$failing_move_bin"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'exit 91' >"$failing_move_bin/mv"
+chmod +x "$failing_move_bin/mv"
+if PATH="$failing_move_bin:$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start ignored a failed atomic publish" >&2
+  exit 1
+fi
+[[ ! -e "$evidence_root/phases" && ! -L "$evidence_root/phases" ]] || {
+  echo "failed multi-release phase start left a partial phases boundary" >&2
+  exit 1
+}
+printf '{}\n' >"$evidence_root/forged-controller-state.json"
+chmod 600 "$evidence_root/forged-controller-state.json"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted unsealed controller state" >&2
+  exit 1
+fi
+rm -f -- "$evidence_root/forged-controller-state.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >"$phase_start_output"
+
+phase_path="$evidence_root/phases/01-prior-initial"
+phase_start_receipt="$phase_path/phase-start-receipt.json"
+phase_projection_copy="$phase_path/phase-projection.json"
+[[ -d "$evidence_root/phases" && ! -L "$evidence_root/phases" &&
+  -d "$phase_path" && ! -L "$phase_path" &&
+  -f "$phase_start_receipt" && ! -L "$phase_start_receipt" &&
+  -f "$phase_projection_copy" && ! -L "$phase_projection_copy" ]] || {
+  echo "multi-release phase start omitted its private create-only evidence" >&2
+  exit 1
+}
+[[ "$(file_mode "$evidence_root/phases")" == "700" &&
+  "$(file_mode "$phase_path")" == "700" &&
+  "$(file_mode "$phase_start_receipt")" == "600" &&
+  "$(file_mode "$phase_projection_copy")" == "600" ]] || {
+  echo "multi-release phase start broadened phase evidence permissions" >&2
+  exit 1
+}
+cmp -s "$phase_start_output" "$phase_start_receipt" || {
+  echo "multi-release phase start output did not match its sealed receipt" >&2
+  exit 1
+}
+cmp -s "$sealed_first_projection" "$phase_projection_copy" || {
+  echo "multi-release phase start did not preserve the exact projection" >&2
+  exit 1
+}
+phase_start_receipt_digest="$(
+  jq -cS 'del(.receipt_digest)' "$phase_start_receipt" |
+    shasum -a 256 | awk '{print $1}'
+)"
+jq -e \
+  --arg approval_digest "$approval_digest" \
+  --arg controller_receipt_digest "$controller_receipt_digest" \
+  --arg phase_start_receipt_digest "$phase_start_receipt_digest" \
+  --arg plan_digest "$plan_digest" \
+  --arg prior_revision "$prior_revision" \
+  --arg projection_digest "$(
+    shasum -a 256 "$sealed_first_projection" | awk '{print $1}'
+  )" \
+  '
+    keys == [
+      "authority",
+      "cleanup",
+      "controller",
+      "external_aws_contact",
+      "operation",
+      "phase",
+      "receipt_digest",
+      "schema_version",
+      "state"
+    ]
+    and .schema_version == 1
+    and .operation == "multi_release_phase_start"
+    and .state == "started"
+    and .external_aws_contact == false
+    and .receipt_digest == $phase_start_receipt_digest
+    and .controller == {
+      plan_digest: $plan_digest,
+      receipt_digest: $controller_receipt_digest
+    }
+    and .authority == {
+      approval_digest: $approval_digest,
+      kind: "minco.aws-multi-release-controller-rehearsal.v1",
+      run_id: "reviewed-multi-release-run"
+    }
+    and .phase == {
+      change_set_review_policy: "bounded_create_v1",
+      evidence_namespace: "phases/01-prior-initial",
+      id: "01-prior-initial",
+      projection_digest: $projection_digest,
+      release: "prior",
+      source_revision: $prior_revision,
+      stack_action: "create"
+    }
+    and .cleanup == {
+      inner_phase_cleanup: false,
+      owner: "parent_controller",
+      required: true
+    }
+    and (tostring | contains("123456789012") | not)
+    and (tostring | contains("/minco/rehearsal/database-url") | not)
+  ' "$phase_start_receipt" >/dev/null || {
+  echo "multi-release phase-start receipt weakened or exposed its boundary" >&2
+  jq . "$phase_start_receipt" >&2
+  exit 1
+}
+jq -e -f scripts/aws/lib/validate-multi-release-phase-start-receipt.jq \
+  "$phase_start_receipt" >/dev/null || {
+  echo "multi-release phase-start receipt is outside fixed policy" >&2
+  exit 1
+}
+[[ "$(shasum -a 256 "$controller_receipt" | awk '{print $1}')" == \
+  "$controller_file_digest_before_phase" ]] || {
+  echo "multi-release phase start changed the immutable controller receipt" >&2
+  exit 1
+}
+[[ ! -e "$evidence_root/phases/02-current" &&
+  ! -e "$evidence_root/phases/03-prior-rollback" ]] || {
+  echo "multi-release phase start consumed a later phase namespace" >&2
+  exit 1
+}
+[[ ! -e "$provider_contact_log" ]] || {
+  echo "multi-release phase start contacted a provider or build command" >&2
+  exit 1
+}
+sealed_phase_start_digest="$(shasum -a 256 "$phase_start_receipt" | awk '{print $1}')"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start reused an existing phase namespace" >&2
+  exit 1
+fi
+[[ "$(shasum -a 256 "$phase_start_receipt" | awk '{print $1}')" == \
+  "$sealed_phase_start_digest" ]] || {
+  echo "rejected repeated phase start changed sealed evidence" >&2
   exit 1
 }
 
