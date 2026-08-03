@@ -298,6 +298,39 @@ verification and promotion. Write the projection
 outside its evidence namespace: shell redirection happens before validation.
 This handoff does not execute, authorize, or contact AWS.
 
+Initialize the parent controller only from the exact current checkout bound by
+the plan:
+
+```bash
+cd /absolute/path/to/current-clean-checkout
+MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  scripts/aws/initialize-multi-release-rehearsal.sh
+```
+
+Initialization is still provider-free. It runs all three phase projections
+again from the exact current controller checkout before creating evidence. It
+then atomically publishes one mode-`0700` whole-run evidence root with
+mode-`0600` control files:
+
+- the byte-exact whole-run plan;
+- a redacted authority receipt without the account, role, profile or database
+  parameter name;
+- one digest-bound projection for each fixed phase; and
+- an immutable `initialized` controller receipt whose digest binds the exact
+  plan, authority, source revisions, phase order and projections.
+
+The receipt starts every phase at `pending`, names `01-prior-initial` as the
+only next phase, records the shared stack and artifact bucket as `not_created`,
+and keeps cleanup `pending` with `parent_controller`, `required: true` and
+`trap_count: 1`. Initialization does not create any phase evidence namespace,
+install a cleanup trap, build an artifact, contact AWS or authorize later
+execution. A second initialization is rejected without changing the sealed
+evidence. Running the initializer from a checkout other than the exact planned
+current root is also rejected.
+
 ## Multi-release rollback evidence
 
 Keep the current and prior releases in separate clean exact-source checkouts.
@@ -324,14 +357,15 @@ qualification: the prior checkout must redeploy its exact artifact as a new
 candidate, create a fresh deployment receipt and hosted report, and pass
 ordinary `promote` again.
 
-The current bounded runner remains single-release. Its create review now uses
-the same centralized policy evaluator carried by the phase plan, so future
-update execution cannot substitute a broader ad hoc review. The local plan and
-per-phase projection close the parent ownership and handoff contracts, but no
-provider-capable parent runner consumes them yet. Do not disable the
-single-release runner's immediate cleanup or create-only review gate
-independently; that would leave a partially owned provider boundary rather than
-a recoverable rehearsal.
+The current bounded runner remains single-release. Its create review uses the
+same centralized policy evaluator carried by the phase plan, so future update
+execution cannot substitute a broader ad hoc review. The local plan,
+per-phase projections and atomic controller initialization now close the
+parent ownership, provenance and evidence-creation contracts, but no
+provider-capable parent runner advances the initialized state yet. Do not
+disable the single-release runner's immediate cleanup or create-only review
+gate independently; that would leave a partially owned provider boundary
+rather than a recoverable rehearsal.
 
 ## Bounded execution
 

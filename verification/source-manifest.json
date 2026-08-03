@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 777,
+  "file_count": 779,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1414,8 +1414,8 @@
     },
     {
       "path": "docs/deployment/real-aws-smoke.md",
-      "sha256": "151c019863c831a9ad5119918b31274f68a16f75d2ced7dce606e7ab8dc425ac",
-      "size_bytes": 28457
+      "sha256": "db84633e2d0460d843c562c23aff7ddbc9dd9252c064b947c6b2d3e3fc374f49",
+      "size_bytes": 30086
     },
     {
       "path": "docs/deployment/release.md",
@@ -3098,6 +3098,11 @@
       "size_bytes": 4863
     },
     {
+      "path": "scripts/aws/initialize-multi-release-rehearsal.sh",
+      "sha256": "f54b7b584bd248e544353ef7d1f0a04752e12663d5ff5ad90cf9e062c7501d4c",
+      "size_bytes": 8186
+    },
+    {
       "path": "scripts/aws/inspect-account.sh",
       "sha256": "f593868c03d62b600fde6ff35185530c392f2c43f5ec617d4b3d01ab186f85a6",
       "size_bytes": 4099
@@ -3106,6 +3111,11 @@
       "path": "scripts/aws/lib/common.sh",
       "sha256": "d0bd32bff8c9b912f9c9ddd08e2ce25d8a75afb052fd50664fb3f3fa12057f6e",
       "size_bytes": 22831
+    },
+    {
+      "path": "scripts/aws/lib/validate-multi-release-controller-receipt.jq",
+      "sha256": "1b266703022a2e032d3763d395a13d09bee7eba3dbd6d1b5223463543b92abc3",
+      "size_bytes": 1882
     },
     {
       "path": "scripts/aws/lib/validate-multi-release-plan.jq",
@@ -3159,8 +3169,8 @@
     },
     {
       "path": "scripts/aws/test-multi-release-rehearsal-plan.sh",
-      "sha256": "e8c41997d930024407d1a4d6562e19373dc6dc3d67fdc7dfbf08e9ec81bda818",
-      "size_bytes": 21934
+      "sha256": "fd2a7d784c7664b2b85b268b33bb880bd797b13224bfcf20d28d293a096de12c",
+      "size_bytes": 29544
     },
     {
       "path": "scripts/aws/test-rehearsal-authority.sh",
@@ -3504,8 +3514,8 @@
     },
     {
       "path": "tasks/M10/M10-T08-real-aws-controller-rehearsal.md",
-      "sha256": "4078ff23cb3b75ac89b71ffb88aab5a0cb7c72afe440b992a0ba6e2fa359876f",
-      "size_bytes": 10292
+      "sha256": "a3bdd25d41371eb935ef5d27effd235fb0fbd28b10692cb8cc986ce55f3f0ca5",
+      "size_bytes": 11416
     },
     {
       "path": "tasks/M11/M11-T01-versioned-docs-site.md",
@@ -3809,7 +3819,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "c0a6e9cc4d4413e23af0e94803ba2a091cc721b0600b5a26c158bb5f316673d0",
+      "sha256": "050d3520dbd4d9a38843c4dfbcec466b014abcc3063d6469f4f72743c8c435fc",
       "size_bytes": 2021
     },
     {
@@ -3869,7 +3879,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "6e7c972fbb7a51890a34786a9d5b2281fd83490a6aeb40a59a116af2b9397a3a",
+      "sha256": "19b3cd84824fedda177cee13d260e078cd41a32b256f56db29873db16d9e32c7",
       "size_bytes": 754
     },
     {
@@ -3895,7 +3905,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "d7ff27fcc5857777736df20e8fd8cd000cc05d085704e346282ea47191d505f8",
-  "total_size_bytes": 5314093,
+  "source_tree_sha256": "6def6252d9242eec1e83b02b10f0db7051c57ffe0e3c65659586f61f258d4dc1",
+  "total_size_bytes": 5334524,
   "version": "0.6.0"
 }
