@@ -111,3 +111,27 @@ role, stack, resources, retention and termination protection, then uses standard
 `CloudFormation` deletion and records an absence-verified receipt. No default
 scheduler, force deletion, or persistent-target cleanup is available. See
 `docs/deployment/preview-review-loop.md` in the Minco repository.
+
+Rollback assessment and optional API canaries reuse the same exact-artifact
+boundary:
+
+```bash
+cargo minco rollback --dry-run --json
+cargo minco promote --canary --dry-run --json
+```
+
+`rollback` compares successful current and target promotion receipts and never
+contacts AWS, rebuilds, replans, reverses SQL, repairs data, or rewires workers.
+An exact data-compatibility decision can be supplied as strict release-bound
+JSON. A compatible result is still only qualification: the exact older artifact
+must be redeployed as the current candidate without rebuilding or replanning,
+hosted verification must be repeated, and ordinary `promote` then owns live
+routing. Historical candidate evidence is not reused as current evidence.
+
+`promote --canary` requires an opt-in persistent-target policy, a numeric live
+version, exact hosted candidate evidence, reviewed `CloudWatch` metric alarms and the
+same live approval as immediate promotion. Live execution uses routing-only
+`CloudFormation` change sets, records a canary receipt, waits through alarm
+monitoring, verifies the weighted alias, restores the previous unweighted alias,
+and only then performs ordinary full promotion. Workers remain unchanged and no
+provisioned concurrency is introduced.

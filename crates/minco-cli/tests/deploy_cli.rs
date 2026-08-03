@@ -1,5 +1,70 @@
 use std::{path::Path, process::Command};
 
+fn workspace_root() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root")
+}
+
+#[test]
+fn rollback_dry_run_is_local_and_never_promises_reverse_sql() {
+    let root = workspace_root();
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
+        .args([
+            "--root",
+            root.to_str().expect("UTF-8 root"),
+            "--json",
+            "rollback",
+            "--dry-run",
+        ])
+        .output()
+        .expect("execute rollback dry-run");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("rollback plan");
+    assert_eq!(plan["external_aws_contact"], false);
+    assert_eq!(plan["rebuild"], false);
+    assert_eq!(plan["replan"], false);
+    assert_eq!(plan["reverse_sql"], false);
+    assert_eq!(plan["automatic_data_repair"], false);
+}
+
+#[test]
+fn canary_dry_run_is_local_and_fail_closed_without_opt_in_policy() {
+    let root = workspace_root();
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
+        .args([
+            "--root",
+            root.to_str().expect("UTF-8 root"),
+            "--json",
+            "promote",
+            "--dry-run",
+            "--canary",
+        ])
+        .output()
+        .expect("execute canary dry-run");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("canary plan");
+    assert_eq!(plan["external_aws_contact"], false);
+    assert_eq!(plan["mode"], "alarm_guarded_api_canary");
+    assert!(
+        plan["blockers"]
+            .as_array()
+            .expect("blockers")
+            .contains(&serde_json::json!("canary_policy_missing"))
+    );
+}
+
 #[test]
 fn preview_deployment_plan_is_repository_native_and_has_no_default_wakeup() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))

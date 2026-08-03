@@ -138,3 +138,101 @@ terminal transition after the stack parameter plus candidate and live alias
 identities are rechecked. Local qualification, hosted candidate verification,
 routing promotion, and production runtime proof remain separate evidence.
 Promotion does not synthesize production proof.
+
+## Compatibility-checked rollback
+
+Rollback starts with two successful promotion receipts: the current release and
+the older target release. The command is local and non-mutating:
+
+```bash
+cargo minco rollback \
+  --current-promotion target/minco/current/promotion-receipt.json \
+  --target-promotion target/minco/previous/promotion-receipt.json \
+  --dry-run
+```
+
+Each historical promotion is first reverified through its exact release,
+successful deployment, target-config and change-set receipt chain. Account,
+Region, role and stack are part of environment identity; labels alone do not
+match. The result separately classifies the environment, current-to-target OpenAPI
+contract, configuration digest, deployment-plan digest, migration catalog,
+seed catalog, exact migration/seed plan bindings applied by each deployment,
+persisted-data evidence, API versions and worker artifacts. It is
+`compatible`, `operator_decision_required`, or `incompatible`, with exact codes
+and reasons. Missing data evidence is never inferred as safe.
+
+When data compatibility has been reviewed, bind the decision to both exact
+release IDs:
+
+```json
+{
+  "schema_version": 1,
+  "current_release_id": "minco.CURRENT_DIGEST_PREFIX",
+  "target_release_id": "minco.TARGET_DIGEST_PREFIX",
+  "decision": "compatible",
+  "reviewed_by": "release-owner",
+  "reason": "The older application read/write paths were rehearsed against the current schema and representative data."
+}
+```
+
+Pass that normalized project-relative file with
+`--data-compatibility-evidence`. A compatible assessment authorizes no provider
+mutation by itself. A historical hosted report proves its historical candidate,
+not the alias currently serving the newest deployment. From a clean checkout at
+the target release's source change, redeploy the exact sealed release without a
+rebuild or replan, run hosted verification again against the newly published
+candidate version, then use ordinary promotion with that new report and exact
+approval. Rollback never invents reverse SQL, repairs data, or rewires worker
+event sources.
+
+## Alarm-guarded API canary
+
+Canary routing is absent by default. Add it only to a reviewed persistent
+deployment target:
+
+```toml
+[environments.production.canary]
+initial_traffic_percent = 10
+monitoring_minutes = 15
+alarm_arns = [
+  "arn:aws:cloudwatch:ap-southeast-2:111122223333:alarm:minco-api-errors",
+]
+```
+
+The alarm list must contain one through five unique, sorted metric-alarm ARNs
+from the exact target account and Region. Composite alarms are outside this v1
+shape because CloudFormation requires their distinct rollback-trigger type;
+failing closed keeps that type part of any future reviewed contract. The policy
+is fixed to a weighted `live` API alias,
+preserves current worker event sources, and refuses provisioned concurrency.
+Inspect the non-contacting plan first:
+
+```bash
+cargo minco promote \
+  --manifest target/minco/release.json \
+  --receipt target/minco/deployment-receipt.json \
+  --verification target/minco/hosted-verification.json \
+  --approve-verification-digest "$verification_digest" \
+  --canary \
+  --dry-run
+```
+
+Remove `--dry-run` only with separate live AWS authority. Minco creates a
+routing-only CloudFormation change set with the concrete candidate weight and
+exact rollback alarms. It first proves that every configured metric alarm exists in
+the reviewed account and Region and is currently `OK`, and that the two
+function versions have the same execution role and dead-letter configuration,
+writes
+`target/minco/canary-receipt.json` as `started`, and waits through the monitoring
+window. After the window, Minco re-reads every exact metric alarm and requires
+`OK`; missing or `INSUFFICIENT_DATA` evidence is treated as a failed post-traffic
+check and the cleanup restores the old route. An alarm stops and reverses the shift;
+Minco records `reversed` only after the previous unweighted alias is observed.
+On success it verifies the weighted alias, restores and verifies the previous
+unweighted alias through a second routing-only change set, records `succeeded`,
+then runs the ordinary all-traffic promotion.
+
+The canary creates no persistent resource, schedule, provisioned concurrency,
+or fixed compute. Existing CloudWatch alarm charges are external and therefore
+reported as incomplete pricing. API traffic shifts; worker aliases and event
+sources do not.

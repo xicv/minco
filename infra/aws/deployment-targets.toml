@@ -11,6 +11,13 @@ expected_role_arn = "arn:aws:iam::000000000000:role/minco-dev"
 stack_name = "minco-dev"
 artifact_bucket = "minco-dev-artifacts-placeholder"
 database_url_parameter_name = "/minco/dev/database-url"
+# Optional persistent-target API canary. Metric alarm ARNs must be sorted and
+# belong to the exact reviewed account and Region. Workers remain on their current
+# event sources; no provisioned concurrency or fixed compute is introduced.
+# [environments.dev.canary]
+# initial_traffic_percent = 10
+# monitoring_minutes = 15
+# alarm_arns = ["arn:aws:cloudwatch:ap-southeast-2:000000000000:alarm:minco-api-errors"]
 # A reviewed static-site target may additionally set all applicable values:
 # static_site_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/REVIEWED-ID"
 # static_site_hosted_zone_id = "Z1234567890ABC"

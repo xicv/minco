@@ -11,6 +11,7 @@ contract change
   -> explicit database migration
   -> apply infrastructure
   -> hosted verification
+  -> optional alarm-guarded API canary
   -> promote exact release
 ```
 
@@ -21,6 +22,7 @@ The evidence boundaries are intentionally separate:
 | Local qualification | tests, lint, Plan/SAM validation | hosted runtime behavior |
 | Infrastructure apply | immutable change-set and started deployment receipt | candidate acceptance or live routing |
 | Hosted verification | request IDs, status codes, readiness/auth/smoke results, exact candidate version and artifact | live or production behavior |
+| Canary qualification | weighted live-alias change sets, exact alarms, post-window alias proof and terminal canary receipt | worker rollback or future production behavior |
 | Promotion | routing-only change set and terminal promotion receipt | production runtime acceptance |
 | Production proof | separately captured live requests and operational evidence | future release correctness |
 
@@ -41,3 +43,9 @@ See [Preview Verified Review Loop](preview-review-loop.md).
 
 The same contract, router, release artifact, and Plan IR move forward. Environment config
 selects credentials and resource settings; it does not rebuild business code.
+
+Compatibility-checked rollback moves backward through the same evidence chain:
+it compares successful current and target promotion receipts, reports contract,
+configuration, resources, migration, data, API and worker reasons, and then
+reuses exact-artifact promotion only when the result is compatible. See
+[Release and Promotion](release.md#compatibility-checked-rollback).

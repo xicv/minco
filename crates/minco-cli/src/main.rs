@@ -27,22 +27,25 @@ use feedback_cmd::FeedbackArgs;
 use generator_cmd::{MakeCommand, NamedArgs, StubsCommand};
 use minco_config::EnvironmentClass;
 use minco_contract::{
-    Severity as ContractSeverity, diff_contracts, generate_rust, load_contract,
-    load_contract_source,
+    CompatibilityClassification, Severity as ContractSeverity, diff_contracts, generate_rust,
+    load_contract, load_contract_source,
 };
 use minco_core::{PluginId, PluginManager, PluginSelection};
 use minco_deploy_aws::{
-    ChangeSetReceipt, ChangeSetReceiptInput, ChangeSetType, CleanupReceipt, CleanupReceiptInput,
+    CanaryExecutionReceipt, CanaryExecutionReceiptInput, CanaryShiftInput, ChangeSetReceipt,
+    ChangeSetReceiptInput, ChangeSetType, CleanupReceipt, CleanupReceiptInput,
     CloudFormationChangeSet, DeploymentTarget, DeploymentTargetCatalog, DeploymentTargetLifecycle,
     DriftState, EnvironmentExpectation, EnvironmentObservation, HostedCheckResult,
     HostedVerificationInput, HostedVerificationReport, MigrationState as DeploymentMigrationState,
-    PromotionReceipt, PromotionReceiptInput, ReviewCostClass, ReviewManifest, ReviewManifestInput,
-    ReviewResource, ReviewResourceRetention, ReviewScheduleCompletionAction, SourceState,
-    StackDrift, StaticSiteCertificateObservation, StaticSiteDistributionStatus,
-    StaticSiteDnsObservation, StaticSiteInvalidationStatus, StaticSiteObjectObservation,
-    StaticSitePricingEvidence, StaticSiteProviderObservation, StaticSitePublicationReceipt,
-    StaticSitePublicationReceiptInput, StaticSiteVerificationInput, StaticSiteVerificationReport,
-    UntrustedFeedbackReference, caller_role_arn, verify_guards, verify_promotion_boundary,
+    PromotionOutcome, PromotionReceipt, PromotionReceiptInput, ReviewCostClass, ReviewManifest,
+    ReviewManifestInput, ReviewResource, ReviewResourceRetention, ReviewScheduleCompletionAction,
+    RollbackAssessmentInput, RollbackCompatibility, SourceState, StackDrift,
+    StaticSiteCertificateObservation, StaticSiteDistributionStatus, StaticSiteDnsObservation,
+    StaticSiteInvalidationStatus, StaticSiteObjectObservation, StaticSitePricingEvidence,
+    StaticSiteProviderObservation, StaticSitePublicationReceipt, StaticSitePublicationReceiptInput,
+    StaticSiteVerificationInput, StaticSiteVerificationReport, UntrustedFeedbackReference,
+    assess_rollback_compatibility, caller_role_arn, plan_canary_shift, verify_guards,
+    verify_promotion_boundary,
 };
 use minco_dev::{
     DevDatabase, DevEvent, DevGraph, DevOptions, DevPlan, DevStream, ServiceKind, Supervisor,
@@ -139,6 +142,8 @@ enum Command {
     Package(PackageArgs),
     /// Route live API traffic to an exact successfully verified release.
     Promote(PromoteArgs),
+    /// Assess an exact older promoted release before routing with `promote`.
+    Rollback(RollbackArgs),
     #[command(subcommand)]
     Release(ReleaseCommand),
     #[command(subcommand)]
@@ -401,6 +406,42 @@ struct PromoteArgs {
     approve_verification_digest: Option<String>,
     #[arg(long)]
     dry_run: bool,
+    /// Plan an opt-in alarm-guarded API alias canary.
+    #[arg(long)]
+    canary: bool,
+    #[arg(long, default_value = "infra/aws/deployment-targets.toml")]
+    target_config: PathBuf,
+    #[arg(long)]
+    environment: Option<String>,
+    #[arg(long, default_value = "target/minco/canary-receipt.json")]
+    canary_output: PathBuf,
+}
+
+#[derive(Debug, Clone, Args)]
+struct RollbackArgs {
+    #[arg(long, default_value = "target/minco/promotion-receipt.json")]
+    current_promotion: PathBuf,
+    #[arg(
+        long,
+        default_value = "target/minco/rollback-target-promotion-receipt.json"
+    )]
+    target_promotion: PathBuf,
+    /// Exact operator-reviewed evidence that the older application can read current data.
+    #[arg(long)]
+    data_compatibility_evidence: Option<PathBuf>,
+    #[arg(long)]
+    dry_run: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RollbackDataCompatibilityEvidence {
+    schema_version: u32,
+    current_release_id: String,
+    target_release_id: String,
+    decision: RollbackCompatibility,
+    reviewed_by: String,
+    reason: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -730,6 +771,7 @@ async fn main() -> Result<()> {
         Command::Db(command) => db_cmd::execute(&root, &manifest, command, as_json).await,
         Command::Package(args) => package_command(&root, &manifest, args, as_json),
         Command::Promote(args) => promote_command(&root, &args, as_json),
+        Command::Rollback(args) => rollback_command(&root, &args, as_json),
         Command::Release(command) => release_command(&root, &manifest, command, as_json),
         Command::Update(command) => update_command(&root, command, as_json),
         Command::Upgrade(_) => unreachable!("upgrade is handled before strict manifest loading"),
@@ -754,7 +796,31 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
             bail!("{label} must be a normalized project-relative path");
         }
     }
+    if args.canary
+        && (args.canary_output.as_os_str().is_empty()
+            || args.canary_output.is_absolute()
+            || !args
+                .canary_output
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_))))
+    {
+        bail!("canary receipt must be a normalized project-relative path");
+    }
+    if args.canary
+        && (args.target_config.as_os_str().is_empty()
+            || args.target_config.is_absolute()
+            || !args
+                .target_config
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_))))
+    {
+        bail!("deployment target configuration must be a normalized project-relative path");
+    }
     let output_path = package_output_path(root, &args.output)?;
+    let canary_output_path = args
+        .canary
+        .then(|| package_output_path(root, &args.canary_output))
+        .transpose()?;
     let mut blockers = Vec::new();
     if !root.join(&args.manifest).is_file() {
         blockers.push("release_manifest_missing");
@@ -771,6 +837,29 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
     if args.approve_verification_digest.is_none() {
         blockers.push("verification_approval_missing");
     }
+    if canary_output_path
+        .as_ref()
+        .is_some_and(|path| path.exists())
+    {
+        blockers.push("canary_receipt_exists");
+    }
+    let canary_policy = if args.canary {
+        if root.join(&args.target_config).is_file() {
+            let catalog = DeploymentTargetCatalog::from_toml(&fs::read_to_string(
+                root.join(&args.target_config),
+            )?)?;
+            let selected = catalog.select(args.environment.as_deref())?;
+            if selected.target.canary.is_none() {
+                blockers.push("canary_policy_missing");
+            }
+            selected.target.canary
+        } else {
+            blockers.push("deployment_target_config_missing");
+            None
+        }
+    } else {
+        None
+    };
     if args.dry_run {
         return print_value(
             &json!({
@@ -782,6 +871,22 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
                 "deployment_receipt": args.receipt,
                 "hosted_verification": args.verification,
                 "promotion_receipt": args.output,
+                "canary_receipt": args.canary.then_some(&args.canary_output),
+                "mode": if args.canary { "alarm_guarded_api_canary" } else { "immediate_alias_promotion" },
+                "canary": canary_policy.as_ref().map(|policy| json!({
+                    "initial_traffic_percent": policy.initial_traffic_percent,
+                    "monitoring_minutes": policy.monitoring_minutes,
+                    "alarm_arns": policy.alarm_arns,
+                    "api_routing": policy.api_routing,
+                    "worker_routing": policy.worker_routing,
+                    "additional_resources": [],
+                    "idle_compute_cost": "none",
+                    "pricing_complete": false,
+                    "cost_notes": ["existing externally managed CloudWatch alarm pricing is account-specific"],
+                    "pre_traffic_verification_required": true,
+                    "post_traffic_verification_required": true,
+                    "alarm_or_missing_observation_action": "reverse_to_previous_alias_routing"
+                })),
                 "blockers": blockers,
             }),
             as_json,
@@ -848,10 +953,10 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
     }
     require_exact_source(root, &evidence.release)?;
     verify_current_caller(root, &evidence.target)?;
-    let stack = describe_target_stack(root, &evidence.target)?
+    let mut stack = describe_target_stack(root, &evidence.target)?
         .context("promotion target stack no longer exists")?;
     require_stable_update_stack(&stack.stack_status)?;
-    let function_name = stack_output(&stack, "ApiFunctionName")?;
+    let function_name = stack_output(&stack, "ApiFunctionName")?.to_owned();
     let candidate_endpoint = canonical_hosted_endpoint(stack_output(&stack, "CandidateApiUrl")?)?;
     if candidate_endpoint != report.endpoint {
         bail!("hosted verification endpoint does not match the current candidate stage");
@@ -859,7 +964,7 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
     verify_candidate_function(
         root,
         &evidence.target,
-        function_name,
+        &function_name,
         &report.executed_version,
         &report.executed_artifact_digest,
     )?;
@@ -876,6 +981,41 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
         bail!("current live function version is not a guarded routing value");
     }
     detect_clean_stack_drift(root, &evidence.target)?;
+    if args.canary {
+        let policy = evidence
+            .target
+            .canary
+            .clone()
+            .context("reviewed deployment target has no canary policy")?;
+        let plan = plan_canary_shift(CanaryShiftInput {
+            policy,
+            expected_account_id: evidence.target.expected_account_id.clone(),
+            expected_region: evidence.target.expected_region.clone(),
+            stack_name: evidence.target.stack_name.clone(),
+            function_name: function_name.clone(),
+            alias_name: "live".into(),
+            current_version: previous_version.clone(),
+            candidate_version: report.executed_version.clone(),
+            pre_traffic_verification_digest: hosted_verification.sha256.clone(),
+        })?;
+        execute_canary_qualification(
+            root,
+            &evidence.target,
+            &evidence.change_set,
+            &stack,
+            plan,
+            canary_output_path
+                .as_deref()
+                .context("canary receipt path is missing")?,
+        )?;
+        detect_clean_stack_drift(root, &evidence.target)?;
+        stack = describe_target_stack(root, &evidence.target)?
+            .context("promotion target stack disappeared after canary qualification")?;
+        require_stable_update_stack(&stack.stack_status)?;
+        if stack_parameter(&stack, LIVE_FUNCTION_VERSION_PARAMETER)? != previous_version {
+            bail!("canary qualification changed the live function version parameter");
+        }
+    }
     let change_set = create_promotion_change_set(
         root,
         &evidence.target,
@@ -965,14 +1105,14 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
         verify_candidate_function(
             root,
             &evidence.target,
-            function_name,
+            &function_name,
             &report.executed_version,
             &report.executed_artifact_digest,
         )?;
         verify_function_alias(
             root,
             &evidence.target,
-            function_name,
+            &function_name,
             "live",
             &report.executed_version,
             &report.executed_artifact_digest,
@@ -999,6 +1139,267 @@ fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()>
         }),
         as_json,
     )
+}
+
+fn rollback_command(root: &Path, args: &RollbackArgs, as_json: bool) -> Result<()> {
+    for (path, label) in [
+        (&args.current_promotion, "current promotion receipt"),
+        (&args.target_promotion, "target promotion receipt"),
+    ] {
+        if path.as_os_str().is_empty()
+            || path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            bail!("{label} must be a normalized project-relative path");
+        }
+    }
+    if let Some(path) = &args.data_compatibility_evidence
+        && (path.as_os_str().is_empty()
+            || path.is_absolute()
+            || !path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_))))
+    {
+        bail!("data compatibility evidence must be a normalized project-relative path");
+    }
+
+    let mut blockers = Vec::new();
+    if !root.join(&args.current_promotion).is_file() {
+        blockers.push("current_promotion_receipt_missing");
+    }
+    if !root.join(&args.target_promotion).is_file() {
+        blockers.push("target_promotion_receipt_missing");
+    }
+    if args
+        .data_compatibility_evidence
+        .as_ref()
+        .is_some_and(|path| !root.join(path).is_file())
+    {
+        blockers.push("data_compatibility_evidence_missing");
+    }
+    if !blockers.is_empty() {
+        if args.dry_run {
+            return print_value(
+                &json!({
+                    "operation": "rollback_compatibility_assessment",
+                    "external_aws_contact": false,
+                    "rebuild": false,
+                    "replan": false,
+                    "reverse_sql": false,
+                    "automatic_data_repair": false,
+                    "current_promotion_receipt": args.current_promotion,
+                    "target_promotion_receipt": args.target_promotion,
+                    "assessment": null,
+                    "blockers": blockers,
+                }),
+                as_json,
+            );
+        }
+        bail!("rollback assessment is blocked: {}", blockers.join(", "));
+    }
+    validate_project_file(root, &args.current_promotion, "current promotion receipt")?;
+    validate_project_file(root, &args.target_promotion, "target promotion receipt")?;
+    if let Some(path) = &args.data_compatibility_evidence {
+        validate_project_file(root, path, "rollback data compatibility evidence")?;
+    }
+
+    let (current_promotion, current_deployment, current_release, current_target) =
+        successful_promotion_release(root, &args.current_promotion, "current")?;
+    let (target_promotion, target_deployment, target_release, target_target) =
+        successful_promotion_release(root, &args.target_promotion, "target")?;
+    let current_contract = load_contract(root.join(&current_release.contract.path))?;
+    let target_contract = load_contract(root.join(&target_release.contract.path))?;
+    if !current_contract.is_valid() || !target_contract.is_valid() {
+        bail!("rollback assessment requires two valid sealed OpenAPI contracts");
+    }
+    let contract_report = diff_contracts(&current_contract.document, &target_contract.document);
+    let contract = match contract_report.classification {
+        CompatibilityClassification::NonBreaking => RollbackCompatibility::Compatible,
+        CompatibilityClassification::Uncertain => RollbackCompatibility::OperatorDecisionRequired,
+        CompatibilityClassification::Breaking => RollbackCompatibility::Incompatible,
+    };
+    let (data_compatibility, data_compatibility_evidence_digest) = if let Some(path) =
+        &args.data_compatibility_evidence
+    {
+        let evidence: RollbackDataCompatibilityEvidence =
+            read_strict_json(&root.join(path), "rollback data compatibility evidence")?;
+        if evidence.schema_version != 1
+            || evidence.current_release_id != current_release.release_id
+            || evidence.target_release_id != target_release.release_id
+            || evidence.decision == RollbackCompatibility::OperatorDecisionRequired
+            || evidence.reviewed_by.trim().is_empty()
+            || evidence.reviewed_by.len() > 256
+            || evidence.reason.trim().is_empty()
+            || evidence.reason.len() > 2_048
+            || evidence.reviewed_by.chars().any(char::is_control)
+            || evidence.reason.chars().any(char::is_control)
+        {
+            bail!(
+                "rollback data compatibility evidence does not exactly bind the two releases and a compatible or incompatible decision"
+            );
+        }
+        let digest = FileDigest::from_rooted_path(root, root.join(path))?.sha256;
+        (evidence.decision, Some(digest))
+    } else {
+        (RollbackCompatibility::OperatorDecisionRequired, None)
+    };
+    let worker_artifacts = |release: &ReleaseManifest| {
+        release
+            .artifacts
+            .iter()
+            .filter(|artifact| artifact.function_id != "api")
+            .map(|artifact| (artifact.function_id.clone(), artifact.file.sha256.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>()
+    };
+    let assessment = assess_rollback_compatibility(RollbackAssessmentInput {
+        current_release_id: current_release.release_id.clone(),
+        target_release_id: target_release.release_id.clone(),
+        current_environment: format!(
+            "{}/{}/{}@{}:{}#{}:{}",
+            current_release.environment.application,
+            current_release.environment.environment,
+            current_release.environment.region,
+            current_target.expected_account_id,
+            current_target.expected_role_arn,
+            current_promotion.stack_name,
+            current_promotion.live_alias_logical_id,
+        ),
+        target_environment: format!(
+            "{}/{}/{}@{}:{}#{}:{}",
+            target_release.environment.application,
+            target_release.environment.environment,
+            target_release.environment.region,
+            target_target.expected_account_id,
+            target_target.expected_role_arn,
+            target_promotion.stack_name,
+            target_promotion.live_alias_logical_id,
+        ),
+        contract,
+        current_configuration_digest: current_release.configuration_digest.clone(),
+        target_configuration_digest: target_release.configuration_digest.clone(),
+        current_deployment_plan_digest: current_release.deployment_plan.sha256.clone(),
+        target_deployment_plan_digest: target_release.deployment_plan.sha256.clone(),
+        current_migration_catalog_digest: current_release
+            .database_sources
+            .migration_catalog
+            .clone(),
+        target_migration_catalog_digest: target_release.database_sources.migration_catalog.clone(),
+        current_migration_plan_bindings_digest: database_plan_bindings_digest(
+            &current_deployment,
+            DatabasePlanKind::Migration,
+        )?,
+        target_migration_plan_bindings_digest: database_plan_bindings_digest(
+            &target_deployment,
+            DatabasePlanKind::Migration,
+        )?,
+        current_seed_catalog_digest: current_release.database_sources.seed_catalog.clone(),
+        target_seed_catalog_digest: target_release.database_sources.seed_catalog.clone(),
+        current_seed_plan_bindings_digest: database_plan_bindings_digest(
+            &current_deployment,
+            DatabasePlanKind::Seed,
+        )?,
+        target_seed_plan_bindings_digest: database_plan_bindings_digest(
+            &target_deployment,
+            DatabasePlanKind::Seed,
+        )?,
+        data_compatibility,
+        data_compatibility_evidence_digest,
+        current_api_version: current_promotion.promoted_version,
+        target_api_version: target_promotion.promoted_version.clone(),
+        current_worker_artifacts: worker_artifacts(&current_release),
+        target_worker_artifacts: worker_artifacts(&target_release),
+    })?;
+    print_value(
+        &json!({
+            "operation": "rollback_compatibility_assessment",
+            "external_aws_contact": false,
+            "rebuild": false,
+            "replan": false,
+            "reverse_sql": false,
+            "automatic_data_repair": false,
+            "assessment": assessment,
+            "contract_report": contract_report,
+            "routing_authorized": assessment.classification == minco_deploy_aws::RollbackClassification::Compatible,
+            "next_required_boundary": {
+                "action": "redeploy_exact_target_release_as_candidate_then_verify_and_promote",
+                "target_release_manifest": target_release_path(root, &target_promotion)?,
+                "rebuild": false,
+                "replan": false,
+                "reuse_historical_hosted_report_for_new_candidate": false,
+                "reason": "the stable candidate alias currently names the latest deployment, so the older exact artifact must become a newly hosted-verified candidate before live routing"
+            },
+            "worker_routing": "preserve_current_worker_event_sources",
+            "blockers": [],
+        }),
+        as_json,
+    )
+}
+
+fn successful_promotion_release(
+    root: &Path,
+    receipt_path: &Path,
+    label: &str,
+) -> Result<(
+    PromotionReceipt,
+    DeploymentReceipt,
+    ReleaseManifest,
+    DeploymentTarget,
+)> {
+    let receipt = PromotionReceipt::read_json(root.join(receipt_path))?;
+    receipt.verify_at(root)?;
+    if receipt.outcome() != PromotionOutcome::Succeeded {
+        bail!("{label} promotion receipt is not successful");
+    }
+    let deployment: DeploymentReceipt = read_strict_json(
+        &root.join(&receipt.deployment_receipt.path),
+        &format!("{label} deployment receipt"),
+    )?;
+    deployment.verify_at(root)?;
+    let evidence = verified_deployment_evidence(
+        root,
+        Path::new(&deployment.release_manifest.path),
+        Path::new(&receipt.deployment_receipt.path),
+    )?;
+    if evidence.deployment.outcome() != DeploymentOutcome::Succeeded
+        || receipt.deployment_receipt != evidence.deployment_receipt
+        || receipt.release_id != evidence.release.release_id
+        || receipt.release_digest != evidence.release.release_digest
+        || receipt.environment != evidence.release.environment
+        || receipt.stack_name != evidence.target.stack_name
+    {
+        bail!("{label} promotion does not bind one exact successful deployment target");
+    }
+    Ok((
+        receipt,
+        evidence.deployment,
+        evidence.release,
+        evidence.target,
+    ))
+}
+
+fn database_plan_bindings_digest(
+    deployment: &DeploymentReceipt,
+    kind: DatabasePlanKind,
+) -> Result<String> {
+    let bindings = deployment
+        .database_plans
+        .iter()
+        .filter(|binding| binding.kind == kind)
+        .collect::<Vec<_>>();
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&bindings)?)
+    ))
+}
+
+fn target_release_path(root: &Path, promotion: &PromotionReceipt) -> Result<PathBuf> {
+    let deployment: DeploymentReceipt = read_strict_json(
+        &root.join(&promotion.deployment_receipt.path),
+        "target deployment receipt",
+    )?;
+    Ok(PathBuf::from(deployment.release_manifest.path))
 }
 
 fn destroy_command(root: &Path, args: &DestroyArgs, as_json: bool) -> Result<()> {
@@ -1508,6 +1909,529 @@ fn verify_function_alias(
         bail!("{alias} Lambda does not match the hosted-verified artifact and version");
     }
     Ok(())
+}
+
+fn execute_canary_qualification(
+    root: &Path,
+    target: &DeploymentTarget,
+    original: &ChangeSetReceipt,
+    expected_stack: &AwsStack,
+    plan: minco_deploy_aws::CanaryShiftPlan,
+    receipt_path: &Path,
+) -> Result<()> {
+    if plan.expected_account_id != target.expected_account_id
+        || plan.expected_region != target.expected_region
+        || plan.stack_name != target.stack_name
+    {
+        bail!("canary plan does not bind the exact reviewed deployment target");
+    }
+    verify_canary_version_compatibility(root, target, &plan)?;
+    verify_canary_alarm_preconditions(root, target, &plan.alarm_arns)?;
+    ensure_parent(receipt_path)?;
+    let change_set = create_canary_change_set(root, target, original, expected_stack, &plan, true)?;
+    verify_promotion_boundary(&change_set, &target.stack_name, LIVE_ALIAS_LOGICAL_ID)?;
+    let mut receipt = CanaryExecutionReceipt::start(CanaryExecutionReceiptInput {
+        attempt_id: uuid::Uuid::now_v7().to_string(),
+        plan,
+        change_set,
+    })?;
+    receipt.write_json(receipt_path)?;
+    let started_digest = receipt.receipt_digest.clone();
+    verify_current_caller(root, target)?;
+    let execution = run_cloud_output(
+        root,
+        "aws",
+        "execute the alarm-guarded canary routing change set",
+        &[
+            "cloudformation".into(),
+            "execute-change-set".into(),
+            "--change-set-name".into(),
+            receipt.change_set.change_set_id.clone(),
+            "--client-request-token".into(),
+            started_digest,
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    )
+    .and_then(|_| {
+        run_cloud_output(
+            root,
+            "aws",
+            "wait for canary traffic and alarm monitoring",
+            &[
+                "cloudformation".into(),
+                "wait".into(),
+                "stack-update-complete".into(),
+                "--stack-name".into(),
+                target.stack_name.clone(),
+                "--region".into(),
+                target.expected_region.clone(),
+            ],
+        )
+        .map(|_| ())
+    });
+    if let Err(error) = execution {
+        if canary_alias_is_unweighted(
+            root,
+            target,
+            &receipt.plan.function_name,
+            &receipt.plan.current_version,
+        )? {
+            receipt.reverse("cloudformation_canary_reversed")?;
+            receipt.write_json(receipt_path)?;
+        }
+        return Err(error);
+    }
+    let postcheck = verify_weighted_canary_alias(root, target, &receipt.plan)
+        .and_then(|()| verify_canary_alarm_preconditions(root, target, &receipt.plan.alarm_arns));
+    let canary_stack = describe_target_stack(root, target)?
+        .context("canary target stack disappeared after alarm monitoring")?;
+    require_stable_update_stack(&canary_stack.stack_status)?;
+    let postcheck = postcheck.and_then(|()| {
+        if stack_parameter(&canary_stack, LIVE_FUNCTION_VERSION_PARAMETER)?
+            != receipt.plan.current_version
+        {
+            bail!("canary unexpectedly changed the live function version parameter");
+        }
+        Ok(())
+    });
+
+    let cleanup =
+        create_canary_change_set(root, target, original, &canary_stack, &receipt.plan, false)?;
+    verify_promotion_boundary(&cleanup, &target.stack_name, LIVE_ALIAS_LOGICAL_ID)?;
+    run_cloud_output(
+        root,
+        "aws",
+        "execute the canary routing cleanup change set",
+        &[
+            "cloudformation".into(),
+            "execute-change-set".into(),
+            "--change-set-name".into(),
+            cleanup.change_set_id.clone(),
+            "--client-request-token".into(),
+            format!("{}-cleanup", &receipt.receipt_digest[..48]),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    )?;
+    run_cloud_output(
+        root,
+        "aws",
+        "wait for canary routing cleanup",
+        &[
+            "cloudformation".into(),
+            "wait".into(),
+            "stack-update-complete".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    )?;
+    if !canary_alias_is_unweighted(
+        root,
+        target,
+        &receipt.plan.function_name,
+        &receipt.plan.current_version,
+    )? {
+        bail!("canary cleanup did not restore the previous unweighted live alias");
+    }
+    if let Err(error) = postcheck {
+        receipt.reverse_with_cleanup("canary_postcheck_failed", cleanup)?;
+        receipt.write_json(receipt_path)?;
+        return Err(error);
+    }
+    receipt.succeed(cleanup)?;
+    receipt.write_json(receipt_path)?;
+    Ok(())
+}
+
+fn create_canary_change_set(
+    root: &Path,
+    target: &DeploymentTarget,
+    original: &ChangeSetReceipt,
+    expected_stack: &AwsStack,
+    plan: &minco_deploy_aws::CanaryShiftPlan,
+    enable: bool,
+) -> Result<CloudFormationChangeSet> {
+    original.verify_at(root)?;
+    verify_current_caller(root, target)?;
+    if vcs::source_snapshot(root)?.change != original.source_change {
+        bail!("source changed before creating the canary change set");
+    }
+    let current_stack =
+        describe_target_stack(root, target)?.context("canary target stack no longer exists")?;
+    if current_stack != *expected_stack {
+        bail!("CloudFormation stack identity or routing inputs changed during canary review");
+    }
+    let mut parameter_keys = current_stack
+        .parameters
+        .iter()
+        .map(|parameter| parameter.parameter_key.as_str())
+        .collect::<Vec<_>>();
+    parameter_keys.sort_unstable();
+    if parameter_keys.windows(2).any(|keys| keys[0] == keys[1])
+        || !parameter_keys.contains(&LIVE_FUNCTION_VERSION_PARAMETER)
+    {
+        bail!("CloudFormation stack parameters are missing or duplicated");
+    }
+    let parameters = parameter_keys
+        .into_iter()
+        .map(AwsChangeSetParameter::previous)
+        .collect::<Vec<_>>();
+    let parameters = aws_change_set_parameters(&parameters)?;
+    let plan_digest = format!("{:x}", Sha256::digest(serde_json::to_vec(plan)?));
+    let (phase, template_path) = if enable {
+        (
+            "start",
+            render_canary_template(root, original, plan, &plan_digest)?,
+        )
+    } else {
+        ("cleanup", root.join(&original.packaged_template.path))
+    };
+    let name = format!("minco-canary-{phase}-{}", &plan_digest[..24]);
+    let mut create_args = vec![
+        "cloudformation".into(),
+        "create-change-set".into(),
+        "--stack-name".into(),
+        target.stack_name.clone(),
+        "--change-set-name".into(),
+        name.clone(),
+        "--change-set-type".into(),
+        "UPDATE".into(),
+        "--template-body".into(),
+        format!("file://{}", template_path.display()),
+        "--capabilities".into(),
+        "CAPABILITY_IAM".into(),
+        "--client-token".into(),
+        format!("{phase}-{}", &plan_digest[..48]),
+        "--description".into(),
+        format!(
+            "Minco canary {phase}: version {} at {} basis points",
+            plan.candidate_version, plan.candidate_weight_basis_points
+        ),
+        "--parameters".into(),
+        parameters,
+    ];
+    if enable {
+        let rollback = json!({
+            "RollbackTriggers": plan.alarm_arns.iter().map(|arn| json!({
+                "Arn": arn,
+                "Type": "AWS::CloudWatch::Alarm"
+            })).collect::<Vec<_>>(),
+            "MonitoringTimeInMinutes": plan.monitoring_minutes,
+        });
+        create_args.extend([
+            "--rollback-configuration".into(),
+            serde_json::to_string(&rollback)?,
+        ]);
+    }
+    create_args.extend([
+        "--region".into(),
+        target.expected_region.clone(),
+        "--output".into(),
+        "json".into(),
+    ]);
+    run_cloud_output(
+        root,
+        "aws",
+        "create the unexecuted canary routing change set",
+        &create_args,
+    )?;
+    run_cloud_output(
+        root,
+        "aws",
+        "wait for canary change-set creation",
+        &[
+            "cloudformation".into(),
+            "wait".into(),
+            "change-set-create-complete".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--change-set-name".into(),
+            name.clone(),
+            "--region".into(),
+            target.expected_region.clone(),
+        ],
+    )?;
+    let described = run_cloud_output(
+        root,
+        "aws",
+        "describe the canary routing change set",
+        &[
+            "cloudformation".into(),
+            "describe-change-set".into(),
+            "--stack-name".into(),
+            target.stack_name.clone(),
+            "--change-set-name".into(),
+            name,
+            "--include-property-values".into(),
+            "--region".into(),
+            target.expected_region.clone(),
+            "--output".into(),
+            "json".into(),
+        ],
+    )?;
+    if enable {
+        verify_canary_rollback_configuration(&described.stdout, plan)?;
+    }
+    let change_set =
+        CloudFormationChangeSet::from_aws_json(&described.stdout, ChangeSetType::Update)?;
+    verify_promotion_boundary(&change_set, &target.stack_name, LIVE_ALIAS_LOGICAL_ID)?;
+    Ok(change_set)
+}
+
+fn render_canary_template(
+    root: &Path,
+    original: &ChangeSetReceipt,
+    plan: &minco_deploy_aws::CanaryShiftPlan,
+    plan_digest: &str,
+) -> Result<PathBuf> {
+    let rendered = render_canary_template_source(
+        &fs::read(root.join(&original.packaged_template.path))?,
+        plan,
+    )?;
+    let output = root.join(format!(
+        "target/minco/change-sets/{}/canary-{}.yaml",
+        original.release_id,
+        &plan_digest[..24]
+    ));
+    ensure_parent(&output)?;
+    if output.exists() {
+        if fs::read_to_string(&output)? != rendered {
+            bail!("canary template conflicts with an existing exact plan");
+        }
+    } else {
+        fs::write(&output, rendered)?;
+    }
+    Ok(output)
+}
+
+fn render_canary_template_source(
+    source: &[u8],
+    plan: &minco_deploy_aws::CanaryShiftPlan,
+) -> Result<String> {
+    let mut template: serde_yaml_ng::Value = serde_yaml_ng::from_slice(source)?;
+    let resources = yaml_mapping_value_mut(&mut template, "Resources")?;
+    let alias = yaml_mapping_value_mut(resources, LIVE_ALIAS_LOGICAL_ID)?;
+    let properties = yaml_mapping_value_mut(alias, "Properties")?;
+    let properties = properties
+        .as_mapping_mut()
+        .context("LiveFunctionAlias Properties must be a mapping")?;
+    let key = serde_yaml_ng::Value::String("RoutingConfig".into());
+    if properties.contains_key(&key) {
+        bail!("packaged template already declares live alias routing configuration");
+    }
+    let weights = serde_yaml_ng::Mapping::from_iter([(
+        serde_yaml_ng::Value::String(plan.candidate_version.clone()),
+        serde_yaml_ng::to_value(f64::from(plan.candidate_weight_basis_points) / 10_000.0)?,
+    )]);
+    let routing = serde_yaml_ng::Mapping::from_iter([(
+        serde_yaml_ng::Value::String("AdditionalVersionWeights".into()),
+        serde_yaml_ng::Value::Mapping(weights),
+    )]);
+    properties.insert(key, serde_yaml_ng::Value::Mapping(routing));
+    serde_yaml_ng::to_string(&template).map_err(Into::into)
+}
+
+fn yaml_mapping_value_mut<'a>(
+    value: &'a mut serde_yaml_ng::Value,
+    key: &str,
+) -> Result<&'a mut serde_yaml_ng::Value> {
+    value
+        .as_mapping_mut()
+        .context("CloudFormation template node must be a mapping")?
+        .get_mut(serde_yaml_ng::Value::String(key.into()))
+        .with_context(|| format!("CloudFormation template is missing {key}"))
+}
+
+fn verify_canary_rollback_configuration(
+    source: &[u8],
+    plan: &minco_deploy_aws::CanaryShiftPlan,
+) -> Result<()> {
+    let value: serde_json::Value = serde_json::from_slice(source)?;
+    let configuration = value
+        .get("RollbackConfiguration")
+        .context("canary change set omitted rollback configuration")?;
+    let minutes = configuration
+        .get("MonitoringTimeInMinutes")
+        .and_then(serde_json::Value::as_u64);
+    let mut alarms = configuration
+        .get("RollbackTriggers")
+        .and_then(serde_json::Value::as_array)
+        .context("canary change set omitted rollback alarms")?
+        .iter()
+        .map(|trigger| {
+            if trigger.get("Type").and_then(serde_json::Value::as_str)
+                != Some("AWS::CloudWatch::Alarm")
+            {
+                bail!("canary rollback trigger has an unexpected type");
+            }
+            trigger
+                .get("Arn")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .context("canary rollback trigger omitted its ARN")
+        })
+        .collect::<Result<Vec<_>>>()?;
+    alarms.sort_unstable();
+    if minutes != Some(u64::from(plan.monitoring_minutes)) || alarms != plan.alarm_arns {
+        bail!("provider canary rollback configuration differs from the reviewed policy");
+    }
+    Ok(())
+}
+
+fn verify_canary_alarm_preconditions(
+    root: &Path,
+    target: &DeploymentTarget,
+    alarm_arns: &[String],
+) -> Result<()> {
+    let arguments = canary_alarm_describe_arguments(alarm_arns)?;
+    let arguments = arguments.iter().map(String::as_str).collect::<Vec<_>>();
+    let observed: AwsDescribeAlarms = aws_json(
+        root,
+        &target.expected_region,
+        "verify canary alarm preconditions",
+        &arguments,
+    )?;
+    if !observed.composite_alarms.is_empty() {
+        bail!("canary v1 accepts only metric alarm rollback triggers");
+    }
+    let mut alarms = observed.metric_alarms;
+    alarms.sort_by(|left, right| left.alarm_arn.cmp(&right.alarm_arn));
+    if alarms.len() != alarm_arns.len()
+        || alarms.iter().zip(alarm_arns).any(|(observed, expected)| {
+            observed.alarm_arn != *expected || observed.state_value != "OK"
+        })
+    {
+        bail!(
+            "every reviewed canary metric alarm must exist exactly and be in OK state before traffic"
+        );
+    }
+    Ok(())
+}
+
+fn canary_alarm_describe_arguments(alarm_arns: &[String]) -> Result<Vec<String>> {
+    let alarm_names = alarm_arns
+        .iter()
+        .map(|arn| {
+            arn.split_once(":alarm:")
+                .map(|(_, name)| name)
+                .filter(|name| !name.is_empty())
+                .context("reviewed canary alarm ARN has no alarm name")
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut arguments = vec![
+        "cloudwatch".into(),
+        "describe-alarms".into(),
+        "--alarm-names".into(),
+    ];
+    arguments.extend(alarm_names.into_iter().map(str::to_owned));
+    arguments.extend(["--alarm-types".into(), "MetricAlarms".into()]);
+    Ok(arguments)
+}
+
+fn verify_canary_version_compatibility(
+    root: &Path,
+    target: &DeploymentTarget,
+    plan: &minco_deploy_aws::CanaryShiftPlan,
+) -> Result<()> {
+    let configuration = |version: &str| {
+        aws_json::<AwsFunctionConfiguration>(
+            root,
+            &target.expected_region,
+            "verify weighted-alias version compatibility",
+            &[
+                "lambda",
+                "get-function-configuration",
+                "--function-name",
+                &plan.function_name,
+                "--qualifier",
+                version,
+            ],
+        )
+    };
+    let current = configuration(&plan.current_version)?;
+    let candidate = configuration(&plan.candidate_version)?;
+    let current_function_matches = current.function_name == plan.function_name;
+    let candidate_function_matches = candidate.function_name == plan.function_name;
+    let current_version_matches = current.version == plan.current_version;
+    let candidate_version_matches = candidate.version == plan.candidate_version;
+    if !current_function_matches
+        || !candidate_function_matches
+        || !current_version_matches
+        || !candidate_version_matches
+        || current.role != candidate.role
+        || current.dead_letter_config != candidate.dead_letter_config
+    {
+        bail!(
+            "canary versions must be exact versions of one function with the same execution role and dead-letter configuration"
+        );
+    }
+    Ok(())
+}
+
+fn verify_weighted_canary_alias(
+    root: &Path,
+    target: &DeploymentTarget,
+    plan: &minco_deploy_aws::CanaryShiftPlan,
+) -> Result<()> {
+    let alias: AwsAliasConfiguration = aws_json(
+        root,
+        &target.expected_region,
+        "verify weighted canary alias routing",
+        &[
+            "lambda",
+            "get-alias",
+            "--function-name",
+            &plan.function_name,
+            "--name",
+            &plan.alias_name,
+        ],
+    )?;
+    let expected_weight = f64::from(plan.candidate_weight_basis_points) / 10_000.0;
+    let weights = alias
+        .routing_config
+        .map(|routing| routing.additional_version_weights)
+        .unwrap_or_default();
+    let function_matches = alias.function_name == plan.function_name;
+    let base_version_matches = alias.function_version == plan.current_version;
+    if !function_matches
+        || !base_version_matches
+        || weights.len() != 1
+        || weights
+            .get(&plan.candidate_version)
+            .is_none_or(|weight| (weight - expected_weight).abs() > f64::EPSILON)
+    {
+        bail!("live alias does not match the exact alarm-guarded canary plan");
+    }
+    Ok(())
+}
+
+fn canary_alias_is_unweighted(
+    root: &Path,
+    target: &DeploymentTarget,
+    function_name: &str,
+    current_version: &str,
+) -> Result<bool> {
+    let alias: AwsAliasConfiguration = aws_json(
+        root,
+        &target.expected_region,
+        "verify canary alias reversal",
+        &[
+            "lambda",
+            "get-alias",
+            "--function-name",
+            function_name,
+            "--name",
+            "live",
+        ],
+    )?;
+    Ok(alias.function_name == function_name
+        && alias.function_version == current_version
+        && alias
+            .routing_config
+            .is_none_or(|routing| routing.additional_version_weights.is_empty()))
 }
 
 fn create_promotion_change_set(
@@ -3801,6 +4725,46 @@ struct AwsFunctionConfiguration {
     code_sha256: String,
     last_update_status: String,
     version: String,
+    role: String,
+    #[serde(default)]
+    dead_letter_config: AwsDeadLetterConfiguration,
+}
+
+#[derive(Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDeadLetterConfiguration {
+    target_arn: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsAliasConfiguration {
+    function_name: String,
+    function_version: String,
+    routing_config: Option<AwsAliasRoutingConfiguration>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsAliasRoutingConfiguration {
+    #[serde(default)]
+    additional_version_weights: std::collections::BTreeMap<String, f64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsDescribeAlarms {
+    #[serde(default)]
+    metric_alarms: Vec<AwsAlarm>,
+    #[serde(default)]
+    composite_alarms: Vec<AwsAlarm>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AwsAlarm {
+    alarm_arn: String,
+    state_value: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -5852,6 +6816,149 @@ mod cli_argument_tests {
     fn package_is_a_first_class_top_level_command() {
         let cli = Cli::try_parse_from(["cargo-minco", "package"]).expect("package command");
         assert!(matches!(cli.command, Command::Package(_)));
+    }
+
+    #[test]
+    fn rollback_and_canary_have_non_contacting_dry_run_shapes() {
+        let rollback = Cli::try_parse_from(["cargo-minco", "rollback", "--dry-run", "--json"])
+            .expect("rollback assessment command");
+        assert!(matches!(
+            rollback.command,
+            Command::Rollback(RollbackArgs { dry_run: true, .. })
+        ));
+        assert!(rollback.json);
+
+        let canary =
+            Cli::try_parse_from(["cargo-minco", "promote", "--dry-run", "--canary", "--json"])
+                .expect("canary qualification command");
+        assert!(matches!(
+            canary.command,
+            Command::Promote(PromoteArgs {
+                dry_run: true,
+                canary: true,
+                ..
+            })
+        ));
+        assert!(canary.json);
+    }
+
+    #[test]
+    fn canary_template_and_provider_alarm_proof_are_exact() {
+        let alarm = "arn:aws:cloudwatch:ap-southeast-2:111122223333:alarm:minco-api-errors";
+        let plan = plan_canary_shift(CanaryShiftInput {
+            policy: minco_deploy_aws::CanaryTargetPolicy {
+                initial_traffic_percent: 10,
+                monitoring_minutes: 15,
+                alarm_arns: vec![alarm.into()],
+                api_routing: "weighted_live_alias".into(),
+                worker_routing: "preserve_current_event_sources".into(),
+                provisioned_concurrency: false,
+            },
+            expected_account_id: "111122223333".into(),
+            expected_region: "ap-southeast-2".into(),
+            stack_name: "minco-orders-production".into(),
+            function_name: "minco-orders-api".into(),
+            alias_name: "live".into(),
+            current_version: "12".into(),
+            candidate_version: "13".into(),
+            pre_traffic_verification_digest: "a".repeat(64),
+        })
+        .expect("canary plan");
+        let rendered = render_canary_template_source(
+            br"
+Resources:
+  LiveFunctionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: api
+      FunctionVersion: '12'
+      Name: live
+",
+            &plan,
+        )
+        .expect("render concrete weighted alias");
+        let template: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(&rendered).expect("rendered YAML");
+        assert_eq!(
+            template["Resources"]["LiveFunctionAlias"]["Properties"]["RoutingConfig"]
+                ["AdditionalVersionWeights"]["13"]
+                .as_f64(),
+            Some(0.1)
+        );
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let source = fs::read(root.join("infra/aws/generated/template.yaml"))
+            .expect("reference SAM template");
+        let before: serde_yaml_ng::Value =
+            serde_yaml_ng::from_slice(&source).expect("reference SAM YAML");
+        let rendered =
+            render_canary_template_source(&source, &plan).expect("render reference canary SAM");
+        assert!(rendered.contains("!Ref LiveFunctionVersion"));
+        assert!(rendered.contains("!GetAtt ApiFunction.Version.Version"));
+        let after: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(&rendered).expect("rendered reference SAM YAML");
+        assert_eq!(
+            before["Resources"]
+                .as_mapping()
+                .map(serde_yaml_ng::Mapping::len),
+            after["Resources"]
+                .as_mapping()
+                .map(serde_yaml_ng::Mapping::len),
+            "canary rendering must preserve the resource inventory"
+        );
+        assert_eq!(
+            after["Resources"]["LiveFunctionAlias"]["Properties"]["RoutingConfig"]
+                ["AdditionalVersionWeights"]["13"]
+                .as_f64(),
+            Some(0.1)
+        );
+
+        let described = json!({
+            "RollbackConfiguration": {
+                "RollbackTriggers": [{
+                    "Arn": alarm,
+                    "Type": "AWS::CloudWatch::Alarm"
+                }],
+                "MonitoringTimeInMinutes": 15
+            }
+        });
+        verify_canary_rollback_configuration(
+            &serde_json::to_vec(&described).expect("provider JSON"),
+            &plan,
+        )
+        .expect("exact rollback alarms");
+        let mut changed = described;
+        changed["RollbackConfiguration"]["MonitoringTimeInMinutes"] = json!(14);
+        assert!(
+            verify_canary_rollback_configuration(
+                &serde_json::to_vec(&changed).expect("changed provider JSON"),
+                &plan,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn canary_alarm_preflight_explicitly_requests_metric_alarms() {
+        let alarms = [
+            "arn:aws:cloudwatch:ap-southeast-2:123456789012:alarm:api-errors".into(),
+            "arn:aws:cloudwatch:ap-southeast-2:123456789012:alarm:api-latency".into(),
+        ];
+
+        assert_eq!(
+            canary_alarm_describe_arguments(&alarms).expect("metric alarm request"),
+            [
+                "cloudwatch",
+                "describe-alarms",
+                "--alarm-names",
+                "api-errors",
+                "api-latency",
+                "--alarm-types",
+                "MetricAlarms",
+            ]
+        );
     }
 
     #[test]

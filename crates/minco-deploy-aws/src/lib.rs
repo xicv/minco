@@ -2405,6 +2405,396 @@ pub enum PromotionBoundaryError {
     NonRoutingChange,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RollbackClassification {
+    Compatible,
+    OperatorDecisionRequired,
+    Incompatible,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RollbackCompatibility {
+    Compatible,
+    OperatorDecisionRequired,
+    Incompatible,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RollbackAssessmentInput {
+    pub current_release_id: String,
+    pub target_release_id: String,
+    pub current_environment: String,
+    pub target_environment: String,
+    pub contract: RollbackCompatibility,
+    pub current_configuration_digest: String,
+    pub target_configuration_digest: String,
+    pub current_deployment_plan_digest: String,
+    pub target_deployment_plan_digest: String,
+    pub current_migration_catalog_digest: String,
+    pub target_migration_catalog_digest: String,
+    pub current_migration_plan_bindings_digest: String,
+    pub target_migration_plan_bindings_digest: String,
+    pub current_seed_catalog_digest: String,
+    pub target_seed_catalog_digest: String,
+    pub current_seed_plan_bindings_digest: String,
+    pub target_seed_plan_bindings_digest: String,
+    pub data_compatibility: RollbackCompatibility,
+    pub data_compatibility_evidence_digest: Option<String>,
+    pub current_api_version: String,
+    pub target_api_version: String,
+    pub current_worker_artifacts: BTreeMap<String, String>,
+    pub target_worker_artifacts: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RollbackCheck {
+    pub area: String,
+    pub code: String,
+    pub classification: RollbackClassification,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RollbackAssessment {
+    pub schema_version: u32,
+    pub current_release_id: String,
+    pub target_release_id: String,
+    pub classification: RollbackClassification,
+    pub checks: Vec<RollbackCheck>,
+    pub api_routing: String,
+    pub worker_routing: String,
+    pub limitations: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum RollbackAssessmentError {
+    #[error("rollback assessment input has invalid {0}")]
+    Invalid(&'static str),
+}
+
+pub fn assess_rollback_compatibility(
+    input: RollbackAssessmentInput,
+) -> Result<RollbackAssessment, RollbackAssessmentError> {
+    if input.current_release_id.trim().is_empty() || input.target_release_id.trim().is_empty() {
+        return Err(RollbackAssessmentError::Invalid("release identity"));
+    }
+    for (label, digest) in [
+        (
+            "current configuration digest",
+            &input.current_configuration_digest,
+        ),
+        (
+            "target configuration digest",
+            &input.target_configuration_digest,
+        ),
+        (
+            "current deployment plan digest",
+            &input.current_deployment_plan_digest,
+        ),
+        (
+            "target deployment plan digest",
+            &input.target_deployment_plan_digest,
+        ),
+        (
+            "current migration catalog digest",
+            &input.current_migration_catalog_digest,
+        ),
+        (
+            "target migration catalog digest",
+            &input.target_migration_catalog_digest,
+        ),
+        (
+            "current migration plan bindings digest",
+            &input.current_migration_plan_bindings_digest,
+        ),
+        (
+            "target migration plan bindings digest",
+            &input.target_migration_plan_bindings_digest,
+        ),
+        (
+            "current seed catalog digest",
+            &input.current_seed_catalog_digest,
+        ),
+        (
+            "target seed catalog digest",
+            &input.target_seed_catalog_digest,
+        ),
+        (
+            "current seed plan bindings digest",
+            &input.current_seed_plan_bindings_digest,
+        ),
+        (
+            "target seed plan bindings digest",
+            &input.target_seed_plan_bindings_digest,
+        ),
+    ] {
+        if !sha256_is_valid(digest) {
+            return Err(RollbackAssessmentError::Invalid(label));
+        }
+    }
+    if input
+        .data_compatibility_evidence_digest
+        .as_deref()
+        .is_some_and(|digest| !sha256_is_valid(digest))
+    {
+        return Err(RollbackAssessmentError::Invalid(
+            "data compatibility evidence digest",
+        ));
+    }
+    let current_api_version = input.current_api_version.parse::<u64>().ok();
+    let target_api_version = input.target_api_version.parse::<u64>().ok();
+    if !published_version_is_valid(&input.current_api_version)
+        || !published_version_is_valid(&input.target_api_version)
+        || !matches!((current_api_version, target_api_version), (Some(current), Some(target)) if target < current)
+    {
+        return Err(RollbackAssessmentError::Invalid("API versions"));
+    }
+    if input
+        .current_worker_artifacts
+        .iter()
+        .chain(&input.target_worker_artifacts)
+        .any(|(worker, digest)| !identifier_is_valid(worker) || !sha256_is_valid(digest))
+    {
+        return Err(RollbackAssessmentError::Invalid("worker artifacts"));
+    }
+
+    let mut checks = Vec::new();
+    let mut push =
+        |area: &str, code: &str, classification: RollbackClassification, reason: String| {
+            checks.push(RollbackCheck {
+                area: area.into(),
+                code: code.into(),
+                classification,
+                reason,
+            });
+        };
+    if input.current_environment == input.target_environment {
+        push(
+            "environment",
+            "environment.matches",
+            RollbackClassification::Compatible,
+            format!("both releases target {}", input.current_environment),
+        );
+    } else {
+        push(
+            "environment",
+            "environment.mismatch",
+            RollbackClassification::Incompatible,
+            format!(
+                "current environment {} differs from target environment {}",
+                input.current_environment, input.target_environment
+            ),
+        );
+    }
+    let (contract_code, contract_classification, contract_reason) = match input.contract {
+        RollbackCompatibility::Compatible => (
+            "contract.compatible",
+            RollbackClassification::Compatible,
+            "the older API contract is structurally compatible with current clients",
+        ),
+        RollbackCompatibility::OperatorDecisionRequired => (
+            "contract.uncertain",
+            RollbackClassification::OperatorDecisionRequired,
+            "contract analysis contains changes that require semantic review",
+        ),
+        RollbackCompatibility::Incompatible => (
+            "contract.breaking",
+            RollbackClassification::Incompatible,
+            "the older API contract would break the current external contract",
+        ),
+    };
+    push(
+        "contract",
+        contract_code,
+        contract_classification,
+        contract_reason.into(),
+    );
+    push_digest_check(
+        &mut push,
+        "configuration",
+        ("configuration.matches", "configuration.changed"),
+        (
+            &input.current_configuration_digest,
+            &input.target_configuration_digest,
+        ),
+        (
+            "configuration digest is identical",
+            "configuration changed; runtime compatibility must be approved",
+        ),
+    );
+    push_digest_check(
+        &mut push,
+        "resources",
+        ("resources.plan_matches", "resources.plan_changed"),
+        (
+            &input.current_deployment_plan_digest,
+            &input.target_deployment_plan_digest,
+        ),
+        (
+            "deployment plan digest is identical",
+            "deployment resources changed; rollback only changes routing",
+        ),
+    );
+    push_digest_check(
+        &mut push,
+        "migrations",
+        ("migrations.catalog_matches", "migrations.catalog_changed"),
+        (
+            &input.current_migration_catalog_digest,
+            &input.target_migration_catalog_digest,
+        ),
+        (
+            "migration catalog digest is identical",
+            "migration catalog changed; Minco will not invent reverse SQL",
+        ),
+    );
+    push_digest_check(
+        &mut push,
+        "migrations",
+        (
+            "migrations.applied_plans_match",
+            "migrations.applied_plans_changed",
+        ),
+        (
+            &input.current_migration_plan_bindings_digest,
+            &input.target_migration_plan_bindings_digest,
+        ),
+        (
+            "deployed migration plan bindings are identical",
+            "deployed migration plan bindings changed; Minco will not invent reverse SQL",
+        ),
+    );
+    push_digest_check(
+        &mut push,
+        "data",
+        ("data.seed_catalog_matches", "data.seed_catalog_changed"),
+        (
+            &input.current_seed_catalog_digest,
+            &input.target_seed_catalog_digest,
+        ),
+        (
+            "seed catalog digest is identical",
+            "seed catalog changed; Minco will not repair persisted data",
+        ),
+    );
+    push_digest_check(
+        &mut push,
+        "data",
+        ("data.seed_plans_match", "data.seed_plans_changed"),
+        (
+            &input.current_seed_plan_bindings_digest,
+            &input.target_seed_plan_bindings_digest,
+        ),
+        (
+            "deployed seed plan bindings are identical",
+            "deployed seed plan bindings changed; Minco will not repair persisted data",
+        ),
+    );
+    match (
+        input.data_compatibility,
+        &input.data_compatibility_evidence_digest,
+    ) {
+        (RollbackCompatibility::Compatible, Some(digest)) => push(
+            "data",
+            "data.compatibility_evidence_bound",
+            RollbackClassification::Compatible,
+            format!("operator supplied exact data compatibility evidence {digest}"),
+        ),
+        (RollbackCompatibility::Incompatible, Some(digest)) => push(
+            "data",
+            "data.incompatible",
+            RollbackClassification::Incompatible,
+            format!("operator evidence {digest} declares current data incompatible"),
+        ),
+        _ => push(
+            "data",
+            "data.compatibility_unproved",
+            RollbackClassification::OperatorDecisionRequired,
+            "persisted-data compatibility has no exact compatible operator evidence".into(),
+        ),
+    }
+    push(
+        "api_routing",
+        "api.exact_published_version",
+        RollbackClassification::Compatible,
+        format!(
+            "target historical version {} is older than current version {}; its exact artifact must be republished and reverified before alias routing",
+            input.target_api_version, input.current_api_version
+        ),
+    );
+    if input.current_worker_artifacts == input.target_worker_artifacts {
+        push(
+            "workers",
+            "workers.artifacts_match",
+            RollbackClassification::Compatible,
+            "worker artifacts match; event sources still remain on the current version".into(),
+        );
+    } else {
+        push(
+            "workers",
+            "workers.artifacts_changed",
+            RollbackClassification::OperatorDecisionRequired,
+            "worker artifacts differ and worker event sources remain on the current version".into(),
+        );
+    }
+
+    let classification = if checks
+        .iter()
+        .any(|check| check.classification == RollbackClassification::Incompatible)
+    {
+        RollbackClassification::Incompatible
+    } else if checks
+        .iter()
+        .any(|check| check.classification == RollbackClassification::OperatorDecisionRequired)
+    {
+        RollbackClassification::OperatorDecisionRequired
+    } else {
+        RollbackClassification::Compatible
+    };
+    Ok(RollbackAssessment {
+        schema_version: 1,
+        current_release_id: input.current_release_id,
+        target_release_id: input.target_release_id,
+        classification,
+        checks,
+        api_routing: "redeploy_target_artifact_as_candidate_then_route_new_verified_version".into(),
+        worker_routing: "preserve_current_worker_event_sources".into(),
+        limitations: vec![
+            "Minco never invents reverse SQL or automatically repairs persisted data.".into(),
+            "This assessment does not execute a traffic change or prove production behavior."
+                .into(),
+        ],
+    })
+}
+
+fn push_digest_check(
+    push: &mut impl FnMut(&str, &str, RollbackClassification, String),
+    area: &str,
+    codes: (&str, &str),
+    digests: (&str, &str),
+    reasons: (&str, &str),
+) {
+    if digests.0 == digests.1 {
+        push(
+            area,
+            codes.0,
+            RollbackClassification::Compatible,
+            reasons.0.into(),
+        );
+    } else {
+        push(
+            area,
+            codes.1,
+            RollbackClassification::OperatorDecisionRequired,
+            reasons.1.into(),
+        );
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PromotionOutcome {
@@ -3439,12 +3829,543 @@ pub struct PreviewTargetPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct CanaryTargetPolicy {
+    pub initial_traffic_percent: u8,
+    pub monitoring_minutes: u16,
+    pub alarm_arns: Vec<String>,
+    #[serde(default = "weighted_live_alias")]
+    pub api_routing: String,
+    #[serde(default = "preserve_current_event_sources")]
+    pub worker_routing: String,
+    #[serde(default)]
+    pub provisioned_concurrency: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanaryShiftInput {
+    pub policy: CanaryTargetPolicy,
+    pub expected_account_id: String,
+    pub expected_region: String,
+    pub stack_name: String,
+    pub function_name: String,
+    pub alias_name: String,
+    pub current_version: String,
+    pub candidate_version: String,
+    pub pre_traffic_verification_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CanaryShiftPlan {
+    pub schema_version: u32,
+    pub expected_account_id: String,
+    pub expected_region: String,
+    pub stack_name: String,
+    pub function_name: String,
+    pub alias_name: String,
+    pub current_version: String,
+    pub candidate_version: String,
+    pub candidate_weight_basis_points: u16,
+    pub monitoring_minutes: u16,
+    pub alarm_arns: Vec<String>,
+    pub pre_traffic_verification_digest: String,
+    pub api_routing: String,
+    pub worker_routing: String,
+    pub additional_resources: Vec<String>,
+    pub idle_compute_cost: String,
+    pub pricing_complete: bool,
+    pub cost_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanaryAlarmState {
+    Ok,
+    Alarm,
+    InsufficientData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanaryObservation {
+    pub elapsed_minutes: u16,
+    pub alarm_states: BTreeMap<String, CanaryAlarmState>,
+    pub post_traffic_verification_digest: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanaryOutcome {
+    Continue,
+    Complete,
+    Reverse { code: String },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanaryExecutionOutcome {
+    Started,
+    Reversed,
+    Succeeded,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanaryExecutionReceiptInput {
+    pub attempt_id: String,
+    pub plan: CanaryShiftPlan,
+    pub change_set: CloudFormationChangeSet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CanaryExecutionReceipt {
+    pub schema_version: u32,
+    pub receipt_digest: String,
+    pub attempt_id: String,
+    pub plan: CanaryShiftPlan,
+    pub change_set: CloudFormationChangeSet,
+    pub cleanup_change_set: Option<CloudFormationChangeSet>,
+    outcome: CanaryExecutionOutcome,
+    failure_code: Option<String>,
+}
+
+impl CanaryExecutionReceipt {
+    pub fn start(input: CanaryExecutionReceiptInput) -> Result<Self, CanaryReceiptError> {
+        verify_promotion_boundary(
+            &input.change_set,
+            &input.plan.stack_name,
+            "LiveFunctionAlias",
+        )?;
+        validate_canary_shift_plan(&input.plan)?;
+        let mut receipt = Self {
+            schema_version: 1,
+            receipt_digest: String::new(),
+            attempt_id: input.attempt_id,
+            plan: input.plan,
+            change_set: input.change_set,
+            cleanup_change_set: None,
+            outcome: CanaryExecutionOutcome::Started,
+            failure_code: None,
+        };
+        receipt.refresh_digest()?;
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    pub const fn outcome(&self) -> CanaryExecutionOutcome {
+        self.outcome
+    }
+
+    pub fn succeed(
+        &mut self,
+        cleanup_change_set: CloudFormationChangeSet,
+    ) -> Result<(), CanaryReceiptError> {
+        self.require_started()?;
+        verify_promotion_boundary(
+            &cleanup_change_set,
+            &self.plan.stack_name,
+            "LiveFunctionAlias",
+        )?;
+        self.cleanup_change_set = Some(cleanup_change_set);
+        self.outcome = CanaryExecutionOutcome::Succeeded;
+        self.refresh_digest()?;
+        self.verify_structure()
+    }
+
+    pub fn reverse(&mut self, code: impl Into<String>) -> Result<(), CanaryReceiptError> {
+        self.require_started()?;
+        let code = code.into();
+        if !identifier_is_valid(&code) {
+            return Err(CanaryReceiptError::Invalid(
+                "canary reversal code is invalid".into(),
+            ));
+        }
+        self.outcome = CanaryExecutionOutcome::Reversed;
+        self.failure_code = Some(code);
+        self.refresh_digest()?;
+        self.verify_structure()
+    }
+
+    pub fn reverse_with_cleanup(
+        &mut self,
+        code: impl Into<String>,
+        cleanup_change_set: CloudFormationChangeSet,
+    ) -> Result<(), CanaryReceiptError> {
+        self.require_started()?;
+        verify_promotion_boundary(
+            &cleanup_change_set,
+            &self.plan.stack_name,
+            "LiveFunctionAlias",
+        )?;
+        let code = code.into();
+        if !identifier_is_valid(&code) {
+            return Err(CanaryReceiptError::Invalid(
+                "canary reversal code is invalid".into(),
+            ));
+        }
+        self.cleanup_change_set = Some(cleanup_change_set);
+        self.outcome = CanaryExecutionOutcome::Reversed;
+        self.failure_code = Some(code);
+        self.refresh_digest()?;
+        self.verify_structure()
+    }
+
+    pub fn write_json(&self, path: impl AsRef<Path>) -> Result<(), CanaryReceiptError> {
+        self.verify_structure()?;
+        let path = path.as_ref();
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| CanaryReceiptError::Invalid("receipt path is invalid".into()))?;
+        let lock = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(parent.join(format!(".{name}.lock")))?;
+        lock.lock()?;
+        let mut rendered = serde_json::to_vec_pretty(self)?;
+        rendered.push(b'\n');
+        if !path.exists() {
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)?;
+            file.write_all(&rendered)?;
+            file.sync_all()?;
+            return Ok(());
+        }
+        let existing = Self::read_json(path)?;
+        if existing == *self {
+            return Ok(());
+        }
+        if existing.attempt_id != self.attempt_id || !existing.same_binding(self) {
+            return Err(CanaryReceiptError::Conflict(self.attempt_id.clone()));
+        }
+        if existing.outcome != CanaryExecutionOutcome::Started
+            || self.outcome == CanaryExecutionOutcome::Started
+        {
+            return Err(CanaryReceiptError::Terminal {
+                attempt_id: existing.attempt_id,
+                outcome: existing.outcome,
+            });
+        }
+        let temporary = parent.join(format!(".{name}.{}.tmp", self.receipt_digest));
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        file.write_all(&rendered)?;
+        file.sync_all()?;
+        std::fs::rename(temporary, path)?;
+        Ok(())
+    }
+
+    pub fn read_json(path: impl AsRef<Path>) -> Result<Self, CanaryReceiptError> {
+        let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
+        let receipt: Self = serde_json::from_value(value.clone())?;
+        if serde_json::to_value(&receipt)? != value {
+            return Err(CanaryReceiptError::Invalid(
+                "canary receipt contains unknown or non-canonical fields".into(),
+            ));
+        }
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    fn require_started(&self) -> Result<(), CanaryReceiptError> {
+        if self.outcome == CanaryExecutionOutcome::Started {
+            Ok(())
+        } else {
+            Err(CanaryReceiptError::Terminal {
+                attempt_id: self.attempt_id.clone(),
+                outcome: self.outcome,
+            })
+        }
+    }
+
+    fn same_binding(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.attempt_id == other.attempt_id
+            && self.plan == other.plan
+            && self.change_set == other.change_set
+    }
+
+    fn verify_structure(&self) -> Result<(), CanaryReceiptError> {
+        if self.schema_version != 1 || !identifier_is_valid(&self.attempt_id) {
+            return Err(CanaryReceiptError::Invalid(
+                "canary receipt binding is invalid".into(),
+            ));
+        }
+        validate_canary_shift_plan(&self.plan)?;
+        verify_promotion_boundary(&self.change_set, &self.plan.stack_name, "LiveFunctionAlias")?;
+        if let Some(change_set) = &self.cleanup_change_set {
+            verify_promotion_boundary(change_set, &self.plan.stack_name, "LiveFunctionAlias")?;
+        }
+        match self.outcome {
+            CanaryExecutionOutcome::Started
+                if self.failure_code.is_none() && self.cleanup_change_set.is_none() => {}
+            CanaryExecutionOutcome::Succeeded
+                if self.failure_code.is_none() && self.cleanup_change_set.is_some() => {}
+            CanaryExecutionOutcome::Reversed
+                if self
+                    .failure_code
+                    .as_deref()
+                    .is_some_and(identifier_is_valid) => {}
+            _ => {
+                return Err(CanaryReceiptError::Invalid(
+                    "canary outcome and failure are inconsistent".into(),
+                ));
+            }
+        }
+        if self.receipt_digest != self.calculate_digest()? {
+            return Err(CanaryReceiptError::DigestMismatch);
+        }
+        Ok(())
+    }
+
+    fn refresh_digest(&mut self) -> Result<(), CanaryReceiptError> {
+        self.receipt_digest = self.calculate_digest()?;
+        Ok(())
+    }
+
+    fn calculate_digest(&self) -> Result<String, CanaryReceiptError> {
+        #[derive(Serialize)]
+        struct DigestPayload<'a> {
+            schema_version: u32,
+            attempt_id: &'a str,
+            plan: &'a CanaryShiftPlan,
+            change_set: &'a CloudFormationChangeSet,
+            cleanup_change_set: &'a Option<CloudFormationChangeSet>,
+            outcome: CanaryExecutionOutcome,
+            failure_code: &'a Option<String>,
+        }
+        let payload = DigestPayload {
+            schema_version: self.schema_version,
+            attempt_id: &self.attempt_id,
+            plan: &self.plan,
+            change_set: &self.change_set,
+            cleanup_change_set: &self.cleanup_change_set,
+            outcome: self.outcome,
+            failure_code: &self.failure_code,
+        };
+        Ok(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&payload)?)
+        ))
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum CanaryReceiptError {
+    #[error("invalid canary receipt: {0}")]
+    Invalid(String),
+    #[error("canary receipt digest does not match its contents")]
+    DigestMismatch,
+    #[error("canary receipt {0} conflicts with an existing attempt")]
+    Conflict(String),
+    #[error("canary receipt {attempt_id} is already terminal as {outcome:?}")]
+    Terminal {
+        attempt_id: String,
+        outcome: CanaryExecutionOutcome,
+    },
+    #[error(transparent)]
+    Boundary(#[from] PromotionBoundaryError),
+    #[error(transparent)]
+    Plan(#[from] CanaryPlanError),
+    #[error("canary receipt JSON is invalid: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("canary receipt I/O failed: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum CanaryPlanError {
+    #[error("canary shift input has invalid {0}")]
+    Invalid(&'static str),
+}
+
+pub fn plan_canary_shift(input: CanaryShiftInput) -> Result<CanaryShiftPlan, CanaryPlanError> {
+    if !account_id_is_valid(&input.expected_account_id)
+        || !region_is_valid(&input.expected_region)
+        || !stack_name_is_valid(&input.stack_name)
+        || input.function_name.is_empty()
+        || input.function_name.len() > 64
+        || !input
+            .function_name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        || input.alias_name.is_empty()
+        || input.alias_name.len() > 128
+        || !input
+            .alias_name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err(CanaryPlanError::Invalid("routing identity"));
+    }
+    if !published_version_is_valid(&input.current_version)
+        || !published_version_is_valid(&input.candidate_version)
+        || input.current_version == input.candidate_version
+    {
+        return Err(CanaryPlanError::Invalid("function versions"));
+    }
+    if !sha256_is_valid(&input.pre_traffic_verification_digest) {
+        return Err(CanaryPlanError::Invalid("pre-traffic verification digest"));
+    }
+    let policy = &input.policy;
+    if !(1..=50).contains(&policy.initial_traffic_percent)
+        || !(1..=180).contains(&policy.monitoring_minutes)
+        || !(1..=5).contains(&policy.alarm_arns.len())
+        || !policy
+            .alarm_arns
+            .windows(2)
+            .all(|alarms| alarms[0] < alarms[1])
+        || !policy.alarm_arns.iter().all(|arn| {
+            cloudwatch_alarm_arn_is_valid(arn, &input.expected_account_id, &input.expected_region)
+        })
+        || policy.api_routing != "weighted_live_alias"
+        || policy.worker_routing != "preserve_current_event_sources"
+        || policy.provisioned_concurrency
+    {
+        return Err(CanaryPlanError::Invalid("policy"));
+    }
+    let plan = CanaryShiftPlan {
+        schema_version: 1,
+        expected_account_id: input.expected_account_id,
+        expected_region: input.expected_region,
+        stack_name: input.stack_name,
+        function_name: input.function_name,
+        alias_name: input.alias_name,
+        current_version: input.current_version,
+        candidate_version: input.candidate_version,
+        candidate_weight_basis_points: u16::from(policy.initial_traffic_percent) * 100,
+        monitoring_minutes: policy.monitoring_minutes,
+        alarm_arns: policy.alarm_arns.clone(),
+        pre_traffic_verification_digest: input.pre_traffic_verification_digest,
+        api_routing: policy.api_routing.clone(),
+        worker_routing: policy.worker_routing.clone(),
+        additional_resources: Vec::new(),
+        idle_compute_cost: "none".into(),
+        pricing_complete: false,
+        cost_notes: vec![
+            "The shift creates no Minco-managed resource and no fixed or provisioned compute."
+                .into(),
+            "Existing externally managed CloudWatch alarms can incur account-specific charges."
+                .into(),
+        ],
+    };
+    validate_canary_shift_plan(&plan)?;
+    Ok(plan)
+}
+
+fn validate_canary_shift_plan(plan: &CanaryShiftPlan) -> Result<(), CanaryPlanError> {
+    if plan.schema_version != 1
+        || !account_id_is_valid(&plan.expected_account_id)
+        || !region_is_valid(&plan.expected_region)
+        || !stack_name_is_valid(&plan.stack_name)
+        || plan.function_name.is_empty()
+        || plan.function_name.len() > 64
+        || !plan
+            .function_name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        || plan.alias_name != "live"
+        || !published_version_is_valid(&plan.current_version)
+        || !published_version_is_valid(&plan.candidate_version)
+        || plan.current_version == plan.candidate_version
+        || !(100..=5_000).contains(&plan.candidate_weight_basis_points)
+        || !plan.candidate_weight_basis_points.is_multiple_of(100)
+        || !(1..=180).contains(&plan.monitoring_minutes)
+        || !(1..=5).contains(&plan.alarm_arns.len())
+        || !plan
+            .alarm_arns
+            .windows(2)
+            .all(|alarms| alarms[0] < alarms[1])
+        || !plan.alarm_arns.iter().all(|arn| {
+            cloudwatch_alarm_arn_is_valid(arn, &plan.expected_account_id, &plan.expected_region)
+        })
+        || !sha256_is_valid(&plan.pre_traffic_verification_digest)
+        || plan.api_routing != "weighted_live_alias"
+        || plan.worker_routing != "preserve_current_event_sources"
+        || !plan.additional_resources.is_empty()
+        || plan.idle_compute_cost != "none"
+        || plan.pricing_complete
+        || plan.cost_notes
+            != [
+                "The shift creates no Minco-managed resource and no fixed or provisioned compute.",
+                "Existing externally managed CloudWatch alarms can incur account-specific charges.",
+            ]
+    {
+        return Err(CanaryPlanError::Invalid("sealed plan"));
+    }
+    Ok(())
+}
+
+pub fn evaluate_canary_observation(
+    plan: &CanaryShiftPlan,
+    observation: CanaryObservation,
+) -> CanaryOutcome {
+    if observation.alarm_states.len() != plan.alarm_arns.len()
+        || plan
+            .alarm_arns
+            .iter()
+            .any(|alarm| !observation.alarm_states.contains_key(alarm))
+    {
+        return CanaryOutcome::Reverse {
+            code: "alarm_observation_missing".into(),
+        };
+    }
+    if observation
+        .alarm_states
+        .values()
+        .any(|state| *state == CanaryAlarmState::Alarm)
+    {
+        return CanaryOutcome::Reverse {
+            code: "alarm_entered_alarm_state".into(),
+        };
+    }
+    if observation
+        .alarm_states
+        .values()
+        .any(|state| *state == CanaryAlarmState::InsufficientData)
+    {
+        return CanaryOutcome::Reverse {
+            code: "alarm_data_insufficient".into(),
+        };
+    }
+    if observation.elapsed_minutes < plan.monitoring_minutes {
+        return CanaryOutcome::Continue;
+    }
+    match observation.post_traffic_verification_digest {
+        Some(digest) if sha256_is_valid(&digest) => CanaryOutcome::Complete,
+        Some(_) => CanaryOutcome::Reverse {
+            code: "post_traffic_verification_invalid".into(),
+        },
+        None => CanaryOutcome::Reverse {
+            code: "post_traffic_verification_missing".into(),
+        },
+    }
+}
+
+fn weighted_live_alias() -> String {
+    "weighted_live_alias".into()
+}
+
+fn preserve_current_event_sources() -> String {
+    "preserve_current_event_sources".into()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeploymentTarget {
     pub enabled: bool,
     #[serde(default)]
     pub lifecycle: DeploymentTargetLifecycle,
     #[serde(default)]
     pub preview: Option<PreviewTargetPolicy>,
+    #[serde(default)]
+    pub canary: Option<CanaryTargetPolicy>,
     pub expected_account_id: String,
     pub expected_region: String,
     pub expected_role_arn: String,
@@ -3543,9 +4464,11 @@ fn validate_deployment_target(
     environment: &str,
     target: &DeploymentTarget,
 ) -> Result<(), DeploymentTargetError> {
-    let lifecycle_valid = match (&target.lifecycle, &target.preview) {
-        (DeploymentTargetLifecycle::Persistent, None) => true,
-        (DeploymentTargetLifecycle::Preview, Some(preview)) => {
+    let lifecycle_valid = match (&target.lifecycle, &target.preview, &target.canary) {
+        (DeploymentTargetLifecycle::Persistent, None, canary) => canary
+            .as_ref()
+            .is_none_or(|policy| canary_target_policy_is_valid(target, policy)),
+        (DeploymentTargetLifecycle::Preview, Some(preview), None) => {
             (environment == "preview" || environment.starts_with("preview-"))
                 && preview_target_policy_is_valid(preview)
         }
@@ -3626,6 +4549,41 @@ fn validate_deployment_target(
         ));
     }
     Ok(())
+}
+
+fn canary_target_policy_is_valid(target: &DeploymentTarget, policy: &CanaryTargetPolicy) -> bool {
+    (1..=50).contains(&policy.initial_traffic_percent)
+        && (1..=180).contains(&policy.monitoring_minutes)
+        && (1..=5).contains(&policy.alarm_arns.len())
+        && policy
+            .alarm_arns
+            .windows(2)
+            .all(|alarms| alarms[0] < alarms[1])
+        && policy.alarm_arns.iter().all(|arn| {
+            cloudwatch_alarm_arn_is_valid(arn, &target.expected_account_id, &target.expected_region)
+        })
+        && policy.api_routing == "weighted_live_alias"
+        && policy.worker_routing == "preserve_current_event_sources"
+        && !policy.provisioned_concurrency
+}
+
+fn cloudwatch_alarm_arn_is_valid(arn: &str, account: &str, region: &str) -> bool {
+    let mut parts = arn.splitn(7, ':');
+    matches!(parts.next(), Some("arn"))
+        && parts
+            .next()
+            .is_some_and(|partition| matches!(partition, "aws" | "aws-cn" | "aws-us-gov"))
+        && matches!(parts.next(), Some("cloudwatch"))
+        && parts.next() == Some(region)
+        && parts.next() == Some(account)
+        && matches!(parts.next(), Some("alarm"))
+        && parts.next().is_some_and(|name| {
+            !name.is_empty()
+                && name.len() <= 255
+                && name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_graphic() && byte != b'/' && byte != b'\\')
+        })
 }
 
 fn preview_target_policy_is_valid(preview: &PreviewTargetPolicy) -> bool {
