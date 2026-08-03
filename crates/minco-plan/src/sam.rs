@@ -923,6 +923,7 @@ mod tests {
             ],
             application_graph: minco_core::ApplicationGraph::default(),
             static_site: None,
+            preview: None,
             local_aws_services: vec!["ssm".into(), "sts".into()],
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,

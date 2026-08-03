@@ -104,7 +104,7 @@ pub struct SqsMappingCostDimension {
 
 #[must_use]
 pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
-    let schedules: Vec<ScheduleCostDimension> = plan
+    let mut schedules: Vec<ScheduleCostDimension> = plan
         .triggers
         .iter()
         .filter_map(|trigger| {
@@ -140,6 +140,23 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
             })
         })
         .collect();
+    if let Some(cleanup) = plan
+        .preview
+        .as_ref()
+        .and_then(|preview| preview.cleanup_schedule.as_ref())
+    {
+        schedules.push(ScheduleCostDimension {
+            trigger_id: "preview-cleanup".into(),
+            function_id: "application-owned-preview-cleanup".into(),
+            expression: cleanup.expression.clone(),
+            enabled: true,
+            estimated_monthly_invocations: monthly_schedule_invocations(&cleanup.expression),
+            can_wake_scale_to_zero_database: false,
+            action_after_completion: Some(cleanup.action_after_completion),
+            residual_resources: cleanup.residual_resources.clone(),
+            manual_fallback: Some(cleanup.manual_fallback.clone()),
+        });
+    }
     let workers = plan
         .functions
         .iter()

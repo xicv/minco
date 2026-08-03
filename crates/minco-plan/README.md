@@ -44,6 +44,13 @@ explicitly represented in the selected application configuration.
 Applications should treat the generated plan as reviewable deployment evidence,
 not as an exact cloud bill forecast.
 
+An explicit preview plan adds a bounded owner and TTL, expected account/Region,
+sorted CloudFormation resource identities, delete/retain policy, and structural
+idle-cost classes. Pricing may remain visibly incomplete. Expiry adds no
+scheduled wakeup by default. An opt-in one-time cleanup remains a visible
+`scheduled_wakeup`, requires delete-after-completion metadata and a manual
+fallback, and is not rendered into an implicit hosted controller.
+
 See
 [`docs/deployment/plan-schema-v2-migration.md`](../../docs/deployment/plan-schema-v2-migration.md)
 for the schema 2 compatibility boundary and explicit upgrade procedure.

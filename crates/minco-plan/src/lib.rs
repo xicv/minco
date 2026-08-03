@@ -31,7 +31,8 @@ pub use cost::{
 pub use model::{
     AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionPlan,
     FunctionRole, IamIntent, IamResource, IngressPlan, NeonPlan, PerformancePolicy, PlanDiagnostic,
-    PlanError, QueuePlan, RoutePlan, RuntimePlan, ScheduleCleanupPlan, ScheduleCompletionAction,
-    Severity, StaticSiteDeployment, TriggerPlan,
+    PlanError, PreviewCleanupSchedule, PreviewLifecyclePlan, PreviewResource,
+    PreviewResourceRetention, QueuePlan, RoutePlan, RuntimePlan, ScheduleCleanupPlan,
+    ScheduleCompletionAction, Severity, StaticSiteDeployment, TriggerPlan,
 };
 pub use sam::{render_sam, render_sam_with_code_uri, render_sam_with_code_uris};

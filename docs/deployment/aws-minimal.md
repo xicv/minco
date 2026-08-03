@@ -198,3 +198,10 @@ can add a private S3 origin, CloudFront OAC, an optional reviewed certificate,
 and Route 53 aliases without fixed compute. See
 [`static-site.md`](static-site.md) for packaging, publication locks, hosted
 byte/hash verification, pricing evidence, rollback, and removal.
+
+For short-lived reviewer environments, the same controller can add an explicit
+preview lifecycle without adding a default schedule or hosted Minco control
+plane. Review identity, Feedback digests, provider-generated resources,
+retention/cost visibility, exact cleanup approval, and absence-verified receipts
+are documented in
+[`preview-review-loop.md`](preview-review-loop.md).

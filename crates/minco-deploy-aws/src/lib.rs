@@ -596,6 +596,964 @@ pub enum ChangeSetReceiptError {
     Io(#[from] std::io::Error),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UntrustedFeedbackReference {
+    pub feedback_id: String,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewResourceRetention {
+    Delete,
+    Retain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewCostClass {
+    ZeroCompute,
+    RequestOnly,
+    StorageOnly,
+    ScheduledWakeup,
+    FixedMonthly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewResource {
+    pub logical_id: String,
+    pub resource_type: String,
+    pub retention: ReviewResourceRetention,
+    pub idle_cost_class: ReviewCostClass,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewManifestInput {
+    pub source_change: String,
+    pub release_manifest: FileDigest,
+    pub release_id: String,
+    pub release_digest: String,
+    pub artifacts: Vec<FileDigest>,
+    pub environment: ReleaseEnvironment,
+    pub expected_account_id: String,
+    pub expected_role_arn: String,
+    pub stack_name: String,
+    pub target_config: FileDigest,
+    pub owner: String,
+    pub created_at: String,
+    pub expires_at: String,
+    pub resources: Vec<ReviewResource>,
+    pub pricing_complete: bool,
+    pub cleanup_schedule: Option<ReviewCleanupSchedule>,
+    pub verification: Vec<FileDigest>,
+    pub feedback: Vec<UntrustedFeedbackReference>,
+    pub delivery_trace: Vec<FileDigest>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewManifest {
+    pub schema_version: u32,
+    pub review_id: String,
+    pub manifest_digest: String,
+    pub source_change: String,
+    pub release_manifest: FileDigest,
+    pub release_id: String,
+    pub release_digest: String,
+    pub artifacts: Vec<FileDigest>,
+    pub environment: ReleaseEnvironment,
+    pub expected_account_id: String,
+    pub expected_role_arn: String,
+    pub stack_name: String,
+    pub target_config: FileDigest,
+    pub owner: String,
+    pub created_at: String,
+    pub expires_at: String,
+    pub resources: Vec<ReviewResource>,
+    pub pricing_complete: bool,
+    #[serde(default)]
+    pub cleanup_schedule: Option<ReviewCleanupSchedule>,
+    pub verification: Vec<FileDigest>,
+    pub feedback: Vec<UntrustedFeedbackReference>,
+    pub delivery_trace: Vec<FileDigest>,
+}
+
+impl ReviewManifest {
+    pub fn seal(mut input: ReviewManifestInput) -> Result<Self, ReviewManifestError> {
+        input.artifacts.sort();
+        input
+            .resources
+            .sort_by(|left, right| left.logical_id.cmp(&right.logical_id));
+        input.verification.sort();
+        input
+            .feedback
+            .sort_by(|left, right| left.feedback_id.cmp(&right.feedback_id));
+        input.delivery_trace.sort();
+        let mut manifest = Self {
+            schema_version: 1,
+            review_id: String::new(),
+            manifest_digest: String::new(),
+            source_change: input.source_change,
+            release_manifest: input.release_manifest,
+            release_id: input.release_id,
+            release_digest: input.release_digest,
+            artifacts: input.artifacts,
+            environment: input.environment,
+            expected_account_id: input.expected_account_id,
+            expected_role_arn: input.expected_role_arn,
+            stack_name: input.stack_name,
+            target_config: input.target_config,
+            owner: input.owner,
+            created_at: input.created_at,
+            expires_at: input.expires_at,
+            resources: input.resources,
+            pricing_complete: input.pricing_complete,
+            cleanup_schedule: input.cleanup_schedule,
+            verification: input.verification,
+            feedback: input.feedback,
+            delivery_trace: input.delivery_trace,
+        };
+        manifest.manifest_digest = manifest.calculate_digest()?;
+        manifest.review_id = format!("minco-review.{}", &manifest.manifest_digest[..24]);
+        manifest.verify_structure()?;
+        Ok(manifest)
+    }
+
+    pub fn verify_structure(&self) -> Result<(), ReviewManifestError> {
+        if self.schema_version != 1 {
+            return Err(ReviewManifestError::Invalid(
+                "unsupported review manifest schema".into(),
+            ));
+        }
+        if !source_change_is_valid(&self.source_change)
+            || !release_identity_is_valid(&self.release_id, &self.release_digest)
+        {
+            return Err(ReviewManifestError::Invalid(
+                "review source or release identity is invalid".into(),
+            ));
+        }
+        if self.environment.application.trim().is_empty()
+            || (self.environment.environment != "preview"
+                && !self.environment.environment.starts_with("preview-"))
+            || !region_is_valid(&self.environment.region)
+            || !account_id_is_valid(&self.expected_account_id)
+            || !role_arn_is_valid(&self.expected_role_arn, &self.expected_account_id)
+            || !stack_name_is_valid(&self.stack_name)
+        {
+            return Err(ReviewManifestError::Invalid(
+                "review target is not an exact preview environment".into(),
+            ));
+        }
+        if self.owner.trim().is_empty()
+            || self.owner.len() > 256
+            || self.owner.chars().any(char::is_control)
+        {
+            return Err(ReviewManifestError::Invalid(
+                "review owner is invalid".into(),
+            ));
+        }
+        let created_at = parse_utc_timestamp(&self.created_at).ok_or_else(|| {
+            ReviewManifestError::Invalid("created_at is not canonical UTC".into())
+        })?;
+        let expires_at = parse_utc_timestamp(&self.expires_at).ok_or_else(|| {
+            ReviewManifestError::Invalid("expires_at is not canonical UTC".into())
+        })?;
+        let ttl = expires_at - created_at;
+        if !(300..=2_592_000).contains(&ttl) {
+            return Err(ReviewManifestError::Invalid(
+                "review TTL must be 5 minutes to 30 days".into(),
+            ));
+        }
+        for (file, label) in [
+            (&self.release_manifest, "release manifest"),
+            (&self.target_config, "target configuration"),
+        ] {
+            validate_bound_file(file, label)
+                .map_err(|error| ReviewManifestError::Invalid(error.to_string()))?;
+        }
+        if self.artifacts.is_empty() || self.verification.is_empty() {
+            return Err(ReviewManifestError::Invalid(
+                "review requires artifact and verification evidence".into(),
+            ));
+        }
+        for (files, label) in [
+            (&self.artifacts, "artifact"),
+            (&self.verification, "verification"),
+            (&self.delivery_trace, "delivery trace"),
+        ] {
+            for file in files {
+                validate_bound_file(file, label)
+                    .map_err(|error| ReviewManifestError::Invalid(error.to_string()))?;
+            }
+            if files.windows(2).any(|files| files[0] >= files[1]) {
+                return Err(ReviewManifestError::Invalid(format!(
+                    "review {label} evidence must be sorted and unique"
+                )));
+            }
+        }
+        if self.resources.is_empty()
+            || self
+                .resources
+                .windows(2)
+                .any(|resources| resources[0].logical_id >= resources[1].logical_id)
+            || self.resources.iter().any(|resource| {
+                !cloudformation_logical_id_is_valid(&resource.logical_id)
+                    || resource.resource_type.trim().is_empty()
+                    || resource.resource_type.chars().any(char::is_control)
+            })
+        {
+            return Err(ReviewManifestError::Invalid(
+                "review resources must be explicit, sorted, and unique".into(),
+            ));
+        }
+        if let Some(cleanup) = &self.cleanup_schedule {
+            let retained = self
+                .resources
+                .iter()
+                .filter(|resource| resource.retention == ReviewResourceRetention::Retain)
+                .map(|resource| resource.logical_id.clone())
+                .collect::<Vec<_>>();
+            if !one_time_schedule_expression_is_valid(&cleanup.expression)
+                || cleanup.residual_resources != retained
+                || cleanup.manual_fallback.trim().is_empty()
+                || cleanup.manual_fallback.chars().any(char::is_control)
+            {
+                return Err(ReviewManifestError::Invalid(
+                    "review cleanup schedule must be one-time, self-deleting, and retain a manual fallback"
+                        .into(),
+                ));
+            }
+        }
+        if self
+            .feedback
+            .windows(2)
+            .any(|feedback| feedback[0].feedback_id >= feedback[1].feedback_id)
+            || self.feedback.iter().any(|feedback| {
+                !stable_reference_is_valid(&feedback.feedback_id)
+                    || !sha256_is_valid(&feedback.sha256)
+            })
+        {
+            return Err(ReviewManifestError::Invalid(
+                "untrusted Feedback references must be sorted stable IDs and SHA-256 digests"
+                    .into(),
+            ));
+        }
+        if !sha256_is_valid(&self.manifest_digest)
+            || self.review_id != format!("minco-review.{}", &self.manifest_digest[..24])
+        {
+            return Err(ReviewManifestError::Invalid(
+                "review identity is not digest-derived".into(),
+            ));
+        }
+        if self.calculate_digest()? != self.manifest_digest {
+            return Err(ReviewManifestError::DigestMismatch);
+        }
+        Ok(())
+    }
+
+    pub fn from_json(source: &[u8]) -> Result<Self, ReviewManifestError> {
+        let value: serde_json::Value = serde_json::from_slice(source)?;
+        let manifest: Self = serde_json::from_value(value.clone())?;
+        if serde_json::to_value(&manifest)? != value {
+            return Err(ReviewManifestError::Invalid(
+                "review manifest contains unknown or non-canonical fields".into(),
+            ));
+        }
+        manifest.verify_structure()?;
+        Ok(manifest)
+    }
+
+    pub fn verify_at(&self, root: impl AsRef<Path>) -> Result<(), ReviewManifestError> {
+        self.verify_structure()?;
+        let root = root.as_ref();
+        for file in self
+            .artifacts
+            .iter()
+            .chain(self.verification.iter())
+            .chain(self.delivery_trace.iter())
+            .chain([&self.release_manifest, &self.target_config])
+        {
+            file.verify_at(root)
+                .map_err(|error| ReviewManifestError::Invalid(error.to_string()))?;
+        }
+        let release =
+            minco_release::ReleaseManifest::read_json(root.join(&self.release_manifest.path))
+                .and_then(|release| release.verify_at(root).map(|()| release))
+                .map_err(|error| ReviewManifestError::Invalid(error.to_string()))?;
+        let mut release_artifacts = release
+            .artifacts
+            .iter()
+            .map(|artifact| artifact.file.clone())
+            .collect::<Vec<_>>();
+        release_artifacts.sort();
+        if release.source_change != self.source_change
+            || release.release_id != self.release_id
+            || release.release_digest != self.release_digest
+            || release.environment != self.environment
+            || release_artifacts != self.artifacts
+        {
+            return Err(ReviewManifestError::Invalid(
+                "review does not bind the exact verified release".into(),
+            ));
+        }
+        let deployment_receipt_count = self
+            .verification
+            .iter()
+            .filter_map(|file| {
+                let receipt = DeploymentReceipt::read_json(root.join(&file.path)).ok()?;
+                receipt.verify_at(root).ok()?;
+                (receipt.outcome() == DeploymentOutcome::Succeeded
+                    && receipt.release_manifest == self.release_manifest
+                    && receipt.release_id == self.release_id
+                    && receipt.release_digest == self.release_digest
+                    && receipt.environment == self.environment)
+                    .then_some(receipt)
+            })
+            .count();
+        if deployment_receipt_count != 1 {
+            return Err(ReviewManifestError::Invalid(
+                "review verification must bind exactly one successful deployment receipt".into(),
+            ));
+        }
+        let change_set_receipt_count = self
+            .delivery_trace
+            .iter()
+            .filter_map(|file| {
+                let receipt =
+                    ChangeSetReceipt::from_json(&std::fs::read(root.join(&file.path)).ok()?)
+                        .ok()?;
+                receipt.verify_at(root).ok()?;
+                (receipt.release_manifest == self.release_manifest
+                    && receipt.release_id == self.release_id
+                    && receipt.release_digest == self.release_digest
+                    && receipt.environment == self.environment
+                    && receipt.expected_account_id == self.expected_account_id
+                    && receipt.expected_role_arn == self.expected_role_arn
+                    && receipt.target_config == self.target_config
+                    && receipt.change_set.stack_name == self.stack_name)
+                    .then_some(receipt)
+            })
+            .count();
+        if change_set_receipt_count != 1 {
+            return Err(ReviewManifestError::Invalid(
+                "review delivery trace must bind exactly one exact change-set receipt".into(),
+            ));
+        }
+        let catalog = DeploymentTargetCatalog::from_toml(&std::fs::read_to_string(
+            root.join(&self.target_config.path),
+        )?)
+        .map_err(|error| ReviewManifestError::Invalid(error.to_string()))?;
+        let selected = catalog
+            .select(Some(&self.environment.environment))
+            .map_err(|error| ReviewManifestError::Invalid(error.to_string()))?;
+        let preview = selected.target.preview.as_ref().ok_or_else(|| {
+            ReviewManifestError::Invalid("review target has no preview lifecycle policy".into())
+        })?;
+        let created_at = parse_utc_timestamp(&self.created_at)
+            .ok_or_else(|| ReviewManifestError::Invalid("review created_at is invalid".into()))?;
+        let expires_at = parse_utc_timestamp(&self.expires_at)
+            .ok_or_else(|| ReviewManifestError::Invalid("review expires_at is invalid".into()))?;
+        let configured_resources = preview
+            .resources
+            .iter()
+            .all(|configured| self.resources.contains(configured));
+        if selected.target.lifecycle != DeploymentTargetLifecycle::Preview
+            || selected.target.expected_account_id != self.expected_account_id
+            || selected.target.expected_region != self.environment.region
+            || selected.target.expected_role_arn != self.expected_role_arn
+            || selected.target.stack_name != self.stack_name
+            || preview.owner != self.owner
+            || i64::from(preview.ttl_seconds) != expires_at - created_at
+            || preview.pricing_complete != self.pricing_complete
+            || preview.cleanup_schedule != self.cleanup_schedule
+            || !configured_resources
+        {
+            return Err(ReviewManifestError::Invalid(
+                "review does not match the reviewed preview target policy".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn write_json(&self, path: impl AsRef<Path>) -> Result<(), ReviewManifestError> {
+        self.verify_structure()?;
+        let path = path.as_ref();
+        let mut rendered = serde_json::to_vec_pretty(self)?;
+        rendered.push(b'\n');
+        if path.exists() {
+            if std::fs::read(path)? == rendered {
+                return Ok(());
+            }
+            return Err(ReviewManifestError::Conflict(path.display().to_string()));
+        }
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)?;
+        output.write_all(&rendered)?;
+        output.sync_all()?;
+        Ok(())
+    }
+
+    fn calculate_digest(&self) -> Result<String, ReviewManifestError> {
+        #[derive(Serialize)]
+        struct DigestPayload<'a> {
+            schema_version: u32,
+            source_change: &'a str,
+            release_manifest: &'a FileDigest,
+            release_id: &'a str,
+            release_digest: &'a str,
+            artifacts: &'a [FileDigest],
+            environment: &'a ReleaseEnvironment,
+            expected_account_id: &'a str,
+            expected_role_arn: &'a str,
+            stack_name: &'a str,
+            target_config: &'a FileDigest,
+            owner: &'a str,
+            created_at: &'a str,
+            expires_at: &'a str,
+            resources: &'a [ReviewResource],
+            pricing_complete: bool,
+            cleanup_schedule: &'a Option<ReviewCleanupSchedule>,
+            verification: &'a [FileDigest],
+            feedback: &'a [UntrustedFeedbackReference],
+            delivery_trace: &'a [FileDigest],
+        }
+        let payload = DigestPayload {
+            schema_version: self.schema_version,
+            source_change: &self.source_change,
+            release_manifest: &self.release_manifest,
+            release_id: &self.release_id,
+            release_digest: &self.release_digest,
+            artifacts: &self.artifacts,
+            environment: &self.environment,
+            expected_account_id: &self.expected_account_id,
+            expected_role_arn: &self.expected_role_arn,
+            stack_name: &self.stack_name,
+            target_config: &self.target_config,
+            owner: &self.owner,
+            created_at: &self.created_at,
+            expires_at: &self.expires_at,
+            resources: &self.resources,
+            pricing_complete: self.pricing_complete,
+            cleanup_schedule: &self.cleanup_schedule,
+            verification: &self.verification,
+            feedback: &self.feedback,
+            delivery_trace: &self.delivery_trace,
+        };
+        Ok(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&payload)?)
+        ))
+    }
+}
+
+fn cloudformation_logical_id_is_valid(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    value.len() <= 255
+        && bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic())
+        && bytes.all(|byte| byte.is_ascii_alphanumeric())
+}
+
+fn parse_utc_timestamp(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 20
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+        || bytes[19] != b'Z'
+    {
+        return None;
+    }
+    let number = |start: usize, end: usize| {
+        bytes[start..end].iter().try_fold(0_i64, |value, byte| {
+            byte.is_ascii_digit()
+                .then(|| value * 10 + i64::from(byte - b'0'))
+        })
+    };
+    let year = number(0, 4)?;
+    let month = number(5, 7)?;
+    let day = number(8, 10)?;
+    let hour = number(11, 13)?;
+    let minute = number(14, 16)?;
+    let second = number(17, 19)?;
+    if year < 1970 || !(1..=12).contains(&month) || hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    let leap = |year: i64| year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let month_days = [31_i64, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let maximum_day =
+        month_days[usize::try_from(month - 1).ok()?] + i64::from(month == 2 && leap(year));
+    if day == 0 || day > maximum_day {
+        return None;
+    }
+    let mut days = 0_i64;
+    for current_year in 1970..year {
+        days += 365 + i64::from(leap(current_year));
+    }
+    for current_month in 1..month {
+        days += month_days[usize::try_from(current_month - 1).ok()?]
+            + i64::from(current_month == 2 && leap(year));
+    }
+    days += day - 1;
+    Some(days * 86_400 + hour * 3_600 + minute * 60 + second)
+}
+
+fn one_time_schedule_expression_is_valid(value: &str) -> bool {
+    value
+        .strip_prefix("at(")
+        .and_then(|value| value.strip_suffix(')'))
+        .is_some_and(|timestamp| parse_utc_timestamp(&format!("{timestamp}Z")).is_some())
+}
+
+fn stable_reference_is_valid(value: &str) -> bool {
+    (1..=256).contains(&value.len())
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':' | b'/')
+        })
+}
+
+#[derive(Debug, Error)]
+pub enum ReviewManifestError {
+    #[error("review manifest is invalid: {0}")]
+    Invalid(String),
+    #[error("review manifest digest does not match its contents")]
+    DigestMismatch,
+    #[error("immutable review manifest already exists at {0}")]
+    Conflict(String),
+    #[error("review manifest JSON is invalid: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("review manifest I/O failed: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CleanupOutcome {
+    Started,
+    Failed,
+    Succeeded,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CleanupReceiptInput {
+    pub attempt_id: String,
+    pub review_manifest: FileDigest,
+    pub review_id: String,
+    pub review_digest: String,
+    pub environment: ReleaseEnvironment,
+    pub expected_account_id: String,
+    pub expected_role_arn: String,
+    pub stack_name: String,
+    pub target_config: FileDigest,
+    pub deleted_resources: Vec<ReviewResource>,
+    pub retained_resources: Vec<ReviewResource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CleanupReceipt {
+    pub schema_version: u32,
+    pub receipt_digest: String,
+    pub attempt_id: String,
+    pub review_manifest: FileDigest,
+    pub review_id: String,
+    pub review_digest: String,
+    pub environment: ReleaseEnvironment,
+    pub expected_account_id: String,
+    pub expected_role_arn: String,
+    pub stack_name: String,
+    pub target_config: FileDigest,
+    pub deleted_resources: Vec<ReviewResource>,
+    pub retained_resources: Vec<ReviewResource>,
+    outcome: CleanupOutcome,
+    failure_code: Option<String>,
+    absence_verified_at: Option<String>,
+}
+
+impl CleanupReceipt {
+    pub fn start(mut input: CleanupReceiptInput) -> Result<Self, CleanupReceiptError> {
+        input
+            .deleted_resources
+            .sort_by(|left, right| left.logical_id.cmp(&right.logical_id));
+        input
+            .retained_resources
+            .sort_by(|left, right| left.logical_id.cmp(&right.logical_id));
+        let mut receipt = Self {
+            schema_version: 1,
+            receipt_digest: String::new(),
+            attempt_id: input.attempt_id,
+            review_manifest: input.review_manifest,
+            review_id: input.review_id,
+            review_digest: input.review_digest,
+            environment: input.environment,
+            expected_account_id: input.expected_account_id,
+            expected_role_arn: input.expected_role_arn,
+            stack_name: input.stack_name,
+            target_config: input.target_config,
+            deleted_resources: input.deleted_resources,
+            retained_resources: input.retained_resources,
+            outcome: CleanupOutcome::Started,
+            failure_code: None,
+            absence_verified_at: None,
+        };
+        receipt.refresh_digest()?;
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    pub const fn outcome(&self) -> CleanupOutcome {
+        self.outcome
+    }
+
+    pub fn failure_code(&self) -> Option<&str> {
+        self.failure_code.as_deref()
+    }
+
+    pub fn absence_verified_at(&self) -> Option<&str> {
+        self.absence_verified_at.as_deref()
+    }
+
+    pub fn fail(&mut self, failure_code: impl Into<String>) -> Result<(), CleanupReceiptError> {
+        self.require_started()?;
+        let failure_code = failure_code.into();
+        if !stable_reference_is_valid(&failure_code) {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup failure code is invalid".into(),
+            ));
+        }
+        self.outcome = CleanupOutcome::Failed;
+        self.failure_code = Some(failure_code);
+        self.refresh_digest()?;
+        self.verify_structure()
+    }
+
+    pub fn succeed(
+        &mut self,
+        absence_verified_at: impl Into<String>,
+    ) -> Result<(), CleanupReceiptError> {
+        self.require_started()?;
+        let absence_verified_at = absence_verified_at.into();
+        if parse_utc_timestamp(&absence_verified_at).is_none() {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup absence verification time is not canonical UTC".into(),
+            ));
+        }
+        self.outcome = CleanupOutcome::Succeeded;
+        self.absence_verified_at = Some(absence_verified_at);
+        self.refresh_digest()?;
+        self.verify_structure()
+    }
+
+    pub fn verify_structure(&self) -> Result<(), CleanupReceiptError> {
+        if self.schema_version != 1
+            || !stable_reference_is_valid(&self.attempt_id)
+            || !sha256_is_valid(&self.review_digest)
+            || self.review_id != format!("minco-review.{}", &self.review_digest[..24])
+        {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup receipt identity is invalid".into(),
+            ));
+        }
+        for (file, label) in [
+            (&self.review_manifest, "review manifest"),
+            (&self.target_config, "target configuration"),
+        ] {
+            validate_bound_file(file, label)
+                .map_err(|error| CleanupReceiptError::Invalid(error.to_string()))?;
+        }
+        if self.environment.application.trim().is_empty()
+            || (self.environment.environment != "preview"
+                && !self.environment.environment.starts_with("preview-"))
+            || !region_is_valid(&self.environment.region)
+            || !account_id_is_valid(&self.expected_account_id)
+            || !role_arn_is_valid(&self.expected_role_arn, &self.expected_account_id)
+            || !stack_name_is_valid(&self.stack_name)
+        {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup target is not an exact preview environment".into(),
+            ));
+        }
+        if self.deleted_resources.is_empty()
+            || !cleanup_resources_are_valid(
+                &self.deleted_resources,
+                ReviewResourceRetention::Delete,
+            )
+            || !cleanup_resources_are_valid(
+                &self.retained_resources,
+                ReviewResourceRetention::Retain,
+            )
+            || self.deleted_resources.iter().any(|deleted| {
+                self.retained_resources
+                    .iter()
+                    .any(|retained| retained.logical_id == deleted.logical_id)
+            })
+        {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup resources are invalid, repeated, or use the wrong retention policy".into(),
+            ));
+        }
+        let state_valid = match self.outcome {
+            CleanupOutcome::Started => {
+                self.failure_code.is_none() && self.absence_verified_at.is_none()
+            }
+            CleanupOutcome::Failed => {
+                self.failure_code
+                    .as_deref()
+                    .is_some_and(stable_reference_is_valid)
+                    && self.absence_verified_at.is_none()
+            }
+            CleanupOutcome::Succeeded => {
+                self.failure_code.is_none()
+                    && self
+                        .absence_verified_at
+                        .as_deref()
+                        .and_then(parse_utc_timestamp)
+                        .is_some()
+            }
+        };
+        if !state_valid {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup receipt outcome evidence is inconsistent".into(),
+            ));
+        }
+        if !sha256_is_valid(&self.receipt_digest) {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup receipt digest is invalid".into(),
+            ));
+        }
+        if self.calculate_digest()? != self.receipt_digest {
+            return Err(CleanupReceiptError::DigestMismatch);
+        }
+        Ok(())
+    }
+
+    pub fn from_json(source: &[u8]) -> Result<Self, CleanupReceiptError> {
+        let value: serde_json::Value = serde_json::from_slice(source)?;
+        let receipt: Self = serde_json::from_value(value.clone())?;
+        if serde_json::to_value(&receipt)? != value {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup receipt contains unknown or non-canonical fields".into(),
+            ));
+        }
+        receipt.verify_structure()?;
+        Ok(receipt)
+    }
+
+    pub fn read_json(path: impl AsRef<Path>) -> Result<Self, CleanupReceiptError> {
+        Self::from_json(&std::fs::read(path)?)
+    }
+
+    pub fn verify_at(&self, root: impl AsRef<Path>) -> Result<(), CleanupReceiptError> {
+        self.verify_structure()?;
+        let root = root.as_ref();
+        for file in [&self.review_manifest, &self.target_config] {
+            file.verify_at(root)
+                .map_err(|error| CleanupReceiptError::Invalid(error.to_string()))?;
+        }
+        let review =
+            ReviewManifest::from_json(&std::fs::read(root.join(&self.review_manifest.path))?)
+                .and_then(|review| review.verify_at(root).map(|()| review))
+                .map_err(|error| CleanupReceiptError::Invalid(error.to_string()))?;
+        let deleted_resources = review
+            .resources
+            .iter()
+            .filter(|resource| resource.retention == ReviewResourceRetention::Delete)
+            .cloned()
+            .collect::<Vec<_>>();
+        let retained_resources = review
+            .resources
+            .iter()
+            .filter(|resource| resource.retention == ReviewResourceRetention::Retain)
+            .cloned()
+            .collect::<Vec<_>>();
+        let review_identity_matches =
+            (&review.review_id, &review.manifest_digest) == (&self.review_id, &self.review_digest);
+        if !review_identity_matches
+            || review.environment != self.environment
+            || review.expected_account_id != self.expected_account_id
+            || review.expected_role_arn != self.expected_role_arn
+            || review.stack_name != self.stack_name
+            || review.target_config != self.target_config
+            || deleted_resources != self.deleted_resources
+            || retained_resources != self.retained_resources
+        {
+            return Err(CleanupReceiptError::Invalid(
+                "cleanup receipt does not bind the exact verified review manifest".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn write_json(&self, path: impl AsRef<Path>) -> Result<(), CleanupReceiptError> {
+        self.verify_structure()?;
+        let path = path.as_ref();
+        let mut rendered = serde_json::to_vec_pretty(self)?;
+        rendered.push(b'\n');
+        if !path.exists() {
+            let mut output = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)?;
+            output.write_all(&rendered)?;
+            output.sync_all()?;
+            return Ok(());
+        }
+        let existing = Self::read_json(path)?;
+        if existing == *self {
+            return Ok(());
+        }
+        let lock_path =
+            path.with_extension(match path.extension().and_then(|value| value.to_str()) {
+                Some(extension) => format!("{extension}.lock"),
+                None => "lock".into(),
+            });
+        let mut lock = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock_path)
+            .map_err(|error| {
+                if error.kind() == std::io::ErrorKind::AlreadyExists {
+                    CleanupReceiptError::Conflict(lock_path.display().to_string())
+                } else {
+                    CleanupReceiptError::Io(error)
+                }
+            })?;
+        let temporary = path.with_extension(format!("{}.tmp", &self.receipt_digest[..16]));
+        let result = (|| {
+            lock.write_all(self.receipt_digest.as_bytes())?;
+            lock.sync_all()?;
+            let existing = Self::read_json(path)?;
+            if existing == *self {
+                return Ok(());
+            }
+            if !existing.same_binding(self)
+                || existing.outcome != CleanupOutcome::Started
+                || self.outcome == CleanupOutcome::Started
+            {
+                return Err(CleanupReceiptError::Conflict(path.display().to_string()));
+            }
+            let mut output = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)?;
+            output.write_all(&rendered)?;
+            output.sync_all()?;
+            std::fs::rename(&temporary, path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+        }
+        let unlock = std::fs::remove_file(&lock_path).map_err(CleanupReceiptError::Io);
+        result.and(unlock)
+    }
+
+    fn require_started(&self) -> Result<(), CleanupReceiptError> {
+        if self.outcome == CleanupOutcome::Started {
+            Ok(())
+        } else {
+            Err(CleanupReceiptError::Terminal(self.attempt_id.clone()))
+        }
+    }
+
+    fn same_binding(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.attempt_id == other.attempt_id
+            && self.review_manifest == other.review_manifest
+            && self.review_id == other.review_id
+            && self.review_digest == other.review_digest
+            && self.environment == other.environment
+            && self.expected_account_id == other.expected_account_id
+            && self.expected_role_arn == other.expected_role_arn
+            && self.stack_name == other.stack_name
+            && self.target_config == other.target_config
+            && self.deleted_resources == other.deleted_resources
+            && self.retained_resources == other.retained_resources
+    }
+
+    fn refresh_digest(&mut self) -> Result<(), CleanupReceiptError> {
+        self.receipt_digest = self.calculate_digest()?;
+        Ok(())
+    }
+
+    fn calculate_digest(&self) -> Result<String, CleanupReceiptError> {
+        #[derive(Serialize)]
+        struct DigestPayload<'a> {
+            schema_version: u32,
+            attempt_id: &'a str,
+            review_manifest: &'a FileDigest,
+            review_id: &'a str,
+            review_digest: &'a str,
+            environment: &'a ReleaseEnvironment,
+            expected_account_id: &'a str,
+            expected_role_arn: &'a str,
+            stack_name: &'a str,
+            target_config: &'a FileDigest,
+            deleted_resources: &'a [ReviewResource],
+            retained_resources: &'a [ReviewResource],
+            outcome: CleanupOutcome,
+            failure_code: &'a Option<String>,
+            absence_verified_at: &'a Option<String>,
+        }
+        let payload = DigestPayload {
+            schema_version: self.schema_version,
+            attempt_id: &self.attempt_id,
+            review_manifest: &self.review_manifest,
+            review_id: &self.review_id,
+            review_digest: &self.review_digest,
+            environment: &self.environment,
+            expected_account_id: &self.expected_account_id,
+            expected_role_arn: &self.expected_role_arn,
+            stack_name: &self.stack_name,
+            target_config: &self.target_config,
+            deleted_resources: &self.deleted_resources,
+            retained_resources: &self.retained_resources,
+            outcome: self.outcome,
+            failure_code: &self.failure_code,
+            absence_verified_at: &self.absence_verified_at,
+        };
+        Ok(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&payload)?)
+        ))
+    }
+}
+
+fn cleanup_resources_are_valid(
+    resources: &[ReviewResource],
+    expected_retention: ReviewResourceRetention,
+) -> bool {
+    resources
+        .windows(2)
+        .all(|resources| resources[0].logical_id < resources[1].logical_id)
+        && resources.iter().all(|resource| {
+            resource.retention == expected_retention
+                && cloudformation_logical_id_is_valid(&resource.logical_id)
+                && !resource.resource_type.trim().is_empty()
+        })
+}
+
+#[derive(Debug, Error)]
+pub enum CleanupReceiptError {
+    #[error("cleanup receipt is invalid: {0}")]
+    Invalid(String),
+    #[error("cleanup receipt digest does not match its contents")]
+    DigestMismatch,
+    #[error("cleanup receipt conflicts with existing evidence at {0}")]
+    Conflict(String),
+    #[error("cleanup receipt {0} is terminal")]
+    Terminal(String),
+    #[error("cleanup receipt JSON is invalid: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("cleanup receipt I/O failed: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HostedCheckKind {
@@ -2445,10 +3403,48 @@ pub struct DeploymentTargetCatalog {
     pub environments: BTreeMap<String, DeploymentTarget>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeploymentTargetLifecycle {
+    #[default]
+    Persistent,
+    Preview,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewScheduleCompletionAction {
+    Delete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewCleanupSchedule {
+    pub expression: String,
+    pub action_after_completion: ReviewScheduleCompletionAction,
+    pub residual_resources: Vec<String>,
+    pub manual_fallback: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewTargetPolicy {
+    pub owner: String,
+    pub ttl_seconds: u32,
+    pub resources: Vec<ReviewResource>,
+    pub pricing_complete: bool,
+    #[serde(default)]
+    pub cleanup_schedule: Option<ReviewCleanupSchedule>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeploymentTarget {
     pub enabled: bool,
+    #[serde(default)]
+    pub lifecycle: DeploymentTargetLifecycle,
+    #[serde(default)]
+    pub preview: Option<PreviewTargetPolicy>,
     pub expected_account_id: String,
     pub expected_region: String,
     pub expected_role_arn: String,
@@ -2547,8 +3543,17 @@ fn validate_deployment_target(
     environment: &str,
     target: &DeploymentTarget,
 ) -> Result<(), DeploymentTargetError> {
+    let lifecycle_valid = match (&target.lifecycle, &target.preview) {
+        (DeploymentTargetLifecycle::Persistent, None) => true,
+        (DeploymentTargetLifecycle::Preview, Some(preview)) => {
+            (environment == "preview" || environment.starts_with("preview-"))
+                && preview_target_policy_is_valid(preview)
+        }
+        _ => false,
+    };
     let valid = [
         ("environment", environment_is_valid(environment)),
+        ("lifecycle", lifecycle_valid),
         (
             "expected_account_id",
             account_id_is_valid(&target.expected_account_id),
@@ -2621,6 +3626,37 @@ fn validate_deployment_target(
         ));
     }
     Ok(())
+}
+
+fn preview_target_policy_is_valid(preview: &PreviewTargetPolicy) -> bool {
+    let retained = preview
+        .resources
+        .iter()
+        .filter(|resource| resource.retention == ReviewResourceRetention::Retain)
+        .map(|resource| resource.logical_id.clone())
+        .collect::<Vec<_>>();
+    let resources_valid = !preview.resources.is_empty()
+        && preview
+            .resources
+            .windows(2)
+            .all(|resources| resources[0].logical_id < resources[1].logical_id)
+        && preview.resources.iter().all(|resource| {
+            cloudformation_logical_id_is_valid(&resource.logical_id)
+                && !resource.resource_type.trim().is_empty()
+                && !resource.resource_type.chars().any(char::is_control)
+        });
+    let cleanup_valid = preview.cleanup_schedule.as_ref().is_none_or(|cleanup| {
+        one_time_schedule_expression_is_valid(&cleanup.expression)
+            && cleanup.residual_resources == retained
+            && !cleanup.manual_fallback.trim().is_empty()
+            && !cleanup.manual_fallback.chars().any(char::is_control)
+    });
+    !preview.owner.trim().is_empty()
+        && preview.owner.len() <= 256
+        && !preview.owner.chars().any(char::is_control)
+        && (300..=2_592_000).contains(&preview.ttl_seconds)
+        && resources_valid
+        && cleanup_valid
 }
 
 fn deployment_stack_tags_are_valid(tags: &BTreeMap<String, String>) -> bool {

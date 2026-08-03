@@ -95,3 +95,19 @@ reviewed schedules while retaining schema 1 API-only input. `cost --json`
 exposes runtime wake/request dimensions and `perf --json` reports each
 function's artifact digest when built. See the repository's
 `docs/deployment/plan-schema-v2-migration.md` before adopting schema 2.
+
+The preview Verified Review Loop is explicit and dry-run first:
+
+```bash
+cargo minco --json deploy plan --environment preview --stdout
+cargo minco --json deploy review --environment preview --dry-run
+cargo minco --json destroy --environment preview --dry-run
+```
+
+After an exact deployment and hosted verification, `deploy review` can create
+an immutable review manifest using read-only AWS inspection. `destroy` requires
+that manifest's exact digest as separate approval, rechecks current account,
+role, stack, resources, retention and termination protection, then uses standard
+`CloudFormation` deletion and records an absence-verified receipt. No default
+scheduler, force deletion, or persistent-target cleanup is available. See
+`docs/deployment/preview-review-loop.md` in the Minco repository.
