@@ -182,3 +182,19 @@ replacement, retention policy and property-scope semantics instead of trusting
 an allowlisted logical ID alone. This slice remains provider-free; shared
 resource setup, phase execution, compatibility assessment and one parent-owned
 cleanup trap are still required before live rehearsal authority can be used.
+
+The sixth controller slice atomically initializes the provider-free parent
+evidence boundary. Only the exact current checkout named by the plan may run
+the initializer. It reprojects all three handoffs before creating a private
+whole-run directory, then seals the exact plan, a redacted authority receipt,
+three projection digests and an immutable `initialized` controller receipt.
+Every phase remains pending, no phase evidence namespace is consumed, shared
+resources remain `not_created`, and cleanup remains required and owned by one
+future parent trap. Red-first coverage proved the command was absent, then
+proved exact receipt/digest shape, mode-`0700`/`0600` evidence, zero provider or
+build contact, source-bound controller execution, authority redaction and
+non-destructive rejection of repeated initialization. Security review added
+the exact controller-root check, a schema-closed receipt validator and
+authority/receipt digest rechecks. Provider-capable state transitions, shared
+resource phase execution, compatibility handoff, the actual single cleanup
+trap and the separately approved live rehearsal remain.

@@ -25,7 +25,20 @@ create_checkout() {
   printf '[workspace]\nmembers = []\n# %s\n' "$role" >"$root/Cargo.toml"
   printf 'schema_version = 1\n' >"$root/minco.toml"
   printf 'schema_version = 1\n' >"$root/nested/minco.toml"
-  git -C "$root" add Cargo.toml minco.toml nested/minco.toml
+  if [[ "$role" == current ]]; then
+    mkdir -p "$root/scripts/aws/lib"
+    cp scripts/aws/initialize-multi-release-rehearsal.sh \
+      scripts/aws/plan-multi-release-phase.sh \
+      scripts/aws/validate-multi-release-rehearsal-authority.sh \
+      "$root/scripts/aws/"
+    cp scripts/aws/lib/common.sh \
+      scripts/aws/lib/validate-multi-release-controller-receipt.jq \
+      scripts/aws/lib/validate-multi-release-plan.jq \
+      scripts/aws/lib/validate-rehearsal-authority-common.jq \
+      "$root/scripts/aws/lib/"
+    chmod +x "$root/scripts/aws/"*.sh
+  fi
+  git -C "$root" add .
   git -C "$root" commit -qm "$role release"
 }
 
@@ -445,6 +458,203 @@ jq -e \
   jq . "$phase_projection" >&2
   exit 1
 }
+
+controller_output="$fixture_dir/controller-initialization-output.json"
+controller_initializer="$current_root/scripts/aws/initialize-multi-release-rehearsal.sh"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  scripts/aws/initialize-multi-release-rehearsal.sh >/dev/null 2>&1; then
+  echo "multi-release initialization accepted controller code outside the exact current checkout" >&2
+  exit 1
+fi
+[[ ! -e "$evidence_root" ]] || {
+  echo "rejected external controller initialization created evidence" >&2
+  exit 1
+}
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  "$controller_initializer" >"$controller_output"
+
+controller_receipt="$evidence_root/control/controller-receipt.json"
+authority_receipt="$evidence_root/control/authority-receipt.json"
+sealed_plan="$evidence_root/control/multi-release-plan.json"
+[[ -f "$controller_receipt" && ! -L "$controller_receipt" &&
+  -f "$authority_receipt" && ! -L "$authority_receipt" &&
+  -f "$sealed_plan" && ! -L "$sealed_plan" ]] || {
+  echo "multi-release initialization omitted sealed control evidence" >&2
+  exit 1
+}
+file_mode() {
+  if stat -f '%Lp' "$1" 2>/dev/null; then
+    return
+  fi
+  stat -c '%a' "$1"
+}
+[[ "$(file_mode "$evidence_root")" == "700" ]] || {
+  echo "multi-release initialization did not keep its evidence root private" >&2
+  exit 1
+}
+while IFS= read -r control_file; do
+  [[ "$(file_mode "$control_file")" == "600" ]] || {
+    echo "multi-release initialization did not keep control evidence private" >&2
+    exit 1
+  }
+done < <(find "$evidence_root/control" -type f -print)
+[[ "$(shasum -a 256 "$sealed_plan" | awk '{print $1}')" == "$plan_digest" ]] || {
+  echo "multi-release initialization did not preserve the exact whole-run plan" >&2
+  exit 1
+}
+
+for phase_id in 01-prior-initial 02-current 03-prior-rollback; do
+  projection="$evidence_root/control/phases/$phase_id.json"
+  [[ -f "$projection" && ! -L "$projection" ]] || {
+    echo "multi-release initialization omitted an exact phase projection" >&2
+    exit 1
+  }
+  [[ "$(jq -er '.phase.id' "$projection")" == "$phase_id" ]] || {
+    echo "multi-release initialization crossed phase projection evidence" >&2
+    exit 1
+  }
+done
+
+receipt_digest="$(jq -cS 'del(.receipt_digest)' "$controller_receipt" | shasum -a 256 | awk '{print $1}')"
+jq -e \
+  --arg plan_digest "$plan_digest" \
+  --arg approval_digest "$approval_digest" \
+  --arg receipt_digest "$receipt_digest" \
+  --arg prior_revision "$prior_revision" \
+  --arg current_revision "$current_revision" \
+  '
+    keys == [
+      "authority",
+      "cleanup",
+      "execution",
+      "external_aws_contact",
+      "operation",
+      "plan_digest",
+      "provider_boundary",
+      "receipt_digest",
+      "schema_version",
+      "source_revisions",
+      "state"
+    ]
+    and .schema_version == 1
+    and .operation == "multi_release_controller_rehearsal"
+    and .state == "initialized"
+    and .external_aws_contact == false
+    and .plan_digest == $plan_digest
+    and .receipt_digest == $receipt_digest
+    and .authority == {
+      approval_digest: $approval_digest,
+      kind: "minco.aws-multi-release-controller-rehearsal.v1",
+      run_id: "reviewed-multi-release-run"
+    }
+    and .source_revisions == {
+      current: $current_revision,
+      prior: $prior_revision
+    }
+    and .execution.phase_sequence == [
+      "01-prior-initial",
+      "02-current",
+      "03-prior-rollback"
+    ]
+    and .execution.next_phase == "01-prior-initial"
+    and [.execution.phases[].id] == .execution.phase_sequence
+    and ([.execution.phases[].state] | all(. == "pending"))
+    and ([.execution.phases[].projection_digest]
+      | all(test("^[0-9a-f]{64}$")))
+    and .provider_boundary == {
+      artifact_bucket_state: "not_created",
+      shared_stack_state: "not_created"
+    }
+    and .cleanup == {
+      owner: "parent_controller",
+      required: true,
+      state: "pending",
+      trap_count: 1
+    }
+  ' "$controller_receipt" >/dev/null || {
+  echo "multi-release initialization receipt weakened the parent execution boundary" >&2
+  jq . "$controller_receipt" >&2
+  exit 1
+}
+jq -e -f scripts/aws/lib/validate-multi-release-controller-receipt.jq \
+  "$controller_receipt" >/dev/null || {
+  echo "multi-release initialization produced a receipt outside fixed policy" >&2
+  exit 1
+}
+broadened_controller_receipt="$fixture_dir/broadened-controller-receipt.json"
+jq '.cleanup.owner = "inner_phase"' \
+  "$controller_receipt" >"$broadened_controller_receipt"
+if jq -e -f scripts/aws/lib/validate-multi-release-controller-receipt.jq \
+  "$broadened_controller_receipt" >/dev/null; then
+  echo "multi-release controller receipt accepted inner-phase cleanup ownership" >&2
+  exit 1
+fi
+cmp -s "$controller_output" "$controller_receipt" || {
+  echo "multi-release initialization output did not match its sealed receipt" >&2
+  exit 1
+}
+jq -e \
+  'keys == [
+    "approval_digest",
+    "approved_at",
+    "authority_kind",
+    "cleanup_blast_radius",
+    "database_boundary_mode",
+    "environment",
+    "expires_at",
+    "max_duration_minutes",
+    "max_spend_usd",
+    "release_sequence",
+    "resource_allowlist",
+    "run_id",
+    "schema_version",
+    "source_revisions"
+  ]
+  and (has("expected_account_id") | not)
+  and (has("expected_role_arn") | not)
+  and (has("aws_profile") | not)
+  and (tostring | contains("/minco/rehearsal/database-url") | not)' \
+  "$authority_receipt" >/dev/null || {
+  echo "multi-release initialization retained sensitive authority identity" >&2
+  exit 1
+}
+[[ ! -e "$evidence_root/phases/01-prior-initial" &&
+  ! -e "$evidence_root/phases/02-current" &&
+  ! -e "$evidence_root/phases/03-prior-rollback" ]] || {
+  echo "multi-release initialization consumed create-only phase evidence" >&2
+  exit 1
+}
+[[ ! -e "$provider_contact_log" ]] || {
+  echo "multi-release initialization contacted a provider or build command" >&2
+  exit 1
+}
+
+sealed_receipt_digest="$(shasum -a 256 "$controller_receipt" | awk '{print $1}')"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+  MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  "$controller_initializer" >/dev/null 2>&1; then
+  echo "multi-release initialization reused a pre-existing evidence boundary" >&2
+  exit 1
+fi
+[[ "$(shasum -a 256 "$controller_receipt" | awk '{print $1}')" == "$sealed_receipt_digest" ]] || {
+  echo "rejected multi-release initialization changed sealed evidence" >&2
+  exit 1
+}
+rm -r -- "$evidence_root"
 
 first_phase_projection="$fixture_dir/first-phase-projection.json"
 PATH="$fake_bin:$PATH" \
