@@ -1,8 +1,8 @@
 # Two-application validation: CGSP and GarmentIQ
 
 Date: 2026-08-03
-Minco task: `M7-T01`
-Verdict: initial comparison complete; two-application Minco adoption incomplete
+Minco tasks: `M7-T01`, `M7-T02`
+Verdict: two-application adoption evidence complete; compatibility freeze separate
 
 This review tests Minco's framework boundaries against two real Rust/AWS web
 applications. It does not turn either product into a framework fixture, infer
@@ -12,26 +12,27 @@ live state from source, or authorise changes outside this repository.
 
 | Evidence | Exact revision | State used by this review |
 | --- | --- | --- |
-| Minco main | `1430d0512fcd94e7fadea76bf2ab4f6d1aa391f1` | clean merged source after M11-T05 |
+| Minco main | `5ea607e7eebbc9488e7ddecf077d5011a592c6e0` | M7-T02 evidence base after M7-T01 |
 | Published Minco 0.6.0 | `v0.6.0` -> `2c4605b7d4abcd865035196ffc0484c4a0e82f1e` | crates.io family pinned by CGSP |
 | CGSP | `020a18a837233ea7cc08d53f1c35fedcf6dfcb41` | exact `main@origin`; current dirty, stale local workspace excluded |
-| GarmentIQ | `23a347f3ceb437a66f8d07b5db8bb652b8ab68d3` | exact `origin/main`; clean local branch is 13 commits ahead and excluded |
+| GarmentIQ | `8d6e8146a3954db11c64b264f1990f5b853c3192` | exact merged contract-only adoption from PR #55 |
 
-The product repositories were read only. No product test command was run because
-build/test output would mutate those worktrees. Source inspection and existing
-hosted evidence are labelled separately below.
+M7-T01 kept the product repositories read only and did not run product test
+commands because build/test output would have mutated those worktrees. M7-T02
+records the separately authorised GarmentIQ product task, including its local and
+hosted evidence; no product test was rerun from this Minco workspace.
 
 ## Outcome at a glance
 
 | Boundary | CGSP | GarmentIQ | Framework conclusion |
 | --- | --- | --- | --- |
-| Contract | Minco 0.6.0 contract profile, 49 inventoried operations | canonical OpenAPI, 25 operations, zero Minco references | contract-only adoption is genuinely incremental |
-| Code | domain/application remain framework-free; bounded platform layer selects Minco seams | domain is transport-light; API crate owns Axum and SQLx | keep product layering decisions outside core |
-| Capabilities | static HTTP, Feedback, worker and resource helpers are selected explicitly | native providers and ports; no Minco graph | no runtime discovery or facade is justified |
+| Contract | Minco 0.6.0 contract profile, 49 inventoried operations | Minco policy over canonical OpenAPI, 25 exact operations | contract-only adoption is genuinely incremental |
+| Code | domain/application remain framework-free; bounded platform layer selects Minco seams | domain remains Minco-free; API uses Minco only as a contract-test dev dependency | keep product layering decisions outside core |
+| Capabilities | static HTTP, Feedback, worker and resource helpers are selected explicitly | no Minco runtime, provider or plugin graph selected | no runtime discovery or service locator is justified |
 | Resources | three complete Minco resource families; PostgreSQL/RLS remain product-owned | PostgreSQL and product migrations remain authoritative | resource conventions work without a generic repository |
 | Deployment | Pulumi authoritative; Minco Plan/SAM advisory | CloudFormation, container Lambda Function URL, S3 and CloudFront | do not broaden Minco's default API Gateway/ZIP profile for one product |
-| Evidence | exact inventory, CI, staged runtime records and explicit blockers | immutable release/rollback evidence and broad CI | evidence can interoperate while remaining application-owned |
-| Removal | compatibility switches have owners and deletion gates; cleanup still blocked | no Minco dependency to remove | bridge removal needs two-app proof, not framework tests alone |
+| Evidence | exact inventory, CI, staged runtime records and explicit blockers | exact contract/dependency tests plus PR-head and merge-SHA CI | evidence can interoperate while remaining application-owned |
+| Removal | compatibility switches have owners and deletion gates; cleanup still blocked | source-only contract tooling removal; no data or provider mutation | bridge removal needs application proof, not framework tests alone |
 
 ## CGSP slice
 
@@ -90,10 +91,12 @@ production recovery, or completed bridge removal.
 
 ### Contract and code
 
-The reviewed GarmentIQ tree has 25 OpenAPI operations and no file referencing
-Minco. Its canonical contract, acceptance-first/TDD policy, Problem Details,
-idempotency rules and provider ports are compatible with Minco's direction, but
-compatibility is not adoption evidence.
+GarmentIQ now pins published Minco 0.6.0 with default features disabled and only
+the `contract` feature. Its canonical 25-operation OpenAPI document passes the
+public Minco contract policy, and an exact inventory test prevents same-count
+operation substitutions. Six existing idempotent commands expose matching
+Minco metadata. The product API selects Minco only as a development dependency;
+no Minco runtime or provider participates in application execution.
 
 The domain crate avoids Axum, SQLx, Lambda and AWS SDKs, although it currently
 depends on `utoipa` for schema concerns. The API crate combines delivery and
@@ -148,35 +151,31 @@ permissions, RLS, Pulumi resources and observation policy remain CGSP policy.
 GarmentIQ's tenancy, database commands, cookie/edge contract, container runtime
 and protected-data set remain GarmentIQ policy.
 
-## Remaining gap and next task
+## Completion update
 
-M7 cannot satisfy its milestone exit criterion until a real GarmentIQ slice uses
-Minco. `M7-T02` therefore remains planned behind a separately authorised,
-product-owned GarmentIQ change with the smallest useful scope:
+Separately authorised GarmentIQ PR
+[`xicv/garmentiq#55`](https://github.com/xicv/garmentiq/pull/55) implemented the
+bounded contract-only slice and merged exact qualified head
+`2262349989b0df8ad2d202092666e8aaed012b10` as
+`8d6e8146a3954db11c64b264f1990f5b853c3192`. M7-T02 records the dependency,
+contract, TDD, hosted and removal evidence in
+[`garmentiq-contract-only-2026-08-03.md`](garmentiq-contract-only-2026-08-03.md).
 
-- pin the published Minco 0.6.0 family with contract-only features;
-- add a strict project manifest and bounded operation ownership evidence;
-- run Minco contract check/sync/inspect alongside existing GarmentIQ CI;
-- prove the resolved dependency graph selects no Minco HTTP, SQLx, Lambda, AWS
-  or deployment provider;
-- make rollback a source-only removal with no schema, data or AWS effect.
-
-That product work must be reviewed and merged in GarmentIQ. The later Minco task
-only records its exact revision and evidence. Until then, M7 stays `active`,
-M12 adoption completion and the 1.0 compatibility freeze stay blocked, and no
-two-application adoption claim is valid.
+The two-application adoption exit criterion is now evidenced. This does not by
+itself freeze compatibility, publish a release, deploy either application or
+prove current live-provider state.
 
 ## Evidence states
 
 | State | CGSP | GarmentIQ |
 | --- | --- | --- |
 | Exact source inspected | yes | yes |
-| Local product tests in this review | not run; product repo remained read only | not run; product repo remained read only |
-| Hosted source checks | PR-head essential + PostgreSQL passed | PR and merge-SHA foundation/database checks passed |
-| Minco contract adoption | published 0.6.0 pin and inventory present | absent |
+| Product-local tests | not run in M7-T01; product repo remained read only | passed in the separate product task; not rerun from Minco |
+| Hosted source checks | PR-head essential + PostgreSQL passed | exact PR-head and merge-SHA foundation/database checks passed |
+| Minco contract adoption | published 0.6.0 pin and inventory present | published 0.6.0 contract-only pin and exact inventory present |
 | Current exact live runtime proof | not present | not present |
 | Current exact deployment proof | not performed | not performed |
-| Current exact rollback rehearsal | incomplete for Minco bridges | native code contract exists; live rehearsal not established here |
+| Current exact rollback rehearsal | incomplete for Minco bridges | source-only Minco removal proven; live application rollback not performed |
 
 No AWS API, database, deployment, product file, release, registry or public site
 was changed during this validation.
