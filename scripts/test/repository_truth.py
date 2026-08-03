@@ -371,6 +371,21 @@ class RepositoryTruthTests(unittest.TestCase):
         )
         self.assertIn("STATIC-TRUTH-ROADMAP-001", self.truth_codes())
 
+    def test_active_milestone_with_complete_tasks_has_a_stable_code(self) -> None:
+        roadmap = self.root / "roadmap/roadmap.yaml"
+        roadmap.write_text(
+            roadmap.read_text().replace(
+                "- id: M9\n  name: Application lifecycle and developer experience\n  status: complete",
+                "- id: M9\n  name: Application lifecycle and developer experience\n  status: active",
+            )
+        )
+        self.assertIn("STATIC-TRUTH-ROADMAP-003", self.truth_codes())
+
+    def test_planned_milestone_rejects_ready_task_evidence(self) -> None:
+        task = self.root / "tasks/M12/M12-T01-local-read-only-mcp.md"
+        task.write_text(task.read_text().replace("status: planned", "status: ready"))
+        self.assertIn("STATIC-TRUTH-ROADMAP-002", self.truth_codes())
+
     def test_default_dependency_growth_has_a_stable_code(self) -> None:
         measurements = self.root / "verification/adoption-measurements.json"
         value = json.loads(measurements.read_text())

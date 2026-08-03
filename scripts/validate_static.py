@@ -660,11 +660,22 @@ class Validator:
                     roadmap_path,
                 )
             if status == "planned" and any(
-                task_status in {"active", "complete"} for task_status in statuses
+                task_status in {"ready", "active", "complete"} for task_status in statuses
             ):
                 self.error(
                     "STATIC-TRUTH-ROADMAP-002",
-                    f"planned milestone {milestone['id']} has active or completed task evidence",
+                    f"planned milestone {milestone['id']} has ready, active, or completed task evidence",
+                    roadmap_path,
+                )
+            if (
+                status == "active"
+                and statuses
+                and not incomplete_tasks
+                and not incomplete_dependencies
+            ):
+                self.error(
+                    "STATIC-TRUTH-ROADMAP-003",
+                    f"active milestone {milestone['id']} has complete tasks and prerequisites",
                     roadmap_path,
                 )
         gate_task = truth.get("adoption_gate_task")

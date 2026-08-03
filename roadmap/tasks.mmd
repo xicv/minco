@@ -11,6 +11,7 @@ flowchart LR
     NM10T05["M10-T05<br/>Complete static-site and custom-domain deployment"]
     NM10T06["M10-T06<br/>Add Verified Review Loop preview lifecycle and cleanup"]
     NM10T07["M10-T07<br/>Research zero-idle AWS profiles and cost evidence"]
+    NM10T08["M10-T08<br/>Run a bounded real-AWS controller promotion and rollback rehearsal"]
     NM11T01["M11-T01<br/>Build the versioned Diataxis documentation site"]
     NM11T02["M11-T02<br/>Define the plugin distribution manifest"]
     NM11T03["M11-T03<br/>Publish one plugin conformance kit"]
@@ -46,6 +47,8 @@ flowchart LR
     NM6T10["M6-T10<br/>Add trigger-aware multi-runtime deployment planning"]
     NM6T11["M6-T11<br/>Unify local and hosted Feedback browser quality"]
     NM7T01["M7-T01<br/>Validate Minco against bounded GarmentIQ and CGSP slices"]
+    NM7T02["M7-T02<br/>Record a bounded GarmentIQ contract-only Minco slice"]
+    NM7T03["M7-T03<br/>Reconcile milestone truth and expose the real-AWS closure gate"]
     NM8T01["M8-T01<br/>Prepare the publishable Minco crate family"]
     NM8T02["M8-T02<br/>Run compiler and crates.io package gates"]
     NM8T03["M8-T03<br/>Complete crates.io ownership and trusted publishing"]
@@ -78,6 +81,10 @@ flowchart LR
     NM10T02 --> NM10T06
     NM10T05 --> NM10T06
     NM10T03 --> NM10T07
+    NM10T04 --> NM10T08
+    NM10T05 --> NM10T08
+    NM10T06 --> NM10T08
+    NM10T07 --> NM10T08
     NM9T07 --> NM11T01
     NM10T03 --> NM11T01
     NM9T04 --> NM11T02
@@ -100,7 +107,7 @@ flowchart LR
     NM10T03 --> NM12T01
     NM11T06 --> NM12T01
     NM12T01 --> NM12T02
-    NM7T01 --> NM12T03
+    NM7T02 --> NM12T03
     NM10T06 --> NM12T03
     NM11T05 --> NM12T03
     NM11T06 --> NM12T04
@@ -141,6 +148,13 @@ flowchart LR
     NM6T10 --> NM7T01
     NM9T07 --> NM7T01
     NM10T05 --> NM7T01
+    NM7T01 --> NM7T02
+    NM7T02 --> NM7T03
+    NM9T09 --> NM7T03
+    NM10T07 --> NM7T03
+    NM11T05 --> NM7T03
+    NM11T06 --> NM7T03
+    NM11T08 --> NM7T03
     NM0T01 --> NM8T01
     NM8T01 --> NM8T02
     NM8T02 --> NM8T03
