@@ -120,3 +120,14 @@ proved the new arguments, canonical root reporting and rejection of relative
 roots. The remaining controller work must parent the shared provider resources,
 phase-specific immutable evidence and one cleanup trap before the single-release
 runner's immediate cleanup can be relaxed.
+
+The second controller slice now adds a distinct, schema-closed multi-release
+authority kind. It binds two different exact source revisions, the only accepted
+`prior`, `current`, `prior` phase order, and closed direct, root-bootstrap or
+temporary-RDS resource/cleanup profile pairs. Red-first shell coverage proves
+swapped or identical revisions, incomplete order and database/scope mismatches
+fail locally. Its retained receipt includes exact source/order and approval
+bounds but redacts account, role and database identifiers. Both validators use
+one shared read-only policy for account, time, spend and database semantics; no
+provider-capable command or sensitive temporary authority copy is introduced by
+this slice.

@@ -125,6 +125,53 @@ disposable database path:
 }
 ```
 
+The parent prior → current → prior controller must not reuse the single-source
+authority above. Its local approval uses the separate strict kind
+`minco.aws-multi-release-controller-rehearsal.v1`, two distinct exact source
+revisions and one fixed release sequence:
+
+```json
+{
+  "schema_version": 1,
+  "authority_kind": "minco.aws-multi-release-controller-rehearsal.v1",
+  "run_id": "reviewed-multi-release-run-id",
+  "source_revisions": {
+    "current": "EXACT_CURRENT_40_OR_64_HEX_HEAD",
+    "prior": "EXACT_PRIOR_40_OR_64_HEX_HEAD"
+  },
+  "release_sequence": ["prior", "current", "prior"],
+  "expected_account_id": "REVIEWED_12_DIGIT_NONPROD_ACCOUNT",
+  "expected_region": "ap-southeast-2",
+  "expected_role_arn": "arn:aws:iam::REVIEWED_ACCOUNT:role/EXACT_ROLE",
+  "aws_profile": "exact-reviewed-profile",
+  "environment": "dev",
+  "database_boundary": {
+    "mode": "existing-ssm-secure-string",
+    "parameter_name": "/minco/rehearsal/database-url",
+    "parameter_owned": false,
+    "instance_owned": false
+  },
+  "resource_allowlist": "bounded-multi-release-smoke-v1",
+  "cleanup_blast_radius": "cleanup-bounded-multi-release-smoke-v1",
+  "max_duration_minutes": 60,
+  "max_spend_usd": 25,
+  "approved_by": "release-owner",
+  "approved_at": "2026-08-03T10:00:00Z",
+  "expires_at": "2026-08-03T11:00:00Z"
+}
+```
+
+The validator rejects identical revisions, any runtime/document revision
+mismatch, any sequence other than `prior`, `current`, `prior`, unknown fields
+and mismatched database, resource or cleanup profiles. The root-bootstrap
+equivalents are
+`bounded-root-multi-release-smoke-v1` with
+`cleanup-bounded-root-multi-release-smoke-v1`, or
+`bounded-root-temp-rds-multi-release-v1` with
+`cleanup-bounded-root-temp-rds-multi-release-v1`. This contract qualifies no
+provider call by itself; the unfinished parent controller must still verify both
+canonical checkout roots and all exact release evidence before mutation.
+
 The closed scope profiles mean:
 
 | Authority profile | Provider/resource boundary | Cleanup boundary |
@@ -132,6 +179,9 @@ The closed scope profiles mean:
 | `bounded-direct-smoke-v1` | One run-tagged artifact bucket and Cognito harness; one create-only CloudFormation stack/change set containing the API, stages, Lambda function/version/aliases/permissions, execution role and log group; metadata/value access to the exact external SSM parameter; explicit migration and synthetic requests against the exact external PostgreSQL boundary. | Synthetic rows, stack resources, Cognito harness and artifact bucket only. The external parameter must byte-match its before metadata; schema migration history is retained. |
 | `bounded-root-bootstrap-v1` | Direct scope plus one deterministic temporary IAM user/key/inline policy, one temporary assume-role session/profile and one run-owned SSM copy of the reviewed PostgreSQL source. | Direct cleanup plus the exact temporary parameter, IAM user/key/policies/role and isolated local credential/config files. |
 | `bounded-root-temp-rds-v1` | Root-bootstrap scope plus one encrypted single-AZ RDS instance and managed secret, and one isolated VPC with its subnets, routes, internet gateway, security groups and exact SSM VPC endpoint; no NAT Gateway. | Root-bootstrap cleanup plus the run-owned database/secret, RDS stack, endpoint, network resources, CA/database files and synthetic data. |
+| `bounded-multi-release-smoke-v1` | Direct scope retained across the fixed prior → current → prior release sequence; one shared run-owned stack, bucket and identity harness, with only release-bound versions, aliases and change sets added or updated. | Direct cleanup after every phase has finished or failed; no inner phase may independently remove the shared boundary. |
+| `bounded-root-multi-release-smoke-v1` | Root-bootstrap scope plus the fixed multi-release sequence in the one shared stack. | Root-bootstrap and multi-release cleanup under one parent trap. |
+| `bounded-root-temp-rds-multi-release-v1` | Temporary-RDS root scope plus the fixed multi-release sequence in the one shared stack and database. | Temporary-RDS, root-bootstrap and multi-release cleanup under one parent trap. |
 
 Each resource profile has the corresponding `cleanup-<resource-profile>` ID
 shown by the examples. The
@@ -156,6 +206,18 @@ scripts/aws/validate-rehearsal-authority.sh \
   exact-reviewed-profile dev \
   '{"mode":"existing-ssm-secure-string","parameter_name":"/minco/rehearsal/database-url","parameter_owned":false,"instance_owned":false}' \
   bounded-direct-smoke-v1 cleanup-bounded-direct-smoke-v1
+```
+
+For a multi-release document, validate both ordered revisions explicitly:
+
+```bash
+scripts/aws/validate-multi-release-rehearsal-authority.sh \
+  "$authority" "$approval_digest" reviewed-multi-release-run-id \
+  EXACT_PRIOR_SOURCE_REVISION EXACT_CURRENT_SOURCE_REVISION \
+  ap-southeast-2 exact-reviewed-profile dev \
+  '{"mode":"existing-ssm-secure-string","parameter_name":"/minco/rehearsal/database-url","parameter_owned":false,"instance_owned":false}' \
+  bounded-multi-release-smoke-v1 \
+  cleanup-bounded-multi-release-smoke-v1
 ```
 
 ## Multi-release rollback evidence

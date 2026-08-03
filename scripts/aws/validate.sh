@@ -39,6 +39,7 @@ jq -e '
 unset regional_bucket_configuration us_east_1_bucket_configuration
 
 bash scripts/aws/test-rehearsal-authority.sh
+bash scripts/aws/test-multi-release-rehearsal-authority.sh
 uv run --locked python scripts/validate_static.py
 command -v sam >/dev/null || { echo 'SAM CLI is required' >&2; exit 1; }
 SAM_CLI_TELEMETRY=0 sam validate --lint --template-file infra/aws/generated/template.yaml
