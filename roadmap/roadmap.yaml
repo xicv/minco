@@ -75,7 +75,7 @@ milestones:
   - Typed registrations retain bounded, non-spoofable owner provenance for inspection.
 - id: M7
   name: Two-application stabilization
-  status: planned
+  status: active
   depends_on:
   - M9
   - M10
