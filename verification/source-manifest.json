@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 733,
+  "file_count": 746,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1473,14 +1473,49 @@
       "size_bytes": 6260
     },
     {
+      "path": "docs/how-to/local-sqlite.md",
+      "sha256": "3ef1e4b26e9898e1bb48d2dc5749cdca76a7f5f46b2d3db45c10b4ac2ccc89fa",
+      "size_bytes": 1730
+    },
+    {
       "path": "docs/how-to/manage-plugins.md",
       "sha256": "ebcfa4ecb586d6a92baa7c939a93331df5635ab3b176c678b5ae060bf52452da",
       "size_bytes": 5242
     },
     {
+      "path": "docs/how-to/postgres-profiles.md",
+      "sha256": "5b2996fa181d7b0cf737e395f2c1c1d6e163463f70117f54d52592e7db506c6b",
+      "size_bytes": 2089
+    },
+    {
+      "path": "docs/how-to/resource-crud.md",
+      "sha256": "a0a35eeb35a498b9592236afe35370460cd86c948fc7ac0166a665903b7ff569",
+      "size_bytes": 2221
+    },
+    {
+      "path": "docs/how-to/sqs-worker.md",
+      "sha256": "7a1e90c5855cbeabbe3bad2e358072df31c342bf22cefa06d11b15a2cbd05b29",
+      "size_bytes": 1463
+    },
+    {
+      "path": "docs/how-to/static-site.md",
+      "sha256": "e7e65c9674150b29989c6acbc7bacf91849d48d53c111d0ce7110cc7ed9bf3a5",
+      "size_bytes": 1517
+    },
+    {
       "path": "docs/how-to/test-a-plugin.md",
-      "sha256": "c8dfcd012a001f1310aed485ab12f7d4036279b81d1d9a1634e9599498cb4660",
-      "size_bytes": 2122
+      "sha256": "bed8afbecfe1d3b8863be21a5d54b765af8ecf1aa1ceade8bd09edc86b8e5f26",
+      "size_bytes": 3191
+    },
+    {
+      "path": "docs/how-to/verified-review-loop.md",
+      "sha256": "50e15d0d971d6d9b2da674f340a302dcfc829ed8e6f5da9ca3ed66f17ad57e36",
+      "size_bytes": 1649
+    },
+    {
+      "path": "docs/how-to/zero-idle-aws.md",
+      "sha256": "8a0b3e922d7de86e0bb058dea9c0db65d7ed6d1a8829822e88c3731a288cd547",
+      "size_bytes": 1643
     },
     {
       "path": "docs/reference/cli.md",
@@ -1571,6 +1606,16 @@
       "path": "docs/roadmap/framework-completion.md",
       "sha256": "52e2d1da275b10d50061ceaf16624192c76190176ce304ca48820713ae55aeac",
       "size_bytes": 7164
+    },
+    {
+      "path": "docs/tutorials/first-application.md",
+      "sha256": "43177f01639a09040c39b9611b0c2bdfc1fec4ae5331575c58e378913ca2f539",
+      "size_bytes": 2012
+    },
+    {
+      "path": "docs/tutorials/generated-application.md",
+      "sha256": "fd1d1becfafff81d23983837034ee4b321fbf63de5d9428694b334b2615fd187",
+      "size_bytes": 1615
     },
     {
       "path": "docs/vision/minco-framework-definition.md",
@@ -2146,6 +2191,11 @@
       "path": "examples/plugins/third-party-minimal/src/lib.rs",
       "sha256": "8661a40233d0dfaf13a7dcd9a65a632eda2b9f3abf7a3fdebf666019e3a0efab",
       "size_bytes": 1509
+    },
+    {
+      "path": "examples/recipes.toml",
+      "sha256": "af2e0de89c894281bd94fb68c15f55416da79e1c07e8eafe9aa6747515571641",
+      "size_bytes": 6634
     },
     {
       "path": "extensions/minco-aws-adapters/Cargo.toml",
@@ -3004,8 +3054,8 @@
     },
     {
       "path": "scripts/ci/hosted-essential.sh",
-      "sha256": "93be4676f5850047a5fd042f6c3e4c5da9371aa647186470f47f5c0d82309672",
-      "size_bytes": 513
+      "sha256": "facbd9ecacb0d7e917765577be47a9d3ae4f38caa3af062e1cafb324178a50dc",
+      "size_bytes": 578
     },
     {
       "path": "scripts/deep_review.py",
@@ -3124,8 +3174,8 @@
     },
     {
       "path": "scripts/quality.sh",
-      "sha256": "9479bc88e89c8ac3ecb21e7c7cec2609a6c6c4ef975a30d637a9331d630b3ab2",
-      "size_bytes": 2212
+      "sha256": "b228c2c886102af16cf1007b18e99666777bd82462224ae52188aeac8609f31e",
+      "size_bytes": 2338
     },
     {
       "path": "scripts/release/package-list.sh",
@@ -3168,6 +3218,21 @@
       "size_bytes": 8465
     },
     {
+      "path": "scripts/test/examples/all.sh",
+      "sha256": "f98a4084adc690cc1ea8c50bdbb52b568e340b9b8fc189585a410e6602c9510c",
+      "size_bytes": 207
+    },
+    {
+      "path": "scripts/test/examples/test_recipes.py",
+      "sha256": "ccc7ecb6b09ce3b7b92a5a7d14ed9b562aab23da1d8272ddd99138403ad82c93",
+      "size_bytes": 12390
+    },
+    {
+      "path": "scripts/test/examples/validate.py",
+      "sha256": "9da594f004ae4e6c6805a19609903c398d804f5a4108557d3282b7f68f0ebbec",
+      "size_bytes": 13362
+    },
+    {
       "path": "scripts/test/feature.sh",
       "sha256": "ba18f7fa3278a3fc81f41e7b63d9c058f40307208a6942e1922ac146c23b3234",
       "size_bytes": 168
@@ -3189,8 +3254,8 @@
     },
     {
       "path": "scripts/test/hosted_ci_policy.py",
-      "sha256": "75c19c2b09a1e1be3b173f1ebc9591e99be41cc860c95071e9c9e2bf0dea710a",
-      "size_bytes": 6032
+      "sha256": "01e14fc26361ff1459540375e92d314f8a012cb17462c87914ebcc5f19234c64",
+      "size_bytes": 6240
     },
     {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
@@ -3324,8 +3389,8 @@
     },
     {
       "path": "tasks/M11/M11-T05-examples-recipes.md",
-      "sha256": "245ca431ebf62a33fa240c94543f0a2b9fb1671cb81cb779baf8d8e7e88031b1",
-      "size_bytes": 1216
+      "sha256": "73497ae7b838a6426fd45764d6e589330ce8ba2c0f72323cdfdb50f65db5bd60",
+      "size_bytes": 4319
     },
     {
       "path": "tasks/M11/M11-T06-generated-reference.md",
@@ -3589,7 +3654,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "5b27d6de031b8de729f129c380831d620964163211d8284b9ccac1469b0dabbe",
+      "sha256": "6b8797cf1cec7169c1b87b633a9483b93894a1bf89e154151224f6b37d46e18e",
       "size_bytes": 2021
     },
     {
@@ -3649,7 +3714,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "e35e90af11e6a891e874ba514f6a5639205760890138c76ca3a60c8ee516b01c",
+      "sha256": "0104c43c797179f4d38f4a19862e581ab8cd1bbfe374078870b026b3b2f0d22f",
       "size_bytes": 754
     },
     {
@@ -3675,7 +3740,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "ccff1aa2310441d3c81095cd98d65abc3ac94f67e8bcfc5500b8bed19ec34a99",
-  "total_size_bytes": 5038353,
+  "source_tree_sha256": "4425354452b820169548e413a1deda082cbe029d54916709e7d05d9365f05184",
+  "total_size_bytes": 5091456,
   "version": "0.6.0"
 }

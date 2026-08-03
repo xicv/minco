@@ -1,0 +1,151 @@
+schema_version = 1
+
+[[recipe]]
+id = "first-application"
+title = "Walk the contract-to-code application graph"
+kind = "application"
+example = "examples/orders"
+documentation = "docs/tutorials/first-application.md"
+features = ["contract", "http", "test", "default-plugins"]
+runtime = "local_native"
+database = "none"
+provider_assumptions = ["No provider access is required for graph inspection or pure application tests."]
+cost_classes = ["zero_compute"]
+wake_sources = []
+checks = ["orders-contract", "orders-explain", "orders-application"]
+unsupported_gates = ["Local graph proof does not qualify a database, AWS account, deployment, or production workload."]
+
+[[recipe]]
+id = "resource-crud"
+title = "Implement standardized resource CRUD and cursor pagination"
+kind = "http-api"
+example = "examples/orders"
+documentation = "docs/how-to/resource-crud.md"
+features = ["contract", "http", "test"]
+runtime = "local_native"
+database = "memory"
+provider_assumptions = ["The in-process Axum contract tests require no network or provider."]
+cost_classes = ["zero_compute"]
+wake_sources = []
+checks = ["orders-contract", "orders-resource-api"]
+unsupported_gates = ["The resource convention does not add an ORM, generic repository, authorization policy, or DynamoDB emulation."]
+
+[[recipe]]
+id = "local-sqlite"
+title = "Run the reference application with persistent local SQLite"
+kind = "database"
+example = "examples/orders"
+documentation = "docs/how-to/local-sqlite.md"
+features = ["sqlx-sqlite"]
+runtime = "local_native"
+database = "sqlite"
+provider_assumptions = ["SQLite is a local persistent file and requires no remote database service."]
+cost_classes = ["storage_only"]
+wake_sources = []
+checks = ["local-sqlite-plan", "orders-sqlite", "sqlx-isolation"]
+unsupported_gates = ["SQLite does not prove PostgreSQL locking, network failure, managed backup, or multi-instance behavior."]
+
+[[recipe]]
+id = "postgres-profiles"
+title = "Keep PostgreSQL adapters and provider cost profiles explicit"
+kind = "database"
+example = "examples/orders"
+documentation = "docs/how-to/postgres-profiles.md"
+features = ["sqlx-postgres"]
+runtime = "local_native"
+database = "postgres"
+provider_assumptions = ["Compilation is offline; integration tests require an explicitly supplied disposable PostgreSQL URL.", "Cost profiles are structural examples, not live price quotations."]
+cost_classes = ["zero_compute", "request_only", "storage_only", "fixed_monthly"]
+wake_sources = []
+checks = ["orders-postgres", "cost-neon", "cost-aurora", "cost-rds", "cost-dynamodb", "sqlx-isolation"]
+unsupported_gates = ["No provider database is contacted and no pricing result is financial approval."]
+
+[[recipe]]
+id = "sqs-worker"
+title = "Model an explicit bounded SQS worker"
+kind = "worker"
+example = "examples/orders"
+documentation = "docs/how-to/sqs-worker.md"
+features = ["aws-worker", "plan"]
+runtime = "lambda_zip_arm64"
+database = "none"
+provider_assumptions = ["Worker and Plan tests are local; an application must explicitly select its queue, mapping, IAM, timeout, and concurrency."]
+cost_classes = ["zero_compute", "request_only"]
+wake_sources = ["queue_message"]
+checks = ["worker-runtime", "worker-plan"]
+unsupported_gates = ["The recipe does not create a queue, deploy a worker, enable a schedule, or prove live AWS delivery."]
+
+[[recipe]]
+id = "zero-idle-aws"
+title = "Inspect the zero-provisioned-compute AWS profile"
+kind = "deployment"
+example = "examples/orders"
+documentation = "docs/how-to/zero-idle-aws.md"
+features = ["aws-lambda", "aws-adapters", "plan"]
+runtime = "lambda_zip_arm64"
+database = "postgres"
+provider_assumptions = ["Planning is local and does not contact AWS.", "Regional availability, quotas, account eligibility, and current prices remain live gates."]
+cost_classes = ["zero_compute", "request_only", "storage_only"]
+wake_sources = ["http_request"]
+checks = ["zero-idle-plan", "cost-neon", "cost-aurora"]
+unsupported_gates = ["A zero-compute plan is not a zero-bill guarantee and is not deployment authorization."]
+
+[[recipe]]
+id = "static-site"
+title = "Qualify exact static-site publication boundaries"
+kind = "static-site"
+example = "plugins/minco-plugin-static-site"
+documentation = "docs/how-to/static-site.md"
+features = ["plugin-static-site", "aws-adapters"]
+runtime = "static_assets"
+database = "none"
+provider_assumptions = ["Contract tests are local; publication requires exact release and deployment receipts plus an authorized AWS target."]
+cost_classes = ["request_only", "storage_only"]
+wake_sources = ["http_request"]
+checks = ["static-site-contract"]
+unsupported_gates = ["No S3, CloudFront, certificate, DNS, or public-site mutation occurs in this recipe."]
+
+[[recipe]]
+id = "third-party-plugin"
+title = "Test a standalone third-party-style plugin"
+kind = "plugin"
+example = "examples/plugins/third-party-minimal"
+documentation = "docs/how-to/test-a-plugin.md"
+features = ["minco-core", "minco-test"]
+runtime = "local_native"
+database = "none"
+provider_assumptions = ["No provider or network access is required."]
+cost_classes = ["zero_compute"]
+wake_sources = []
+checks = ["third-party-plugin"]
+unsupported_gates = ["Offline conformance does not prove provider or production behavior."]
+
+[[recipe]]
+id = "generated-application"
+title = "Generate and compile standalone PostgreSQL and SQLite applications"
+kind = "scaffold"
+example = "crates/minco-cli/templates"
+documentation = "docs/tutorials/generated-application.md"
+features = ["contract", "http", "sqlx-postgres", "sqlx-sqlite", "aws-lambda"]
+runtime = "local_native"
+database = "sqlite"
+provider_assumptions = ["Generated workspaces use local path patches only for source-tree qualification and contact no provider."]
+cost_classes = ["zero_compute"]
+wake_sources = []
+checks = ["generated-applications"]
+unsupported_gates = ["Compilation does not prove a product's business behavior, provider database, deployment, or production readiness."]
+
+[[recipe]]
+id = "verified-review-loop"
+title = "Exercise the repository-native Feedback review loop"
+kind = "feedback"
+example = "plugins/minco-plugin-feedback"
+documentation = "docs/how-to/verified-review-loop.md"
+features = ["plugin-feedback", "http", "sqlx-postgres", "sqlx-sqlite"]
+runtime = "local_native"
+database = "memory"
+provider_assumptions = ["The default proof uses in-memory and SQLite behavior; provider and transcription integrations remain explicit."]
+cost_classes = ["zero_compute", "request_only", "storage_only"]
+wake_sources = ["http_request"]
+checks = ["feedback-review-loop"]
+unsupported_gates = ["Feedback is untrusted input and never authorizes code execution, deployment, or cleanup."]

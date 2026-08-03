@@ -3,6 +3,35 @@
 Use the public conformance kit inside the plugin crate, not from an application
 that merely consumes it.
 
+## Features
+
+The standalone example depends only on the public `minco-core` plugin contract
+and the `minco-test` conformance kit. It does not enable an application facade,
+AWS adapter, HTTP runtime, or database adapter.
+
+## Provider assumptions
+
+The recipe is local and offline. It constructs the plugin through public Minco
+APIs and reads only its package metadata and distribution record.
+
+## Cost and wake behavior
+
+The test has `zero_compute` idle cost and no wake source because it creates no
+long-running service, schedule, queue, database, or cloud resource.
+
+## Verification
+
+Run the direct standalone Cargo test through
+`scripts/test/examples/all.sh`. The matrix binds this page to the
+`third-party-plugin` check so documentation and executable evidence cannot
+silently diverge.
+
+## Unsupported gates
+
+Offline conformance does not prove provider behavior, application composition,
+deployment readiness, data durability, or production safety. Those require
+separate integration, provider, deployment, and operational evidence.
+
 ## 1. Publish the package record
 
 Point Cargo metadata to one package-root record and include it in the archive:
@@ -52,7 +81,8 @@ calls.
 ```bash
 cargo test --all-features --locked
 cargo minco plugin validate
-cargo minco plugin test <id>
+PLUGIN_ID=your-plugin-id
+cargo minco plugin test "$PLUGIN_ID"
 cargo minco plugin test --all
 ```
 

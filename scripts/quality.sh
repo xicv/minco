@@ -8,6 +8,8 @@ uv run --locked python scripts/validate_static.py --output verification/static-v
 scripts/docs/generate-reference.sh --check
 uv run --locked python scripts/test/repository_truth.py
 uv run --locked python scripts/test/hosted_ci_policy.py
+uv run --locked python scripts/test/examples/test_recipes.py
+uv run --locked python scripts/test/examples/validate.py --check
 uv run --locked python scripts/validate_publish.py --output verification/publish-validation.json
 uv run --locked python scripts/test/publish_validation.py
 uv run --locked python scripts/deep_review.py

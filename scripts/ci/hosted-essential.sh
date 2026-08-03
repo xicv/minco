@@ -10,6 +10,7 @@ uv run --locked python scripts/validate_static.py
 scripts/docs/generate-reference.sh --check
 uv run --locked python scripts/test/repository_truth.py
 uv run --locked python scripts/test/hosted_ci_policy.py
+uv run --locked python scripts/test/examples/validate.py --check
 cargo fmt --all -- --check
 cargo check --workspace --all-targets --all-features --locked
 uv run --locked python scripts/source_manifest.py --check
