@@ -148,3 +148,19 @@ and fakes provider/build commands to prove planning makes no external contact.
 The bounded runner remains single-release: a later slice must make its deploy,
 verify and promote work phase-capable under the parent without weakening its
 standalone cleanup or create-only guards.
+
+The fourth controller slice seals a provider-free per-phase handoff. It binds
+the exact whole-run plan digest to the original authority digest, revalidates
+both clean source revisions at every handoff, accepts only the three fixed phase
+IDs and rejects even digest-matched plans outside the closed lifecycle policy.
+The whole-run evidence root is now a new canonical absolute path outside both
+checkouts, so prior-phase evidence cannot dirty the source required by the next
+phase. Each projected namespace remains create-only and rollback retains exact
+phase-1 artifact reuse without rebuild or replan, the compatible-only
+assessment with exact promotion phases, and fresh verification and promotion.
+Red-first coverage proves unsafe or pre-existing evidence roots,
+pre-existing phase namespaces, authority mismatch, policy broadening and
+post-plan source drift fail closed while fake provider/build commands remain
+untouched. The remaining implementation gate is still provider-capable parent
+orchestration with one shared resource boundary and one cleanup owner; this
+slice does not authorize or contact AWS.

@@ -12,6 +12,7 @@ done
 
 : "${MINCO_PRIOR_ROOT:?set MINCO_PRIOR_ROOT to the exact prior-release checkout}"
 : "${MINCO_CURRENT_ROOT:?set MINCO_CURRENT_ROOT to the exact current-release checkout}"
+: "${MINCO_MULTI_RELEASE_EVIDENCE_ROOT:?set MINCO_MULTI_RELEASE_EVIDENCE_ROOT to an absolute new whole-run evidence directory outside both checkouts}"
 : "${MINCO_REHEARSAL_AUTHORITY_FILE:?set MINCO_REHEARSAL_AUTHORITY_FILE to the exact reviewed multi-release authority document}"
 : "${MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST:?set MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST to the reviewed authority SHA-256}"
 : "${MINCO_AWS_RUN_ID:?set MINCO_AWS_RUN_ID to the reviewed run ID}"
@@ -43,6 +44,42 @@ canonical_checkout_root() {
     cd "$root"
     pwd -P
   )
+}
+
+canonical_new_directory() {
+  local label="$1"
+  local path="$2"
+  local existing_ancestor
+  local canonical_ancestor
+  local suffix
+
+  [[ "$path" == /* && "$path" != *//* &&
+    "$path" != *"/../"* && "$path" != */.. &&
+    "$path" != *"/./"* && "$path" != */. ]] || {
+    printf '%s must be an absolute normalized path\n' "$label" >&2
+    return 1
+  }
+  [[ ! -e "$path" && ! -L "$path" ]] || {
+    printf '%s must not already exist\n' "$label" >&2
+    return 1
+  }
+  existing_ancestor="$path"
+  while [[ ! -e "$existing_ancestor" && ! -L "$existing_ancestor" ]]; do
+    existing_ancestor="$(dirname "$existing_ancestor")"
+  done
+  [[ -d "$existing_ancestor" && ! -L "$existing_ancestor" ]] || {
+    printf '%s must descend from an existing non-symlink directory\n' "$label" >&2
+    return 1
+  }
+  canonical_ancestor="$(cd "$existing_ancestor" && pwd -P)"
+  suffix="${path#"$existing_ancestor"}"
+  printf '%s%s\n' "$canonical_ancestor" "$suffix"
+}
+
+path_is_within() {
+  local path="$1"
+  local parent="$2"
+  [[ "$path" == "$parent" || "$path" == "$parent/"* ]]
 }
 
 checkout_revision() {
@@ -86,6 +123,13 @@ current_root="$(canonical_checkout_root current "$MINCO_CURRENT_ROOT")"
   echo "prior and current roots must be distinct canonical checkouts" >&2
   exit 1
 }
+evidence_root="$(canonical_new_directory \
+  "multi-release evidence root" "$MINCO_MULTI_RELEASE_EVIDENCE_ROOT")"
+if path_is_within "$evidence_root" "$prior_root" ||
+  path_is_within "$evidence_root" "$current_root"; then
+  echo "multi-release evidence root must remain outside both source checkouts" >&2
+  exit 1
+fi
 require_clean_checkout prior "$prior_root"
 require_clean_checkout current "$current_root"
 prior_revision="$(checkout_revision prior "$prior_root")"
@@ -104,7 +148,6 @@ scripts/aws/validate-multi-release-rehearsal-authority.sh \
   "$MINCO_REHEARSAL_RESOURCE_ALLOWLIST" \
   "$MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS"
 
-evidence_root="target/minco/aws/$MINCO_AWS_RUN_ID"
 jq -n \
   --arg approval_digest "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
   --arg run_id "$MINCO_AWS_RUN_ID" \

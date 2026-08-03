@@ -226,6 +226,7 @@ phase plan from the two exact checkouts and the same reviewed authority:
 ```bash
 MINCO_PRIOR_ROOT=/absolute/path/to/prior-clean-checkout \
 MINCO_CURRENT_ROOT=/absolute/path/to/current-clean-checkout \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT=/absolute/path/outside/checkouts/target/minco/aws/reviewed-multi-release-run-id \
 MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
 MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
 MINCO_AWS_RUN_ID=reviewed-multi-release-run-id \
@@ -241,7 +242,11 @@ MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS=cleanup-bounded-multi-release-smoke-v1 \
 Planning is local-only and reports `external_aws_contact: false`. It rejects a
 relative, missing, symlinked, dirty or duplicated checkout, resolves both roots
 canonically, rejects nested directories without their own Git or JJ metadata,
-and requires their current revisions to match the authority. The plan fixes one
+and requires their current revisions to match the authority. It also binds one
+new canonical absolute whole-run evidence root outside both source checkouts;
+the final path components must be `target/minco/aws/<run-id>`. Keeping evidence
+outside the checkouts prevents phase 1 from making the exact sources dirty
+before phase 2. The plan fixes one
 shared stack lifecycle (`create`, `update`,
 `update`, `delete`), one whole-run artifact bucket, three unique evidence
 namespaces and exactly one parent-owned cleanup trap. The rollback phase reuses
@@ -254,6 +259,32 @@ Write the output outside both checkouts so shell redirection does not make a
 checkout dirty before validation. The output contains local absolute paths and
 is an operator preflight, not a redacted publication artifact or authority to
 run AWS commands.
+
+Before handing one planned phase to a future parent controller, hash the exact
+whole-run plan and project only its fixed phase:
+
+```bash
+plan=/absolute/path/outside/both/checkouts/multi-release-plan.json
+plan_digest="$(shasum -a 256 "$plan" | awk '{print $1}')"
+MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
+  scripts/aws/plan-multi-release-phase.sh \
+  >/absolute/path/outside/evidence/03-prior-rollback-phase.json
+```
+
+Phase projection is also local-only. It revalidates the schema-closed plan, its
+exact digest, the original authority and digest, both clean source revisions,
+parent cleanup ownership, and the create-only phase evidence destination. A
+digest-matched plan with broader policy is still rejected. The projected
+rollback handoff carries the compatible-only assessment and exact current and
+target promotion phases, retains `build: false`, `replan: false`, exact phase-1
+artifact reuse, rejects historical hosted-report reuse, and requires fresh
+verification and promotion. Write the projection
+outside its evidence namespace: shell redirection happens before validation.
+This handoff does not execute, authorize, or contact AWS.
 
 ## Multi-release rollback evidence
 
@@ -281,11 +312,12 @@ qualification: the prior checkout must redeploy its exact artifact as a new
 candidate, create a fresh deployment receipt and hosted report, and pass
 ordinary `promote` again.
 
-The current bounded runner remains single-release. The local plan now closes
-the parent ownership and phase contract, but no provider-capable parent runner
-consumes it yet. Do not disable the single-release runner's immediate cleanup or
-create-only review gate independently; that would leave a partially owned
-provider boundary rather than a recoverable rehearsal.
+The current bounded runner remains single-release. The local plan and per-phase
+projection now close the parent ownership and handoff contracts, but no
+provider-capable parent runner consumes them yet. Do not disable the
+single-release runner's immediate cleanup or create-only review gate
+independently; that would leave a partially owned provider boundary rather than
+a recoverable rehearsal.
 
 ## Bounded execution
 
