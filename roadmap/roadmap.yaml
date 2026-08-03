@@ -102,7 +102,7 @@ milestones:
     keep source, hosted, registry, documentation and deployment evidence separate.
 - id: M9
   name: Application lifecycle and developer experience
-  status: active
+  status: complete
   depends_on:
   - M4
   outcome: One graph-driven control plane covers typed configuration, database lifecycle, safe seeders, local

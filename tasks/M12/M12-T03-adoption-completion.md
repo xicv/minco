@@ -5,7 +5,7 @@ milestone: M12
 status: planned
 priority: critical
 area: stabilization/adoption
-depends_on: [M7-T01, M10-T06, M11-T05]
+depends_on: [M7-T02, M10-T06, M11-T05]
 operations: []
 owned_paths:
   - docs/adoption/**

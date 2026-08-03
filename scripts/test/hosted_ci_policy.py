@@ -13,9 +13,16 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 ESSENTIAL = ROOT / "scripts/ci/hosted-essential.sh"
 WORKFLOW = ROOT / ".github/workflows/minco-manual.yml"
+DOCS_PLAYWRIGHT = ROOT / "docs-site/playwright.config.mts"
 
 
 class HostedCiPolicyTests(unittest.TestCase):
+    def test_docs_browser_server_owns_a_configurable_strict_port(self) -> None:
+        config = DOCS_PLAYWRIGHT.read_text()
+        self.assertIn("MINCO_DOCS_PORT", config)
+        self.assertIn("--strictPort", config)
+        self.assertNotIn("'http://127.0.0.1:4173/minco/'", config)
+
     def test_hosted_essential_runs_only_bounded_clean_runner_commands(self) -> None:
         with tempfile.TemporaryDirectory(prefix="minco-hosted-ci-") as temporary:
             root = Path(temporary)

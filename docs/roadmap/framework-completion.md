@@ -86,9 +86,31 @@ one exact release without rebuilding.
 | M10-T04 | Rollback compatibility and optional canary aliases | Explicit compatible/incompatible rollback result |
 | M10-T05 | Static-site and custom-domain completion | Byte/hash/cache/domain/invalidation evidence |
 | M10-T06 | Preview TTL, cost, and cleanup | Expiry and cleanup are guarded and receipted |
+| M10-T07 | Zero-idle service and cost research | Dated profiles keep correctness, wake and pricing limits explicit |
+| M10-T08 | Bounded real-AWS controller rehearsal | Exact apply, hosted verification, promotion, rollback and cleanup evidence |
 
 M10 is complete only after a bounded real-AWS rehearsal proves the documented
 controller path. Local/SAM validation alone is not deployment proof.
+
+## Current transition after 0.6.0
+
+The 2026-08-03 repository-truth audit closes M9: all nine tasks are complete,
+its M4 prerequisite is complete, and its PostgreSQL/SQLite golden paths,
+strict lifecycle controls, generators, resource contract and local-first CI
+exit signals are recorded in the owning tasks.
+
+M7 and M11 retain `active` milestone status even though their current task
+sets and direct exit signals are complete, because both milestones still have
+the active M10 prerequisite. M10 retains `active` status because local and
+hosted source qualification does not satisfy its real-AWS exit criterion.
+M10-T08 is the explicit next task, but `ready` means its source dependencies
+are complete; it does not authorize an AWS call. The exact non-production
+account, Region, role, environment, cost/time bound and cleanup blast radius
+must be approved before that task starts provider execution.
+
+M12 therefore remains `planned`. Its adoption completion task depends on
+M7-T02, the actual GarmentIQ contract-only evidence, rather than the earlier
+M7-T01 audit that recorded the missing evidence.
 
 ## M11 — Plugin ecosystem and documentation
 
