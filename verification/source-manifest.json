@@ -4029,8 +4029,8 @@
     },
     {
       "path": "tasks/M12/M12-T04-api-feature-freeze.md",
-      "sha256": "707252190dcc5f3544e9e31940b370af780ffdb50c5a9ca22538e4157ae8468c",
-      "size_bytes": 1413
+      "sha256": "2c87dba467dd03a081f949024d10f7dde7a52009f30a17ef26f7d4e91bc6667c",
+      "size_bytes": 1411
     },
     {
       "path": "tasks/M12/M12-T05-release-gates.md",
@@ -4361,7 +4361,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "ea9d0a09479c432e1453498504f00e5f8880ecc713c6e9a5e9d598d5533ad2f4",
-  "total_size_bytes": 6227128,
+  "source_tree_sha256": "6e5b4f5c76a514819342a721a6b9475936ca573f0cdc6fa2dc1185943278db20",
+  "total_size_bytes": 6227126,
   "version": "0.7.0"
 }

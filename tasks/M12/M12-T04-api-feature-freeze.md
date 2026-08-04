@@ -2,7 +2,7 @@
 id: M12-T04
 title: Audit and freeze public APIs and Cargo features
 milestone: M12
-status: planned
+status: ready
 priority: critical
 area: compatibility/release
 depends_on: [M11-T06, M12-T03]
