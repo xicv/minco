@@ -2,7 +2,7 @@
 id: M12-T02
 title: Build the optional local developer workbench and project views
 milestone: M12
-status: planned
+status: ready
 priority: medium
 area: ai/workbench
 depends_on: [M12-T01]

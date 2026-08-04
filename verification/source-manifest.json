@@ -3934,8 +3934,8 @@
     },
     {
       "path": "tasks/M12/M12-T02-local-workbench.md",
-      "sha256": "881c134343447761d7a44699b2455f38e0980cf67287299bea9966c14fb282dc",
-      "size_bytes": 3446
+      "sha256": "b314b496fb53d9f23f8181f67d9d4e6763f95c837cd1bd32a85ab20576c79ab6",
+      "size_bytes": 3444
     },
     {
       "path": "tasks/M12/M12-T03-adoption-completion.md",
@@ -4271,7 +4271,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "f8dceb44596c10112d61f0155bf567ebccc93ac4a4b347652c5f49712c0bd013",
-  "total_size_bytes": 6074627,
+  "source_tree_sha256": "3cde67a9026335a526aec11b815e1a2c1489a1cfb7cb0772868960512de00545",
+  "total_size_bytes": 6074625,
   "version": "0.7.0"
 }
