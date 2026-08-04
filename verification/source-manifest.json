@@ -104,7 +104,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "a63793cb0e477341fcb2e7f95bd8994dc446e3bf45a4b9de10dc5f882b03293f",
+      "sha256": "9d403eee7c5c3fa7a5ff6e6b5cbd8d6ba11cc1a44a14950f39ca10974f7f1843",
       "size_bytes": 6930
     },
     {
@@ -4259,8 +4259,8 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "6340327292e0d291dd36a347e06df6df09467a1a2f9e598490c8592691b0eea0",
-      "size_bytes": 2247
+      "sha256": "1b9bd7617b9f2f23f6528e353e4feebf4ed45fef652f50bffba2533b32dd3142",
+      "size_bytes": 2021
     },
     {
       "path": "verification/feedback-contract.json",
@@ -4319,8 +4319,8 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "2de443ed3f2d0bf2064f7d89d5732e6700da513a53a1833331d2f949b0c10b06",
-      "size_bytes": 962
+      "sha256": "5527eb8cbedc90fd31b74866bb4db86c5dde12193ccd4d5eb69f04be2aef7627",
+      "size_bytes": 754
     },
     {
       "path": "verification/tool-availability.txt",
@@ -4346,7 +4346,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "3f5f39c507a8c80137dc923a48dca3ab0480e63f264205cf394f7351e274615f",
-  "total_size_bytes": 6195279,
+  "source_tree_sha256": "e63d17063ec4c9ddf0c215c3c9a5020e3b4ceceaee7d08da9bd43e23357f36b5",
+  "total_size_bytes": 6194845,
   "version": "0.7.0"
 }

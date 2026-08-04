@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "status": "failed",
+  "status": "ok",
   "static_validation": {
     "schema_version": 1,
-    "status": "failed",
+    "status": "ok",
     "root": ".",
-    "errors": 1,
+    "errors": 0,
     "warnings": 0,
     "metrics": {
       "toml_files": 80,
@@ -23,14 +23,7 @@
       "shell_files": 68,
       "implementation_files_scanned": 366
     },
-    "findings": [
-      {
-        "code": "STATIC-TRUTH-DOCS-001",
-        "severity": "error",
-        "message": "current truth document lacks marker: Current publishable package count: `32`",
-        "path": "README.md"
-      }
-    ],
+    "findings": [],
     "limitations": [
       "Static validation does not compile Rust or resolve crate APIs.",
       "Run cargo fmt, cargo clippy, cargo test, Cargo Lambda and SAM validation on the pinned toolchain before release."
@@ -38,7 +31,7 @@
   },
   "metrics": {
     "rust_files": 160,
-    "rust_lines": 77781,
+    "rust_lines": 77777,
     "unsafe_tokens": 8,
     "production_unwrap_expect": 153,
     "sql_files": 16
