@@ -2,106 +2,106 @@
   "commands": [
     {
       "command": "uv run --locked python scripts/test/candidate_qualification.py",
-      "duration_seconds": 0.086,
+      "duration_seconds": 0.087,
       "exit_code": 0,
       "log": {
-        "bytes": 107,
+        "bytes": 110,
         "path": "target/minco/candidate-release-gates/logs/01.log",
-        "sha256": "d9d734ee1c2de67b748aeef1c4126433aa438ad8375ca953916f12b1df11414d"
+        "sha256": "34a82a30511a2175a5286cff0751874e9220ce5fb08cab87b09cc04e220f6b31"
       },
       "status": "PASS"
     },
     {
       "command": "./scripts/quality.sh",
-      "duration_seconds": 449.718,
+      "duration_seconds": 444.28,
       "exit_code": 0,
       "log": {
-        "bytes": 415867,
+        "bytes": 418026,
         "path": "target/minco/candidate-release-gates/logs/02.log",
-        "sha256": "d382f98205f5c87c2287be9deb63cbe733f237c14a2ccc2a4cb2c31a857b9ce9"
+        "sha256": "51bad42cbb22b20c577a38edc09217751f2d0b9290a61cc91def269f0635e943"
       },
       "status": "PASS"
     },
     {
       "command": "npm run --prefix plugins/minco-plugin-feedback test:browser",
-      "duration_seconds": 7.767,
+      "duration_seconds": 7.741,
       "exit_code": 0,
       "log": {
         "bytes": 7039,
         "path": "target/minco/candidate-release-gates/logs/03.log",
-        "sha256": "56d608e2813b3b8cc607ef57573ed3dd96800faa828cbb3e7b29c78a31450676"
+        "sha256": "35aa25cd087e7ae6a3554f3e1b0c8c74013f57ddb991a494b62d6629542508d6"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/test/e2e.sh",
-      "duration_seconds": 13.674,
+      "duration_seconds": 22.045,
       "exit_code": 0,
       "log": {
-        "bytes": 3186,
+        "bytes": 7480,
         "path": "target/minco/candidate-release-gates/logs/04.log",
-        "sha256": "eb63c7916a17b7780cca877b34a939f050b91d35d2097b800f67afb73d2a5bfa"
+        "sha256": "0a20284482d1923ef0045c666169e9777b7b547178d1bb58a849c56d0f8820c2"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/dev/rustack-smoke.sh",
-      "duration_seconds": 73.399,
+      "duration_seconds": 78.507,
       "exit_code": 0,
       "log": {
-        "bytes": 7023,
+        "bytes": 9020,
         "path": "target/minco/candidate-release-gates/logs/05.log",
-        "sha256": "feb79d43aa7525f89cd716359cb071b3ae3fb7f27d2d0bb4641782068469b6ea"
-      },
-      "status": "PASS"
-    },
-    {
-      "command": "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json",
-      "duration_seconds": 39.849,
-      "exit_code": 0,
-      "log": {
-        "bytes": 121,
-        "path": "target/minco/candidate-release-gates/logs/06.log",
-        "sha256": "ac4cbf55a34d0c48cc33622534331512ed3d17631089caf4e3074d630cf85fee"
-      },
-      "status": "PASS"
-    },
-    {
-      "command": "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json",
-      "duration_seconds": 11.608,
-      "exit_code": 0,
-      "log": {
-        "bytes": 113,
-        "path": "target/minco/candidate-release-gates/logs/07.log",
-        "sha256": "bb7ed07c511695c439e152c36a6abfe263f3007b509db13a55a30a65b92d8489"
+        "sha256": "d09a6cd5d0f1487ac74e2e05540e22dbb86e09e4aad58d5c7ea529c6ebe31932"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/release/publish.sh --skip-quality",
-      "duration_seconds": 0.588,
-      "exit_code": 1,
+      "duration_seconds": 389.678,
+      "exit_code": 0,
       "log": {
-        "bytes": 108,
-        "path": "target/minco/candidate-release-gates/logs/08.log",
-        "sha256": "6f18c6e0db8db67c770517340a74a4d873931ba7e892dd63020d9c6383c15568"
+        "bytes": 247755,
+        "path": "target/minco/candidate-release-gates/logs/06.log",
+        "sha256": "7e3191cc832a9a41c3313fd87168962a7d6bf08753026932c71831d73bd96ec0"
       },
-      "status": "FAIL"
+      "status": "PASS"
     },
     {
       "command": "scripts/release/package-list.sh",
-      "duration_seconds": 2.821,
+      "duration_seconds": 3.009,
       "exit_code": 0,
       "log": {
-        "bytes": 9176,
+        "bytes": 10370,
+        "path": "target/minco/candidate-release-gates/logs/07.log",
+        "sha256": "860b386adf7464866a7163eb446541738c1135c24d19c273ba36816f3b344687"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json",
+      "duration_seconds": 180.985,
+      "exit_code": 0,
+      "log": {
+        "bytes": 128,
+        "path": "target/minco/candidate-release-gates/logs/08.log",
+        "sha256": "489f3b7332de3df457752cd6e109fed2763a60c22f6461556450ddf5e02a07cf"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json",
+      "duration_seconds": 73.36,
+      "exit_code": 0,
+      "log": {
+        "bytes": 120,
         "path": "target/minco/candidate-release-gates/logs/09.log",
-        "sha256": "303fcaa94a1ea58db417fd3a5b24af9534508c06ff84144bd7821773c506b0d1"
+        "sha256": "f16c6819a4d8368e819c358f397456f81e5cffc8ed2ddc6cbdbab63c9e4347ff"
       },
       "status": "PASS"
     },
     {
       "command": "uv run --locked python scripts/source_manifest.py --check",
-      "duration_seconds": 3.2,
+      "duration_seconds": 7.162,
       "exit_code": 0,
       "log": {
         "bytes": 44,
@@ -121,7 +121,7 @@
     ],
     "status": "PASS"
   },
-  "generated_at": "2026-08-04T23:13:21.773422+00:00",
+  "generated_at": "2026-08-05T00:12:36.759527+00:00",
   "kind": "minco.candidate-release-qualification.v1",
   "limitations": [
     "Local and emulator gates do not prove current AWS managed-service behavior.",
@@ -161,13 +161,13 @@
       "gitleaks --redact",
       "deep review"
     ],
-    "critical_or_high_findings": null,
+    "critical_or_high_findings": 0,
     "status": "PASS"
   },
   "source": {
-    "file_count": 879,
-    "source_tree_sha256": "233769f4d6881294a7d321c7407758c74e006eb8c1438f1c4b9018d6760defa5",
+    "file_count": 909,
+    "source_tree_sha256": "3716966ce1cca7caac487a1274bcb1e07c0dca5e0b9b48f5311faeb68e35803e",
     "version": "0.7.0"
   },
-  "status": "FAIL"
+  "status": "PASS"
 }

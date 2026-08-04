@@ -6,20 +6,20 @@
     "failures": 0,
     "fresh_tcp_connections": 80,
     "latency": {
-      "maximum_ms": 29.506,
-      "minimum_ms": 0.676,
-      "p50_ms": 0.762,
-      "p95_ms": 1.816
+      "maximum_ms": 41.566,
+      "minimum_ms": 0.679,
+      "p50_ms": 0.838,
+      "p95_ms": 4.649
     },
     "requests": 80,
     "scope": "loopback Axum with file-backed SQLite and synthetic orders",
-    "throughput_requests_per_second": 2667.471,
-    "wall_seconds": 0.03
+    "throughput_requests_per_second": 1904.511,
+    "wall_seconds": 0.042
   },
   "artifacts": {
     "orders_local_bytes": 4597488,
-    "source_manifest_bytes": 157856,
-    "worker_crate_bytes": 287008
+    "source_manifest_bytes": 163774,
+    "worker_crate_bytes": 286688
   },
   "cost": {
     "maximum_database_connections": 6,
@@ -29,7 +29,7 @@
     "synthetic_api_requests": 80,
     "synthetic_worker_messages": 1000
   },
-  "generated_at": "2026-08-04T23:13:15.052929+00:00",
+  "generated_at": "2026-08-05T00:12:29.514484+00:00",
   "kind": "minco.candidate-load-qualification.v1",
   "limitations": [
     "Loopback timings are machine-specific measurements, not an AWS or production performance SLO.",
@@ -52,7 +52,7 @@
   "schema_version": 1,
   "scope": "bounded local synthetic load; no AWS contact and no production SLO claim",
   "source": {
-    "source_tree_sha256": "233769f4d6881294a7d321c7407758c74e006eb8c1438f1c4b9018d6760defa5",
+    "source_tree_sha256": "3716966ce1cca7caac487a1274bcb1e07c0dca5e0b9b48f5311faeb68e35803e",
     "version": "0.7.0"
   },
   "status": "PASS",
@@ -68,7 +68,7 @@
     "messages": 1000,
     "observed_max_concurrency": 4,
     "scope": "public process_sqs_event API with synthetic standard-queue batches",
-    "throughput_messages_per_second": 1379.251,
-    "wall_seconds": 0.725031
+    "throughput_messages_per_second": 1447.528,
+    "wall_seconds": 0.690833
   }
 }
