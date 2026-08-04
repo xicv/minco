@@ -445,11 +445,63 @@ publishes a conservative `failed` terminal receipt with
 secret was requested, and therefore no cloud cleanup was performed or proved.
 A missing or wrong provider-entry digest fails before receipts and AWS.
 
-This identity preflight does not authorize phase deployment. The next
-provider-capable slice must continue in this same parent process, retain the
-shared stack, bucket and identity harness across all three phases, write
-terminal phase evidence on every exit, and make the one parent trap perform
-and verify cleanup.
+For the `bounded-root-temp-rds-multi-release-v1` profile, the next read-only
+boundary proves every deterministic shared resource name is absent before
+creation. Render its separate plan from a fresh initialized first-phase
+boundary; a parent session remains create-only, so it cannot reuse the identity
+preflight receipts above:
+
+```bash
+resource_preflight_plan=/absolute/path/outside/checkouts/resource-preflight-plan.json
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_resource_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=plan \
+  scripts/aws/run-multi-release-parent-session.sh >"$resource_preflight_plan"
+resource_preflight_digest="$(
+  shasum -a 256 "$resource_preflight_plan" | awk '{print $1}'
+)"
+```
+
+The schema-closed plan contains no account, ARN, stack, bucket, database or
+parameter identifier. It permits only STS identity verification followed by
+read-only absence checks for the deterministic application stack, artifact
+bucket, temporary database stack and database instance. Review and approve its
+exact bytes, then execute:
+
+```bash
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_resource_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST="$resource_preflight_digest" \
+  scripts/aws/run-multi-release-parent-session.sh
+```
+
+A wrong plan digest fails before receipts or contact. Success requires exactly
+five read-only calls and publishes `provider_resources_absent`; an existing
+resource, unexpected provider response or identity mismatch publishes a
+conservative `failed` receipt. Neither result authorizes creation, requests a
+secret or claims cleanup. This resource preflight does not authorize phase
+deployment. The next provider-capable slice must continue in the same parent
+process, retain the shared stack, bucket and identity harness across all three
+phases, write terminal phase evidence on every exit, and make the one parent
+trap perform and verify cleanup.
+
+The absence reads require AWS CLI structured JSON errors and accept only exit
+code `254` with the documented service code: CloudFormation `ValidationError`,
+S3 `404`, or RDS `DBInstanceNotFound`. English message text is never treated as
+proof. An older CLI without `--cli-error-format json`, an access denial,
+credential/configuration failure, throttling response or any changed error
+shape therefore fails closed before creation.
 
 ## Multi-release rollback evidence
 
@@ -483,10 +535,11 @@ execution cannot substitute a broader ad hoc review. The local plan,
 per-phase projections, atomic controller initialization and first-phase claim
 now close the parent ownership, provenance and initial state-transition
 contracts. The parent can cross only the separately digest-approved read-only
-identity boundary; it cannot yet build, deploy, verify, promote or clean shared
-multi-release resources. Do not disable the single-release runner's immediate
-cleanup or create-only review gate independently; that would leave a partially
-owned provider boundary rather than a recoverable rehearsal.
+identity and disposable-resource absence boundaries; it cannot yet build,
+deploy, verify, promote or clean shared multi-release resources. Do not disable
+the single-release runner's immediate cleanup or create-only review gate
+independently; that would leave a partially owned provider boundary rather than
+a recoverable rehearsal.
 
 ## Bounded execution
 

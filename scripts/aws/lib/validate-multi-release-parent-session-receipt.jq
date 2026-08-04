@@ -23,6 +23,7 @@ and (
   .state == "started"
   or .state == "validated"
   or .state == "provider_identity_verified"
+  or .state == "provider_resources_absent"
   or .state == "failed"
 )
 and (.external_aws_contact | type == "boolean")
@@ -79,6 +80,22 @@ and (
         false
       end
     )
+  elif .execution.mode == "provider_resource_preflight" then
+    (.execution.provider_entry_plan_digest | digest)
+    and (
+      if .state == "started" then
+        .external_aws_contact == false
+        and .execution.provider_state == "not_entered"
+      elif .state == "provider_resources_absent" then
+        .external_aws_contact == true
+        and .execution.provider_state == "resources_absent"
+      elif .state == "failed" then
+        .external_aws_contact == true
+        and .execution.provider_state == "resource_state_unverified"
+      else
+        false
+      end
+    )
   else
     false
   end
@@ -111,9 +128,17 @@ and (
       state: "disarmed",
       trap_count: 1
     }
-  else
+  elif .execution.mode == "provider_identity_preflight" then
     .cleanup == {
       action: "none_read_only_identity_preflight",
+      owner: "parent_controller",
+      required: true,
+      state: "disarmed",
+      trap_count: 1
+    }
+  else
+    .cleanup == {
+      action: "none_read_only_resource_preflight",
       owner: "parent_controller",
       required: true,
       state: "disarmed",
