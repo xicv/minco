@@ -20,8 +20,8 @@
       "tasks": 72,
       "rust_files": 149,
       "python_files": 25,
-      "shell_files": 71,
-      "implementation_files_scanned": 358
+      "shell_files": 72,
+      "implementation_files_scanned": 359
     },
     "findings": [],
     "limitations": [
@@ -31,7 +31,7 @@
   },
   "metrics": {
     "rust_files": 149,
-    "rust_lines": 73630,
+    "rust_lines": 73711,
     "unsafe_tokens": 8,
     "production_unwrap_expect": 145,
     "sql_files": 16

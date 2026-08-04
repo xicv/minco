@@ -511,3 +511,46 @@ wrong service codes, wrong exit codes, mismatched aliases and legacy text remain
 rejected. This fourth attempt is failure and cleanup evidence; the corrected
 source still requires full local, exact-SHA hosted and live three-phase
 qualification.
+
+The fifth authority-approved execution on 2026-08-04 completed the bounded
+rehearsal. The exact prior implementation revision
+`9cbe8fdb64a6f68363fd1cac949ddfa554106667` and its distinct documentation-only
+descendant `4573239d83fff91fffd79ea9bda58afbe217ffe9` had identical protected
+application, contract, migration, infrastructure and dependency inputs. The
+current descendant passed complete local quality and the full hosted release
+qualification at
+<https://github.com/xicv/minco/actions/runs/30931041323>; the implementation
+revision had independently passed the same full hosted matrix at
+<https://github.com/xicv/minco/actions/runs/30928588074>.
+
+Under a fresh 60-minute, USD 25, `ap-southeast-2`, non-production temporary-RDS
+authority, the controller sealed its five-call absence preflight, created and
+migrated the disposable database, and revoked operator ingress before release
+deployment. Phase one applied the exact prior release, passed five fresh hosted
+checks and promoted it. Phase two applied the exact current release through the
+qualified update policy, passed five independently fresh hosted checks and
+promoted it. The rollback assessment returned `compatible`, bound the exact
+phase-one and phase-two evidence chains, and recorded no rebuild, replan,
+reverse SQL, automatic data repair or historical hosted-report reuse. Phase
+three then reused the phase-one release byte-for-byte, deployed it as a new
+candidate, passed another five fresh hosted checks and promoted it through the
+same guarded boundary.
+
+The sole parent cleanup trap removed both stacks and their run-owned resource
+boundaries. Its first conservative receipts observed the retained Lambda
+function/version and RDS-managed secret during provider-side eventual
+consistency; both subsequently returned their exact structured not-found
+responses without a manual delete. A separate root-profile sweep reverified
+caller identity and proved all fourteen application stack, artifact bucket,
+bootstrap role, bootstrap user, Cognito pool, HTTP API, Lambda execution role,
+Lambda function, Lambda log group, RDS instance, RDS secret, RDS stack, SSM
+parameter and VPC boundaries absent. Local non-root credentials and database
+secret files were also absent, and deleting the disposable database proved the
+synthetic data absent. The private evidence retains provider identifiers and
+raw responses; this repository records no account ID, ARN, endpoint, resource
+name, credential, token or synthetic value.
+
+The provider acceptance is complete, but this task remains `in_progress` until
+a separately owned roadmap transition atomically closes the completed M10 and
+M11 milestones and activates M12. M10-T08 does not own `roadmap/**`; changing
+that file from this workspace would violate the repository task boundary.
