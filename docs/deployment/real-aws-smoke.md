@@ -500,10 +500,58 @@ five read-only calls and publishes `provider_resources_absent`; an existing
 resource, unexpected provider response or identity mismatch publishes a
 conservative `failed` receipt. Neither result authorizes creation, requests a
 secret or claims cleanup. This resource preflight does not authorize phase
-deployment. The next provider-capable slice must continue in the same parent
+deployment.
+
+Each provider-capable phase must finish by writing a mode-`0600`, schema-closed
+result outside the immutable controller namespace. The result contains only
+the phase/source/evidence IDs, exact release, migration, change-set,
+deployment, hosted-verification and promotion digests, fresh-verification
+flags and rollback-reuse digests; it contains no account, ARN, endpoint,
+parameter, credential or provider message. Seal that byte-exact result into
+the phase transition:
+
+```bash
+phase_result=/absolute/private/path/01-prior-initial-result.json
+phase_result_digest="$(shasum -a 256 "$phase_result" | awk '{print $1}')"
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$phase_result" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST="$phase_result_digest" \
+  scripts/aws/complete-multi-release-phase.sh
+```
+
+Completion copies and validates the approved result before further reads,
+revalidates the immutable controller and both exact clean source revisions,
+and publishes one create-only completion receipt. Its transition names only
+`02-current`, then `03-prior-rollback`, then terminal `null`. Begin phases two
+and three with the exact predecessor approval:
+
+```bash
+previous_completion_digest="$(
+  jq -er '.receipt_digest' \
+    "$evidence_root/phases/01-prior-initial/phase-completion-receipt.json"
+)"
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST="$previous_completion_digest" \
+  scripts/aws/begin-multi-release-phase.sh
+```
+
+The rollback completion additionally verifies that its release and reuse
+digests equal phase one's exact release, that phase two still links to phase
+one, that a compatibility-assessment digest exists, and that the hosted report
+is fresh. These transition commands contact no provider and perform no
+cleanup. The remaining provider-capable runner must continue in one root-owned
 process, retain the shared stack, bucket and identity harness across all three
-phases, write terminal phase evidence on every exit, and make the one parent
-trap perform and verify cleanup.
+phases, construct each result from actual receipts, and make its one trap
+perform and verify cleanup.
 
 The absence reads require AWS CLI structured JSON errors and accept only exit
 code `254` with the documented service code: CloudFormation `ValidationError`,

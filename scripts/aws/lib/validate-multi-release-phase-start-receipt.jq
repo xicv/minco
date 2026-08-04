@@ -36,13 +36,28 @@ and (.phase | keys) == [
   "source_revision",
   "stack_action"
 ]
-and .phase.id == "01-prior-initial"
-and .phase.release == "prior"
 and (.phase.source_revision | revision)
-and .phase.evidence_namespace == "phases/01-prior-initial"
 and (.phase.projection_digest | digest)
-and .phase.stack_action == "create"
-and .phase.change_set_review_policy == "bounded_create_v1"
+and (
+  if .phase.id == "01-prior-initial" then
+    .phase.release == "prior"
+    and .phase.evidence_namespace == "phases/01-prior-initial"
+    and .phase.stack_action == "create"
+    and .phase.change_set_review_policy == "bounded_create_v1"
+  elif .phase.id == "02-current" then
+    .phase.release == "current"
+    and .phase.evidence_namespace == "phases/02-current"
+    and .phase.stack_action == "update"
+    and .phase.change_set_review_policy == "bounded_release_update_v1"
+  elif .phase.id == "03-prior-rollback" then
+    .phase.release == "prior"
+    and .phase.evidence_namespace == "phases/03-prior-rollback"
+    and .phase.stack_action == "update"
+    and .phase.change_set_review_policy == "bounded_release_update_v1"
+  else
+    false
+  end
+)
 and .cleanup == {
   inner_phase_cleanup: false,
   owner: "parent_controller",

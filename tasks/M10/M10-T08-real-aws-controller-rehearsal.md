@@ -328,3 +328,18 @@ emits only the selected implementation, and retains the BSD fallback. Focused
 coverage simulates both implementations, including a failed probe that emits
 partial output, while the descendant hosted qualification remains the exact
 cross-platform verification gate.
+
+The fourteenth provider-free slice closes all three create-only phase
+transitions. A schema-closed provider-result envelope retains only exact
+release, migration, change-set, deployment, fresh hosted-verification,
+promotion and rollback-assessment digests. Completion copies the approved
+result before further reads, revalidates both exact clean source revisions and
+publishes an immutable success receipt whose next phase is fixed. Later phase
+starts require the exact predecessor completion digest; rollback also verifies
+the complete phase-1-to-phase-2 chain and must reuse phase one's exact release
+digest with a new assessment and hosted report. Red-first tests prove the
+missing completion command, then reject wrong approvals, repeated completion,
+source drift and a substituted rollback artifact while fake provider/build
+commands receive no additional call. Provider result construction, shared
+resource execution and the sole parent cleanup trap remain to be wired before
+the separately approved live rehearsal.

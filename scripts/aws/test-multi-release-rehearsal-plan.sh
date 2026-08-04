@@ -34,6 +34,9 @@ create_checkout() {
     if [[ -f scripts/aws/begin-multi-release-phase.sh ]]; then
       cp scripts/aws/begin-multi-release-phase.sh "$root/scripts/aws/"
     fi
+    if [[ -f scripts/aws/complete-multi-release-phase.sh ]]; then
+      cp scripts/aws/complete-multi-release-phase.sh "$root/scripts/aws/"
+    fi
     if [[ -f scripts/aws/run-multi-release-parent-session.sh ]]; then
       cp scripts/aws/run-multi-release-parent-session.sh "$root/scripts/aws/"
     fi
@@ -44,6 +47,14 @@ create_checkout() {
       "$root/scripts/aws/lib/"
     if [[ -f scripts/aws/lib/validate-multi-release-phase-start-receipt.jq ]]; then
       cp scripts/aws/lib/validate-multi-release-phase-start-receipt.jq \
+        "$root/scripts/aws/lib/"
+    fi
+    if [[ -f scripts/aws/lib/validate-multi-release-phase-result.jq ]]; then
+      cp scripts/aws/lib/validate-multi-release-phase-result.jq \
+        "$root/scripts/aws/lib/"
+    fi
+    if [[ -f scripts/aws/lib/validate-multi-release-phase-completion-receipt.jq ]]; then
+      cp scripts/aws/lib/validate-multi-release-phase-completion-receipt.jq \
         "$root/scripts/aws/lib/"
     fi
     if [[ -f scripts/aws/lib/validate-multi-release-parent-session-receipt.jq ]]; then
@@ -709,6 +720,7 @@ jq -e \
 
 controller_receipt_digest="$(jq -er '.receipt_digest' "$controller_receipt")"
 phase_beginner="$current_root/scripts/aws/begin-multi-release-phase.sh"
+phase_completer="$current_root/scripts/aws/complete-multi-release-phase.sh"
 phase_start_output="$fixture_dir/phase-start-output.json"
 controller_file_digest_before_phase="$(
   shasum -a 256 "$controller_receipt" | awk '{print $1}'
@@ -1909,6 +1921,308 @@ jq -e \
     and (tostring | contains("/minco/rehearsal/reviewed-run") | not)
   ' "$resource_preflight_completion" >/dev/null || {
   echo "resource preflight receipt weakened or exposed its boundary" >&2
+  exit 1
+}
+
+[[ -x "$phase_completer" ]] || {
+  echo "multi-release phase completion command is missing" >&2
+  exit 1
+}
+
+fake_phase_digest() {
+  printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
+}
+
+write_phase_result() {
+  local phase_id="$1"
+  local source_revision="$2"
+  local release_digest="$3"
+  local rollback_assessment_digest="$4"
+  local reused_release_digest="$5"
+  local output_path="$6"
+  local exact_initial_release_reused=false
+  local rollback_assessment_json=null
+  local reused_release_json=null
+
+  if [[ -n "$rollback_assessment_digest" ]]; then
+    rollback_assessment_json="\"$rollback_assessment_digest\""
+    reused_release_json="\"$reused_release_digest\""
+    exact_initial_release_reused=true
+  fi
+  jq -n \
+    --arg phase_id "$phase_id" \
+    --arg source_revision "$source_revision" \
+    --arg release_manifest_digest "$release_digest" \
+    --arg migration_plan_digest "$(fake_phase_digest "$phase_id-migration-plan")" \
+    --arg migration_receipt_digest "$(fake_phase_digest "$phase_id-migration-receipt")" \
+    --arg change_set_receipt_digest "$(fake_phase_digest "$phase_id-change-set")" \
+    --arg deployment_receipt_digest "$(fake_phase_digest "$phase_id-deployment")" \
+    --arg hosted_verification_digest "$(fake_phase_digest "$phase_id-verification")" \
+    --arg promotion_receipt_digest "$(fake_phase_digest "$phase_id-promotion")" \
+    --argjson rollback_assessment_digest "$rollback_assessment_json" \
+    --argjson reused_release_manifest_digest "$reused_release_json" \
+    --argjson exact_initial_release_reused "$exact_initial_release_reused" \
+    '{
+      schema_version: 1,
+      operation: "multi_release_phase_result",
+      state: "succeeded",
+      external_aws_contact: true,
+      phase: {
+        id: $phase_id,
+        source_revision: $source_revision,
+        evidence_id: $phase_id
+      },
+      artifacts: {
+        release_manifest_digest: $release_manifest_digest,
+        migration_plan_digest: $migration_plan_digest,
+        migration_receipt_digest: $migration_receipt_digest,
+        change_set_receipt_digest: $change_set_receipt_digest,
+        deployment_receipt_digest: $deployment_receipt_digest,
+        hosted_verification_digest: $hosted_verification_digest,
+        promotion_receipt_digest: $promotion_receipt_digest
+      },
+      rollback: {
+        assessment_digest: $rollback_assessment_digest,
+        exact_initial_release_reused: $exact_initial_release_reused,
+        reused_release_manifest_digest: $reused_release_manifest_digest
+      },
+      verification: {
+        fresh: true,
+        historical_report_reused: false
+      },
+      cleanup: {
+        performed: false,
+        owner: "parent_controller"
+      }
+    }' >"$output_path"
+  chmod 600 "$output_path"
+}
+
+phase_one_release_digest="$(fake_phase_digest prior-release)"
+phase_one_result="$fixture_dir/phase-one-result.json"
+write_phase_result \
+  01-prior-initial "$prior_revision" "$phase_one_release_digest" '' '' \
+  "$phase_one_result"
+phase_one_result_approval="$(shasum -a 256 "$phase_one_result" | awk '{print $1}')"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$phase_one_result" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST=0000000000000000000000000000000000000000000000000000000000000000 \
+  "$phase_completer" >/dev/null 2>&1; then
+  echo "phase completion accepted the wrong provider-result approval" >&2
+  exit 1
+fi
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$phase_one_result" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST="$phase_one_result_approval" \
+  "$phase_completer" >/dev/null
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$phase_one_result" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST="$phase_one_result_approval" \
+  "$phase_completer" >/dev/null 2>&1; then
+  echo "phase completion reused a create-only namespace" >&2
+  exit 1
+fi
+
+phase_one_completion="$phase_path/phase-completion-receipt.json"
+phase_one_completion_approval="$(jq -er '.receipt_digest' "$phase_one_completion")"
+jq -e \
+  --arg phase_one_result_approval "$phase_one_result_approval" \
+  --arg phase_start_approval "$phase_start_approval" \
+  '
+    .operation == "multi_release_phase_completion"
+    and .state == "succeeded"
+    and .external_aws_contact == true
+    and .phase.id == "01-prior-initial"
+    and .phase.start_receipt_digest == $phase_start_approval
+    and .result.receipt_digest == $phase_one_result_approval
+    and .transition == {
+      previous_phase_completion_digest: null,
+      next_phase: "02-current"
+    }
+    and .cleanup == {
+      deferred: true,
+      owner: "parent_controller"
+    }
+  ' "$phase_one_completion" >/dev/null || {
+  echo "first phase completion weakened its exact transition" >&2
+  exit 1
+}
+
+phase_two_start_output="$fixture_dir/phase-two-start.json"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST=0000000000000000000000000000000000000000000000000000000000000000 \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "second phase accepted the wrong predecessor approval" >&2
+  exit 1
+fi
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST="$phase_one_completion_approval" \
+  "$phase_beginner" >"$phase_two_start_output"
+phase_two_path="$evidence_root/phases/02-current"
+phase_two_start="$phase_two_path/phase-start-receipt.json"
+phase_two_start_approval="$(jq -er '.receipt_digest' "$phase_two_start")"
+cmp -s "$phase_two_start_output" "$phase_two_start" || {
+  echo "second phase start output did not match its sealed receipt" >&2
+  exit 1
+}
+
+phase_two_release_digest="$(fake_phase_digest current-release)"
+phase_two_result="$fixture_dir/phase-two-result.json"
+write_phase_result \
+  02-current "$current_revision" "$phase_two_release_digest" '' '' \
+  "$phase_two_result"
+phase_two_result_approval="$(shasum -a 256 "$phase_two_result" | awk '{print $1}')"
+printf '# completion drift\n' >>"$current_root/minco.toml"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_two_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+  MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$phase_two_result" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST="$phase_two_result_approval" \
+  "$phase_completer" >/dev/null 2>&1; then
+  echo "phase completion accepted source drift after provider execution" >&2
+  exit 1
+fi
+git -C "$current_root" restore minco.toml
+[[ ! -e "$phase_two_path/phase-completion-receipt.json" ]] || {
+  echo "rejected drift consumed the second phase completion namespace" >&2
+  exit 1
+}
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_two_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=02-current \
+MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$phase_two_result" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST="$phase_two_result_approval" \
+  "$phase_completer" >/dev/null
+phase_two_completion="$phase_two_path/phase-completion-receipt.json"
+phase_two_completion_approval="$(jq -er '.receipt_digest' "$phase_two_completion")"
+
+phase_three_start_output="$fixture_dir/phase-three-start.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
+MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST="$phase_two_completion_approval" \
+  "$phase_beginner" >"$phase_three_start_output"
+phase_three_path="$evidence_root/phases/03-prior-rollback"
+phase_three_start="$phase_three_path/phase-start-receipt.json"
+phase_three_start_approval="$(jq -er '.receipt_digest' "$phase_three_start")"
+cmp -s "$phase_three_start_output" "$phase_three_start" || {
+  echo "rollback phase start output did not match its sealed receipt" >&2
+  exit 1
+}
+
+rollback_assessment_digest="$(fake_phase_digest rollback-assessment)"
+phase_three_result="$fixture_dir/phase-three-result.json"
+write_phase_result \
+  03-prior-rollback "$prior_revision" "$phase_one_release_digest" \
+  "$rollback_assessment_digest" "$phase_one_release_digest" \
+  "$phase_three_result"
+phase_three_result_approval="$(shasum -a 256 "$phase_three_result" | awk '{print $1}')"
+invalid_rollback_result="$fixture_dir/invalid-rollback-result.json"
+invalid_rollback_release_digest="$(fake_phase_digest wrong-prior-release)"
+write_phase_result \
+  03-prior-rollback "$prior_revision" "$invalid_rollback_release_digest" \
+  "$rollback_assessment_digest" "$invalid_rollback_release_digest" \
+  "$invalid_rollback_result"
+invalid_rollback_result_approval="$(
+  shasum -a 256 "$invalid_rollback_result" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_three_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
+  MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$invalid_rollback_result" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST="$invalid_rollback_result_approval" \
+  "$phase_completer" >/dev/null 2>&1; then
+  echo "rollback completion accepted a different prior release" >&2
+  exit 1
+fi
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_three_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=03-prior-rollback \
+MINCO_MULTI_RELEASE_PHASE_RESULT_FILE="$phase_three_result" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_RESULT_DIGEST="$phase_three_result_approval" \
+  "$phase_completer" >/dev/null
+phase_three_completion="$phase_three_path/phase-completion-receipt.json"
+jq -e \
+  --arg phase_one_release_digest "$phase_one_release_digest" \
+  --arg phase_two_completion_approval "$phase_two_completion_approval" \
+  --arg rollback_assessment_digest "$rollback_assessment_digest" \
+  '
+    .state == "succeeded"
+    and .phase.id == "03-prior-rollback"
+    and .result.artifacts.release_manifest_digest == $phase_one_release_digest
+    and .result.rollback == {
+      assessment_digest: $rollback_assessment_digest,
+      exact_initial_release_reused: true,
+      reused_release_manifest_digest: $phase_one_release_digest
+    }
+    and .transition == {
+      previous_phase_completion_digest: $phase_two_completion_approval,
+      next_phase: null
+    }
+    and .cleanup.deferred == true
+  ' "$phase_three_completion" >/dev/null || {
+  echo "rollback phase completion did not bind exact prior reuse" >&2
+  exit 1
+}
+[[ "$(wc -l <"$provider_contact_log" | tr -d ' ')" == 5 ]] || {
+  echo "provider-free phase transitions contacted a provider or build command" >&2
   exit 1
 }
 rm -r -- "$evidence_root"
