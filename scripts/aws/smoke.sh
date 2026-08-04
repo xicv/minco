@@ -15,6 +15,8 @@ done
 : "${MINCO_SMOKE_JWT_TOKEN:?set MINCO_SMOKE_JWT_TOKEN}"
 : "${MINCO_CANDIDATE_API_URL:?set MINCO_CANDIDATE_API_URL from the current stack output}"
 : "${MINCO_FUNCTION_NAME:?set MINCO_FUNCTION_NAME from the current stack output}"
+: "${MINCO_SMOKE_DATA_ID:=$MINCO_AWS_RUN_ID}"
+require_safe_name MINCO_SMOKE_DATA_ID "$MINCO_SMOKE_DATA_ID"
 initialize_cloud_journal
 
 api_url="${MINCO_CANDIDATE_API_URL%/}"
@@ -109,8 +111,8 @@ readiness_request_id="$last_request_id"
 http_call GET /orders/00000000-0000-0000-0000-000000000000 401
 authentication_request_id="$last_request_id"
 
-idempotency_key="minco-smoke-$MINCO_AWS_RUN_ID"
-customer_reference="MINCO-SMOKE-$MINCO_AWS_RUN_ID"
+idempotency_key="minco-smoke-$MINCO_SMOKE_DATA_ID"
+customer_reference="MINCO-SMOKE-$MINCO_SMOKE_DATA_ID"
 body="$MINCO_AWS_EVIDENCE_DIR/place-order.json"
 jq -n \
   --arg customer_reference "$customer_reference" \
