@@ -204,12 +204,24 @@ root_aws_logged() {
   AWS_PROFILE="$MINCO_ROOT_PROFILE" aws_logged "$@"
 }
 
+root_aws_logged_json() {
+  AWS_PROFILE="$MINCO_ROOT_PROFILE" aws_logged_json "$@"
+}
+
 deploy_aws_logged() {
   AWS_CONFIG_FILE="$profile_config" AWS_PROFILE="$deploy_profile" aws_logged "$@"
 }
 
+deploy_aws_logged_json() {
+  AWS_CONFIG_FILE="$profile_config" AWS_PROFILE="$deploy_profile" aws_logged_json "$@"
+}
+
 source_aws_logged() {
   AWS_CONFIG_FILE="$profile_config" AWS_PROFILE="$source_profile" aws_logged "$@"
+}
+
+source_aws_logged_json() {
+  AWS_CONFIG_FILE="$profile_config" AWS_PROFILE="$source_profile" aws_logged_json "$@"
 }
 
 remove_request_files() {
@@ -289,14 +301,19 @@ cleanup_bootstrap() {
   fi
   if [[ "$parameter_created" == true && "$parameter_safe_to_delete" == true ]]; then
     parameter_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-parameter-delete-error.txt"
-    if ! deploy_aws_logged ssm delete-parameter \
+    if deploy_aws_logged_json ssm delete-parameter \
       "bootstrap fallback deletes run-owned database SecureString; value never requested" \
       --name "$MINCO_DATABASE_URL_PARAMETER" 2>"$parameter_error"; then
-      if ! grep -Eq 'ParameterNotFound' "$parameter_error"; then
+      :
+    else
+      parameter_delete_status=$?
+      if ! aws_cli_service_error_is \
+        "$parameter_error" "$parameter_delete_status" ParameterNotFound; then
         cleanup_failure=1
       fi
     fi
     rm -f "$parameter_error"
+    unset parameter_delete_status
   elif [[ "$parameter_created" == true ]]; then
     cleanup_failure=1
   fi
@@ -324,7 +341,7 @@ cleanup_bootstrap() {
 
   if [[ "$user_created" == false ]]; then
     user_discovery_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-user-discovery-error.txt"
-    if root_aws_logged iam get-user \
+    if root_aws_logged_json iam get-user \
       "discover a response-lost temporary bootstrap user by exact deterministic name" \
       --user-name "$user_name" \
       --output json >"$MINCO_AWS_EVIDENCE_DIR/bootstrap-user-discovery.json" \
@@ -342,16 +359,21 @@ cleanup_bootstrap() {
         echo "refusing to delete a bootstrap user without exact run ownership tags" >&2
         cleanup_failure=1
       fi
-    elif ! grep -Eq 'NoSuchEntity|cannot be found' "$user_discovery_error"; then
-      echo "could not determine whether the bootstrap user requires recovery cleanup" >&2
-      cleanup_failure=1
+    else
+      user_discovery_status=$?
+      if ! aws_cli_service_error_is \
+        "$user_discovery_error" "$user_discovery_status" NoSuchEntity; then
+        echo "could not determine whether the bootstrap user requires recovery cleanup" >&2
+        cleanup_failure=1
+      fi
     fi
     rm -f "$user_discovery_error"
+    unset user_discovery_status
   fi
 
   if [[ "$role_created" == false ]]; then
     role_discovery_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-discovery-error.txt"
-    if root_aws_logged iam get-role \
+    if root_aws_logged_json iam get-role \
       "discover a response-lost temporary bootstrap role by exact deterministic name" \
       --role-name "$role_name" \
       --output json >"$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-discovery.json" \
@@ -369,17 +391,22 @@ cleanup_bootstrap() {
         echo "refusing to delete a bootstrap role without exact run ownership tags" >&2
         cleanup_failure=1
       fi
-    elif ! grep -Eq 'NoSuchEntity|cannot be found' "$role_discovery_error"; then
-      echo "could not determine whether the bootstrap role requires recovery cleanup" >&2
-      cleanup_failure=1
+    else
+      role_discovery_status=$?
+      if ! aws_cli_service_error_is \
+        "$role_discovery_error" "$role_discovery_status" NoSuchEntity; then
+        echo "could not determine whether the bootstrap role requires recovery cleanup" >&2
+        cleanup_failure=1
+      fi
     fi
     rm -f "$role_discovery_error"
+    unset role_discovery_status
   fi
 
   if [[ "$user_created" == true ]]; then
     access_key_list_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-access-key-list-error.txt"
     if access_key_ids="$(
-      root_aws_logged iam list-access-keys \
+      root_aws_logged_json iam list-access-keys \
         "list keys on the exact run-owned bootstrap user before teardown" \
         --user-name "$user_name" \
         --query 'AccessKeyMetadata[].AccessKeyId' \
@@ -387,79 +414,124 @@ cleanup_bootstrap() {
     )"; then
       for access_key_id in $access_key_ids; do
         access_key_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-access-key-delete-error.txt"
-        if ! root_aws_logged iam delete-access-key \
+        if root_aws_logged_json iam delete-access-key \
           "delete a temporary non-root Minco access key before user teardown" \
           --user-name "$user_name" \
-          --access-key-id "$access_key_id" >/dev/null 2>"$access_key_error" &&
-          ! grep -Eq 'NoSuchEntity|cannot be found' "$access_key_error"; then
-          cleanup_failure=1
+          --access-key-id "$access_key_id" >/dev/null 2>"$access_key_error"; then
+          :
+        else
+          access_key_delete_status=$?
+          if ! aws_cli_service_error_is \
+            "$access_key_error" "$access_key_delete_status" NoSuchEntity; then
+            cleanup_failure=1
+          fi
         fi
         rm -f "$access_key_error"
+        unset access_key_delete_status
       done
     else
-      if ! grep -Eq 'NoSuchEntity|cannot be found' "$access_key_list_error"; then
+      access_key_list_status=$?
+      if ! aws_cli_service_error_is \
+        "$access_key_list_error" "$access_key_list_status" NoSuchEntity; then
         cleanup_failure=1
       fi
     fi
     rm -f "$access_key_list_error"
+    unset access_key_list_status
     user_policy_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-user-policy-delete-error.txt"
-    if ! root_aws_logged iam delete-user-policy \
+    if root_aws_logged_json iam delete-user-policy \
       "remove temporary Minco smoke user inline policy" \
       --user-name "$user_name" \
-      --policy-name "$user_policy_name" >/dev/null 2>"$user_policy_error" &&
-      ! grep -Eq 'NoSuchEntity|cannot be found' "$user_policy_error"; then
-      cleanup_failure=1
+      --policy-name "$user_policy_name" >/dev/null 2>"$user_policy_error"; then
+      :
+    else
+      user_policy_status=$?
+      if ! aws_cli_service_error_is \
+        "$user_policy_error" "$user_policy_status" NoSuchEntity; then
+        cleanup_failure=1
+      fi
     fi
     rm -f "$user_policy_error"
+    unset user_policy_status
     user_delete_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-user-delete-error.txt"
-    if ! root_aws_logged iam delete-user \
+    if root_aws_logged_json iam delete-user \
       "delete temporary non-root Minco smoke user after bounded cleanup" \
-      --user-name "$user_name" >/dev/null 2>"$user_delete_error" &&
-      ! grep -Eq 'NoSuchEntity|cannot be found' "$user_delete_error"; then
-      cleanup_failure=1
+      --user-name "$user_name" >/dev/null 2>"$user_delete_error"; then
+      :
+    else
+      user_delete_status=$?
+      if ! aws_cli_service_error_is \
+        "$user_delete_error" "$user_delete_status" NoSuchEntity; then
+        cleanup_failure=1
+      fi
     fi
     rm -f "$user_delete_error"
+    unset user_delete_status
   fi
 
   if [[ "$role_created" == true ]]; then
     role_policy_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-policy-delete-error.txt"
-    if ! root_aws_logged iam delete-role-policy \
+    if root_aws_logged_json iam delete-role-policy \
       "remove temporary Minco smoke role inline policy" \
       --role-name "$role_name" \
-      --policy-name "$role_policy_name" >/dev/null 2>"$role_policy_error" &&
-      ! grep -Eq 'NoSuchEntity|cannot be found' "$role_policy_error"; then
-      cleanup_failure=1
+      --policy-name "$role_policy_name" >/dev/null 2>"$role_policy_error"; then
+      :
+    else
+      role_policy_status=$?
+      if ! aws_cli_service_error_is \
+        "$role_policy_error" "$role_policy_status" NoSuchEntity; then
+        cleanup_failure=1
+      fi
     fi
     rm -f "$role_policy_error"
+    unset role_policy_status
     role_delete_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-delete-error.txt"
-    if ! root_aws_logged iam delete-role \
+    if root_aws_logged_json iam delete-role \
       "delete temporary non-root Minco smoke role after bounded cleanup" \
-      --role-name "$role_name" >/dev/null 2>"$role_delete_error" &&
-      ! grep -Eq 'NoSuchEntity|cannot be found' "$role_delete_error"; then
-      cleanup_failure=1
+      --role-name "$role_name" >/dev/null 2>"$role_delete_error"; then
+      :
+    else
+      role_delete_status=$?
+      if ! aws_cli_service_error_is \
+        "$role_delete_error" "$role_delete_status" NoSuchEntity; then
+        cleanup_failure=1
+      fi
     fi
     rm -f "$role_delete_error"
+    unset role_delete_status
   fi
 
   user_absent=false
   user_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-user-verify-error.txt"
-  if ! root_aws_logged iam get-user \
+  if root_aws_logged_json iam get-user \
     "verify temporary Minco smoke bootstrap user is absent" \
-    --user-name "$user_name" >/dev/null 2>"$user_error" &&
-    grep -Eq 'NoSuchEntity|cannot be found' "$user_error"; then
-    user_absent=true
+    --user-name "$user_name" >/dev/null 2>"$user_error"; then
+    :
+  else
+    user_verify_status=$?
+    if aws_cli_service_error_is \
+      "$user_error" "$user_verify_status" NoSuchEntity; then
+      user_absent=true
+    fi
   fi
   rm -f "$user_error"
+  unset user_verify_status
 
   role_absent=false
   role_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-verify-error.txt"
-  if ! root_aws_logged iam get-role \
+  if root_aws_logged_json iam get-role \
     "verify temporary Minco smoke bootstrap role is absent" \
-    --role-name "$role_name" >/dev/null 2>"$role_error" &&
-    grep -Eq 'NoSuchEntity|cannot be found' "$role_error"; then
-    role_absent=true
+    --role-name "$role_name" >/dev/null 2>"$role_error"; then
+    :
+  else
+    role_verify_status=$?
+    if aws_cli_service_error_is \
+      "$role_error" "$role_verify_status" NoSuchEntity; then
+      role_absent=true
+    fi
   fi
   rm -f "$role_error"
+  unset role_verify_status
 
   rm -f "$profile_config" "$source_credentials" "$role_credentials"
   profile_absent=false
@@ -1073,7 +1145,7 @@ user_created=true
 
 role_create_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-create-error.txt"
 for attempt in {1..15}; do
-  if root_aws_logged iam create-role \
+  if root_aws_logged_json iam create-role \
     "create temporary Minco smoke role trusted only by the run-scoped bootstrap user; attempt $attempt" \
     --role-name "$role_name" \
     --assume-role-policy-document "file://$request_directory/trust-policy.json" \
@@ -1084,19 +1156,21 @@ for attempt in {1..15}; do
     Key=minco:run-id,Value="$MINCO_AWS_RUN_ID" >/dev/null 2>"$role_create_error"; then
     role_created=true
     break
+  else
+    role_create_status=$?
   fi
-  if ! grep -Eq 'MalformedPolicyDocument.*Invalid principal|Invalid principal in policy' \
-    "$role_create_error"; then
-    sed -n '1,8p' "$role_create_error" >&2
+  if ! aws_cli_service_error_is \
+    "$role_create_error" "$role_create_status" MalformedPolicyDocument; then
     exit 1
   fi
   sleep 2
 done
 if [[ "$role_created" != true ]]; then
-  sed -n '1,8p' "$role_create_error" >&2
+  echo "temporary Minco smoke role was not created after bounded retries" >&2
   exit 1
 fi
 rm -f "$role_create_error"
+unset role_create_status
 
 root_aws_logged iam put-role-policy \
   "attach reviewed run-scoped permissions to temporary Minco smoke role" \
@@ -1145,26 +1219,29 @@ source_identity_verified=false
 source_identity_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-user-identity-error.txt"
 for attempt in {1..15}; do
   if source_identity="$(
-    source_aws_logged sts get-caller-identity \
+    source_aws_logged_json sts get-caller-identity \
       "verify bootstrap user before exact-role assumption; attempt $attempt" \
       --query '{Account:Account,Arn:Arn,UserId:UserId}' \
       --output json 2>"$source_identity_error"
   )"; then
     source_identity_verified=true
     break
+  else
+    source_identity_status=$?
   fi
-  if ! grep -Eq 'InvalidClientTokenId|AccessDenied|security token included in the request is invalid' \
-    "$source_identity_error"; then
-    sed -n '1,8p' "$source_identity_error" >&2
+  if ! aws_cli_service_error_is_any \
+    "$source_identity_error" "$source_identity_status" \
+    InvalidClientTokenId AccessDenied AccessDeniedException; then
     exit 1
   fi
   sleep 2
 done
 if [[ "$source_identity_verified" != true ]]; then
-  sed -n '1,8p' "$source_identity_error" >&2
+  echo "temporary bootstrap user identity was not available after bounded retries" >&2
   exit 1
 fi
 rm -f "$source_identity_error"
+unset source_identity_status
 jq -e \
   --arg account "$account_id" \
   --arg user "$user_name" \
@@ -1179,7 +1256,7 @@ unset source_identity
 role_session_created=false
 role_session_error="$MINCO_AWS_EVIDENCE_DIR/bootstrap-role-session-error.txt"
 for attempt in {1..15}; do
-  if source_aws_logged sts assume-role \
+  if source_aws_logged_json sts assume-role \
     "issue a one-hour session for the exact temporary Minco smoke role; attempt $attempt; credentials redacted" \
     --role-arn "$bootstrap_role_arn" \
     --role-session-name "minco-$run_suffix" \
@@ -1188,19 +1265,22 @@ for attempt in {1..15}; do
     --output json >"$request_directory/role-session.json" 2>"$role_session_error"; then
     role_session_created=true
     break
+  else
+    role_session_status=$?
   fi
-  if ! grep -Eq 'InvalidClientTokenId|AccessDenied|not authorized to perform: sts:AssumeRole|security token included in the request is invalid' \
-    "$role_session_error"; then
-    sed -n '1,8p' "$role_session_error" >&2
+  if ! aws_cli_service_error_is_any \
+    "$role_session_error" "$role_session_status" \
+    InvalidClientTokenId AccessDenied AccessDeniedException; then
     exit 1
   fi
   sleep 2
 done
 if [[ "$role_session_created" != true ]]; then
-  sed -n '1,8p' "$role_session_error" >&2
+  echo "temporary role session was not available after bounded retries" >&2
   exit 1
 fi
 rm -f "$role_session_error"
+unset role_session_status
 if ! jq -e '
   (.AccessKeyId | type == "string")
   and (.SecretAccessKey | type == "string")

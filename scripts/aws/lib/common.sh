@@ -581,6 +581,22 @@ aws_cli_service_error_is() {
     ' "$error_path" >/dev/null 2>&1
 }
 
+aws_cli_service_error_is_any() {
+  local error_path="$1"
+  local exit_code="$2"
+  shift 2
+  local expected_code
+
+  (($# > 0)) || return 1
+  for expected_code in "$@"; do
+    if aws_cli_service_error_is \
+      "$error_path" "$exit_code" "$expected_code"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 initialize_cloud_journal() {
   : "${MINCO_AWS_RUN_ID:?set MINCO_AWS_RUN_ID}"
   require_safe_name "MINCO_AWS_RUN_ID" "$MINCO_AWS_RUN_ID"
@@ -640,6 +656,7 @@ wait_for_s3_bucket_visibility() {
   local max_attempts="${4:-15}"
   local delay_seconds="${5:-2}"
   local attempt
+  local bucket_status
 
   [[ "$max_attempts" =~ ^[1-9][0-9]*$ ]] || {
     printf 'S3 bucket visibility attempts must be a positive integer\n' >&2
@@ -653,16 +670,17 @@ wait_for_s3_bucket_visibility() {
   for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do
     : >"$error_path"
     chmod 600 "$error_path"
-    if aws_logged s3api head-bucket \
+    if aws_logged_json s3api head-bucket \
       "wait for newly created artifact bucket $bucket to become visible; attempt $attempt" \
       --bucket "$bucket" \
       --region "$region" >/dev/null 2>"$error_path"; then
       rm -f "$error_path"
       return 0
+    else
+      bucket_status=$?
     fi
-    if ! grep -Eq '404|NoSuchBucket|Not Found' "$error_path"; then
+    if ! aws_cli_service_error_is "$error_path" "$bucket_status" 404; then
       printf 'could not verify artifact bucket visibility\n' >&2
-      sed -n '1,8p' "$error_path" >&2
       return 1
     fi
     if ((attempt < max_attempts)); then
@@ -672,7 +690,6 @@ wait_for_s3_bucket_visibility() {
 
   printf 'artifact bucket did not become visible after %s attempts\n' \
     "$max_attempts" >&2
-  sed -n '1,8p' "$error_path" >&2
   return 1
 }
 

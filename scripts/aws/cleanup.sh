@@ -111,7 +111,7 @@ SQL
 fi
 
 stack_description_error="$MINCO_AWS_EVIDENCE_DIR/stack-describe-error.txt"
-if aws_logged cloudformation describe-stacks \
+if aws_logged_json cloudformation describe-stacks \
   "check whether bounded stack $MINCO_STACK_NAME requires cleanup" \
   --stack-name "$MINCO_STACK_NAME" \
   --output json >"$MINCO_AWS_EVIDENCE_DIR/stack-before-cleanup.json" \
@@ -170,12 +170,16 @@ if aws_logged cloudformation describe-stacks \
     echo "refusing to delete a stack without exact run ownership evidence" >&2
     failure=1
   fi
-elif ! grep -Eq 'does not exist' "$stack_description_error"; then
-  echo "could not determine bounded stack state" >&2
-  sed -n '1,8p' "$stack_description_error" >&2
-  failure=1
+else
+  stack_description_status=$?
+  if ! aws_cli_service_error_is \
+    "$stack_description_error" "$stack_description_status" ValidationError; then
+    echo "could not determine bounded stack state" >&2
+    failure=1
+  fi
 fi
 rm -f "$stack_description_error"
+unset stack_description_status
 
 pool_name="minco-smoke-$MINCO_AWS_RUN_ID"
 candidate_pool_ids=()
@@ -228,7 +232,7 @@ fi
 for pool_id in "${candidate_pool_ids[@]}"; do
   pool_tag_error="$MINCO_AWS_EVIDENCE_DIR/cognito-tag-check-error.txt"
   if pool_tags="$(
-    aws_logged cognito-idp list-tags-for-resource \
+    aws_logged_json cognito-idp list-tags-for-resource \
       "prove temporary user pool $pool_id has the exact run ownership tags" \
       --resource-arn "arn:aws:cognito-idp:$AWS_REGION:$account_id:userpool/$pool_id" \
       --output json 2>"$pool_tag_error"
@@ -245,31 +249,39 @@ for pool_id in "${candidate_pool_ids[@]}"; do
       pool_discovery_verified=false
       failure=1
     fi
-  elif ! grep -Eq 'ResourceNotFoundException|User pool .* does not exist' "$pool_tag_error"; then
-    echo "could not verify temporary Cognito user pool ownership" >&2
-    sed -n '1,8p' "$pool_tag_error" >&2
-    pool_discovery_verified=false
-    failure=1
+  else
+    pool_tag_status=$?
+    if ! aws_cli_service_error_is \
+      "$pool_tag_error" "$pool_tag_status" ResourceNotFoundException; then
+      echo "could not verify temporary Cognito user pool ownership" >&2
+      pool_discovery_verified=false
+      failure=1
+    fi
   fi
   rm -f "$pool_tag_error"
+  unset pool_tag_status
 done
 
 for pool_id in "${pool_ids[@]}"; do
   pool_error="$MINCO_AWS_EVIDENCE_DIR/cognito-delete-error.txt"
-  if ! aws_logged cognito-idp delete-user-pool \
+  if aws_logged_json cognito-idp delete-user-pool \
     "delete temporary smoke user pool $pool_id and its synthetic user/client" \
     --user-pool-id "$pool_id" 2>"$pool_error"; then
-    if ! grep -Eq 'ResourceNotFoundException|User pool .* does not exist' "$pool_error"; then
+    :
+  else
+    pool_delete_status=$?
+    if ! aws_cli_service_error_is \
+      "$pool_error" "$pool_delete_status" ResourceNotFoundException; then
       echo "temporary Cognito user pool cleanup failed" >&2
-      sed -n '1,8p' "$pool_error" >&2
       failure=1
     fi
   fi
   rm -f "$pool_error"
+  unset pool_delete_status
 done
 
 bucket_error="$MINCO_AWS_EVIDENCE_DIR/bucket-head-error.txt"
-if aws_logged s3api head-bucket \
+if aws_logged_json s3api head-bucket \
   "check whether temporary artifact bucket requires cleanup" \
   --bucket "$MINCO_AWS_ARTIFACT_BUCKET" 2>"$bucket_error"; then
   bucket_cleanup_authorized=false
@@ -305,12 +317,15 @@ if aws_logged s3api head-bucket \
     echo "refusing to empty or delete a bucket without exact run ownership proof" >&2
     failure=1
   fi
-elif ! grep -Eq '404|NoSuchBucket|Not Found' "$bucket_error"; then
-  echo "could not determine temporary artifact bucket state" >&2
-  sed -n '1,8p' "$bucket_error" >&2
-  failure=1
+else
+  bucket_status=$?
+  if ! aws_cli_service_error_is "$bucket_error" "$bucket_status" 404; then
+    echo "could not determine temporary artifact bucket state" >&2
+    failure=1
+  fi
 fi
 rm -f "$bucket_error"
+unset bucket_status
 
 if [[ "$MINCO_DATABASE_PARAMETER_OWNED" == "true" &&
   "$database_cleanup_complete" == "true" ]]; then
@@ -349,15 +364,20 @@ if [[ "$MINCO_DATABASE_PARAMETER_OWNED" == "true" &&
   fi
   if [[ "$parameter_cleanup_authorized" == true && "$parameter_exists" == true ]]; then
     parameter_delete_error="$MINCO_AWS_EVIDENCE_DIR/parameter-delete-error.txt"
-    if ! aws_logged ssm delete-parameter \
+    if aws_logged_json ssm delete-parameter \
       "delete exact tagged run-owned database SecureString; value never requested" \
-      --name "$MINCO_DATABASE_URL_PARAMETER" 2>"$parameter_delete_error" &&
-      ! grep -Eq 'ParameterNotFound' "$parameter_delete_error"; then
-      echo "temporary database parameter cleanup failed" >&2
-      sed -n '1,8p' "$parameter_delete_error" >&2
-      failure=1
+      --name "$MINCO_DATABASE_URL_PARAMETER" 2>"$parameter_delete_error"; then
+      :
+    else
+      parameter_delete_status=$?
+      if ! aws_cli_service_error_is \
+        "$parameter_delete_error" "$parameter_delete_status" ParameterNotFound; then
+        echo "temporary database parameter cleanup failed" >&2
+        failure=1
+      fi
     fi
     rm -f "$parameter_delete_error"
+    unset parameter_delete_status
   elif [[ "$parameter_cleanup_authorized" != true ]]; then
     echo "refusing to delete a database parameter without exact run ownership tags" >&2
     sed -n '1,8p' "$parameter_tag_error" >&2
@@ -371,36 +391,52 @@ fi
 
 stack_absent=false
 stack_verify_error="$MINCO_AWS_EVIDENCE_DIR/stack-verify-error.txt"
-if ! aws_logged cloudformation describe-stacks \
+if aws_logged_json cloudformation describe-stacks \
   "verify bounded stack $MINCO_STACK_NAME is absent" \
-  --stack-name "$MINCO_STACK_NAME" >/dev/null 2>"$stack_verify_error" &&
-  grep -Eq 'does not exist' "$stack_verify_error"; then
-  stack_absent=true
+  --stack-name "$MINCO_STACK_NAME" >/dev/null 2>"$stack_verify_error"; then
+  :
+else
+  stack_verify_status=$?
+  if aws_cli_service_error_is \
+    "$stack_verify_error" "$stack_verify_status" ValidationError; then
+    stack_absent=true
+  fi
 fi
 rm -f "$stack_verify_error"
+unset stack_verify_status
 
 bucket_absent=false
 bucket_verify_error="$MINCO_AWS_EVIDENCE_DIR/bucket-verify-error.txt"
-if ! aws_logged s3api head-bucket \
+if aws_logged_json s3api head-bucket \
   "verify temporary artifact bucket is absent" \
-  --bucket "$MINCO_AWS_ARTIFACT_BUCKET" 2>"$bucket_verify_error" &&
-  grep -Eq '404|NoSuchBucket|Not Found' "$bucket_verify_error"; then
-  bucket_absent=true
+  --bucket "$MINCO_AWS_ARTIFACT_BUCKET" 2>"$bucket_verify_error"; then
+  :
+else
+  bucket_verify_status=$?
+  if aws_cli_service_error_is \
+    "$bucket_verify_error" "$bucket_verify_status" 404; then
+    bucket_absent=true
+  fi
 fi
 rm -f "$bucket_verify_error"
+unset bucket_verify_status
 
 pool_absent="$pool_discovery_verified"
 for pool_id in "${pool_ids[@]}"; do
   pool_verify_error="$MINCO_AWS_EVIDENCE_DIR/pool-verify-error.txt"
-  if ! aws_logged cognito-idp describe-user-pool \
+  if aws_logged_json cognito-idp describe-user-pool \
     "verify temporary smoke user pool is absent" \
-    --user-pool-id "$pool_id" >/dev/null 2>"$pool_verify_error" &&
-    grep -Eq 'ResourceNotFoundException|User pool .* does not exist' "$pool_verify_error"; then
-    :
-  else
+    --user-pool-id "$pool_id" >/dev/null 2>"$pool_verify_error"; then
     pool_absent=false
+  else
+    pool_verify_status=$?
+    if ! aws_cli_service_error_is \
+      "$pool_verify_error" "$pool_verify_status" ResourceNotFoundException; then
+      pool_absent=false
+    fi
   fi
   rm -f "$pool_verify_error"
+  unset pool_verify_status
 done
 
 function_absent=true
@@ -409,13 +445,19 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/function-name.txt" ]]; then
   function_name="$(<"$MINCO_AWS_EVIDENCE_DIR/function-name.txt")"
   function_absent=false
   function_verify_error="$MINCO_AWS_EVIDENCE_DIR/function-verify-error.txt"
-  if ! aws_logged lambda get-function \
+  if aws_logged_json lambda get-function \
     "verify bounded Lambda function $function_name is absent" \
-    --function-name "$function_name" >/dev/null 2>"$function_verify_error" &&
-    grep -Eq 'ResourceNotFoundException|Function not found' "$function_verify_error"; then
-    function_absent=true
+    --function-name "$function_name" >/dev/null 2>"$function_verify_error"; then
+    :
+  else
+    function_verify_status=$?
+    if aws_cli_service_error_is \
+      "$function_verify_error" "$function_verify_status" ResourceNotFoundException; then
+      function_absent=true
+    fi
   fi
   rm -f "$function_verify_error"
+  unset function_verify_status
   log_group_absent=false
   log_group_count="$(
     aws_logged logs describe-log-groups \
@@ -428,15 +470,20 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/function-name.txt" ]]; then
     log_group_absent=true
   elif [[ "$function_absent" == true ]]; then
     log_group_delete_error="$MINCO_AWS_EVIDENCE_DIR/log-group-delete-error.txt"
-    if ! aws_logged logs delete-log-group \
+    if aws_logged_json logs delete-log-group \
       "delete exact bounded Lambda log group recreated during VPC function teardown" \
-      --log-group-name "/aws/lambda/$function_name" 2>"$log_group_delete_error" &&
-      ! grep -Eq 'ResourceNotFoundException|does not exist' "$log_group_delete_error"; then
-      echo "exact bounded Lambda log group cleanup failed" >&2
-      sed -n '1,8p' "$log_group_delete_error" >&2
-      failure=1
+      --log-group-name "/aws/lambda/$function_name" 2>"$log_group_delete_error"; then
+      :
+    else
+      log_group_delete_status=$?
+      if ! aws_cli_service_error_is \
+        "$log_group_delete_error" "$log_group_delete_status" ResourceNotFoundException; then
+        echo "exact bounded Lambda log group cleanup failed" >&2
+        failure=1
+      fi
     fi
     rm -f "$log_group_delete_error"
+    unset log_group_delete_status
     for attempt in {1..15}; do
       log_group_count="$(
         aws_logged logs describe-log-groups \
@@ -459,13 +506,19 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/function-role-name.txt" ]]; then
   function_role_name="$(<"$MINCO_AWS_EVIDENCE_DIR/function-role-name.txt")"
   function_role_absent=false
   role_verify_error="$MINCO_AWS_EVIDENCE_DIR/role-verify-error.txt"
-  if ! aws_logged iam get-role \
+  if aws_logged_json iam get-role \
     "verify bounded Lambda execution role $function_role_name is absent" \
-    --role-name "$function_role_name" >/dev/null 2>"$role_verify_error" &&
-    grep -Eq 'NoSuchEntity|cannot be found' "$role_verify_error"; then
-    function_role_absent=true
+    --role-name "$function_role_name" >/dev/null 2>"$role_verify_error"; then
+    :
+  else
+    role_verify_status=$?
+    if aws_cli_service_error_is \
+      "$role_verify_error" "$role_verify_status" NoSuchEntity; then
+      function_role_absent=true
+    fi
   fi
   rm -f "$role_verify_error"
+  unset role_verify_status
 fi
 
 http_api_absent=true
@@ -473,13 +526,19 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/http-api-id.txt" ]]; then
   http_api_id="$(<"$MINCO_AWS_EVIDENCE_DIR/http-api-id.txt")"
   http_api_absent=false
   api_verify_error="$MINCO_AWS_EVIDENCE_DIR/api-verify-error.txt"
-  if ! aws_logged apigatewayv2 get-api \
+  if aws_logged_json apigatewayv2 get-api \
     "verify bounded HTTP API $http_api_id is absent" \
-    --api-id "$http_api_id" >/dev/null 2>"$api_verify_error" &&
-    grep -Eq 'NotFoundException|Not Found' "$api_verify_error"; then
-    http_api_absent=true
+    --api-id "$http_api_id" >/dev/null 2>"$api_verify_error"; then
+    :
+  else
+    api_verify_status=$?
+    if aws_cli_service_error_is \
+      "$api_verify_error" "$api_verify_status" NotFoundException; then
+      http_api_absent=true
+    fi
   fi
   rm -f "$api_verify_error"
+  unset api_verify_status
 fi
 
 parameter_cleanup_verified=false

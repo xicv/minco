@@ -508,6 +508,13 @@ preflight paths use the same shared verifier. Keep this common boundary in
 place when adding parent execution; do not reintroduce service-message regular
 expressions in a phase runner or cleanup proof.
 
+Teardown and absence verification use that verifier too. CloudFormation, S3,
+Cognito, Lambda, CloudWatch Logs, IAM, API Gateway, SSM, RDS, Secrets Manager
+and EC2 not-found outcomes are accepted only as CLI service exit `254` with the
+exact expected structured code. Bounded IAM and STS propagation retries also
+key on a closed code set. Error message text is neither an ownership proof nor
+an absence proof, and provider messages are not copied to public evidence.
+
 ## Multi-release rollback evidence
 
 Keep the current and prior releases in separate clean exact-source checkouts.

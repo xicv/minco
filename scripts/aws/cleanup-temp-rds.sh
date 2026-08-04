@@ -44,7 +44,7 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/lambda-security-group-id.txt" ]]; then
 fi
 
 stack_error="$MINCO_AWS_EVIDENCE_DIR/rds-stack-cleanup-error.txt"
-if aws_logged cloudformation describe-stacks \
+if aws_logged_json cloudformation describe-stacks \
   "check whether temporary PostgreSQL stack requires cleanup" \
   --stack-name "$MINCO_RDS_STACK_NAME" \
   --output json >"$MINCO_AWS_EVIDENCE_DIR/rds-stack-before-cleanup.json" \
@@ -78,39 +78,54 @@ if aws_logged cloudformation describe-stacks \
     echo "refusing to delete a temporary PostgreSQL stack without exact run ownership tags" >&2
     failure=1
   fi
-elif ! grep -Eq 'does not exist' "$stack_error"; then
-  echo "could not determine temporary PostgreSQL stack state" >&2
-  sed -n '1,8p' "$stack_error" >&2
-  failure=1
+else
+  stack_status=$?
+  if ! aws_cli_service_error_is "$stack_error" "$stack_status" ValidationError; then
+    echo "could not determine temporary PostgreSQL stack state" >&2
+    failure=1
+  fi
 fi
 rm -f "$stack_error"
+unset stack_status
 
 stack_absent=false
 stack_verify_error="$MINCO_AWS_EVIDENCE_DIR/rds-stack-verify-error.txt"
-if ! aws_logged cloudformation describe-stacks \
+if aws_logged_json cloudformation describe-stacks \
   "verify temporary PostgreSQL stack is absent" \
-  --stack-name "$MINCO_RDS_STACK_NAME" >/dev/null 2>"$stack_verify_error" &&
-  grep -Eq 'does not exist' "$stack_verify_error"; then
-  stack_absent=true
+  --stack-name "$MINCO_RDS_STACK_NAME" >/dev/null 2>"$stack_verify_error"; then
+  :
+else
+  stack_verify_status=$?
+  if aws_cli_service_error_is \
+    "$stack_verify_error" "$stack_verify_status" ValidationError; then
+    stack_absent=true
+  fi
 fi
 rm -f "$stack_verify_error"
+unset stack_verify_status
 
 database_absent=false
 database_verify_error="$MINCO_AWS_EVIDENCE_DIR/rds-instance-verify-error.txt"
-if ! aws_logged rds describe-db-instances \
+if aws_logged_json rds describe-db-instances \
   "verify temporary PostgreSQL instance is absent" \
-  --db-instance-identifier "$MINCO_RDS_INSTANCE_ID" >/dev/null 2>"$database_verify_error" &&
-  grep -Eq 'DBInstanceNotFound|not found' "$database_verify_error"; then
-  database_absent=true
+  --db-instance-identifier "$MINCO_RDS_INSTANCE_ID" >/dev/null 2>"$database_verify_error"; then
+  :
+else
+  database_verify_status=$?
+  if aws_cli_service_error_is \
+    "$database_verify_error" "$database_verify_status" DBInstanceNotFound; then
+    database_absent=true
+  fi
 fi
 rm -f "$database_verify_error"
+unset database_verify_status
 
 secret_absent=true
 if [[ -f "$MINCO_AWS_EVIDENCE_DIR/rds-master-secret-arn.txt" ]]; then
   master_secret_arn="$(<"$MINCO_AWS_EVIDENCE_DIR/rds-master-secret-arn.txt")"
   secret_absent=false
   secret_error="$MINCO_AWS_EVIDENCE_DIR/rds-secret-verify-error.txt"
-  if aws_logged secretsmanager describe-secret \
+  if aws_logged_json secretsmanager describe-secret \
     "check whether the RDS-managed temporary master secret requires explicit cleanup" \
     --secret-id "$master_secret_arn" >/dev/null 2>"$secret_error"; then
     aws_logged secretsmanager delete-secret \
@@ -118,19 +133,29 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/rds-master-secret-arn.txt" ]]; then
       --secret-id "$master_secret_arn" \
       --force-delete-without-recovery >/dev/null
     for attempt in {1..15}; do
-      if ! aws_logged secretsmanager describe-secret \
+      if aws_logged_json secretsmanager describe-secret \
         "verify temporary RDS master secret is absent; attempt $attempt" \
-        --secret-id "$master_secret_arn" >/dev/null 2>"$secret_error" &&
-        grep -Eq 'ResourceNotFoundException|not found' "$secret_error"; then
-        secret_absent=true
-        break
+        --secret-id "$master_secret_arn" >/dev/null 2>"$secret_error"; then
+        :
+      else
+        secret_verify_status=$?
+        if aws_cli_service_error_is \
+          "$secret_error" "$secret_verify_status" ResourceNotFoundException; then
+          secret_absent=true
+          break
+        fi
       fi
       sleep 2
     done
-  elif grep -Eq 'ResourceNotFoundException|not found' "$secret_error"; then
-    secret_absent=true
+  else
+    secret_status=$?
+    if aws_cli_service_error_is \
+      "$secret_error" "$secret_status" ResourceNotFoundException; then
+      secret_absent=true
+    fi
   fi
   rm -f "$secret_error"
+  unset secret_status secret_verify_status
 fi
 
 vpc_absent=true
@@ -139,17 +164,22 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/rds-vpc-id.txt" ]]; then
   vpc_absent=false
   vpc_error="$MINCO_AWS_EVIDENCE_DIR/rds-vpc-verify-error.txt"
   if vpc_count="$(
-    aws_logged ec2 describe-vpcs \
+    aws_logged_json ec2 describe-vpcs \
       "verify the isolated temporary PostgreSQL VPC is absent" \
       --vpc-ids "$smoke_vpc_id" \
       --query 'length(Vpcs)' \
       --output text 2>"$vpc_error"
   )" && [[ "$vpc_count" == "0" ]]; then
     vpc_absent=true
-  elif grep -Eq 'InvalidVpcID.NotFound|does not exist' "$vpc_error"; then
-    vpc_absent=true
+  else
+    vpc_status=$?
+    if aws_cli_service_error_is \
+      "$vpc_error" "$vpc_status" InvalidVpcID.NotFound; then
+      vpc_absent=true
+    fi
   fi
   rm -f "$vpc_error"
+  unset vpc_status
 fi
 
 database_secret_files_absent=false

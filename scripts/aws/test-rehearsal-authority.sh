@@ -88,6 +88,21 @@ if aws_cli_service_error_is \
   echo "structured AWS service error helper accepted the wrong service code" >&2
   exit 1
 fi
+aws_cli_service_error_is_any \
+  "$structured_service_error" 254 AccessDenied ValidationError || {
+  echo "structured AWS service error helper rejected an allowed code set" >&2
+  exit 1
+}
+if aws_cli_service_error_is_any \
+  "$structured_service_error" 254 AccessDenied NoSuchEntity; then
+  echo "structured AWS service error helper accepted a missing code from its set" >&2
+  exit 1
+fi
+if aws_cli_service_error_is_any \
+  "$structured_service_error" 254; then
+  echo "structured AWS service error helper accepted an empty code set" >&2
+  exit 1
+fi
 jq '.RequestId = "not-retained"' \
   "$structured_service_error" >"$structured_service_error.extra"
 if aws_cli_service_error_is \
@@ -100,6 +115,14 @@ printf '%s\n' 'ValidationError: Stack does not exist' \
 if aws_cli_service_error_is \
   "$structured_service_error.text" 254 ValidationError; then
   echo "structured AWS service error helper accepted legacy message text" >&2
+  exit 1
+fi
+if rg -n 'grep .*\$[A-Za-z_]+_?error' \
+  scripts/aws/cleanup.sh \
+  scripts/aws/cleanup-temp-rds.sh \
+  scripts/aws/run-bounded-root-bootstrap.sh \
+  scripts/aws/lib/common.sh >/dev/null; then
+  echo "AWS cleanup or retry logic still parses a provider error message" >&2
   exit 1
 fi
 authority_receipt="$fixture_dir/authority-receipt.json"
