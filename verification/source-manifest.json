@@ -4014,8 +4014,8 @@
     },
     {
       "path": "tasks/M12/M12-T03-adoption-completion.md",
-      "sha256": "5d3c0397156ac4fb4b2205fde034059b5df7e14afe45f04c3e93aae6feadc50b",
-      "size_bytes": 1337
+      "sha256": "b9496ae96b332d6547f8fc80492eedb51086e2a8558f30a9e1f9ef015a42cabf",
+      "size_bytes": 1335
     },
     {
       "path": "tasks/M12/M12-T04-api-feature-freeze.md",
@@ -4346,7 +4346,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "e63d17063ec4c9ddf0c215c3c9a5020e3b4ceceaee7d08da9bd43e23357f36b5",
-  "total_size_bytes": 6194845,
+  "source_tree_sha256": "ce27a74ca0ba5e00525d8b4b1398c7c42e35da9e4eab532208031f296ec49cf5",
+  "total_size_bytes": 6194843,
   "version": "0.7.0"
 }

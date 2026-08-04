@@ -2,7 +2,7 @@
 id: M12-T03
 title: Close second-application adoption evidence
 milestone: M12
-status: planned
+status: ready
 priority: critical
 area: stabilization/adoption
 depends_on: [M7-T02, M10-T06, M11-T05]
