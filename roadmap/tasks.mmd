@@ -21,8 +21,9 @@ flowchart LR
     NM11T07["M11-T07<br/>Deepen the current documentation website"]
     NM11T08["M11-T08<br/>Release Minco 0.6.0 plugin ecosystem and documentation"]
     NM11T09["M11-T09<br/>Expand the framework documentation catalog"]
-    NM12T01["M12-T01<br/>Add a local read-only Minco MCP server"]
-    NM12T02["M12-T02<br/>Build the optional local developer workbench"]
+    NM11T10["M11-T10<br/>Define the repository-native project view"]
+    NM12T01["M12-T01<br/>Add bounded project read models and a local read-only Minco MCP server"]
+    NM12T02["M12-T02<br/>Build the optional local developer workbench and project views"]
     NM12T03["M12-T03<br/>Close second-application adoption evidence"]
     NM12T04["M12-T04<br/>Audit and freeze public APIs and Cargo features"]
     NM12T05["M12-T05<br/>Pass security recovery load and documentation release gates"]
@@ -106,8 +107,9 @@ flowchart LR
     NM11T03 --> NM11T08
     NM11T07 --> NM11T08
     NM11T08 --> NM11T09
+    NM11T06 --> NM11T10
     NM10T03 --> NM12T01
-    NM11T06 --> NM12T01
+    NM11T10 --> NM12T01
     NM12T01 --> NM12T02
     NM7T02 --> NM12T03
     NM10T06 --> NM12T03
