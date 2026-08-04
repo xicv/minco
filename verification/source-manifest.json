@@ -1569,8 +1569,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "4c1421a0232cd869f0c6af25dba6a396192a8b141eb0bf9d6df7ba504e15d303",
-      "size_bytes": 28563
+      "sha256": "1af50d373906d6bf40597348a9117796019e4119a72280ec42b5ee35118b0e76",
+      "size_bytes": 28566
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -3634,8 +3634,8 @@
     },
     {
       "path": "scripts/test/repository_truth.py",
-      "sha256": "6c094b73ca421f03bf87ad71af05eb5a541a33af61c84756f3f5075a6e1f8a96",
-      "size_bytes": 23846
+      "sha256": "d5f4a19e7f96f0aca6633d6c3f0f3d34c50ef4104c71a215e63280ce7f0a703e",
+      "size_bytes": 25102
     },
     {
       "path": "scripts/test/rust_dependency_hygiene.py",
@@ -3669,8 +3669,8 @@
     },
     {
       "path": "scripts/validate_static.py",
-      "sha256": "0c0a1f8c4d5b6ff14263679b1e44932f91b3ba7e7480a6a4f158f3e184779df1",
-      "size_bytes": 78121
+      "sha256": "2efbb5bb71a1c6f245b16a585832f4c81466fd2702a5b86b4455b17dafc0bffd",
+      "size_bytes": 79091
     },
     {
       "path": "tasks/M0/M0-T01-constitution.md",
@@ -4049,7 +4049,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "5a388b90f3f701e5294d1ad408db94bb1be7d8ecd067a4a7b018a15653976b1a",
+      "sha256": "042a83bd6882f41a74667bff30d51a7c9244ba98a376e4f6e7fe5a8f7033bef2",
       "size_bytes": 2021
     },
     {
@@ -4109,7 +4109,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "01f6746e9252d84d072618b94f60dc28cfe6802cf2beec6e763b579236b37271",
+      "sha256": "aeef61f4a1a177e72594a7e0cab207030daaa77ee3b9c2fcf00e9d5d0aa452db",
       "size_bytes": 754
     },
     {
@@ -4136,7 +4136,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "02fdc986febb9f70ab2f13dcc2bd5ae491587ce4d2bbf88f972c31aef63fccba",
-  "total_size_bytes": 5754100,
+  "source_tree_sha256": "eac0e2e3b249c088e76f037eb51122c7c1ff50c82b08bf2ffcf053e30f1eae74",
+  "total_size_bytes": 5756329,
   "version": "0.7.0"
 }

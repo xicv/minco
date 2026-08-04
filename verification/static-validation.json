@@ -6,7 +6,7 @@
   "warnings": 0,
   "metrics": {
     "toml_files": 77,
-    "yaml_files": 21,
+    "yaml_files": 20,
     "json_files": 38,
     "workspace_members": 34,
     "contract_sha256": "f0e0d1aee9858e54f814270b6f78a5c63ea6993311210f6a6f6ee7323838843f",
@@ -18,7 +18,7 @@
     "rust_files": 146,
     "python_files": 24,
     "shell_files": 60,
-    "implementation_files_scanned": 342
+    "implementation_files_scanned": 341
   },
   "findings": [],
   "limitations": [
