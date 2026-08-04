@@ -1314,8 +1314,8 @@
     },
     {
       "path": "docs/adrs/0030-repository-native-project-view.md",
-      "sha256": "1dbc7e6c21984ffbb715ff63b4523e7f6445c5b036b7f08d7982dae64f8bf276",
-      "size_bytes": 7336
+      "sha256": "dde3f84988431adab79fe822d28ff4f97739bb256bcc0c682dfeb65e827501c0",
+      "size_bytes": 8553
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -3594,18 +3594,18 @@
     },
     {
       "path": "tasks/M11/M11-T10-project-view-design.md",
-      "sha256": "b11109faf7fb43cb71309d41f3dd071bfffda1b84384a73d294a9f44481632cd",
-      "size_bytes": 5243
+      "sha256": "2996b75c661c5d2c3c280d0291763082b6410557a6d19c8a1651346108ba3033",
+      "size_bytes": 7163
     },
     {
       "path": "tasks/M12/M12-T01-local-read-only-mcp.md",
-      "sha256": "af972a94fa386ac11148f8e7117b4df368e2fc374120defdf8d706c8801588ae",
-      "size_bytes": 1976
+      "sha256": "06a34d106ee5103488799df01556b9a68c5a3d411ea55b2d9c878420e8283e03",
+      "size_bytes": 2310
     },
     {
       "path": "tasks/M12/M12-T02-local-workbench.md",
-      "sha256": "e35fd70062e05b024ce41bd2743951dbb1a0910d0d554eb07bd13c49c56dd23f",
-      "size_bytes": 2486
+      "sha256": "881c134343447761d7a44699b2455f38e0980cf67287299bea9966c14fb282dc",
+      "size_bytes": 3446
     },
     {
       "path": "tasks/M12/M12-T03-adoption-completion.md",
@@ -3940,7 +3940,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "9e4fd5e7478a6982660cad73d4f165e33b6b1458023d61c80a6b13fcc23c869e",
-  "total_size_bytes": 5449199,
+  "source_tree_sha256": "b7febe4c13d11d071d23601831f95e6af83dc1c22d1efcfadfc99e0a695e4440",
+  "total_size_bytes": 5453630,
   "version": "0.6.0"
 }

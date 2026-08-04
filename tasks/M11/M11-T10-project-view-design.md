@@ -55,7 +55,8 @@ second project state machine.
   browser assets local and prevents repository text from becoming executable
   markup;
 - the initial MCP transport opens no listener, and static export is create-only
-  outside canonical inputs rather than an arbitrary filesystem write surface.
+  outside canonical inputs, rejects symlinks throughout the destination path
+  and retains verified parent identity through atomic no-clobber publication.
 
 ## Non-goals
 
@@ -65,7 +66,39 @@ second project state machine.
 - advancing M12 task or milestone status before its repository prerequisites;
 - contacting AWS, deploying a site, publishing crates or enabling telemetry.
 
+## Review corrections
+
+- Post-merge review found that the two M12 implementation tasks introduced new
+  workspace crates without owning the explicit root workspace manifests or the
+  deterministic verification files refreshed by complete quality. Both tasks
+  now own those bounded paths so their locked checks can be completed without
+  crossing task ownership.
+- The original export contract rejected only a final symlink destination even
+  though that destination must not exist. It now rejects symlinks in every
+  existing component, proves the destination parent remains beneath the
+  canonical project root and outside canonical inputs, retains parent identity
+  during staging, exclusively creates and retains a private staging directory
+  instead of adopting an existing entry, and requires atomic no-clobber
+  installation.
+
 ## Evidence
+
+The post-merge review correction was completed locally on 2026-08-04 in the
+same isolated workspace as a fresh child of PR #96 merge commit
+`5aa32b8130518accfd1295f87a4bd9f6f5fc2142`, then rebased onto exact PR #97
+merge commit `0a16f435e2fdca12c90bee35b0610d9eb1a303f1`:
+
+- both M12 task records now include the explicit Cargo workspace manifests,
+  generated task graph and deterministic qualification reports needed by their
+  locked checks and the repository-wide completion gate;
+- ADR-0030 and M12-T02 now require component-by-component no-follow path
+  validation, stable parent and staging identities, exclusive private staging,
+  atomic no-clobber installation and negative tests for symlink, staging-entry,
+  race, overlap and platform-safety cases;
+- complete `./scripts/quality.sh` passed on the corrected tree, including the
+  terminal source-manifest verification; and
+- no hosted workflow, provider, database, deployment, release, tag, registry or
+  documentation-site mutation was performed.
 
 Completed locally on 2026-08-04 in the isolated `minco-task-m11-t10` JJ
 workspace. The change started from `main@origin`
