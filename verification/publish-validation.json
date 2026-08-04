@@ -18,6 +18,7 @@
       "minco-plan",
       "minco-project-view",
       "minco-mcp",
+      "minco-workbench",
       "minco-plugin-health",
       "minco-plugin-observability",
       "minco-plugin-idempotency",
@@ -45,11 +46,12 @@
       "minco-dev",
       "minco-plugin-realtime",
       "minco-project-view",
-      "minco-mcp"
+      "minco-mcp",
+      "minco-workbench"
     ],
     "workspace_version": "0.7.0",
-    "workspace_packages": 36,
-    "publishable_packages": 31,
+    "workspace_packages": 37,
+    "publishable_packages": 32,
     "private_packages": 5,
     "publishable_names": [
       "cargo-minco",
@@ -82,7 +84,8 @@
       "minco-release",
       "minco-sqlx-postgres",
       "minco-sqlx-sqlite",
-      "minco-test"
+      "minco-test",
+      "minco-workbench"
     ],
     "private_names": [
       "orders-adapters",

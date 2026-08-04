@@ -77,7 +77,7 @@ Declared codes: `334`.
 | `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:581` | 1 |
 | `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:727` | 0 |
 | `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:738` | 0 |
-| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6002` | 0 |
+| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6165` | 0 |
 | `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:691` | 0 |
 | `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:424` | 0 |
 | `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:541` | 0 |

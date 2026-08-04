@@ -34,6 +34,24 @@ Rust type and application/plugin owner; contribution records add deterministic
 installation indices. Registered values, configuration values and provider
 diagnostics are not emitted.
 
+## Local project view and workbench
+
+```text
+cargo minco mcp --check --json
+cargo minco workbench --check --json
+cargo minco workbench export --format json|mermaid|static --output PATH
+cargo minco --root /canonical/project/root workbench serve [--port 0]
+```
+
+The MCP and workbench consume the same schema-versioned bounded `ProjectView`.
+`workbench --check` opens no listener and writes nothing. Export is the only
+workbench write operation: it creates one new project-relative directory and
+never replaces an existing destination. Serve requires an explicit canonical
+root, binds IPv4 loopback directly, and prints the exact origin before
+blocking. See [`../how-to/local-workbench.md`](../how-to/local-workbench.md) for
+the output safety contract, evidence interpretation, accessibility behavior,
+and browser verification.
+
 ## Typed configuration
 
 ```text

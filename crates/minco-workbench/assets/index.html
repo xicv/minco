@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Minco Workbench</title>
+  <link rel="stylesheet" href="workbench.css">
+  <script src="workbench.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to project overview</a>
+  <header class="topbar">
+    <div class="brand" aria-label="Minco">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <span class="brand-name">MINCO</span>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="product-name">Workbench</span>
+    </div>
+    <div class="project-meta" aria-label="Current project">
+      <span id="project-name">Loading project</span>
+      <span aria-hidden="true">·</span>
+      <code id="source-digest">—</code>
+    </div>
+    <div class="header-actions">
+      <button class="button" id="export-button" type="button">Export</button>
+      <button class="button button-primary" id="read-aloud-button" type="button" aria-pressed="false">Read aloud</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <nav aria-label="Workbench views" id="workbench-navigation">
+        <button type="button" class="nav-item is-selected" data-view="overview" aria-current="page">Overview</button>
+        <button type="button" class="nav-item" data-view="architecture">Architecture</button>
+        <button type="button" class="nav-item" data-view="operations">Operations</button>
+        <button type="button" class="nav-item" data-view="tasks">Tasks</button>
+        <button type="button" class="nav-item" data-view="evidence">Evidence</button>
+        <button type="button" class="nav-item" data-view="deployment">Deployment</button>
+        <button type="button" class="nav-item" data-view="feedback">Feedback</button>
+      </nav>
+      <p class="local-boundary">Local only · Read only</p>
+    </aside>
+
+    <main id="main-content" tabindex="-1">
+      <section id="overview-panel" aria-labelledby="overview-title">
+        <div class="page-heading">
+          <div>
+            <h1 id="overview-title">Project overview</h1>
+            <p>One bounded view of repository truth.</p>
+          </div>
+        </div>
+
+        <dl class="summary-band" aria-label="Derived project summary">
+          <div><dt>nodes</dt><dd id="node-count">—</dd></div>
+          <div><dt>edges</dt><dd id="edge-count">—</dd></div>
+          <div><dt>tasks</dt><dd id="task-count">—</dd></div>
+          <div class="summary-complete"><dt>complete</dt><dd id="complete-count">—</dd></div>
+          <div class="summary-planned"><dt>planned</dt><dd id="planned-count">—</dd></div>
+        </dl>
+
+        <div class="mobile-tabs" role="tablist" aria-label="Overview detail">
+          <button id="mobile-tab-graph" type="button" role="tab" aria-controls="mobile-panel-graph" aria-selected="true" tabindex="0" data-mobile-section="graph">Graph</button>
+          <button id="mobile-tab-tasks" type="button" role="tab" aria-controls="mobile-panel-tasks" aria-selected="false" tabindex="-1" data-mobile-section="tasks">Tasks</button>
+          <button id="mobile-tab-evidence" type="button" role="tab" aria-controls="mobile-panel-evidence" aria-selected="false" tabindex="-1" data-mobile-section="evidence">Evidence</button>
+        </div>
+
+        <div class="workspace-grid">
+          <section id="mobile-panel-graph" class="graph-region" role="tabpanel" aria-labelledby="mobile-tab-graph graph-title" data-mobile-panel="graph">
+            <div class="region-heading">
+              <h2 id="graph-title">Architecture graph</h2>
+              <span id="graph-caption">Bounded ProjectView nodes</span>
+            </div>
+            <div class="topology" id="topology" role="group" aria-label="Architecture projection"></div>
+          </section>
+
+          <aside id="mobile-panel-tasks" class="task-rail" role="tabpanel" aria-labelledby="mobile-tab-tasks task-progress-title" data-mobile-panel="tasks">
+            <div class="region-heading">
+              <h2 id="task-progress-title">Task progress</h2>
+            </div>
+            <p class="progress-total"><strong id="progress-complete">—</strong> / <span id="progress-total">—</span> complete</p>
+            <div class="progress-track" role="progressbar" aria-labelledby="task-progress-title" aria-valuemin="0" aria-valuemax="100" id="progress-track"><span id="progress-fill"></span></div>
+            <dl class="raw-statuses" id="raw-statuses"></dl>
+            <p class="derived-note">Derived from raw statuses</p>
+          </aside>
+        </div>
+
+        <section id="mobile-panel-evidence" class="evidence-region" role="tabpanel" aria-labelledby="mobile-tab-evidence evidence-title" data-mobile-panel="evidence">
+          <div class="region-heading">
+            <h2 id="evidence-title">Evidence lanes</h2>
+            <span>Independent; no lane upgrades another</span>
+          </div>
+          <div class="evidence-grid" id="evidence-grid"></div>
+        </section>
+      </section>
+
+      <section id="detail-panel" class="detail-panel" aria-labelledby="detail-title" hidden>
+        <div class="page-heading">
+          <div>
+            <h1 id="detail-title">Project view</h1>
+            <p id="detail-description">Bounded repository projection.</p>
+          </div>
+        </div>
+        <div id="detail-content" class="detail-content"></div>
+      </section>
+
+      <p id="load-error" class="load-error" role="alert" hidden></p>
+    </main>
+  </div>
+
+  <footer class="statusbar">
+    <span id="status-schema">Schema —</span>
+    <span aria-hidden="true">·</span>
+    <span id="status-files">— files</span>
+    <span aria-hidden="true">·</span>
+    <span id="status-bytes">— bytes</span>
+    <span aria-hidden="true">·</span>
+    <span>Read only</span>
+  </footer>
+</body>
+</html>

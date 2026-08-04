@@ -902,6 +902,7 @@ dependencies = [
  "minco-sqlx-postgres",
  "minco-sqlx-sqlite",
  "minco-test",
+ "minco-workbench",
  "reqwest",
  "serde",
  "serde_json",
@@ -2671,6 +2672,22 @@ dependencies = [
  "tokio",
  "toml",
  "tower",
+]
+
+[[package]]
+name = "minco-workbench"
+version = "0.7.0"
+dependencies = [
+ "axum",
+ "minco-project-view",
+ "reqwest",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

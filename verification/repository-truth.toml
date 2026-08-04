@@ -6,9 +6,10 @@ published_package_count = 28
 adoption_gate_task = "M6-T07"
 
 # The published 0.6.0 baseline contains 28 packages. The 0.7.0 source
-# candidate adds first-publication realtime, ProjectView, and local MCP packages.
-publishable_package_count = 31
-new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp"]
+# candidate adds first-publication realtime, ProjectView, local MCP, and local
+# workbench packages.
+publishable_package_count = 32
+new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench"]
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760

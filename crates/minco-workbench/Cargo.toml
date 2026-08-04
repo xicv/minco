@@ -1,0 +1,35 @@
+[package]
+name = "minco-workbench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Optional local dashboard and deterministic exports for bounded Minco project views"
+documentation = "https://docs.rs/minco-workbench"
+readme = "README.md"
+keywords = ["minco", "dashboard", "development-tools", "visualization"]
+categories = ["development-tools", "visualization"]
+publish = ["crates-io"]
+include = ["assets/**", "src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+axum.workspace = true
+minco-project-view.workspace = true
+rustix = { workspace = true, features = ["fs"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
