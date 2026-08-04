@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 870,
+  "file_count": 871,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -44,8 +44,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "092f8c09332863f1b728c5518c91629a13f7c92d8eb0c23d763eceda7e732f60",
-      "size_bytes": 18476
+      "sha256": "a9825d2581b2c40073a7857a385006bdf566618abcfa3e7671ceb2bd96144c47",
+      "size_bytes": 19213
     },
     {
       "path": "CODEX_CONTINUATION_PROMPT.md",
@@ -1299,13 +1299,18 @@
     },
     {
       "path": "docs/adoption/0.6.0-to-0.7.0.md",
-      "sha256": "20e8cce22e11ad3b79ad54bd0fb04b015896233c7fe6cfd511a72304a32cf3d2",
-      "size_bytes": 2118
+      "sha256": "f7fa2b8a1e784a9326bc212c51ecdd510f0b856b32fae15a74036f8cb5062b4a",
+      "size_bytes": 5786
+    },
+    {
+      "path": "docs/adoption/0.7.0-to-1.0.0.md",
+      "sha256": "f325cdceee32d2a82b51096a1b4095e2cf20682c0c7485b93c99ea5f8f8a9ea7",
+      "size_bytes": 3591
     },
     {
       "path": "docs/adoption/1.0-adoption-reconciliation-2026-08-05.md",
-      "sha256": "297776777aa9b9b435e090e051106dfc3d1726c259922009678f956c9e70c595",
-      "size_bytes": 11270
+      "sha256": "20684cc75b030fd29163ed40150bcb7f44c093211a81c27cb9f46daf319c0088",
+      "size_bytes": 11388
     },
     {
       "path": "docs/adoption/garmentiq-contract-only-2026-08-03.md",
@@ -1314,8 +1319,8 @@
     },
     {
       "path": "docs/adoption/incremental-adoption.md",
-      "sha256": "be5f76d9c13b5ce8d7c5913d2c98a5d827b1c2386cf4138f7fdd21d4d62aa44a",
-      "size_bytes": 9781
+      "sha256": "7cf61e8c045ce13bedec620ae158be572833de2a7f79977563fe217360ec35ad",
+      "size_bytes": 9940
     },
     {
       "path": "docs/adoption/two-application-validation-2026-08-03.md",
@@ -1409,8 +1414,8 @@
     },
     {
       "path": "docs/adrs/0018-framework-golden-path.md",
-      "sha256": "3582bd908dc4106b0d28acf5ff88b59119b36ec052feac77f11e35b944ab6bb4",
-      "size_bytes": 4204
+      "sha256": "656595ff27a49ad9692c25d84ef1ce6c98e00fc9d89c79efc08c1e1212fb106d",
+      "size_bytes": 5296
     },
     {
       "path": "docs/adrs/0019-trigger-aware-multi-runtime-plan.md",
@@ -1714,8 +1719,8 @@
     },
     {
       "path": "docs/reference/compatibility.md",
-      "sha256": "b9f57f12d6d8bd0606df9e9ffac057e9f0e2f45812dcb12e9c84b1b15efe1493",
-      "size_bytes": 4326
+      "sha256": "e70e3e11058159a244c8fd035dfc1390784382c30b8f76d5f799800cab0b34a0",
+      "size_bytes": 14259
     },
     {
       "path": "docs/reference/configuration.md",
@@ -1769,8 +1774,8 @@
     },
     {
       "path": "docs/reference/supported-matrix.md",
-      "sha256": "a09dfad08ac75302d57d8a144de907c8ba41d8d056c22a47f8863590f2f80ca2",
-      "size_bytes": 8607
+      "sha256": "6475a4cf68395dddfa31319e79c40393437118794e804340938e0389201ee689",
+      "size_bytes": 8791
     },
     {
       "path": "docs/research/aws-plugin-adapters-2026-07.md",
@@ -4029,8 +4034,8 @@
     },
     {
       "path": "tasks/M12/M12-T04-api-feature-freeze.md",
-      "sha256": "2c87dba467dd03a081f949024d10f7dde7a52009f30a17ef26f7d4e91bc6667c",
-      "size_bytes": 1411
+      "sha256": "56f29967e3bea814954315c92445dd8a1b446b35ce816fddc98d921e3013655e",
+      "size_bytes": 5229
     },
     {
       "path": "tasks/M12/M12-T05-release-gates.md",
@@ -4361,7 +4366,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "6e5b4f5c76a514819342a721a6b9475936ca573f0cdc6fa2dc1185943278db20",
-  "total_size_bytes": 6227126,
+  "source_tree_sha256": "121d42a7de09544e47f4ffedda5481bf429c2fa16838c19e10e8e83a05e1fcf4",
+  "total_size_bytes": 6250426,
   "version": "0.7.0"
 }
