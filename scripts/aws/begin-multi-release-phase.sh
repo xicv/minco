@@ -17,10 +17,21 @@ done
 : "${MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST:?set MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST to the reviewed authority SHA-256}"
 : "${MINCO_MULTI_RELEASE_PHASE_ID:?set MINCO_MULTI_RELEASE_PHASE_ID to the exact next phase ID}"
 
-[[ "$MINCO_MULTI_RELEASE_PHASE_ID" == "01-prior-initial" ]] || {
-  echo "only the exact initialized next phase may begin" >&2
-  exit 1
-}
+case "$MINCO_MULTI_RELEASE_PHASE_ID" in
+  01-prior-initial)
+    previous_phase_id=
+    ;;
+  02-current)
+    previous_phase_id=01-prior-initial
+    ;;
+  03-prior-rollback)
+    previous_phase_id=02-current
+    ;;
+  *)
+    echo "multi-release phase ID is outside the fixed sequence" >&2
+    exit 1
+    ;;
+esac
 require_exact_entries() {
   local directory="$1"
   shift
@@ -83,10 +94,17 @@ control_root="$evidence_root/control"
 controller_receipt="$control_root/controller-receipt.json"
 sealed_plan="$control_root/multi-release-plan.json"
 sealed_projection="$control_root/phases/$MINCO_MULTI_RELEASE_PHASE_ID.json"
-require_exact_entries "$evidence_root" control || {
-  echo "initialized multi-release evidence root contains unsealed state" >&2
-  exit 1
-}
+if [[ -z "$previous_phase_id" ]]; then
+  require_exact_entries "$evidence_root" control || {
+    echo "initialized multi-release evidence root contains unsealed state" >&2
+    exit 1
+  }
+else
+  require_exact_entries "$evidence_root" control phases || {
+    echo "multi-release evidence root contains unsealed transition state" >&2
+    exit 1
+  }
+fi
 require_exact_entries "$control_root" \
   authority-receipt.json controller-receipt.json multi-release-plan.json phases || {
   echo "initialized multi-release control directory contains unsealed state" >&2
@@ -160,12 +178,17 @@ for sealed_phase_id in \
     exit 1
   }
 done
-[[ "$(jq -er '.state' "$controller_receipt")" == "initialized" &&
-  "$(jq -er '.execution.next_phase' "$controller_receipt")" == \
-    "$MINCO_MULTI_RELEASE_PHASE_ID" ]] || {
-  echo "controller receipt does not permit the requested phase" >&2
+[[ "$(jq -er '.state' "$controller_receipt")" == "initialized" ]] || {
+  echo "controller receipt does not permit phase execution" >&2
   exit 1
 }
+if [[ -z "$previous_phase_id" ]]; then
+  [[ "$(jq -er '.execution.next_phase' "$controller_receipt")" == \
+    "$MINCO_MULTI_RELEASE_PHASE_ID" ]] || {
+    echo "controller receipt does not permit the initial phase" >&2
+    exit 1
+  }
+fi
 
 plan_digest="$(shasum -a 256 "$sealed_plan" | awk '{print $1}')"
 [[ "$plan_digest" == "$(jq -er '.plan_digest' "$controller_receipt")" ]] || {
@@ -185,6 +208,97 @@ jq -e -f scripts/aws/lib/validate-multi-release-plan.jq \
   echo "multi-release authority does not match the initialized controller" >&2
   exit 1
 }
+
+previous_completion_digest=
+if [[ -n "$previous_phase_id" ]]; then
+  : "${MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST:?set MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST to the exact predecessor completion receipt digest}"
+  [[ "$MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST" =~ ^[0-9a-f]{64}$ ]] || {
+    echo "previous phase completion approval must be a SHA-256 digest" >&2
+    exit 1
+  }
+  phases_root="$evidence_root/phases"
+  [[ -d "$phases_root" && ! -L "$phases_root" &&
+    "$(minco_file_mode "$phases_root")" == "700" ]] || {
+    echo "multi-release phase boundary must remain private" >&2
+    exit 1
+  }
+  if [[ "$MINCO_MULTI_RELEASE_PHASE_ID" == "02-current" ]]; then
+    require_exact_entries "$phases_root" 01-prior-initial || {
+      echo "second phase requires only the completed first phase" >&2
+      exit 1
+    }
+    require_exact_entries "$phases_root/01-prior-initial" \
+      parent-session-completion-receipt.json \
+      parent-session-start-receipt.json \
+      phase-completion-receipt.json \
+      phase-projection.json \
+      phase-start-receipt.json || {
+      echo "first phase evidence is incomplete or unsealed" >&2
+      exit 1
+    }
+  else
+    require_exact_entries "$phases_root" 01-prior-initial 02-current || {
+      echo "rollback phase requires exactly two completed phases" >&2
+      exit 1
+    }
+    require_exact_entries "$phases_root/02-current" \
+      phase-completion-receipt.json \
+      phase-projection.json \
+      phase-start-receipt.json || {
+      echo "current phase evidence is incomplete or unsealed" >&2
+      exit 1
+    }
+  fi
+  previous_completion="$phases_root/$previous_phase_id/phase-completion-receipt.json"
+  [[ -f "$previous_completion" && ! -L "$previous_completion" &&
+    "$(minco_file_mode "$previous_completion")" == "600" ]] || {
+    echo "previous phase completion receipt is missing or unsafe" >&2
+    exit 1
+  }
+  jq -e -f scripts/aws/lib/validate-multi-release-phase-completion-receipt.jq \
+    "$previous_completion" >/dev/null || {
+    echo "previous phase completion receipt is outside the fixed policy" >&2
+    exit 1
+  }
+  previous_completion_digest="$(jq -er '.receipt_digest' "$previous_completion")"
+  [[ "$previous_completion_digest" == \
+      "$MINCO_APPROVE_PREVIOUS_PHASE_COMPLETION_DIGEST" &&
+    "$(jq -er '.transition.next_phase' "$previous_completion")" == \
+      "$MINCO_MULTI_RELEASE_PHASE_ID" &&
+    "$(jq -er '.state' "$previous_completion")" == "succeeded" &&
+    "$(
+      jq -cS 'del(.receipt_digest)' "$previous_completion" |
+        shasum -a 256 | awk '{print $1}'
+    )" == "$previous_completion_digest" ]] || {
+    echo "previous phase completion does not authorize the requested transition" >&2
+    exit 1
+  }
+  if [[ "$MINCO_MULTI_RELEASE_PHASE_ID" == "03-prior-rollback" ]]; then
+    phase_one_completion="$phases_root/01-prior-initial/phase-completion-receipt.json"
+    [[ -f "$phase_one_completion" && ! -L "$phase_one_completion" &&
+      "$(minco_file_mode "$phase_one_completion")" == "600" ]] || {
+      echo "initial phase completion receipt is missing or unsafe" >&2
+      exit 1
+    }
+    jq -e -f scripts/aws/lib/validate-multi-release-phase-completion-receipt.jq \
+      "$phase_one_completion" >/dev/null || {
+      echo "initial phase completion receipt is outside the fixed policy" >&2
+      exit 1
+    }
+    phase_one_completion_digest="$(jq -er '.receipt_digest' "$phase_one_completion")"
+    [[ "$(
+      jq -cS 'del(.receipt_digest)' "$phase_one_completion" |
+        shasum -a 256 | awk '{print $1}'
+    )" == "$phase_one_completion_digest" &&
+      "$(jq -er '.transition.previous_phase_completion_digest' "$previous_completion")" == \
+        "$phase_one_completion_digest" &&
+      "$(jq -er '.result.artifacts.release_manifest_digest' "$previous_completion")" != \
+        "$(jq -er '.result.artifacts.release_manifest_digest' "$phase_one_completion")" ]] || {
+      echo "rollback predecessor chain no longer binds the initial phase" >&2
+      exit 1
+    }
+  fi
+fi
 
 validation_dir="$(mktemp -d)"
 staging_path=
@@ -246,18 +360,24 @@ phase_path="$(jq -er '.evidence.path' "$sealed_projection")"
 }
 
 phases_root="$evidence_root/phases"
-[[ ! -e "$phases_root" && ! -L "$phases_root" ]] || {
-  echo "multi-release phases boundary must not already exist before the first phase" >&2
+if [[ -z "$previous_phase_id" ]]; then
+  [[ ! -e "$phases_root" && ! -L "$phases_root" ]] || {
+    echo "multi-release phases boundary must not already exist before the first phase" >&2
+    exit 1
+  }
+  staging_path="$evidence_root/.phases.start.$$"
+  staging_phase_path="$staging_path/$MINCO_MULTI_RELEASE_PHASE_ID"
+  mkdir -m 700 "$staging_path"
+  mkdir -m 700 "$staging_phase_path"
+else
+  staging_path="$phases_root/.$MINCO_MULTI_RELEASE_PHASE_ID.start.$$"
+  staging_phase_path="$staging_path"
+  mkdir -m 700 "$staging_path"
+fi
+[[ -d "$staging_path" && ! -L "$staging_path" ]] || {
+  echo "multi-release phase-start staging boundary is unsafe" >&2
   exit 1
 }
-staging_path="$evidence_root/.phases.start.$$"
-[[ ! -e "$staging_path" && ! -L "$staging_path" ]] || {
-  echo "multi-release phase-start staging boundary already exists" >&2
-  exit 1
-}
-mkdir -m 700 "$staging_path"
-staging_phase_path="$staging_path/$MINCO_MULTI_RELEASE_PHASE_ID"
-mkdir -m 700 "$staging_phase_path"
 cp "$sealed_projection" "$staging_phase_path/phase-projection.json"
 chmod 600 "$staging_phase_path/phase-projection.json"
 
@@ -320,16 +440,31 @@ jq -e -f scripts/aws/lib/validate-multi-release-phase-start-receipt.jq \
 }
 
 staging_name="${staging_path##*/}"
-require_exact_entries "$evidence_root" "$staging_name" control || {
-  echo "multi-release evidence root changed during phase start" >&2
-  exit 1
-}
-[[ ! -e "$phases_root" && ! -L "$phases_root" &&
-  ! -e "$phase_path" && ! -L "$phase_path" ]] || {
-  echo "multi-release phase evidence appeared before atomic start" >&2
-  exit 1
-}
-mv -n "$staging_path" "$phases_root"
+if [[ -z "$previous_phase_id" ]]; then
+  require_exact_entries "$evidence_root" "$staging_name" control || {
+    echo "multi-release evidence root changed during initial phase start" >&2
+    exit 1
+  }
+  [[ ! -e "$phases_root" && ! -L "$phases_root" ]] || {
+    echo "multi-release phases boundary appeared before atomic start" >&2
+    exit 1
+  }
+  mv -n "$staging_path" "$phases_root"
+else
+  if [[ "$MINCO_MULTI_RELEASE_PHASE_ID" == "02-current" ]]; then
+    require_exact_entries "$phases_root" "$staging_name" 01-prior-initial || {
+      echo "multi-release first transition changed during phase start" >&2
+      exit 1
+    }
+  else
+    require_exact_entries "$phases_root" \
+      "$staging_name" 01-prior-initial 02-current || {
+      echo "multi-release rollback transition changed during phase start" >&2
+      exit 1
+    }
+  fi
+  mv -n "$staging_path" "$phase_path"
+fi
 [[ ! -e "$staging_path" &&
   -f "$phase_path/phase-start-receipt.json" &&
   ! -L "$phase_path/phase-start-receipt.json" ]] || {
@@ -341,5 +476,13 @@ require_exact_entries "$evidence_root" control phases || {
   echo "multi-release evidence root is invalid after phase start" >&2
   exit 1
 }
+if [[ "$MINCO_MULTI_RELEASE_PHASE_ID" == "01-prior-initial" ]]; then
+  require_exact_entries "$phases_root" 01-prior-initial || exit 1
+elif [[ "$MINCO_MULTI_RELEASE_PHASE_ID" == "02-current" ]]; then
+  require_exact_entries "$phases_root" 01-prior-initial 02-current || exit 1
+else
+  require_exact_entries "$phases_root" \
+    01-prior-initial 02-current 03-prior-rollback || exit 1
+fi
 
 cat "$phase_path/phase-start-receipt.json"
