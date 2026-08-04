@@ -17,11 +17,31 @@ done
 : "${MINCO_REHEARSAL_AUTHORITY_FILE:?set MINCO_REHEARSAL_AUTHORITY_FILE to the exact reviewed multi-release authority document}"
 : "${MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST:?set MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST to the reviewed authority SHA-256}"
 : "${MINCO_MULTI_RELEASE_PHASE_ID:?set MINCO_MULTI_RELEASE_PHASE_ID to the exact started phase ID}"
+: "${MINCO_MULTI_RELEASE_EXECUTION_MODE:=validation_only}"
 
 [[ "$MINCO_MULTI_RELEASE_PHASE_ID" == "01-prior-initial" ]] || {
   echo "only the exact started first phase may enter a parent session" >&2
   exit 1
 }
+case "$MINCO_MULTI_RELEASE_EXECUTION_MODE" in
+  validation_only)
+    [[ -z "${MINCO_MULTI_RELEASE_PROVIDER_ACTION:-}" ]] || {
+      echo "validation-only parent sessions do not accept a provider action" >&2
+      exit 1
+    }
+    ;;
+  provider_identity_preflight)
+    [[ "${MINCO_MULTI_RELEASE_PROVIDER_ACTION:-}" == "plan" ||
+      "${MINCO_MULTI_RELEASE_PROVIDER_ACTION:-}" == "execute" ]] || {
+      echo "provider identity preflight accepts only plan or execute" >&2
+      exit 1
+    }
+    ;;
+  *)
+    echo "multi-release execution mode is outside the fixed parent policy" >&2
+    exit 1
+    ;;
+esac
 
 file_mode() {
   if stat -f '%Lp' "$1" 2>/dev/null; then
@@ -216,23 +236,51 @@ start_tmp=
 completion_tmp=
 session_started=false
 session_start_digest=
+provider_entry_attempted=false
+provider_entry_plan_digest=
+provider_identity_verified=false
 
 build_parent_session_payload() {
   local state="$1"
   local output_path="$2"
   local cleanup_action
   local cleanup_state
+  local execution_provider_state
+  local external_aws_contact
   local authority_json
   local controller_json
   local phase_json
 
-  if [[ "$state" == "started" ]]; then
-    cleanup_action="none_before_provider_boundary"
-    cleanup_state="installed"
-  else
-    cleanup_action="none_provider_boundary_not_entered"
-    cleanup_state="disarmed"
-  fi
+  case "$state" in
+    started)
+      cleanup_action="none_before_provider_boundary"
+      cleanup_state="installed"
+      execution_provider_state="not_entered"
+      external_aws_contact=false
+      ;;
+    validated)
+      cleanup_action="none_provider_boundary_not_entered"
+      cleanup_state="disarmed"
+      execution_provider_state="not_entered"
+      external_aws_contact=false
+      ;;
+    provider_identity_verified)
+      cleanup_action="none_read_only_identity_preflight"
+      cleanup_state="disarmed"
+      execution_provider_state="identity_verified"
+      external_aws_contact=true
+      ;;
+    failed)
+      cleanup_action="none_read_only_identity_preflight"
+      cleanup_state="disarmed"
+      execution_provider_state="identity_unverified"
+      external_aws_contact=true
+      ;;
+    *)
+      echo "parent-session state is outside the fixed policy" >&2
+      return 1
+      ;;
+  esac
   authority_json="$(jq -c '.authority' "$phase_start_receipt")"
   controller_json="$(jq -c '.controller' "$phase_start_receipt")"
   phase_json="$(jq -c \
@@ -242,8 +290,12 @@ build_parent_session_payload() {
   jq -n \
     --arg cleanup_action "$cleanup_action" \
     --arg cleanup_state "$cleanup_state" \
+    --arg execution_mode "$MINCO_MULTI_RELEASE_EXECUTION_MODE" \
+    --arg execution_provider_state "$execution_provider_state" \
+    --arg provider_entry_plan_digest "$provider_entry_plan_digest" \
     --arg session_start_receipt_digest "$session_start_digest" \
     --arg state "$state" \
+    --argjson external_aws_contact "$external_aws_contact" \
     --argjson authority "$authority_json" \
     --argjson controller "$controller_json" \
     --argjson phase "$phase_json" \
@@ -251,13 +303,19 @@ build_parent_session_payload() {
       schema_version: 1,
       operation: "multi_release_parent_session",
       state: $state,
-      external_aws_contact: false,
+      external_aws_contact: $external_aws_contact,
       controller: $controller,
       authority: $authority,
       phase: $phase,
       execution: {
-        mode: "validation_only",
-        provider_state: "not_entered"
+        mode: $execution_mode,
+        provider_entry_plan_digest: (
+          if $provider_entry_plan_digest == ""
+          then null
+          else $provider_entry_plan_digest
+          end
+        ),
+        provider_state: $execution_provider_state
       },
       session: {
         start_receipt_digest: (
@@ -273,6 +331,48 @@ build_parent_session_payload() {
         trap_count: 1,
         state: $cleanup_state,
         action: $cleanup_action
+      }
+    }' >"$output_path"
+}
+
+build_provider_entry_plan() {
+  local output_path="$1"
+  local authority_json
+  local controller_json
+  local phase_json
+
+  authority_json="$(jq -c '.authority' "$phase_start_receipt")"
+  controller_json="$(jq -c '.controller' "$phase_start_receipt")"
+  phase_json="$(jq -c \
+    --arg start_receipt_digest "$MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST" \
+    '{
+      id: .phase.id,
+      projection_digest: .phase.projection_digest,
+      source_revision: .phase.source_revision,
+      start_receipt_digest: $start_receipt_digest
+    }' "$phase_start_receipt")"
+  jq -n \
+    --arg expected_region "$authority_region" \
+    --argjson authority "$authority_json" \
+    --argjson controller "$controller_json" \
+    --argjson phase "$phase_json" \
+    '{
+      schema_version: 1,
+      operation: "multi_release_provider_entry",
+      external_aws_contact: false,
+      controller: $controller,
+      authority: $authority,
+      phase: $phase,
+      provider: {
+        action: "sts_get_caller_identity",
+        expected_region: $expected_region,
+        mutation: false,
+        secrets_requested: false
+      },
+      cleanup: {
+        owner: "parent_controller",
+        required: true,
+        trap_count: 1
       }
     }' >"$output_path"
 }
@@ -302,9 +402,22 @@ seal_parent_session_receipt() {
 finalize_parent_session() {
   local status=$?
   local completion_payload
+  local terminal_state
 
   trap - EXIT INT TERM
-  if [[ "$session_started" == true && "$status" -eq 0 ]]; then
+  terminal_state=
+  if [[ "$session_started" == true ]]; then
+    if [[ "$status" -eq 0 &&
+      "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "validation_only" ]]; then
+      terminal_state=validated
+    elif [[ "$status" -eq 0 && "$provider_identity_verified" == true ]]; then
+      terminal_state=provider_identity_verified
+    elif [[ "$provider_entry_attempted" == true ]]; then
+      terminal_state=failed
+      status=1
+    fi
+  fi
+  if [[ -n "$terminal_state" ]]; then
     if ! require_exact_entries "$phase_path" \
       parent-session-start-receipt.json \
       phase-projection.json phase-start-receipt.json; then
@@ -321,13 +434,17 @@ finalize_parent_session() {
       status=1
     else
       completion_payload="$validation_dir/parent-session-completion-payload.json"
-      build_parent_session_payload validated "$completion_payload"
-      completion_tmp="$(mktemp "$phase_path/.parent-session-completion.XXXXXX")"
-      if ! seal_parent_session_receipt "$completion_payload" "$completion_tmp" ||
+      if ! build_parent_session_payload "$terminal_state" "$completion_payload"; then
+        echo "could not build the parent-session terminal receipt" >&2
+        status=1
+      elif ! completion_tmp="$(mktemp "$phase_path/.parent-session-completion.XXXXXX")"; then
+        echo "could not allocate the parent-session terminal receipt" >&2
+        status=1
+      elif ! seal_parent_session_receipt "$completion_payload" "$completion_tmp" ||
         ! mv -n "$completion_tmp" "$parent_session_completion" ||
         [[ -e "$completion_tmp" ]] ||
         ! require_private_file "$parent_session_completion"; then
-        echo "could not atomically complete the parent validation session" >&2
+        echo "could not atomically complete the parent session" >&2
         status=1
       else
         completion_tmp=
@@ -484,6 +601,34 @@ current_root="$(canonical_checkout_root current "$(jq -er '.phases[1].source.roo
 require_exact_clean_checkout prior "$prior_root" "$prior_revision"
 require_exact_clean_checkout current "$current_root" "$current_revision"
 
+if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ]]; then
+  provider_entry_plan="$validation_dir/provider-entry-plan.json"
+  build_provider_entry_plan "$provider_entry_plan"
+  jq -e -f scripts/aws/lib/validate-multi-release-provider-entry-plan.jq \
+    "$provider_entry_plan" >/dev/null || {
+    echo "multi-release provider-entry plan is outside the fixed policy" >&2
+    exit 1
+  }
+  provider_entry_plan_digest="$(
+    shasum -a 256 "$provider_entry_plan" | awk '{print $1}'
+  )"
+  if [[ "$MINCO_MULTI_RELEASE_PROVIDER_ACTION" == "plan" ]]; then
+    cat "$provider_entry_plan"
+    exit 0
+  fi
+  : "${MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST:?set MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST to the exact provider-entry plan digest}"
+  [[ "$MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST" =~ ^[0-9a-f]{64}$ ]] || {
+    echo "provider-entry approval must be a SHA-256 digest" >&2
+    exit 1
+  }
+  [[ "$MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST" == \
+    "$provider_entry_plan_digest" ]] || {
+    echo "provider-entry approval does not match the exact deterministic plan" >&2
+    exit 1
+  }
+  require_command aws
+fi
+
 start_payload="$validation_dir/parent-session-start-payload.json"
 build_parent_session_payload started "$start_payload"
 start_tmp="$(mktemp "$phase_path/.parent-session-start.XXXXXX")"
@@ -508,5 +653,56 @@ require_private_file "$parent_session_start" || {
 }
 session_start_digest="$(jq -er '.receipt_digest' "$parent_session_start")"
 session_started=true
+
+if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ]]; then
+  authority_account_id="$(jq -er '.expected_account_id' "$authority_file")"
+  authority_role_arn="$(jq -er '.expected_role_arn' "$authority_file")"
+  provider_entry_attempted=true
+  identity="$(
+    AWS_PROFILE="$authority_profile" \
+    AWS_REGION="$authority_region" \
+    AWS_PAGER="" \
+      command aws --no-cli-pager --region "$authority_region" \
+      sts get-caller-identity \
+      --query '{Account:Account,Arn:Arn,UserId:UserId}' \
+      --output json
+  )"
+  jq -e -s '
+    length == 1
+    and (.[0] | keys) == ["Account", "Arn", "UserId"]
+    and (.[0].Account | type == "string" and test("^[0-9]{12}$"))
+    and (.[0].Arn | type == "string" and length > 0)
+    and (.[0].UserId | type == "string" and length > 0)
+  ' <<<"$identity" >/dev/null || {
+    echo "provider identity response is outside the fixed shape" >&2
+    exit 1
+  }
+  account_id="$(jq -er '.Account' <<<"$identity")"
+  caller_arn="$(jq -er '.Arn' <<<"$identity")"
+  case "$caller_arn" in
+    arn:aws*:iam::"$account_id":role/*)
+      caller_role_arn="$caller_arn"
+      ;;
+    arn:aws*:sts::"$account_id":assumed-role/*/*)
+      partition="${caller_arn%%:sts::*}"
+      role_session="${caller_arn#*:assumed-role/}"
+      role_name="${role_session%%/*}"
+      caller_role_arn="${partition}:iam::${account_id}:role/${role_name}"
+      ;;
+    *)
+      echo "provider identity preflight requires an IAM role or assumed-role caller" >&2
+      exit 1
+      ;;
+  esac
+  [[ "$account_id" == "$authority_account_id" &&
+    "$caller_role_arn" == "$authority_role_arn" ]] || {
+    echo "provider identity does not match the exact account and role authority" >&2
+    exit 1
+  }
+  unset \
+    account_id authority_account_id authority_role_arn caller_arn \
+    caller_role_arn identity partition role_name role_session
+  provider_identity_verified=true
+fi
 
 exit 0
