@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Plan model source SHA-256: `66419edf7f85fde51e3c9da96b4f49368f9307db539fcf5b2c9b03ce6935da4e`.
+Plan model source SHA-256: `ee56cb43a1456018d49be1a636efd56215db3882492fb963a9aef77510c66e5f`.
 
 ## Composed configuration schema
 
@@ -60,6 +60,9 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | `plugins.observability.default_filter` | `string` | no | no | info,tower_http=info | Fallback tracing filter when RUST_LOG is unset |
 | `plugins.observability.json` | `boolean` | no | no | yes | Emit structured JSON suitable for CloudWatch Logs |
 | `plugins.observability.service_name` | `string` | no | no | minco-app | Stable service name included in operational telemetry |
+| `plugins.realtime.max_event_bytes` | `integer` | no | no | 5120 | Maximum encoded envelope size; 5120 bytes keeps one billing unit |
+| `plugins.realtime.namespace` | `string` | no | no | minco | Portable namespace prepended to subscriber channels |
+| `plugins.realtime.subscriber_claim` | `string` | no | no | sub | OIDC claim that must equal the first channel segment after the namespace |
 | `plugins.static-site.custom_domain` | `string` | no | no | — | Optional application hostname |
 | `plugins.static-site.html_cache_seconds` | `integer` | no | no | 0 | Cache lifetime for HTML entrypoints |
 | `plugins.static-site.immutable_cache_seconds` | `integer` | no | no | 31536000 | Cache lifetime for fingerprinted immutable assets |
@@ -92,6 +95,7 @@ Rust types are shown exactly as declared. Serde attributes may omit empty or opt
 | `routes` | `Vec<RoutePlan>` | yes |
 | `application_graph` | `ApplicationGraph` | yes |
 | `static_site` | `Option<StaticSiteDeployment>` | no |
+| `realtime` | `Option<RealtimeDeployment>` | no |
 | `preview` | `Option<PreviewLifecyclePlan>` | no |
 | `local_aws_services` | `Vec<String>` | yes |
 | `scheduled_wakeups` | `Vec<String>` | yes |

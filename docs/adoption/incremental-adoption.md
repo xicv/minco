@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
 Published baseline: `0.6.0`
-Current workspace version: `0.6.0`
-Workspace release state: `published`
+Current workspace version: `0.7.0`
+Workspace release state: `candidate`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a

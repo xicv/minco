@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         static_site_bucket_arn: Some(required("MINCO_AWS_BUCKET_ARN")?),
         static_site_key_prefix: "site".into(),
         cloudfront_distribution_arn: Some(required("MINCO_AWS_CLOUDFRONT_DISTRIBUTION_ARN")?),
+        appsync_channel_namespace_arn: None,
     };
     fs::write(
         policy_path,

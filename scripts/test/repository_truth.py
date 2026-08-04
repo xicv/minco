@@ -19,6 +19,9 @@ TRUTH = tomllib.loads((ROOT / "verification/repository-truth.toml").read_text())
 WORKSPACE_VERSION = TRUTH["workspace_version"]
 PUBLISHED_BASELINE = TRUTH["published_baseline"]
 RELEASE_STATE = TRUTH["workspace_release_state"]
+PUBLISHED_PACKAGE_COUNT = TRUTH["published_package_count"]
+PUBLISHABLE_PACKAGE_COUNT = TRUTH["publishable_package_count"]
+NEW_PUBLISHABLE_PACKAGES = TRUTH["new_publishable_packages"]
 PREVIOUS_PUBLISHED_BASELINE = "0.5.0"
 DRIFTED_PUBLISHED_BASELINE = "9.9.8"
 CANDIDATE_BASELINE = (
@@ -39,6 +42,15 @@ if REFERENCE_GENERATOR_SPEC is None or REFERENCE_GENERATOR_SPEC.loader is None:
     raise RuntimeError(f"cannot load {REFERENCE_GENERATOR_PATH}")
 REFERENCE_GENERATOR = importlib.util.module_from_spec(REFERENCE_GENERATOR_SPEC)
 REFERENCE_GENERATOR_SPEC.loader.exec_module(REFERENCE_GENERATOR)
+
+SOURCE_MANIFEST_PATH = ROOT / "scripts" / "source_manifest.py"
+SOURCE_MANIFEST_SPEC = importlib.util.spec_from_file_location(
+    "minco_source_manifest", SOURCE_MANIFEST_PATH
+)
+if SOURCE_MANIFEST_SPEC is None or SOURCE_MANIFEST_SPEC.loader is None:
+    raise RuntimeError(f"cannot load {SOURCE_MANIFEST_PATH}")
+SOURCE_MANIFEST = importlib.util.module_from_spec(SOURCE_MANIFEST_SPEC)
+SOURCE_MANIFEST_SPEC.loader.exec_module(SOURCE_MANIFEST)
 
 
 class RepositoryTruthTests(unittest.TestCase):
@@ -113,6 +125,14 @@ class RepositoryTruthTests(unittest.TestCase):
             .replace(
                 'workspace_release_state = "candidate"',
                 'workspace_release_state = "published"',
+            )
+            .replace(
+                f"published_package_count = {PUBLISHED_PACKAGE_COUNT}",
+                f"published_package_count = {PUBLISHABLE_PACKAGE_COUNT}",
+            )
+            .replace(
+                f"new_publishable_packages = {json.dumps(NEW_PUBLISHABLE_PACKAGES)}",
+                "new_publishable_packages = []",
             )
         )
 
@@ -285,7 +305,7 @@ class RepositoryTruthTests(unittest.TestCase):
         readme = self.root / "README.md"
         readme.write_text(
             readme.read_text().replace(
-                "Current publishable package count: `28`",
+                f"Current publishable package count: `{PUBLISHABLE_PACKAGE_COUNT}`",
                 "Current publishable package count: `25`",
             )
         )
@@ -308,23 +328,30 @@ class RepositoryTruthTests(unittest.TestCase):
 
     def test_new_package_archive_test_drift_has_a_stable_code(self) -> None:
         self.make_unpublished_candidate()
-        truth = self.root / "verification/repository-truth.toml"
-        truth.write_text(
-            truth.read_text()
-            .replace(
-                "published_package_count = 28",
-                "published_package_count = 27",
-            )
-            .replace(
-                "new_publishable_packages = []",
-                'new_publishable_packages = ["minco-config"]',
-            )
+        new_package = (
+            NEW_PUBLISHABLE_PACKAGES[0]
+            if NEW_PUBLISHABLE_PACKAGES
+            else "minco-config"
         )
+        if not NEW_PUBLISHABLE_PACKAGES:
+            truth = self.root / "verification/repository-truth.toml"
+            truth.write_text(
+                truth.read_text()
+                .replace(
+                    f"published_package_count = {PUBLISHED_PACKAGE_COUNT}",
+                    f"published_package_count = {PUBLISHED_PACKAGE_COUNT - 1}",
+                )
+                .replace(
+                    "new_publishable_packages = []",
+                    f'new_publishable_packages = ["{new_package}"]',
+                )
+            )
         cargo = self.root / "Cargo.toml"
         cargo.write_text(
             cargo.read_text().replace(
-                'package_tests = [\n  "minco-config",\n',
-                "package_tests = [\n",
+                f'  "{new_package}",\n',
+                "",
+                1,
             )
         )
         self.assertIn("STATIC-TRUTH-PACKAGES-004", self.truth_codes())
@@ -334,8 +361,8 @@ class RepositoryTruthTests(unittest.TestCase):
         truth = self.root / "verification/repository-truth.toml"
         truth.write_text(
             truth.read_text().replace(
-                "published_package_count = 28",
-                "published_package_count = 27",
+                f"published_package_count = {PUBLISHABLE_PACKAGE_COUNT}",
+                f"published_package_count = {PUBLISHABLE_PACKAGE_COUNT - 1}",
             )
         )
         self.assertIn("STATIC-TRUTH-PUBLISHED-002", self.truth_codes())
@@ -406,6 +433,13 @@ class RepositoryTruthTests(unittest.TestCase):
         value["candidate"]["revision"] = f"source-tree-sha256:{'0' * 64}"
         measurements.write_text(json.dumps(value))
         self.assertIn("STATIC-MEASURE-004", self.truth_codes())
+
+    def test_source_manifest_excludes_generated_appsync_plan_output(self) -> None:
+        generated_template = (
+            self.root
+            / "proofs/realtime-pusher/appsync-plan/generated/template.yaml"
+        )
+        self.assertFalse(SOURCE_MANIFEST.included(self.root, generated_template))
 
     def test_native_artifact_budget_has_a_stable_code(self) -> None:
         measurements = self.root / "verification/adoption-measurements.json"

@@ -111,6 +111,7 @@ impl DeploymentConfig {
             routes,
             application_graph,
             static_site: None,
+            realtime: None,
             preview: None,
             local_aws_services,
             scheduled_wakeups: self.scheduled_wakeups,
@@ -146,6 +147,8 @@ pub struct DeploymentPlan {
     pub application_graph: ApplicationGraph,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub static_site: Option<StaticSiteDeployment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub realtime: Option<RealtimeDeployment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview: Option<PreviewLifecyclePlan>,
     #[serde(default)]
@@ -209,6 +212,39 @@ pub struct StaticSiteDeployment {
     pub ipv6_enabled: bool,
     pub custom_domain: Option<String>,
     pub manage_dns_alias: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RealtimeDeployment {
+    pub namespace: String,
+    pub max_event_bytes: usize,
+    pub subscriber_claim: String,
+}
+
+impl RealtimeDeployment {
+    pub(crate) fn is_valid(&self) -> bool {
+        (1..=50).contains(&self.namespace.len())
+            && self
+                .namespace
+                .bytes()
+                .next()
+                .is_some_and(|byte| byte.is_ascii_alphanumeric())
+            && self
+                .namespace
+                .bytes()
+                .next_back()
+                .is_some_and(|byte| byte.is_ascii_alphanumeric())
+            && self
+                .namespace
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            && (256..=240 * 1024).contains(&self.max_event_bytes)
+            && (1..=128).contains(&self.subscriber_claim.len())
+            && self.subscriber_claim.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':' | b'/')
+            })
+    }
 }
 
 impl StaticSiteDeployment {
@@ -279,6 +315,9 @@ fn local_aws_services(
             }
             ResourceKind::DynamoDb => {
                 services.insert("dynamodb".into());
+            }
+            ResourceKind::Custom(ref kind) if kind == "realtime-event-api" => {
+                services.insert("appsync".into());
             }
             _ => {}
         }
@@ -407,6 +446,20 @@ impl DeploymentPlan {
                 "MINCO-STATIC-001",
                 "static-site deployment intent is invalid",
             ));
+        }
+        if let Some(realtime) = &self.realtime {
+            if !realtime.is_valid() {
+                diagnostics.push(error(
+                    "MINCO-REALTIME-001",
+                    "realtime deployment requires one portable namespace segment, a bounded subscriber claim name and a 256-byte to 240-KiB event limit",
+                ));
+            }
+            if !crate::realtime_oidc_auth_is_valid(&self.auth) {
+                diagnostics.push(error(
+                    "MINCO-REALTIME-002",
+                    "subscriber-only realtime requires a bounded HTTPS JWT issuer and at least one audience compatible with AppSync OIDC",
+                ));
+            }
         }
         if let Some(preview) = &self.preview {
             let owner_valid = !preview.owner.trim().is_empty()

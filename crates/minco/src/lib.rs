@@ -91,6 +91,10 @@ pub use minco_plugin_feedback as plugin_feedback;
 /// Official provider-neutral static-site deployment plugin.
 pub use minco_plugin_static_site as plugin_static_site;
 
+#[cfg(feature = "plugin-realtime")]
+/// Official provider-neutral subscriber-only realtime plugin.
+pub use minco_plugin_realtime as plugin_realtime;
+
 #[cfg(feature = "sqlx-postgres")]
 /// Bounded `SQLx` `PostgreSQL` pool support.
 pub use minco_sqlx_postgres as sqlx_postgres;
@@ -108,7 +112,7 @@ pub use minco_aws_lambda as aws_lambda;
 pub use minco_aws_worker as aws_worker;
 
 #[cfg(feature = "aws-adapters")]
-/// Production S3, SQS, SES, Cognito, webhook, and static-site adapters.
+/// Production S3, SQS, SES, Cognito, webhook, static-site, and `AppSync` adapters.
 pub use minco_aws_adapters as aws_adapters;
 
 /// Common imports for application composition.
@@ -187,6 +191,9 @@ fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), cor
 
     #[cfg(feature = "plugin-static-site")]
     manager.register(plugin_static_site::StaticSitePlugin::default())?;
+
+    #[cfg(feature = "plugin-realtime")]
+    manager.register(plugin_realtime::RealtimePlugin::default())?;
 
     // Keep the no-feature build warning-free when every registration above is
     // compiled out.

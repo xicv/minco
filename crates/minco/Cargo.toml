@@ -34,6 +34,7 @@ plugin-events = ["dep:minco-plugin-events"]
 plugin-notifications = ["dep:minco-plugin-notifications"]
 plugin-audit = ["dep:minco-plugin-audit"]
 plugin-static-site = ["dep:minco-plugin-static-site"]
+plugin-realtime = ["dep:minco-plugin-realtime"]
 plugin-feedback = [
   "dep:minco-plugin-feedback",
   "plugin-health",
@@ -55,6 +56,7 @@ official-plugins = [
   "plugin-audit",
   "plugin-feedback",
   "plugin-static-site",
+  "plugin-realtime",
 ]
 default-plugins = [
   "plugin-health",
@@ -102,6 +104,7 @@ minco-plugin-notifications = { workspace = true, optional = true }
 minco-plugin-audit = { workspace = true, optional = true }
 minco-plugin-feedback = { workspace = true, optional = true }
 minco-plugin-static-site = { workspace = true, optional = true }
+minco-plugin-realtime = { workspace = true, optional = true }
 minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
 minco-aws-adapters = { workspace = true, optional = true }

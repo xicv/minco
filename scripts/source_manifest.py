@@ -22,6 +22,8 @@ EXCLUDED_RELATIVE = {
 EXCLUDED_RELATIVE_PREFIXES = {
     Path("docs-site/.vitepress/cache"),
     Path("docs-site/.vitepress/dist"),
+    # Local Plan/SAM renders are reproducible outputs and are absent from clean checkouts.
+    Path("proofs/realtime-pusher/appsync-plan/generated"),
 }
 EXCLUDED_SUFFIXES = {".pyc", ".zip", ".db", ".sqlite"}
 

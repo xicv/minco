@@ -1,0 +1,34 @@
+[package]
+name = "minco-plugin-realtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral subscriber-only realtime publication for Minco applications"
+documentation = "https://docs.rs/minco-plugin-realtime"
+readme = "README.md"
+keywords = ["minco", "realtime", "websocket", "appsync", "events"]
+categories = ["web-programming", "development-tools"]
+publish = ["crates-io"]
+include = ["src/**", "assets/**", "tests/**", "Cargo.toml", "package.json", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
+
+[dependencies]
+async-trait.workspace = true
+minco-core.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+minco-test.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

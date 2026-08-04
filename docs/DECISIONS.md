@@ -34,3 +34,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0028](adrs/0028-exact-static-site-deployment.md) | Bind static assets to releases and guard private S3, CloudFront, domain publication and hosted byte verification with immutable receipts. | Accepted |
 | [ADR-0029](adrs/0029-compatibility-checked-rollback-and-canary.md) | Assess rollback across exact release boundaries and make API canaries opt-in, alarm-guarded, receipt-bound and worker-explicit. | Accepted |
 | [ADR-0030](adrs/0030-repository-native-project-view.md) | Project one bounded repository-native read model into local MCP, diagrams, progress views and accessible narration without creating a second state machine. | Accepted |
+| [ADR-0031](adrs/0031-subscriber-only-realtime.md) | Use subscriber-only AppSync Events with IAM publication, OIDC subscriptions and HTTP resynchronization for the minimal AWS realtime profile. | Accepted |

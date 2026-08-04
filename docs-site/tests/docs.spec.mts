@@ -6,7 +6,8 @@ const release = JSON.parse(
 ) as { stable: string; workspace: string; state: 'candidate' | 'published' }
 
 const stablePath = `./${release.stable}/`
-const workspacePath = `./${release.workspace}/`
+const workspaceSegment = release.state === 'published' ? release.workspace : 'next'
+const workspacePath = `./${workspaceSegment}/`
 
 async function waitForHydration(page: Page) {
   await expect(page.locator('.VPSwitchAppearance').first()).toHaveAttribute(
@@ -112,27 +113,26 @@ test('local search finds workspace plugin conformance documentation', async ({ p
   await search.fill('Plugin conformance')
   const result = page
     .locator('.VPLocalSearchBox')
-    .locator(`a[href*="/${release.workspace}/reference/plugin-conformance"]`)
+    .locator(`a[href*="/${workspaceSegment}/reference/plugin-conformance"]`)
     .first()
   await expect(result).toBeVisible()
   await result.click()
   await expect(page).toHaveURL(
-    new RegExp(`/${release.workspace.replaceAll('.', '\\.')}\/reference\/plugin-conformance#plugin-conformance$`)
+    new RegExp(`/${workspaceSegment.replaceAll('.', '\\.')}\/reference\/plugin-conformance#plugin-conformance$`)
   )
 })
 
-test('stable documentation includes the released plugin conformance API', async ({ page }) => {
+test('workspace documentation includes the plugin conformance API', async ({ page }) => {
   await page.goto(`${workspacePath}reference/plugin-conformance`)
   await waitForHydration(page)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Plugin Conformance' })
   ).toBeVisible()
   if (release.state === 'published') {
-    await expect(page.getByText('Release candidate documentation.')).toHaveCount(0)
+    await expect(page.getByText('Unreleased documentation.')).toHaveCount(0)
   } else {
-    await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+    await expect(page.getByText('Unreleased documentation.')).toBeVisible()
   }
-  await expect(page.getByText('Unreleased documentation.')).toHaveCount(0)
 })
 
 test('navigation stays within the mobile viewport', async ({ page, isMobile }) => {

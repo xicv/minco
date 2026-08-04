@@ -53,9 +53,9 @@ use minco_dev::{
 use minco_plan::{
     CostClass, DatabaseCostEstimate, DatabaseDeployment, DeploymentConfig, DeploymentPlan,
     FunctionRole, PreviewCleanupSchedule, PreviewLifecyclePlan, PreviewResource,
-    PreviewResourceRetention, ScheduleCompletionAction, Severity as PlanSeverity,
-    StaticSiteDeployment, TriggerPlan, estimate_database_cost, estimate_runtime_cost,
-    render_sam_with_code_uris,
+    PreviewResourceRetention, RealtimeDeployment, ScheduleCompletionAction,
+    Severity as PlanSeverity, StaticSiteDeployment, TriggerPlan, estimate_database_cost,
+    estimate_runtime_cost, render_sam_with_code_uris,
 };
 use minco_release::{
     DatabasePlanBinding, DatabasePlanKind, DatabaseSourceDigests, DeploymentOutcome,
@@ -6647,8 +6647,17 @@ fn load_plan(
             custom_domain: site.custom_domain.clone(),
             manage_dns_alias: site.manage_dns_alias,
         });
+    let realtime = composed
+        .services
+        .get_optional::<minco::plugin_realtime::RealtimePlan>()?
+        .map(|realtime| RealtimeDeployment {
+            namespace: realtime.namespace.clone(),
+            max_event_bytes: realtime.max_event_bytes,
+            subscriber_claim: realtime.subscriber_claim.clone(),
+        });
     let mut plan = config.into_plan_with_graph(&contract.document, composed.graph);
     plan.static_site = static_site;
+    plan.realtime = realtime;
     Ok(plan)
 }
 
@@ -7847,6 +7856,29 @@ Resources:
             .expect("typed static-site deployment intent");
         assert_eq!(static_site.source_directory, "dist");
         assert_eq!(static_site.price_class, "PriceClass_100");
+    }
+
+    #[test]
+    fn realtime_plugin_projects_typed_appsync_plan_intent() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root");
+        let mut manifest = MincoManifest::load(&root).expect("workspace manifest");
+        manifest.plugins.enabled.insert("realtime".into());
+
+        let plan = load_plan(&root, &manifest, None).expect("deployment plan");
+
+        assert!(
+            plan.application_graph
+                .resources
+                .contains_key("realtime-api")
+        );
+        let realtime = plan.realtime.expect("typed realtime deployment intent");
+        assert_eq!(realtime.namespace, "minco");
+        assert_eq!(realtime.max_event_bytes, 5 * 1024);
+        assert_eq!(realtime.subscriber_claim, "sub");
+        assert_eq!(plan.local_aws_services, ["appsync", "ssm", "sts"]);
     }
 
     #[test]

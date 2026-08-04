@@ -1,6 +1,8 @@
 //! Production AWS and signed-webhook adapters for Minco official plugin ports.
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "appsync-events")]
+pub mod appsync_events;
 #[cfg(feature = "cognito")]
 pub mod cognito;
 pub mod iam;
@@ -116,7 +118,7 @@ pub(crate) fn provider_error(context: &str, error: &(dyn std::error::Error + 'st
     message
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "s3"))]
 mod diagnostic_tests {
     use super::*;
 

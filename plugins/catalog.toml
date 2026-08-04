@@ -131,6 +131,16 @@ stability = "beta"
 description = "Provider-neutral session issuance, lookup, expiry, and revocation."
 
 [[plugin]]
+id = "realtime"
+crate = "minco-plugin-realtime"
+path = "plugins/minco-plugin-realtime"
+kind = "plugin"
+feature = "plugin-realtime"
+default_enabled = false
+stability = "beta"
+description = "Subscriber-only realtime invalidation with backend-owned publication and HTTP resynchronization."
+
+[[plugin]]
 id = "sqlx-postgres"
 crate = "minco-sqlx-postgres"
 path = "extensions/minco-sqlx-postgres"

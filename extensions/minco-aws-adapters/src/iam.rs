@@ -15,6 +15,7 @@ pub struct AwsRuntimeResources {
     #[serde(default)]
     pub static_site_key_prefix: String,
     pub cloudfront_distribution_arn: Option<String>,
+    pub appsync_channel_namespace_arn: Option<String>,
 }
 
 /// Derives a least-privilege identity policy from the capabilities selected in
@@ -146,6 +147,22 @@ pub fn runtime_iam_policy(
         }));
     }
 
+    if graph
+        .capabilities
+        .contains_key("aws.appsync-events.realtime-publication")
+    {
+        let namespace = required_arn(
+            resources.appsync_channel_namespace_arn.as_deref(),
+            "aws.appsync-events.realtime-publication requires appsync_channel_namespace_arn",
+        )?;
+        statements.push(json!({
+            "Sid": "MincoRealtimePublication",
+            "Effect": "Allow",
+            "Action": "appsync:EventPublish",
+            "Resource": namespace
+        }));
+    }
+
     Ok(json!({
         "Version": "2012-10-17",
         "Statement": statements
@@ -198,6 +215,7 @@ mod tests {
             "aws.ses.email-notifications",
             "aws.cognito.identity-administration",
             "aws.cloudfront.static-site",
+            "aws.appsync-events.realtime-publication",
         ] {
             graph
                 .capabilities
@@ -221,6 +239,10 @@ mod tests {
                 cloudfront_distribution_arn: Some(
                     "arn:aws:cloudfront::123456789012:distribution/EXAMPLE".into(),
                 ),
+                appsync_channel_namespace_arn: Some(
+                    "arn:aws:appsync:ap-southeast-2:123456789012:apis/example/channelNamespace/orders"
+                        .into(),
+                ),
             },
         )
         .unwrap();
@@ -232,6 +254,10 @@ mod tests {
         assert!(encoded.contains("cognito-idp:AdminCreateUser"));
         assert!(encoded.contains("cloudfront:CreateInvalidation"));
         assert!(encoded.contains("arn:aws:s3:::minco-static/site/*"));
+        assert!(encoded.contains("appsync:EventPublish"));
+        assert!(encoded.contains(
+            "arn:aws:appsync:ap-southeast-2:123456789012:apis/example/channelNamespace/orders"
+        ));
     }
 
     #[test]
