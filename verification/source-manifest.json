@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 867,
+  "file_count": 870,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1303,19 +1303,24 @@
       "size_bytes": 2118
     },
     {
+      "path": "docs/adoption/1.0-adoption-reconciliation-2026-08-05.md",
+      "sha256": "297776777aa9b9b435e090e051106dfc3d1726c259922009678f956c9e70c595",
+      "size_bytes": 11270
+    },
+    {
       "path": "docs/adoption/garmentiq-contract-only-2026-08-03.md",
       "sha256": "d4ee65812488ce0ff1270205b755d02faf02c9df9ffa8edfeb68aa4f743aef2b",
       "size_bytes": 7794
     },
     {
       "path": "docs/adoption/incremental-adoption.md",
-      "sha256": "38955ec87201714664d72a461f822424448b1a9acc9cc67c4416a9427dfbaa82",
-      "size_bytes": 9496
+      "sha256": "be5f76d9c13b5ce8d7c5913d2c98a5d827b1c2386cf4138f7fdd21d4d62aa44a",
+      "size_bytes": 9781
     },
     {
       "path": "docs/adoption/two-application-validation-2026-08-03.md",
-      "sha256": "b48e23b16aa570199d12e93ceec99bfa0a9981bc96e97df922bd96aa3bd7fe09",
-      "size_bytes": 10385
+      "sha256": "d3410b49d51935240c73c78223c43994fed2722869598d65e2372c2b08fd6afb",
+      "size_bytes": 10608
     },
     {
       "path": "docs/adrs/0001-openapi-contract.md",
@@ -1761,6 +1766,11 @@
       "path": "docs/reference/plugin-distribution.md",
       "sha256": "3002bb6f356c21de3611562537d403a1fbb95277ec70ed85f1491b88db97e7ca",
       "size_bytes": 5877
+    },
+    {
+      "path": "docs/reference/supported-matrix.md",
+      "sha256": "a09dfad08ac75302d57d8a144de907c8ba41d8d056c22a47f8863590f2f80ca2",
+      "size_bytes": 8607
     },
     {
       "path": "docs/research/aws-plugin-adapters-2026-07.md",
@@ -4014,8 +4024,8 @@
     },
     {
       "path": "tasks/M12/M12-T03-adoption-completion.md",
-      "sha256": "b9496ae96b332d6547f8fc80492eedb51086e2a8558f30a9e1f9ef015a42cabf",
-      "size_bytes": 1335
+      "sha256": "e844adcab85f75f7df6d5e468db2929c761b37030487b978afad1ca20c0b158b",
+      "size_bytes": 3884
     },
     {
       "path": "tasks/M12/M12-T04-api-feature-freeze.md",
@@ -4243,6 +4253,11 @@
       "size_bytes": 15917
     },
     {
+      "path": "verification/adoption/two-application-reconciliation-2026-08-05.json",
+      "sha256": "45d971a039ff1f1ff320f6910f6c8ad5bea6459541085be76136b14e5a3b871e",
+      "size_bytes": 9351
+    },
+    {
       "path": "verification/adoption-baseline.json",
       "sha256": "455b8db932618cac89b13d0db81ac32dec608f469c0ce06dcb240d3216cbe20a",
       "size_bytes": 791
@@ -4259,7 +4274,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "1b9bd7617b9f2f23f6528e353e4feebf4ed45fef652f50bffba2533b32dd3142",
+      "sha256": "96daba52ee2f2428521f25c56105ae6cf0a22f1f5c61bf34c984894701a36ad4",
       "size_bytes": 2021
     },
     {
@@ -4319,7 +4334,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "5527eb8cbedc90fd31b74866bb4db86c5dde12193ccd4d5eb69f04be2aef7627",
+      "sha256": "a5ba5d5a08b3782edbbb50dec95b74bd3e5f84e690a599d388a5d53eb7114f07",
       "size_bytes": 754
     },
     {
@@ -4346,7 +4361,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "ce27a74ca0ba5e00525d8b4b1398c7c42e35da9e4eab532208031f296ec49cf5",
-  "total_size_bytes": 6194843,
+  "source_tree_sha256": "ea9d0a09479c432e1453498504f00e5f8880ecc713c6e9a5e9d598d5533ad2f4",
+  "total_size_bytes": 6227128,
   "version": "0.7.0"
 }
