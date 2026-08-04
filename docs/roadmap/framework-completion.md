@@ -51,6 +51,8 @@ Every task uses one JJ workspace and one coherent PR. In particular:
 - the local supervisor does not absorb the deployment controller;
 - plugin distribution, conformance, and installation workflows stay reviewable;
 - documentation generation does not become runtime discovery;
+- project views render existing authoritative read models rather than owning
+  another progress state machine;
 - MCP/workbench work starts only after the JSON models it exposes stabilise;
 - publication, AWS mutation, and product adoption remain separate approvals.
 
@@ -126,8 +128,14 @@ inventories.
 | M11-T04 | Plugin add/init/explain/test workflow | Planned deterministic edits, explicit registration |
 | M11-T05 | Examples and recipes matrix | Supported lifecycle/provider combinations are exercised |
 | M11-T06 | Generated feature/plugin/diagnostic reference | README/docs inventories derive from metadata |
+| M11-T07 | Deepened documentation site | Versioned content and browser journeys remain complete |
+| M11-T08 | Minco 0.6.0 release | Exact source, package and registry evidence remain separate |
+| M11-T09 | Expanded documentation catalog | Current framework workflows are discoverable and checked |
+| M11-T10 | Repository-native project-view design | One bounded read model keeps status and evidence authority explicit |
 
 M11 does not create a hosted plugin registry or runtime plugin loader.
+M11-T10 refines the planned M12 read-model and presentation contracts; it does
+not implement the MCP/workbench or advance any M12 task or milestone status.
 
 ## M12 — AI workbench and 1.0 preparation
 
@@ -136,8 +144,8 @@ the compatibility loop, and the release candidate passes an explicit freeze.
 
 | Task | Deliverable | Exit signal |
 |---|---|---|
-| M12-T01 | Local read-only MCP server | Bounded tools expose no secrets or arbitrary shell |
-| M12-T02 | Optional local developer workbench | Existing JSON interfaces power a local dashboard |
+| M12-T01 | Project read models and local read-only MCP server | Bounded versioned tools expose no secrets or arbitrary shell |
+| M12-T02 | Optional local developer workbench and project views | One read model powers diagrams, evidence-aware progress and accessible narration |
 | M12-T03 | Second-application adoption completion | Two bounded real slices produce framework evidence |
 | M12-T04 | Public API and Cargo-feature audit | Rust/CLI/config/Plan/plugin surfaces are frozen |
 | M12-T05 | Security, recovery, load, and docs gates | Exact RC source passes every mandatory gate |

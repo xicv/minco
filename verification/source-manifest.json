@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 784,
+  "file_count": 786,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1134,8 +1134,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "1d60668e19939296a304cae6b04f93a0719ffffd1a9c93bdf0aeffebf7e487c3",
-      "size_bytes": 5053
+      "sha256": "bd6841da737157a16db05d993dafb91483b7abed7bb037e60c424bc67885cde8",
+      "size_bytes": 5282
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -1311,6 +1311,11 @@
       "path": "docs/adrs/0029-compatibility-checked-rollback-and-canary.md",
       "sha256": "56f64636f9299c3d3aca915d80ab8a27d24666075283e713a1037b7c4fcc71cd",
       "size_bytes": 6287
+    },
+    {
+      "path": "docs/adrs/0030-repository-native-project-view.md",
+      "sha256": "1dbc7e6c21984ffbb715ff63b4523e7f6445c5b036b7f08d7982dae64f8bf276",
+      "size_bytes": 7336
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -1614,8 +1619,8 @@
     },
     {
       "path": "docs/roadmap/framework-completion.md",
-      "sha256": "456d3f672896ae202de8de6a84de41ae444206db786db836ac2f9d2e49793511",
-      "size_bytes": 8513
+      "sha256": "ca3319fd04e76fc20ff947fd477762760b044d2b034b42677f537a81270e5cf8",
+      "size_bytes": 9285
     },
     {
       "path": "docs/tutorials/first-application.md",
@@ -3049,8 +3054,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "c34b05d896868344f9d35a7e9f7bfa26897ed7649b2150dea1a9a164c44fed80",
-      "size_bytes": 7865
+      "sha256": "12d22ca782628b841fa488ed659149bf74d9d47711f23afa051bc90fa2029791",
+      "size_bytes": 8008
     },
     {
       "path": "rust-toolchain.toml",
@@ -3588,14 +3593,19 @@
       "size_bytes": 4606
     },
     {
+      "path": "tasks/M11/M11-T10-project-view-design.md",
+      "sha256": "b11109faf7fb43cb71309d41f3dd071bfffda1b84384a73d294a9f44481632cd",
+      "size_bytes": 5243
+    },
+    {
       "path": "tasks/M12/M12-T01-local-read-only-mcp.md",
-      "sha256": "ec9a3ed7f212f7749aaf112c4e8bdc35edf6889974bf793b614c58e398d3970d",
-      "size_bytes": 1274
+      "sha256": "af972a94fa386ac11148f8e7117b4df368e2fc374120defdf8d706c8801588ae",
+      "size_bytes": 1976
     },
     {
       "path": "tasks/M12/M12-T02-local-workbench.md",
-      "sha256": "d113195610fa92b59e2ee8775c7e225968b449984e15a1e2b9e28b0b238c5da6",
-      "size_bytes": 1216
+      "sha256": "e35fd70062e05b024ce41bd2743951dbb1a0910d0d554eb07bd13c49c56dd23f",
+      "size_bytes": 2486
     },
     {
       "path": "tasks/M12/M12-T03-adoption-completion.md",
@@ -3844,7 +3854,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "6a8e84f630c445f8a5b19634d9ee4136e9bf9d0dd2923777ca29c99f83c8f0fd",
+      "sha256": "179b6bd1a76f1e4b851c84bfe488d2f959606e4086f1940d01f2fcb8c4f8ab8d",
       "size_bytes": 2021
     },
     {
@@ -3904,7 +3914,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "bf439faf3e94cfd991ebb75f835bea3c762e286ad522a73cb76639299caa9ab4",
+      "sha256": "e05ba7404fb6cb85afcc9f7b7dda23181f8891a78c0c3cad1e2b45ceb9ee6d84",
       "size_bytes": 754
     },
     {
@@ -3930,7 +3940,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "99fd81dbb7bc959df4606d5c91a03b6195ab73fe434a6d35160c15597a09bbc3",
-  "total_size_bytes": 5428009,
+  "source_tree_sha256": "1bd736ef1af9db7f0a892bb8f9c6583c9515f2e58a053eda3ba80afde6f5c9c2",
+  "total_size_bytes": 5443704,
   "version": "0.6.0"
 }
