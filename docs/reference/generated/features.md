@@ -26,7 +26,7 @@ Features are compile-time composition only. They do not discover plugins, select
 | `default-plugins` | bundle | `plugin-health`, `plugin-observability`, `plugin-idempotency` |
 | `full` | bundle | `config`, `db`, `contract`, `http`, `plan`, `release`, `test`, `official-plugins`, `sqlx-postgres`, `sqlx-sqlite`, `aws-adapters`, `aws-lambda`, `aws-worker` |
 | `http` | framework plane | `dep:minco-http` |
-| `official-plugins` | bundle | `default-plugins`, `plugin-sessions`, `plugin-identity`, `plugin-object-storage`, `plugin-events`, `plugin-notifications`, `plugin-audit`, `plugin-feedback`, `plugin-static-site` |
+| `official-plugins` | bundle | `default-plugins`, `plugin-sessions`, `plugin-identity`, `plugin-object-storage`, `plugin-events`, `plugin-notifications`, `plugin-audit`, `plugin-feedback`, `plugin-static-site`, `plugin-realtime` |
 | `plan` | framework plane | `dep:minco-plan`, `contract` |
 | `plugin-audit` | plugin | `dep:minco-plugin-audit` |
 | `plugin-events` | plugin | `dep:minco-plugin-events` |
@@ -37,6 +37,7 @@ Features are compile-time composition only. They do not discover plugins, select
 | `plugin-notifications` | plugin | `dep:minco-plugin-notifications` |
 | `plugin-object-storage` | plugin | `dep:minco-plugin-object-storage` |
 | `plugin-observability` | plugin | `dep:minco-plugin-observability` |
+| `plugin-realtime` | plugin | `dep:minco-plugin-realtime` |
 | `plugin-sessions` | plugin | `dep:minco-plugin-sessions` |
 | `plugin-static-site` | plugin | `dep:minco-plugin-static-site` |
 | `release` | framework plane | `dep:minco-release` |

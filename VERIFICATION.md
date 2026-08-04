@@ -1,11 +1,27 @@
 # Minco verification and release evidence
 
-Date: 2026-08-01
-Current workspace version: `0.6.0`
+Date: 2026-08-04
+Current workspace version: `0.7.0`
 Published baseline: `0.6.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M11-T11 `0.7.0` realtime candidate
+
+The unpublished 29-package source candidate adds
+`minco-plugin-realtime`, minimal AppSync Events planning/publication and a
+subscriber-only browser facade. It does not claim a tag, crates.io
+publication, live AWS deployment, browser/provider runtime or production
+enablement. Exact local, hosted and merge evidence is recorded in the task;
+the completed `0.6.0` evidence below remains the published baseline.
+
+The first exact-head essential run
+[`30893275719`](https://github.com/xicv/minco/actions/runs/30893275719)
+failed at its final source-manifest check because a local ignored AppSync Plan
+render had been hashed into the committed manifest but was absent from the
+clean checkout. The manifest now excludes that exact reproducible generated
+directory, and a regression keeps the clean/local source boundary stable.
 
 ## M11-T08 `0.6.0` release closure
 

@@ -1,0 +1,17 @@
+schema = 1
+name = "minco-realtime-plan-proof"
+contract = "../../../examples/orders/openapi/openapi.yaml"
+generated = "generated.rs"
+deployment_config = "../../../examples/orders/config/minco.dev.toml"
+roadmap = "../../../roadmap/roadmap.yaml"
+tasks = "../../../tasks"
+plugin_catalog = "../../../plugins/catalog.toml"
+quality = "../../../quality.toml"
+
+[plugins]
+enabled = ["realtime"]
+
+[plugins.configuration.realtime]
+namespace = "orders"
+max_event_bytes = 5120
+subscriber_claim = "tenant_id"

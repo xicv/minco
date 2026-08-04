@@ -15,7 +15,12 @@ minco-aws-adapters = { version = "0.6.0", features = ["s3", "sqs"] }
 ```
 
 The `full` feature enables S3, SQS, SES v2, Cognito user-pool administration,
-signed webhooks, and S3/CloudFront static-site publication.
+signed webhooks, S3/CloudFront static-site publication, and AppSync Events
+publication. Select only `appsync-events` for the minimal realtime adapter. It
+accepts the exact regional AppSync `/event` endpoint, obtains credentials from
+the normal AWS credentials provider, signs for the `appsync` service, publishes
+one bounded envelope per call, and never includes provider response bodies or
+credential material in its public errors.
 
 The `static-site` adapter consumes an exact `StaticSiteReleaseManifest`. It
 uses a conditional `.minco/deployment-lock`, uploads each object with SHA-256,

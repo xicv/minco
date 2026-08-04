@@ -3,7 +3,7 @@
   "id": "aws-adapters",
   "kind": "adapter",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^0.6.0",
+  "core_compatibility": "^0.7.0",
   "stability": "beta",
   "default_enabled": false,
   "feature": "aws-adapters",
@@ -13,14 +13,16 @@
     { "name": "events.publish", "version": "^1.0" },
     { "name": "notifications.send", "version": "^1.0" },
     { "name": "identity.admin", "version": "^1.0" },
-    { "name": "static-site.provider", "version": "^1.0" }
+    { "name": "static-site.provider", "version": "^1.0" },
+    { "name": "realtime.publish", "version": "^1.0" }
   ],
   "provides": [
     { "name": "aws.s3.object-storage", "version": "1.0.0" },
     { "name": "aws.sqs.event-publication", "version": "1.0.0" },
     { "name": "aws.ses.email-notifications", "version": "1.0.0" },
     { "name": "aws.cognito.identity-administration", "version": "1.0.0" },
-    { "name": "aws.cloudfront.static-site", "version": "1.0.0" }
+    { "name": "aws.cloudfront.static-site", "version": "1.0.0" },
+    { "name": "aws.appsync-events.realtime-publication", "version": "1.0.0" }
   ],
   "resources": [
     {

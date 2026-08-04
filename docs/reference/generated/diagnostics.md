@@ -15,16 +15,16 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `332`.
+Declared codes: `334`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
 | `MINCO-ARCH-001` | arch | `crates/minco-cli/src/architecture.rs:132` | 0 |
 | `MINCO-ARCH-002` | arch | `crates/minco-cli/src/architecture.rs:133` | 0 |
 | `MINCO-ARCH-003` | arch | `crates/minco-cli/src/architecture.rs:134` | 0 |
-| `MINCO-AUTH-001` | auth | `crates/minco-plan/src/model.rs:483` | 0 |
-| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1220` | 1 |
-| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1236` | 1 |
+| `MINCO-AUTH-001` | auth | `crates/minco-plan/src/model.rs:536` | 0 |
+| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1273` | 1 |
+| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1289` | 1 |
 | `MINCO-CONTRACT-001` | contract | `crates/minco-contract/src/validate.rs:64` | 0 |
 | `MINCO-CONTRACT-002` | contract | `crates/minco-contract/src/validate.rs:72` | 0 |
 | `MINCO-CONTRACT-003` | contract | `crates/minco-contract/src/validate.rs:84` | 0 |
@@ -53,72 +53,74 @@ Declared codes: `332`.
 | `MINCO-CONTRACT-026` | contract | `crates/minco-contract/src/validate.rs:381` | 2 |
 | `MINCO-CONTRACT-027` | contract | `crates/minco-contract/src/validate.rs:411` | 1 |
 | `MINCO-CONTRACT-028` | contract | `crates/minco-contract/src/validate.rs:268` | 2 |
-| `MINCO-COST-001` | cost | `crates/minco-plan/src/model.rs:577` | 0 |
-| `MINCO-COST-002` | cost | `crates/minco-plan/src/model.rs:591` | 1 |
-| `MINCO-COST-003` | cost | `crates/minco-plan/src/model.rs:657` | 0 |
-| `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:663` | 0 |
-| `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:708` | 1 |
-| `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:571` | 0 |
-| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2086` | 1 |
-| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2115` | 1 |
-| `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:612` | 2 |
-| `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:647` | 0 |
-| `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:720` | 0 |
-| `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:726` | 0 |
-| `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:744` | 0 |
-| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2158` | 2 |
-| `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:760` | 0 |
-| `MINCO-HTTP-001` | http | `crates/minco-plan/src/model.rs:535` | 0 |
-| `MINCO-HTTP-002` | http | `crates/minco-plan/src/model.rs:540` | 0 |
-| `MINCO-HTTP-003` | http | `crates/minco-plan/src/model.rs:544` | 0 |
-| `MINCO-HTTP-004` | http | `crates/minco-plan/src/model.rs:552` | 0 |
-| `MINCO-HTTP-005` | http | `crates/minco-plan/src/model.rs:559` | 0 |
-| `MINCO-HTTP-006` | http | `crates/minco-plan/src/model.rs:564` | 0 |
-| `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:528` | 1 |
-| `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:674` | 0 |
-| `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:685` | 0 |
+| `MINCO-COST-001` | cost | `crates/minco-plan/src/model.rs:630` | 0 |
+| `MINCO-COST-002` | cost | `crates/minco-plan/src/model.rs:644` | 1 |
+| `MINCO-COST-003` | cost | `crates/minco-plan/src/model.rs:710` | 0 |
+| `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:716` | 0 |
+| `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:761` | 1 |
+| `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:624` | 0 |
+| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2139` | 1 |
+| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2168` | 1 |
+| `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:665` | 2 |
+| `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:700` | 0 |
+| `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:773` | 0 |
+| `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:779` | 0 |
+| `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:797` | 0 |
+| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2211` | 2 |
+| `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:813` | 0 |
+| `MINCO-HTTP-001` | http | `crates/minco-plan/src/model.rs:588` | 0 |
+| `MINCO-HTTP-002` | http | `crates/minco-plan/src/model.rs:593` | 0 |
+| `MINCO-HTTP-003` | http | `crates/minco-plan/src/model.rs:597` | 0 |
+| `MINCO-HTTP-004` | http | `crates/minco-plan/src/model.rs:605` | 0 |
+| `MINCO-HTTP-005` | http | `crates/minco-plan/src/model.rs:612` | 0 |
+| `MINCO-HTTP-006` | http | `crates/minco-plan/src/model.rs:617` | 0 |
+| `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:581` | 1 |
+| `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:727` | 0 |
+| `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:738` | 0 |
 | `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:5938` | 0 |
-| `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:638` | 0 |
-| `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:385` | 0 |
-| `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:488` | 0 |
-| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2057` | 1 |
-| `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:495` | 0 |
-| `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:505` | 1 |
-| `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:781` | 2 |
-| `MINCO-PLAN-011` | plan | `crates/minco-plan/src/model.rs:790` | 1 |
-| `MINCO-PLAN-012` | plan | `crates/minco-plan/src/model.rs:802` | 0 |
-| `MINCO-PLAN-013` | plan | `crates/minco-plan/src/model.rs:817` | 1 |
-| `MINCO-PLAN-014` | plan | `crates/minco-plan/src/model.rs:908` | 1 |
-| `MINCO-PLAN-015` | plan | `crates/minco-plan/src/model.rs:1037` | 5 |
-| `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:918` | 2 |
-| `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1130` | 0 |
-| `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1145` | 4 |
-| `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/tests/multi_runtime.rs:985` | 0 |
-| `MINCO-PLAN-MIGRATE-002` | plan | `crates/minco-plan/tests/multi_runtime.rs:645` | 0 |
-| `MINCO-PREVIEW-001` | preview | `crates/minco-plan/src/model.rs:438` | 0 |
-| `MINCO-PREVIEW-002` | preview | `crates/minco-plan/src/model.rs:444` | 0 |
-| `MINCO-PREVIEW-003` | preview | `crates/minco-plan/src/model.rs:462` | 1 |
-| `MINCO-PREVIEW-004` | preview | `crates/minco-plan/src/model.rs:468` | 0 |
-| `MINCO-PREVIEW-006` | preview | `crates/minco-plan/src/model.rs:475` | 1 |
-| `MINCO-SCHEDULE-001` | schedule | `crates/minco-plan/src/model.rs:1046` | 1 |
-| `MINCO-SCHEDULE-002` | schedule | `crates/minco-plan/src/model.rs:1052` | 1 |
-| `MINCO-SCHEDULE-003` | schedule | `crates/minco-plan/src/model.rs:513` | 1 |
-| `MINCO-SCHEDULE-004` | schedule | `crates/minco-plan/src/model.rs:1063` | 1 |
-| `MINCO-SCHEDULE-005` | schedule | `crates/minco-plan/src/model.rs:1078` | 0 |
-| `MINCO-SCHEDULE-006` | schedule | `crates/minco-plan/src/model.rs:1087` | 0 |
-| `MINCO-SQS-001` | sqs | `crates/minco-plan/src/model.rs:1020` | 1 |
-| `MINCO-SQS-002` | sqs | `crates/minco-plan/src/model.rs:974` | 1 |
-| `MINCO-SQS-003` | sqs | `crates/minco-plan/src/model.rs:852` | 1 |
-| `MINCO-SQS-004` | sqs | `crates/minco-plan/src/model.rs:845` | 1 |
-| `MINCO-SQS-005` | sqs | `crates/minco-plan/src/model.rs:872` | 0 |
-| `MINCO-SQS-006` | sqs | `crates/minco-plan/src/model.rs:892` | 1 |
-| `MINCO-SQS-007` | sqs | `crates/minco-plan/src/model.rs:987` | 1 |
-| `MINCO-SQS-008` | sqs | `crates/minco-plan/src/model.rs:998` | 1 |
-| `MINCO-SQS-009` | sqs | `crates/minco-plan/src/model.rs:1010` | 0 |
-| `MINCO-SQS-010` | sqs | `crates/minco-plan/src/model.rs:823` | 0 |
-| `MINCO-SQS-011` | sqs | `crates/minco-plan/src/model.rs:832` | 0 |
-| `MINCO-SQS-012` | sqs | `crates/minco-plan/src/model.rs:1120` | 1 |
-| `MINCO-STATIC-001` | static | `crates/minco-plan/src/model.rs:407` | 0 |
+| `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:691` | 0 |
+| `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:424` | 0 |
+| `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:541` | 0 |
+| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2110` | 1 |
+| `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:548` | 0 |
+| `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:558` | 1 |
+| `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:834` | 2 |
+| `MINCO-PLAN-011` | plan | `crates/minco-plan/src/model.rs:843` | 1 |
+| `MINCO-PLAN-012` | plan | `crates/minco-plan/src/model.rs:855` | 0 |
+| `MINCO-PLAN-013` | plan | `crates/minco-plan/src/model.rs:870` | 1 |
+| `MINCO-PLAN-014` | plan | `crates/minco-plan/src/model.rs:961` | 1 |
+| `MINCO-PLAN-015` | plan | `crates/minco-plan/src/model.rs:1003` | 5 |
+| `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:971` | 2 |
+| `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1183` | 0 |
+| `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1198` | 4 |
+| `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/tests/multi_runtime.rs:1006` | 0 |
+| `MINCO-PLAN-MIGRATE-002` | plan | `crates/minco-plan/tests/multi_runtime.rs:666` | 0 |
+| `MINCO-PREVIEW-001` | preview | `crates/minco-plan/src/model.rs:491` | 0 |
+| `MINCO-PREVIEW-002` | preview | `crates/minco-plan/src/model.rs:497` | 0 |
+| `MINCO-PREVIEW-003` | preview | `crates/minco-plan/src/model.rs:515` | 1 |
+| `MINCO-PREVIEW-004` | preview | `crates/minco-plan/src/model.rs:521` | 0 |
+| `MINCO-PREVIEW-006` | preview | `crates/minco-plan/src/model.rs:528` | 1 |
+| `MINCO-REALTIME-001` | realtime | `crates/minco-plan/src/model.rs:453` | 0 |
+| `MINCO-REALTIME-002` | realtime | `crates/minco-plan/src/model.rs:459` | 0 |
+| `MINCO-SCHEDULE-001` | schedule | `crates/minco-plan/src/model.rs:1099` | 1 |
+| `MINCO-SCHEDULE-002` | schedule | `crates/minco-plan/src/model.rs:1105` | 1 |
+| `MINCO-SCHEDULE-003` | schedule | `crates/minco-plan/src/model.rs:566` | 1 |
+| `MINCO-SCHEDULE-004` | schedule | `crates/minco-plan/src/model.rs:1116` | 1 |
+| `MINCO-SCHEDULE-005` | schedule | `crates/minco-plan/src/model.rs:1131` | 0 |
+| `MINCO-SCHEDULE-006` | schedule | `crates/minco-plan/src/model.rs:1140` | 0 |
+| `MINCO-SQS-001` | sqs | `crates/minco-plan/src/model.rs:1073` | 1 |
+| `MINCO-SQS-002` | sqs | `crates/minco-plan/src/model.rs:1027` | 1 |
+| `MINCO-SQS-003` | sqs | `crates/minco-plan/src/model.rs:905` | 1 |
+| `MINCO-SQS-004` | sqs | `crates/minco-plan/src/model.rs:898` | 1 |
+| `MINCO-SQS-005` | sqs | `crates/minco-plan/src/model.rs:925` | 0 |
+| `MINCO-SQS-006` | sqs | `crates/minco-plan/src/model.rs:945` | 1 |
+| `MINCO-SQS-007` | sqs | `crates/minco-plan/src/model.rs:1040` | 1 |
+| `MINCO-SQS-008` | sqs | `crates/minco-plan/src/model.rs:1051` | 1 |
+| `MINCO-SQS-009` | sqs | `crates/minco-plan/src/model.rs:1063` | 0 |
+| `MINCO-SQS-010` | sqs | `crates/minco-plan/src/model.rs:876` | 0 |
+| `MINCO-SQS-011` | sqs | `crates/minco-plan/src/model.rs:885` | 0 |
+| `MINCO-SQS-012` | sqs | `crates/minco-plan/src/model.rs:1173` | 1 |
+| `MINCO-STATIC-001` | static | `crates/minco-plan/src/model.rs:446` | 0 |
 | `PUBLISH-001` | publication | `scripts/validate_publish.py:134` | 0 |
 | `PUBLISH-002` | publication | `scripts/validate_publish.py:140` | 0 |
 | `PUBLISH-003` | publication | `scripts/validate_publish.py:143` | 0 |
@@ -169,10 +171,10 @@ Declared codes: `332`.
 | `STATIC-BUDGET-001` | repository truth | `scripts/validate_static.py:629` | 0 |
 | `STATIC-BUDGET-002` | repository truth | `scripts/validate_static.py:423` | 0 |
 | `STATIC-BUDGET-003` | repository truth | `scripts/validate_static.py:312` | 0 |
-| `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:394` | 1 |
+| `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:421` | 1 |
 | `STATIC-BUDGET-005` | repository truth | `scripts/validate_static.py:386` | 0 |
-| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:417` | 1 |
-| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:434` | 1 |
+| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:451` | 1 |
+| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:468` | 1 |
 | `STATIC-CARGO-001` | repository truth | `scripts/validate_static.py:175` | 0 |
 | `STATIC-CARGO-002` | repository truth | `scripts/validate_static.py:178` | 0 |
 | `STATIC-CARGO-003` | repository truth | `scripts/validate_static.py:184` | 0 |
@@ -212,10 +214,10 @@ Declared codes: `332`.
 | `STATIC-HTTP-001` | repository truth | `scripts/validate_static.py:1170` | 0 |
 | `STATIC-HTTP-002` | repository truth | `scripts/validate_static.py:1182` | 0 |
 | `STATIC-MEASURE-001` | repository truth | `scripts/validate_static.py:333` | 0 |
-| `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:401` | 1 |
+| `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:428` | 1 |
 | `STATIC-MEASURE-003` | repository truth | `scripts/validate_static.py:398` | 0 |
-| `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:408` | 1 |
-| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:424` | 1 |
+| `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:435` | 1 |
+| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:458` | 1 |
 | `STATIC-PLACEHOLDER-001` | repository truth | `scripts/validate_static.py:1247` | 0 |
 | `STATIC-PLAN-000` | repository truth | `scripts/validate_static.py:1135` | 0 |
 | `STATIC-PLAN-001` | repository truth | `scripts/validate_static.py:1141` | 0 |
@@ -252,7 +254,7 @@ Declared codes: `332`.
 | `STATIC-TASK-009` | repository truth | `scripts/validate_static.py:1027` | 0 |
 | `STATIC-TRUTH-ADOPTION-001` | repository truth | `scripts/validate_static.py:684` | 0 |
 | `STATIC-TRUTH-CATALOG-001` | repository truth | `scripts/validate_static.py:528` | 0 |
-| `STATIC-TRUTH-CATALOG-002` | repository truth | `scripts/test/repository_truth.py:362` | 1 |
+| `STATIC-TRUTH-CATALOG-002` | repository truth | `scripts/test/repository_truth.py:389` | 1 |
 | `STATIC-TRUTH-CATALOG-003` | repository truth | `scripts/validate_static.py:515` | 0 |
 | `STATIC-TRUTH-CATALOG-004` | repository truth | `scripts/validate_static.py:517` | 0 |
 | `STATIC-TRUTH-CATALOG-005` | repository truth | `scripts/validate_static.py:519` | 0 |
@@ -260,7 +262,7 @@ Declared codes: `332`.
 | `STATIC-TRUTH-DESCRIPTOR-001` | repository truth | `scripts/validate_static.py:558` | 0 |
 | `STATIC-TRUTH-DESCRIPTOR-002` | repository truth | `scripts/validate_static.py:564` | 0 |
 | `STATIC-TRUTH-DESCRIPTOR-003` | repository truth | `scripts/validate_static.py:571` | 0 |
-| `STATIC-TRUTH-DOCS-001` | repository truth | `scripts/test/repository_truth.py:292` | 3 |
+| `STATIC-TRUTH-DOCS-001` | repository truth | `scripts/test/repository_truth.py:312` | 3 |
 | `STATIC-TRUTH-FACADE-001` | repository truth | `scripts/validate_static.py:540` | 0 |
 | `STATIC-TRUTH-FACADE-002` | repository truth | `scripts/validate_static.py:546` | 0 |
 | `STATIC-TRUTH-FACADE-003` | repository truth | `scripts/validate_static.py:603` | 0 |
@@ -268,20 +270,20 @@ Declared codes: `332`.
 | `STATIC-TRUTH-PACKAGES-001` | repository truth | `scripts/validate_static.py:452` | 0 |
 | `STATIC-TRUTH-PACKAGES-002` | repository truth | `scripts/validate_static.py:458` | 0 |
 | `STATIC-TRUTH-PACKAGES-003` | repository truth | `scripts/validate_static.py:482` | 0 |
-| `STATIC-TRUTH-PACKAGES-004` | repository truth | `scripts/test/repository_truth.py:330` | 1 |
+| `STATIC-TRUTH-PACKAGES-004` | repository truth | `scripts/test/repository_truth.py:357` | 1 |
 | `STATIC-TRUTH-PLAN-001` | repository truth | `scripts/validate_static.py:696` | 0 |
 | `STATIC-TRUTH-PLAN-002` | repository truth | `scripts/validate_static.py:702` | 0 |
 | `STATIC-TRUTH-PUBLISHED-001` | repository truth | `scripts/validate_static.py:234` | 0 |
-| `STATIC-TRUTH-PUBLISHED-002` | repository truth | `scripts/test/repository_truth.py:341` | 2 |
-| `STATIC-TRUTH-PUBLISHED-003` | repository truth | `scripts/test/repository_truth.py:352` | 1 |
-| `STATIC-TRUTH-RELEASE-001` | repository truth | `scripts/test/repository_truth.py:262` | 1 |
-| `STATIC-TRUTH-RELEASE-002` | repository truth | `scripts/test/repository_truth.py:272` | 1 |
-| `STATIC-TRUTH-RELEASE-003` | repository truth | `scripts/test/repository_truth.py:282` | 1 |
+| `STATIC-TRUTH-PUBLISHED-002` | repository truth | `scripts/test/repository_truth.py:368` | 2 |
+| `STATIC-TRUTH-PUBLISHED-003` | repository truth | `scripts/test/repository_truth.py:379` | 1 |
+| `STATIC-TRUTH-RELEASE-001` | repository truth | `scripts/test/repository_truth.py:282` | 1 |
+| `STATIC-TRUTH-RELEASE-002` | repository truth | `scripts/test/repository_truth.py:292` | 1 |
+| `STATIC-TRUTH-RELEASE-003` | repository truth | `scripts/test/repository_truth.py:302` | 1 |
 | `STATIC-TRUTH-RELEASE-004` | repository truth | `scripts/validate_static.py:255` | 0 |
-| `STATIC-TRUTH-ROADMAP-001` | repository truth | `scripts/test/repository_truth.py:372` | 1 |
-| `STATIC-TRUTH-ROADMAP-002` | repository truth | `scripts/test/repository_truth.py:387` | 1 |
-| `STATIC-TRUTH-ROADMAP-003` | repository truth | `scripts/test/repository_truth.py:382` | 1 |
-| `STATIC-TRUTH-VERSION-001` | repository truth | `scripts/test/repository_truth.py:251` | 1 |
+| `STATIC-TRUTH-ROADMAP-001` | repository truth | `scripts/test/repository_truth.py:399` | 1 |
+| `STATIC-TRUTH-ROADMAP-002` | repository truth | `scripts/test/repository_truth.py:414` | 1 |
+| `STATIC-TRUTH-ROADMAP-003` | repository truth | `scripts/test/repository_truth.py:409` | 1 |
+| `STATIC-TRUTH-VERSION-001` | repository truth | `scripts/test/repository_truth.py:271` | 1 |
 | `config.cli_override` | configuration | `crates/minco-cli/src/config_cmd.rs:410` | 1 |
 | `config.compiled_layer_forbidden` | configuration | `crates/minco-config/src/graph.rs:404` | 0 |
 | `config.digest_encoding` | configuration | `crates/minco-config/src/graph.rs:237` | 0 |

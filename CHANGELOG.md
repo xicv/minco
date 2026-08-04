@@ -5,8 +5,20 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.7.0] - 2026-08-04
+
 ### Added
 
+- Added an opt-in provider-neutral realtime publisher with deterministic memory
+  delivery and a minimal AWS AppSync Events adapter. Browser delivery is
+  subscriber-only, visibility-bounded and followed by application-owned HTTP
+  resynchronization after every initial or re-established subscription.
+- Added explicit AppSync Events Plan IR, SAM resources, exact publish IAM,
+  endpoint outputs and connection-minute/5 KiB operation cost dimensions. The
+  minimal profile adds no NAT Gateway, fixed compute, schedule, provisioned
+  concurrency or application heartbeat.
 - Added compatibility-checked rollback assessment across exact historical
   release, deployment, environment and data boundaries, plus optional
   metric-alarm-guarded Lambda alias canaries with deterministic cleanup and
@@ -17,9 +29,21 @@ Semantic Versioning once public releases begin.
 
 ### Changed
 
+- Added the first-publication `minco-plugin-realtime` package and advanced the
+  lock-step source workspace to the unpublished `0.7.0` candidate boundary.
 - Local and bounded hosted quality now fail when generated reference bytes
   drift from their authorities. Secret values and secret-reference names remain
   excluded, and reference generation performs no provider contact.
+
+### Compatibility boundary
+
+This is a pre-1.0 minor candidate with new public plugin, Plan and facade
+surface. The published baseline remains the immutable 28-package `0.6.0`
+family; the 29-package `0.7.0` workspace has not been tagged or published.
+Applications must update exact Minco dependencies and plugin compatibility
+together if and when the candidate is released. Source qualification, hosted
+checks, merge, tag, crates.io publication and live AWS proof remain separate
+states.
 
 ## [0.6.0] - 2026-08-01
 

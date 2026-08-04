@@ -1,14 +1,35 @@
 use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
 use minco_plan::{
     CostClass, DeploymentConfig, DeploymentPlan, IamResource, PreviewCleanupSchedule,
-    PreviewLifecyclePlan, PreviewResource, PreviewResourceRetention, QueuePlan, RuntimePlan,
-    ScheduleCleanupPlan, ScheduleCompletionAction, Severity, StaticSiteDeployment, TriggerPlan,
-    estimate_runtime_cost, render_sam, render_sam_with_code_uris,
+    PreviewLifecyclePlan, PreviewResource, PreviewResourceRetention, QueuePlan, RealtimeDeployment,
+    RuntimePlan, ScheduleCleanupPlan, ScheduleCompletionAction, Severity, StaticSiteDeployment,
+    TriggerPlan, estimate_runtime_cost, render_sam, render_sam_with_code_uris,
 };
 use std::collections::BTreeMap;
 
 fn standard_worker_plan() -> DeploymentPlan {
     plan_from_config(include_str!("fixtures/api_worker_standard_v2.toml"))
+}
+
+#[test]
+fn realtime_cost_exposes_connection_minutes_and_five_kib_operation_units() {
+    let mut plan = standard_worker_plan();
+    plan.realtime = Some(RealtimeDeployment {
+        namespace: "orders".into(),
+        max_event_bytes: 5 * 1024,
+        subscriber_claim: "sub".into(),
+    });
+
+    let estimate = estimate_runtime_cost(&plan);
+    let realtime = estimate.realtime.expect("realtime cost dimension");
+
+    assert_eq!(realtime.operation_unit_bytes, 5 * 1024);
+    assert_eq!(realtime.maximum_units_per_event, 1);
+    assert_eq!(realtime.event_operations_usd_per_million, 1);
+    assert_eq!(realtime.connection_minutes_cents_per_million, 8);
+    assert_eq!(realtime.fixed_monthly_usd, 0);
+    assert!(!realtime.sends_client_pings);
+    assert!((realtime.estimate_monthly_usd(600_000, 100_000) - 0.148).abs() < 0.000_001);
 }
 
 fn preview_lifecycle() -> PreviewLifecyclePlan {

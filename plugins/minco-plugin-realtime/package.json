@@ -1,0 +1,8 @@
+{
+  "name": "@minco/realtime-client-proof",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test assets/realtime-client.test.mjs"
+  }
+}

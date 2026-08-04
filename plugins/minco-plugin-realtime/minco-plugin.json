@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "id": "realtime",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^0.7.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "plugin-realtime",
+  "runtimes": ["native"],
+  "provides": [{ "name": "realtime.publish", "version": "1.0.0" }],
+  "configuration": [
+    {
+      "key": "namespace",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Portable namespace prepended to subscriber channels",
+      "default": "minco"
+    },
+    {
+      "key": "max_event_bytes",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Maximum encoded envelope size; 5120 bytes keeps one billing unit",
+      "default": 5120
+    },
+    {
+      "key": "subscriber_claim",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "OIDC claim that must equal the first channel segment after the namespace",
+      "default": "sub"
+    }
+  ],
+  "retention": "none",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Publication fails before transport when channel or envelope cost bounds are invalid."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-realtime" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-realtime --all-features --locked"]
+  }
+}

@@ -1,6 +1,7 @@
 use crate::{
     AuthPlan, DatabaseDeployment, DeploymentPlan, FunctionPlan, FunctionRole, IngressPlan,
-    PlanError, QueuePlan, RuntimePlan, StaticSiteDeployment, TriggerPlan, sam_logical_id,
+    PlanError, QueuePlan, RealtimeDeployment, RuntimePlan, StaticSiteDeployment, TriggerPlan,
+    oidc_client_id_pattern, realtime_oidc_auth_is_valid, sam_logical_id,
 };
 use minco_contract::HttpMethod;
 use std::{collections::BTreeMap, fmt::Write as _};
@@ -59,6 +60,14 @@ pub fn render_sam_with_code_uris(
             "EventBridge Scheduler ActionAfterCompletion is not exposed by the current AWS SAM ScheduleV2 or AWS::Scheduler::Schedule CloudFormation schemas; apply requires a future guarded Scheduler API operation and receipt".into(),
         ));
     }
+    if let Some(realtime) = &plan.realtime
+        && (!realtime.is_valid() || !realtime_oidc_auth_is_valid(&plan.auth))
+    {
+        return Err(PlanError::UnsupportedDeployment(
+            "AppSync Events requires valid realtime policy and jwt subscriber authentication"
+                .into(),
+        ));
+    }
     let function = api_function(plan).ok_or(PlanError::MissingFunction)?;
     let mut output = String::new();
     output.push_str("AWSTemplateFormatVersion: '2010-09-09'\n");
@@ -94,6 +103,9 @@ pub fn render_sam_with_code_uris(
     output.push_str("Resources:\n");
     if let Some(static_site) = &plan.static_site {
         render_static_site_resources(&mut output, static_site);
+    }
+    if let Some(realtime) = &plan.realtime {
+        render_realtime_resources(&mut output, plan, realtime);
     }
     output.push_str("  HttpApi:\n");
     output.push_str("    Type: AWS::Serverless::HttpApi\n");
@@ -185,10 +197,24 @@ pub fn render_sam_with_code_uris(
     )
     .expect("writing to String cannot fail");
     output.push_str("          ALLOW_DEVELOPMENT_HEADERS: 'false'\n");
-    if function.database_connections_per_instance > 0 {
+    if let Some(realtime) = &plan.realtime {
+        output.push_str("          MINCO_REALTIME_HTTP_ENDPOINT: !Sub 'https://${RealtimeApi.Dns.Http}/event'\n");
+        writeln!(
+            output,
+            "          MINCO_REALTIME_NAMESPACE: {}",
+            yaml_quote(&realtime.namespace)
+        )
+        .expect("writing to String cannot fail");
+    }
+    if function.database_connections_per_instance > 0 || plan.realtime.is_some() {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
-        render_database_policy_statements(&mut output);
+        if function.database_connections_per_instance > 0 {
+            render_database_policy_statements(&mut output);
+        }
+        if let Some(realtime) = &plan.realtime {
+            render_realtime_policy_statement(&mut output, realtime);
+        }
     }
     output.push_str("  CandidateApiInvokePermission:\n");
     output.push_str("    Type: AWS::Lambda::Permission\n");
@@ -253,7 +279,90 @@ pub fn render_sam_with_code_uris(
     if let Some(static_site) = &plan.static_site {
         render_static_site_outputs(&mut output, static_site);
     }
+    if let Some(realtime) = &plan.realtime {
+        render_realtime_outputs(&mut output, realtime);
+    }
     Ok(output)
+}
+
+fn render_realtime_resources(
+    output: &mut String,
+    deployment: &DeploymentPlan,
+    realtime: &RealtimeDeployment,
+) {
+    let AuthPlan::Jwt { issuer, audiences } = &deployment.auth else {
+        return;
+    };
+    output.push_str("  RealtimeApi:\n");
+    output.push_str("    Type: AWS::AppSync::Api\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      Name: !Sub '${AWS::StackName}-realtime'\n");
+    output.push_str("      EventConfig:\n");
+    output.push_str("        AuthProviders:\n");
+    output.push_str("          - AuthType: AWS_IAM\n");
+    output.push_str("          - AuthType: OPENID_CONNECT\n");
+    output.push_str("            OpenIDConnectConfig:\n");
+    writeln!(output, "              Issuer: {}", yaml_quote(issuer))
+        .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "              ClientId: {}",
+        yaml_quote(&oidc_client_id_pattern(audiences))
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("        ConnectionAuthModes:\n");
+    output.push_str("          - AuthType: OPENID_CONNECT\n");
+    output.push_str("        DefaultPublishAuthModes:\n");
+    output.push_str("          - AuthType: AWS_IAM\n");
+    output.push_str("        DefaultSubscribeAuthModes:\n");
+    output.push_str("          - AuthType: OPENID_CONNECT\n");
+    output.push_str("  RealtimeNamespace:\n");
+    output.push_str("    Type: AWS::AppSync::ChannelNamespace\n");
+    output.push_str("    Properties:\n");
+    output.push_str("      ApiId: !GetAtt RealtimeApi.ApiId\n");
+    writeln!(output, "      Name: {}", yaml_quote(&realtime.namespace))
+        .expect("writing to String cannot fail");
+    output.push_str("      CodeHandlers: |\n");
+    output.push_str("        import { util } from '@aws-appsync/utils'\n");
+    writeln!(
+        output,
+        "        const CLAIM = {}",
+        yaml_quote(&realtime.subscriber_claim)
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("        export function onSubscribe(ctx) {\n");
+    output.push_str("          const segments = ctx.info.channel.segments\n");
+    output.push_str("          const claim = ctx.identity && ctx.identity.claims && ctx.identity.claims[CLAIM]\n");
+    output.push_str("          if (typeof claim !== 'string' || segments.length < 2 || segments[1] !== claim) {\n");
+    output.push_str("            util.unauthorized()\n");
+    output.push_str("          }\n");
+    output.push_str("        }\n");
+    output.push_str("      PublishAuthModes:\n");
+    output.push_str("        - AuthType: AWS_IAM\n");
+    output.push_str("      SubscribeAuthModes:\n");
+    output.push_str("        - AuthType: OPENID_CONNECT\n");
+}
+
+fn render_realtime_policy_statement(output: &mut String, realtime: &RealtimeDeployment) {
+    output.push_str("            - Sid: MincoRealtimePublication\n");
+    output.push_str("              Effect: Allow\n");
+    output.push_str("              Action: appsync:EventPublish\n");
+    writeln!(
+        output,
+        "              Resource: !Sub 'arn:${{AWS::Partition}}:appsync:${{AWS::Region}}:${{AWS::AccountId}}:apis/${{RealtimeApi.ApiId}}/channelNamespace/{}'",
+        realtime.namespace
+    )
+    .expect("writing to String cannot fail");
+}
+
+fn render_realtime_outputs(output: &mut String, realtime: &RealtimeDeployment) {
+    output.push_str("  RealtimeHttpEndpoint:\n");
+    output.push_str("    Value: !Sub 'https://${RealtimeApi.Dns.Http}/event'\n");
+    output.push_str("  RealtimeWebSocketEndpoint:\n");
+    output.push_str("    Value: !Sub 'wss://${RealtimeApi.Dns.Realtime}/event/realtime'\n");
+    output.push_str("  RealtimeNamespaceName:\n");
+    writeln!(output, "    Value: {}", yaml_quote(&realtime.namespace))
+        .expect("writing to String cannot fail");
 }
 
 fn render_static_site_parameters(output: &mut String, plan: &StaticSiteDeployment) {
@@ -873,7 +982,7 @@ mod tests {
     use super::*;
     use crate::{
         AuthPlan, CostPolicy, DatabaseDeployment, FunctionPlan, FunctionRole, IngressPlan,
-        NeonPlan, PerformancePolicy, RoutePlan, RuntimePlan,
+        NeonPlan, PerformancePolicy, RealtimeDeployment, RoutePlan, RuntimePlan,
     };
 
     fn minimal_http_plan() -> DeploymentPlan {
@@ -923,6 +1032,7 @@ mod tests {
             ],
             application_graph: minco_core::ApplicationGraph::default(),
             static_site: None,
+            realtime: None,
             preview: None,
             local_aws_services: vec!["ssm".into(), "sts".into()],
             scheduled_wakeups: Vec::new(),
@@ -970,6 +1080,50 @@ mod tests {
         let relocated =
             render_sam_with_code_uri(&plan, Some("../../../artifact.zip")).expect("SAM");
         assert!(relocated.contains("CodeUri: '../../../artifact.zip'"));
+    }
+
+    #[test]
+    fn renders_subscriber_only_appsync_events_with_exact_publish_iam() {
+        let mut plan = minimal_http_plan();
+        plan.realtime = Some(RealtimeDeployment {
+            namespace: "orders".into(),
+            max_event_bytes: 5 * 1024,
+            subscriber_claim: "tenant_id".into(),
+        });
+
+        let yaml = render_sam(&plan).expect("SAM");
+
+        assert!(yaml.contains("Type: AWS::AppSync::Api"));
+        assert!(yaml.contains("DefaultPublishAuthModes:\n          - AuthType: AWS_IAM"));
+        assert!(yaml.contains("DefaultSubscribeAuthModes:\n          - AuthType: OPENID_CONNECT"));
+        assert!(yaml.contains("ConnectionAuthModes:\n          - AuthType: OPENID_CONNECT"));
+        assert!(yaml.contains("Type: AWS::AppSync::ChannelNamespace"));
+        assert!(yaml.contains("Name: 'orders'"));
+        assert!(yaml.contains("CodeHandlers: |"));
+        assert!(yaml.contains("ctx.identity.claims[CLAIM]"));
+        assert!(yaml.contains("const CLAIM = 'tenant_id'"));
+        assert!(yaml.contains("segments[1] !== claim"));
+        assert!(yaml.contains("MINCO_REALTIME_HTTP_ENDPOINT:"));
+        assert!(yaml.contains("Action: appsync:EventPublish"));
+        assert!(yaml.contains("apis/${RealtimeApi.ApiId}/channelNamespace/orders"));
+        assert!(!yaml.contains("apis/${RealtimeApi.ApiId}/*"));
+        assert!(!yaml.contains("appsync:EventConnect"));
+        assert!(!yaml.contains("appsync:EventSubscribe"));
+        assert!(!yaml.contains("API_KEY"));
+    }
+
+    #[test]
+    fn rejects_invalid_realtime_policy_before_rendering_javascript() {
+        let mut plan = minimal_http_plan();
+        plan.realtime = Some(RealtimeDeployment {
+            namespace: "orders".into(),
+            max_event_bytes: 5 * 1024,
+            subscriber_claim: "tenant_id\nthrow new Error('injected')".into(),
+        });
+
+        let error = render_sam(&plan).unwrap_err();
+
+        assert!(matches!(error, PlanError::UnsupportedDeployment(_)));
     }
 
     #[test]

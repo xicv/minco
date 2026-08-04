@@ -1,11 +1,11 @@
-# Minco 0.6.0 release handoff
+# Minco 0.7.0 candidate handoff
 
-Date: 2026-08-01
+Date: 2026-08-04
 Published baseline: `0.6.0`
-Current workspace version: `0.6.0`
-Workspace release state: `published`
+Current workspace version: `0.7.0`
+Workspace release state: `candidate`
 Published `0.6.0` source: `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`
-Last completed tasks: `M11-T01`, `M11-T02`, `M11-T03`, `M11-T07`, `M11-T08`
+Last completed tasks: `M11-T01`, `M11-T02`, `M11-T03`, `M11-T07`, `M11-T08`, `M11-T11`
 Active task: none
 
 ## Closed release boundary
@@ -29,6 +29,13 @@ The command requires successful crates.io evidence for every exact workspace
 version. It does not treat registry unavailability as a pass.
 
 ## Current state
+
+The workspace is now an unpublished `0.7.0` source candidate with 29
+publishable packages. It adds the first-publication `minco-plugin-realtime`
+package and minimal subscriber-only AppSync Events support. Source, hosted
+qualification, merge, tag, registry publication, live AWS deployment and
+production enablement remain separate gates; this candidate does not reopen or
+rewrite the completed `0.6.0` evidence below.
 
 The `0.6.0` release adds archive-visible plugin distribution records, one
 public conformance kit and a detailed versioned documentation set. Tag,

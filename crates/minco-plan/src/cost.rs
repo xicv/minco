@@ -7,6 +7,8 @@ const NEON_LAUNCH_COMPUTE_UNIT_HOUR_USD: f64 = 0.106;
 const NEON_SCALE_COMPUTE_UNIT_HOUR_USD: f64 = 0.222;
 const NEON_STORAGE_GB_MONTH_USD: f64 = 0.35;
 const NEON_HISTORY_STORAGE_GB_MONTH_USD: f64 = 0.20;
+const APPSYNC_EVENTS_PRICING_CAPTURED_AT: &str = "2026-08-04";
+const APPSYNC_EVENTS_PRICING_SOURCE: &str = "https://aws.amazon.com/appsync/pricing/";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CostComponent {
@@ -59,10 +61,42 @@ pub struct RuntimeCostEstimate {
     pub schedules: Vec<ScheduleCostDimension>,
     pub workers: Vec<WorkerCostDimension>,
     pub queues: Vec<QueueCostDimension>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub realtime: Option<RealtimeCostDimension>,
     pub fixed_cost_resources: Vec<String>,
     pub request_based_resources: Vec<String>,
     pub missing_rates: Vec<String>,
     pub evidence: Vec<CostEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RealtimeCostDimension {
+    pub operation_unit_bytes: usize,
+    pub maximum_units_per_event: usize,
+    pub event_operations_usd_per_million: u32,
+    pub connection_minutes_cents_per_million: u32,
+    pub fixed_monthly_usd: u32,
+    pub sends_client_pings: bool,
+    pub usage_inputs_required: Vec<String>,
+    pub charged_operation_kinds: Vec<String>,
+    pub pricing_captured_at: String,
+    pub pricing_source: String,
+}
+
+impl RealtimeCostDimension {
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn estimate_monthly_usd(
+        &self,
+        monthly_connection_minutes: u64,
+        monthly_event_operations: u64,
+    ) -> f64 {
+        let connection_cost = (monthly_connection_minutes as f64 / 1_000_000.0)
+            * (f64::from(self.connection_minutes_cents_per_million) / 100.0);
+        let operation_cost = (monthly_event_operations as f64 / 1_000_000.0)
+            * f64::from(self.event_operations_usd_per_million);
+        connection_cost + operation_cost
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,6 +255,34 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
             .iter()
             .map(|function| format!("lambda:{}", function.name)),
     );
+    let realtime = plan.realtime.as_ref().map(|deployment| {
+        request_based_resources.push("appsync_events".into());
+        RealtimeCostDimension {
+            operation_unit_bytes: 5 * 1024,
+            maximum_units_per_event: deployment.max_event_bytes.div_ceil(5 * 1024),
+            event_operations_usd_per_million: 1,
+            connection_minutes_cents_per_million: 8,
+            fixed_monthly_usd: 0,
+            sends_client_pings: false,
+            usage_inputs_required: vec![
+                "monthly_connection_minutes".into(),
+                "monthly_connect_operations".into(),
+                "monthly_subscribe_operations".into(),
+                "monthly_subscription_handler_invocations".into(),
+                "monthly_published_event_units".into(),
+                "monthly_delivered_event_units".into(),
+            ],
+            charged_operation_kinds: vec![
+                "connect".into(),
+                "subscribe".into(),
+                "subscription_handler_invocation".into(),
+                "published_event_5_kib_unit".into(),
+                "delivered_event_5_kib_unit".into(),
+            ],
+            pricing_captured_at: APPSYNC_EVENTS_PRICING_CAPTURED_AT.into(),
+            pricing_source: APPSYNC_EVENTS_PRICING_SOURCE.into(),
+        }
+    });
     request_based_resources.extend(plan.queues.iter().map(|queue| format!("sqs:{}", queue.id)));
     request_based_resources.extend(
         schedules
@@ -276,12 +338,20 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
                 )
             }),
     );
+    if realtime.is_some() {
+        evidence.push(cost_evidence(
+            "appsync_events",
+            CostClass::RequestOnly,
+            PricingConfidence::Priced,
+        ));
+    }
 
     RuntimeCostEstimate {
         complete: false,
         schedules,
         workers,
         queues,
+        realtime,
         fixed_cost_resources,
         request_based_resources,
         missing_rates,

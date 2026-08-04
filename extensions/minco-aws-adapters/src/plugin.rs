@@ -12,6 +12,7 @@ pub struct AwsAdapterSelection {
     pub email_notifications: bool,
     pub identity_administration: bool,
     pub static_site: bool,
+    pub realtime_publication: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +107,14 @@ impl Plugin for AwsAdaptersPlugin {
                 None,
             );
         }
+        if self.selection.realtime_publication {
+            add_provider(
+                &mut descriptor,
+                "realtime.publish",
+                "aws.appsync-events.realtime-publication",
+                None,
+            );
+        }
         descriptor
     }
 
@@ -143,6 +152,7 @@ mod tests {
             email_notifications: true,
             identity_administration: true,
             static_site: true,
+            realtime_publication: true,
         })
         .unwrap()
         .descriptor();
@@ -151,6 +161,12 @@ mod tests {
                 .provides
                 .iter()
                 .any(|capability| capability.name == "aws.sqs.event-publication")
+        );
+        assert!(
+            descriptor
+                .provides
+                .iter()
+                .any(|capability| capability.name == "aws.appsync-events.realtime-publication")
         );
         assert!(
             descriptor

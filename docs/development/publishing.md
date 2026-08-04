@@ -13,9 +13,10 @@ crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The current workspace is published at `0.6.0` with the same inventory. Its
-plugin distribution and conformance additions did not change the ordered
-package list or cross the first-publication boundary for a new name.
+The current workspace is an unpublished `0.7.0` candidate with 29 publishable
+packages. It adds the first-publication `minco-plugin-realtime` package. The
+published baseline remains the exact 28-package `0.6.0` family; source
+qualification or merge must not be described as registry publication.
 
 The exact published source is immutable tag `v0.6.0` at
 `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`. Later candidate qualification
@@ -45,6 +46,7 @@ deployment proof.
 | `minco-plugin-audit` | Durable audit contracts and adapters. |
 | `minco-plugin-feedback` | Feedback capture, persistence, administration, and widget contract. |
 | `minco-plugin-static-site` | Static-site runtime integration. |
+| `minco-plugin-realtime` | Provider-neutral ephemeral publication and subscriber-only browser delivery contracts. |
 | `minco-sqlx-postgres` | Bounded PostgreSQL pools and migrations. |
 | `minco-sqlx-sqlite` | SQLite pools, WAL policy, and migrations. |
 | `minco-aws-adapters` | Opt-in AWS provider adapters. |

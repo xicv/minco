@@ -29,6 +29,14 @@ plugin = "minco-plugin.json"
 
 [features]
 default = []
+appsync-events = [
+  "dep:aws-credential-types",
+  "dep:aws-sigv4",
+  "dep:http",
+  "dep:minco-plugin-realtime",
+  "dep:reqwest",
+  "dep:url",
+]
 s3 = [
   "dep:aws-credential-types",
   "dep:aws-sdk-s3",
@@ -49,11 +57,12 @@ static-site = [
   "dep:minco-plugin-static-site",
   "dep:tokio",
 ]
-full = ["s3", "sqs", "ses", "cognito", "webhook", "static-site"]
+full = ["appsync-events", "s3", "sqs", "ses", "cognito", "webhook", "static-site"]
 
 [dependencies]
 async-trait.workspace = true
 aws-credential-types = { workspace = true, optional = true }
+aws-sigv4 = { workspace = true, optional = true }
 aws-sdk-cloudfront = { workspace = true, optional = true }
 aws-sdk-cognitoidentityprovider = { workspace = true, optional = true }
 aws-sdk-s3 = { workspace = true, optional = true }
@@ -68,6 +77,7 @@ minco-plugin-events = { workspace = true, optional = true }
 minco-plugin-identity = { workspace = true, optional = true }
 minco-plugin-notifications = { workspace = true, optional = true }
 minco-plugin-object-storage = { workspace = true, optional = true }
+minco-plugin-realtime = { workspace = true, optional = true }
 minco-plugin-static-site = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 serde.workspace = true
@@ -75,6 +85,7 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
 uuid.workspace = true
 
 [dev-dependencies]
@@ -83,6 +94,10 @@ axum.workspace = true
 http.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
+
+[[example]]
+name = "render_smoke_assets"
+required-features = ["static-site"]
 
 [package.metadata.docs.rs]
 all-features = true

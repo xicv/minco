@@ -14,10 +14,10 @@ include = ["src/**", "Cargo.toml", "minco-plugin.json"]
 plugin = "minco-plugin.json"
 
 [dependencies]
-minco-core = { version = "0.6.0", path = "../../../crates/minco-core" }
+minco-core = { version = "0.7.0", path = "../../../crates/minco-core" }
 
 [dev-dependencies]
-minco-test = { version = "0.6.0", path = "../../../crates/minco-test" }
+minco-test = { version = "0.7.0", path = "../../../crates/minco-test" }
 
 [lints.rust]
 unsafe_code = "forbid"
