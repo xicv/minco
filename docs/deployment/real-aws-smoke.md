@@ -503,6 +503,11 @@ proof. An older CLI without `--cli-error-format json`, an access denial,
 credential/configuration failure, throttling response or any changed error
 shape therefore fails closed before creation.
 
+The standalone application-stack, artifact-bucket and temporary-RDS-stack
+preflight paths use the same shared verifier. Keep this common boundary in
+place when adding parent execution; do not reintroduce service-message regular
+expressions in a phase runner or cleanup proof.
+
 ## Multi-release rollback evidence
 
 Keep the current and prior releases in separate clean exact-source checkouts.

@@ -247,33 +247,41 @@ migration_receipt="$MINCO_AWS_EVIDENCE_DIR/database-migration-receipt.json"
 }
 
 stack_error="$MINCO_AWS_EVIDENCE_DIR/stack-preflight-error.txt"
-if aws_logged cloudformation describe-stacks \
+if aws_logged_json cloudformation describe-stacks \
   "ensure stack $MINCO_STACK_NAME does not pre-exist" \
   --stack-name "$MINCO_STACK_NAME" >/dev/null 2>"$stack_error"; then
   echo "refusing to mutate pre-existing stack $MINCO_STACK_NAME" >&2
   exit 1
-elif ! grep -Eq 'does not exist' "$stack_error"; then
+else
+  stack_status=$?
+fi
+if ! aws_cli_service_error_is \
+  "$stack_error" "${stack_status:-0}" ValidationError; then
   echo "could not prove that stack $MINCO_STACK_NAME is absent" >&2
-  sed -n '1,8p' "$stack_error" >&2
   exit 1
 fi
 rm -f "$stack_error"
+unset stack_status
 write_evidence_value \
   "$MINCO_AWS_EVIDENCE_DIR/stack-preflight-absent.txt" \
   "$MINCO_STACK_NAME"
 
 bucket_error="$MINCO_AWS_EVIDENCE_DIR/bucket-preflight-error.txt"
-if aws_logged s3api head-bucket \
+if aws_logged_json s3api head-bucket \
   "ensure artifact bucket $MINCO_AWS_ARTIFACT_BUCKET does not pre-exist" \
   --bucket "$MINCO_AWS_ARTIFACT_BUCKET" >/dev/null 2>"$bucket_error"; then
   echo "refusing to mutate pre-existing bucket $MINCO_AWS_ARTIFACT_BUCKET" >&2
   exit 1
-elif ! grep -Eq '404|NoSuchBucket|Not Found' "$bucket_error"; then
+else
+  bucket_status=$?
+fi
+if ! aws_cli_service_error_is \
+  "$bucket_error" "${bucket_status:-0}" 404; then
   echo "could not prove that artifact bucket is absent" >&2
-  sed -n '1,8p' "$bucket_error" >&2
   exit 1
 fi
 rm -f "$bucket_error"
+unset bucket_status
 write_evidence_value \
   "$MINCO_AWS_EVIDENCE_DIR/bucket-preflight-absent.txt" \
   "$MINCO_AWS_ARTIFACT_BUCKET"

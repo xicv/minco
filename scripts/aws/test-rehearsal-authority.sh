@@ -69,6 +69,39 @@ scripts/aws/validate-rehearsal-authority.sh \
 
 # shellcheck source=scripts/aws/lib/common.sh
 source scripts/aws/lib/common.sh
+structured_service_error="$fixture_dir/structured-service-error.json"
+printf '%s\n' \
+  '{"Code":"ValidationError","Message":"Stack does not exist"}' \
+  >"$structured_service_error"
+aws_cli_service_error_is \
+  "$structured_service_error" 254 ValidationError || {
+  echo "structured AWS service error helper rejected an exact service code" >&2
+  exit 1
+}
+if aws_cli_service_error_is \
+  "$structured_service_error" 255 ValidationError; then
+  echo "structured AWS service error helper accepted a non-service exit code" >&2
+  exit 1
+fi
+if aws_cli_service_error_is \
+  "$structured_service_error" 254 AccessDenied; then
+  echo "structured AWS service error helper accepted the wrong service code" >&2
+  exit 1
+fi
+jq '.RequestId = "not-retained"' \
+  "$structured_service_error" >"$structured_service_error.extra"
+if aws_cli_service_error_is \
+  "$structured_service_error.extra" 254 ValidationError; then
+  echo "structured AWS service error helper accepted an expanded error shape" >&2
+  exit 1
+fi
+printf '%s\n' 'ValidationError: Stack does not exist' \
+  >"$structured_service_error.text"
+if aws_cli_service_error_is \
+  "$structured_service_error.text" 254 ValidationError; then
+  echo "structured AWS service error helper accepted legacy message text" >&2
+  exit 1
+fi
 authority_receipt="$fixture_dir/authority-receipt.json"
 write_rehearsal_authority_receipt \
   "$authority_file" \
@@ -256,6 +289,14 @@ for command in aws cargo; do
     "$fixture_dir/$command-invoked" >"$fake_bin/$command"
   chmod +x "$fake_bin/$command"
 done
+# The generated command must expand these variables only when invoked.
+# shellcheck disable=SC2016
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'printf invoked >"$MINCO_FAKE_AWS_INVOKED"' \
+  'printf "%s\n" "$@" >"$MINCO_FAKE_AWS_ARGUMENTS"' \
+  'exit 88' >"$fake_bin/aws"
+chmod +x "$fake_bin/aws"
 deadline_error="$fixture_dir/deadline-error.txt"
 MINCO_AWS_RUN_ID=reviewed-run
 MINCO_AWS_TOUCH_LOG="$fixture_dir/cloud-touches.jsonl"
@@ -277,6 +318,38 @@ grep -q "duration authority expired" "$deadline_error" || {
   echo "cloud helper contacted AWS after rehearsal duration expired" >&2
   exit 1
 }
+structured_arguments="$fixture_dir/aws-arguments.txt"
+if PATH="$fake_bin:$PATH" \
+  MINCO_FAKE_AWS_INVOKED="$fixture_dir/aws-invoked" \
+  MINCO_FAKE_AWS_ARGUMENTS="$structured_arguments" \
+  MINCO_REHEARSAL_DEADLINE_EPOCH="$(( $(date -u +%s) + 60 ))" \
+  MINCO_REHEARSAL_CLEANUP_MODE=false \
+  aws_logged_json cloudformation describe-stacks \
+    "structured error probe" --stack-name minco-probe >/dev/null 2>&1; then
+  echo "fake structured AWS call unexpectedly succeeded" >&2
+  exit 1
+fi
+jq -Rn \
+  '[inputs]' <"$structured_arguments" | jq -e '
+    . == [
+      "--no-cli-pager",
+      "--cli-error-format",
+      "json",
+      "--region",
+      "ap-southeast-2",
+      "cloudformation",
+      "describe-stacks",
+      "--stack-name",
+      "minco-probe"
+    ]
+  ' >/dev/null || {
+  echo "structured AWS helper did not place the fixed JSON error option globally" >&2
+  exit 1
+}
+rm -f \
+  "$fixture_dir/aws-invoked" \
+  "$structured_arguments" \
+  "$MINCO_AWS_TOUCH_LOG"
 runner_error="$fixture_dir/runner-error.txt"
 if PATH="$fake_bin:$PATH" \
   AWS_PROFILE=minco-rehearsal \

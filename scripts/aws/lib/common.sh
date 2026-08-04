@@ -564,6 +564,23 @@ psql_with_url() {
     command psql "$@"
 }
 
+aws_cli_service_error_is() {
+  local error_path="$1"
+  local exit_code="$2"
+  local expected_code="$3"
+
+  [[ "$exit_code" == "254" &&
+    -f "$error_path" && ! -L "$error_path" &&
+    -n "$expected_code" ]] || return 1
+  jq -e \
+    --arg expected_code "$expected_code" \
+    '
+      keys == ["Code", "Message"]
+      and .Code == $expected_code
+      and (.Message | type == "string")
+    ' "$error_path" >/dev/null 2>&1
+}
+
 initialize_cloud_journal() {
   : "${MINCO_AWS_RUN_ID:?set MINCO_AWS_RUN_ID}"
   require_safe_name "MINCO_AWS_RUN_ID" "$MINCO_AWS_RUN_ID"
@@ -599,6 +616,19 @@ aws_logged() {
   record_cloud_touch "aws:$service" "$operation" "$detail" || return
   AWS_PAGER="" command aws \
     --no-cli-pager \
+    --region "$AWS_REGION" \
+    "$service" "$operation" "$@"
+}
+
+aws_logged_json() {
+  local service="$1"
+  local operation="$2"
+  local detail="$3"
+  shift 3
+  record_cloud_touch "aws:$service" "$operation" "$detail" || return
+  AWS_PAGER="" command aws \
+    --no-cli-pager \
+    --cli-error-format json \
     --region "$AWS_REGION" \
     "$service" "$operation" "$@"
 }

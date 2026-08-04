@@ -838,12 +838,10 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   else
     application_stack_status=$?
   fi
-  if [[ "${application_stack_status:-0}" -ne 254 ]] ||
-    ! jq -e '
-      keys == ["Code", "Message"]
-      and .Code == "ValidationError"
-      and (.Message | type == "string")
-    ' "$application_stack_error" >/dev/null; then
+  if ! aws_cli_service_error_is \
+    "$application_stack_error" \
+    "${application_stack_status:-0}" \
+    ValidationError; then
     echo "could not prove the application stack is absent" >&2
     exit 1
   fi
@@ -859,12 +857,8 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   else
     bucket_status=$?
   fi
-  if [[ "${bucket_status:-0}" -ne 254 ]] ||
-    ! jq -e '
-      keys == ["Code", "Message"]
-      and .Code == "404"
-      and (.Message | type == "string")
-    ' "$bucket_error" >/dev/null; then
+  if ! aws_cli_service_error_is \
+    "$bucket_error" "${bucket_status:-0}" 404; then
     echo "could not prove the artifact bucket is absent" >&2
     exit 1
   fi
@@ -880,12 +874,10 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   else
     database_stack_status=$?
   fi
-  if [[ "${database_stack_status:-0}" -ne 254 ]] ||
-    ! jq -e '
-      keys == ["Code", "Message"]
-      and .Code == "ValidationError"
-      and (.Message | type == "string")
-    ' "$database_stack_error" >/dev/null; then
+  if ! aws_cli_service_error_is \
+    "$database_stack_error" \
+    "${database_stack_status:-0}" \
+    ValidationError; then
     echo "could not prove the database stack is absent" >&2
     exit 1
   fi
@@ -901,12 +893,10 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   else
     database_instance_status=$?
   fi
-  if [[ "${database_instance_status:-0}" -ne 254 ]] ||
-    ! jq -e '
-      keys == ["Code", "Message"]
-      and .Code == "DBInstanceNotFound"
-      and (.Message | type == "string")
-    ' "$database_instance_error" >/dev/null; then
+  if ! aws_cli_service_error_is \
+    "$database_instance_error" \
+    "${database_instance_status:-0}" \
+    DBInstanceNotFound; then
     echo "could not prove the database instance is absent" >&2
     exit 1
   fi

@@ -61,17 +61,21 @@ engine_version="$(
 write_evidence_value "$MINCO_AWS_EVIDENCE_DIR/rds-engine-version.txt" "$engine_version"
 
 rds_stack_error="$MINCO_AWS_EVIDENCE_DIR/rds-stack-preflight-error.txt"
-if aws_logged cloudformation describe-stacks \
+if aws_logged_json cloudformation describe-stacks \
   "ensure temporary PostgreSQL stack $MINCO_RDS_STACK_NAME does not pre-exist" \
   --stack-name "$MINCO_RDS_STACK_NAME" >/dev/null 2>"$rds_stack_error"; then
   echo "refusing to mutate pre-existing stack $MINCO_RDS_STACK_NAME" >&2
   exit 1
-elif ! grep -Eq 'does not exist' "$rds_stack_error"; then
+else
+  rds_stack_status=$?
+fi
+if ! aws_cli_service_error_is \
+  "$rds_stack_error" "${rds_stack_status:-0}" ValidationError; then
   echo "could not prove that temporary PostgreSQL stack $MINCO_RDS_STACK_NAME is absent" >&2
-  sed -n '1,8p' "$rds_stack_error" >&2
   exit 1
 fi
 rm -f "$rds_stack_error"
+unset rds_stack_status
 write_evidence_value \
   "$MINCO_AWS_EVIDENCE_DIR/rds-stack-preflight-absent.txt" \
   "$MINCO_RDS_STACK_NAME"
