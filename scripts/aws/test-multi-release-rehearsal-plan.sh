@@ -50,6 +50,10 @@ create_checkout() {
       cp scripts/aws/lib/validate-multi-release-parent-session-receipt.jq \
         "$root/scripts/aws/lib/"
     fi
+    if [[ -f scripts/aws/lib/validate-multi-release-provider-entry-plan.jq ]]; then
+      cp scripts/aws/lib/validate-multi-release-provider-entry-plan.jq \
+        "$root/scripts/aws/lib/"
+    fi
     chmod +x "$root/scripts/aws/"*.sh
   fi
   git -C "$root" add .
@@ -111,6 +115,19 @@ for command in aws cargo curl psql sam uv; do
     'exit 99' >"$fake_bin/$command"
   chmod +x "$fake_bin/$command"
 done
+# The generated command must expand these variables only when invoked.
+# shellcheck disable=SC2016
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'printf "%s\\n" "$(basename "$0")" >>"$MINCO_PROVIDER_CONTACT_LOG"' \
+  '[[ "$#" -eq 9 && "$1" == "--no-cli-pager" && "$2" == "--region" && "$3" == "ap-southeast-2" && "$4" == "sts" && "$5" == "get-caller-identity" && "$6" == "--query" && "$7" == "{Account:Account,Arn:Arn,UserId:UserId}" && "$8" == "--output" && "$9" == "json" ]] || exit 99' \
+  'if [[ "${MINCO_FAKE_AWS_IDENTITY_MODE:-match}" == "mismatch" ]]; then' \
+  '  printf "%s\n" '\''{"Account":"123456789012","Arn":"arn:aws:sts::123456789012:assumed-role/unapproved-role/test-session","UserId":"AROATEST:test-session"}'\''' \
+  'else' \
+  '  printf "%s\n" '\''{"Account":"123456789012","Arn":"arn:aws:sts::123456789012:assumed-role/minco-rehearsal/test-session","UserId":"AROATEST:test-session"}'\''' \
+  'fi' \
+  >"$fake_bin/aws"
+chmod +x "$fake_bin/aws"
 
 plan_rehearsal() {
   local selected_prior_root="$1"
@@ -1001,6 +1018,80 @@ fi
 parent_session_runner="$current_root/scripts/aws/run-multi-release-parent-session.sh"
 parent_session_output="$fixture_dir/parent-session-output.json"
 phase_start_approval="$(jq -er '.receipt_digest' "$phase_start_receipt")"
+provider_entry_plan="$fixture_dir/provider-entry-plan.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=plan \
+  "$parent_session_runner" >"$provider_entry_plan"
+jq -e \
+  --arg approval_digest "$approval_digest" \
+  --arg controller_receipt_digest "$controller_receipt_digest" \
+  --arg phase_start_approval "$phase_start_approval" \
+  --arg plan_digest "$plan_digest" \
+  --arg prior_revision "$prior_revision" \
+  --arg projection_digest "$(
+    shasum -a 256 "$phase_projection_copy" | awk '{print $1}'
+  )" \
+  '
+    keys == [
+      "authority",
+      "cleanup",
+      "controller",
+      "external_aws_contact",
+      "operation",
+      "phase",
+      "provider",
+      "schema_version"
+    ]
+    and .schema_version == 1
+    and .operation == "multi_release_provider_entry"
+    and .external_aws_contact == false
+    and .controller == {
+      plan_digest: $plan_digest,
+      receipt_digest: $controller_receipt_digest
+    }
+    and .authority == {
+      approval_digest: $approval_digest,
+      kind: "minco.aws-multi-release-controller-rehearsal.v1",
+      run_id: "reviewed-multi-release-run"
+    }
+    and .phase == {
+      id: "01-prior-initial",
+      projection_digest: $projection_digest,
+      source_revision: $prior_revision,
+      start_receipt_digest: $phase_start_approval
+    }
+    and .provider == {
+      action: "sts_get_caller_identity",
+      expected_region: "ap-southeast-2",
+      mutation: false,
+      secrets_requested: false
+    }
+    and .cleanup == {
+      owner: "parent_controller",
+      required: true,
+      trap_count: 1
+    }
+    and (tostring | contains("123456789012") | not)
+    and (tostring | contains("arn:aws:iam") | not)
+    and (tostring | contains("/minco/rehearsal/database-url") | not)
+  ' "$provider_entry_plan" >/dev/null || {
+  echo "multi-release provider-entry plan weakened or exposed its boundary" >&2
+  exit 1
+}
+[[ ! -e "$phase_path/parent-session-start-receipt.json" &&
+  ! -e "$phase_path/parent-session-completion-receipt.json" &&
+  ! -e "$provider_contact_log" ]] || {
+  echo "multi-release provider-entry planning consumed evidence or contacted a provider" >&2
+  exit 1
+}
 if PATH="$fake_bin:$PATH" \
   MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
   MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
@@ -1124,6 +1215,7 @@ jq -e \
     }
     and .execution == {
       mode: "validation_only",
+      provider_entry_plan_digest: null,
       provider_state: "not_entered"
     }
     and .session == {start_receipt_digest: null}
@@ -1230,6 +1322,236 @@ fi
   exit 1
 }
 rm -r -- "$evidence_root"
+
+provider_session_output="$fixture_dir/provider-session-output.json"
+provider_entry_execution_plan="$fixture_dir/provider-entry-execution-plan.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  "$controller_initializer" >/dev/null
+controller_receipt="$evidence_root/control/controller-receipt.json"
+controller_receipt_digest="$(jq -er '.receipt_digest' "$controller_receipt")"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null
+phase_path="$evidence_root/phases/01-prior-initial"
+phase_start_receipt="$phase_path/phase-start-receipt.json"
+phase_start_approval="$(jq -er '.receipt_digest' "$phase_start_receipt")"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=plan \
+  "$parent_session_runner" >"$provider_entry_execution_plan"
+provider_entry_approval="$(
+  shasum -a 256 "$provider_entry_execution_plan" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+  MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+  MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST=0000000000000000000000000000000000000000000000000000000000000000 \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "provider identity preflight accepted the wrong provider-entry approval" >&2
+  exit 1
+fi
+[[ ! -e "$phase_path/parent-session-start-receipt.json" &&
+  ! -e "$phase_path/parent-session-completion-receipt.json" &&
+  ! -e "$provider_contact_log" ]] || {
+  echo "rejected provider identity preflight consumed evidence or contacted AWS" >&2
+  exit 1
+}
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST="$provider_entry_approval" \
+  "$parent_session_runner" >"$provider_session_output"
+
+provider_session_start="$phase_path/parent-session-start-receipt.json"
+provider_session_completion="$phase_path/parent-session-completion-receipt.json"
+[[ -f "$provider_session_start" && ! -L "$provider_session_start" &&
+  -f "$provider_session_completion" && ! -L "$provider_session_completion" &&
+  "$(<"$provider_contact_log")" == "aws" ]] || {
+  echo "provider identity preflight omitted its exact provider or lifecycle proof" >&2
+  exit 1
+}
+cmp -s "$provider_session_output" "$provider_session_completion" || {
+  echo "provider identity preflight output did not match its completion receipt" >&2
+  exit 1
+}
+provider_session_start_digest="$(jq -er '.receipt_digest' "$provider_session_start")"
+jq -e \
+  --arg provider_entry_approval "$provider_entry_approval" \
+  --arg provider_session_start_digest "$provider_session_start_digest" \
+  '
+    .state == "started"
+    and .external_aws_contact == false
+    and .execution == {
+      mode: "provider_identity_preflight",
+      provider_entry_plan_digest: $provider_entry_approval,
+      provider_state: "not_entered"
+    }
+    and .session == {start_receipt_digest: null}
+    and .cleanup == {
+      action: "none_before_provider_boundary",
+      owner: "parent_controller",
+      required: true,
+      state: "installed",
+      trap_count: 1
+    }
+  ' "$provider_session_start" >/dev/null || {
+  echo "provider identity preflight start receipt weakened its boundary" >&2
+  exit 1
+}
+jq -e \
+  --arg provider_entry_approval "$provider_entry_approval" \
+  --arg provider_session_start_digest "$provider_session_start_digest" \
+  '
+    .state == "provider_identity_verified"
+    and .external_aws_contact == true
+    and .execution == {
+      mode: "provider_identity_preflight",
+      provider_entry_plan_digest: $provider_entry_approval,
+      provider_state: "identity_verified"
+    }
+    and .session == {start_receipt_digest: $provider_session_start_digest}
+    and .cleanup == {
+      action: "none_read_only_identity_preflight",
+      owner: "parent_controller",
+      required: true,
+      state: "disarmed",
+      trap_count: 1
+    }
+    and (tostring | contains("123456789012") | not)
+    and (tostring | contains("arn:aws") | not)
+    and (tostring | contains("minco-rehearsal") | not)
+    and (tostring | contains("/minco/rehearsal/database-url") | not)
+  ' "$provider_session_completion" >/dev/null || {
+  echo "provider identity preflight completion receipt weakened or exposed its boundary" >&2
+  exit 1
+}
+rm -r -- "$evidence_root"
+rm -f -- "$provider_contact_log"
+
+failed_provider_entry_plan="$fixture_dir/failed-provider-entry-plan.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  "$controller_initializer" >/dev/null
+controller_receipt="$evidence_root/control/controller-receipt.json"
+controller_receipt_digest="$(jq -er '.receipt_digest' "$controller_receipt")"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null
+phase_path="$evidence_root/phases/01-prior-initial"
+phase_start_receipt="$phase_path/phase-start-receipt.json"
+phase_start_approval="$(jq -er '.receipt_digest' "$phase_start_receipt")"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=plan \
+  "$parent_session_runner" >"$failed_provider_entry_plan"
+failed_provider_entry_approval="$(
+  shasum -a 256 "$failed_provider_entry_plan" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_FAKE_AWS_IDENTITY_MODE=mismatch \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+  MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+  MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST="$failed_provider_entry_approval" \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "provider identity preflight accepted an unapproved role" >&2
+  exit 1
+fi
+failed_provider_start="$phase_path/parent-session-start-receipt.json"
+failed_provider_completion="$phase_path/parent-session-completion-receipt.json"
+[[ -f "$failed_provider_start" && ! -L "$failed_provider_start" &&
+  -f "$failed_provider_completion" && ! -L "$failed_provider_completion" &&
+  "$(<"$provider_contact_log")" == "aws" ]] || {
+  echo "failed provider identity preflight omitted conservative lifecycle proof" >&2
+  exit 1
+}
+jq -e -f scripts/aws/lib/validate-multi-release-parent-session-receipt.jq \
+  "$failed_provider_completion" >/dev/null || {
+  echo "failed provider identity receipt is outside the fixed policy" >&2
+  exit 1
+}
+failed_provider_start_digest="$(jq -er '.receipt_digest' "$failed_provider_start")"
+jq -e \
+  --arg failed_provider_entry_approval "$failed_provider_entry_approval" \
+  --arg failed_provider_start_digest "$failed_provider_start_digest" \
+  '
+    .state == "failed"
+    and .external_aws_contact == true
+    and .execution == {
+      mode: "provider_identity_preflight",
+      provider_entry_plan_digest: $failed_provider_entry_approval,
+      provider_state: "identity_unverified"
+    }
+    and .session == {start_receipt_digest: $failed_provider_start_digest}
+    and .cleanup == {
+      action: "none_read_only_identity_preflight",
+      owner: "parent_controller",
+      required: true,
+      state: "disarmed",
+      trap_count: 1
+    }
+    and (tostring | contains("123456789012") | not)
+    and (tostring | contains("arn:aws") | not)
+    and (tostring | contains("unapproved-role") | not)
+  ' "$failed_provider_completion" >/dev/null || {
+  echo "failed provider identity receipt underreported contact or exposed identity" >&2
+  exit 1
+}
+rm -r -- "$evidence_root"
+rm -f -- "$provider_contact_log"
 
 first_phase_projection="$fixture_dir/first-phase-projection.json"
 PATH="$fake_bin:$PATH" \

@@ -392,12 +392,60 @@ current checkout, injected state or repeated session fails before creating a
 receipt. Interruption after the start receipt never fabricates a terminal
 validated receipt.
 
-The next provider-capable slice must extend this same parent process after its
-durable start and before the trap is disarmed. It must consume a separately
-approved execution boundary, retain the shared stack, bucket and identity
-harness across all three phases, write terminal phase evidence on every exit,
-and make the one parent trap perform and verify cleanup. These validation-only
-receipts do not authorize that work.
+The first provider boundary is a separate deterministic plan. Render it from
+the same exact current checkout before authorizing any AWS contact:
+
+```bash
+provider_entry_plan=/absolute/path/outside/checkouts/provider-entry-plan.json
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=plan \
+  scripts/aws/run-multi-release-parent-session.sh >"$provider_entry_plan"
+provider_entry_digest="$(
+  shasum -a 256 "$provider_entry_plan" | awk '{print $1}'
+)"
+```
+
+Planning repeats the complete local controller validation, contacts no
+provider, requests no secret, creates no lifecycle receipt and fixes the only
+permitted provider action to read-only `sts get-caller-identity` in the
+authority's exact Region. Review and approve the byte-exact plan digest
+separately, then execute only that identity preflight:
+
+```bash
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST="$provider_entry_digest" \
+  scripts/aws/run-multi-release-parent-session.sh
+```
+
+Execution re-renders and verifies the approved plan before publishing the
+start receipt. It makes one fixed STS identity call with the authority's exact
+profile and Region, normalizes an assumed-role caller and compares account and
+role to the authority without serializing the identity. Success publishes
+`provider_identity_verified`; a provider response or identity failure
+publishes a conservative `failed` terminal receipt with
+`external_aws_contact: true`. Both terminal states say
+`none_read_only_identity_preflight`: no resource was created, no mutation or
+secret was requested, and therefore no cloud cleanup was performed or proved.
+A missing or wrong provider-entry digest fails before receipts and AWS.
+
+This identity preflight does not authorize phase deployment. The next
+provider-capable slice must continue in this same parent process, retain the
+shared stack, bucket and identity harness across all three phases, write
+terminal phase evidence on every exit, and make the one parent trap perform
+and verify cleanup.
 
 ## Multi-release rollback evidence
 
@@ -430,10 +478,11 @@ same centralized policy evaluator carried by the phase plan, so future update
 execution cannot substitute a broader ad hoc review. The local plan,
 per-phase projections, atomic controller initialization and first-phase claim
 now close the parent ownership, provenance and initial state-transition
-contracts, but no provider-capable parent runner consumes that `started`
-receipt yet. Do not disable the single-release runner's immediate cleanup or
-create-only review gate independently; that would leave a partially owned
-provider boundary rather than a recoverable rehearsal.
+contracts. The parent can cross only the separately digest-approved read-only
+identity boundary; it cannot yet build, deploy, verify, promote or clean shared
+multi-release resources. Do not disable the single-release runner's immediate
+cleanup or create-only review gate independently; that would leave a partially
+owned provider boundary rather than a recoverable rehearsal.
 
 ## Bounded execution
 

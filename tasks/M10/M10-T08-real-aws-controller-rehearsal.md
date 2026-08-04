@@ -231,3 +231,22 @@ and ensured interruption after a durable start cannot fabricate a validated
 completion. Provider execution, terminal provider-phase receipts, shared stack,
 bucket and identity ownership, compatibility handoff, verified parent cleanup
 and the separately approved live rehearsal remain required.
+
+The ninth controller slice adds the first provider-entry tracer without
+granting deployment authority. The same exact current parent process now emits
+a schema-closed deterministic plan that binds the controller, authority,
+first-phase handoff, exact Region, fixed read-only STS identity action, zero
+mutation, zero secret request and parent cleanup ownership. Execution requires
+a separate exact SHA-256 approval of that plan, revalidates the complete chain
+before publishing its durable start receipt, then makes only the fixed
+`get-caller-identity` call and compares the normalized account and role to the
+authority without retaining either value. Success records
+`provider_identity_verified`; an identity mismatch records a conservative
+`failed` receipt with provider contact true. Both explicitly record that no
+resource existed to clean. Red-first fake-provider coverage proves wrong
+digests fail before evidence or contact, the exact STS-only command shape,
+successful and mismatched identities, lifecycle digest chaining and redaction.
+No live AWS call was made by this source slice, so provider deployment,
+terminal resource-phase receipts, shared stack, bucket and identity ownership,
+compatibility handoff, verified parent cleanup and the separately approved live
+rehearsal remain required.

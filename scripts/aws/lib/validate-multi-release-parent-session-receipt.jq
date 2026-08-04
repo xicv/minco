@@ -19,8 +19,13 @@ keys == [
 ]
 and .schema_version == 1
 and .operation == "multi_release_parent_session"
-and (.state == "started" or .state == "validated")
-and .external_aws_contact == false
+and (
+  .state == "started"
+  or .state == "validated"
+  or .state == "provider_identity_verified"
+  or .state == "failed"
+)
+and (.external_aws_contact | type == "boolean")
 and (.receipt_digest | digest)
 and (.controller | keys) == ["plan_digest", "receipt_digest"]
 and (.controller.plan_digest | digest)
@@ -47,10 +52,37 @@ and (.phase.projection_digest | digest)
 and (.phase.start_receipt_digest | digest)
 and .phase.stack_action == "create"
 and .phase.change_set_review_policy == "bounded_create_v1"
-and .execution == {
-  mode: "validation_only",
-  provider_state: "not_entered"
-}
+and (.execution | keys) == [
+  "mode",
+  "provider_entry_plan_digest",
+  "provider_state"
+]
+and (
+  if .execution.mode == "validation_only" then
+    (.state == "started" or .state == "validated")
+    and .external_aws_contact == false
+    and .execution.provider_entry_plan_digest == null
+    and .execution.provider_state == "not_entered"
+  elif .execution.mode == "provider_identity_preflight" then
+    (.execution.provider_entry_plan_digest | digest)
+    and (
+      if .state == "started" then
+        .external_aws_contact == false
+        and .execution.provider_state == "not_entered"
+      elif .state == "provider_identity_verified" then
+        .external_aws_contact == true
+        and .execution.provider_state == "identity_verified"
+      elif .state == "failed" then
+        .external_aws_contact == true
+        and .execution.provider_state == "identity_unverified"
+      else
+        false
+      end
+    )
+  else
+    false
+  end
+)
 and (.session | keys) == ["start_receipt_digest"]
 and (
   if .state == "started" then
@@ -71,9 +103,17 @@ and (
       state: "installed",
       trap_count: 1
     }
-  else
+  elif .state == "validated" then
     .cleanup == {
       action: "none_provider_boundary_not_entered",
+      owner: "parent_controller",
+      required: true,
+      state: "disarmed",
+      trap_count: 1
+    }
+  else
+    .cleanup == {
+      action: "none_read_only_identity_preflight",
       owner: "parent_controller",
       required: true,
       state: "disarmed",
