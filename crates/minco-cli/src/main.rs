@@ -1435,11 +1435,24 @@ fn database_plan_bindings_digest(
     deployment: &DeploymentReceipt,
     kind: DatabasePlanKind,
 ) -> Result<String> {
-    let bindings = deployment
+    let mut bindings = deployment
         .database_plans
         .iter()
         .filter(|binding| binding.kind == kind)
+        .map(|binding| {
+            (
+                binding.kind,
+                binding.schema_version,
+                &binding.catalog_digest,
+                &binding.plan_digest,
+                &binding.file.sha256,
+                binding.file.bytes,
+                &binding.selected_set,
+                &binding.environment,
+            )
+        })
         .collect::<Vec<_>>();
+    bindings.sort_unstable();
     Ok(format!(
         "{:x}",
         Sha256::digest(serde_json::to_vec(&bindings)?)
@@ -7074,6 +7087,74 @@ Resources:
             }))
         ));
         assert!(cli.json);
+    }
+
+    #[test]
+    fn rollback_database_binding_digest_ignores_evidence_path_only_changes() {
+        let receipt = |path: &str, plan_digest: &str, file_digest: &str| {
+            DeploymentReceipt::start(DeploymentReceiptInput {
+                attempt_id: "attempt-001".into(),
+                release_manifest: FileDigest {
+                    path: "target/minco/release.json".into(),
+                    sha256: "a".repeat(64),
+                    bytes: 512,
+                },
+                release_id: format!("minco.{}", "b".repeat(24)),
+                release_digest: "b".repeat(64),
+                environment: ReleaseEnvironment {
+                    application: "orders".into(),
+                    environment: "dev".into(),
+                    region: "ap-southeast-2".into(),
+                },
+                configuration_digest: "c".repeat(64),
+                database_plans: vec![DatabasePlanBinding {
+                    kind: DatabasePlanKind::Migration,
+                    schema_version: 1,
+                    catalog_digest: "d".repeat(64),
+                    plan_digest: plan_digest.into(),
+                    file: FileDigest {
+                        path: path.into(),
+                        sha256: file_digest.into(),
+                        bytes: 256,
+                    },
+                    selected_set: Some("orders-postgres".into()),
+                    environment: Some("dev".into()),
+                }],
+                attestations: Vec::new(),
+            })
+            .expect("deployment receipt")
+        };
+
+        let initial = receipt(
+            "target/minco/aws/01-prior-initial/database-migration-plan.json",
+            &"e".repeat(64),
+            &"f".repeat(64),
+        );
+        let current = receipt(
+            "target/minco/aws/02-current/database-migration-plan.json",
+            &"e".repeat(64),
+            &"f".repeat(64),
+        );
+        let changed = receipt(
+            "target/minco/aws/02-current/database-migration-plan.json",
+            &"0".repeat(64),
+            &"9".repeat(64),
+        );
+
+        let initial_digest = database_plan_bindings_digest(&initial, DatabasePlanKind::Migration)
+            .expect("initial binding digest");
+        assert_eq!(
+            initial_digest,
+            database_plan_bindings_digest(&current, DatabasePlanKind::Migration)
+                .expect("current binding digest"),
+            "the evidence namespace is not part of migration compatibility"
+        );
+        assert_ne!(
+            initial_digest,
+            database_plan_bindings_digest(&changed, DatabasePlanKind::Migration)
+                .expect("changed binding digest"),
+            "semantic migration plan changes must remain visible"
+        );
     }
 
     #[test]

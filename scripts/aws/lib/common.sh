@@ -352,16 +352,57 @@ bounded_phase_change_set_is_authorized() {
             .resource_type == "AWS::Lambda::Alias"
             and .logical_id == "ApiFunctionAliascandidate"
           );
+        def release_tag_target:
+          (
+            .resource_type == "AWS::IAM::Role"
+            and .logical_id == "ApiFunctionRole"
+          )
+          or (
+            .resource_type == "AWS::Logs::LogGroup"
+            and .logical_id == "ApiLogGroup"
+          )
+          or (
+            .resource_type == "AWS::Lambda::Permission"
+            and (
+              .logical_id == "CandidateApiInvokePermission"
+              or .logical_id == "LiveApiInvokePermission"
+            )
+          )
+          or (
+            .resource_type == "AWS::ApiGatewayV2::Stage"
+            and (
+              .logical_id == "CandidateStage"
+              or .logical_id == "HttpApiApiGatewayDefaultStage"
+            )
+          )
+          or (
+            .resource_type == "AWS::ApiGatewayV2::Api"
+            and .logical_id == "HttpApi"
+          )
+          or (
+            .resource_type == "AWS::Lambda::Alias"
+            and .logical_id == "LiveFunctionAlias"
+          );
         def addition:
           .action == "add"
           and .replacement == null
           and .policy_action == null
           and .scope == [];
-        def modification:
+        def candidate_modification:
           .action == "modify"
           and (.replacement == null or .replacement == "never")
           and .policy_action == null
-          and (.scope | length > 0 and all(. == "properties"));
+          and (
+            .scope
+            | length > 0
+              and any(. == "properties")
+              and all(. == "properties" or . == "tags")
+          );
+        def tag_modification:
+          .action == "modify"
+          and (.replacement == null or .replacement == "never")
+          and .policy_action == null
+          and .scope == ["tags"];
         def replacement:
           .action == "modify"
           and (.replacement == "conditional" or .replacement == "always")
@@ -373,7 +414,11 @@ bounded_phase_change_set_is_authorized() {
         def deletion:
           .action == "remove"
           and .replacement == null
-          and (.policy_action == null or .policy_action == "delete")
+          and (
+            .policy_action == null
+            or .policy_action == "delete"
+            or .policy_action == "retain"
+          )
           and .scope == [];
         .change_set.change_set_type == "update"
         and (.change_set.review.imports | length == 0)
@@ -393,7 +438,13 @@ bounded_phase_change_set_is_authorized() {
           | all
         )
         and (
-          [.change_set.review.modifications[] | candidate_update and modification]
+          [
+            .change_set.review.modifications[]
+            | (
+                (candidate_update and candidate_modification)
+                or (release_tag_target and tag_modification)
+              )
+          ]
           | all
         )
         and (
@@ -597,7 +648,13 @@ aws_cli_service_error_is() {
   jq -e \
     --arg expected_code "$expected_code" \
     '
-      keys == ["Code", "Message"]
+      (
+        keys == ["Code", "Message"]
+        or (
+          keys == ["Code", "Message", "message"]
+          and .message == .Message
+        )
+      )
       and .Code == $expected_code
       and (.Message | type == "string")
     ' "$error_path" >/dev/null 2>&1

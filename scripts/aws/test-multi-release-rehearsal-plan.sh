@@ -311,6 +311,9 @@ jq -e \
 
 create_review="$fixture_dir/create-change-set-receipt.json"
 update_review="$fixture_dir/update-change-set-receipt.json"
+release_tag_update_review="$fixture_dir/release-tag-update-change-set-receipt.json"
+broadened_tag_update_review="$fixture_dir/broadened-tag-update-change-set-receipt.json"
+unknown_tag_update_review="$fixture_dir/unknown-tag-update-change-set-receipt.json"
 broadened_update_review="$fixture_dir/broadened-update-change-set-receipt.json"
 jq -n '
   {
@@ -394,6 +397,114 @@ bounded_phase_change_set_is_authorized \
 }
 
 jq '
+  .change_set.review.modifications[0].scope = ["properties", "tags"]
+  | .change_set.review.modifications[1].scope = ["properties", "tags"]
+  | .change_set.review.modifications += [
+      {
+        logical_id: "ApiFunctionRole",
+        resource_type: "AWS::IAM::Role",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      },
+      {
+        logical_id: "ApiLogGroup",
+        resource_type: "AWS::Logs::LogGroup",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      },
+      {
+        logical_id: "CandidateApiInvokePermission",
+        resource_type: "AWS::Lambda::Permission",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      },
+      {
+        logical_id: "CandidateStage",
+        resource_type: "AWS::ApiGatewayV2::Stage",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      },
+      {
+        logical_id: "HttpApi",
+        resource_type: "AWS::ApiGatewayV2::Api",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      },
+      {
+        logical_id: "HttpApiApiGatewayDefaultStage",
+        resource_type: "AWS::ApiGatewayV2::Stage",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      },
+      {
+        logical_id: "LiveApiInvokePermission",
+        resource_type: "AWS::Lambda::Permission",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      },
+      {
+        logical_id: "LiveFunctionAlias",
+        resource_type: "AWS::Lambda::Alias",
+        action: "modify",
+        replacement: "never",
+        policy_action: null,
+        scope: ["tags"]
+      }
+    ]
+  | .change_set.review.deletions[0].policy_action = "retain"
+' "$update_review" >"$release_tag_update_review"
+bounded_phase_change_set_is_authorized \
+  "$release_tag_update_review" bounded_release_update_v1 || {
+  echo "release update review rejected exact release-tag synchronization" >&2
+  exit 1
+}
+
+jq '
+  .change_set.review.modifications
+  |= map(
+    if .logical_id == "ApiFunctionRole"
+    then .scope = ["properties", "tags"]
+    else .
+    end
+  )
+' "$release_tag_update_review" >"$broadened_tag_update_review"
+if bounded_phase_change_set_is_authorized \
+  "$broadened_tag_update_review" bounded_release_update_v1; then
+  echo "release update review accepted properties on a tag-only resource" >&2
+  exit 1
+fi
+
+jq '
+  .change_set.review.modifications += [{
+    logical_id: "UnexpectedQueue",
+    resource_type: "AWS::SQS::Queue",
+    action: "modify",
+    replacement: "never",
+    policy_action: null,
+    scope: ["tags"]
+  }]
+' "$release_tag_update_review" >"$unknown_tag_update_review"
+if bounded_phase_change_set_is_authorized \
+  "$unknown_tag_update_review" bounded_release_update_v1; then
+  echo "release update review accepted tags on an unknown resource" >&2
+  exit 1
+fi
+
+jq '
   .change_set.review.modifications += [
     {
       logical_id: "ExecutionRole",
@@ -455,11 +566,20 @@ if bounded_phase_change_set_is_authorized \
 fi
 
 retained_update_review="$fixture_dir/retained-update-change-set-receipt.json"
-jq '.change_set.review.deletions[0].policy_action = "retain"' \
+jq '
+  .change_set.review.deletions[0] = {
+    logical_id: "ApiLogGroup",
+    resource_type: "AWS::Logs::LogGroup",
+    action: "remove",
+    replacement: null,
+    policy_action: "retain",
+    scope: []
+  }
+' \
   "$update_review" >"$retained_update_review"
 if bounded_phase_change_set_is_authorized \
   "$retained_update_review" bounded_release_update_v1; then
-  echo "release update review accepted retained generated resources" >&2
+  echo "release update review accepted retained non-version resources" >&2
   exit 1
 fi
 
