@@ -2,7 +2,7 @@
 id: M12-T01
 title: Add bounded project read models and a local read-only Minco MCP server
 milestone: M12
-status: planned
+status: ready
 priority: high
 area: ai/mcp
 depends_on: [M10-T03, M11-T10]

@@ -91,28 +91,30 @@ one exact release without rebuilding.
 | M10-T07 | Zero-idle service and cost research | Dated profiles keep correctness, wake and pricing limits explicit |
 | M10-T08 | Bounded real-AWS controller rehearsal | Exact apply, hosted verification, promotion, rollback and cleanup evidence |
 
-M10 is complete only after a bounded real-AWS rehearsal proves the documented
+M10 closure is supported by a bounded real-AWS rehearsal of the documented
 controller path. Local/SAM validation alone is not deployment proof.
 
-## Current transition after 0.6.0
+## Current transition after the real-AWS closure
 
 The 2026-08-03 repository-truth audit closes M9: all nine tasks are complete,
 its M4 prerequisite is complete, and its PostgreSQL/SQLite golden paths,
 strict lifecycle controls, generators, resource contract and local-first CI
 exit signals are recorded in the owning tasks.
 
-M7 and M11 retain `active` milestone status even though their current task
-sets and direct exit signals are complete, because both milestones still have
-the active M10 prerequisite. M10 retains `active` status because local and
-hosted source qualification does not satisfy its real-AWS exit criterion.
-M10-T08 is the explicit next task, but `ready` means its source dependencies
-are complete; it does not authorize an AWS call. The exact non-production
-account, Region, role, environment, cost/time bound and cleanup blast radius
-must be approved before that task starts provider execution.
+The separately approved M10-T08 rehearsal then applied and promoted an exact
+prior release, an exact current release and the exact prior rollback target.
+Each phase passed fresh hosted verification. Rollback compatibility was
+explicitly `compatible`, no source or artifact was rebuilt, and independent
+cleanup verification proved every bounded AWS resource class absent. The
+repository record is redacted and retains no account, role, endpoint,
+credential or resource identifier.
 
-M12 therefore remains `planned`. Its adoption completion task depends on
-M7-T02, the actual GarmentIQ contract-only evidence, rather than the earlier
-M7-T01 audit that recorded the missing evidence.
+M10 is therefore `complete`. M7 and M11 also become `complete` because their
+task sets, direct exit signals and M10 prerequisite are complete. M12 becomes
+`active`, with M12-T01 as the single dependency-ready source task. Readiness
+does not merge a pull request, authorize a provider, deploy an application or
+publish a crate. M12-T03 continues to depend on M7-T02, the actual GarmentIQ
+contract-only evidence, rather than the earlier M7-T01 gap audit.
 
 ## M11 — Plugin ecosystem and documentation
 
@@ -134,8 +136,8 @@ inventories.
 | M11-T10 | Repository-native project-view design | One bounded read model keeps status and evidence authority explicit |
 
 M11 does not create a hosted plugin registry or runtime plugin loader.
-M11-T10 refines the planned M12 read-model and presentation contracts; it does
-not implement the MCP/workbench or advance any M12 task or milestone status.
+M11-T10 defines the M12 read-model and presentation contracts; it does not
+itself implement the MCP or workbench.
 
 ## M12 — AI workbench and 1.0 preparation
 

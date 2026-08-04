@@ -1,6 +1,6 @@
 ---
 id: M7-T03
-title: Reconcile milestone truth and expose the real-AWS closure gate
+title: Reconcile milestone truth and transition through the real-AWS closure gate
 milestone: M7
 status: complete
 priority: critical
@@ -17,6 +17,7 @@ owned_paths:
   - scripts/test/repository_truth.py
   - tasks/M7/M7-T03-roadmap-transition.md
   - tasks/M10/M10-T08-real-aws-controller-rehearsal.md
+  - tasks/M12/M12-T01-local-read-only-mcp.md
   - tasks/M12/M12-T03-adoption-completion.md
   - verification/adoption-measurements.json
   - verification/deep-review.json
@@ -96,3 +97,32 @@ No AWS API or hosted application endpoint was contacted. No environment,
 database, resource, release, tag, registry entry or documentation site was
 created, modified or published. Exact-head hosted and post-merge qualification
 remain required before this transition is accepted on main.
+
+## Real-AWS closure transition
+
+Extended on 2026-08-05 from the exact qualified M10-T08 evidence head
+`861f4e198c44636b3aa7a6deab04d82d0e3d17db`, whose final full release matrix
+passed in hosted run
+[`30940067273`](https://github.com/xicv/minco/actions/runs/30940067273).
+The owning M10-T08 record binds that public source to the separately approved
+three-phase real-AWS rehearsal without retaining account, role, endpoint,
+resource or credential values in the repository.
+
+- The prior release, current release and exact-prior rollback phases each
+  passed fresh hosted verification before promotion. Compatibility was
+  `compatible`; rollback reused the exact prior artifact without a rebuild,
+  replan, reverse migration, automatic data repair or historical verification
+  reuse.
+- Parent cleanup observed eventual structured absence for asynchronously
+  retained children. An independent root-profile sweep then proved all 14
+  bounded resource classes absent. The public repository contains only the
+  redacted result; no application or customer data was used.
+- M10-T08 and milestone M10 may therefore close. With all M7 and M11 tasks
+  complete and their M10 prerequisite satisfied, M7 and M11 also close.
+- M12 becomes active and M12-T01 becomes the single dependency-ready task.
+  This transition grants source-work readiness only; it does not merge a pull
+  request, deploy an application, publish a crate, or authorize a provider.
+
+This closure is prepared as a distinct governance change stacked on the
+qualified M10-T08 source. Acceptance on `main` still requires the ordinary
+review, merge and post-merge repository-truth boundaries.

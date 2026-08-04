@@ -2,7 +2,7 @@
 id: M10-T08
 title: Run a bounded real-AWS controller promotion and rollback rehearsal
 milestone: M10
-status: in_progress
+status: complete
 priority: critical
 area: deployment/aws/recovery
 depends_on: [M10-T04, M10-T05, M10-T06, M10-T07]

@@ -75,7 +75,7 @@ milestones:
   - Typed registrations retain bounded, non-spoofable owner provenance for inspection.
 - id: M7
   name: Two-application stabilization
-  status: active
+  status: complete
   depends_on:
   - M9
   - M10
@@ -117,7 +117,7 @@ milestones:
     evidence and reserves the full matrix for explicit release qualification.
 - id: M10
   name: Safe deployment controller
-  status: active
+  status: complete
   depends_on:
   - M5
   - M9
@@ -129,7 +129,7 @@ milestones:
   - Bounded real-AWS rehearsal proves hosted verification and rollback behavior.
 - id: M11
   name: Plugin ecosystem and documentation
-  status: active
+  status: complete
   depends_on:
   - M9
   - M10
@@ -141,7 +141,7 @@ milestones:
   - Package, feature, plugin, CLI, and diagnostic references derive from authoritative metadata.
 - id: M12
   name: AI workbench and 1.0 preparation
-  status: planned
+  status: active
   depends_on:
   - M7
   - M10
