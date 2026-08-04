@@ -55,8 +55,11 @@ TLS `verify-full`; that ingress and the public address are removed before the
 Lambda deployment. The runtime uses a security-group-to-security-group
 PostgreSQL rule and an exact-resource SSM interface endpoint in an isolated VPC,
 with no NAT Gateway. The regional RDS CA bundle is hashed into the exact Lambda
-ZIP. Cleanup deletes the database, managed secret, endpoint and VPC; deleting
-the owned database is the proof that all synthetic rows are gone.
+ZIP. Cleanup deletes the database, managed secret, endpoint and VPC. Because
+Secrets Manager deletion is asynchronous, cleanup polls the exact recorded
+run-owned secret ARN for up to two minutes and accepts only the structured
+`ResourceNotFoundException` response as absence. Deleting the owned database is
+the proof that all synthetic rows are gone.
 
 ## Before the first account call
 

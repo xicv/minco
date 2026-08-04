@@ -132,7 +132,7 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/rds-master-secret-arn.txt" ]]; then
       "force-delete the orphaned temporary RDS master secret after database removal" \
       --secret-id "$master_secret_arn" \
       --force-delete-without-recovery >/dev/null
-    for attempt in {1..15}; do
+    for attempt in {1..60}; do
       if aws_logged_json secretsmanager describe-secret \
         "verify temporary RDS master secret is absent; attempt $attempt" \
         --secret-id "$master_secret_arn" >/dev/null 2>"$secret_error"; then
@@ -145,7 +145,7 @@ if [[ -f "$MINCO_AWS_EVIDENCE_DIR/rds-master-secret-arn.txt" ]]; then
           break
         fi
       fi
-      sleep 2
+      ((attempt == 60)) || sleep 2
     done
   else
     secret_status=$?
