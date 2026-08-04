@@ -23,7 +23,7 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 >
 > Workspace release state: `candidate`
 >
-> Current publishable package count: `29`
+> Current publishable package count: `31`
 
 ## Documentation
 

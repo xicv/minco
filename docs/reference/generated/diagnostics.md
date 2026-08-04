@@ -171,10 +171,10 @@ Declared codes: `334`.
 | `STATIC-BUDGET-001` | repository truth | `scripts/validate_static.py:652` | 0 |
 | `STATIC-BUDGET-002` | repository truth | `scripts/validate_static.py:446` | 0 |
 | `STATIC-BUDGET-003` | repository truth | `scripts/validate_static.py:312` | 0 |
-| `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:426` | 3 |
+| `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:441` | 3 |
 | `STATIC-BUDGET-005` | repository truth | `scripts/validate_static.py:409` | 0 |
-| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:480` | 1 |
-| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:497` | 1 |
+| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:495` | 1 |
+| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:512` | 1 |
 | `STATIC-CARGO-001` | repository truth | `scripts/validate_static.py:175` | 0 |
 | `STATIC-CARGO-002` | repository truth | `scripts/validate_static.py:178` | 0 |
 | `STATIC-CARGO-003` | repository truth | `scripts/validate_static.py:184` | 0 |
@@ -214,10 +214,10 @@ Declared codes: `334`.
 | `STATIC-HTTP-001` | repository truth | `scripts/validate_static.py:1193` | 0 |
 | `STATIC-HTTP-002` | repository truth | `scripts/validate_static.py:1205` | 0 |
 | `STATIC-MEASURE-001` | repository truth | `scripts/validate_static.py:333` | 0 |
-| `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:457` | 1 |
+| `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:472` | 1 |
 | `STATIC-MEASURE-003` | repository truth | `scripts/validate_static.py:421` | 0 |
-| `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:464` | 1 |
-| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:487` | 1 |
+| `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:479` | 1 |
+| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:502` | 1 |
 | `STATIC-PLACEHOLDER-001` | repository truth | `scripts/validate_static.py:1270` | 0 |
 | `STATIC-PLAN-000` | repository truth | `scripts/validate_static.py:1158` | 0 |
 | `STATIC-PLAN-001` | repository truth | `scripts/validate_static.py:1164` | 0 |
@@ -254,7 +254,7 @@ Declared codes: `334`.
 | `STATIC-TASK-009` | repository truth | `scripts/validate_static.py:1050` | 0 |
 | `STATIC-TRUTH-ADOPTION-001` | repository truth | `scripts/validate_static.py:707` | 0 |
 | `STATIC-TRUTH-CATALOG-001` | repository truth | `scripts/validate_static.py:551` | 0 |
-| `STATIC-TRUTH-CATALOG-002` | repository truth | `scripts/test/repository_truth.py:389` | 1 |
+| `STATIC-TRUTH-CATALOG-002` | repository truth | `scripts/test/repository_truth.py:400` | 1 |
 | `STATIC-TRUTH-CATALOG-003` | repository truth | `scripts/validate_static.py:538` | 0 |
 | `STATIC-TRUTH-CATALOG-004` | repository truth | `scripts/validate_static.py:540` | 0 |
 | `STATIC-TRUTH-CATALOG-005` | repository truth | `scripts/validate_static.py:542` | 0 |
@@ -262,7 +262,7 @@ Declared codes: `334`.
 | `STATIC-TRUTH-DESCRIPTOR-001` | repository truth | `scripts/validate_static.py:581` | 0 |
 | `STATIC-TRUTH-DESCRIPTOR-002` | repository truth | `scripts/validate_static.py:587` | 0 |
 | `STATIC-TRUTH-DESCRIPTOR-003` | repository truth | `scripts/validate_static.py:594` | 0 |
-| `STATIC-TRUTH-DOCS-001` | repository truth | `scripts/test/repository_truth.py:312` | 3 |
+| `STATIC-TRUTH-DOCS-001` | repository truth | `scripts/test/repository_truth.py:323` | 3 |
 | `STATIC-TRUTH-FACADE-001` | repository truth | `scripts/validate_static.py:563` | 0 |
 | `STATIC-TRUTH-FACADE-002` | repository truth | `scripts/validate_static.py:569` | 0 |
 | `STATIC-TRUTH-FACADE-003` | repository truth | `scripts/validate_static.py:626` | 0 |
@@ -270,20 +270,20 @@ Declared codes: `334`.
 | `STATIC-TRUTH-PACKAGES-001` | repository truth | `scripts/validate_static.py:475` | 0 |
 | `STATIC-TRUTH-PACKAGES-002` | repository truth | `scripts/validate_static.py:481` | 0 |
 | `STATIC-TRUTH-PACKAGES-003` | repository truth | `scripts/validate_static.py:505` | 0 |
-| `STATIC-TRUTH-PACKAGES-004` | repository truth | `scripts/test/repository_truth.py:357` | 1 |
+| `STATIC-TRUTH-PACKAGES-004` | repository truth | `scripts/test/repository_truth.py:368` | 1 |
 | `STATIC-TRUTH-PLAN-001` | repository truth | `scripts/validate_static.py:719` | 0 |
 | `STATIC-TRUTH-PLAN-002` | repository truth | `scripts/validate_static.py:725` | 0 |
 | `STATIC-TRUTH-PUBLISHED-001` | repository truth | `scripts/validate_static.py:234` | 0 |
-| `STATIC-TRUTH-PUBLISHED-002` | repository truth | `scripts/test/repository_truth.py:368` | 2 |
-| `STATIC-TRUTH-PUBLISHED-003` | repository truth | `scripts/test/repository_truth.py:379` | 1 |
-| `STATIC-TRUTH-RELEASE-001` | repository truth | `scripts/test/repository_truth.py:282` | 1 |
-| `STATIC-TRUTH-RELEASE-002` | repository truth | `scripts/test/repository_truth.py:292` | 1 |
-| `STATIC-TRUTH-RELEASE-003` | repository truth | `scripts/test/repository_truth.py:302` | 1 |
+| `STATIC-TRUTH-PUBLISHED-002` | repository truth | `scripts/test/repository_truth.py:379` | 2 |
+| `STATIC-TRUTH-PUBLISHED-003` | repository truth | `scripts/test/repository_truth.py:390` | 1 |
+| `STATIC-TRUTH-RELEASE-001` | repository truth | `scripts/test/repository_truth.py:293` | 1 |
+| `STATIC-TRUTH-RELEASE-002` | repository truth | `scripts/test/repository_truth.py:303` | 1 |
+| `STATIC-TRUTH-RELEASE-003` | repository truth | `scripts/test/repository_truth.py:313` | 1 |
 | `STATIC-TRUTH-RELEASE-004` | repository truth | `scripts/validate_static.py:255` | 0 |
-| `STATIC-TRUTH-ROADMAP-001` | repository truth | `scripts/test/repository_truth.py:399` | 1 |
-| `STATIC-TRUTH-ROADMAP-002` | repository truth | `scripts/test/repository_truth.py:419` | 1 |
-| `STATIC-TRUTH-ROADMAP-003` | repository truth | `scripts/test/repository_truth.py:409` | 1 |
-| `STATIC-TRUTH-VERSION-001` | repository truth | `scripts/test/repository_truth.py:271` | 1 |
+| `STATIC-TRUTH-ROADMAP-001` | repository truth | `scripts/test/repository_truth.py:410` | 1 |
+| `STATIC-TRUTH-ROADMAP-002` | repository truth | `scripts/test/repository_truth.py:434` | 1 |
+| `STATIC-TRUTH-ROADMAP-003` | repository truth | `scripts/test/repository_truth.py:420` | 1 |
+| `STATIC-TRUTH-VERSION-001` | repository truth | `scripts/test/repository_truth.py:282` | 1 |
 | `config.cli_override` | configuration | `crates/minco-cli/src/config_cmd.rs:410` | 1 |
 | `config.compiled_layer_forbidden` | configuration | `crates/minco-config/src/graph.rs:404` | 0 |
 | `config.digest_encoding` | configuration | `crates/minco-config/src/graph.rs:237` | 0 |
