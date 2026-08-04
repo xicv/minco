@@ -1459,6 +1459,93 @@ jq -e \
 rm -r -- "$evidence_root"
 rm -f -- "$provider_contact_log"
 
+authority_race_bin="$fixture_dir/authority-race-bin"
+authority_race_marker="$fixture_dir/authority-race.marker"
+real_cmp="$(command -v cmp)"
+cp -R "$fake_bin" "$authority_race_bin"
+# The generated command must expand these variables only when invoked.
+# shellcheck disable=SC2016
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  '"$MINCO_REAL_CMP" "$@"' \
+  'status=$?' \
+  'if [[ "$status" -eq 0 && "${MINCO_FAKE_CMP_MUTATE_AUTHORITY:-false}" == true && ! -e "$MINCO_FAKE_CMP_MUTATION_MARKER" && "$#" -eq 3 && "$1" == -s && "$2" == */authority-receipt.json ]]; then' \
+  '  tampered_authority="$MINCO_FAKE_AUTHORITY_FILE.tampered"' \
+  '  jq '\''.expected_role_arn = "arn:aws:iam::123456789012:role/unapproved-role"'\'' "$MINCO_FAKE_AUTHORITY_FILE" >"$tampered_authority"' \
+  '  mv "$tampered_authority" "$MINCO_FAKE_AUTHORITY_FILE"' \
+  '  : >"$MINCO_FAKE_CMP_MUTATION_MARKER"' \
+  'fi' \
+  'exit "$status"' \
+  >"$authority_race_bin/cmp"
+chmod +x "$authority_race_bin/cmp"
+
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PLAN_FILE="$plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  "$controller_initializer" >/dev/null
+controller_receipt="$evidence_root/control/controller-receipt.json"
+controller_receipt_digest="$(jq -er '.receipt_digest' "$controller_receipt")"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null
+phase_path="$evidence_root/phases/01-prior-initial"
+phase_start_receipt="$phase_path/phase-start-receipt.json"
+phase_start_approval="$(jq -er '.receipt_digest' "$phase_start_receipt")"
+authority_race_plan="$fixture_dir/authority-race-provider-entry-plan.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=plan \
+  "$parent_session_runner" >"$authority_race_plan"
+authority_race_approval="$(
+  shasum -a 256 "$authority_race_plan" | awk '{print $1}'
+)"
+if PATH="$authority_race_bin:$PATH" \
+  MINCO_REAL_CMP="$real_cmp" \
+  MINCO_FAKE_CMP_MUTATE_AUTHORITY=true \
+  MINCO_FAKE_CMP_MUTATION_MARKER="$authority_race_marker" \
+  MINCO_FAKE_AUTHORITY_FILE="$authority_file" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_identity_preflight \
+  MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+  MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST="$authority_race_approval" \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "provider identity preflight accepted authority changed after digest validation" >&2
+  exit 1
+fi
+[[ -f "$authority_race_marker" &&
+  ! -e "$phase_path/parent-session-start-receipt.json" &&
+  ! -e "$phase_path/parent-session-completion-receipt.json" &&
+  ! -e "$provider_contact_log" ]] || {
+  echo "authority-race rejection consumed evidence or contacted AWS" >&2
+  exit 1
+}
+jq '.expected_role_arn = "arn:aws:iam::123456789012:role/minco-rehearsal"' \
+  "$authority_file" >"$authority_file.restored"
+mv "$authority_file.restored" "$authority_file"
+rm -r -- "$evidence_root"
+rm -f -- "$authority_race_marker"
+
 failed_provider_entry_plan="$fixture_dir/failed-provider-entry-plan.json"
 PATH="$fake_bin:$PATH" \
 MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \

@@ -431,10 +431,14 @@ MINCO_APPROVE_MULTI_RELEASE_PROVIDER_ENTRY_DIGEST="$provider_entry_digest" \
 ```
 
 Execution re-renders and verifies the approved plan before publishing the
-start receipt. It makes one fixed STS identity call with the authority's exact
-profile and Region, normalizes an assumed-role caller and compares account and
-role to the authority without serializing the identity. Success publishes
-`provider_identity_verified`; a provider response or identity failure
+start receipt. It captures the identity fields before authority validation,
+byte-checks the redacted receipt, then rehashes the authority document before
+claiming lifecycle evidence; a concurrent authority replacement therefore
+fails before AWS contact, and the mutable document is not read again at the
+provider boundary. It makes one fixed STS identity call with the authority's
+exact profile and Region, normalizes an assumed-role caller and compares
+account and role to the validated values without serializing the identity.
+Success publishes `provider_identity_verified`; a provider response or identity failure
 publishes a conservative `failed` terminal receipt with
 `external_aws_contact: true`. Both terminal states say
 `none_read_only_identity_preflight`: no resource was created, no mutation or
