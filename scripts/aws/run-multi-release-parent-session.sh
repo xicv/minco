@@ -572,6 +572,8 @@ current_revision="$(jq -er '.source_revisions.current' "$controller_receipt")"
 authority_region="$(jq -er '.expected_region' "$authority_file")"
 authority_profile="$(jq -er '.aws_profile' "$authority_file")"
 authority_environment="$(jq -er '.environment' "$authority_file")"
+authority_account_id="$(jq -er '.expected_account_id' "$authority_file")"
+authority_role_arn="$(jq -er '.expected_role_arn' "$authority_file")"
 authority_database_boundary="$(jq -cer '.database_boundary' "$authority_file")"
 authority_resource_allowlist="$(jq -er '.resource_allowlist' "$authority_file")"
 authority_cleanup_blast_radius="$(jq -er '.cleanup_blast_radius' "$authority_file")"
@@ -589,6 +591,11 @@ write_multi_release_rehearsal_authority_receipt \
   "$regenerated_authority_receipt"
 cmp -s "$authority_receipt" "$regenerated_authority_receipt" || {
   echo "sealed authority receipt does not match the approved authority" >&2
+  exit 1
+}
+[[ "$(shasum -a 256 "$authority_file" | awk '{print $1}')" == \
+  "$actual_authority_digest" ]] || {
+  echo "multi-release authority changed after validation" >&2
   exit 1
 }
 
@@ -655,8 +662,6 @@ session_start_digest="$(jq -er '.receipt_digest' "$parent_session_start")"
 session_started=true
 
 if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ]]; then
-  authority_account_id="$(jq -er '.expected_account_id' "$authority_file")"
-  authority_role_arn="$(jq -er '.expected_role_arn' "$authority_file")"
   provider_entry_attempted=true
   identity="$(
     AWS_PROFILE="$authority_profile" \

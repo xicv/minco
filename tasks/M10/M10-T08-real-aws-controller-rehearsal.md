@@ -250,3 +250,13 @@ No live AWS call was made by this source slice, so provider deployment,
 terminal resource-phase receipts, shared stack, bucket and identity ownership,
 compatibility handoff, verified parent cleanup and the separately approved live
 rehearsal remain required.
+
+Security re-review on 2026-08-04 found that changing the authority document
+after its redacted receipt comparison was rejected only after the parent had
+claimed lifecycle evidence and contacted STS. The parent now captures all
+identity fields before validation, rehashes the exact authority after the
+comparison and never rereads the mutable path at provider entry. A deterministic
+fake-command regression changes the file at that exact boundary and proves the
+run fails before lifecycle receipts or AWS contact. The multi-release plan test,
+ShellCheck and Bash syntax checks pass for this correction. Provider execution
+itself remains unrun and authority-gated.
