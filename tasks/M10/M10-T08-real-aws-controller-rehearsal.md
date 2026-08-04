@@ -285,3 +285,14 @@ retained in repository evidence. These documentation probes are not the live
 rehearsal and prove no deployment or cleanup. Shared resource creation, phase
 execution, compatibility handoff, one parent-owned cleanup trap and the
 separately approved live rehearsal remain required.
+
+The eleventh safety slice extracts the installed AWS CLI 2.36 structured-error
+contract into one shared helper and applies it to all pre-creation checks used
+by the standalone application runner and disposable-RDS creator as well as the
+multi-release resource preflight. Red-first coverage rejects wrong exit codes,
+wrong service codes, expanded response objects and legacy English message text;
+it also fixes the global `--cli-error-format json` command shape. Application
+stack absence now requires `ValidationError`, artifact-bucket absence requires
+`404`, and temporary-RDS-stack absence requires `ValidationError`, always with
+service exit `254`. This slice remains provider-free. It closes a prerequisite
+for live creation but does not create, deploy or clean any AWS resource.
