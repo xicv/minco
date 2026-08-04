@@ -1,0 +1,4 @@
+node_modules/
+test-results/
+rust/target/
+aws-handler/target/
