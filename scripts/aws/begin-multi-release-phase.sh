@@ -126,7 +126,8 @@ for control_file in \
   "$control_root/phases/01-prior-initial.json" \
   "$control_root/phases/02-current.json" \
   "$control_root/phases/03-prior-rollback.json"; do
-  [[ "$(file_mode "$control_file")" == "600" ]] || {
+  [[ -f "$control_file" && ! -L "$control_file" &&
+    "$(file_mode "$control_file")" == "600" ]] || {
     echo "initialized multi-release control evidence must remain mode 0600" >&2
     exit 1
   }

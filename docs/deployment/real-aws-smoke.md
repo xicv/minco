@@ -360,6 +360,45 @@ authority, source revision, create review policy and parent cleanup ownership,
 but records `external_aws_contact: false`; it neither installs the cleanup trap
 nor authorizes or performs a provider call.
 
+Before adding provider work to the parent process, exercise its exact
+validation-only lifecycle from the same current controller checkout:
+
+```bash
+phase_start_digest="$(
+  jq -er '.receipt_digest' \
+    "$evidence_root/phases/01-prior-initial/phase-start-receipt.json"
+)"
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  scripts/aws/run-multi-release-parent-session.sh
+```
+
+This command is deliberately not a deployment runner. It revalidates the
+private, schema-closed controller, every sealed projection, the byte-exact
+phase handoff, the current authority window and both clean source revisions.
+It then installs the parent lifecycle trap and publishes immutable mode-`0600`
+`parent-session-start-receipt.json` and
+`parent-session-completion-receipt.json` files. The terminal receipt binds the
+exact start-receipt digest. Both receipts fix execution to
+`validation_only`, record `provider_state: not_entered` and
+`external_aws_contact: false`; the terminal cleanup action is therefore
+`none_provider_boundary_not_entered`, not provider cleanup proof. A wrong
+approval, altered or broadly accessible evidence, code outside the exact
+current checkout, injected state or repeated session fails before creating a
+receipt. Interruption after the start receipt never fabricates a terminal
+validated receipt.
+
+The next provider-capable slice must extend this same parent process after its
+durable start and before the trap is disarmed. It must consume a separately
+approved execution boundary, retain the shared stack, bucket and identity
+harness across all three phases, write terminal phase evidence on every exit,
+and make the one parent trap perform and verify cleanup. These validation-only
+receipts do not authorize that work.
+
 ## Multi-release rollback evidence
 
 Keep the current and prior releases in separate clean exact-source checkouts.
