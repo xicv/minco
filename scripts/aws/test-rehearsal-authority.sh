@@ -431,3 +431,13 @@ grep -q "MINCO_REHEARSAL_AUTHORITY_FILE" "$inspect_error" || {
   echo "account inspection contacted AWS before authority validation" >&2
   exit 1
 }
+
+if ! rg -F ': "${MINCO_SMOKE_DATA_ID:=$MINCO_AWS_RUN_ID}"' \
+  scripts/aws/smoke.sh >/dev/null ||
+  ! rg -F 'idempotency_key="minco-smoke-$MINCO_SMOKE_DATA_ID"' \
+    scripts/aws/smoke.sh >/dev/null ||
+  ! rg -F 'customer_reference="MINCO-SMOKE-$MINCO_SMOKE_DATA_ID"' \
+    scripts/aws/smoke.sh >/dev/null; then
+  echo "smoke data identity cannot be scoped to a release phase" >&2
+  exit 1
+fi
