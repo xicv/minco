@@ -220,3 +220,8 @@ The dated
 [`CGSP and GarmentIQ validation`](two-application-validation-2026-08-03.md)
 shows how those evidence states are kept separate for real applications. It
 also records why native product quality is not automatically Minco adoption.
+The later
+[`1.0 adoption reconciliation`](1.0-adoption-reconciliation-2026-08-05.md)
+refreshes the exact product revisions after CGSP's bounded resource and staging
+evidence advanced, and feeds the candidate
+[`supported matrix`](../reference/supported-matrix.md) without freezing 1.0.

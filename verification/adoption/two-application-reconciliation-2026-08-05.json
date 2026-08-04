@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-08-05",
+  "purpose": "M12-T03 evidence input for the Minco 1.0 compatibility freeze",
+  "safety": {
+    "application_repositories_read_only": true,
+    "application_tests_run_by_this_task": false,
+    "provider_contact_by_this_task": false,
+    "product_or_provider_mutation_by_this_task": false,
+    "contains_credentials_or_provider_resource_identifiers": false
+  },
+  "minco": {
+    "candidate_version": "0.7.0",
+    "task_input_revision": "ee85e9a585195a71567b919e6d78a4250b956aa9",
+    "task_input_source_tree_sha256": "ce27a74ca0ba5e00525d8b4b1398c7c42e35da9e4eab532208031f296ec49cf5",
+    "published_baseline": {
+      "version": "0.6.0",
+      "tag": "v0.6.0",
+      "revision": "2c4605b7d4abcd865035196ffc0484c4a0e82f1e"
+    },
+    "compatibility_state": "candidate_not_frozen",
+    "golden_path_evidence": [
+      "contract_and_generated_bindings",
+      "static_typed_composition",
+      "resource_wire_conventions",
+      "typed_configuration",
+      "postgres_and_sqlite_lifecycle",
+      "http_and_sqs_runtime",
+      "plan_release_and_deployment_receipts",
+      "plugin_distribution_and_conformance",
+      "local_read_only_project_views"
+    ]
+  },
+  "applications": [
+    {
+      "id": "cgsp",
+      "repository": "xicv/CGSP",
+      "reviewed_revision": "cea46f4608a105cb5507ad371340e92a95d41ac3",
+      "previous_m7_revision": "020a18a837233ea7cc08d53f1c35fedcf6dfcb41",
+      "revision_observation": "current GitHub main observed read-only on 2026-08-05",
+      "minco_version": "=0.6.0",
+      "selected_boundaries": [
+        "contract",
+        "http_conventions",
+        "official_plugin_ports",
+        "feedback",
+        "aws_s3_adapter",
+        "aws_worker"
+      ],
+      "operation_inventory": {
+        "total": 64,
+        "legacy_owned": 34,
+        "minco_resource_operations": 30,
+        "complete_five_action_resource_families": 6
+      },
+      "code_boundary": {
+        "domain_minco_free": true,
+        "application_minco_free": true,
+        "bounded_platform_integration": true,
+        "product_owned_ports_and_authorization": true
+      },
+      "resource_boundary": {
+        "product_postgres_migrations_authoritative": true,
+        "product_transactions_authoritative": true,
+        "product_forced_rls_authoritative": true,
+        "generic_repository_adopted": false
+      },
+      "deployment_boundary": {
+        "product_controller": "pulumi",
+        "minco_plan_authority": "advisory",
+        "deployed_http_selection": "legacy",
+        "product_recorded_staging_evidence": true,
+        "provider_evidence_refreshed_by_this_task": false,
+        "deployed_evidence_source_revision": "518665ca6381dbea7132c92a761ab162c20cf2d1"
+      },
+      "hosted_evidence": [
+        {
+          "scope": "customer-account resource family",
+          "head_revision": "5a99a937d8c45fb3fe6b1e10ddc5295eb9b287d3",
+          "runs": [30788368840, 30788368848],
+          "conclusion": "success"
+        },
+        {
+          "scope": "market-profile resource family",
+          "head_revision": "07d8ebe6dc410b6a9d17d9ea8d41cb4176f0e4e7",
+          "runs": [30865019585, 30865019598],
+          "conclusion": "success"
+        },
+        {
+          "scope": "product-draft resource family",
+          "head_revision": "0c9b69175eafb3b684b252946b1f20bc59b6c893",
+          "runs": [30868370542, 30868370530],
+          "conclusion": "success"
+        },
+        {
+          "scope": "last source-changing recovery head",
+          "head_revision": "0bdb5904d3573dee22be940d16d31832d9cb3205",
+          "runs": [30881445357, 30881445398],
+          "conclusion": "success"
+        },
+        {
+          "scope": "current-main tree through documentation and decision update",
+          "head_revision": "4dfe286136ee9c740db53a81cab5dfeeff360855",
+          "merge_revision": "cea46f4608a105cb5507ad371340e92a95d41ac3",
+          "head_and_merge_tree_equal": true,
+          "runs": [30884848630],
+          "conclusion": "success"
+        }
+      ],
+      "rollback_and_removal": {
+        "source_contract_gate_removal": "source_only",
+        "http_observation_complete": false,
+        "http_rollback_rehearsal_complete": false,
+        "worker_observation_complete": false,
+        "worker_mapping_rollback_rehearsal_complete": false,
+        "cross_cutting_cleanup_authorized": false
+      },
+      "cost": {
+        "resource_slices": "existing_api_and_database_surfaces",
+        "feedback_and_staging": "request_storage_and_provider_cost_remain_product_owned",
+        "current_price_measured_by_this_task": false
+      }
+    },
+    {
+      "id": "garmentiq",
+      "repository": "xicv/garmentiq",
+      "reviewed_revision": "8d6e8146a3954db11c64b264f1990f5b853c3192",
+      "qualified_head_revision": "2262349989b0df8ad2d202092666e8aaed012b10",
+      "revision_observation": "current GitHub main observed read-only on 2026-08-05; local-only commits excluded",
+      "minco_version": "=0.6.0",
+      "selected_boundaries": ["contract_dev_dependency"],
+      "operation_inventory": {
+        "total": 25,
+        "idempotent_commands": 6
+      },
+      "code_boundary": {
+        "domain_minco_free": true,
+        "runtime_minco_free": true,
+        "provider_minco_free": true,
+        "product_axum_sqlx_and_utoipa_authoritative": true
+      },
+      "resource_boundary": {
+        "product_postgres_migrations_authoritative": true,
+        "product_tenancy_and_commands_authoritative": true,
+        "generic_repository_adopted": false
+      },
+      "deployment_boundary": {
+        "product_controller": "cloudformation",
+        "product_runtime": "container_lambda_function_url",
+        "minco_runtime_selected": false,
+        "provider_evidence_refreshed_by_this_task": false
+      },
+      "hosted_evidence": [
+        {
+          "scope": "exact qualified contract-only head",
+          "head_revision": "2262349989b0df8ad2d202092666e8aaed012b10",
+          "runs": [30789612854, 30789612786],
+          "conclusion": "success"
+        }
+      ],
+      "rollback_and_removal": {
+        "minco_dependency_removal": "source_only",
+        "schema_or_data_cleanup_required": false,
+        "runtime_or_provider_cleanup_required": false,
+        "live_application_rollback_rehearsed_for_this_slice": false
+      },
+      "cost": {
+        "minco_runtime_cost": "none",
+        "adoption_cost": "local_and_hosted_ci_only",
+        "current_price_measured_by_this_task": false
+      }
+    }
+  ],
+  "bridges": [
+    {
+      "application": "cgsp",
+      "bridge": "contract_validator",
+      "owner": "CGSP-MINCO-F04",
+      "deletion_criteria": "published compatible family and stable dual-gate history",
+      "deletion_authorized": false
+    },
+    {
+      "application": "cgsp",
+      "bridge": "http_runtime_selection",
+      "owner": "CGSP-MINCO-D01",
+      "deletion_criteria": "exact-artifact parity, complete observation window and rollback drill",
+      "deletion_authorized": false
+    },
+    {
+      "application": "cgsp",
+      "bridge": "sqs_worker_wrapper",
+      "owner": "CGSP-MINCO-D02",
+      "deletion_criteria": "complete observation, queue-mapping rollback and replay parity",
+      "deletion_authorized": false
+    },
+    {
+      "application": "cgsp",
+      "bridge": "feedback_staging_path",
+      "owner": "CGSP-MINCO-C03/CGSP-MINCO-C07",
+      "deletion_criteria": "staging acceptance and export or retention completion",
+      "deletion_authorized": false
+    },
+    {
+      "application": "cgsp",
+      "bridge": "advisory_plan_release",
+      "owner": "CGSP-MINCO-D03",
+      "deletion_criteria": "stop advisory generation while retaining product controller receipts",
+      "deletion_authorized": false
+    },
+    {
+      "application": "cgsp",
+      "bridge": "cross_cutting_cleanup",
+      "owner": "CGSP-MINCO-F01",
+      "deletion_criteria": "all bridge observation, rollback, deletion and stakeholder gates complete",
+      "deletion_authorized": false
+    },
+    {
+      "application": "garmentiq",
+      "bridge": "contract_dev_dependency",
+      "owner": "xicv/garmentiq#55",
+      "deletion_criteria": "native replacement contract gate passes and dependency, lockfile closure, policy test and adoption docs are removed together",
+      "deletion_authorized": false
+    }
+  ],
+  "framework_conclusions": {
+    "new_core_abstraction_justified": false,
+    "product_types_added_to_core": false,
+    "product_permissions_added_to_core": false,
+    "product_workflows_added_to_core": false,
+    "product_schemas_added_to_core": false,
+    "retain_contract_only_adoption": true,
+    "retain_static_composition": true,
+    "retain_use_case_shaped_ports": true,
+    "retain_application_owned_deployment_and_data_policy": true,
+    "retain_independent_evidence_lanes": true
+  },
+  "limitations": [
+    "The application repositories were inspected read-only and their test suites were not rerun.",
+    "CGSP live and provider claims are product-authored records bound to the stated deployed revision, not provider checks refreshed by M12-T03.",
+    "GarmentIQ contract-only adoption supplies no Minco runtime or provider evidence.",
+    "Structural cost classes and source inspection are not current provider price quotations.",
+    "M12-T03 informs but does not perform the M12-T04 compatibility freeze."
+  ]
+}
