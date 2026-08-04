@@ -47,11 +47,11 @@ printf 'HTTP/2 401\r\ncontent-type: application/json\r\n\r\n' \
 
 bucket_visibility_error="$review_fixture_dir/bucket-visibility-error.txt"
 bucket_visibility_calls=0
-aws_logged() {
+aws_logged_json() {
   bucket_visibility_calls=$((bucket_visibility_calls + 1))
   if ((bucket_visibility_calls < 3)); then
-    printf 'An error occurred (404) when calling HeadBucket: Not Found\n' >&2
-    return 1
+    printf '%s\n' '{"Code":"404","Message":"not retained"}' >&2
+    return 254
   fi
 }
 wait_for_s3_bucket_visibility \
@@ -66,10 +66,10 @@ wait_for_s3_bucket_visibility \
 }
 
 bucket_visibility_calls=0
-aws_logged() {
+aws_logged_json() {
   bucket_visibility_calls=$((bucket_visibility_calls + 1))
-  printf 'AccessDenied\n' >&2
-  return 1
+  printf '%s\n' '{"Code":"AccessDenied","Message":"not retained"}' >&2
+  return 254
 }
 if wait_for_s3_bucket_visibility \
   minco-smoke-test \
@@ -86,10 +86,10 @@ fi
 }
 
 bucket_visibility_calls=0
-aws_logged() {
+aws_logged_json() {
   bucket_visibility_calls=$((bucket_visibility_calls + 1))
-  printf 'NoSuchBucket\n' >&2
-  return 1
+  printf '%s\n' '{"Code":"404","Message":"not retained"}' >&2
+  return 254
 }
 if wait_for_s3_bucket_visibility \
   minco-smoke-test \
@@ -189,13 +189,15 @@ import subprocess
 import sys
 
 source = Path("scripts/aws/run-bounded-root-bootstrap.sh").read_text()
-if (
-    "InvalidClientTokenId|AccessDenied|not authorized to perform: sts:AssumeRole"
-    not in source
-):
+if "aws_cli_service_error_is_any" not in source:
     raise SystemExit(
-        "role assumption does not retry the fresh-key propagation failure"
+        "role assumption does not use the shared structured error verifier"
     )
+for code in ("InvalidClientTokenId", "AccessDenied", "AccessDeniedException"):
+    if code not in source:
+        raise SystemExit(
+            f"role assumption does not retry structured propagation code {code}"
+        )
 if (
     'if [[ "$application_runner_started" == false ]]; then\n'
     "    application_cleanup=true"

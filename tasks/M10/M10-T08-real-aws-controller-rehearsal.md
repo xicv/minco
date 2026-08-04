@@ -296,3 +296,13 @@ stack absence now requires `ValidationError`, artifact-bucket absence requires
 `404`, and temporary-RDS-stack absence requires `ValidationError`, always with
 service exit `254`. This slice remains provider-free. It closes a prerequisite
 for live creation but does not create, deploy or clean any AWS resource.
+
+The twelfth safety slice extends that fail-closed contract through the terminal
+cleanup boundary. Application, identity and temporary-database teardown now
+accept provider absence only as service exit `254` plus the exact structured
+CloudFormation, S3, Cognito, Lambda, Logs, IAM, API Gateway, SSM, RDS, Secrets
+Manager or EC2 code. Bounded IAM/STS propagation retries accept only a closed
+structured code set, and S3 visibility polling no longer reads provider message
+text. Red-first source coverage rejects any reintroduced extended-regex parsing
+in these cleanup and retry paths. This slice remains provider-free: it proves
+source behavior but creates, changes and deletes no AWS resource.
