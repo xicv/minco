@@ -1,9 +1,10 @@
-# Candidate support matrix
+# 1.0 source-freeze support matrix
 
 Workspace candidate: `0.7.0`
 Published install baseline: `0.6.0`
 MSRV: Rust `1.97.1`
-Compatibility state: candidate evidence, not yet the M12-T04 1.0 freeze
+Compatibility state: M12-T04 source freeze reviewed; merge, tag, publication
+and application/live proof remain separate
 
 This matrix combines authoritative feature/plugin metadata, exercised golden
 path recipes and the exact CGSP/GarmentIQ adoption reconciliation. It describes
@@ -13,9 +14,11 @@ it is not a blanket production-readiness promise.
 ## How to read the state
 
 - **catalog stable** is the repository's current plugin metadata
-  classification. It does not pre-empt the 1.0 API freeze.
+  classification. The frozen public boundary also follows the 1.0
+  compatibility policy.
 - **candidate beta** is opt-in, checked in the source candidate and usable with
-  pinned versions, but its public/provider boundary may still change in M12-T04.
+  pinned versions. Its provider and production evidence remain bounded, but
+  its published 1.x API/feature/CLI/schema boundary cannot break silently.
 - **application evidenced** means an exact downstream slice exercised the seam;
   it does not transfer product policy or deployment authority to Minco.
 - **unsupported** means Minco intentionally makes no current promise.
@@ -48,7 +51,7 @@ capabilities, resources and metadata digests.
 
 | Catalog classification | Components | Interpretation |
 | --- | --- | --- |
-| catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; 1.0 Rust/CLI/serialized freeze is still pending |
+| catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; the reviewed 1.0 Rust/CLI/serialized boundary follows SemVer |
 | candidate beta plugins | `audit`, `events`, `identity`, `notifications`, `object-storage`, `sessions`, `static-site`, `realtime` | explicit opt-in with provider/failure/retention policy required |
 | candidate beta adapters/runtimes | `aws-adapters`, `aws-lambda`, `aws-worker`, `sqlx-postgres`, `sqlx-sqlite` | explicit provider/runtime selection; no default activation |
 
@@ -93,7 +96,7 @@ surface is deliberately reviewed.
 
 See the dated
 [adoption reconciliation](../adoption/1.0-adoption-reconciliation-2026-08-05.md)
-for exact application revisions and evidence limitations. M12-T04 must review
-and freeze the Rust, Cargo feature, CLI, configuration, Plan, release and plugin
-surfaces before this candidate becomes a 1.0 compatibility commitment.
-
+for exact application revisions and evidence limitations. The reviewed Rust,
+Cargo feature, CLI, configuration, Plan, release and plugin commitment is in
+the [compatibility policy](compatibility.md); it does not by itself publish or
+deploy 1.0.

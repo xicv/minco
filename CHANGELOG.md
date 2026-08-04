@@ -5,7 +5,15 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes yet.
+### Documentation
+
+- Froze the intended 1.0 Rust, Cargo feature, CLI, configuration, Plan,
+  release/deployment receipt, plugin distribution, diagnostic and MSRV
+  boundaries, with explicit post-1.0 versioning rules and evidence limits.
+- Added the `0.7.0` to `1.0.0` adoption guide and completed the previously
+  missing `0.6.0` to `0.7.0` Rust migrations found by a forced semver audit.
+- Reconciled the candidate narrative with the generated 32-package inventory,
+  including ProjectView, MCP and Workbench as local-only, read-only opt-ins.
 
 ## [0.7.0] - 2026-08-04
 
@@ -23,6 +31,9 @@ No changes yet.
   release, deployment, environment and data boundaries, plus optional
   metric-alarm-guarded Lambda alias canaries with deterministic cleanup and
   durable receipts.
+- Added bounded schema-1 ProjectView models, a local read-only stdio MCP server
+  and an opt-in loopback-only Workbench with deterministic export and rendered
+  desktop/mobile browser evidence.
 - Added checked-in generated package, facade-feature, plugin, CLI,
   configuration, Plan and diagnostic reference derived from authoritative
   Cargo metadata, validated plugin manifests, Clap help and typed read models.
@@ -37,13 +48,13 @@ No changes yet.
 
 ### Compatibility boundary
 
-This is a pre-1.0 minor candidate with new public plugin, Plan and facade
-surface. The published baseline remains the immutable 28-package `0.6.0`
-family; the 29-package `0.7.0` workspace has not been tagged or published.
-Applications must update exact Minco dependencies and plugin compatibility
-together if and when the candidate is released. Source qualification, hosted
-checks, merge, tag, crates.io publication and live AWS proof remain separate
-states.
+This is a pre-1.0 minor candidate with new public plugin, Plan, local tooling
+and facade surface. The published baseline remains the immutable 28-package
+`0.6.0` family; the 32-package `0.7.0` workspace has not been tagged or
+published. Applications must update exact Minco dependencies and plugin
+compatibility together if and when the candidate is released. Source
+qualification, hosted checks, merge, tag, crates.io publication and live AWS
+proof remain separate states.
 
 ## [0.6.0] - 2026-08-01
 
