@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 786,
+  "file_count": 809,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1608,6 +1608,11 @@
       "size_bytes": 1908
     },
     {
+      "path": "docs/research/realtime-pusher-proof-2026-08.md",
+      "sha256": "4daabb80b277bd7f9466144881bf6d8f7f59eaf88c025acb5b6ab3e94036f845",
+      "size_bytes": 13659
+    },
+    {
       "path": "docs/research/sources.md",
       "sha256": "4ba837143286ff813554e3da568a5fb76bbce186e56e2ff7fb5e37942b257169",
       "size_bytes": 1770
@@ -3033,6 +3038,111 @@
       "size_bytes": 903
     },
     {
+      "path": "proofs/realtime-pusher/.gitignore",
+      "sha256": "10a6f2267e3b18c17ce4b7802369493c2e356a9e0a0345da0befc53070cda6fc",
+      "size_bytes": 61
+    },
+    {
+      "path": "proofs/realtime-pusher/aws/template.yaml",
+      "sha256": "30b476be0e0cd4194623bba0458c8a04e930562f7bd62dd0aef126b771775136",
+      "size_bytes": 5904
+    },
+    {
+      "path": "proofs/realtime-pusher/aws-handler/Cargo.lock",
+      "sha256": "2dafaca1f0668ec0ae167bb7194e036340fd7e1047663b7be372cc7b1547ecac",
+      "size_bytes": 57629
+    },
+    {
+      "path": "proofs/realtime-pusher/aws-handler/Cargo.toml",
+      "sha256": "e8117461e57500d46d6c9c33757c55dbff73ac96ec87d41203f859546a6a3786",
+      "size_bytes": 943
+    },
+    {
+      "path": "proofs/realtime-pusher/aws-handler/src/main.rs",
+      "sha256": "7e6606e0b7bfbf3f2d8636dfeb83c69592391c476b3effeaf1658f2279306000",
+      "size_bytes": 13759
+    },
+    {
+      "path": "proofs/realtime-pusher/browser/package-lock.json",
+      "sha256": "08e71b13bab888d49fbf88eccd2fe5484592b2594084bde66e65e42f9594c5f9",
+      "size_bytes": 2939
+    },
+    {
+      "path": "proofs/realtime-pusher/browser/package.json",
+      "sha256": "71b4a4b6f2657372e48ce29965ae1ebe12bf90d3c9313427314bbe57a4275472",
+      "size_bytes": 229
+    },
+    {
+      "path": "proofs/realtime-pusher/browser/playwright.aws.config.mjs",
+      "sha256": "f36741fd1304ccdaefe5d1e69ae571d9dc1d0de3aa3d18e1834aee51bca3faa5",
+      "size_bytes": 302
+    },
+    {
+      "path": "proofs/realtime-pusher/browser/playwright.config.mjs",
+      "sha256": "b76d94e9f72e971b0ff203b2da02ca1857e5e80426cd3dd2c7f63a099309184d",
+      "size_bytes": 467
+    },
+    {
+      "path": "proofs/realtime-pusher/browser/tests/aws-live.spec.mjs",
+      "sha256": "53d66e034083fb45c2934f8375b1fe49ff656fcd441468c36cdb3ee38f5033bd",
+      "size_bytes": 1497
+    },
+    {
+      "path": "proofs/realtime-pusher/browser/tests/connection.spec.mjs",
+      "sha256": "c141c08bdc7b825cada6000d37f265bf301530a81d853e7f3d7fbbefbb896b7b",
+      "size_bytes": 10644
+    },
+    {
+      "path": "proofs/realtime-pusher/rust/Cargo.lock",
+      "sha256": "8ed5499197a7848c7f582579fc64dd22584fb02afbeff4178a46943516e69262",
+      "size_bytes": 20288
+    },
+    {
+      "path": "proofs/realtime-pusher/rust/Cargo.toml",
+      "sha256": "654514af568ac9de33f6b5365875dbb011cbed7b46ca46734f8a21b1b6fec53b",
+      "size_bytes": 493
+    },
+    {
+      "path": "proofs/realtime-pusher/rust/src/lib.rs",
+      "sha256": "ec1c87f9da3c14a6b6c9338b0557cad91f5ceec777e84d4e6806a853de49e444",
+      "size_bytes": 2201
+    },
+    {
+      "path": "proofs/realtime-pusher/rust/src/main.rs",
+      "sha256": "f6ecd51242bcb60ccc06eb44c5de9e0ad53d6dff4a66fd3fa7da0434dc3aff47",
+      "size_bytes": 9457
+    },
+    {
+      "path": "proofs/realtime-pusher/rust/tests/aws_handshake.rs",
+      "sha256": "24667aabec4620034f4af11cf8684fbcaa28049d64051eb83fd466fe3cb1a77f",
+      "size_bytes": 4352
+    },
+    {
+      "path": "proofs/realtime-pusher/scripts/check-aws-template.sh",
+      "sha256": "825e6f62e2be9e79b207e640005c3afa3dc01fefb9cc2e4b150e74d4f12dcca3",
+      "size_bytes": 788
+    },
+    {
+      "path": "proofs/realtime-pusher/scripts/check_aws_template.py",
+      "sha256": "5fb93f992bad39f76778d481b57ec3d2213c2e463d5d357fbd93f56157cf74d8",
+      "size_bytes": 7818
+    },
+    {
+      "path": "proofs/realtime-pusher/scripts/run-live-aws.sh",
+      "sha256": "2a642e2df355379510a1b1008a3017ace720d56d7e1058a39cd4bb91af1a5f7e",
+      "size_bytes": 10530
+    },
+    {
+      "path": "proofs/realtime-pusher/scripts/test-live-authority.sh",
+      "sha256": "93577d76b112eef5c206040195ed45613bdc2ee66101fc6351ad1714bf10ffe7",
+      "size_bytes": 4030
+    },
+    {
+      "path": "proofs/realtime-pusher/scripts/test-local.sh",
+      "sha256": "0bbaccbad5d5a4361b7bc2b62e0a08be8468a7281e54f1c37189e613f51f4ee5",
+      "size_bytes": 819
+    },
+    {
       "path": "pyproject.toml",
       "sha256": "c3ca8a98654bbfd52e05b32f2e597697dbf3e232bab2205a3ed462831b83e910",
       "size_bytes": 211
@@ -3054,8 +3164,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "12d22ca782628b841fa488ed659149bf74d9d47711f23afa051bc90fa2029791",
-      "size_bytes": 8008
+      "sha256": "17e5de642c6eabe27a71ea920854c0213d6d7bfdbe8cdd151e05d75c3b40ff1e",
+      "size_bytes": 8117
     },
     {
       "path": "rust-toolchain.toml",
@@ -3598,6 +3708,11 @@
       "size_bytes": 7163
     },
     {
+      "path": "tasks/M11/M11-T11-realtime-pusher-proof.md",
+      "sha256": "f26a69e79bbcb20c5add1fc1b8a48ede8d7a3588c1402f60120c0c608170154c",
+      "size_bytes": 5539
+    },
+    {
       "path": "tasks/M12/M12-T01-local-read-only-mcp.md",
       "sha256": "06a34d106ee5103488799df01556b9a68c5a3d411ea55b2d9c878420e8283e03",
       "size_bytes": 2310
@@ -3854,7 +3969,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "179b6bd1a76f1e4b851c84bfe488d2f959606e4086f1940d01f2fcb8c4f8ab8d",
+      "sha256": "38caff7e7f977460b0a2db0291a6f83648ccfa8e1b37e6aad56845bb645de69c",
       "size_bytes": 2021
     },
     {
@@ -3914,7 +4029,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "e05ba7404fb6cb85afcc9f7b7dda23181f8891a78c0c3cad1e2b45ceb9ee6d84",
+      "sha256": "fa66090aa7ce81f2cfc0f047febd111012b51c35bb8d118179dc27efcd522b1b",
       "size_bytes": 754
     },
     {
@@ -3940,7 +4055,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "b7febe4c13d11d071d23601831f95e6af83dc1c22d1efcfadfc99e0a695e4440",
-  "total_size_bytes": 5453630,
+  "source_tree_sha256": "a3b5d8a5e7488edf8d7c6a439fe8dc9a43d60ef8c03c2b588c73908266ef3ef9",
+  "total_size_bytes": 5628087,
   "version": "0.6.0"
 }

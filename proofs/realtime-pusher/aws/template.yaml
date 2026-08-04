@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Bounded Minco Pusher Protocol proof; delete the stack after the run.
+
+Parameters:
+  CodeBucket:
+    Type: String
+  CodeKey:
+    Type: String
+  CodeObjectVersion:
+    Type: String
+
+Resources:
+  ConnectionTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: connection_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connection_id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      Tags:
+        - Key: minco:purpose
+          Value: realtime-proof
+
+  RealtimeApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-websocket'
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: '$request.body.event'
+      Tags:
+        minco:purpose: realtime-proof
+
+  HandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-handler'
+      RetentionInDays: 1
+
+  HandlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: proof-runtime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub '${HandlerLogGroup.Arn}:*'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt ConnectionTable.Arn
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-handler'
+              - Effect: Allow
+                Action: execute-api:ManageConnections
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RealtimeApi}/*/GET/@connections/*'
+                  - !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RealtimeApi}/*/POST/@connections/*'
+      Tags:
+        - Key: minco:purpose
+          Value: realtime-proof
+
+  Handler:
+    Type: AWS::Lambda::Function
+    DependsOn: HandlerLogGroup
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-handler'
+      Architectures: [arm64]
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+        S3ObjectVersion: !Ref CodeObjectVersion
+      Environment:
+        Variables:
+          CONNECTION_TABLE: !Ref ConnectionTable
+          RUST_LOG: info
+      Handler: bootstrap
+      MemorySize: 256
+      ReservedConcurrentExecutions: 5
+      Role: !GetAtt HandlerRole.Arn
+      Runtime: provided.al2023
+      Timeout: 15
+      TracingConfig:
+        Mode: PassThrough
+      Tags:
+        - Key: minco:purpose
+          Value: realtime-proof
+
+  HandlerAsyncPolicy:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref Handler
+      Qualifier: '$LATEST'
+      MaximumEventAgeInSeconds: 60
+      MaximumRetryAttempts: 0
+
+  HandlerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Handler
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RealtimeApi}/*'
+
+  HandlerIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref RealtimeApi
+      IntegrationMethod: POST
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Handler.Arn}/invocations'
+      TimeoutInMillis: 15000
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RealtimeApi
+      AuthorizationType: NONE
+      RouteKey: '$connect'
+      Target: !Sub 'integrations/${HandlerIntegration}'
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RealtimeApi
+      AuthorizationType: NONE
+      RouteKey: '$disconnect'
+      Target: !Sub 'integrations/${HandlerIntegration}'
+
+  DefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RealtimeApi
+      AuthorizationType: NONE
+      RouteKey: '$default'
+      Target: !Sub 'integrations/${HandlerIntegration}'
+
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - ConnectRoute
+      - DisconnectRoute
+      - DefaultRoute
+    Properties:
+      ApiId: !Ref RealtimeApi
+
+  ProofStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref RealtimeApi
+      AutoDeploy: false
+      DefaultRouteSettings:
+        DataTraceEnabled: false
+        DetailedMetricsEnabled: true
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
+      DeploymentId: !Ref Deployment
+      Description: Ephemeral pusher-js compatibility proof
+      StageName: app
+      Tags:
+        minco:purpose: realtime-proof
+
+Outputs:
+  PusherHost:
+    Description: Set this as pusher-js wsHost; pusher-js appends /app/proof-key.
+    Value: !Sub '${RealtimeApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  WebSocketStageUrl:
+    Value: !Sub 'wss://${RealtimeApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/app'
+  ConnectionTableName:
+    Value: !Ref ConnectionTable
