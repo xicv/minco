@@ -267,6 +267,15 @@ remains exclusively owned by the separately approved promotion operation.
 Every admitted resource change must also retain the exact serialized action,
 replacement, policy-action and scope shape; an incomplete or retention-bearing
 receipt cannot pass merely because its logical ID is allowlisted.
+The provider scripts distinguish the shared resource run ID from an optional
+phase evidence ID. `MINCO_AWS_RUN_ID` remains the value in ownership tags,
+resource names and cloud-journal records. `MINCO_AWS_EVIDENCE_ID` selects the
+project-relative `target/minco/aws/<evidence-id>` chain used by release,
+deployment, verification and promotion receipts. It defaults to the run ID for
+standalone compatibility, must satisfy the same bounded-name policy, and does
+not broaden resource ownership. A multi-release parent assigns three distinct
+evidence IDs while retaining one resource run ID; in particular the two prior
+phases cannot overwrite one another's receipts.
 Write the output outside both checkouts so shell redirection does not make a
 checkout dirty before validation. The output contains local absolute paths and
 is an operator preflight, not a redacted publication artifact or authority to

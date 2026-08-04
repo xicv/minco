@@ -566,18 +566,12 @@ sealed_plan="$evidence_root/control/multi-release-plan.json"
   echo "multi-release initialization omitted sealed control evidence" >&2
   exit 1
 }
-file_mode() {
-  if stat -f '%Lp' "$1" 2>/dev/null; then
-    return
-  fi
-  stat -c '%a' "$1"
-}
-[[ "$(file_mode "$evidence_root")" == "700" ]] || {
+[[ "$(minco_file_mode "$evidence_root")" == "700" ]] || {
   echo "multi-release initialization did not keep its evidence root private" >&2
   exit 1
 }
 while IFS= read -r control_file; do
-  [[ "$(file_mode "$control_file")" == "600" ]] || {
+  [[ "$(minco_file_mode "$control_file")" == "600" ]] || {
     echo "multi-release initialization did not keep control evidence private" >&2
     exit 1
   }
@@ -946,10 +940,10 @@ phase_projection_copy="$phase_path/phase-projection.json"
   echo "multi-release phase start omitted its private create-only evidence" >&2
   exit 1
 }
-[[ "$(file_mode "$evidence_root/phases")" == "700" &&
-  "$(file_mode "$phase_path")" == "700" &&
-  "$(file_mode "$phase_start_receipt")" == "600" &&
-  "$(file_mode "$phase_projection_copy")" == "600" ]] || {
+[[ "$(minco_file_mode "$evidence_root/phases")" == "700" &&
+  "$(minco_file_mode "$phase_path")" == "700" &&
+  "$(minco_file_mode "$phase_start_receipt")" == "600" &&
+  "$(minco_file_mode "$phase_projection_copy")" == "600" ]] || {
   echo "multi-release phase start broadened phase evidence permissions" >&2
   exit 1
 }
@@ -1196,8 +1190,8 @@ parent_session_completion="$phase_path/parent-session-completion-receipt.json"
   echo "multi-release parent session omitted its immutable lifecycle receipts" >&2
   exit 1
 }
-[[ "$(file_mode "$parent_session_start")" == "600" &&
-  "$(file_mode "$parent_session_completion")" == "600" ]] || {
+[[ "$(minco_file_mode "$parent_session_start")" == "600" &&
+  "$(minco_file_mode "$parent_session_completion")" == "600" ]] || {
   echo "multi-release parent session broadened lifecycle receipt permissions" >&2
   exit 1
 }

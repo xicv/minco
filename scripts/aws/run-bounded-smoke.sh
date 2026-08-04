@@ -176,7 +176,7 @@ else
       --set orders-postgres \
       --database-url-env MIGRATION_DATABASE_URL \
       --expected-plan-digest "$migration_digest" \
-      --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-receipt.json" \
+      --receipt "$MINCO_AWS_EVIDENCE_RELATIVE/database-migration-receipt.json" \
       --json >"$MINCO_AWS_EVIDENCE_DIR/database-migration-output.json"
   MIGRATION_DATABASE_URL="$database_url" \
     cargo minco db verify \
@@ -226,7 +226,7 @@ awk \
 
 plan="$build_directory/plan.json"
 template="$build_directory/template.yaml"
-MINCO_RELEASE_MANIFEST="target/minco/aws/$MINCO_AWS_RUN_ID/release.json"
+MINCO_RELEASE_MANIFEST="$MINCO_AWS_EVIDENCE_RELATIVE/release.json"
 export MINCO_RELEASE_MANIFEST
 cargo minco deploy plan --config "$smoke_config" --output "$plan"
 cargo minco deploy render-sam --config "$smoke_config" --output "$template"
@@ -326,7 +326,7 @@ write_bounded_deployment_target_config \
 
 release_digest="$(jq -er '.release_digest' "$MINCO_RELEASE_MANIFEST")"
 MINCO_DEPLOY_PHASE=changeset \
-MINCO_DEPLOY_TARGET_CONFIG="target/minco/aws/$MINCO_AWS_RUN_ID/deployment-targets.toml" \
+MINCO_DEPLOY_TARGET_CONFIG="$MINCO_AWS_EVIDENCE_RELATIVE/deployment-targets.toml" \
 MINCO_APPROVE_RELEASE_DIGEST="$release_digest" \
   scripts/aws/deploy.sh
 change_set_receipt="$MINCO_AWS_EVIDENCE_DIR/change-set-receipt.json"
@@ -337,22 +337,22 @@ bounded_phase_change_set_is_authorized \
 }
 change_set_digest="$(jq -er '.receipt_digest' "$change_set_receipt")"
 MINCO_DEPLOY_PHASE=apply \
-MINCO_DEPLOY_TARGET_CONFIG="target/minco/aws/$MINCO_AWS_RUN_ID/deployment-targets.toml" \
-MINCO_CHANGESET_RECEIPT="target/minco/aws/$MINCO_AWS_RUN_ID/change-set-receipt.json" \
-MINCO_MIGRATION_PLAN="target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-plan.json" \
-MINCO_MIGRATION_RECEIPT="target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-receipt.json" \
+MINCO_DEPLOY_TARGET_CONFIG="$MINCO_AWS_EVIDENCE_RELATIVE/deployment-targets.toml" \
+MINCO_CHANGESET_RECEIPT="$MINCO_AWS_EVIDENCE_RELATIVE/change-set-receipt.json" \
+MINCO_MIGRATION_PLAN="$MINCO_AWS_EVIDENCE_RELATIVE/database-migration-plan.json" \
+MINCO_MIGRATION_RECEIPT="$MINCO_AWS_EVIDENCE_RELATIVE/database-migration-receipt.json" \
 MINCO_APPROVE_CHANGESET_DIGEST="$change_set_digest" \
   scripts/aws/deploy.sh
 unset change_set_digest release_digest
 
-hosted_verification="target/minco/aws/$MINCO_AWS_RUN_ID/hosted-verification.json"
+hosted_verification="$MINCO_AWS_EVIDENCE_RELATIVE/hosted-verification.json"
 record_cloud_touch \
   "aws:lambda,execute-api" \
   "hosted-verification" \
   "verify the candidate endpoint, request IDs, readiness, authentication, smoke behavior and exact artifact"
 cargo minco deploy verify \
   --manifest "$MINCO_RELEASE_MANIFEST" \
-  --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/deployment-receipt.json" \
+  --receipt "$MINCO_AWS_EVIDENCE_RELATIVE/deployment-receipt.json" \
   --output "$hosted_verification" \
   --json >"$MINCO_AWS_EVIDENCE_DIR/hosted-verification-output.json"
 chmod 600 \
@@ -366,9 +366,9 @@ record_cloud_touch \
   "route the live API stage to the exact hosted-verified Lambda version"
 cargo minco promote \
   --manifest "$MINCO_RELEASE_MANIFEST" \
-  --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/deployment-receipt.json" \
+  --receipt "$MINCO_AWS_EVIDENCE_RELATIVE/deployment-receipt.json" \
   --verification "$hosted_verification" \
-  --output "target/minco/aws/$MINCO_AWS_RUN_ID/promotion-receipt.json" \
+  --output "$MINCO_AWS_EVIDENCE_RELATIVE/promotion-receipt.json" \
   --approve-verification-digest "$verification_digest" \
   --json >"$MINCO_AWS_EVIDENCE_DIR/promotion-output.json"
 chmod 600 \

@@ -21,12 +21,6 @@ done
   echo "only the exact initialized next phase may begin" >&2
   exit 1
 }
-file_mode() {
-  if stat -f '%Lp' "$1" 2>/dev/null; then
-    return
-  fi
-  stat -c '%a' "$1"
-}
 require_exact_entries() {
   local directory="$1"
   shift
@@ -64,7 +58,7 @@ evidence_root="$(cd "$MINCO_MULTI_RELEASE_EVIDENCE_ROOT" && pwd -P)"
   echo "multi-release evidence root must be canonical" >&2
   exit 1
 }
-[[ "$(file_mode "$evidence_root")" == "700" ]] || {
+[[ "$(minco_file_mode "$evidence_root")" == "700" ]] || {
   echo "multi-release evidence root must remain mode 0700" >&2
   exit 1
 }
@@ -110,12 +104,12 @@ for control_file in "$controller_receipt" "$sealed_plan" "$sealed_projection"; d
   }
 done
 [[ -d "$control_root" && ! -L "$control_root" &&
-  "$(file_mode "$control_root")" == "700" ]] || {
+  "$(minco_file_mode "$control_root")" == "700" ]] || {
   echo "initialized multi-release control directory must remain private" >&2
   exit 1
 }
 [[ -d "$control_root/phases" && ! -L "$control_root/phases" &&
-  "$(file_mode "$control_root/phases")" == "700" ]] || {
+  "$(minco_file_mode "$control_root/phases")" == "700" ]] || {
   echo "initialized phase-projection directory must remain private" >&2
   exit 1
 }
@@ -127,7 +121,7 @@ for control_file in \
   "$control_root/phases/02-current.json" \
   "$control_root/phases/03-prior-rollback.json"; do
   [[ -f "$control_file" && ! -L "$control_file" &&
-    "$(file_mode "$control_file")" == "600" ]] || {
+    "$(minco_file_mode "$control_file")" == "600" ]] || {
     echo "initialized multi-release control evidence must remain mode 0600" >&2
     exit 1
   }

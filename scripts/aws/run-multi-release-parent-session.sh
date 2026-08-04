@@ -50,13 +50,6 @@ case "$MINCO_MULTI_RELEASE_EXECUTION_MODE" in
     ;;
 esac
 
-file_mode() {
-  if stat -f '%Lp' "$1" 2>/dev/null; then
-    return
-  fi
-  stat -c '%a' "$1"
-}
-
 require_exact_entries() {
   local directory="$1"
   shift
@@ -85,11 +78,11 @@ require_exact_entries() {
 }
 
 require_private_directory() {
-  [[ -d "$1" && ! -L "$1" && "$(file_mode "$1")" == "700" ]]
+  [[ -d "$1" && ! -L "$1" && "$(minco_file_mode "$1")" == "700" ]]
 }
 
 require_private_file() {
-  [[ -f "$1" && ! -L "$1" && "$(file_mode "$1")" == "600" ]]
+  [[ -f "$1" && ! -L "$1" && "$(minco_file_mode "$1")" == "600" ]]
 }
 
 canonical_checkout_root() {

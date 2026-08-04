@@ -45,7 +45,7 @@ if [[ -n "${MINCO_DATABASE_URL_FILE:-}" ]]; then
     echo "MINCO_DATABASE_URL_FILE must be a regular non-symlink file" >&2
     exit 1
   }
-  file_mode="$(stat -f '%Lp' "$MINCO_DATABASE_URL_FILE")"
+  file_mode="$(minco_file_mode "$MINCO_DATABASE_URL_FILE")"
   (((8#$file_mode & 8#077) == 0)) || {
     echo "MINCO_DATABASE_URL_FILE must not be group/world accessible" >&2
     exit 1

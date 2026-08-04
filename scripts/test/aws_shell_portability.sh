@@ -29,6 +29,76 @@ cleanup_review_fixture() {
 }
 trap cleanup_review_fixture EXIT
 
+(
+  stat() {
+    if [[ "$1" == '-c' ]]; then
+      printf '700\n'
+      return 0
+    fi
+    printf 'unexpected BSD fallback\n'
+    return 1
+  }
+  [[ "$(minco_file_mode /private/gnu)" == '700' ]] || {
+    printf 'GNU file-mode probe did not emit exactly one mode\n' >&2
+    exit 1
+  }
+)
+
+(
+  stat() {
+    if [[ "$1" == '-c' ]]; then
+      printf 'partial GNU probe output\n'
+      return 1
+    fi
+    [[ "$1" == '-f' && "$2" == '%Lp' ]] || return 1
+    printf '600\n'
+  }
+  [[ "$(minco_file_mode /private/bsd)" == '600' ]] || {
+    printf 'failed GNU probe polluted the BSD file-mode fallback\n' >&2
+    exit 1
+  }
+)
+
+(
+  minco_repo_root() {
+    printf '%s\n' "$review_fixture_dir"
+  }
+  MINCO_AWS_RUN_ID=shared-resource-run
+  MINCO_AWS_EVIDENCE_ID=01-prior-initial
+  initialize_cloud_journal
+  [[ "$MINCO_AWS_EVIDENCE_DIR" == \
+    "$review_fixture_dir/target/minco/aws/01-prior-initial" ]] || {
+    printf 'phase evidence ID did not select a distinct evidence directory\n' >&2
+    exit 1
+  }
+  [[ "$MINCO_AWS_EVIDENCE_RELATIVE" == \
+    'target/minco/aws/01-prior-initial' ]] || {
+    printf 'phase evidence ID did not expose its project-relative path\n' >&2
+    exit 1
+  }
+  MINCO_REHEARSAL_CLEANUP_MODE=true
+  export MINCO_REHEARSAL_CLEANUP_MODE
+  record_cloud_touch aws:test evidence-id \
+    'resource journal must retain the shared run ID'
+  jq -e '.run_id == "shared-resource-run"' \
+    "$MINCO_AWS_TOUCH_LOG" >/dev/null || {
+    printf 'phase evidence journal replaced the shared resource run ID\n' >&2
+    exit 1
+  }
+)
+
+if (
+  minco_repo_root() {
+    printf '%s\n' "$review_fixture_dir"
+  }
+  MINCO_AWS_RUN_ID=shared-resource-run
+  MINCO_AWS_EVIDENCE_ID='../escape'
+  initialize_cloud_journal
+) 2>/dev/null; then
+  printf 'accepted an unsafe phase evidence ID\n' >&2
+  exit 1
+fi
+
 request_id_headers="$review_fixture_dir/request-id.headers"
 for header_name in x-request-id x-amzn-requestid apigw-requestid; do
   printf 'HTTP/2 401\r\n%s: request-123\r\n\r\n' \

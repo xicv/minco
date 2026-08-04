@@ -306,3 +306,25 @@ structured code set, and S3 visibility polling no longer reads provider message
 text. Red-first source coverage rejects any reintroduced extended-regex parsing
 in these cleanup and retry paths. This slice remains provider-free: it proves
 source behavior but creates, changes and deletes no AWS resource.
+
+The thirteenth provider-free slice separates shared resource ownership from
+phase receipt storage. `MINCO_AWS_RUN_ID` continues to bind resource names,
+tags and journal entries, while a separately validated
+`MINCO_AWS_EVIDENCE_ID` selects the project-relative receipt chain consumed by
+release, migration, deploy, hosted verification and promotion commands. The
+new ID defaults to the run ID, so standalone behavior is unchanged, and path
+syntax is fail-closed even when initialization runs in a shell conditional.
+Red-first portability coverage proves one shared run can select a distinct
+phase directory without changing its journaled ownership and rejects traversal.
+This closes the phase-1 versus rollback overwrite hazard; no provider command
+was executed by the slice.
+
+Exact hosted qualification of the lower stacked change then exposed a Linux
+portability defect after the same gate passed on macOS: GNU `stat -f` emitted
+partial filesystem output before returning failure, so the BSD-first fallback
+polluted captured modes in the test and the controller runtime gates. One
+shared helper now probes GNU `stat -c` with all detection output suppressed,
+emits only the selected implementation, and retains the BSD fallback. Focused
+coverage simulates both implementations, including a failed probe that emits
+partial output, while the descendant hosted qualification remains the exact
+cross-platform verification gate.
