@@ -601,14 +601,27 @@ ordinary `promote` again.
 The current bounded runner remains single-release. Its create review uses the
 same centralized policy evaluator carried by the phase plan, so future update
 execution cannot substitute a broader ad hoc review. The local plan,
-per-phase projections, atomic controller initialization and first-phase claim
-now close the parent ownership, provenance and initial state-transition
-contracts. The parent can cross only the separately digest-approved read-only
-identity and disposable-resource absence boundaries; it cannot yet build,
-deploy, verify, promote or clean shared multi-release resources. Do not disable
-the single-release runner's immediate cleanup or create-only review gate
-independently; that would leave a partially owned provider boundary rather than
-a recoverable rehearsal.
+per-phase projections, atomic controller initialization and all three phase
+transitions now close the parent ownership, provenance and state-transition
+contracts. After a phase has produced its ordinary release, migration,
+change-set, deployment, fresh hosted-verification and promotion files,
+`scripts/aws/write-multi-release-phase-result.sh` hashes those exact private
+bytes into a create-only provider-result envelope. The writer revalidates the
+exact clean source and phase-start receipt; rollback additionally requires the
+phase-one release byte-for-byte plus the compatible, local-only assessment.
+Completion still requires a separate approval of the exact result digest.
+
+That result writer neither invokes AWS nor proves that a provider operation
+occurred merely because similarly named files exist. Its envelope becomes
+accepted evidence only after the provider-capable phase runner has generated
+the files through the fixed commands, the exact result digest has been
+reviewed, and the completion command has revalidated the complete receipt
+chain. The parent can currently cross only the separately digest-approved
+read-only identity and disposable-resource absence boundaries; it cannot yet
+build, deploy, verify, promote or clean shared multi-release resources. Do not
+disable the single-release runner's immediate cleanup or create-only review
+gate independently; that would leave a partially owned provider boundary
+rather than a recoverable rehearsal.
 
 ## Bounded execution
 

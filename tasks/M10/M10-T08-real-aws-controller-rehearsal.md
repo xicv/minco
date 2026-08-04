@@ -343,3 +343,19 @@ source drift and a substituted rollback artifact while fake provider/build
 commands receive no additional call. Provider result construction, shared
 resource execution and the sole parent cleanup trap remain to be wired before
 the separately approved live rehearsal.
+
+The fifteenth provider-free slice constructs that phase result without
+inventing public provider evidence. From the exact clean phase checkout it
+revalidates the approved phase-start receipt, requires a canonical private
+phase evidence directory and hashes the exact release, migration plan and
+receipt, change-set, deployment, fresh hosted-verification and promotion files
+into the schema-closed result envelope. Rollback additionally requires the
+phase-one release manifest byte-for-byte and a local compatible assessment
+that explicitly records no rebuild, replan, reverse SQL, automatic data repair
+or historical hosted-report reuse. Red-first coverage proved the writer was
+absent, then rejects a wrong phase-start approval, source drift, symlinked
+evidence, repeated create-only output and a substituted rollback release. The
+writer makes no AWS call and completion still requires separate approval of
+the exact result digest. A provider-capable parent must now generate those
+files only through the fixed phase commands and retain the sole resource
+cleanup trap before the separately approved live rehearsal may run.
