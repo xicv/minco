@@ -34,6 +34,9 @@ create_checkout() {
     if [[ -f scripts/aws/begin-multi-release-phase.sh ]]; then
       cp scripts/aws/begin-multi-release-phase.sh "$root/scripts/aws/"
     fi
+    if [[ -f scripts/aws/run-multi-release-parent-session.sh ]]; then
+      cp scripts/aws/run-multi-release-parent-session.sh "$root/scripts/aws/"
+    fi
     cp scripts/aws/lib/common.sh \
       scripts/aws/lib/validate-multi-release-controller-receipt.jq \
       scripts/aws/lib/validate-multi-release-plan.jq \
@@ -41,6 +44,10 @@ create_checkout() {
       "$root/scripts/aws/lib/"
     if [[ -f scripts/aws/lib/validate-multi-release-phase-start-receipt.jq ]]; then
       cp scripts/aws/lib/validate-multi-release-phase-start-receipt.jq \
+        "$root/scripts/aws/lib/"
+    fi
+    if [[ -f scripts/aws/lib/validate-multi-release-parent-session-receipt.jq ]]; then
+      cp scripts/aws/lib/validate-multi-release-parent-session-receipt.jq \
         "$root/scripts/aws/lib/"
     fi
     chmod +x "$root/scripts/aws/"*.sh
@@ -652,6 +659,34 @@ phase_start_output="$fixture_dir/phase-start-output.json"
 controller_file_digest_before_phase="$(
   shasum -a 256 "$controller_receipt" | awk '{print $1}'
 )"
+sealed_future_projection="$evidence_root/control/phases/02-current.json"
+future_projection_target="$fixture_dir/02-current-symlink-target.json"
+cp "$sealed_future_projection" "$future_projection_target"
+chmod 600 "$future_projection_target"
+rm -f -- "$sealed_future_projection"
+ln -s "$future_projection_target" "$sealed_future_projection"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null 2>&1; then
+  echo "multi-release phase start accepted a symlinked future projection" >&2
+  exit 1
+fi
+rm -f -- "$sealed_future_projection"
+cp "$future_projection_target" "$sealed_future_projection"
+chmod 600 "$sealed_future_projection"
+[[ ! -e "$evidence_root/phases" && ! -L "$evidence_root/phases" ]] || {
+  echo "rejected symlinked control evidence consumed a phase namespace" >&2
+  exit 1
+}
+[[ ! -e "$provider_contact_log" ]] || {
+  echo "rejected symlinked control evidence contacted a provider or build command" >&2
+  exit 1
+}
 if PATH="$fake_bin:$PATH" \
   MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
   MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
@@ -960,6 +995,222 @@ fi
 [[ "$(shasum -a 256 "$phase_start_receipt" | awk '{print $1}')" == \
   "$sealed_phase_start_digest" ]] || {
   echo "rejected repeated phase start changed sealed evidence" >&2
+  exit 1
+}
+
+parent_session_runner="$current_root/scripts/aws/run-multi-release-parent-session.sh"
+parent_session_output="$fixture_dir/parent-session-output.json"
+phase_start_approval="$(jq -er '.receipt_digest' "$phase_start_receipt")"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST=0000000000000000000000000000000000000000000000000000000000000000 \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "multi-release parent session accepted the wrong phase-start approval" >&2
+  exit 1
+fi
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  scripts/aws/run-multi-release-parent-session.sh >/dev/null 2>&1; then
+  echo "multi-release parent session accepted code outside the exact controller checkout" >&2
+  exit 1
+fi
+chmod 755 "$phase_path"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "multi-release parent session accepted broadly accessible phase evidence" >&2
+  exit 1
+fi
+chmod 700 "$phase_path"
+[[ ! -e "$phase_path/parent-session-start-receipt.json" &&
+  ! -e "$phase_path/parent-session-completion-receipt.json" &&
+  ! -e "$provider_contact_log" ]] || {
+  echo "rejected parent session consumed evidence or contacted a provider" >&2
+  exit 1
+}
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$parent_session_runner" >"$parent_session_output"
+
+parent_session_start="$phase_path/parent-session-start-receipt.json"
+parent_session_completion="$phase_path/parent-session-completion-receipt.json"
+[[ -f "$parent_session_start" && ! -L "$parent_session_start" &&
+  -f "$parent_session_completion" && ! -L "$parent_session_completion" ]] || {
+  echo "multi-release parent session omitted its immutable lifecycle receipts" >&2
+  exit 1
+}
+[[ "$(file_mode "$parent_session_start")" == "600" &&
+  "$(file_mode "$parent_session_completion")" == "600" ]] || {
+  echo "multi-release parent session broadened lifecycle receipt permissions" >&2
+  exit 1
+}
+cmp -s "$parent_session_output" "$parent_session_completion" || {
+  echo "multi-release parent session output did not match its completion receipt" >&2
+  exit 1
+}
+jq -e -f scripts/aws/lib/validate-multi-release-parent-session-receipt.jq \
+  "$parent_session_start" >/dev/null || {
+  echo "multi-release parent-session start receipt is outside fixed policy" >&2
+  exit 1
+}
+jq -e -f scripts/aws/lib/validate-multi-release-parent-session-receipt.jq \
+  "$parent_session_completion" >/dev/null || {
+  echo "multi-release parent-session completion receipt is outside fixed policy" >&2
+  exit 1
+}
+parent_session_start_digest="$(
+  jq -cS 'del(.receipt_digest)' "$parent_session_start" |
+    shasum -a 256 | awk '{print $1}'
+)"
+parent_session_completion_digest="$(
+  jq -cS 'del(.receipt_digest)' "$parent_session_completion" |
+    shasum -a 256 | awk '{print $1}'
+)"
+jq -e \
+  --arg approval_digest "$approval_digest" \
+  --arg controller_receipt_digest "$controller_receipt_digest" \
+  --arg parent_session_start_digest "$parent_session_start_digest" \
+  --arg phase_start_approval "$phase_start_approval" \
+  --arg plan_digest "$plan_digest" \
+  --arg prior_revision "$prior_revision" \
+  --arg projection_digest "$(
+    shasum -a 256 "$phase_projection_copy" | awk '{print $1}'
+  )" \
+  '
+    .state == "started"
+    and .external_aws_contact == false
+    and .receipt_digest == $parent_session_start_digest
+    and .controller == {
+      plan_digest: $plan_digest,
+      receipt_digest: $controller_receipt_digest
+    }
+    and .authority == {
+      approval_digest: $approval_digest,
+      kind: "minco.aws-multi-release-controller-rehearsal.v1",
+      run_id: "reviewed-multi-release-run"
+    }
+    and .phase == {
+      change_set_review_policy: "bounded_create_v1",
+      evidence_namespace: "phases/01-prior-initial",
+      id: "01-prior-initial",
+      projection_digest: $projection_digest,
+      release: "prior",
+      source_revision: $prior_revision,
+      stack_action: "create",
+      start_receipt_digest: $phase_start_approval
+    }
+    and .execution == {
+      mode: "validation_only",
+      provider_state: "not_entered"
+    }
+    and .session == {start_receipt_digest: null}
+    and .cleanup == {
+      action: "none_before_provider_boundary",
+      owner: "parent_controller",
+      required: true,
+      state: "installed",
+      trap_count: 1
+    }
+    and (tostring | contains("123456789012") | not)
+    and (tostring | contains("/minco/rehearsal/database-url") | not)
+  ' "$parent_session_start" >/dev/null || {
+  echo "multi-release parent-session start receipt weakened its boundary" >&2
+  jq . "$parent_session_start" >&2
+  exit 1
+}
+jq -e \
+  --arg parent_session_completion_digest "$parent_session_completion_digest" \
+  --slurpfile start "$parent_session_start" \
+  '
+    .state == "validated"
+    and .external_aws_contact == false
+    and .receipt_digest == $parent_session_completion_digest
+    and .authority == $start[0].authority
+    and .controller == $start[0].controller
+    and .phase == $start[0].phase
+    and .execution == $start[0].execution
+    and .session == {
+      start_receipt_digest: $start[0].receipt_digest
+    }
+    and .cleanup == {
+      action: "none_provider_boundary_not_entered",
+      owner: "parent_controller",
+      required: true,
+      state: "disarmed",
+      trap_count: 1
+    }
+  ' "$parent_session_completion" >/dev/null || {
+  echo "multi-release parent-session completion receipt weakened its boundary" >&2
+  jq . "$parent_session_completion" >&2
+  exit 1
+}
+shopt -s dotglob nullglob
+phase_entries=("$phase_path"/*)
+shopt -u dotglob nullglob
+[[ "${#phase_entries[@]}" -eq 4 &&
+  -f "$phase_path/parent-session-completion-receipt.json" &&
+  -f "$phase_path/parent-session-start-receipt.json" &&
+  -f "$phase_path/phase-projection.json" &&
+  -f "$phase_path/phase-start-receipt.json" ]] || {
+  echo "multi-release parent session left unsealed phase state" >&2
+  exit 1
+}
+[[ "$(shasum -a 256 "$controller_receipt" | awk '{print $1}')" == \
+  "$controller_file_digest_before_phase" &&
+  "$(shasum -a 256 "$phase_start_receipt" | awk '{print $1}')" == \
+  "$sealed_phase_start_digest" ]] || {
+  echo "multi-release parent session changed immutable controller or phase-start evidence" >&2
+  exit 1
+}
+[[ ! -e "$provider_contact_log" ]] || {
+  echo "multi-release parent validation session contacted a provider or build command" >&2
+  exit 1
+}
+sealed_parent_start_digest="$(shasum -a 256 "$parent_session_start" | awk '{print $1}')"
+sealed_parent_completion_digest="$(
+  shasum -a 256 "$parent_session_completion" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "multi-release parent session reused create-only lifecycle evidence" >&2
+  exit 1
+fi
+[[ "$(shasum -a 256 "$parent_session_start" | awk '{print $1}')" == \
+  "$sealed_parent_start_digest" &&
+  "$(shasum -a 256 "$parent_session_completion" | awk '{print $1}')" == \
+  "$sealed_parent_completion_digest" &&
+  ! -e "$provider_contact_log" ]] || {
+  echo "rejected repeated parent session changed evidence or contacted a provider" >&2
   exit 1
 }
 

@@ -20,8 +20,8 @@
       "tasks": 69,
       "rust_files": 140,
       "python_files": 23,
-      "shell_files": 54,
-      "implementation_files_scanned": 323
+      "shell_files": 55,
+      "implementation_files_scanned": 324
     },
     "findings": [],
     "limitations": [

@@ -214,3 +214,20 @@ publish and injected unsealed root entries. The resulting schema-closed
 execution, successful/failed phase completion transitions, shared stack and
 bucket ownership, compatibility handoff, the one parent cleanup trap and the
 separately approved live rehearsal remain required.
+
+The eighth controller slice now exercises the parent process lifecycle without
+misstating provider proof. From the exact current checkout it accepts only the
+sealed first-phase start digest, revalidates the complete controller, authority,
+projection and clean-source chain, then installs one parent lifecycle trap and
+writes immutable private start and terminal validation receipts. The terminal
+receipt is digest-bound to the exact start receipt; both fix execution to
+`validation_only`, record that the provider boundary was never entered and
+therefore disarm without claiming cloud cleanup. Red-first coverage proved the
+command was absent, then proved exact receipt shape, digest chaining, private
+permissions, authority redaction, wrong-approval and wrong-checkout rejection,
+mode enforcement, create-only repetition and zero provider/build contact.
+Security review added explicit regular-file checks for every sealed projection
+and ensured interruption after a durable start cannot fabricate a validated
+completion. Provider execution, terminal provider-phase receipts, shared stack,
+bucket and identity ownership, compatibility handoff, verified parent cleanup
+and the separately approved live rehearsal remain required.
