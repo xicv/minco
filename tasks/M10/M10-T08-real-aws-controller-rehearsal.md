@@ -260,3 +260,28 @@ fake-command regression changes the file at that exact boundary and proves the
 run fails before lifecycle receipts or AWS contact. The multi-release plan test,
 ShellCheck and Bash syntax checks pass for this correction. Provider execution
 itself remains unrun and authority-gated.
+
+The tenth controller slice adds the separately approved disposable-resource
+preflight required before the parent may create anything. Plan mode revalidates
+the complete controller and emits one schema-closed, redacted contract allowing
+only STS identity plus application-stack, artifact-bucket, temporary-RDS-stack
+and database-instance absence reads. Execute mode requires the exact plan
+SHA-256 before lifecycle evidence or contact, verifies the expected role, then
+accepts only the provider's precise not-found responses. Success records
+`provider_resources_absent`; any identity, pre-existing-resource or unexpected
+response records a conservative failed terminal state without claiming cleanup.
+Red-first fake-AWS coverage proves the exact five-call shape, wrong-digest
+fail-before-contact behavior, create-only receipts, redaction, zero mutation
+and rejection of a misleading not-found message whose structured service code
+is not an absence code.
+
+Post-implementation review on 2026-08-04 used AWS CLI 2.36.14 for four
+read-only calls outside the controller: one caller-identity discovery and one
+deliberately nonexistent-name probe each for CloudFormation, S3 and RDS. The
+probes confirmed exit `254` with structured codes `ValidationError`, `404` and
+`DBInstanceNotFound`. They created, changed and deleted no resource. Account,
+ARN, message, endpoint and resource identifier values were intentionally not
+retained in repository evidence. These documentation probes are not the live
+rehearsal and prove no deployment or cleanup. Shared resource creation, phase
+execution, compatibility handoff, one parent-owned cleanup trap and the
+separately approved live rehearsal remain required.

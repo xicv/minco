@@ -54,6 +54,10 @@ create_checkout() {
       cp scripts/aws/lib/validate-multi-release-provider-entry-plan.jq \
         "$root/scripts/aws/lib/"
     fi
+    if [[ -f scripts/aws/lib/validate-multi-release-resource-preflight-plan.jq ]]; then
+      cp scripts/aws/lib/validate-multi-release-resource-preflight-plan.jq \
+        "$root/scripts/aws/lib/"
+    fi
     chmod +x "$root/scripts/aws/"*.sh
   fi
   git -C "$root" add .
@@ -120,12 +124,51 @@ done
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'printf "%s\\n" "$(basename "$0")" >>"$MINCO_PROVIDER_CONTACT_LOG"' \
-  '[[ "$#" -eq 9 && "$1" == "--no-cli-pager" && "$2" == "--region" && "$3" == "ap-southeast-2" && "$4" == "sts" && "$5" == "get-caller-identity" && "$6" == "--query" && "$7" == "{Account:Account,Arn:Arn,UserId:UserId}" && "$8" == "--output" && "$9" == "json" ]] || exit 99' \
-  'if [[ "${MINCO_FAKE_AWS_IDENTITY_MODE:-match}" == "mismatch" ]]; then' \
-  '  printf "%s\n" '\''{"Account":"123456789012","Arn":"arn:aws:sts::123456789012:assumed-role/unapproved-role/test-session","UserId":"AROATEST:test-session"}'\''' \
-  'else' \
-  '  printf "%s\n" '\''{"Account":"123456789012","Arn":"arn:aws:sts::123456789012:assumed-role/minco-rehearsal/test-session","UserId":"AROATEST:test-session"}'\''' \
-  'fi' \
+  '[[ "$#" -ge 5 && "$1" == "--no-cli-pager" ]] || exit 99' \
+  'case "${2:-}:${3:-}" in' \
+  '  --region:ap-southeast-2)' \
+  '    service_action="${4:-}:${5:-}"' \
+  '    argument_name="${6:-}"' \
+  '    argument_value="${7:-}"' \
+  '    ;;' \
+  '  --cli-error-format:json)' \
+  '    [[ "${4:-}" == "--region" && "${5:-}" == "ap-southeast-2" ]] || exit 99' \
+  '    service_action="${6:-}:${7:-}"' \
+  '    argument_name="${8:-}"' \
+  '    argument_value="${9:-}"' \
+  '    ;;' \
+  '  *) exit 99 ;;' \
+  'esac' \
+  'case "$service_action" in' \
+  '  sts:get-caller-identity)' \
+  '    [[ "$#" -eq 9 && "$2" == "--region" && "$6" == "--query" && "$7" == "{Account:Account,Arn:Arn,UserId:UserId}" && "$8" == "--output" && "$9" == "json" ]] || exit 99' \
+  '    if [[ "${MINCO_FAKE_AWS_IDENTITY_MODE:-match}" == "mismatch" ]]; then' \
+  '      printf "%s\n" '\''{"Account":"123456789012","Arn":"arn:aws:sts::123456789012:assumed-role/unapproved-role/test-session","UserId":"AROATEST:test-session"}'\''' \
+  '    else' \
+  '      printf "%s\n" '\''{"Account":"123456789012","Arn":"arn:aws:sts::123456789012:assumed-role/minco-rehearsal/test-session","UserId":"AROATEST:test-session"}'\''' \
+  '    fi' \
+  '    ;;' \
+  '  cloudformation:describe-stacks)' \
+  '    [[ "$#" -eq 9 && "$argument_name" == "--stack-name" && ( "$argument_value" == "$MINCO_FAKE_APPLICATION_STACK_NAME" || "$argument_value" == "$MINCO_FAKE_RDS_STACK_NAME" ) ]] || exit 99' \
+  '    if [[ "${MINCO_FAKE_AWS_RESOURCE_ERROR_MODE:-absent}" == "wrong-code" ]]; then' \
+  '      printf "%s\n" '\''{"Code":"AccessDenied","Message":"Stack does not exist in the permitted boundary"}'\'' >&2' \
+  '    else' \
+  '      printf "%s\n" '\''{"Code":"ValidationError","Message":"Stack does not exist"}'\'' >&2' \
+  '    fi' \
+  '    exit 254' \
+  '    ;;' \
+  '  s3api:head-bucket)' \
+  '    [[ "$#" -eq 9 && "$argument_name" == "--bucket" && "$argument_value" == "$MINCO_FAKE_ARTIFACT_BUCKET_NAME" ]] || exit 99' \
+  '    printf "%s\n" '\''{"Code":"404","Message":"Not Found"}'\'' >&2' \
+  '    exit 254' \
+  '    ;;' \
+  '  rds:describe-db-instances)' \
+  '    [[ "$#" -eq 9 && "$argument_name" == "--db-instance-identifier" && "$argument_value" == "$MINCO_FAKE_RDS_INSTANCE_ID" ]] || exit 99' \
+  '    printf "%s\n" '\''{"Code":"DBInstanceNotFound","Message":"DBInstance not found"}'\'' >&2' \
+  '    exit 254' \
+  '    ;;' \
+  '  *) exit 99 ;;' \
+  'esac' \
   >"$fake_bin/aws"
 chmod +x "$fake_bin/aws"
 
@@ -1635,6 +1678,243 @@ jq -e \
     and (tostring | contains("unapproved-role") | not)
   ' "$failed_provider_completion" >/dev/null || {
   echo "failed provider identity receipt underreported contact or exposed identity" >&2
+  exit 1
+}
+rm -r -- "$evidence_root"
+rm -f -- "$provider_contact_log"
+
+temp_database_boundary='{"mode":"disposable-rds","rds_stack_name":"minco-rds-reviewed-run","instance_id":"minco-reviewed-run","parameter_name":"/minco/rehearsal/reviewed-run/database-url"}'
+temp_authority_file="$fixture_dir/temp-rds-multi-release-authority.json"
+jq \
+  --argjson database_boundary "$temp_database_boundary" \
+  '.database_boundary = $database_boundary
+   | .resource_allowlist = "bounded-root-temp-rds-multi-release-v1"
+   | .cleanup_blast_radius = "cleanup-bounded-root-temp-rds-multi-release-v1"' \
+  "$authority_file" >"$temp_authority_file"
+temp_approval_digest="$(shasum -a 256 "$temp_authority_file" | awk '{print $1}')"
+temp_plan="$fixture_dir/temp-rds-multi-release-plan.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_PRIOR_ROOT="$prior_root" \
+MINCO_CURRENT_ROOT="$current_root" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_AWS_RUN_ID=reviewed-multi-release-run \
+MINCO_REHEARSAL_PROFILE=minco-rehearsal \
+AWS_REGION=ap-southeast-2 \
+MINCO_REHEARSAL_DATABASE_BOUNDARY_JSON="$temp_database_boundary" \
+MINCO_REHEARSAL_RESOURCE_ALLOWLIST=bounded-root-temp-rds-multi-release-v1 \
+MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS=cleanup-bounded-root-temp-rds-multi-release-v1 \
+  scripts/aws/plan-multi-release-rehearsal.sh >"$temp_plan"
+temp_plan_digest="$(shasum -a 256 "$temp_plan" | awk '{print $1}')"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PLAN_FILE="$temp_plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$temp_plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  "$controller_initializer" >/dev/null
+controller_receipt="$evidence_root/control/controller-receipt.json"
+controller_receipt_digest="$(jq -er '.receipt_digest' "$controller_receipt")"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null
+phase_path="$evidence_root/phases/01-prior-initial"
+phase_start_receipt="$phase_path/phase-start-receipt.json"
+phase_start_approval="$(jq -er '.receipt_digest' "$phase_start_receipt")"
+resource_preflight_plan="$fixture_dir/resource-preflight-plan.json"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_resource_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=plan \
+  "$parent_session_runner" >"$resource_preflight_plan"
+jq -e \
+  '
+    .schema_version == 1
+    and .operation == "multi_release_resource_preflight"
+    and .external_aws_contact == false
+    and .provider == {
+      actions: [
+        "sts_get_caller_identity",
+        "cloudformation_describe_application_stack_absence",
+        "s3_head_artifact_bucket_absence",
+        "cloudformation_describe_database_stack_absence",
+        "rds_describe_database_instance_absence"
+      ],
+      expected_region: "ap-southeast-2",
+      mutation: false,
+      secrets_requested: false
+    }
+    and .cleanup == {
+      owner: "parent_controller",
+      required: true,
+      trap_count: 1
+    }
+    and (tostring | contains("123456789012") | not)
+    and (tostring | contains("arn:aws") | not)
+    and (tostring | contains("minco-rds-reviewed-run") | not)
+    and (tostring | contains("minco-reviewed-run") | not)
+    and (tostring | contains("/minco/rehearsal/reviewed-run") | not)
+  ' "$resource_preflight_plan" >/dev/null || {
+  echo "multi-release resource preflight plan weakened or exposed its boundary" >&2
+  exit 1
+}
+[[ ! -e "$phase_path/parent-session-start-receipt.json" &&
+  ! -e "$phase_path/parent-session-completion-receipt.json" &&
+  ! -e "$provider_contact_log" ]] || {
+  echo "resource preflight planning consumed evidence or contacted AWS" >&2
+  exit 1
+}
+resource_preflight_approval="$(
+  shasum -a 256 "$resource_preflight_plan" | awk '{print $1}'
+)"
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_resource_preflight \
+  MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+  MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST=0000000000000000000000000000000000000000000000000000000000000000 \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "resource preflight accepted the wrong exact plan approval" >&2
+  exit 1
+fi
+[[ ! -e "$phase_path/parent-session-start-receipt.json" &&
+  ! -e "$phase_path/parent-session-completion-receipt.json" &&
+  ! -e "$provider_contact_log" ]] || {
+  echo "rejected resource preflight consumed evidence or contacted AWS" >&2
+  exit 1
+}
+if PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_FAKE_AWS_RESOURCE_ERROR_MODE=wrong-code \
+  MINCO_FAKE_APPLICATION_STACK_NAME="minco-smoke-$(
+    printf '%s' reviewed-multi-release-run | shasum -a 256 | cut -c1-12
+  )" \
+  MINCO_FAKE_ARTIFACT_BUCKET_NAME="minco-smoke-$(
+    printf '%s' reviewed-multi-release-run | shasum -a 256 | cut -c1-12
+  )" \
+  MINCO_FAKE_RDS_STACK_NAME=minco-rds-reviewed-run \
+  MINCO_FAKE_RDS_INSTANCE_ID=minco-reviewed-run \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_resource_preflight \
+  MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+  MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST="$resource_preflight_approval" \
+  "$parent_session_runner" >/dev/null 2>&1; then
+  echo "resource preflight accepted a misleading absence message with the wrong error code" >&2
+  exit 1
+fi
+[[ "$(wc -l <"$provider_contact_log" | tr -d ' ')" == 2 ]] || {
+  echo "resource preflight continued after a non-absence CloudFormation error" >&2
+  exit 1
+}
+rm -r -- "$evidence_root"
+rm -f -- "$provider_contact_log"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_PLAN_FILE="$temp_plan" \
+MINCO_APPROVE_MULTI_RELEASE_PLAN_DIGEST="$temp_plan_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  "$controller_initializer" >/dev/null
+controller_receipt="$evidence_root/control/controller-receipt.json"
+controller_receipt_digest="$(jq -er '.receipt_digest' "$controller_receipt")"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  "$phase_beginner" >/dev/null
+phase_path="$evidence_root/phases/01-prior-initial"
+phase_start_receipt="$phase_path/phase-start-receipt.json"
+phase_start_approval="$(jq -er '.receipt_digest' "$phase_start_receipt")"
+resource_preflight_output="$fixture_dir/resource-preflight-output.json"
+resource_run_suffix="$(
+  printf '%s' reviewed-multi-release-run | shasum -a 256 | cut -c1-12
+)"
+PATH="$fake_bin:$PATH" \
+MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+MINCO_FAKE_APPLICATION_STACK_NAME="minco-smoke-$resource_run_suffix" \
+MINCO_FAKE_ARTIFACT_BUCKET_NAME="minco-smoke-$resource_run_suffix" \
+MINCO_FAKE_RDS_STACK_NAME=minco-rds-reviewed-run \
+MINCO_FAKE_RDS_INSTANCE_ID=minco-reviewed-run \
+MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_resource_preflight \
+MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST="$resource_preflight_approval" \
+  "$parent_session_runner" >"$resource_preflight_output"
+resource_preflight_start="$phase_path/parent-session-start-receipt.json"
+resource_preflight_completion="$phase_path/parent-session-completion-receipt.json"
+[[ -f "$resource_preflight_start" && ! -L "$resource_preflight_start" &&
+  -f "$resource_preflight_completion" && ! -L "$resource_preflight_completion" &&
+  "$(wc -l <"$provider_contact_log" | tr -d ' ')" == 5 &&
+  "$(sort -u "$provider_contact_log")" == "aws" ]] || {
+  echo "resource preflight omitted its exact provider or lifecycle proof" >&2
+  exit 1
+}
+cmp -s "$resource_preflight_output" "$resource_preflight_completion" || {
+  echo "resource preflight output did not match its completion receipt" >&2
+  exit 1
+}
+resource_preflight_start_digest="$(
+  jq -er '.receipt_digest' "$resource_preflight_start"
+)"
+jq -e \
+  --arg resource_preflight_approval "$resource_preflight_approval" \
+  --arg resource_preflight_start_digest "$resource_preflight_start_digest" \
+  '
+    .state == "provider_resources_absent"
+    and .external_aws_contact == true
+    and .execution == {
+      mode: "provider_resource_preflight",
+      provider_entry_plan_digest: $resource_preflight_approval,
+      provider_state: "resources_absent"
+    }
+    and .session == {
+      start_receipt_digest: $resource_preflight_start_digest
+    }
+    and .cleanup == {
+      action: "none_read_only_resource_preflight",
+      owner: "parent_controller",
+      required: true,
+      state: "disarmed",
+      trap_count: 1
+    }
+    and (tostring | contains("123456789012") | not)
+    and (tostring | contains("arn:aws") | not)
+    and (tostring | contains("minco-rds-reviewed-run") | not)
+    and (tostring | contains("minco-reviewed-run") | not)
+    and (tostring | contains("/minco/rehearsal/reviewed-run") | not)
+  ' "$resource_preflight_completion" >/dev/null || {
+  echo "resource preflight receipt weakened or exposed its boundary" >&2
   exit 1
 }
 rm -r -- "$evidence_root"

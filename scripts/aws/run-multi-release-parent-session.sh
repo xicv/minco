@@ -37,6 +37,13 @@ case "$MINCO_MULTI_RELEASE_EXECUTION_MODE" in
       exit 1
     }
     ;;
+  provider_resource_preflight)
+    [[ "${MINCO_MULTI_RELEASE_PROVIDER_ACTION:-}" == "plan" ||
+      "${MINCO_MULTI_RELEASE_PROVIDER_ACTION:-}" == "execute" ]] || {
+      echo "provider resource preflight accepts only plan or execute" >&2
+      exit 1
+    }
+    ;;
   *)
     echo "multi-release execution mode is outside the fixed parent policy" >&2
     exit 1
@@ -239,6 +246,7 @@ session_start_digest=
 provider_entry_attempted=false
 provider_entry_plan_digest=
 provider_identity_verified=false
+provider_resources_absent=false
 
 build_parent_session_payload() {
   local state="$1"
@@ -270,10 +278,22 @@ build_parent_session_payload() {
       execution_provider_state="identity_verified"
       external_aws_contact=true
       ;;
-    failed)
-      cleanup_action="none_read_only_identity_preflight"
+    provider_resources_absent)
+      cleanup_action="none_read_only_resource_preflight"
       cleanup_state="disarmed"
-      execution_provider_state="identity_unverified"
+      execution_provider_state="resources_absent"
+      external_aws_contact=true
+      ;;
+    failed)
+      if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == \
+        "provider_resource_preflight" ]]; then
+        cleanup_action="none_read_only_resource_preflight"
+        execution_provider_state="resource_state_unverified"
+      else
+        cleanup_action="none_read_only_identity_preflight"
+        execution_provider_state="identity_unverified"
+      fi
+      cleanup_state="disarmed"
       external_aws_contact=true
       ;;
     *)
@@ -377,6 +397,54 @@ build_provider_entry_plan() {
     }' >"$output_path"
 }
 
+build_resource_preflight_plan() {
+  local output_path="$1"
+  local authority_json
+  local controller_json
+  local phase_json
+
+  authority_json="$(jq -c '.authority' "$phase_start_receipt")"
+  controller_json="$(jq -c '.controller' "$phase_start_receipt")"
+  phase_json="$(jq -c \
+    --arg start_receipt_digest "$MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST" \
+    '{
+      id: .phase.id,
+      projection_digest: .phase.projection_digest,
+      source_revision: .phase.source_revision,
+      start_receipt_digest: $start_receipt_digest
+    }' "$phase_start_receipt")"
+  jq -n \
+    --arg expected_region "$authority_region" \
+    --argjson authority "$authority_json" \
+    --argjson controller "$controller_json" \
+    --argjson phase "$phase_json" \
+    '{
+      schema_version: 1,
+      operation: "multi_release_resource_preflight",
+      external_aws_contact: false,
+      controller: $controller,
+      authority: $authority,
+      phase: $phase,
+      provider: {
+        actions: [
+          "sts_get_caller_identity",
+          "cloudformation_describe_application_stack_absence",
+          "s3_head_artifact_bucket_absence",
+          "cloudformation_describe_database_stack_absence",
+          "rds_describe_database_instance_absence"
+        ],
+        expected_region: $expected_region,
+        mutation: false,
+        secrets_requested: false
+      },
+      cleanup: {
+        owner: "parent_controller",
+        required: true,
+        trap_count: 1
+      }
+    }' >"$output_path"
+}
+
 seal_parent_session_receipt() {
   local payload_path="$1"
   local output_path="$2"
@@ -410,8 +478,14 @@ finalize_parent_session() {
     if [[ "$status" -eq 0 &&
       "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "validation_only" ]]; then
       terminal_state=validated
-    elif [[ "$status" -eq 0 && "$provider_identity_verified" == true ]]; then
+    elif [[ "$status" -eq 0 &&
+      "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" &&
+      "$provider_identity_verified" == true ]]; then
       terminal_state=provider_identity_verified
+    elif [[ "$status" -eq 0 &&
+      "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" &&
+      "$provider_resources_absent" == true ]]; then
+      terminal_state=provider_resources_absent
     elif [[ "$provider_entry_attempted" == true ]]; then
       terminal_state=failed
       status=1
@@ -634,6 +708,38 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ]];
     exit 1
   }
   require_command aws
+elif [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]]; then
+  [[ "$(jq -er '.mode' <<<"$authority_database_boundary")" == \
+    "disposable-rds" ]] || {
+    echo "provider resource preflight requires the disposable-RDS authority profile" >&2
+    exit 1
+  }
+  resource_preflight_plan="$validation_dir/resource-preflight-plan.json"
+  build_resource_preflight_plan "$resource_preflight_plan"
+  jq -e -f scripts/aws/lib/validate-multi-release-resource-preflight-plan.jq \
+    "$resource_preflight_plan" >/dev/null || {
+    echo "multi-release resource preflight plan is outside the fixed policy" >&2
+    exit 1
+  }
+  resource_preflight_plan_digest="$(
+    shasum -a 256 "$resource_preflight_plan" | awk '{print $1}'
+  )"
+  if [[ "$MINCO_MULTI_RELEASE_PROVIDER_ACTION" == "plan" ]]; then
+    cat "$resource_preflight_plan"
+    exit 0
+  fi
+  : "${MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST:?set MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST to the exact resource-preflight plan digest}"
+  [[ "$MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST" =~ ^[0-9a-f]{64}$ ]] || {
+    echo "resource-preflight approval must be a SHA-256 digest" >&2
+    exit 1
+  }
+  [[ "$MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST" == \
+    "$resource_preflight_plan_digest" ]] || {
+    echo "resource-preflight approval does not match the exact deterministic plan" >&2
+    exit 1
+  }
+  provider_entry_plan_digest="$resource_preflight_plan_digest"
+  require_command aws
 fi
 
 start_payload="$validation_dir/parent-session-start-payload.json"
@@ -661,7 +767,8 @@ require_private_file "$parent_session_start" || {
 session_start_digest="$(jq -er '.receipt_digest' "$parent_session_start")"
 session_started=true
 
-if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ]]; then
+if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ||
+  "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]]; then
   provider_entry_attempted=true
   identity="$(
     AWS_PROFILE="$authority_profile" \
@@ -708,6 +815,107 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ]];
     account_id authority_account_id authority_role_arn caller_arn \
     caller_role_arn identity partition role_name role_session
   provider_identity_verified=true
+fi
+
+if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]]; then
+  run_id="$(jq -er '.authority.run_id' "$controller_receipt")"
+  run_suffix="$(
+    printf '%s' "$run_id" | shasum -a 256 | awk '{print substr($1, 1, 12)}'
+  )"
+  application_stack_name="minco-smoke-$run_suffix"
+  artifact_bucket_name="${application_stack_name,,}"
+  database_stack_name="$(jq -er '.rds_stack_name' <<<"$authority_database_boundary")"
+  database_instance_id="$(jq -er '.instance_id' <<<"$authority_database_boundary")"
+
+  application_stack_error="$validation_dir/application-stack-error.txt"
+  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
+    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+      cloudformation describe-stacks \
+      --stack-name "$application_stack_name" \
+      >/dev/null 2>"$application_stack_error"; then
+    echo "refusing to use a pre-existing application stack" >&2
+    exit 1
+  else
+    application_stack_status=$?
+  fi
+  if [[ "${application_stack_status:-0}" -ne 254 ]] ||
+    ! jq -e '
+      keys == ["Code", "Message"]
+      and .Code == "ValidationError"
+      and (.Message | type == "string")
+    ' "$application_stack_error" >/dev/null; then
+    echo "could not prove the application stack is absent" >&2
+    exit 1
+  fi
+
+  bucket_error="$validation_dir/artifact-bucket-error.txt"
+  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
+    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+      s3api head-bucket \
+      --bucket "$artifact_bucket_name" \
+      >/dev/null 2>"$bucket_error"; then
+    echo "refusing to use a pre-existing artifact bucket" >&2
+    exit 1
+  else
+    bucket_status=$?
+  fi
+  if [[ "${bucket_status:-0}" -ne 254 ]] ||
+    ! jq -e '
+      keys == ["Code", "Message"]
+      and .Code == "404"
+      and (.Message | type == "string")
+    ' "$bucket_error" >/dev/null; then
+    echo "could not prove the artifact bucket is absent" >&2
+    exit 1
+  fi
+
+  database_stack_error="$validation_dir/database-stack-error.txt"
+  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
+    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+      cloudformation describe-stacks \
+      --stack-name "$database_stack_name" \
+      >/dev/null 2>"$database_stack_error"; then
+    echo "refusing to use a pre-existing database stack" >&2
+    exit 1
+  else
+    database_stack_status=$?
+  fi
+  if [[ "${database_stack_status:-0}" -ne 254 ]] ||
+    ! jq -e '
+      keys == ["Code", "Message"]
+      and .Code == "ValidationError"
+      and (.Message | type == "string")
+    ' "$database_stack_error" >/dev/null; then
+    echo "could not prove the database stack is absent" >&2
+    exit 1
+  fi
+
+  database_instance_error="$validation_dir/database-instance-error.txt"
+  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
+    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+      rds describe-db-instances \
+      --db-instance-identifier "$database_instance_id" \
+      >/dev/null 2>"$database_instance_error"; then
+    echo "refusing to use a pre-existing database instance" >&2
+    exit 1
+  else
+    database_instance_status=$?
+  fi
+  if [[ "${database_instance_status:-0}" -ne 254 ]] ||
+    ! jq -e '
+      keys == ["Code", "Message"]
+      and .Code == "DBInstanceNotFound"
+      and (.Message | type == "string")
+    ' "$database_instance_error" >/dev/null; then
+    echo "could not prove the database instance is absent" >&2
+    exit 1
+  fi
+
+  unset \
+    application_stack_name application_stack_status artifact_bucket_name \
+    bucket_status database_instance_id database_instance_status \
+    database_stack_name database_stack_status run_id run_suffix
+  provider_resources_absent=true
 fi
 
 exit 0
