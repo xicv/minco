@@ -1,0 +1,31 @@
+[package]
+name = "minco-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Local read-only Model Context Protocol server for bounded Minco project views"
+documentation = "https://docs.rs/minco-mcp"
+readme = "README.md"
+keywords = ["minco", "mcp", "ai", "development-tools"]
+categories = ["development-tools", "command-line-utilities"]
+publish = ["crates-io"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+minco-project-view.workspace = true
+rmcp.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+rmcp = { workspace = true, features = ["client"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

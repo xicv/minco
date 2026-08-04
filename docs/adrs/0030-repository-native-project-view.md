@@ -25,8 +25,8 @@ application concepts. They must not become Minco framework vocabulary.
 
 ## Decision
 
-Minco will define a versioned, bounded `ProjectView` read model during
-M12-T01. The model is a deterministic projection over existing authoritative
+Minco defines a versioned, bounded `ProjectView` read model in M12-T01. The
+model is a deterministic projection over existing authoritative
 read interfaces. It does not own project state and cannot mutate a source.
 M12-T01 exposes the same model through the local read-only MCP boundary;
 M12-T02 consumes it through `cargo minco workbench` and optional local static
@@ -75,9 +75,35 @@ Minco will not freeze a general adapter API until the Minco repository and at
 least one first-party application exercise it without introducing product
 concepts into the framework.
 
-The initial local MCP transport is child-process stdio and opens no listening
-socket. A future network transport is a separate compatibility and security
+The initial local MCP transport is newline-delimited JSON-RPC over child-process
+stdio and opens no listening socket. It implements the MCP 2026-07-28 tool
+contract through `rmcp` 3.1 with only its server, macros and I/O transport
+features. A future network transport is a separate compatibility and security
 decision rather than an implicit side effect of enabling the read model.
+
+The implemented M12-T01 CLI surface is:
+
+```text
+cargo minco mcp --check --json
+cargo minco --root /canonical/project/root mcp
+```
+
+`mcp --check` builds the complete view, validates the tool catalog and reports
+the transport, limits and derived summary without starting a server. Serving
+requires the explicit root argument; stdout is reserved for MCP protocol
+messages. The server exposes exactly these schema-versioned read tools:
+
+- `minco.project_view`;
+- `minco.project_summary`;
+- `minco.operation_explain`;
+- `minco.task_readiness`;
+- `minco.evidence`;
+- `minco.feedback_context`.
+
+Every tool declares `readOnlyHint=true`, `destructiveHint=false`,
+`idempotentHint=true` and `openWorldHint=false`. No tool accepts a filesystem
+path, command, SQL, URL, provider, database or credential argument. Unknown
+arguments fail input deserialization before the handler runs.
 
 The planned CLI surface is:
 
@@ -127,16 +153,20 @@ as separate project truth.
 ## Compatibility
 
 `ProjectView`, its evidence vocabulary, the MCP tools and the workbench CLI are
-planned pre-1.0 compatibility surfaces. M11-T10 records only their design. The
-M12 implementation tasks must version serialized output, document additive and
-breaking changes, and keep applications without workbench configuration
-compatible with the existing Minco CLI.
+pre-1.0 compatibility surfaces. `ProjectView` and every MCP result currently
+use schema version 1. Additive fields require the usual pre-1.0 compatibility
+review; renamed or removed fields, changed evidence semantics, new tool inputs,
+new transports, or any write behavior require an explicit breaking review.
+Applications without workbench configuration remain compatible with the
+existing Minco CLI.
 
 ## Safety
 
-Every reader requires an explicit canonical project root, permits only declared
+Every reader receives a canonical project root, permits only declared
 project-relative inputs, rejects traversal and unsafe symlink boundaries, and
-enforces per-file and total response limits. Secret values, credentials,
+enforces directory-entry, file-count, per-file, total-input, text, node, edge,
+MCP-message and protocol-response limits. The serving CLI additionally requires
+that the operator supplied `--root`. Secret values, credentials,
 tokens, service instances, arbitrary attachments and customer data are not
 read. Text is untrusted data and is never executed or rendered as raw HTML.
 

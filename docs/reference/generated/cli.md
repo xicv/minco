@@ -30,6 +30,7 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
 - `cargo minco feedback`
 - `cargo minco inspect`
 - `cargo minco make`
+- `cargo minco mcp`
 - `cargo minco new`
 - `cargo minco package`
 - `cargo minco perf`
@@ -152,6 +153,7 @@ Commands:
   upgrade
   vcs
   feedback      Inspect and advance the first-class client feedback loop
+  mcp           Expose a bounded, local-only, read-only `ProjectView` over child-process stdio
   help          Print this message or the help of the given subcommand(s)
 
 Options:
@@ -407,6 +409,20 @@ Commands:
   help       Print this message or the help of the given subcommand(s)
 
 Options:
+      --root <ROOT>
+      --json
+  -h, --help         Print help
+```
+
+#### `cargo minco mcp`
+
+```text
+Expose a bounded, local-only, read-only `ProjectView` over child-process stdio
+
+Usage: cargo-minco mcp [OPTIONS]
+
+Options:
+      --check        Validate the bounded view and MCP surface without starting a protocol server
       --root <ROOT>
       --json
   -h, --help         Print help

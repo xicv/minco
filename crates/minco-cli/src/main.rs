@@ -154,6 +154,8 @@ enum Command {
     Vcs(VcsCommand),
     /// Inspect and advance the first-class client feedback loop.
     Feedback(FeedbackArgs),
+    /// Expose a bounded, local-only, read-only `ProjectView` over child-process stdio.
+    Mcp(McpArgs),
 }
 
 #[derive(Debug, Args)]
@@ -177,6 +179,13 @@ struct CheckArgs {
     with_cargo: bool,
     #[arg(long)]
     with_optional: bool,
+}
+
+#[derive(Debug, Clone, Copy, Args)]
+struct McpArgs {
+    /// Validate the bounded view and MCP surface without starting a protocol server.
+    #[arg(long)]
+    check: bool,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -735,6 +744,7 @@ async fn main() -> Result<()> {
         json: as_json,
         command,
     } = cli;
+    let explicit_root = root.is_some();
     let command = match command {
         Command::New(args) => {
             let report = create_project(&NewProjectOptions {
@@ -783,7 +793,48 @@ async fn main() -> Result<()> {
         Command::Upgrade(_) => unreachable!("upgrade is handled before strict manifest loading"),
         Command::Vcs(command) => vcs_command(&root, command, as_json),
         Command::Feedback(args) => feedback_cmd::execute(&root, args, as_json).await,
+        Command::Mcp(args) => mcp_command(&root, args, as_json, explicit_root).await,
     }
+}
+
+async fn mcp_command(root: &Path, args: McpArgs, as_json: bool, explicit_root: bool) -> Result<()> {
+    if !args.check && !explicit_root {
+        bail!(
+            "starting the Minco MCP server requires an explicit canonical project root via --root"
+        );
+    }
+
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("resolve MCP project root {}", root.display()))?;
+    let view = minco_project_view::load_project_view(&canonical_root)
+        .context("build bounded Minco ProjectView")?;
+
+    if args.check {
+        let tools = minco_mcp::MincoMcp::tool_catalog();
+        return print_value(
+            &json!({
+                "schema_version": 1,
+                "status": "ok",
+                "mode": "check",
+                "read_only": true,
+                "transport": "stdio",
+                "listening_sockets": 0,
+                "requires_explicit_root_to_serve": true,
+                "max_message_bytes": minco_mcp::DEFAULT_MAX_MCP_MESSAGE_BYTES,
+                "project": view.project,
+                "summary": view.summary,
+                "limits": view.limits,
+                "input_usage": view.input_usage,
+                "tool_names": tools.into_iter().map(|tool| tool.name).collect::<Vec<_>>(),
+            }),
+            as_json,
+        );
+    }
+
+    minco_mcp::serve_stdio(view)
+        .await
+        .context("serve local Minco MCP over stdio")
 }
 
 fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()> {
@@ -6890,6 +6941,16 @@ mod cli_argument_tests {
     fn package_is_a_first_class_top_level_command() {
         let cli = Cli::try_parse_from(["cargo-minco", "package"]).expect("package command");
         assert!(matches!(cli.command, Command::Package(_)));
+    }
+
+    #[test]
+    fn local_mcp_check_is_a_first_class_non_serving_command() {
+        let cli = Cli::try_parse_from(["cargo-minco", "mcp", "--check", "--json"])
+            .expect("local MCP check command");
+
+        assert!(matches!(cli.command, Command::Mcp(McpArgs { check: true })));
+        assert!(cli.json);
+        assert!(cli.root.is_none());
     }
 
     #[test]

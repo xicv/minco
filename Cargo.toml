@@ -9,6 +9,8 @@ members = [
   "crates/minco-contract",
   "crates/minco-deploy-aws",
   "crates/minco-plan",
+  "crates/minco-project-view",
+  "crates/minco-mcp",
   "crates/minco-release",
   "crates/minco-http",
   "crates/minco-test",
@@ -45,6 +47,8 @@ default-members = [
   "crates/minco-contract",
   "crates/minco-deploy-aws",
   "crates/minco-plan",
+  "crates/minco-project-view",
+  "crates/minco-mcp",
   "crates/minco-release",
   "crates/minco-http",
   "crates/minco-test",
@@ -103,6 +107,7 @@ http = "1.3"
 http-body-util = "0.1"
 hmac = "0.12"
 reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "rustls"] }
+rmcp = { version = "3.1.0", default-features = false, features = ["macros", "server", "transport-io"] }
 rustix = { version = "1.1.4", features = ["process"] }
 lambda_http = { version = "1.3.0", default-features = false, features = ["apigw_http", "tracing"] }
 lambda_runtime = "1.3.0"
@@ -152,6 +157,8 @@ minco-core = { version = "0.7.0", path = "crates/minco-core" }
 minco-contract = { version = "0.7.0", path = "crates/minco-contract" }
 minco-deploy-aws = { version = "0.7.0", path = "crates/minco-deploy-aws" }
 minco-plan = { version = "0.7.0", path = "crates/minco-plan" }
+minco-project-view = { version = "0.7.0", path = "crates/minco-project-view" }
+minco-mcp = { version = "0.7.0", path = "crates/minco-mcp" }
 minco-release = { version = "0.7.0", path = "crates/minco-release" }
 minco-http = { version = "0.7.0", path = "crates/minco-http" }
 minco-test = { version = "0.7.0", path = "crates/minco-test" }
@@ -209,6 +216,8 @@ package_tests = [
   "minco-deploy-aws",
   "minco-dev",
   "minco-plugin-realtime",
+  "minco-project-view",
+  "minco-mcp",
 ]
 publish = [
   "minco-core",
@@ -222,6 +231,8 @@ publish = [
   "minco-deploy-aws",
   "minco-test",
   "minco-plan",
+  "minco-project-view",
+  "minco-mcp",
   "minco-plugin-health",
   "minco-plugin-observability",
   "minco-plugin-idempotency",

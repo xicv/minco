@@ -1,0 +1,33 @@
+[package]
+name = "minco-project-view"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Bounded, schema-versioned read models for Minco project architecture and evidence"
+documentation = "https://docs.rs/minco-project-view"
+readme = "README.md"
+keywords = ["minco", "architecture", "read-model", "mcp"]
+categories = ["development-tools", "data-structures"]
+publish = ["crates-io"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[dependencies]
+minco-contract.workspace = true
+minco-db.workspace = true
+minco-plan.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
