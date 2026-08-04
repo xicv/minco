@@ -55,8 +55,11 @@ TLS `verify-full`; that ingress and the public address are removed before the
 Lambda deployment. The runtime uses a security-group-to-security-group
 PostgreSQL rule and an exact-resource SSM interface endpoint in an isolated VPC,
 with no NAT Gateway. The regional RDS CA bundle is hashed into the exact Lambda
-ZIP. Cleanup deletes the database, managed secret, endpoint and VPC; deleting
-the owned database is the proof that all synthetic rows are gone.
+ZIP. Cleanup deletes the database, managed secret, endpoint and VPC. Because
+Secrets Manager deletion is asynchronous, cleanup polls the exact recorded
+run-owned secret ARN for up to two minutes and accepts only the structured
+`ResourceNotFoundException` response as absence. Deleting the owned database is
+the proof that all synthetic rows are gone.
 
 ## Before the first account call
 
@@ -818,3 +821,14 @@ and Region. Do not start another smoke run until the original cleanup passes.
 An owned parameter is deliberately retained when synthetic database-row
 cleanup cannot be proven, so the exact run can be recovered; it is deleted only
 after that database boundary is clean.
+
+If the operator's local AWS login expires during teardown, preserve every
+original cleanup receipt and reauthenticate the same root profile. Do not infer
+absence from the expired-session error and do not start a new rehearsal. First
+repeat the exact-target absence sweep. For each remaining resource, require the
+run ownership tags; for an untagged CloudFormation child such as the exact
+Lambda log group, require the deleted stack's resource record and the sealed
+stack/template relationship. Delete only those proven run-owned leftovers,
+then write a separate final cleanup receipt after a fresh root-profile sweep
+proves every boundary absent. Keep the provider identifiers and command output
+only in the ignored private run directory.

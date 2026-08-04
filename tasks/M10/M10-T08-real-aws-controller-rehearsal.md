@@ -385,3 +385,34 @@ provider-free plan after the five-call fake preflight and guards the one-owner
 cleanup and exact-source migration contracts. No AWS mutation was made by this
 source slice. Full local and exact hosted qualification, a newly reviewed live
 authority, the live three-phase run and terminal cleanup proof remain required.
+
+The first authority-approved provider execution on 2026-08-04 used one
+disposable temporary-RDS boundary and reached a complete phase-one
+CloudFormation apply plus a successful synthetic `POST /orders` response. It
+then failed closed before promotion because the hosted smoke script still
+parsed the pre-envelope response shape. The current OpenAPI contract returns
+the order beneath `data`, and idempotent replay returns the same
+`OrderDocument` without an implementation-only `replayed` field. A red-first
+fake-provider regression reproduced that exact failure, and the smoke now
+extracts `data.id`, verifies the enveloped GET response and requires the entire
+replayed document to equal the created document.
+
+The same failed execution exposed two cleanup timing conditions without
+weakening the absence contract. RDS removed its managed secret asynchronously
+after the database and stack were already absent, so the exact-ARN poll now
+allows up to 120 seconds and accepts only structured
+`ResourceNotFoundException`; a deterministic fake-provider regression fails
+under the former 30-second bound and passes under the new bound. The operator's
+local AWS login also expired during late teardown. The original false cleanup
+receipts were preserved, the original root profile was reauthenticated, every
+remaining target was checked against exact run tags or the deleted stack's
+resource record, and only those exact targets were removed. A fresh independent
+root-profile sweep then proved all fourteen application, database, network,
+identity, storage, parameter and log boundaries absent. Private receipts retain
+the provider identifiers; this public record intentionally retains no account,
+ARN, endpoint, resource name, credential, token or synthetic row value.
+
+This attempt is failure and cleanup evidence, not completion of M10-T08. The
+corrected source must pass complete local and exact hosted qualification, then
+receive a fresh bounded authority and complete all three release phases plus
+terminal cleanup before the task can close.
