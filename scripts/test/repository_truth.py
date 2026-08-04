@@ -420,6 +420,30 @@ class RepositoryTruthTests(unittest.TestCase):
         measurements.write_text(json.dumps(value))
         self.assertIn("STATIC-BUDGET-004", self.truth_codes())
 
+    def test_first_publication_official_plugin_package_is_within_budget(self) -> None:
+        measurements = self.root / "verification/adoption-measurements.json"
+        value = json.loads(measurements.read_text())
+        baseline_packages = value["baseline"]["facade"]["official_plugins"][
+            "normal_dependency_packages"
+        ]
+        value["candidate"]["facade"]["official_plugins"][
+            "normal_dependency_packages"
+        ] = baseline_packages + len(NEW_PUBLISHABLE_PACKAGES)
+        measurements.write_text(json.dumps(value))
+        self.assertNotIn("STATIC-BUDGET-004", self.truth_codes())
+
+    def test_official_plugin_dependency_growth_beyond_new_packages_is_rejected(self) -> None:
+        measurements = self.root / "verification/adoption-measurements.json"
+        value = json.loads(measurements.read_text())
+        baseline_packages = value["baseline"]["facade"]["official_plugins"][
+            "normal_dependency_packages"
+        ]
+        value["candidate"]["facade"]["official_plugins"][
+            "normal_dependency_packages"
+        ] = baseline_packages + len(NEW_PUBLISHABLE_PACKAGES) + 1
+        measurements.write_text(json.dumps(value))
+        self.assertIn("STATIC-BUDGET-004", self.truth_codes())
+
     def test_mutable_candidate_revision_has_a_stable_code(self) -> None:
         measurements = self.root / "verification/adoption-measurements.json"
         value = json.loads(measurements.read_text())

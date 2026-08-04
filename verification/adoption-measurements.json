@@ -35,7 +35,7 @@
     "build_timings_seconds": {},
     "facade": {
       "all_features": {
-        "feature_tree_lines": 3453,
+        "feature_tree_lines": 3462,
         "normal_dependency_packages": 298
       },
       "default_features": {
@@ -47,8 +47,8 @@
         "normal_dependency_packages": 16
       },
       "official_plugins": {
-        "feature_tree_lines": 1052,
-        "normal_dependency_packages": 118
+        "feature_tree_lines": 1062,
+        "normal_dependency_packages": 119
       }
     },
     "native_arm64_artifacts": {
@@ -65,13 +65,13 @@
         "uncompressed_bytes": 1203520
       }
     },
-    "revision": "source-tree-sha256:02fdc986febb9f70ab2f13dcc2bd5ae491587ce4d2bbf88f972c31aef63fccba"
+    "revision": "source-tree-sha256:eac0e2e3b249c088e76f037eb51122c7c1ff50c82b08bf2ffcf053e30f1eae74"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 8,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
-    "official_plugin_dependency_package_delta": 0,
+    "official_plugin_dependency_package_delta": 1,
     "orders_lambda_compressed_byte_delta": 89301,
     "orders_lambda_compressed_percent_delta": 1.7814
   },

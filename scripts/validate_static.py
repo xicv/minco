@@ -360,6 +360,19 @@ class Validator:
                     )
             baseline_facade = measurements.get("baseline", {}).get("facade", {})
             candidate_facade = measurements.get("candidate", {}).get("facade", {})
+            official_features = set(
+                facade.get("features", {}).get("official-plugins", [])
+            )
+            catalog_feature_by_crate = {
+                entry.get("crate"): entry.get("feature")
+                for entry in catalog.get("plugin", [])
+            }
+            new_official_plugin_packages = {
+                package
+                for package in truth.get("new_publishable_packages", [])
+                if isinstance(package, str)
+                and catalog_feature_by_crate.get(package) in official_features
+            }
             for profile in ["no_default_features", "default_features", "official_plugins"]:
                 baseline_packages = baseline_facade.get(profile, {}).get(
                     "normal_dependency_packages"
@@ -367,10 +380,20 @@ class Validator:
                 candidate_packages = candidate_facade.get(profile, {}).get(
                     "normal_dependency_packages"
                 )
-                if baseline_packages != candidate_packages:
+                allowed_growth = (
+                    len(new_official_plugin_packages)
+                    if profile == "official_plugins"
+                    else 0
+                )
+                expected_packages = (
+                    baseline_packages + allowed_growth
+                    if isinstance(baseline_packages, int)
+                    else baseline_packages
+                )
+                if expected_packages != candidate_packages:
                     self.error(
                         "STATIC-BUDGET-004",
-                        f"{profile} dependency package count grew from {baseline_packages} to {candidate_packages}",
+                        f"{profile} dependency package count expected {expected_packages}; found {candidate_packages}",
                         measurements_path,
                     )
             for label, artifact in (
