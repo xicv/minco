@@ -238,7 +238,7 @@ MIGRATION_DATABASE_URL="$migration_url" \
     --set orders-postgres \
     --database-url-env MIGRATION_DATABASE_URL \
     --expected-plan-digest "$migration_digest" \
-    --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/database-migration-receipt.json" \
+    --receipt "$MINCO_AWS_EVIDENCE_RELATIVE/database-migration-receipt.json" \
     --json >"$MINCO_AWS_EVIDENCE_DIR/database-migration-output.json"
 MIGRATION_DATABASE_URL="$migration_url" \
   cargo minco db verify \

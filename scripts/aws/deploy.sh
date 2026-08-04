@@ -39,7 +39,7 @@ if [[ "$MINCO_DEPLOY_PHASE" == "changeset" ]]; then
   cargo minco deploy changeset \
     --target-config "$MINCO_DEPLOY_TARGET_CONFIG" \
     --manifest "$MINCO_RELEASE_MANIFEST" \
-    --output "target/minco/aws/$MINCO_AWS_RUN_ID/change-set-receipt.json" \
+    --output "$MINCO_AWS_EVIDENCE_RELATIVE/change-set-receipt.json" \
     --approve-release-digest "$MINCO_APPROVE_RELEASE_DIGEST" \
     --json >"$MINCO_AWS_EVIDENCE_DIR/change-set-output.json"
   chmod 600 \
@@ -67,7 +67,7 @@ cargo minco deploy apply \
   --changeset "$MINCO_CHANGESET_RECEIPT" \
   --migration-plan "$MINCO_MIGRATION_PLAN" \
   --migration-receipt "$MINCO_MIGRATION_RECEIPT" \
-  --receipt "target/minco/aws/$MINCO_AWS_RUN_ID/deployment-receipt.json" \
+  --receipt "$MINCO_AWS_EVIDENCE_RELATIVE/deployment-receipt.json" \
   --approve-changeset-digest "$MINCO_APPROVE_CHANGESET_DIGEST" \
   --json >"$MINCO_AWS_EVIDENCE_DIR/deploy-apply-output.json"
 chmod 600 \

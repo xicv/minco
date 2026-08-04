@@ -13,6 +13,16 @@ require_command() {
   }
 }
 
+minco_file_mode() {
+  local path="$1"
+
+  if stat -c '%a' "$path" >/dev/null 2>&1; then
+    stat -c '%a' "$path"
+    return
+  fi
+  stat -f '%Lp' "$path"
+}
+
 require_safe_name() {
   local label="$1"
   local value="$2"
@@ -599,14 +609,21 @@ aws_cli_service_error_is_any() {
 
 initialize_cloud_journal() {
   : "${MINCO_AWS_RUN_ID:?set MINCO_AWS_RUN_ID}"
-  require_safe_name "MINCO_AWS_RUN_ID" "$MINCO_AWS_RUN_ID"
-  MINCO_AWS_EVIDENCE_DIR="$(minco_repo_root)/target/minco/aws/$MINCO_AWS_RUN_ID"
+  require_safe_name "MINCO_AWS_RUN_ID" "$MINCO_AWS_RUN_ID" || return
+  : "${MINCO_AWS_EVIDENCE_ID:=$MINCO_AWS_RUN_ID}"
+  require_safe_name "MINCO_AWS_EVIDENCE_ID" "$MINCO_AWS_EVIDENCE_ID" || return
+  MINCO_AWS_EVIDENCE_RELATIVE="target/minco/aws/$MINCO_AWS_EVIDENCE_ID"
+  MINCO_AWS_EVIDENCE_DIR="$(minco_repo_root)/$MINCO_AWS_EVIDENCE_RELATIVE"
   mkdir -p "$MINCO_AWS_EVIDENCE_DIR"
   chmod 700 "$MINCO_AWS_EVIDENCE_DIR"
   MINCO_AWS_TOUCH_LOG="$MINCO_AWS_EVIDENCE_DIR/cloud-touches.jsonl"
   touch "$MINCO_AWS_TOUCH_LOG"
   chmod 600 "$MINCO_AWS_TOUCH_LOG"
-  export MINCO_AWS_EVIDENCE_DIR MINCO_AWS_TOUCH_LOG
+  export \
+    MINCO_AWS_EVIDENCE_DIR \
+    MINCO_AWS_EVIDENCE_ID \
+    MINCO_AWS_EVIDENCE_RELATIVE \
+    MINCO_AWS_TOUCH_LOG
 }
 
 record_cloud_touch() {
