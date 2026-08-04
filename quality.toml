@@ -8,6 +8,7 @@ commands = [
   "uv run --locked python scripts/test/publish_validation.py",
   "uv run --locked python scripts/deep_review.py",
   "uv run --locked python scripts/test/deep_review_exclusions.py",
+  "uv run --locked python scripts/test/candidate_qualification.py",
   "uv run --locked python scripts/test/feedback_contract.py",
   "uv run --locked python scripts/test/sqlite_schema.py",
   "uv run --locked python scripts/test/scaffold_templates.py",
@@ -51,5 +52,13 @@ commands = [
 [gates.e2e]
 commands = [
   "scripts/test/e2e.sh",
+]
+optional = true
+
+[gates.release_candidate]
+commands = [
+  "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json",
+  "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json",
+  "scripts/release/qualify-candidate.sh",
 ]
 optional = true

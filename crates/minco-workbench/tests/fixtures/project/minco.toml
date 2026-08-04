@@ -1,0 +1,45 @@
+schema = 1
+name = "fixture"
+contract = "openapi.yaml"
+generated = "generated.rs"
+deployment_config = "deployment.toml"
+roadmap = "roadmap.yaml"
+tasks = "tasks"
+plugin_catalog = "plugins.toml"
+quality = "quality.toml"
+
+[configuration]
+root = "config"
+default_file = "default.toml"
+local_override = ".local.toml"
+environment_prefix = "FIXTURE__"
+
+[[configuration.fields]]
+key = "application.name"
+kind = "string"
+required = true
+secret = false
+description = "Application name"
+default = "fixture"
+
+[architecture]
+domain_roots = ["domain"]
+application_roots = ["application"]
+api_roots = ["api"]
+
+[plugins]
+enabled = ["health", "feedback"]
+disabled = []
+
+[migrations]
+roots = []
+
+[seeds]
+roots = []
+
+[operations.createFeedback]
+contract = "plugins/feedback/openapi.yaml"
+handler = "plugins/feedback/src/http.rs#create_feedback"
+application = "plugins/feedback/src/service.rs#create"
+adapters = ["memory"]
+tests = ["plugins/feedback/src/http.rs"]

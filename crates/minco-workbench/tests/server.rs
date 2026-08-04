@@ -3,16 +3,17 @@ use minco_workbench::{bind_loopback, serve_loopback};
 use reqwest::{Client, StatusCode, header};
 use std::path::Path;
 
-fn repository_root() -> std::path::PathBuf {
+fn packaged_project_fixture() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
+        .join("tests/fixtures/project")
         .canonicalize()
-        .expect("canonical repository root")
+        .expect("canonical packaged project fixture")
 }
 
 #[tokio::test]
 async fn server_is_loopback_only_and_enforces_host_origin_and_security_headers() {
-    let view = load_project_view(&repository_root()).expect("repository ProjectView");
+    let view =
+        load_project_view(&packaged_project_fixture()).expect("packaged fixture ProjectView");
     let listener = bind_loopback(0).await.expect("bind loopback server");
     let address = listener.local_addr().expect("loopback address");
     assert!(address.ip().is_loopback());

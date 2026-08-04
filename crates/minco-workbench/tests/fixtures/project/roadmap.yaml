@@ -1,0 +1,9 @@
+schema: 1
+product: Fixture
+milestones:
+  - id: M1
+    name: Foundation
+    status: active
+    depends_on: []
+    outcome: A bounded fixture
+    exit_criteria: []

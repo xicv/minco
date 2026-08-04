@@ -4,6 +4,13 @@ use rmcp::{ServiceExt, model::CallToolRequestParams};
 use serde_json::json;
 use std::path::Path;
 
+fn packaged_project_fixture() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/project")
+        .canonicalize()
+        .expect("canonical packaged project fixture")
+}
+
 #[test]
 fn exposes_only_the_bounded_read_only_project_tools() {
     let tools = MincoMcp::tool_catalog();
@@ -44,11 +51,8 @@ fn exposes_only_the_bounded_read_only_project_tools() {
 
 #[tokio::test]
 async fn serves_schema_versioned_structured_results_over_the_mcp_transport() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("canonical project root");
-    let view = load_project_view(&root).expect("repository ProjectView");
+    let root = packaged_project_fixture();
+    let view = load_project_view(&root).expect("packaged fixture ProjectView");
     let operation_id = view
         .nodes
         .iter()
@@ -87,7 +91,7 @@ async fn serves_schema_versioned_structured_results_over_the_mcp_transport() {
         .expect("structured project summary");
     assert_eq!(summary["schema_version"], 1);
     assert_eq!(summary["kind"], "project_summary");
-    assert_eq!(summary["data"]["project"]["name"], "minco-framework");
+    assert_eq!(summary["data"]["project"]["name"], "fixture");
     assert!(!summary.to_string().contains(&root_text));
 
     let operation = client
@@ -122,11 +126,8 @@ async fn serves_schema_versioned_structured_results_over_the_mcp_transport() {
 
 #[tokio::test]
 async fn enforces_the_project_view_response_limit_at_every_tool_boundary() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("canonical project root");
-    let mut view = load_project_view(&root).expect("repository ProjectView");
+    let root = packaged_project_fixture();
+    let mut view = load_project_view(&root).expect("packaged fixture ProjectView");
     view.limits.max_response_bytes = 32;
 
     let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);

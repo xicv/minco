@@ -3,17 +3,17 @@ use minco_workbench::{ExportFormat, ExportRequest, export_project_view};
 use serde_json::Value;
 use std::{fs, path::Path};
 
-fn repository_root() -> std::path::PathBuf {
+fn packaged_project_fixture() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
+        .join("tests/fixtures/project")
         .canonicalize()
-        .expect("canonical repository root")
+        .expect("canonical packaged project fixture")
 }
 
 #[test]
 fn json_export_publishes_a_complete_view_to_a_new_relative_destination() {
-    let root = repository_root();
-    let view = load_project_view(&root).expect("repository ProjectView");
+    let root = packaged_project_fixture();
+    let view = load_project_view(&root).expect("packaged fixture ProjectView");
     let target = root.join("target");
     fs::create_dir_all(&target).expect("target directory");
     let sandbox = tempfile::tempdir_in(&target).expect("export sandbox");
@@ -56,8 +56,8 @@ fn json_export_publishes_a_complete_view_to_a_new_relative_destination() {
 
 #[test]
 fn mermaid_export_is_deterministic_and_uses_opaque_node_identifiers() {
-    let root = repository_root();
-    let view = load_project_view(&root).expect("repository ProjectView");
+    let root = packaged_project_fixture();
+    let view = load_project_view(&root).expect("packaged fixture ProjectView");
     let target = root.join("target");
     fs::create_dir_all(&target).expect("target directory");
     let sandbox = tempfile::tempdir_in(&target).expect("export sandbox");
@@ -98,8 +98,8 @@ fn mermaid_export_is_deterministic_and_uses_opaque_node_identifiers() {
 
 #[test]
 fn static_export_contains_accessible_local_only_assets_and_the_same_project_view() {
-    let root = repository_root();
-    let view = load_project_view(&root).expect("repository ProjectView");
+    let root = packaged_project_fixture();
+    let view = load_project_view(&root).expect("packaged fixture ProjectView");
     let target = root.join("target");
     fs::create_dir_all(&target).expect("target directory");
     let sandbox = tempfile::tempdir_in(&target).expect("export sandbox");
@@ -163,8 +163,8 @@ fn static_export_contains_accessible_local_only_assets_and_the_same_project_view
 fn export_rejects_a_symlinked_destination_ancestor_without_writing_through_it() {
     use std::os::unix::fs::symlink;
 
-    let root = repository_root();
-    let view = load_project_view(&root).expect("repository ProjectView");
+    let root = packaged_project_fixture();
+    let view = load_project_view(&root).expect("packaged fixture ProjectView");
     let target = root.join("target");
     fs::create_dir_all(&target).expect("target directory");
     let sandbox = tempfile::tempdir_in(&target).expect("export sandbox");
@@ -206,8 +206,8 @@ fn export_rejects_a_symlinked_destination_ancestor_without_writing_through_it() 
 
 #[test]
 fn export_rejects_a_destination_inside_a_canonical_input_root() {
-    let root = repository_root();
-    let view = load_project_view(&root).expect("repository ProjectView");
+    let root = packaged_project_fixture();
+    let view = load_project_view(&root).expect("packaged fixture ProjectView");
     let destination = Path::new("tasks/workbench-export-test");
     let canonical_inputs = vec![Path::new("tasks").to_path_buf()];
 

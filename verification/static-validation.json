@@ -5,9 +5,9 @@
   "errors": 0,
   "warnings": 0,
   "metrics": {
-    "toml_files": 80,
-    "yaml_files": 20,
-    "json_files": 39,
+    "toml_files": 88,
+    "yaml_files": 26,
+    "json_files": 44,
     "workspace_members": 37,
     "contract_sha256": "f0e0d1aee9858e54f814270b6f78a5c63ea6993311210f6a6f6ee7323838843f",
     "contract_operations": 7,
@@ -15,10 +15,10 @@
     "plugins": 17,
     "milestones": 13,
     "tasks": 71,
-    "rust_files": 160,
-    "python_files": 24,
-    "shell_files": 68,
-    "implementation_files_scanned": 366
+    "rust_files": 162,
+    "python_files": 28,
+    "shell_files": 71,
+    "implementation_files_scanned": 389
   },
   "findings": [],
   "limitations": [

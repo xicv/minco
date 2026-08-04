@@ -1,0 +1,28 @@
+schema_version = 1
+application = "fixture"
+environment = "local"
+region = "local"
+runtime = "local_native"
+ingress = "local_tcp"
+allowed_origins = ["http://127.0.0.1:5173"]
+allowed_headers = ["content-type"]
+log_retention_days = 1
+scheduled_wakeups = []
+uses_nat_gateway = false
+
+[auth]
+kind = "development_headers"
+
+[database]
+kind = "sqlite_persistent_host"
+host_monthly_usd = 0.0
+backup_monthly_usd = 0.0
+
+[[functions]]
+name = "api"
+artifact_path = "target/debug/fixture"
+memory_mb = 128
+timeout_seconds = 5
+reserved_concurrency = 1
+provisioned_concurrency = 0
+database_connections_per_instance = 1

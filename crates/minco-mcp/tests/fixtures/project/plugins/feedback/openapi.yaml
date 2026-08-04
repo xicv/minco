@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info:
+  title: Fixture Feedback API
+  version: 1.0.0
+paths:
+  /feedback:
+    post:
+      operationId: createFeedback
+      responses:
+        '201':
+          description: created

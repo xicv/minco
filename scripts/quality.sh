@@ -14,6 +14,7 @@ uv run --locked python scripts/validate_publish.py --output verification/publish
 uv run --locked python scripts/test/publish_validation.py
 uv run --locked python scripts/deep_review.py
 uv run --locked python scripts/test/deep_review_exclusions.py
+uv run --locked python scripts/test/candidate_qualification.py
 uv run --locked python scripts/test/feedback_contract.py
 uv run --locked python scripts/test/sqlite_schema.py
 uv run --locked python scripts/test/scaffold_templates.py
