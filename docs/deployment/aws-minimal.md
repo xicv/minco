@@ -184,7 +184,7 @@ bootstrap user, or writes temporary credentials to the default AWS CLI
 configuration.
 
 The bounded runner builds before creating resources, performs the explicit
-migration, uses a temporary Cognito Lite user pool and ten-minute synthetic
+migration, uses a temporary Cognito Lite user pool and 60-minute synthetic
 identity to prove authenticated candidate operations, verifies the deployed
 Lambda ZIP digest, promotes only that report-approved version through the
 routing-only guard, and always invokes cleanup. Cognito is test harness

@@ -23,6 +23,18 @@ minco_file_mode() {
   stat -f '%Lp' "$path"
 }
 
+minco_canonical_existing_path() {
+  local path="$1"
+  local canonical_parent
+
+  [[ "$path" == /* && -e "$path" && ! -L "$path" ]] || {
+    printf 'path must be an absolute existing non-symlink: %s\n' "$path" >&2
+    return 1
+  }
+  canonical_parent="$(cd "$(dirname "$path")" && pwd -P)"
+  printf '%s/%s\n' "$canonical_parent" "$(basename "$path")"
+}
+
 require_safe_name() {
   local label="$1"
   local value="$2"

@@ -652,6 +652,44 @@ scripts/aws/validate-multi-release-rehearsal-authority.sh \
   "$authority_database_boundary" "$authority_resource_allowlist" \
   "$authority_cleanup_blast_radius"
 
+provider_profile="${MINCO_MULTI_RELEASE_PROVIDER_PROFILE:-$authority_profile}"
+provider_config_file="${MINCO_MULTI_RELEASE_PROVIDER_CONFIG_FILE:-}"
+if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" != "validation_only" &&
+  "$MINCO_MULTI_RELEASE_PROVIDER_ACTION" == "execute" ]]; then
+  require_safe_name MINCO_MULTI_RELEASE_PROVIDER_PROFILE "$provider_profile"
+  if [[ -n "$provider_config_file" ]]; then
+    [[ "$provider_config_file" == /* && -f "$provider_config_file" &&
+      ! -L "$provider_config_file" ]] || {
+      echo "multi-release provider config must be an absolute regular non-symlink file" >&2
+      exit 1
+    }
+    canonical_provider_config="$(
+      cd "$(dirname "$provider_config_file")"
+      printf '%s/%s\n' "$(pwd -P)" "$(basename "$provider_config_file")"
+    )"
+    [[ "$canonical_provider_config" == "$provider_config_file" &&
+      "$(minco_file_mode "$provider_config_file")" == "600" ]] || {
+      echo "multi-release provider config must be canonical and mode 0600" >&2
+      exit 1
+    }
+  fi
+fi
+
+provider_aws() {
+  if [[ -n "$provider_config_file" ]]; then
+    AWS_CONFIG_FILE="$provider_config_file" \
+    AWS_PROFILE="$provider_profile" \
+    AWS_REGION="$authority_region" \
+    AWS_PAGER="" \
+      command aws "$@"
+  else
+    AWS_PROFILE="$provider_profile" \
+    AWS_REGION="$authority_region" \
+    AWS_PAGER="" \
+      command aws "$@"
+  fi
+}
+
 regenerated_authority_receipt="$validation_dir/authority-receipt.json"
 write_multi_release_rehearsal_authority_receipt \
   "$authority_file" "$actual_authority_digest" \
@@ -764,10 +802,7 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_identity_preflight" ||
   "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]]; then
   provider_entry_attempted=true
   identity="$(
-    AWS_PROFILE="$authority_profile" \
-    AWS_REGION="$authority_region" \
-    AWS_PAGER="" \
-      command aws --no-cli-pager --region "$authority_region" \
+    provider_aws --no-cli-pager --region "$authority_region" \
       sts get-caller-identity \
       --query '{Account:Account,Arn:Arn,UserId:UserId}' \
       --output json
@@ -821,8 +856,7 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   database_instance_id="$(jq -er '.instance_id' <<<"$authority_database_boundary")"
 
   application_stack_error="$validation_dir/application-stack-error.txt"
-  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
-    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+  if provider_aws --no-cli-pager --cli-error-format json --region "$authority_region" \
       cloudformation describe-stacks \
       --stack-name "$application_stack_name" \
       >/dev/null 2>"$application_stack_error"; then
@@ -840,8 +874,7 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   fi
 
   bucket_error="$validation_dir/artifact-bucket-error.txt"
-  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
-    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+  if provider_aws --no-cli-pager --cli-error-format json --region "$authority_region" \
       s3api head-bucket \
       --bucket "$artifact_bucket_name" \
       >/dev/null 2>"$bucket_error"; then
@@ -857,8 +890,7 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   fi
 
   database_stack_error="$validation_dir/database-stack-error.txt"
-  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
-    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+  if provider_aws --no-cli-pager --cli-error-format json --region "$authority_region" \
       cloudformation describe-stacks \
       --stack-name "$database_stack_name" \
       >/dev/null 2>"$database_stack_error"; then
@@ -876,8 +908,7 @@ if [[ "$MINCO_MULTI_RELEASE_EXECUTION_MODE" == "provider_resource_preflight" ]];
   fi
 
   database_instance_error="$validation_dir/database-instance-error.txt"
-  if AWS_PROFILE="$authority_profile" AWS_REGION="$authority_region" AWS_PAGER="" \
-    command aws --no-cli-pager --cli-error-format json --region "$authority_region" \
+  if provider_aws --no-cli-pager --cli-error-format json --region "$authority_region" \
       rds describe-db-instances \
       --db-instance-identifier "$database_instance_id" \
       >/dev/null 2>"$database_instance_error"; then

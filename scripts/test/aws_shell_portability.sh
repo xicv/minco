@@ -255,6 +255,7 @@ python3 - "$review_fixture_dir" <<'PY'
 import copy
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -276,10 +277,9 @@ if (
     raise SystemExit(
         "bootstrap cleanup does not recognize a never-started application"
     )
-if (
-    "application_runner_started=true\n"
-    "AWS_CONFIG_FILE=\"$profile_config\""
-    not in source
+if not re.search(
+    r'(?m)^\s*application_runner_started=true\s*\n\s*AWS_CONFIG_FILE="\$profile_config"',
+    source,
 ):
     raise SystemExit(
         "bootstrap does not mark the application runner before invoking it"

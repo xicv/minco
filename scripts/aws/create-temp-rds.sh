@@ -227,25 +227,64 @@ migration_url="postgresql://$encoded_username:$encoded_password@$database_endpoi
 lambda_url="postgresql://$encoded_username:$encoded_password@$database_endpoint:5432/minco?sslmode=verify-full&sslrootcert=$encoded_lambda_ca"
 unset encoded_username encoded_password
 
-record_external_database_touch \
-  "explicit migration" \
-  "apply release migrations to the temporary encrypted RDS PostgreSQL instance over TLS verify-full; URL redacted"
-migration_plan="$MINCO_AWS_EVIDENCE_DIR/database-migration-plan.json"
-cargo minco db plan --set orders-postgres --json >"$migration_plan"
-migration_digest="$(jq -er '.digest' "$migration_plan")"
-MIGRATION_DATABASE_URL="$migration_url" \
-  cargo minco db migrate \
-    --set orders-postgres \
-    --database-url-env MIGRATION_DATABASE_URL \
-    --expected-plan-digest "$migration_digest" \
-    --receipt "$MINCO_AWS_EVIDENCE_RELATIVE/database-migration-receipt.json" \
-    --json >"$MINCO_AWS_EVIDENCE_DIR/database-migration-output.json"
-MIGRATION_DATABASE_URL="$migration_url" \
-  cargo minco db verify \
-    --set orders-postgres \
-    --database-url-env MIGRATION_DATABASE_URL \
-    --json >"$MINCO_AWS_EVIDENCE_DIR/database-migration-verification.json"
-unset migration_digest
+apply_exact_source_migration() {
+  local source_root="$1"
+  local evidence_id="$2"
+  local approved_migration_digest="${3:-}"
+  local evidence_relative="target/minco/aws/$evidence_id"
+  local evidence_dir="$source_root/$evidence_relative"
+  local migration_plan="$evidence_dir/database-migration-plan.json"
+  local migration_digest
+  local risk_arguments=()
+
+  mkdir -p "$evidence_dir"
+  chmod 700 "$source_root/target" "$source_root/target/minco" \
+    "$source_root/target/minco/aws" "$evidence_dir"
+  record_external_database_touch \
+    "explicit $evidence_id migration" \
+    "apply the exact-source release migration to temporary RDS over TLS verify-full; URL redacted"
+  (
+    cd "$source_root"
+    cargo minco db plan --set orders-postgres --json >"$migration_plan"
+    migration_digest="$(jq -er '.digest' "$migration_plan")"
+    if [[ -n "$approved_migration_digest" ]]; then
+      [[ "$migration_digest" == "$approved_migration_digest" ]] || {
+        echo "exact-source migration plan does not match its separate reviewed approval" >&2
+        exit 1
+      }
+      risk_arguments=(--allow-destructive)
+    fi
+    MIGRATION_DATABASE_URL="$migration_url" \
+      cargo minco db migrate \
+        --set orders-postgres \
+        --database-url-env MIGRATION_DATABASE_URL \
+        --expected-plan-digest "$migration_digest" \
+        "${risk_arguments[@]}" \
+        --receipt "$evidence_relative/database-migration-receipt.json" \
+        --json >"$evidence_dir/database-migration-output.json"
+    MIGRATION_DATABASE_URL="$migration_url" \
+      cargo minco db verify \
+        --set orders-postgres \
+        --database-url-env MIGRATION_DATABASE_URL \
+        --json >"$evidence_dir/database-migration-verification.json"
+  )
+  chmod 600 "$evidence_dir"/*.json
+}
+
+if [[ "${MINCO_REHEARSAL_MODE:-single}" == "multi-release" ]]; then
+  : "${MINCO_PRIOR_ROOT:?multi-release migration requires the exact prior root}"
+  : "${MINCO_CURRENT_ROOT:?multi-release migration requires the exact current root}"
+  : "${MINCO_APPROVE_PRIOR_MIGRATION_PLAN_DIGEST:?multi-release migration requires the reviewed prior plan digest}"
+  : "${MINCO_APPROVE_CURRENT_MIGRATION_PLAN_DIGEST:?multi-release migration requires the reviewed current plan digest}"
+  apply_exact_source_migration \
+    "$MINCO_PRIOR_ROOT" 01-prior-initial \
+    "$MINCO_APPROVE_PRIOR_MIGRATION_PLAN_DIGEST"
+  apply_exact_source_migration \
+    "$MINCO_CURRENT_ROOT" 02-current \
+    "$MINCO_APPROVE_CURRENT_MIGRATION_PLAN_DIGEST"
+else
+  apply_exact_source_migration "$repo_root" "$MINCO_AWS_EVIDENCE_ID"
+fi
 record_external_database_touch \
   "migration verification" \
   "verify TLS and the orders schema on temporary RDS PostgreSQL; URL redacted"
