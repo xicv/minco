@@ -614,14 +614,46 @@ Completion still requires a separate approval of the exact result digest.
 That result writer neither invokes AWS nor proves that a provider operation
 occurred merely because similarly named files exist. Its envelope becomes
 accepted evidence only after the provider-capable phase runner has generated
-the files through the fixed commands, the exact result digest has been
-reviewed, and the completion command has revalidated the complete receipt
-chain. The parent can currently cross only the separately digest-approved
-read-only identity and disposable-resource absence boundaries; it cannot yet
-build, deploy, verify, promote or clean shared multi-release resources. Do not
-disable the single-release runner's immediate cleanup or create-only review
-gate independently; that would leave a partially owned provider boundary
-rather than a recoverable rehearsal.
+the files through the fixed commands and the completion command has
+revalidated the complete receipt chain.
+
+The fixed provider-capable path is
+`MINCO_REHEARSAL_MODE=multi-release
+scripts/aws/run-bounded-root-bootstrap.sh`. It accepts only the disposable-RDS
+multi-release authority profile. Before RDS or application creation, the root
+bootstrap runs the separately digest-approved identity and four-resource
+absence plan through its isolated temporary deployment role. Temporary RDS
+then runs the exact prior migration and the exact current migration while its
+operator ingress is briefly available, retaining separate source-bound
+receipts, and makes the database private before Lambda deployment.
+
+Before root execution, render and review the migration plan independently from
+both clean source roots. Pass their exact `digest` values as
+`MINCO_APPROVE_PRIOR_MIGRATION_PLAN_DIGEST` and
+`MINCO_APPROVE_CURRENT_MIGRATION_PLAN_DIGEST`. The root validates both values
+before AWS creation. Temporary RDS re-renders each exact-source plan and adds
+`--allow-destructive` only when the generated digest byte-matches its separate
+approval; this is required for a reviewed `data_rewrite` migration even though
+the run-owned database is newly created and empty.
+
+`scripts/aws/run-bounded-multi-release-smoke.sh` has a provider-free `plan`
+action and a fixed `execute` action. Execute creates one Cognito harness and
+one private artifact bucket for the whole run, gives each hosted phase a
+distinct synthetic-data identity, and promotes prior then current in one
+stack. It retains the stable function, execution-role and HTTP API identifiers
+in the root evidence for independent cleanup checks, performs the local
+exact-chain compatibility assessment, redeploys the byte-identical phase-one
+release without rebuild or replan, and produces a new hosted report and
+promotion receipt. It installs no resource cleanup trap.
+On every success, interruption or failure the outer root-bootstrap trap alone
+enters cleanup mode, refreshes the same exact bounded role for one cleanup-only
+hour, runs application cleanup, disposable-RDS cleanup and IAM/profile cleanup,
+then requires all terminal absence proofs. The authority deadline still blocks
+new rehearsal mutations; the refresh only prevents an expiring execution
+session from stranding cleanup. The child is source-qualified but has not yet
+been run against AWS; do not treat the documented sequence as live evidence
+until the exact authority, hosted qualification, redacted receipts and
+terminal cleanup proof have all passed.
 
 ## Bounded execution
 

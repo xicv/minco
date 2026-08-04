@@ -22,7 +22,7 @@ create_checkout() {
   git -C "$root" config user.email minco-test@example.invalid
   git -C "$root" config user.name "Minco test"
   mkdir -p "$root/nested"
-  printf '[workspace]\nmembers = []\n# %s\n' "$role" >"$root/Cargo.toml"
+  printf '[workspace]\nmembers = []\n' >"$root/Cargo.toml"
   printf 'schema_version = 1\n' >"$root/minco.toml"
   printf 'schema_version = 1\n' >"$root/nested/minco.toml"
   if [[ "$role" == current ]]; then
@@ -39,6 +39,9 @@ create_checkout() {
     fi
     if [[ -f scripts/aws/run-multi-release-parent-session.sh ]]; then
       cp scripts/aws/run-multi-release-parent-session.sh "$root/scripts/aws/"
+    fi
+    if [[ -f scripts/aws/run-bounded-multi-release-smoke.sh ]]; then
+      cp scripts/aws/run-bounded-multi-release-smoke.sh "$root/scripts/aws/"
     fi
     cp scripts/aws/lib/common.sh \
       scripts/aws/lib/validate-multi-release-controller-receipt.jq \
@@ -1921,6 +1924,55 @@ jq -e \
     and (tostring | contains("/minco/rehearsal/reviewed-run") | not)
   ' "$resource_preflight_completion" >/dev/null || {
   echo "resource preflight receipt weakened or exposed its boundary" >&2
+  exit 1
+}
+
+bounded_runner_plan="$fixture_dir/bounded-runner-plan.json"
+(
+  cd "$current_root"
+  PATH="$fake_bin:$PATH" \
+  MINCO_PROVIDER_CONTACT_LOG="$provider_contact_log" \
+  MINCO_MULTI_RELEASE_ACTION=plan \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$evidence_root" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$controller_receipt_digest" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$phase_start_approval" \
+  MINCO_REHEARSAL_AUTHORITY_FILE="$temp_authority_file" \
+  MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST="$temp_approval_digest" \
+  MINCO_AWS_RUN_ID=reviewed-multi-release-run \
+  MINCO_REHEARSAL_PROFILE=minco-rehearsal \
+  AWS_REGION=ap-southeast-2 \
+  MINCO_REHEARSAL_DATABASE_BOUNDARY_JSON="$temp_database_boundary" \
+  MINCO_REHEARSAL_RESOURCE_ALLOWLIST=bounded-root-temp-rds-multi-release-v1 \
+  MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS=cleanup-bounded-root-temp-rds-multi-release-v1 \
+    scripts/aws/run-bounded-multi-release-smoke.sh >"$bounded_runner_plan"
+)
+jq -e '
+  .operation == "bounded_multi_release_smoke"
+  and .external_aws_contact == false
+  and [.phases[].id] == [
+    "01-prior-initial",
+    "02-current",
+    "03-prior-rollback"
+  ]
+  and .phases[2].build == false
+  and .phases[2].replan == false
+  and .rollback == {
+    automatic_data_repair: false,
+    fresh_hosted_verification: true,
+    reuse_exact_phase_one_release: true,
+    reverse_sql: false
+  }
+  and .cleanup == {
+    child_trap_count: 0,
+    owner: "root_bootstrap",
+    required_after_phase: "03-prior-rollback"
+  }
+' "$bounded_runner_plan" >/dev/null || {
+  echo "bounded multi-release plan weakened its execution or cleanup policy" >&2
+  exit 1
+}
+[[ "$(wc -l <"$provider_contact_log" | tr -d ' ')" == 5 ]] || {
+  echo "bounded multi-release planning contacted a provider or build command" >&2
   exit 1
 }
 

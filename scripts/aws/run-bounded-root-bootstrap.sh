@@ -6,7 +6,7 @@ source "$(dirname "$0")/lib/common.sh"
 repo_root="$(minco_repo_root)"
 cd "$repo_root"
 
-for command in aws jq psql python3 shasum stat; do
+for command in aws diff git jq mv psql python3 shasum stat; do
   require_command "$command"
 done
 
@@ -14,13 +14,24 @@ done
 : "${MINCO_ROOT_PROFILE:=default}"
 : "${MINCO_AWS_RUN_ID:=$(date -u +%Y%m%dt%H%M%Sz)-approved}"
 : "${MINCO_CREATE_TEMP_RDS:=false}"
+: "${MINCO_REHEARSAL_MODE:=single}"
 : "${MINCO_REHEARSAL_AUTHORITY_FILE:?set MINCO_REHEARSAL_AUTHORITY_FILE to the exact reviewed authority document}"
 : "${MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST:?set MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST to the reviewed authority SHA-256}"
 
+[[ "$MINCO_REHEARSAL_MODE" == "single" ||
+  "$MINCO_REHEARSAL_MODE" == "multi-release" ]] || {
+  echo "MINCO_REHEARSAL_MODE must equal single or multi-release" >&2
+  exit 1
+}
 [[ "$MINCO_CREATE_TEMP_RDS" == "true" || "$MINCO_CREATE_TEMP_RDS" == "false" ]] || {
   echo "MINCO_CREATE_TEMP_RDS must equal true or false" >&2
   exit 1
 }
+if [[ "$MINCO_REHEARSAL_MODE" == "multi-release" &&
+  "$MINCO_CREATE_TEMP_RDS" != "true" ]]; then
+  echo "multi-release root rehearsal requires its disposable RDS boundary" >&2
+  exit 1
+fi
 database_source_count=0
 [[ -n "${MINCO_DATABASE_URL_SOURCE_PARAMETER:-}" ]] && ((database_source_count += 1))
 [[ -n "${MINCO_DATABASE_URL_FILE:-}" ]] && ((database_source_count += 1))
@@ -60,6 +71,100 @@ user_policy_name="MincoSmokeAssumeRole"
 source_profile="minco-smoke-source-$run_suffix"
 deploy_profile="minco-smoke-$run_suffix"
 source_revision="$(current_source_revision)"
+prior_revision=
+if [[ "$MINCO_REHEARSAL_MODE" == "multi-release" ]]; then
+  : "${MINCO_PRIOR_ROOT:?set MINCO_PRIOR_ROOT to the exact prior-release checkout}"
+  : "${MINCO_MULTI_RELEASE_EVIDENCE_ROOT:?set MINCO_MULTI_RELEASE_EVIDENCE_ROOT to the initialized whole-run evidence directory}"
+  : "${MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST:?set MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST to the initialized controller receipt digest}"
+  : "${MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST:?set MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST to the exact first phase-start receipt digest}"
+  : "${MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST:?set MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST to the exact resource-preflight plan digest}"
+  : "${MINCO_APPROVE_PRIOR_MIGRATION_PLAN_DIGEST:?set MINCO_APPROVE_PRIOR_MIGRATION_PLAN_DIGEST to the reviewed exact prior migration plan digest}"
+  : "${MINCO_APPROVE_CURRENT_MIGRATION_PLAN_DIGEST:?set MINCO_APPROVE_CURRENT_MIGRATION_PLAN_DIGEST to the reviewed exact current migration plan digest}"
+  for migration_approval in \
+    "$MINCO_APPROVE_PRIOR_MIGRATION_PLAN_DIGEST" \
+    "$MINCO_APPROVE_CURRENT_MIGRATION_PLAN_DIGEST"; do
+    [[ "$migration_approval" =~ ^[0-9a-f]{64}$ ]] || {
+      echo "multi-release migration plan approvals must be SHA-256 digests" >&2
+      exit 1
+    }
+  done
+  [[ "$MINCO_REHEARSAL_AUTHORITY_FILE" == /* &&
+    -f "$MINCO_REHEARSAL_AUTHORITY_FILE" &&
+    ! -L "$MINCO_REHEARSAL_AUTHORITY_FILE" &&
+    "$(cd "$(dirname "$MINCO_REHEARSAL_AUTHORITY_FILE")" && pwd -P)/$(basename "$MINCO_REHEARSAL_AUTHORITY_FILE")" == \
+      "$MINCO_REHEARSAL_AUTHORITY_FILE" ]] || {
+    echo "multi-release authority must be an absolute canonical regular file" >&2
+    exit 1
+  }
+  [[ "$MINCO_PRIOR_ROOT" == /* && -d "$MINCO_PRIOR_ROOT" &&
+    ! -L "$MINCO_PRIOR_ROOT" && -f "$MINCO_PRIOR_ROOT/minco.toml" &&
+    ! -L "$MINCO_PRIOR_ROOT/minco.toml" ]] || {
+    echo "multi-release prior root must be an absolute existing checkout" >&2
+    exit 1
+  }
+  canonical_prior_root="$(cd "$MINCO_PRIOR_ROOT" && pwd -P)"
+  [[ "$canonical_prior_root" == "$MINCO_PRIOR_ROOT" &&
+    "$canonical_prior_root" != "$repo_root" ]] || {
+    echo "multi-release prior root must be canonical and distinct" >&2
+    exit 1
+  }
+  if [[ -d "$canonical_prior_root/.jj" && ! -L "$canonical_prior_root/.jj" ]] &&
+    command -v jj >/dev/null; then
+    prior_status="$(cd "$canonical_prior_root" && jj diff --summary)"
+  elif [[ (-d "$canonical_prior_root/.git" || -f "$canonical_prior_root/.git") &&
+    ! -L "$canonical_prior_root/.git" ]] &&
+    git -C "$canonical_prior_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    prior_status="$(git -C "$canonical_prior_root" status --porcelain=v1 --untracked-files=normal)"
+  else
+    echo "multi-release prior root must own JJ or Git metadata" >&2
+    exit 1
+  fi
+  [[ -z "$prior_status" ]] || {
+    echo "multi-release prior root must remain clean" >&2
+    exit 1
+  }
+  prior_revision="$(cd "$canonical_prior_root" && current_source_revision)"
+  if [[ -d "$repo_root/.jj" && ! -L "$repo_root/.jj" ]] &&
+    command -v jj >/dev/null; then
+    current_status="$(cd "$repo_root" && jj diff --summary)"
+  elif [[ (-d "$repo_root/.git" || -f "$repo_root/.git") &&
+    ! -L "$repo_root/.git" ]] &&
+    git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    current_status="$(git -C "$repo_root" status --porcelain=v1 --untracked-files=normal)"
+  else
+    echo "multi-release current root must own JJ or Git metadata" >&2
+    exit 1
+  fi
+  [[ -z "$current_status" ]] || {
+    echo "multi-release current root must remain clean" >&2
+    exit 1
+  }
+  for protected_path in \
+    Cargo.toml Cargo.lock minco.toml crates extensions examples infra stubs; do
+    if [[ -e "$canonical_prior_root/$protected_path" ||
+      -e "$repo_root/$protected_path" ]]; then
+      if [[ ! -e "$canonical_prior_root/$protected_path" ||
+        ! -e "$repo_root/$protected_path" ]] ||
+        ! diff -qr \
+          "$canonical_prior_root/$protected_path" \
+          "$repo_root/$protected_path" >/dev/null; then
+        echo "multi-release temporary-RDS rehearsal requires identical application, contract, migration, infrastructure and dependency inputs" >&2
+        exit 1
+      fi
+    fi
+  done
+  MINCO_PRIOR_ROOT="$canonical_prior_root"
+  MINCO_CURRENT_ROOT="$repo_root"
+  export \
+    MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST \
+    MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST \
+    MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST \
+    MINCO_APPROVE_PRIOR_MIGRATION_PLAN_DIGEST \
+    MINCO_APPROVE_CURRENT_MIGRATION_PLAN_DIGEST \
+    MINCO_CURRENT_ROOT \
+    MINCO_MULTI_RELEASE_EVIDENCE_ROOT \
+    MINCO_PRIOR_ROOT
+fi
 if [[ "$MINCO_CREATE_TEMP_RDS" == "true" ]]; then
   rehearsal_database_boundary="$(
     jq -cn \
@@ -117,17 +222,42 @@ else
   rehearsal_resource_allowlist="bounded-root-bootstrap-v1"
   rehearsal_cleanup_blast_radius="cleanup-bounded-root-bootstrap-v1"
 fi
-scripts/aws/validate-rehearsal-authority.sh \
-  "$MINCO_REHEARSAL_AUTHORITY_FILE" \
-  "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
-  "$MINCO_AWS_RUN_ID" \
-  "$source_revision" \
-  "$AWS_REGION" \
-  "$MINCO_ROOT_PROFILE" \
-  dev \
-  "$rehearsal_database_boundary" \
-  "$rehearsal_resource_allowlist" \
-  "$rehearsal_cleanup_blast_radius"
+if [[ "$MINCO_REHEARSAL_MODE" == "multi-release" ]]; then
+  case "$rehearsal_resource_allowlist:$rehearsal_cleanup_blast_radius" in
+    bounded-root-temp-rds-v1:cleanup-bounded-root-temp-rds-v1)
+      rehearsal_resource_allowlist="bounded-root-temp-rds-multi-release-v1"
+      rehearsal_cleanup_blast_radius="cleanup-bounded-root-temp-rds-multi-release-v1"
+      ;;
+    *)
+      echo "multi-release root rehearsal requires its fixed temporary-RDS scopes" >&2
+      exit 1
+      ;;
+  esac
+  scripts/aws/validate-multi-release-rehearsal-authority.sh \
+    "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+    "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+    "$MINCO_AWS_RUN_ID" \
+    "$prior_revision" \
+    "$source_revision" \
+    "$AWS_REGION" \
+    "$MINCO_ROOT_PROFILE" \
+    dev \
+    "$rehearsal_database_boundary" \
+    "$rehearsal_resource_allowlist" \
+    "$rehearsal_cleanup_blast_radius"
+else
+  scripts/aws/validate-rehearsal-authority.sh \
+    "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+    "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+    "$MINCO_AWS_RUN_ID" \
+    "$source_revision" \
+    "$AWS_REGION" \
+    "$MINCO_ROOT_PROFILE" \
+    dev \
+    "$rehearsal_database_boundary" \
+    "$rehearsal_resource_allowlist" \
+    "$rehearsal_cleanup_blast_radius"
+fi
 initialize_rehearsal_deadline "$MINCO_REHEARSAL_AUTHORITY_FILE"
 authority_account_id="$(jq -er '.expected_account_id' "$MINCO_REHEARSAL_AUTHORITY_FILE")"
 authority_role_arn="$(jq -er '.expected_role_arn' "$MINCO_REHEARSAL_AUTHORITY_FILE")"
@@ -145,16 +275,28 @@ export \
   MINCO_REHEARSAL_CLEANUP_BLAST_RADIUS \
   MINCO_REHEARSAL_DATABASE_BOUNDARY_JSON \
   MINCO_REHEARSAL_PROFILE \
-  MINCO_REHEARSAL_RESOURCE_ALLOWLIST
+  MINCO_REHEARSAL_RESOURCE_ALLOWLIST \
+  MINCO_REHEARSAL_MODE
 initialize_cloud_journal
-write_rehearsal_authority_receipt \
-  "$MINCO_REHEARSAL_AUTHORITY_FILE" \
-  "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
-  "$MINCO_AWS_EVIDENCE_DIR/rehearsal-authority-receipt.json"
+if [[ "$MINCO_REHEARSAL_MODE" == "multi-release" ]]; then
+  write_multi_release_rehearsal_authority_receipt \
+    "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+    "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+    "$MINCO_AWS_EVIDENCE_DIR/rehearsal-authority-receipt.json"
+else
+  write_rehearsal_authority_receipt \
+    "$MINCO_REHEARSAL_AUTHORITY_FILE" \
+    "$MINCO_APPROVE_REHEARSAL_AUTHORITY_DIGEST" \
+    "$MINCO_AWS_EVIDENCE_DIR/rehearsal-authority-receipt.json"
+fi
 profile_config="$(mktemp /tmp/minco-aws-config.XXXXXX)"
 source_credentials="$(mktemp /tmp/minco-aws-user-credentials.XXXXXX)"
 role_credentials="$(mktemp /tmp/minco-aws-role-credentials.XXXXXX)"
 request_directory="$(mktemp -d /tmp/minco-aws-bootstrap.XXXXXX)"
+profile_config="$(minco_canonical_existing_path "$profile_config")"
+source_credentials="$(minco_canonical_existing_path "$source_credentials")"
+role_credentials="$(minco_canonical_existing_path "$role_credentials")"
+request_directory="$(minco_canonical_existing_path "$request_directory")"
 chmod 600 "$profile_config"
 chmod 600 "$source_credentials" "$role_credentials"
 chmod 700 "$request_directory"
@@ -241,6 +383,47 @@ cleanup_bootstrap() {
   MINCO_REHEARSAL_CLEANUP_MODE=true
   export MINCO_REHEARSAL_CLEANUP_MODE
   bootstrap_cleanup_started=true
+
+  if [[ "$MINCO_REHEARSAL_MODE" == "multi-release" &&
+    "$role_created" == true && -s "$source_credentials" ]]; then
+    cleanup_role_session="$request_directory/cleanup-role-session.json"
+    cleanup_role_credentials="$request_directory/cleanup-role-credentials.json"
+    if source_aws_logged_json sts assume-role \
+      "issue a fresh one-hour exact-role session only for required multi-release cleanup; credentials redacted" \
+      --role-arn "$bootstrap_role_arn" \
+      --role-session-name "minco-cleanup-$run_suffix" \
+      --duration-seconds 3600 \
+      --query Credentials \
+      --output json >"$cleanup_role_session" &&
+      jq '{
+        Version: 1,
+        AccessKeyId: .AccessKeyId,
+        SecretAccessKey: .SecretAccessKey,
+        SessionToken: .SessionToken,
+        Expiration: .Expiration
+      }' "$cleanup_role_session" >"$cleanup_role_credentials"; then
+      chmod 600 "$cleanup_role_credentials"
+      mv -f "$cleanup_role_credentials" "$role_credentials"
+    else
+      echo "could not refresh the exact role session required for multi-release cleanup" >&2
+      cleanup_failure=1
+    fi
+    rm -f "$cleanup_role_session" "$cleanup_role_credentials"
+  fi
+
+  if [[ "$application_runner_started" == true &&
+    "$MINCO_REHEARSAL_MODE" == "multi-release" &&
+    -s "$role_credentials" ]] &&
+    { [[ ! -f "$MINCO_AWS_EVIDENCE_DIR/cleanup.json" ]] ||
+      ! jq -e '[.[]] | all' "$MINCO_AWS_EVIDENCE_DIR/cleanup.json" >/dev/null; }; then
+    if AWS_CONFIG_FILE="$profile_config" \
+      AWS_PROFILE="$deploy_profile" \
+      scripts/aws/cleanup.sh; then
+      parameter_created=false
+    else
+      cleanup_failure=1
+    fi
+  fi
 
   application_cleanup=false
   if [[ "$application_runner_started" == false ]]; then
@@ -1340,6 +1523,42 @@ jq -e \
 write_evidence_value "$MINCO_AWS_EVIDENCE_DIR/deploy-caller-identity.json" "$deploy_identity"
 unset deploy_identity
 
+if [[ "$MINCO_REHEARSAL_MODE" == "multi-release" ]]; then
+  record_cloud_touch \
+    "aws:sts,cloudformation,s3,rds" \
+    "multi-release-resource-preflight" \
+    "execute the exact approved identity and four-resource absence plan through the isolated deploy role"
+  MINCO_MULTI_RELEASE_PHASE_ID=01-prior-initial \
+  MINCO_MULTI_RELEASE_EXECUTION_MODE=provider_resource_preflight \
+  MINCO_MULTI_RELEASE_PROVIDER_ACTION=execute \
+  MINCO_MULTI_RELEASE_PROVIDER_PROFILE="$deploy_profile" \
+  MINCO_MULTI_RELEASE_PROVIDER_CONFIG_FILE="$profile_config" \
+  MINCO_MULTI_RELEASE_EVIDENCE_ROOT="$MINCO_MULTI_RELEASE_EVIDENCE_ROOT" \
+  MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST="$MINCO_APPROVE_MULTI_RELEASE_CONTROLLER_RECEIPT_DIGEST" \
+  MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST="$MINCO_APPROVE_MULTI_RELEASE_PHASE_START_RECEIPT_DIGEST" \
+  MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST="$MINCO_APPROVE_MULTI_RELEASE_RESOURCE_PREFLIGHT_DIGEST" \
+    scripts/aws/run-multi-release-parent-session.sh \
+      >"$MINCO_AWS_EVIDENCE_DIR/multi-release-resource-preflight-receipt.json"
+  chmod 600 \
+    "$MINCO_AWS_EVIDENCE_DIR/multi-release-resource-preflight-receipt.json"
+  jq -e '
+    .operation == "multi_release_parent_session"
+    and .state == "provider_resources_absent"
+    and .external_aws_contact == true
+    and .cleanup == {
+      action: "none_read_only_resource_preflight",
+      owner: "parent_controller",
+      required: true,
+      state: "disarmed",
+      trap_count: 1
+    }
+  ' "$MINCO_AWS_EVIDENCE_DIR/multi-release-resource-preflight-receipt.json" \
+    >/dev/null || {
+    echo "multi-release resource preflight did not seal exact absence" >&2
+    exit 1
+  }
+fi
+
 database_url=""
 if [[ "$MINCO_CREATE_TEMP_RDS" == "true" ]]; then
   rds_created=true
@@ -1437,12 +1656,21 @@ jq -e \
   '.Name == $name and .Type == "SecureString"' \
   "$MINCO_AWS_EVIDENCE_DIR/created-parameter-metadata.json" >/dev/null
 
-application_runner_started=true
-AWS_CONFIG_FILE="$profile_config" \
-AWS_PROFILE="$deploy_profile" \
-scripts/aws/run-bounded-smoke.sh
-parameter_created=false
+if [[ "$MINCO_REHEARSAL_MODE" == "multi-release" ]]; then
+  application_runner_started=true
+  AWS_CONFIG_FILE="$profile_config" \
+  AWS_PROFILE="$deploy_profile" \
+  MINCO_MULTI_RELEASE_ACTION=execute \
+    scripts/aws/run-bounded-multi-release-smoke.sh
+else
+  application_runner_started=true
+  AWS_CONFIG_FILE="$profile_config" \
+  AWS_PROFILE="$deploy_profile" \
+    scripts/aws/run-bounded-smoke.sh
+  parameter_created=false
+fi
 
 cleanup_bootstrap 0
 trap - EXIT INT TERM
-printf 'Bounded root bootstrap, non-root smoke and cleanup passed: %s\n' "$MINCO_AWS_RUN_ID"
+printf 'Bounded root bootstrap, %s smoke and cleanup passed: %s\n' \
+  "$MINCO_REHEARSAL_MODE" "$MINCO_AWS_RUN_ID"

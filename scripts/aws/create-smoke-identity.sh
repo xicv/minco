@@ -76,8 +76,8 @@ client_id="$(
     --no-generate-secret \
     --explicit-auth-flows ALLOW_ADMIN_USER_PASSWORD_AUTH \
     --prevent-user-existence-errors ENABLED \
-    --access-token-validity 10 \
-    --id-token-validity 10 \
+    --access-token-validity 60 \
+    --id-token-validity 60 \
     --token-validity-units AccessToken=minutes,IdToken=minutes \
     --read-attributes custom:permissions \
     --query UserPoolClient.ClientId \
@@ -137,7 +137,7 @@ jq -n \
 chmod 600 "$request_directory/auth.json"
 token="$(
   aws_logged cognito-idp admin-initiate-auth \
-    "issue ten-minute ID token for synthetic smoke principal; token redacted" \
+    "issue 60-minute ID token for synthetic smoke principal; token redacted" \
     --cli-input-json "file://$request_directory/auth.json" \
     --query AuthenticationResult.IdToken \
     --output text

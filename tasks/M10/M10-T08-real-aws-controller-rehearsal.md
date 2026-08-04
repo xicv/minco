@@ -359,3 +359,29 @@ writer makes no AWS call and completion still requires separate approval of
 the exact result digest. A provider-capable parent must now generate those
 files only through the fixed phase commands and retain the sole resource
 cleanup trap before the separately approved live rehearsal may run.
+
+The sixteenth provider-free slice wires the fixed execution path under the
+root bootstrap without broadening cleanup ownership. Multi-release mode accepts
+only the disposable-RDS authority and separately approved resource-preflight
+digest, uses the isolated temporary deploy role for the exact STS,
+CloudFormation, S3 and RDS absence reads, and enters creation only after the
+terminal preflight receipt is sealed. Temporary RDS creates source-bound
+migration receipts for prior and current while the operator ingress exists,
+then becomes private before deployment; rollback reuses phase one's exact
+prior receipt because reverse SQL is prohibited. The child creates one
+identity and artifact bucket, executes create/update/update across the two
+clean roots, requires the centralized change-set policies, performs the local
+release-bound data assessment, reuses phase one's release byte-for-byte and
+still generates fresh rollback verification and promotion. It contains no
+resource cleanup call or trap. Each hosted phase has a distinct synthetic-data
+identity, while stable function, execution-role and HTTP API identifiers are
+copied into root evidence for independent teardown checks. The root bootstrap
+alone enters cleanup mode, refreshes the same exact bounded role for one
+cleanup-only hour, cleans the application, RDS, IAM and isolated credential
+files, and requires all absence booleans. This separates the 60-minute
+mutation deadline from the time required to prove terminal cleanup.
+Red-first coverage proved the runner was missing, then exercised its complete
+provider-free plan after the five-call fake preflight and guards the one-owner
+cleanup and exact-source migration contracts. No AWS mutation was made by this
+source slice. Full local and exact hosted qualification, a newly reviewed live
+authority, the live three-phase run and terminal cleanup proof remain required.
