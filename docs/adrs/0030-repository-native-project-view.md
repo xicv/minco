@@ -89,9 +89,17 @@ cargo minco workbench serve
 
 `--check` validates inputs and projections without writing. `export` is the
 only planned output-writing operation and requires an explicit normalized,
-project-relative, non-symlink destination outside every canonical input. The
-destination must not exist; export publishes one complete generated directory
-atomically and never replaces or deletes unrelated content. `serve` binds to
+project-relative destination outside every canonical input. The destination
+must not exist. Every existing component from the canonical project root to
+the destination parent must be opened without following symlinks, remain
+beneath that root, and retain the same filesystem identity until publication.
+Export exclusively creates one private staging directory through the retained
+parent handle, never adopts a pre-existing staging entry, and writes the
+complete output only through its retained staging handle. It installs that
+directory with an atomic no-clobber operation. If a component, staging entry,
+parent identity or destination changes, export fails closed and removes only
+the staging directory it proved it created; it never replaces or deletes
+unrelated content. `serve` binds to
 loopback, serves only generated assets and bounded read models, and performs no
 repository, database, provider or application mutation. Exact argument and
 serialized-schema compatibility is frozen only by the implementing M12 tasks.
@@ -131,6 +139,16 @@ project-relative inputs, rejects traversal and unsafe symlink boundaries, and
 enforces per-file and total response limits. Secret values, credentials,
 tokens, service instances, arbitrary attachments and customer data are not
 read. Text is untrusted data and is never executed or rendered as raw HTML.
+
+The export writer walks every existing path component without following
+symlinks, rejects any destination parent outside the canonical project root or
+inside a canonical input, and binds staging and final installation to the
+verified parent directory identity. It creates the staging directory
+exclusively with private permissions through that parent handle, retains a
+handle to it, and rejects rather than adopts any existing entry with the chosen
+name. A platform without the required handle-relative creation and race-safe
+atomic no-clobber directory installation primitives fails the export rather
+than re-resolving paths or using a replacing rename.
 
 The local server binds directly to a loopback address, rejects non-loopback
 `Host` values and browser origins other than its served loopback origin, and

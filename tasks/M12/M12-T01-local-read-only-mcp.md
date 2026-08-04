@@ -8,13 +8,23 @@ area: ai/mcp
 depends_on: [M10-T03, M11-T10]
 operations: []
 owned_paths:
+  - Cargo.lock
+  - Cargo.toml
   - crates/minco-project-view/**
   - crates/minco-mcp/**
   - crates/minco-cli/**
   - docs/adrs/**
   - docs/how-to/**
   - docs/reference/**
+  - roadmap/tasks.mmd
   - tasks/M12/M12-T01-local-read-only-mcp.md
+  - verification/adoption-measurements.json
+  - verification/deep-review.json
+  - verification/publish-validation.json
+  - verification/repository-truth.toml
+  - verification/rust-dependency-hygiene.json
+  - verification/source-manifest.json
+  - verification/static-validation.json
 checks:
   - cargo test -p minco-project-view -p minco-mcp -p cargo-minco --all-features --locked
   - cargo clippy -p minco-project-view -p minco-mcp -p cargo-minco --all-targets --all-features --locked -- -D warnings
