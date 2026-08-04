@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 834,
+  "file_count": 853,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "b78ea86cd15b76c238c82b2b0092675856b7b9674e54f00affb90c052c503988",
-      "size_bytes": 102512
+      "sha256": "193691b9edcff65c4ec4aa91040645de29c2bbede6bb0412161dda98d052ece3",
+      "size_bytes": 103150
     },
     {
       "path": "config/jj/repo.toml",
@@ -1514,8 +1514,8 @@
     },
     {
       "path": "docs/how-to/realtime.md",
-      "sha256": "1a5cd841681ebaaa62c67fd8d3b5adf483a88853bcc39e3380363f457f854dcd",
-      "size_bytes": 4925
+      "sha256": "a5a8274317c3659530d7f2399e84627b04b431c75bb6cb0d7107f649086ff2ea",
+      "size_bytes": 5436
     },
     {
       "path": "docs/how-to/resource-crud.md",
@@ -3009,13 +3009,13 @@
     },
     {
       "path": "plugins/minco-plugin-realtime/assets/realtime-client.mjs",
-      "sha256": "cc22b00707005902512f081a759c2319b597e1fdcca88634057343a08001e6a4",
-      "size_bytes": 15621
+      "sha256": "b2aacd892aa12810422b100be71c35d23bedfa517380dc5546d35316047a13c7",
+      "size_bytes": 16080
     },
     {
       "path": "plugins/minco-plugin-realtime/assets/realtime-client.test.mjs",
-      "sha256": "0b571dd04b3de734ebfc8520fa807ac26a3f6b094155a92dbd8fabb1bb6354f6",
-      "size_bytes": 13026
+      "sha256": "f7f35d295f2f6cddae0bbf2bfaf710b323ba13963ec75c8b7ea40cfac11ae0ac",
+      "size_bytes": 15484
     },
     {
       "path": "plugins/minco-plugin-realtime/minco-plugin.json",
@@ -3101,6 +3101,96 @@
       "path": "pricing/catalog.toml",
       "sha256": "6c6030e1fe7b1f3acf286a4a5925fcb64fe01ac2a7513bc3e87718cb836be324",
       "size_bytes": 903
+    },
+    {
+      "path": "proofs/realtime-appsync/.gitignore",
+      "sha256": "441f940fc400dff3b0a720d83331020b532a72d15ff2d8dac73c2a7a7211d8d3",
+      "size_bytes": 64
+    },
+    {
+      "path": "proofs/realtime-appsync/aws/template.yaml",
+      "sha256": "94edf67f2c9f206a49fb7d827c2fdde7dc83abb5ec481cca7687e364174b8407",
+      "size_bytes": 4983
+    },
+    {
+      "path": "proofs/realtime-appsync/aws-handler/Cargo.lock",
+      "sha256": "61ce491b65aeb2aeba8713505d3e831d37ce6aa12892452a64a2452fabd5931d",
+      "size_bytes": 68364
+    },
+    {
+      "path": "proofs/realtime-appsync/aws-handler/Cargo.toml",
+      "sha256": "ba3ab94a080dc033294ff0e84043a24a283bfb7faf4793e3abf484de55257afb",
+      "size_bytes": 974
+    },
+    {
+      "path": "proofs/realtime-appsync/aws-handler/src/lib.rs",
+      "sha256": "b96c63b4f6e95ecb5e5a8d9d680d1dd69f789bd85fc76787238c839e65ffc38a",
+      "size_bytes": 1745
+    },
+    {
+      "path": "proofs/realtime-appsync/aws-handler/src/main.rs",
+      "sha256": "16a3fa65a6c73252c6a425ed5860ffd3e0ec3778ffcf551bb9007d5e43dfe1d0",
+      "size_bytes": 1547
+    },
+    {
+      "path": "proofs/realtime-appsync/aws-handler/tests/handler.rs",
+      "sha256": "e3e69946cb7ab05b7b71b4c2661175e0458fd40f8d99effd716b8d0fffbc579d",
+      "size_bytes": 1535
+    },
+    {
+      "path": "proofs/realtime-appsync/browser/package-lock.json",
+      "sha256": "cdfd1a4b106448183a95426f3e486f9f5d0fa2f8e2ea098e1f626c47e5851b94",
+      "size_bytes": 2242
+    },
+    {
+      "path": "proofs/realtime-appsync/browser/package.json",
+      "sha256": "f9488a5687b4404df5ccb757372092b73317b2d0b57d63e0d623ebd1dabf02d1",
+      "size_bytes": 239
+    },
+    {
+      "path": "proofs/realtime-appsync/browser/playwright.config.mjs",
+      "sha256": "48ce8b680713c251e188922f308e651113dfe86f44a2cfbbfe019a2e6adcb0a9",
+      "size_bytes": 391
+    },
+    {
+      "path": "proofs/realtime-appsync/browser/tests/aws-live.spec.mjs",
+      "sha256": "ea4ced7be5a3a9f8664dbcb145ee120019169e1d946c083539032e4e40bd0d89",
+      "size_bytes": 9899
+    },
+    {
+      "path": "proofs/realtime-appsync/browser/tests/opaque-context.spec.mjs",
+      "sha256": "72a12368232279998f5162126aa4ccab7d5b2bb8bd1c9ddf74aa849a438bb7cc",
+      "size_bytes": 2501
+    },
+    {
+      "path": "proofs/realtime-appsync/scripts/check-aws-template.sh",
+      "sha256": "e10f717d8bb57f31930a13a4e926502a0204d0707a1d03e77bf3602010bd93ff",
+      "size_bytes": 352
+    },
+    {
+      "path": "proofs/realtime-appsync/scripts/check_aws_template.py",
+      "sha256": "40c128b18ba2611fd1089d50061e3f3bc654d2f3a1c65a4555cda65c86df9591",
+      "size_bytes": 7611
+    },
+    {
+      "path": "proofs/realtime-appsync/scripts/live-cleanup.sh",
+      "sha256": "d4b637dea728ee864ba3ef52d50ee6fb5d40b2114dfcca1cf754f6bd52151f73",
+      "size_bytes": 272
+    },
+    {
+      "path": "proofs/realtime-appsync/scripts/run-live-aws.sh",
+      "sha256": "d6ba97d399d422812a1e63c021641ec315f3f309eb71217b7d99d19d73382983",
+      "size_bytes": 15217
+    },
+    {
+      "path": "proofs/realtime-appsync/scripts/test-live-authority.sh",
+      "sha256": "3b8557a739f9815b5c9a30c2f0ba58862679d1a704a987db80c5b757bdcb1720",
+      "size_bytes": 5774
+    },
+    {
+      "path": "proofs/realtime-appsync/scripts/test-local.sh",
+      "sha256": "053755289fcd6afde66d5f84837be9e8f60034700b8d4b761775e032f5a96be6",
+      "size_bytes": 770
     },
     {
       "path": "proofs/realtime-pusher/.gitignore",
@@ -3244,8 +3334,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "48ac77d0bcd75f5a9606c0b64bfef2f1409ec8c121c007709cb55d4dad8f0a39",
-      "size_bytes": 8122
+      "sha256": "642261a2040c1a006cea1532f4e4be7c1c1648a68a1264d248a9684887baf894",
+      "size_bytes": 8232
     },
     {
       "path": "rust-toolchain.toml",
@@ -3838,6 +3928,11 @@
       "size_bytes": 12010
     },
     {
+      "path": "tasks/M11/M11-T12-live-realtime-proof.md",
+      "sha256": "a5b747eac32ea87a03ab3b8846e97fccd372f85466af392fbbb92f7dbff2b927",
+      "size_bytes": 10923
+    },
+    {
       "path": "tasks/M12/M12-T01-local-read-only-mcp.md",
       "sha256": "06a34d106ee5103488799df01556b9a68c5a3d411ea55b2d9c878420e8283e03",
       "size_bytes": 2310
@@ -4094,7 +4189,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "707b6ce0e1ab71c20ab51be12841bc3fe34682a664b4f0fb0a9a5b959f1475d6",
+      "sha256": "e1a4077d2b8dafe52a821392360451a1e31795f4be8977204107c018db1b2a01",
       "size_bytes": 2021
     },
     {
@@ -4154,7 +4249,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "dede03162fb996d644b805b6e36e95aa0c9e98e4af6d60e0b8c66be2a7b5206c",
+      "sha256": "8dadf76bf8c6d7b6af3d4944785c9a8ff76b29c0fabf615fbd101e5e4ae1adfe",
       "size_bytes": 754
     },
     {
@@ -4181,7 +4276,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "46f71ee7c85586eb71a055f4eca64466c46a63dbec443b52db8dd8d3ba7d73d3",
-  "total_size_bytes": 5923790,
+  "source_tree_sha256": "8826b088f0ebdfdc54184353c99748ecfc01b41dcefffe9bde16a98d08d88574",
+  "total_size_bytes": 6063369,
   "version": "0.7.0"
 }

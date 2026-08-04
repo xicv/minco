@@ -111,3 +111,11 @@ These prove composition, protocol state transitions, signing shape, IAM/cost
 rendering, and metadata consistency. CloudFormation/SAM validation, an applied
 stack, browser delivery against that stack, and cleanup are distinct live
 gates. Do not deploy solely because local checks passed.
+
+The repository's bounded reference proof is
+`tasks/M11/M11-T12-live-realtime-proof.md`. Its exact-source disposable AWS run
+proves Cognito subscription, HTTP resynchronization before event release, the
+real IAM publisher adapter, visibility reconnect/resynchronization,
+mismatched-channel rejection, and verified stack/bucket cleanup. Treat that as
+implementation evidence only: every future AWS run still requires its own exact
+account, Region, role, source, resource, duration, spend, and cleanup authority.

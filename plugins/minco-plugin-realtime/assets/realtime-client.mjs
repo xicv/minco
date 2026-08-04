@@ -19,7 +19,7 @@ class RealtimeSubscriber {
     this.onEvent = requireFunction(options.onEvent, 'onEvent')
     this.onError = options.onError ?? (() => {})
     this.WebSocketImpl = options.WebSocketImpl ?? globalThis.WebSocket
-    this.idFactory = options.idFactory ?? (() => globalThis.crypto.randomUUID())
+    this.idFactory = options.idFactory ?? createOperationId
     this.documentImpl = options.documentImpl ?? globalThis.document
     this.setTimeoutImpl = options.setTimeoutImpl ?? globalThis.setTimeout.bind(globalThis)
     this.clearTimeoutImpl = options.clearTimeoutImpl ?? globalThis.clearTimeout.bind(globalThis)
@@ -320,6 +320,8 @@ class RealtimeSubscriber {
   }
 
   acceptEvents(events) {
+    if (typeof events === 'string')
+      events = [events]
     if (!Array.isArray(events))
       throw new TypeError('data event must contain an array')
     for (const encoded of events) {
@@ -425,6 +427,16 @@ function validateChannel(value) {
 function validateOperationId(value) {
   if (!/^[A-Za-z0-9-_+]{1,128}$/.test(value))
     throw new TypeError('subscription operation id is invalid')
+}
+
+function createOperationId() {
+  const crypto = globalThis.crypto
+  if (typeof crypto?.randomUUID === 'function')
+    return crypto.randomUUID()
+  if (typeof crypto?.getRandomValues !== 'function')
+    throw new TypeError('secure random operation ID generation is unavailable')
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 function requireFunction(value, field) {

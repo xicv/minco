@@ -1,0 +1,3 @@
+aws-handler/target/
+browser/node_modules/
+browser/test-results/
