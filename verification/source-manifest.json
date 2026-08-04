@@ -4039,8 +4039,8 @@
     },
     {
       "path": "tasks/M12/M12-T05-release-gates.md",
-      "sha256": "92785a47bf64121c0948bfa88e7b5ab736fa4a2ad5d295cdfb5f1c1892b83e0a",
-      "size_bytes": 1375
+      "sha256": "dac42e579bf4dcf0ecb61bea405bc817898939b65ed4f7518334e4f105abcd87",
+      "size_bytes": 1373
     },
     {
       "path": "tasks/M12/M12-T06-minco-1-0-rc.md",
@@ -4366,7 +4366,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "121d42a7de09544e47f4ffedda5481bf429c2fa16838c19e10e8e83a05e1fcf4",
-  "total_size_bytes": 6250426,
+  "source_tree_sha256": "bf8f39f4b9e8e57e50978d52e5fc749c8a845bc0b36c075d1d43a142af16e2b6",
+  "total_size_bytes": 6250424,
   "version": "0.7.0"
 }

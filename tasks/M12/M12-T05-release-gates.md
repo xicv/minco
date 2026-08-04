@@ -2,7 +2,7 @@
 id: M12-T05
 title: Pass security recovery load and documentation release gates
 milestone: M12
-status: planned
+status: ready
 priority: critical
 area: release/qualification
 depends_on: [M12-T04]
