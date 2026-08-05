@@ -52,6 +52,27 @@ blocking. See [`../how-to/local-workbench.md`](../how-to/local-workbench.md) for
 the output safety contract, evidence interpretation, accessibility behavior,
 and browser verification.
 
+## Coding-agent projections
+
+```text
+cargo minco agent plan --target codex|claude|all --json
+cargo minco agent sync --target codex|claude|all --expect-plan-digest SHA256 --json
+cargo minco agent doctor --target codex|claude|all --json
+```
+
+`agent plan` is deterministic and read-only. It inventories only Minco's fixed
+project skill destinations, classifies creates, owned updates, unchanged files
+and conflicts, and emits the digest required by `agent sync`. Sync recomputes
+that plan, refuses stale digests or ownership ambiguity, stages files privately
+under retained no-follow directory descriptors, and publishes with no-clobber
+or exact-owned replacement semantics. It does not delete neighboring files.
+
+The ownership receipt is `.minco/agent-manifest.json`. Existing unowned files,
+edited managed files, symlinks, non-regular entries and changed path identities
+fail closed. `agent doctor` performs no writes. Client MCP configuration remains
+user-owned, so this initial doctor reports it as `unknown` with a manual action
+instead of parsing or reserializing client JSON or TOML.
+
 ## Typed configuration
 
 ```text

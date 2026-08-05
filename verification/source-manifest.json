@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1012,
+  "file_count": 1014,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "5222dbf3bd911d2af96eaa99c8b334e349414f41f6ab43f8beedeec90c9a689c",
-      "size_bytes": 110392
+      "sha256": "46d90dfc34b5fae55d915c5222f26bcc701c17864d78464cd0c7ccdf595f61fb",
+      "size_bytes": 110403
     },
     {
       "path": "Cargo.toml",
@@ -154,8 +154,8 @@
     },
     {
       "path": "crates/minco-cli/Cargo.toml",
-      "sha256": "18bcd61a13b22fc72076ba8166554aa37194be9af9ffdc00b51637ad4e2615c2",
-      "size_bytes": 1934
+      "sha256": "7b1c23c4399b238fda29b8503bc322229d7ea25d128eb1a67bae88c97e60539c",
+      "size_bytes": 1983
     },
     {
       "path": "crates/minco-cli/LICENSE-APACHE",
@@ -303,6 +303,11 @@
       "size_bytes": 935
     },
     {
+      "path": "crates/minco-cli/src/agent_cmd.rs",
+      "sha256": "88c55477759fded9f65fd3d5b1bcd47d9641fedd97021b19b296ce003d498694",
+      "size_bytes": 48613
+    },
+    {
       "path": "crates/minco-cli/src/architecture.rs",
       "sha256": "c99bb9b0be7c27fd57229dd493c3cc13b372b97e0a89bf4a59c50abe6476c7bc",
       "size_bytes": 5668
@@ -339,8 +344,8 @@
     },
     {
       "path": "crates/minco-cli/src/main.rs",
-      "sha256": "da8063ac07906e7eace23930f156241a5cb4df21a72030194f07ef357a518019",
-      "size_bytes": 297909
+      "sha256": "0975b6329022d95bb2bb0723e23c66babc6f033cff4fe2433b79c73052b04e9f",
+      "size_bytes": 298085
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
@@ -661,6 +666,11 @@
       "path": "crates/minco-cli/templates/generator/worker.rs.tmpl",
       "sha256": "316a8e9bb37a2e6b1508adf84c68c710dc6684ec2b37ba9606783e193464c2ff",
       "size_bytes": 146
+    },
+    {
+      "path": "crates/minco-cli/tests/agent_cli.rs",
+      "sha256": "c36b4ca8084f981942cf9816ced6c35c104ad9c742b2f0ffb0d83390bc7bf866",
+      "size_bytes": 16131
     },
     {
       "path": "crates/minco-cli/tests/agent_skills.rs",
@@ -2029,8 +2039,8 @@
     },
     {
       "path": "docs/reference/cli.md",
-      "sha256": "bf7a8a33cb5426bcc9cdd6a5a391c451cfbae5e59020f07f4f7a914e64e3570e",
-      "size_bytes": 14916
+      "sha256": "764722189adf74003a6bc8dd7a84376da5d41bdbf7fb2e6952e1a3a55e53a01a",
+      "size_bytes": 16005
     },
     {
       "path": "docs/reference/compatibility.md",
@@ -2044,12 +2054,12 @@
     },
     {
       "path": "docs/reference/generated/cli.md",
-      "sha256": "5c003db9b4042d7a3d5b0f476283fb1d19e61c64e9576ef3a386311565884922",
-      "size_bytes": 41462
+      "sha256": "2e43b254da87b38244a7c3242518e0fd47ebaf971678820f35f4e33a0b774129",
+      "size_bytes": 43032
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "509c5f328adaff00cb2f120a77401423872e3deae530b2510721c9c7d6c01d99",
+      "sha256": "71b7bf3b20d904d247110f9d9470eb119a44b3fd171a5a7c4af10bf3ffce568e",
       "size_bytes": 29218
     },
     {
@@ -4734,13 +4744,13 @@
     },
     {
       "path": "tasks/M13/M13-T03-agent-plan-sync-doctor.md",
-      "sha256": "cc798f1e6ecc4787026cb1297a4e8c691d4650ac0b8b663e28b74bc7c74ef6d7",
-      "size_bytes": 1610
+      "sha256": "e37405610a714d27a7703579b2f6b83e86d8ce17b2de1e4e4d33f336477eec12",
+      "size_bytes": 4025
     },
     {
       "path": "tasks/M13/M13-T04-agent-context.md",
-      "sha256": "89a87fb879d1fa239ea6f5057b68c453ee270430c9dc70f7bd883b64c18f2cf0",
-      "size_bytes": 1485
+      "sha256": "520e3770cb191c4c7e642d295af8a519da04989c11bf9aa97857851ba26c5182",
+      "size_bytes": 1483
     },
     {
       "path": "tasks/M13/M13-T05-generated-application-agent-setup.md",
@@ -4984,8 +4994,8 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "c45f60dd162bcb3128fa90a919137fab1f15a3fc3fd0ace28fe961d40446b586",
-      "size_bytes": 2021
+      "sha256": "801b1711b6fb8df9f0e7633eb5bc4a4579755176bfe55c8f8bd948f7c9c5efef",
+      "size_bytes": 2022
     },
     {
       "path": "verification/feedback-contract.json",
@@ -5074,7 +5084,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "2de4e955e0f3d1ce731d35b8bbef8be91d01f3002ee5420bc2e20a0192b6adfc",
-  "total_size_bytes": 6789251,
+  "source_tree_sha256": "0d512624b6dae90021995ec44b99921c03287ad13afcc941f9953bfed01caf41",
+  "total_size_bytes": 6859304,
   "version": "1.0.0"
 }

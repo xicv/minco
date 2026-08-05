@@ -16,6 +16,7 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
 
 ## Command tree
 
+- `cargo minco agent`
 - `cargo minco architecture`
 - `cargo minco check`
 - `cargo minco config`
@@ -46,6 +47,9 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
 - `cargo minco upgrade`
 - `cargo minco vcs`
 - `cargo minco workbench`
+  - `cargo minco agent doctor`
+  - `cargo minco agent plan`
+  - `cargo minco agent sync`
   - `cargo minco config check`
   - `cargo minco config diff`
   - `cargo minco config explain`
@@ -129,6 +133,7 @@ Usage: cargo-minco [OPTIONS] <COMMAND>
 
 Commands:
   new
+  agent
   doctor
   dev           Run the graph-declared local development topology
   check
@@ -165,6 +170,23 @@ Options:
       --json
   -h, --help         Print help
   -V, --version      Print version
+```
+
+#### `cargo minco agent`
+
+```text
+Usage: cargo-minco agent [OPTIONS] <COMMAND>
+
+Commands:
+  plan    Produce a deterministic, read-only projection plan
+  sync    Apply an exact, conflict-free projection plan
+  doctor  Diagnose projection ownership and drift without writing
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+      --root <ROOT>
+      --json
+  -h, --help         Print help
 ```
 
 #### `cargo minco architecture`
@@ -731,6 +753,49 @@ Options:
       --root <ROOT>
       --json
   -h, --help         Print help
+```
+
+##### `cargo minco agent doctor`
+
+```text
+Diagnose projection ownership and drift without writing
+
+Usage: cargo-minco agent doctor [OPTIONS]
+
+Options:
+      --root <ROOT>
+      --target <TARGET>  [default: all] [possible values: codex, claude, all]
+      --json
+  -h, --help             Print help
+```
+
+##### `cargo minco agent plan`
+
+```text
+Produce a deterministic, read-only projection plan
+
+Usage: cargo-minco agent plan [OPTIONS] --target <TARGET>
+
+Options:
+      --root <ROOT>
+      --target <TARGET>  [possible values: codex, claude, all]
+      --json
+  -h, --help             Print help
+```
+
+##### `cargo minco agent sync`
+
+```text
+Apply an exact, conflict-free projection plan
+
+Usage: cargo-minco agent sync [OPTIONS] --target <TARGET> --expect-plan-digest <EXPECT_PLAN_DIGEST>
+
+Options:
+      --root <ROOT>
+      --target <TARGET>                          [possible values: codex, claude, all]
+      --expect-plan-digest <EXPECT_PLAN_DIGEST>
+      --json
+  -h, --help                                     Print help
 ```
 
 ##### `cargo minco config check`

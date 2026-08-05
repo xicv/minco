@@ -3,6 +3,7 @@
 // documentation target's API.
 #![allow(unreachable_pub)]
 
+mod agent_cmd;
 mod architecture;
 mod config;
 mod config_cmd;
@@ -17,6 +18,7 @@ mod update;
 mod upgrade_cmd;
 mod vcs;
 
+use agent_cmd::AgentCommand;
 use anyhow::{Context, Result, bail};
 use architecture::validate_architecture;
 use base64::Engine as _;
@@ -108,6 +110,8 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     New(NewArgs),
+    #[command(subcommand)]
+    Agent(AgentCommand),
     Doctor,
     /// Run the graph-declared local development topology.
     Dev(DevArgs),
@@ -808,6 +812,7 @@ async fn main() -> Result<()> {
     let manifest = MincoManifest::load(&root)?;
     match command {
         Command::New(_) => unreachable!("new is handled before project discovery"),
+        Command::Agent(command) => agent_cmd::execute(&root, command, as_json),
         Command::Doctor => doctor(&root, as_json),
         Command::Dev(args) => dev(&root, &manifest, args, as_json).await,
         Command::Check(args) => check(&root, &manifest, args, as_json),
