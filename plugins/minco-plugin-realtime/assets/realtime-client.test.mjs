@@ -80,6 +80,46 @@ class FakeTimers {
 
 const nextTask = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+test('default operation IDs work when randomUUID is unavailable in an opaque browser context', async () => {
+  FakeWebSocket.instances = []
+  const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
+  Object.defineProperty(globalThis, 'crypto', {
+    configurable: true,
+    value: {
+      getRandomValues: (bytes) => {
+        bytes.forEach((_, index) => { bytes[index] = index })
+        return bytes
+      },
+    },
+  })
+
+  let client
+  try {
+    client = createRealtimeClient({
+      realtimeUrl: 'wss://example.appsync-realtime-api.ap-southeast-2.amazonaws.com/event/realtime',
+      httpUrl: 'https://example.appsync-api.ap-southeast-2.amazonaws.com/event',
+      namespace: 'orders',
+      channel: 'tenant-42/order-7',
+      getToken: async () => 'token',
+      resync: async () => {},
+      onEvent: () => {},
+      WebSocketImpl: FakeWebSocket,
+    })
+
+    await client.start()
+    const socket = FakeWebSocket.instances[0]
+    socket.open()
+    socket.receive({ type: 'connection_ack', connectionTimeoutMs: 300_000 })
+    await nextTask()
+
+    assert.match(socket.sent[1].id, /^[A-Za-z0-9-_+]{1,128}$/)
+  }
+  finally {
+    client?.stop()
+    Object.defineProperty(globalThis, 'crypto', cryptoDescriptor)
+  }
+})
+
 test('subscriber buffers live events until HTTP truth resync completes', async () => {
   FakeWebSocket.instances = []
   let finishResync
@@ -124,6 +164,41 @@ test('subscriber buffers live events until HTTP truth resync completes', async (
 
   assert.deepEqual(delivered, [{ id: 'evt-7', event_type: 'order.updated' }])
   assert.deepEqual(socket.sent.map(({ type }) => type), ['connection_init', 'subscribe'])
+  client.stop()
+})
+
+test('subscriber accepts one AppSync delivery event encoded as a JSON string', async () => {
+  FakeWebSocket.instances = []
+  const delivered = []
+  const errors = []
+  const client = createRealtimeClient({
+    realtimeUrl: 'wss://example.appsync-realtime-api.ap-southeast-2.amazonaws.com/event/realtime',
+    httpUrl: 'https://example.appsync-api.ap-southeast-2.amazonaws.com/event',
+    namespace: 'orders',
+    channel: 'tenant-42/order-7',
+    getToken: async () => 'token',
+    resync: async () => {},
+    onEvent: (event) => delivered.push(event),
+    onError: (error) => errors.push(error.message),
+    WebSocketImpl: FakeWebSocket,
+    idFactory: () => 'subscription-7',
+  })
+
+  await client.start()
+  const socket = FakeWebSocket.instances[0]
+  socket.open()
+  socket.receive({ type: 'connection_ack', connectionTimeoutMs: 300_000 })
+  await nextTask()
+  socket.receive({ type: 'subscribe_success', id: 'subscription-7' })
+  await nextTask()
+  socket.receive({
+    type: 'data',
+    id: 'subscription-7',
+    event: '{"id":"evt-live","event_type":"order.updated"}',
+  })
+
+  assert.deepEqual(errors, [])
+  assert.deepEqual(delivered, [{ id: 'evt-live', event_type: 'order.updated' }])
   client.stop()
 })
 
