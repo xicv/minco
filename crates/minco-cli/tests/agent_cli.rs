@@ -27,7 +27,36 @@ quality = "quality.toml"
 "#,
     )
     .expect("write minimal Minco manifest");
+    fs::write(
+        root.path().join("AGENTS.md"),
+        "# Application agent instructions\n",
+    )
+    .expect("write application agent instructions");
     root
+}
+
+fn generated_application(database: &str) -> (TempDir, PathBuf) {
+    let temporary = tempfile::tempdir().expect("temporary generated application parent");
+    let root = temporary.path().join("sample-api");
+    let output = Command::new(cargo_minco())
+        .args([
+            "new",
+            "sample-api",
+            "--directory",
+            root.to_str().expect("UTF-8 generated application root"),
+            "--database",
+            database,
+            "--vcs",
+            "none",
+        ])
+        .output()
+        .expect("generate Minco application");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    (temporary, root)
 }
 
 fn workspace_root() -> &'static Path {
@@ -260,7 +289,7 @@ fn agent_plan_is_deterministic_complete_and_read_only() {
     assert_eq!(plan["conflicts"], serde_json::json!([]));
     assert_eq!(
         plan["actions"].as_array().expect("planned actions").len(),
-        49
+        50
     );
     assert!(
         plan["actions"]
@@ -318,7 +347,7 @@ fn sync_requires_the_exact_current_plan_digest_and_is_repeatable() {
     ));
     assert_eq!(applied["operation"], "sync");
     assert_eq!(applied["applied"], true);
-    assert_eq!(applied["writes"], 49);
+    assert_eq!(applied["writes"], 50);
 
     let manifest: Value = serde_json::from_slice(
         &fs::read(root.path().join(".minco/agent-manifest.json"))
@@ -328,7 +357,7 @@ fn sync_requires_the_exact_current_plan_digest_and_is_repeatable() {
     assert_eq!(manifest["schema_version"], 1);
     assert_eq!(
         manifest["files"].as_array().expect("managed files").len(),
-        48
+        49
     );
 
     let unchanged = plan(root.path(), "all");
@@ -579,7 +608,168 @@ fn selecting_the_second_client_preserves_the_first_projection_and_ownership() {
             .expect("combined ownership manifest"),
     )
     .expect("valid ownership manifest");
-    assert_eq!(manifest["files"].as_array().unwrap().len(), 48);
+    assert_eq!(manifest["files"].as_array().unwrap().len(), 49);
+}
+
+#[test]
+fn generated_database_profiles_have_matching_application_mode_agent_setup() {
+    let (_postgres_parent, postgres) = generated_application("postgres");
+    let (_sqlite_parent, sqlite) = generated_application("sqlite");
+
+    let postgres_plan = plan(&postgres, "all");
+    let sqlite_plan = plan(&sqlite, "all");
+    let projection = |plan: &Value| {
+        plan["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|action| {
+                (
+                    action["path"].as_str().unwrap().to_owned(),
+                    action["action"].as_str().unwrap().to_owned(),
+                    action["desired_digest"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(postgres_plan["bundle_digest"], sqlite_plan["bundle_digest"]);
+    assert_eq!(projection(&postgres_plan), projection(&sqlite_plan));
+    assert!(
+        postgres_plan["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|action| action["path"] == "CLAUDE.md" && action["action"] == "create")
+    );
+    assert_eq!(postgres_plan["safe"], true);
+
+    let agents_before = fs::read(postgres.join("AGENTS.md")).expect("generated AGENTS.md");
+    successful_json(&run(
+        &postgres,
+        &[
+            "sync",
+            "--target",
+            "all",
+            "--expect-plan-digest",
+            plan_digest(&postgres_plan),
+        ],
+    ));
+    assert_eq!(
+        fs::read(postgres.join("AGENTS.md")).expect("preserved AGENTS.md"),
+        agents_before
+    );
+    assert_eq!(
+        fs::read(postgres.join("CLAUDE.md")).expect("generated Claude bridge"),
+        fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/app/CLAUDE.md.tmpl"))
+            .expect("canonical Claude bridge")
+    );
+
+    let context = successful_json(&run(&postgres, &["context"]));
+    assert_eq!(context["project"]["mode"], "application");
+    assert_eq!(context["found"], true);
+}
+
+#[test]
+fn existing_claude_instructions_are_reported_for_manual_integration_and_preserved() {
+    let root = project();
+    fs::write(
+        root.path().join("CLAUDE.md"),
+        "custom Claude instructions\n",
+    )
+    .expect("custom Claude instructions");
+
+    let plan = plan(root.path(), "all");
+    assert_eq!(plan["safe"], true);
+    assert!(
+        !plan["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|action| action["path"] == "CLAUDE.md")
+    );
+    assert!(
+        plan["manual_actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|action| {
+                action["code"] == "claude_project_instructions" && action["status"] == "manual"
+            })
+    );
+
+    successful_json(&run(
+        root.path(),
+        &[
+            "sync",
+            "--target",
+            "all",
+            "--expect-plan-digest",
+            plan_digest(&plan),
+        ],
+    ));
+    assert_eq!(
+        fs::read_to_string(root.path().join("CLAUDE.md")).expect("preserved Claude file"),
+        "custom Claude instructions\n"
+    );
+}
+
+#[test]
+fn claude_bridge_requires_project_owned_agents_instructions() {
+    let root = project();
+    fs::remove_file(root.path().join("AGENTS.md")).expect("remove fixture instructions");
+
+    let plan = plan(root.path(), "claude");
+    assert_eq!(plan["safe"], true);
+    assert!(
+        !plan["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|action| action["path"] == "CLAUDE.md")
+    );
+    assert!(
+        plan["manual_actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|action| action["code"] == "agents_project_instructions_missing")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn claude_bridge_rejects_unsafe_agents_instructions() {
+    use std::os::unix::fs::symlink;
+
+    let root = project();
+    let outside = tempfile::tempdir().expect("outside instructions directory");
+    let outside_agents = outside.path().join("AGENTS.md");
+    fs::write(&outside_agents, "outside instructions\n").expect("outside instructions");
+    fs::remove_file(root.path().join("AGENTS.md")).expect("remove fixture instructions");
+    symlink(&outside_agents, root.path().join("AGENTS.md")).expect("symlinked instructions");
+
+    let plan = plan(root.path(), "claude");
+    assert_eq!(plan["safe"], false);
+    assert!(
+        plan["conflicts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|conflict| {
+                conflict["path"] == "AGENTS.md" && conflict["code"] == "unsafe_path_entry"
+            })
+    );
+    assert!(
+        !plan["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|action| action["path"] == "CLAUDE.md")
+    );
+    assert_eq!(
+        fs::read_to_string(outside_agents).expect("unchanged outside instructions"),
+        "outside instructions\n"
+    );
 }
 
 #[cfg(unix)]
@@ -626,7 +816,7 @@ fn codex_and_claude_targets_are_symmetric_and_doctor_is_read_only() {
     let codex_plan = plan(codex.path(), "codex");
     let claude_plan = plan(claude.path(), "claude");
     assert_eq!(codex_plan["actions"].as_array().unwrap().len(), 25);
-    assert_eq!(claude_plan["actions"].as_array().unwrap().len(), 25);
+    assert_eq!(claude_plan["actions"].as_array().unwrap().len(), 26);
     assert!(
         codex_plan["actions"]
             .as_array()

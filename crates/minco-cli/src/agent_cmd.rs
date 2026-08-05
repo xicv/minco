@@ -10,6 +10,7 @@ use std::{
 
 const MANIFEST_PATH: &str = ".minco/agent-manifest.json";
 const BUNDLE_JSON: &[u8] = include_bytes!("../assets/agent/bundle.json");
+const CLAUDE_BRIDGE: &[u8] = include_bytes!("../templates/app/CLAUDE.md.tmpl");
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, Subcommand)]
@@ -537,6 +538,7 @@ fn build_plan(root: &Path, target: AgentTarget) -> Result<AgentPlan> {
         .unwrap_or_default();
     let selected_clients = target.clients().iter().copied().collect::<BTreeSet<_>>();
     let mut actions = Vec::new();
+    let mut integration_manual_actions = Vec::new();
     let mut next_files = previous_manifest
         .as_ref()
         .map(|manifest| {
@@ -548,11 +550,59 @@ fn build_plan(root: &Path, target: AgentTarget) -> Result<AgentPlan> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let claude_bridge_available = if selected_clients.contains(&Client::Claude) {
+        match secure::inspect(root, Path::new("AGENTS.md"))? {
+            secure::Inspection::Regular { .. } => true,
+            secure::Inspection::Missing => {
+                if previous_files.contains_key("CLAUDE.md") {
+                    conflicts.push(PlanConflict {
+                        path: "AGENTS.md".into(),
+                        code: "managed_dependency_missing",
+                        detail: "the managed Claude bridge requires AGENTS.md, which is absent"
+                            .into(),
+                    });
+                } else {
+                    integration_manual_actions.push(ManualAction {
+                        client: "claude",
+                        code: "agents_project_instructions_missing",
+                        status: "manual",
+                        detail: "add project-owned AGENTS.md instructions before creating the Claude bridge",
+                    });
+                }
+                false
+            }
+            secure::Inspection::Unsafe { detail } => {
+                conflicts.push(PlanConflict {
+                    path: "AGENTS.md".into(),
+                    code: "unsafe_path_entry",
+                    detail,
+                });
+                false
+            }
+        }
+    } else {
+        true
+    };
 
     for file in desired {
+        if file.path == "CLAUDE.md" && !claude_bridge_available {
+            continue;
+        }
         let state = secure::inspect(root, Path::new(&file.path))?;
         let desired_digest = digest(&file.contents);
         let previous = previous_files.get(file.path.as_str()).copied();
+        if file.allow_user_owned
+            && previous.is_none()
+            && matches!(state, secure::Inspection::Regular { .. })
+        {
+            integration_manual_actions.push(ManualAction {
+                client: file.client.as_str(),
+                code: "claude_project_instructions",
+                status: "manual",
+                detail: "CLAUDE.md is user-owned; preserve it and add @AGENTS.md manually if desired",
+            });
+            continue;
+        }
         let (action, current_digest, expected) = match state {
             secure::Inspection::Missing if previous.is_some() => {
                 conflicts.push(PlanConflict {
@@ -709,7 +759,7 @@ fn build_plan(root: &Path, target: AgentTarget) -> Result<AgentPlan> {
     });
     actions.sort_by(|left, right| left.path.cmp(&right.path));
     conflicts.sort_by(|left, right| left.path.cmp(&right.path).then(left.code.cmp(right.code)));
-    let manual_actions = target
+    let mut manual_actions = target
         .clients()
         .iter()
         .map(|client| ManualAction {
@@ -719,6 +769,12 @@ fn build_plan(root: &Path, target: AgentTarget) -> Result<AgentPlan> {
             detail: "inspect client project configuration before adding the local Minco MCP server",
         })
         .collect::<Vec<_>>();
+    manual_actions.append(&mut integration_manual_actions);
+    manual_actions.sort_by(|left, right| {
+        left.client
+            .cmp(right.client)
+            .then(left.code.cmp(right.code))
+    });
     let mut plan = AgentPlan {
         schema_version: 1,
         operation: "plan",
@@ -740,6 +796,7 @@ struct DesiredFile {
     path: String,
     client: Client,
     contents: Vec<u8>,
+    allow_user_owned: bool,
 }
 
 fn desired_files(target: AgentTarget) -> Vec<DesiredFile> {
@@ -751,9 +808,18 @@ fn desired_files(target: AgentTarget) -> Vec<DesiredFile> {
                 path: format!("{}/{}", client.projection_root(), asset.path),
                 client: *client,
                 contents: asset.contents.to_vec(),
+                allow_user_owned: false,
             })
         })
         .collect::<Vec<_>>();
+    if target.clients().contains(&Client::Claude) {
+        files.push(DesiredFile {
+            path: "CLAUDE.md".into(),
+            client: Client::Claude,
+            contents: CLAUDE_BRIDGE.to_vec(),
+            allow_user_owned: true,
+        });
+    }
     files.sort_by(|left, right| left.path.cmp(&right.path));
     files
 }
@@ -835,6 +901,10 @@ fn bundle_digest() -> String {
         hasher.update((asset.contents.len() as u64).to_be_bytes());
         hasher.update(asset.contents);
     }
+    hasher.update(("CLAUDE.md".len() as u64).to_be_bytes());
+    hasher.update(b"CLAUDE.md");
+    hasher.update((CLAUDE_BRIDGE.len() as u64).to_be_bytes());
+    hasher.update(CLAUDE_BRIDGE);
     format!("{:x}", hasher.finalize())
 }
 

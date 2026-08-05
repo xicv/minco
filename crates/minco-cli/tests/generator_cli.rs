@@ -11,6 +11,10 @@ const fn cargo_minco() -> &'static str {
 }
 
 fn create_application() -> (TempDir, PathBuf) {
+    create_application_with_database("sqlite")
+}
+
+fn create_application_with_database(database: &str) -> (TempDir, PathBuf) {
     let temporary = tempfile::tempdir().expect("temporary application parent");
     let root = temporary.path().join("sample-api");
     let output = Command::new(cargo_minco())
@@ -20,7 +24,7 @@ fn create_application() -> (TempDir, PathBuf) {
             "--directory",
             root.to_str().expect("UTF-8 application root"),
             "--database",
-            "sqlite",
+            database,
             "--vcs",
             "none",
         ])
@@ -32,6 +36,61 @@ fn create_application() -> (TempDir, PathBuf) {
         String::from_utf8_lossy(&output.stderr)
     );
     (temporary, root)
+}
+
+#[test]
+fn fresh_database_profiles_expose_explicit_application_agent_setup() {
+    let (_postgres_parent, postgres) = create_application_with_database("postgres");
+    let (_sqlite_parent, sqlite) = create_application_with_database("sqlite");
+    let postgres_agents = fs::read(postgres.join("AGENTS.md")).expect("Postgres AGENTS.md");
+    let sqlite_agents = fs::read(sqlite.join("AGENTS.md")).expect("SQLite AGENTS.md");
+    assert_eq!(postgres_agents, sqlite_agents);
+    let instructions = String::from_utf8(postgres_agents).expect("UTF-8 AGENTS.md");
+    for required in [
+        "$minco-web-application",
+        "cargo minco agent plan --target all --json",
+        "cargo minco agent context",
+        "application mode",
+    ] {
+        assert!(instructions.contains(required), "missing {required}");
+    }
+    for forbidden in [
+        "one JJ workspace per task",
+        "task-start.sh",
+        "task-finish.sh",
+        "$minco-framework-task",
+        "cargo minco release",
+    ] {
+        assert!(!instructions.contains(forbidden), "leaked {forbidden}");
+    }
+    assert!(!postgres.join("CLAUDE.md").exists());
+    assert!(!sqlite.join("CLAUDE.md").exists());
+
+    let temporary = tempfile::tempdir().expect("report destination parent");
+    let report_root = temporary.path().join("report-api");
+    let output = Command::new(cargo_minco())
+        .args([
+            "--json",
+            "new",
+            "report-api",
+            "--directory",
+            report_root.to_str().expect("UTF-8 report root"),
+            "--database",
+            "sqlite",
+            "--vcs",
+            "none",
+        ])
+        .output()
+        .expect("generate application report");
+    assert!(output.status.success());
+    let report: Value = serde_json::from_slice(&output.stdout).expect("new project JSON report");
+    assert!(
+        report["next_commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|command| command == "cargo minco agent plan --target all --json")
+    );
 }
 
 fn run(root: &Path, arguments: &[&str]) -> Output {

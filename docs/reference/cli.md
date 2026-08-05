@@ -74,6 +74,14 @@ fail closed. `agent doctor` performs no writes. Client MCP configuration remains
 user-owned, so this initial doctor reports it as `unknown` with a manual action
 instead of parsing or reserializing client JSON or TOML.
 
+Fresh applications generate application-mode `AGENTS.md` instructions and list
+`agent plan --target all --json` as an explicit next step. A Claude projection
+also plans a minimal project `CLAUDE.md` containing only `@AGENTS.md`, but only
+when `AGENTS.md` is a regular file and the destination is absent or already
+Minco-managed. An existing unowned `CLAUDE.md` is preserved and reported as a
+manual integration action. Minco never adopts it, appends to it, or rewrites it.
+See [`../how-to/agent-setup.md`](../how-to/agent-setup.md).
+
 `agent context` loads the existing bounded `ProjectView` and returns a compact
 project, exact-operation or exact-task projection with matching Minco 1.0
 documentation identifiers. Unknown IDs produce `found: false` and a stable

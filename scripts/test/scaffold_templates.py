@@ -163,6 +163,25 @@ def check_profile(root: Path, database: str) -> dict[str, object]:
     } == {"application.name", "runtime.log_level", "database.connection"}
     assert set(manifest["operations"]) == {"healthLive", "getPlatform"}
 
+    instructions = (root / "AGENTS.md").read_text()
+    for required in [
+        "$minco-web-application",
+        "cargo minco agent plan --target all --json",
+        "cargo minco agent context",
+        "generated Minco application",
+    ]:
+        assert required in instructions
+    for forbidden in [
+        "one JJ workspace per task",
+        "task-start.sh",
+        "task-finish.sh",
+        "$minco-framework-task",
+        "cargo minco release",
+    ]:
+        assert forbidden not in instructions
+    assert template("CLAUDE.md") == "# Claude project instructions\n\n@AGENTS.md\n"
+    assert not (root / "CLAUDE.md").exists()
+
     contract = yaml.safe_load((root / "openapi/openapi.yaml").read_text())
     assert str(contract["openapi"]).startswith("3.1.")
     operation_ids = {
