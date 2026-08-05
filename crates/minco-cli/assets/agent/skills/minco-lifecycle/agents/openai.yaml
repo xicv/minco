@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Lifecycle"
+  short_description: "Run explicit Minco app lifecycle work"
+  default_prompt: "Use $minco-lifecycle to plan this Minco configuration, database, or local development workflow."

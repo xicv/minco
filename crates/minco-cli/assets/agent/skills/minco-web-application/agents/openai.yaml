@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Web Application"
+  short_description: "Build Minco web applications safely"
+  default_prompt: "Use $minco-web-application to plan and build this Minco web application."

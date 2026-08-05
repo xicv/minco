@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Diagnose"
+  short_description: "Diagnose Minco from bounded evidence"
+  default_prompt: "Use $minco-diagnose to investigate this Minco project without guessing hidden state."

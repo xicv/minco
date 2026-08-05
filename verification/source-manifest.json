@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 985,
+  "file_count": 1012,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -154,8 +154,8 @@
     },
     {
       "path": "crates/minco-cli/Cargo.toml",
-      "sha256": "2e9d79b63dfd2d7f882fc8a5b8355526cb40d09367ef9e555b6bb0ef4fff2c6c",
-      "size_bytes": 1921
+      "sha256": "18bcd61a13b22fc72076ba8166554aa37194be9af9ffdc00b51637ad4e2615c2",
+      "size_bytes": 1934
     },
     {
       "path": "crates/minco-cli/LICENSE-APACHE",
@@ -171,6 +171,136 @@
       "path": "crates/minco-cli/README.md",
       "sha256": "193f2535943c0e60ec53932e12800f90d52dc34daeee472c5011cd98cc75fa7f",
       "size_bytes": 6500
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/bundle.json",
+      "sha256": "19fd9364d7ffcbe01510c181500458183e1b2887605d2a289c6d2b8da4c34b62",
+      "size_bytes": 1802
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/evals/scenarios.json",
+      "sha256": "9da096fa37c896cac2292112e51f48499ac491812083c07b8d0e25418f321081",
+      "size_bytes": 5978
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-diagnose/SKILL.md",
+      "sha256": "73ac6fb2c9305efa7a56d5abac6b13ee9a17c4a224c1f5fedc6cc3dad8a65aae",
+      "size_bytes": 1302
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-diagnose/agents/openai.yaml",
+      "sha256": "abc2065bed0afe0630758b496b8211f53e5b9ab34fbc4d1dfd5e843a06ac4164",
+      "size_bytes": 209
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-diagnose/references/workflow.md",
+      "sha256": "6fb70fe3759a03f3479e83650b2f9a9fac63dd62b53e66265e4b35d33855bd18",
+      "size_bytes": 689
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-framework-task/SKILL.md",
+      "sha256": "216e890e563315cd5f23ac36c4feb358e13ed6f17c153ac844dce701a54c3bd3",
+      "size_bytes": 1551
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-framework-task/agents/openai.yaml",
+      "sha256": "4ab40e27c519c4a4112b4673b2416b65b41c0d061a300924af01d7d5bf00a8f5",
+      "size_bytes": 227
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-framework-task/references/workflow.md",
+      "sha256": "2352e8c8aad710341d60ffd2d73128930a67b8e35e75ec9e8ee3cd64a796e178",
+      "size_bytes": 732
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-lifecycle/SKILL.md",
+      "sha256": "2ec61692cb83afcae735096e55e7a640b4af0e3344052c04fe585e40396caca0",
+      "size_bytes": 1536
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-lifecycle/agents/openai.yaml",
+      "sha256": "3019b58278d6fdd3fbcb2c8880bcd8775a312f5e219ab4c7e0e847631854a20c",
+      "size_bytes": 222
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-lifecycle/references/workflow.md",
+      "sha256": "62b16fc4d2ff24d60428afa731eb0d4a32bbc5722f014ace133c55bd609464cc",
+      "size_bytes": 780
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-operation/SKILL.md",
+      "sha256": "fcc3f67df5d9a1acf8fbd344d0e2c55554c483f22d472597d7b9231e8afdf69b",
+      "size_bytes": 1619
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-operation/agents/openai.yaml",
+      "sha256": "22f11f5bac085e782c67fdd846072a1c11198959d22651ab02fbbb38ff0ce669",
+      "size_bytes": 211
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-operation/references/workflow.md",
+      "sha256": "9b57decb6e5be833e111e17c20817e360a78561d83f5786ae082e2b035dbe209",
+      "size_bytes": 840
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-plugin/SKILL.md",
+      "sha256": "ea305d88358dd785ffa74dcab516048b2c5c28d4bd5d2b035c2427bcdc3dbdec",
+      "size_bytes": 1417
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-plugin/agents/openai.yaml",
+      "sha256": "d479b7a7282a5af74f45925381898ac360cfcea36a26a0cacabc8e249925bdff",
+      "size_bytes": 179
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-plugin/references/workflow.md",
+      "sha256": "4888b6736a0c71091528fd8fe492559d9e3660c747ca9d895ae16604c9ab8a96",
+      "size_bytes": 701
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-release/SKILL.md",
+      "sha256": "892ed0dbbdd220c8fd9a97867d61301fbc33e5100e80d934a711f9a00c31e0e8",
+      "size_bytes": 1411
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-release/agents/openai.yaml",
+      "sha256": "25566022090a1b8c9e0ecc3a84e712921573ce78181605f59556b7f965e3dc39",
+      "size_bytes": 275
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-release/references/workflow.md",
+      "sha256": "7ceea6d60cd98e60b807c045df43fca6677ef93f6140227332c7f2932ba388d9",
+      "size_bytes": 609
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-review/SKILL.md",
+      "sha256": "0be1233d3b81a34ad04f2a90a7e200f02977ef2dcc410c8d17f75670b3819180",
+      "size_bytes": 1310
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-review/agents/openai.yaml",
+      "sha256": "91310ee3cf83ccead1a3fbca22b7eea20f84119e174005e2f8cbcf7b26210a88",
+      "size_bytes": 206
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-review/references/workflow.md",
+      "sha256": "c7a80140a74ab5a279d16451e82151ac615e64b8f6bd37a97f93a18fcf120438",
+      "size_bytes": 578
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-web-application/SKILL.md",
+      "sha256": "97d9e47a68a0e3fb9fb7ec7961b0ec0709fd6fe0fd8604fced7281a897a2af7e",
+      "size_bytes": 1665
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-web-application/agents/openai.yaml",
+      "sha256": "848c469b4ce304fe28971a7dabbf07c435ae7bf45427ada0d03555eda5971c65",
+      "size_bytes": 203
+    },
+    {
+      "path": "crates/minco-cli/assets/agent/skills/minco-web-application/references/workflow.md",
+      "sha256": "6b59e4946ade196a07d97da3c5041a62ca9e5e5532482473dfb5b29b772cc962",
+      "size_bytes": 935
     },
     {
       "path": "crates/minco-cli/src/architecture.rs",
@@ -531,6 +661,11 @@
       "path": "crates/minco-cli/templates/generator/worker.rs.tmpl",
       "sha256": "316a8e9bb37a2e6b1508adf84c68c710dc6684ec2b37ba9606783e193464c2ff",
       "size_bytes": 146
+    },
+    {
+      "path": "crates/minco-cli/tests/agent_skills.rs",
+      "sha256": "7c17c9d2cb11f1f4b3594470f296cc62475a29ba0a96abda0ff176e68808f005",
+      "size_bytes": 8378
     },
     {
       "path": "crates/minco-cli/tests/compatibility_cli.rs",
@@ -4594,13 +4729,13 @@
     },
     {
       "path": "tasks/M13/M13-T02-portable-agent-skills.md",
-      "sha256": "9d3a2aab9c8702f8fd6d702b21da67cf566b56b920eff4eb3434c8f7e8447f94",
-      "size_bytes": 1502
+      "sha256": "6f344505220b0b78d386acc370f19b746ba937bbfdacdfda8b0c670fcfc2868b",
+      "size_bytes": 2806
     },
     {
       "path": "tasks/M13/M13-T03-agent-plan-sync-doctor.md",
-      "sha256": "c1271178a80e131beff2a0ff5f6a32936aca1e392ee9a3e227455f845b0577ba",
-      "size_bytes": 1612
+      "sha256": "cc798f1e6ecc4787026cb1297a4e8c691d4650ac0b8b663e28b74bc7c74ef6d7",
+      "size_bytes": 1610
     },
     {
       "path": "tasks/M13/M13-T04-agent-context.md",
@@ -4849,7 +4984,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "6ddfffb17d54cf0a9f53f7dde5fbaee223281aa0ca6a970795b7002dd382719e",
+      "sha256": "c45f60dd162bcb3128fa90a919137fab1f15a3fc3fd0ace28fe961d40446b586",
       "size_bytes": 2021
     },
     {
@@ -4909,7 +5044,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "54fd16983fac3a2cc772ab2f79e0ecc2b37b5254fb4bbeb0b7f62cfe846675f5",
+      "sha256": "e726f7f4b212d1c5a747dc4ab335edab803260dfdcaa177d64e1a91eab2bd480",
       "size_bytes": 754
     },
     {
@@ -4939,7 +5074,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "d232b5f23a8fb081ee540db68bcc1844d58138dc1e2d94822270c39db8fe1c76",
-  "total_size_bytes": 6752371,
+  "source_tree_sha256": "2de4e955e0f3d1ce731d35b8bbef8be91d01f3002ee5420bc2e20a0192b6adfc",
+  "total_size_bytes": 6789251,
   "version": "1.0.0"
 }
