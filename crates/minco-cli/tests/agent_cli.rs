@@ -772,6 +772,109 @@ fn claude_bridge_rejects_unsafe_agents_instructions() {
     );
 }
 
+#[test]
+fn evaluation_requires_installed_projections_and_performs_no_side_effects() {
+    let root = project();
+    let before = snapshot(root.path());
+
+    let missing = successful_json(&run(root.path(), &["eval", "--target", "all"]));
+    assert_eq!(missing["status"], "failed");
+    assert_eq!(missing["projection"]["status"], "failed");
+    assert_eq!(missing["bounds"]["writes"], 0);
+    assert_eq!(missing["bounds"]["commands_executed"], 0);
+    assert_eq!(missing["bounds"]["network_requests"], 0);
+    assert_eq!(missing["bounds"]["model_invocations"], 0);
+    assert_eq!(snapshot(root.path()), before);
+
+    let install = plan(root.path(), "all");
+    successful_json(&run(
+        root.path(),
+        &[
+            "sync",
+            "--target",
+            "all",
+            "--expect-plan-digest",
+            plan_digest(&install),
+        ],
+    ));
+    let installed = snapshot(root.path());
+    let report = successful_json(&run(root.path(), &["eval", "--target", "all"]));
+
+    assert_eq!(report["status"], "passed");
+    assert_eq!(report["skills"]["status"], "passed");
+    assert_eq!(report["skills"]["checked"], 8);
+    assert_eq!(report["skills"]["files"], 24);
+    assert_eq!(report["projection"]["status"], "passed");
+    assert_eq!(report["projection"]["parity"]["status"], "passed");
+    assert_eq!(report["projection"]["parity"]["compared_files"], 24);
+    assert_eq!(report["forward_model"]["status"], "not_run");
+    assert_eq!(snapshot(root.path()), installed);
+}
+
+#[test]
+fn evaluation_validates_every_trigger_and_boundary_contract() {
+    let root = project();
+    let install = plan(root.path(), "all");
+    successful_json(&run(
+        root.path(),
+        &[
+            "sync",
+            "--target",
+            "all",
+            "--expect-plan-digest",
+            plan_digest(&install),
+        ],
+    ));
+
+    let report = successful_json(&run(root.path(), &["eval", "--target", "all"]));
+    assert_eq!(report["scenarios"]["status"], "passed");
+    assert_eq!(report["scenarios"]["total"], 16);
+    assert_eq!(report["scenarios"]["trigger"], 8);
+    assert_eq!(report["scenarios"]["boundary"], 8);
+    assert_eq!(report["scenarios"]["skills_covered"], 8);
+    assert!(
+        report["scenarios"]["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|result| result["status"] == "passed")
+    );
+}
+
+#[test]
+fn evaluation_reports_projection_drift_without_replacing_it() {
+    let root = project();
+    let install = plan(root.path(), "codex");
+    successful_json(&run(
+        root.path(),
+        &[
+            "sync",
+            "--target",
+            "codex",
+            "--expect-plan-digest",
+            plan_digest(&install),
+        ],
+    ));
+    let changed = root.path().join(".agents/skills/minco-operation/SKILL.md");
+    fs::write(&changed, "user-edited instructions\n").expect("edit managed skill");
+    let before = snapshot(root.path());
+
+    let report = successful_json(&run(root.path(), &["eval", "--target", "codex"]));
+    assert_eq!(report["status"], "failed");
+    assert_eq!(report["projection"]["status"], "failed");
+    assert!(
+        report["projection"]["clients"][0]["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| {
+                issue["path"] == ".agents/skills/minco-operation/SKILL.md"
+                    && issue["code"] == "projection_conflict"
+            })
+    );
+    assert_eq!(snapshot(root.path()), before);
+}
+
 #[cfg(unix)]
 #[test]
 fn symlinked_projection_paths_fail_closed_without_touching_the_target() {

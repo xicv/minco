@@ -1,0 +1,77 @@
+{
+  "bundle_digest": "d007230643842ac3f2af6365e22327515827542a2c52bbbf9e44695c41768384",
+  "evidence_lanes": {
+    "deployment": "absent",
+    "hosted": "absent",
+    "local": "deterministic CLI and filesystem boundary checks",
+    "review": "absent",
+    "runtime": "absent",
+    "source": "checked-in assets and scenario contracts"
+  },
+  "forward_model": {
+    "clients": [
+      "codex",
+      "claude"
+    ],
+    "detail": "No model-driven result is represented by this deterministic evidence.",
+    "status": "not_run"
+  },
+  "harness": {
+    "commands_executed": 9,
+    "model_invocations": 0,
+    "network_requests": 0,
+    "writes_outside_temporary_roots": [
+      "verification/agent-workflows.json"
+    ]
+  },
+  "limitations": [
+    "Scenario contract validation is not a model quality score.",
+    "Client discovery is proven through documented project layouts and byte parity, not interactive client UI automation.",
+    "No hosted, deployment, runtime, production, or acceptance evidence was produced."
+  ],
+  "minco_version": "1.0.0",
+  "negative_cases": {
+    "evidence_lane_upgrade_forbidden": true,
+    "framework_application_mode_separated": true,
+    "implicit_side_effects_forbidden": true,
+    "stale_destination_preserved": true,
+    "stale_plan_rejected": true,
+    "user_owned_claude_preserved": true
+  },
+  "operation": "deterministic_agent_workflow_qualification",
+  "projection": {
+    "byte_parity": true,
+    "canonical_files_per_client": 24,
+    "claude_path": ".claude/skills",
+    "codex_path": ".agents/skills",
+    "initial_plan_digest": "53747f693793642be543f59f7eaa3126e378185352f28d1c476ea0b690c6fd9b",
+    "read_only_eval": true
+  },
+  "scenario_suite_digest": "9da096fa37c896cac2292112e51f48499ac491812083c07b8d0e25418f321081",
+  "scenarios": {
+    "boundary": 8,
+    "contracts_valid": true,
+    "skills_covered": 8,
+    "total": 16,
+    "trigger": 8
+  },
+  "schema_version": 1,
+  "status": "ok",
+  "targets": {
+    "all": {
+      "projection": "passed",
+      "scenarios": "passed",
+      "status": "passed"
+    },
+    "claude": {
+      "projection": "passed",
+      "scenarios": "passed",
+      "status": "passed"
+    },
+    "codex": {
+      "projection": "passed",
+      "scenarios": "passed",
+      "status": "passed"
+    }
+  }
+}

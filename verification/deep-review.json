@@ -10,7 +10,7 @@
     "metrics": {
       "toml_files": 91,
       "yaml_files": 35,
-      "json_files": 49,
+      "json_files": 50,
       "workspace_members": 38,
       "contract_sha256": "f0e0d1aee9858e54f814270b6f78a5c63ea6993311210f6a6f6ee7323838843f",
       "contract_operations": 7,
@@ -19,9 +19,9 @@
       "milestones": 14,
       "tasks": 80,
       "rust_files": 172,
-      "python_files": 29,
+      "python_files": 30,
       "shell_files": 77,
-      "implementation_files_scanned": 418
+      "implementation_files_scanned": 419
     },
     "findings": [],
     "limitations": [
@@ -31,8 +31,8 @@
   },
   "metrics": {
     "rust_files": 172,
-    "rust_lines": 82913,
-    "unsafe_tokens": 12,
+    "rust_lines": 83502,
+    "unsafe_tokens": 13,
     "production_unwrap_expect": 177,
     "sql_files": 16
   },

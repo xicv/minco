@@ -69,6 +69,17 @@ Re-run discovery and drift diagnosis without writing:
 cargo minco agent doctor --target all --json
 ```
 
+Qualify the installed skill bytes and deterministic workflow contracts without
+calling a model:
+
+```text
+cargo minco agent eval --target all --json
+```
+
+The evaluation must report `forward_model.status: not_run`. Treat its passing
+result as local projection and scenario-contract evidence only; it does not
+prove that a particular model response is correct.
+
 MCP configuration deliberately remains manual and user-owned. Review the
 client's project configuration before adding Minco's local read-only MCP server;
 skill synchronization does not grant mutation authority to that server or to

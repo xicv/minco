@@ -90,17 +90,21 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
             "application" | "framework" | "shared"
         ));
         assert!(!skill.documentation.is_empty());
-        assert!(skill
-            .documentation
-            .iter()
-            .all(|identifier| identifier.starts_with("minco-1.0.0:")));
+        assert!(
+            skill
+                .documentation
+                .iter()
+                .all(|identifier| identifier.starts_with("minco-1.0.0:"))
+        );
         for identifier in &skill.documentation {
             let relative = identifier
                 .strip_prefix("minco-1.0.0:")
                 .expect("versioned documentation identifier");
-            assert!(Path::new(relative)
-                .components()
-                .all(|component| matches!(component, Component::Normal(_))));
+            assert!(
+                Path::new(relative)
+                    .components()
+                    .all(|component| matches!(component, Component::Normal(_)))
+            );
             let documentation = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../..")
                 .join("docs-site/1.0.0")
@@ -112,17 +116,21 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
         }
 
         let skill_root = root.join(&skill.path);
-        assert!(Path::new(&skill.path)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_))));
+        assert!(
+            Path::new(&skill.path)
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)))
+        );
         assert_eq!(
             skill_root.file_name().and_then(|name| name.to_str()),
             Some(skill.name.as_str())
         );
-        assert!(!fs::symlink_metadata(&skill_root)
-            .expect("skill directory metadata")
-            .file_type()
-            .is_symlink());
+        assert!(
+            !fs::symlink_metadata(&skill_root)
+                .expect("skill directory metadata")
+                .file_type()
+                .is_symlink()
+        );
 
         let source = fs::read_to_string(skill_root.join("SKILL.md")).expect("skill instructions");
         assert!(source.lines().count() < 500, "{} is too large", skill.name);
@@ -153,10 +161,12 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
             .as_str()
             .expect("short skill description");
         assert!((25..=64).contains(&short_description.len()));
-        assert!(openai["interface"]["default_prompt"]
-            .as_str()
-            .expect("default skill prompt")
-            .contains(&format!("${}", skill.name)));
+        assert!(
+            openai["interface"]["default_prompt"]
+                .as_str()
+                .expect("default skill prompt")
+                .contains(&format!("${}", skill.name))
+        );
         if skill.name == "minco-release" {
             assert_eq!(
                 openai["policy"]["allow_implicit_invocation"].as_bool(),
