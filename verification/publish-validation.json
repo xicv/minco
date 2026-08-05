@@ -97,11 +97,11 @@
       "orders-domain",
       "orders-service"
     ],
-    "registry_check_performed": true,
-    "registry_checks_succeeded": 33,
+    "registry_check_performed": false,
+    "registry_checks_succeeded": 0,
     "expect_unpublished": false,
     "expect_published": false,
-    "require_registry": true
+    "require_registry": false
   },
   "findings": [],
   "limitations": [

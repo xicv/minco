@@ -4949,8 +4949,8 @@
     },
     {
       "path": "tasks/M14/M14-T01-minco-1-1-release-candidate.md",
-      "sha256": "4d2abd41857110eafa2fc2849591b0e762e86a9d45804d73e0a623f79f8b5ced",
-      "size_bytes": 4591
+      "sha256": "7beb6cd0a6d11929cf5464478e02bb1b7fbb9d39b5e15bff348029efa01dce4b",
+      "size_bytes": 5181
     },
     {
       "path": "tasks/M14/M14-T02-promote-1-1-publication.md",
@@ -5214,8 +5214,8 @@
     },
     {
       "path": "verification/publish-validation.json",
-      "sha256": "d66e4dfd647ebc567709d1becc9bdccadd6bcbeda1202417de233386f94357a1",
-      "size_bytes": 2831
+      "sha256": "960b6ab7228526f1469c93c90954df20f091d9c16048561ae6d7a6f20e4005c8",
+      "size_bytes": 2832
     },
     {
       "path": "verification/published-release-validation.json",
@@ -5254,7 +5254,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "a2f0e1c15a510bf0d4915898ac56b4e563115120e03e88ca05ce076b3d9eae0e",
+      "sha256": "6ffe4cab6c7e40a53fda59182630938f3e18e4fe2b078e73f76510441cb59372",
       "size_bytes": 754
     },
     {
@@ -5284,7 +5284,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "cb1c18c48c33ca893d86289b79106f1077edec6b02f4d0db29e1105064f20179",
-  "total_size_bytes": 7064711,
+  "source_tree_sha256": "f06d5d80bd0d9b0ef9771ca71872c743053d11d419deeb0480b1c5914c4fcda1",
+  "total_size_bytes": 7065302,
   "version": "1.1.0"
 }

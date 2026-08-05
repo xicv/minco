@@ -83,6 +83,15 @@ the newly merged agent command. The release candidate fixes those diagnostics
 without broad formatting and advances all archive-visible official plugin core
 compatibility ranges to `^1.1.0`, matching their linked descriptors.
 
+The first exact-candidate hosted release run, GitHub Actions run `31056685496`,
+completed the compiler, test, security and documentation gates before the
+terminal source-manifest check found stale evidence. The checked publish report
+contained the separate registry-connected pre-publication result, while the
+standard quality lane correctly rewrites that path with its canonical offline
+report; the static report also predated the new M14 task records. The candidate
+now stores those deterministic canonical reports, while the registry-connected
+result remains recorded separately below.
+
 Local candidate evidence on 2026-08-06:
 
 - Rustfmt 1.9.0 checked only the five modified Rust files with edition 2024;
