@@ -39,7 +39,7 @@ flowchart LR
     NM4T03["M4-T03<br/>Verify the source-workspace update command"]
     NM4T04["M4-T04<br/>Drive Plan IR and local topology from one application graph"]
     NM5T01["M5-T01<br/>Build deploy and verify the real AWS development stack"]
-    NM6T01["M6-T01<br/>Design and implement an explicit DynamoDB orders adapter"]
+    NM6T01["M6-T01<br/>Design and implement the explicit DynamoDB Orders access model"]
     NM6T02["M6-T02<br/>Stabilize provider-neutral essential plugin contracts"]
     NM6T03["M6-T03<br/>Ship the official Feedback review-loop plugin"]
     NM6T04["M6-T04<br/>Implement production AWS adapters for official plugin ports"]
@@ -140,6 +140,8 @@ flowchart LR
     NM4T01 --> NM5T01
     NM4T01 --> NM6T01
     NM5T01 --> NM6T01
+    NM9T08 --> NM6T01
+    NM12T06 --> NM6T01
     NM5T01 --> NM6T02
     NM2T01 --> NM6T03
     NM5T01 --> NM6T04

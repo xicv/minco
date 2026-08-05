@@ -63,16 +63,17 @@ milestones:
   - Hosted contract, readiness, authentication, and performance smoke checks pass.
   - Deployment evidence contains no secrets.
 - id: M6
-  name: Essential official extensions
+  name: Essential official extensions and explicit DynamoDB access
   status: active
   depends_on:
   - M5
-  outcome: Optional sessions, identity, object storage, queue/outbox, notifications, audit, Feedback, and static-site extensions use the same capability model.
+  outcome: Optional sessions, identity, object storage, queue/outbox, notifications, audit, Feedback, static-site, and access-pattern-specific DynamoDB support use the same capability model.
   exit_criteria:
   - Every extension is independently selectable and testable.
   - No extension introduces hidden scheduled work or fixed capacity.
   - IAM permissions derive from declared capabilities.
   - Typed registrations retain bounded, non-spoofable owner provenance for inspection.
+  - DynamoDB Orders behavior, table keys, indexes, consistency, IAM and cost are explicit and never emulate relational storage.
 - id: M7
   name: Two-application stabilization
   status: complete
