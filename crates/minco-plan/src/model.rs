@@ -294,7 +294,16 @@ fn local_aws_services(
 ) -> Vec<String> {
     let mut services = std::collections::BTreeSet::new();
     if matches!(runtime, RuntimePlan::LambdaZipArm64) {
-        services.extend(["ssm".to_owned(), "sts".to_owned()]);
+        services.insert("sts".to_owned());
+        if matches!(
+            database,
+            DatabaseDeployment::NeonPostgres { .. }
+                | DatabaseDeployment::SelfHostedPostgres { .. }
+                | DatabaseDeployment::RdsPostgres { .. }
+                | DatabaseDeployment::AuroraServerlessV2 { .. }
+        ) {
+            services.insert("ssm".to_owned());
+        }
     }
     if matches!(database, DatabaseDeployment::DynamoDbOnDemand { .. }) {
         services.insert("dynamodb".into());
@@ -779,6 +788,7 @@ impl DeploymentPlan {
                 "MINCO-DB-002",
                 "DynamoDB is an alternate persistence model, not a transparent replacement for relational PostgreSQL adapters",
             ));
+            validate_dynamodb_table(self, &mut diagnostics);
         }
         for field in self.database.invalid_numeric_inputs() {
             diagnostics.push(error(
@@ -1202,6 +1212,12 @@ fn validate_sam_resource_identifiers(plan: &DeploymentPlan, diagnostics: &mut Ve
             ));
         }
     };
+    if let Some(table) = plan.database.dynamodb_table() {
+        insert_resource(
+            table.logical_id.clone(),
+            "DynamoDB table contract".to_owned(),
+        );
+    }
     for function in plan
         .functions
         .iter()
@@ -1319,6 +1335,105 @@ fn valid_sqs_queue_name(value: &str, fifo: bool) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
+fn validate_dynamodb_table(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiagnostic>) {
+    let Some(table) = plan.database.dynamodb_table() else {
+        return;
+    };
+    if plan.schema_version != 2 {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-001",
+            "an explicit DynamoDB table contract requires deployment schema version 2",
+        ));
+    }
+    if !is_cloudformation_logical_id(&table.logical_id) {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-002",
+            "DynamoDB logical_id must be a CloudFormation logical identifier",
+        ));
+    }
+    if !plan
+        .functions
+        .iter()
+        .any(|function| function.name == table.function_id)
+    {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-003",
+            "DynamoDB function_id must name one configured function",
+        ));
+    }
+    if table.global_secondary_indexes.len() > 20 {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-004",
+            "a DynamoDB table contract supports at most 20 global secondary indexes",
+        ));
+    }
+
+    let mut attributes = std::collections::BTreeMap::new();
+    record_dynamodb_attribute(&table.partition_key, &mut attributes, diagnostics);
+    if let Some(sort_key) = &table.sort_key {
+        if sort_key.name == table.partition_key.name {
+            diagnostics.push(error(
+                "MINCO-DYNAMODB-007",
+                "DynamoDB partition and sort keys must use different attributes",
+            ));
+        }
+        record_dynamodb_attribute(sort_key, &mut attributes, diagnostics);
+    }
+
+    let mut index_names = std::collections::BTreeSet::new();
+    for index in &table.global_secondary_indexes {
+        if !valid_dynamodb_index_name(&index.name) || !index_names.insert(index.name.as_str()) {
+            diagnostics.push(error(
+                "MINCO-DYNAMODB-008",
+                "DynamoDB global secondary index names must be unique valid provider names",
+            ));
+        }
+        record_dynamodb_attribute(&index.partition_key, &mut attributes, diagnostics);
+        if let Some(sort_key) = &index.sort_key {
+            if sort_key.name == index.partition_key.name {
+                diagnostics.push(error(
+                    "MINCO-DYNAMODB-007",
+                    "DynamoDB partition and sort keys must use different attributes",
+                ));
+            }
+            record_dynamodb_attribute(sort_key, &mut attributes, diagnostics);
+        }
+    }
+}
+
+fn valid_dynamodb_attribute_name(value: &str) -> bool {
+    (1..=255).contains(&value.len()) && !value.chars().any(char::is_control)
+}
+
+fn record_dynamodb_attribute(
+    attribute: &DynamoDbKeyAttribute,
+    attributes: &mut std::collections::BTreeMap<String, DynamoDbScalarType>,
+    diagnostics: &mut Vec<PlanDiagnostic>,
+) {
+    if !valid_dynamodb_attribute_name(&attribute.name) {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-005",
+            "DynamoDB key attribute names must contain 1 to 255 visible bytes",
+        ));
+    }
+    if attributes
+        .insert(attribute.name.clone(), attribute.scalar_type)
+        .is_some_and(|existing| existing != attribute.scalar_type)
+    {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-006",
+            "a DynamoDB key attribute must have one consistent scalar type",
+        ));
+    }
+}
+
+fn valid_dynamodb_index_name(value: &str) -> bool {
+    (3..=255).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+}
+
 fn redrive_cycle_start<'a>(
     queues: &std::collections::BTreeMap<&'a str, &'a QueuePlan>,
 ) -> Option<&'a str> {
@@ -1384,6 +1499,71 @@ pub enum IngressPlan {
     LocalTcp,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DynamoDbScalarType {
+    String,
+    Number,
+    Binary,
+}
+
+impl DynamoDbScalarType {
+    #[must_use]
+    pub const fn cloudformation_code(self) -> &'static str {
+        match self {
+            Self::String => "S",
+            Self::Number => "N",
+            Self::Binary => "B",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DynamoDbKeyAttribute {
+    pub name: String,
+    pub scalar_type: DynamoDbScalarType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DynamoDbProjection {
+    All,
+    KeysOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DynamoDbGlobalSecondaryIndex {
+    pub name: String,
+    pub partition_key: DynamoDbKeyAttribute,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort_key: Option<DynamoDbKeyAttribute>,
+    pub projection: DynamoDbProjection,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DynamoDbDeletionPolicy {
+    Delete,
+    Retain,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DynamoDbTablePlan {
+    pub logical_id: String,
+    pub function_id: String,
+    pub partition_key: DynamoDbKeyAttribute,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort_key: Option<DynamoDbKeyAttribute>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub global_secondary_indexes: Vec<DynamoDbGlobalSecondaryIndex>,
+    #[serde(default)]
+    pub point_in_time_recovery: bool,
+    pub deletion_policy: DynamoDbDeletionPolicy,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DatabaseDeployment {
@@ -1427,6 +1607,8 @@ pub enum DatabaseDeployment {
         write_million_rate_usd: Option<f64>,
         storage_gb_month: f64,
         storage_rate_usd: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        table: Option<DynamoDbTablePlan>,
     },
     SqlitePersistentHost {
         host_monthly_usd: f64,
@@ -1438,6 +1620,14 @@ pub enum DatabaseDeployment {
 }
 
 impl DatabaseDeployment {
+    #[must_use]
+    pub const fn dynamodb_table(&self) -> Option<&DynamoDbTablePlan> {
+        match self {
+            Self::DynamoDbOnDemand { table, .. } => table.as_ref(),
+            _ => None,
+        }
+    }
+
     #[must_use]
     pub const fn kind_name(&self) -> &'static str {
         match self {
@@ -1573,6 +1763,7 @@ impl DatabaseDeployment {
                 write_million_rate_usd,
                 storage_gb_month,
                 storage_rate_usd,
+                ..
             } => {
                 check_non_negative(
                     &mut invalid,
@@ -1731,6 +1922,7 @@ pub struct IamIntent {
 pub enum IamResource {
     DatabaseUrlParameter,
     DatabaseUrlKmsKey,
+    DynamoDbTable { logical_id: String },
     Queue { queue_id: String },
     Function { function_id: String },
 }
@@ -1746,6 +1938,26 @@ fn derive_iam_intents(
         return Vec::new();
     }
     let mut intents = Vec::new();
+    if matches!(runtime, RuntimePlan::LambdaZipArm64)
+        && let Some(table) = database.dynamodb_table()
+    {
+        intents.push(IamIntent {
+            function_id: table.function_id.clone(),
+            actions: [
+                "dynamodb:DescribeTable",
+                "dynamodb:GetItem",
+                "dynamodb:Query",
+                "dynamodb:TransactWriteItems",
+                "dynamodb:UpdateItem",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            resource: IamResource::DynamoDbTable {
+                logical_id: table.logical_id.clone(),
+            },
+        });
+    }
     if matches!(runtime, RuntimePlan::LambdaZipArm64)
         && matches!(
             database,
@@ -1818,6 +2030,7 @@ fn iam_resource_key(resource: &IamResource) -> (&str, &str) {
     match resource {
         IamResource::DatabaseUrlParameter => ("database_url_parameter", ""),
         IamResource::DatabaseUrlKmsKey => ("database_url_kms_key", ""),
+        IamResource::DynamoDbTable { logical_id } => ("dynamodb_table", logical_id),
         IamResource::Queue { queue_id } => ("queue", queue_id),
         IamResource::Function { function_id } => ("function", function_id),
     }

@@ -1,7 +1,8 @@
 use crate::{
-    AuthPlan, DatabaseDeployment, DeploymentPlan, FunctionPlan, FunctionRole, IngressPlan,
-    PlanError, QueuePlan, RealtimeDeployment, RuntimePlan, StaticSiteDeployment, TriggerPlan,
-    oidc_client_id_pattern, realtime_oidc_auth_is_valid, sam_logical_id,
+    AuthPlan, DatabaseDeployment, DeploymentPlan, DynamoDbDeletionPolicy, DynamoDbProjection,
+    DynamoDbTablePlan, FunctionPlan, FunctionRole, IngressPlan, PlanError, QueuePlan,
+    RealtimeDeployment, RuntimePlan, StaticSiteDeployment, TriggerPlan, oidc_client_id_pattern,
+    realtime_oidc_auth_is_valid, sam_logical_id,
 };
 use minco_contract::HttpMethod;
 use std::{collections::BTreeMap, fmt::Write as _};
@@ -36,13 +37,14 @@ pub fn render_sam_with_code_uris(
             "the initial SAM renderer requires api_gateway_http_api".into(),
         ));
     }
-    if !matches!(
+    let postgres_database = matches!(
         &plan.database,
         DatabaseDeployment::NeonPostgres { .. }
             | DatabaseDeployment::SelfHostedPostgres { .. }
             | DatabaseDeployment::RdsPostgres { .. }
             | DatabaseDeployment::AuroraServerlessV2 { .. }
-    ) {
+    );
+    if !postgres_database && plan.database.dynamodb_table().is_none() {
         return Err(PlanError::UnsupportedDeployment(
             "this renderer requires an externally provisioned PostgreSQL-compatible database; DynamoDB needs a dedicated adapter/rendering plugin and mutable SQLite is rejected on Lambda".into(),
         ));
@@ -101,6 +103,9 @@ pub fn render_sam_with_code_uris(
         render_database_conditions(&mut output);
     }
     output.push_str("Resources:\n");
+    if let Some(table) = plan.database.dynamodb_table() {
+        render_dynamodb_table(&mut output, table);
+    }
     if let Some(static_site) = &plan.static_site {
         render_static_site_resources(&mut output, static_site);
     }
@@ -190,6 +195,11 @@ pub fn render_sam_with_code_uris(
     if function.database_connections_per_instance > 0 {
         render_database_environment(&mut output, function);
     }
+    if let Some(table) = plan.database.dynamodb_table()
+        && table.function_id == function.name
+    {
+        render_dynamodb_environment(&mut output, table);
+    }
     writeln!(
         output,
         "          ALLOWED_ORIGINS: {}",
@@ -206,11 +216,20 @@ pub fn render_sam_with_code_uris(
         )
         .expect("writing to String cannot fail");
     }
-    if function.database_connections_per_instance > 0 || plan.realtime.is_some() {
+    let uses_dynamodb = plan
+        .database
+        .dynamodb_table()
+        .is_some_and(|table| table.function_id == function.name);
+    if function.database_connections_per_instance > 0 || uses_dynamodb || plan.realtime.is_some() {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
         if function.database_connections_per_instance > 0 {
             render_database_policy_statements(&mut output);
+        }
+        if let Some(table) = plan.database.dynamodb_table()
+            && table.function_id == function.name
+        {
+            render_dynamodb_policy_statement(&mut output, table);
         }
         if let Some(realtime) = &plan.realtime {
             render_realtime_policy_statement(&mut output, realtime);
@@ -680,6 +699,156 @@ fn render_vpc_config(output: &mut String) {
     output.push_str("        - !Ref AWS::NoValue\n");
 }
 
+fn render_dynamodb_table(output: &mut String, table: &DynamoDbTablePlan) {
+    writeln!(output, "  {}:", table.logical_id).expect("writing to String cannot fail");
+    output.push_str("    Type: AWS::DynamoDB::Table\n");
+    let deletion_policy = match table.deletion_policy {
+        DynamoDbDeletionPolicy::Delete => "Delete",
+        DynamoDbDeletionPolicy::Retain => "Retain",
+    };
+    writeln!(output, "    DeletionPolicy: {deletion_policy}")
+        .expect("writing to String cannot fail");
+    writeln!(output, "    UpdateReplacePolicy: {deletion_policy}")
+        .expect("writing to String cannot fail");
+    output.push_str("    Properties:\n");
+    output.push_str("      BillingMode: PAY_PER_REQUEST\n");
+    output.push_str("      AttributeDefinitions:\n");
+    let mut attributes = BTreeMap::new();
+    attributes.insert(
+        table.partition_key.name.as_str(),
+        table.partition_key.scalar_type,
+    );
+    if let Some(sort_key) = &table.sort_key {
+        attributes.insert(sort_key.name.as_str(), sort_key.scalar_type);
+    }
+    for index in &table.global_secondary_indexes {
+        attributes.insert(
+            index.partition_key.name.as_str(),
+            index.partition_key.scalar_type,
+        );
+        if let Some(sort_key) = &index.sort_key {
+            attributes.insert(sort_key.name.as_str(), sort_key.scalar_type);
+        }
+    }
+    for (name, scalar_type) in attributes {
+        writeln!(output, "        - AttributeName: {}", yaml_quote(name))
+            .expect("writing to String cannot fail");
+        writeln!(
+            output,
+            "          AttributeType: {}",
+            scalar_type.cloudformation_code()
+        )
+        .expect("writing to String cannot fail");
+    }
+    output.push_str("      KeySchema:\n");
+    render_dynamodb_key_schema(
+        output,
+        &table.partition_key.name,
+        table.sort_key.as_ref().map(|key| key.name.as_str()),
+        8,
+    );
+    if !table.global_secondary_indexes.is_empty() {
+        output.push_str("      GlobalSecondaryIndexes:\n");
+        for index in &table.global_secondary_indexes {
+            writeln!(output, "        - IndexName: {}", yaml_quote(&index.name))
+                .expect("writing to String cannot fail");
+            output.push_str("          KeySchema:\n");
+            render_dynamodb_key_schema(
+                output,
+                &index.partition_key.name,
+                index.sort_key.as_ref().map(|key| key.name.as_str()),
+                12,
+            );
+            output.push_str("          Projection:\n");
+            let projection = match index.projection {
+                DynamoDbProjection::All => "ALL",
+                DynamoDbProjection::KeysOnly => "KEYS_ONLY",
+            };
+            writeln!(output, "            ProjectionType: {projection}")
+                .expect("writing to String cannot fail");
+        }
+    }
+    output.push_str("      PointInTimeRecoverySpecification:\n");
+    writeln!(
+        output,
+        "        PointInTimeRecoveryEnabled: {}",
+        table.point_in_time_recovery
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("      SSESpecification:\n");
+    output.push_str("        SSEEnabled: true\n");
+}
+
+fn render_dynamodb_key_schema(
+    output: &mut String,
+    partition_key: &str,
+    sort_key: Option<&str>,
+    indent: usize,
+) {
+    let spaces = " ".repeat(indent);
+    writeln!(
+        output,
+        "{spaces}- AttributeName: {}",
+        yaml_quote(partition_key)
+    )
+    .expect("writing to String cannot fail");
+    writeln!(output, "{spaces}  KeyType: HASH").expect("writing to String cannot fail");
+    if let Some(sort_key) = sort_key {
+        writeln!(output, "{spaces}- AttributeName: {}", yaml_quote(sort_key))
+            .expect("writing to String cannot fail");
+        writeln!(output, "{spaces}  KeyType: RANGE").expect("writing to String cannot fail");
+    }
+}
+
+fn render_dynamodb_environment(output: &mut String, table: &DynamoDbTablePlan) {
+    output.push_str("          DATABASE_KIND: dynamodb\n");
+    writeln!(
+        output,
+        "          DYNAMODB_TABLE_NAME: !Ref {}",
+        table.logical_id
+    )
+    .expect("writing to String cannot fail");
+}
+
+fn render_dynamodb_policy_statement(output: &mut String, table: &DynamoDbTablePlan) {
+    output.push_str("            - Effect: Allow\n");
+    output.push_str("              Action:\n");
+    for action in [
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:TransactWriteItems",
+        "dynamodb:UpdateItem",
+    ] {
+        writeln!(output, "                - {action}").expect("writing to String cannot fail");
+    }
+    writeln!(
+        output,
+        "              Resource: !GetAtt {}.Arn",
+        table.logical_id
+    )
+    .expect("writing to String cannot fail");
+    output.push_str("            - Effect: Allow\n");
+    output.push_str("              Action: dynamodb:Query\n");
+    if table.global_secondary_indexes.is_empty() {
+        writeln!(
+            output,
+            "              Resource: !GetAtt {}.Arn",
+            table.logical_id
+        )
+        .expect("writing to String cannot fail");
+    } else {
+        output.push_str("              Resource:\n");
+        for index in &table.global_secondary_indexes {
+            writeln!(
+                output,
+                "                - !Sub '${{{}.Arn}}/index/{}'",
+                table.logical_id, index.name
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+}
+
 fn render_database_environment(output: &mut String, function: &FunctionPlan) {
     output.push_str("          DATABASE_KIND: postgres\n");
     output.push_str("          DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName\n");
@@ -820,17 +989,31 @@ fn render_worker_function(
     if function.database_connections_per_instance > 0 {
         render_database_environment(output, function);
     }
+    if let Some(table) = plan.database.dynamodb_table()
+        && table.function_id == function.name
+    {
+        render_dynamodb_environment(output, table);
+    }
     let has_sqs_trigger = plan.triggers.iter().any(|trigger| {
         matches!(
             trigger,
             TriggerPlan::Sqs { function_id, .. } if function_id == &function.name
         )
     });
-    if function.database_connections_per_instance > 0 || has_sqs_trigger {
+    let uses_dynamodb = plan
+        .database
+        .dynamodb_table()
+        .is_some_and(|table| table.function_id == function.name);
+    if function.database_connections_per_instance > 0 || uses_dynamodb || has_sqs_trigger {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
         if function.database_connections_per_instance > 0 {
             render_database_policy_statements(output);
+        }
+        if let Some(table) = plan.database.dynamodb_table()
+            && table.function_id == function.name
+        {
+            render_dynamodb_policy_statement(output, table);
         }
     }
     for trigger in &plan.triggers {

@@ -17,7 +17,7 @@ impl Plugin for ThirdPartyExamplePlugin {
             "0.1.0".parse().expect("static plugin version"),
             "Standalone third-party conformance example",
         );
-        descriptor.core_compatibility = "^0.7.0".parse().expect("static Minco compatibility");
+        descriptor.core_compatibility = "^1.0.0".parse().expect("static Minco compatibility");
         descriptor
     }
 

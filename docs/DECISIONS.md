@@ -35,3 +35,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0029](adrs/0029-compatibility-checked-rollback-and-canary.md) | Assess rollback across exact release boundaries and make API canaries opt-in, alarm-guarded, receipt-bound and worker-explicit. | Accepted |
 | [ADR-0030](adrs/0030-repository-native-project-view.md) | Project one bounded repository-native read model into local MCP, diagrams, progress views and accessible narration without creating a second state machine. | Accepted |
 | [ADR-0031](adrs/0031-subscriber-only-realtime.md) | Use subscriber-only AppSync Events with IAM publication, OIDC subscriptions and HTTP resynchronization for the minimal AWS realtime profile. | Accepted |
+| [ADR-0032](adrs/0032-access-pattern-dynamodb.md) | Keep DynamoDB access patterns application-owned and render only explicit table and IAM contracts. | Accepted |

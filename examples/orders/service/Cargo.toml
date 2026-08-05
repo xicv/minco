@@ -10,8 +10,9 @@ publish = false
 default = ["sqlite"]
 sqlite = ["orders-adapters/sqlite", "dep:minco-sqlx-sqlite"]
 postgres = ["orders-adapters/postgres", "dep:minco-sqlx-postgres"]
+dynamodb = ["orders-adapters/dynamodb", "dep:minco-aws-dynamodb"]
 lambda = ["dep:minco-aws-lambda", "postgres"]
-all-runtimes = ["sqlite", "postgres", "lambda"]
+all-runtimes = ["sqlite", "postgres", "dynamodb", "lambda"]
 
 [lib]
 name = "orders_service"
@@ -35,6 +36,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 minco-aws-lambda = { workspace = true, optional = true }
+minco-aws-dynamodb = { workspace = true, optional = true }
 minco-core.workspace = true
 minco-http.workspace = true
 minco-plugin-health.workspace = true

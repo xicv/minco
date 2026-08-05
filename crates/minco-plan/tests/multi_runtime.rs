@@ -793,7 +793,7 @@ fn schema_v2_schedule_without_cleanup_remains_deserializable() {
 fn dynamodb_worker_fixture_has_no_relational_connection_or_iam_projection() {
     let plan = plan_from_config(include_str!("fixtures/api_worker_dynamodb_v2.toml"));
 
-    assert_eq!(plan.local_aws_services, ["dynamodb", "sqs", "ssm", "sts"]);
+    assert_eq!(plan.local_aws_services, ["dynamodb", "sqs", "sts"]);
     assert!(
         plan.validate()
             .iter()
@@ -811,6 +811,94 @@ fn dynamodb_worker_fixture_has_no_relational_connection_or_iam_projection() {
             .to_string()
             .contains("DynamoDB needs a dedicated adapter/rendering plugin")
     );
+}
+
+#[test]
+fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam() {
+    let plan = plan_from_config(include_str!("fixtures/api_dynamodb_explicit_v2.toml"));
+
+    let diagnostics = plan.validate();
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error),
+        "{diagnostics:#?}"
+    );
+    assert!(plan.iam_intents.iter().any(|intent| {
+        intent.function_id == "api"
+            && intent.actions
+                == [
+                    "dynamodb:DescribeTable",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:TransactWriteItems",
+                    "dynamodb:UpdateItem",
+                ]
+            && matches!(
+                &intent.resource,
+                IamResource::DynamoDbTable { logical_id } if logical_id == "OrdersTable"
+            )
+    }));
+
+    let yaml = render_sam(&plan).expect("explicit DynamoDB SAM");
+    let _: serde_yaml_ng::Value = serde_yaml_ng::from_str(&yaml).expect("syntactically valid SAM");
+    for required in [
+        "  OrdersTable:\n",
+        "    Type: AWS::DynamoDB::Table\n",
+        "      BillingMode: PAY_PER_REQUEST\n",
+        "      PointInTimeRecoverySpecification:\n        PointInTimeRecoveryEnabled: true\n",
+        "    DeletionPolicy: Retain\n",
+        "    UpdateReplacePolicy: Retain\n",
+        "          DYNAMODB_TABLE_NAME: !Ref OrdersTable\n",
+        "                - dynamodb:DescribeTable\n",
+        "                - dynamodb:GetItem\n",
+        "                - dynamodb:TransactWriteItems\n",
+        "                - dynamodb:UpdateItem\n",
+        "              Resource: !GetAtt OrdersTable.Arn\n",
+        "              Action: dynamodb:Query\n",
+        "                - !Sub '${OrdersTable.Arn}/index/orders-by-created-at'\n",
+        "                - !Sub '${OrdersTable.Arn}/index/orders-by-created-at-inverted-id'\n",
+        "                - !Sub '${OrdersTable.Arn}/index/orders-by-id'\n",
+    ] {
+        assert!(yaml.contains(required), "missing {required:?} in:\n{yaml}");
+    }
+    assert!(!yaml.contains("dynamodb:*"));
+    assert!(!yaml.contains("dynamodb:PutItem"));
+    assert!(!yaml.contains("Resource: '*'"));
+}
+
+#[test]
+fn explicit_dynamodb_table_contract_is_schema_closed_and_validates_provider_identity() {
+    let source = include_str!("fixtures/api_dynamodb_explicit_v2.toml");
+    let unknown = source.replace(
+        "deletion_policy = \"retain\"",
+        "deletion_policy = \"retain\"\nunexpected_policy = true",
+    );
+    assert!(toml::from_str::<DeploymentConfig>(&unknown).is_err());
+
+    let mut plan = plan_from_config(source);
+    let minco_plan::DatabaseDeployment::DynamoDbOnDemand {
+        table: Some(table), ..
+    } = &mut plan.database
+    else {
+        panic!("explicit DynamoDB table");
+    };
+    table.logical_id = "not-a-logical-id".into();
+    table.function_id = "missing-function".into();
+    table.global_secondary_indexes[1].name = table.global_secondary_indexes[0].name.clone();
+    let diagnostics = plan.validate();
+    for code in [
+        "MINCO-DYNAMODB-002",
+        "MINCO-DYNAMODB-003",
+        "MINCO-DYNAMODB-008",
+    ] {
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == code && diagnostic.severity == Severity::Error),
+            "missing {code} in {diagnostics:#?}"
+        );
+    }
 }
 
 #[test]

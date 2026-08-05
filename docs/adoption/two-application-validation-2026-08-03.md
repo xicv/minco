@@ -4,6 +4,10 @@ Date: 2026-08-03
 Minco tasks: `M7-T01`, `M7-T02`
 Verdict: two-application adoption evidence complete; compatibility freeze separate
 
+This is the historical M7 record. The M12 freeze input is the dated
+[`1.0 adoption reconciliation`](1.0-adoption-reconciliation-2026-08-05.md),
+which preserves this snapshot while reviewing the newer CGSP remote revision.
+
 This review tests Minco's framework boundaries against two real Rust/AWS web
 applications. It does not turn either product into a framework fixture, infer
 live state from source, or authorise changes outside this repository.

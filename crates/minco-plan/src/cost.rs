@@ -1,4 +1,6 @@
-use crate::{DatabaseDeployment, DeploymentPlan, FunctionRole, NeonPlan, TriggerPlan};
+use crate::{
+    DatabaseDeployment, DeploymentPlan, DynamoDbDeletionPolicy, FunctionRole, NeonPlan, TriggerPlan,
+};
 use serde::{Deserialize, Serialize};
 
 const NEON_PRICING_CAPTURED_AT: &str = "2026-07-31";
@@ -547,37 +549,64 @@ pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEsti
             write_million_rate_usd,
             storage_gb_month,
             storage_rate_usd,
-        } => with_optional_rates(
-            "aws_dynamodb_on_demand",
-            vec![
-                (
-                    "reads",
-                    *read_million_rate_usd,
-                    *read_request_units_million,
-                    format!("{read_request_units_million} million read request units"),
-                    CostClass::RequestOnly,
-                ),
-                (
-                    "writes",
-                    *write_million_rate_usd,
-                    *write_request_units_million,
-                    format!("{write_request_units_million} million write request units"),
-                    CostClass::RequestOnly,
-                ),
-                (
-                    "storage",
-                    *storage_rate_usd,
-                    *storage_gb_month,
-                    format!("{storage_gb_month} GB-month"),
-                    CostClass::StorageOnly,
-                ),
-            ],
-            vec![
-                "Model access patterns, item sizes, indexes, streams, backups and \
-                 transactional multipliers before selecting DynamoDB."
-                    .into(),
-            ],
-        ),
+            table,
+        } => {
+            let mut estimate = with_optional_rates(
+                "aws_dynamodb_on_demand",
+                vec![
+                    (
+                        "reads",
+                        *read_million_rate_usd,
+                        *read_request_units_million,
+                        format!("{read_request_units_million} million read request units"),
+                        CostClass::RequestOnly,
+                    ),
+                    (
+                        "writes",
+                        *write_million_rate_usd,
+                        *write_request_units_million,
+                        format!("{write_request_units_million} million write request units"),
+                        CostClass::RequestOnly,
+                    ),
+                    (
+                        "storage",
+                        *storage_rate_usd,
+                        *storage_gb_month,
+                        format!("{storage_gb_month} GB-month"),
+                        CostClass::StorageOnly,
+                    ),
+                ],
+                vec![
+                    "Model access patterns, item sizes, indexes, streams, backups and \
+                     transactional multipliers before selecting DynamoDB."
+                        .into(),
+                ],
+            );
+            if let Some(table) = table {
+                let index_count = table.global_secondary_indexes.len();
+                estimate.notes.push(format!(
+                    "The explicit table has {index_count} global secondary index{}; include each index's projected storage and write amplification in the usage inputs.",
+                    if index_count == 1 { "" } else { "es" }
+                ));
+                estimate.notes.push(
+                    "Order creation uses two-item transactional writes; usage inputs must include DynamoDB transactional write multipliers."
+                        .into(),
+                );
+                if table.point_in_time_recovery {
+                    estimate.notes.push(
+                        "The table enables point-in-time recovery; backup storage and restore pricing remain unpriced here."
+                            .into(),
+                    );
+                }
+                if table.deletion_policy == DynamoDbDeletionPolicy::Retain {
+                    estimate.notes.push(
+                        "The deployment retains table replacements and deletions; retained table storage remains billable until explicitly removed."
+                            .into(),
+                    );
+                }
+            }
+            estimate
+        }
         DatabaseDeployment::SqlitePersistentHost {
             host_monthly_usd,
             backup_monthly_usd,
@@ -880,6 +909,7 @@ mod tests {
             write_million_rate_usd: None,
             storage_gb_month: 1.0,
             storage_rate_usd: None,
+            table: None,
         });
         assert!(!estimate.complete);
         assert_eq!(estimate.missing_rates.len(), 3);
@@ -903,6 +933,47 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn explicit_dynamodb_cost_notes_expose_indexes_transactions_recovery_and_retention() {
+        let estimate = estimate_database_cost(&DatabaseDeployment::DynamoDbOnDemand {
+            read_request_units_million: 1.0,
+            read_million_rate_usd: None,
+            write_request_units_million: 1.0,
+            write_million_rate_usd: None,
+            storage_gb_month: 1.0,
+            storage_rate_usd: None,
+            table: Some(crate::DynamoDbTablePlan {
+                logical_id: "OrdersTable".into(),
+                function_id: "api".into(),
+                partition_key: crate::DynamoDbKeyAttribute {
+                    name: "pk".into(),
+                    scalar_type: crate::DynamoDbScalarType::String,
+                },
+                sort_key: None,
+                global_secondary_indexes: vec![crate::DynamoDbGlobalSecondaryIndex {
+                    name: "orders-by-id".into(),
+                    partition_key: crate::DynamoDbKeyAttribute {
+                        name: "gsi1pk".into(),
+                        scalar_type: crate::DynamoDbScalarType::String,
+                    },
+                    sort_key: None,
+                    projection: crate::DynamoDbProjection::All,
+                }],
+                point_in_time_recovery: true,
+                deletion_policy: crate::DynamoDbDeletionPolicy::Retain,
+            }),
+        });
+        let notes = estimate.notes.join(" ");
+        for visible in [
+            "1 global secondary index",
+            "transactional writes",
+            "point-in-time recovery",
+            "retained table storage",
+        ] {
+            assert!(notes.contains(visible), "missing {visible:?} in {notes}");
+        }
     }
 
     #[test]

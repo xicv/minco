@@ -1,0 +1,74 @@
+{
+  "api": {
+    "artifact_path": "target/minco/candidate-load/cargo/release/orders-local",
+    "concurrency": 8,
+    "database_max_connections": 4,
+    "failures": 0,
+    "fresh_tcp_connections": 80,
+    "latency": {
+      "maximum_ms": 41.566,
+      "minimum_ms": 0.679,
+      "p50_ms": 0.838,
+      "p95_ms": 4.649
+    },
+    "requests": 80,
+    "scope": "loopback Axum with file-backed SQLite and synthetic orders",
+    "throughput_requests_per_second": 1904.511,
+    "wall_seconds": 0.042
+  },
+  "artifacts": {
+    "orders_local_bytes": 4597488,
+    "source_manifest_bytes": 163774,
+    "worker_crate_bytes": 286688
+  },
+  "cost": {
+    "maximum_database_connections": 6,
+    "modeled_lambda_invocations": 100,
+    "note": "Counts expose billable dimensions; current provider prices and a dollar estimate are intentionally not inferred from local execution.",
+    "pricing_claim": "none",
+    "synthetic_api_requests": 80,
+    "synthetic_worker_messages": 1000
+  },
+  "generated_at": "2026-08-05T00:12:29.514484+00:00",
+  "kind": "minco.candidate-load-qualification.v1",
+  "limitations": [
+    "Loopback timings are machine-specific measurements, not an AWS or production performance SLO.",
+    "The worker gate invokes the real public batch processor but does not emulate Lambda poller scaling, SQS retries, throttling or network latency.",
+    "The reviewed queue limits model connection and cost pressure; no provider request or charge occurred."
+  ],
+  "queue": {
+    "batch_size": 10,
+    "batching_window_seconds": 0,
+    "database_connections_per_instance": 1,
+    "fixture": "crates/minco-plan/tests/fixtures/api_worker_standard_v2.toml",
+    "function_timeout_seconds": 30,
+    "maximum_concurrency": 2,
+    "report_batch_item_failures": true,
+    "reserved_concurrency": 2,
+    "retention_seconds": 345600,
+    "visibility_timeout_seconds": 180,
+    "visibility_to_function_timeout_ratio": 6.0
+  },
+  "schema_version": 1,
+  "scope": "bounded local synthetic load; no AWS contact and no production SLO claim",
+  "source": {
+    "source_tree_sha256": "3716966ce1cca7caac487a1274bcb1e07c0dca5e0b9b48f5311faeb68e35803e",
+    "version": "0.7.0"
+  },
+  "status": "PASS",
+  "tools": {
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "python": "3.13.7"
+  },
+  "worker": {
+    "batch_size": 10,
+    "batches": 100,
+    "configured_max_concurrency": 4,
+    "failures": 0,
+    "messages": 1000,
+    "observed_max_concurrency": 4,
+    "scope": "public process_sqs_event API with synthetic standard-queue batches",
+    "throughput_messages_per_second": 1447.528,
+    "wall_seconds": 0.690833
+  }
+}

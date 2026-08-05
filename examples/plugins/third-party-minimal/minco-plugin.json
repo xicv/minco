@@ -3,7 +3,7 @@
   "id": "third-party-example",
   "kind": "plugin",
   "plugin_version": "0.1.0",
-  "core_compatibility": "^0.7.0",
+  "core_compatibility": "^1.0.0",
   "stability": "experimental",
   "default_enabled": false,
   "feature": "plugin-third-party-example",

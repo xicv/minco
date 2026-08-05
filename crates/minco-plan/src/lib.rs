@@ -72,10 +72,12 @@ pub use cost::{
     SqsMappingCostDimension, WorkerCostDimension, estimate_database_cost, estimate_runtime_cost,
 };
 pub use model::{
-    AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionPlan,
-    FunctionRole, IamIntent, IamResource, IngressPlan, NeonPlan, PerformancePolicy, PlanDiagnostic,
-    PlanError, PreviewCleanupSchedule, PreviewLifecyclePlan, PreviewResource,
-    PreviewResourceRetention, QueuePlan, RealtimeDeployment, RoutePlan, RuntimePlan,
-    ScheduleCleanupPlan, ScheduleCompletionAction, Severity, StaticSiteDeployment, TriggerPlan,
+    AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, DeploymentPlan,
+    DynamoDbDeletionPolicy, DynamoDbGlobalSecondaryIndex, DynamoDbKeyAttribute, DynamoDbProjection,
+    DynamoDbScalarType, DynamoDbTablePlan, FunctionPlan, FunctionRole, IamIntent, IamResource,
+    IngressPlan, NeonPlan, PerformancePolicy, PlanDiagnostic, PlanError, PreviewCleanupSchedule,
+    PreviewLifecyclePlan, PreviewResource, PreviewResourceRetention, QueuePlan, RealtimeDeployment,
+    RoutePlan, RuntimePlan, ScheduleCleanupPlan, ScheduleCompletionAction, Severity,
+    StaticSiteDeployment, TriggerPlan,
 };
 pub use sam::{render_sam, render_sam_with_code_uri, render_sam_with_code_uris};

@@ -72,6 +72,21 @@ jobs:
       - name: Full release quality reproduction
         if: ${{ inputs.profile == 'release' }}
         run: ./scripts/quality.sh
+      - name: Bounded candidate recovery and load qualification
+        if: ${{ inputs.profile == 'release' }}
+        run: |
+          scripts/release/candidate-recovery.sh
+          scripts/release/candidate-load.sh
+      - name: Upload candidate qualification evidence
+        if: ${{ inputs.profile == 'release' && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: candidate-qualification-${{ github.sha }}
+          path: |
+            target/minco/candidate-load.json
+            target/minco/candidate-recovery.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload Feedback browser evidence
         if: ${{ inputs.profile == 'release' && !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

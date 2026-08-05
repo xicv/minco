@@ -41,7 +41,7 @@ impl Plugin for ThirdPartyPlugin {
             "0.1.0".parse().expect("static plugin version"),
             "Minimal external conformance fixture",
         );
-        descriptor.core_compatibility = "^0.7.0".parse().expect("static core compatibility");
+        descriptor.core_compatibility = "^1.0.0".parse().expect("static core compatibility");
         descriptor
     }
 
@@ -114,7 +114,7 @@ plugin = "minco-plugin.json"
   "id": "third-party-minimal",
   "kind": "plugin",
   "plugin_version": "0.1.0",
-  "core_compatibility": "^0.7.0",
+  "core_compatibility": "^1.0.0",
   "stability": "experimental",
   "default_enabled": false,
   "feature": "plugin-third-party-minimal",

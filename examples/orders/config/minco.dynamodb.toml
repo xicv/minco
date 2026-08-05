@@ -1,4 +1,4 @@
-schema_version = 1
+schema_version = 2
 application = "minco-orders-dynamodb-analysis"
 environment = "analysis"
 region = "ap-southeast-2"
@@ -25,14 +25,46 @@ storage_gb_month = 1.0
 # write_million_rate_usd = 0.0
 # storage_rate_usd = 0.0
 
+[database.table]
+logical_id = "OrdersTable"
+function_id = "api"
+partition_key = { name = "pk", scalar_type = "string" }
+sort_key = { name = "sk", scalar_type = "string" }
+point_in_time_recovery = true
+deletion_policy = "retain"
+
+[[database.table.global_secondary_indexes]]
+name = "orders-by-created-at"
+partition_key = { name = "gsi1pk", scalar_type = "string" }
+sort_key = { name = "gsi1sk", scalar_type = "string" }
+projection = "all"
+
+[[database.table.global_secondary_indexes]]
+name = "orders-by-created-at-inverted-id"
+partition_key = { name = "gsi2pk", scalar_type = "string" }
+sort_key = { name = "gsi2sk", scalar_type = "string" }
+projection = "all"
+
+[[database.table.global_secondary_indexes]]
+name = "orders-by-id"
+partition_key = { name = "gsi3pk", scalar_type = "string" }
+sort_key = { name = "gsi3sk", scalar_type = "string" }
+projection = "all"
+
 [[functions]]
 name = "api"
+role = "http_api"
 artifact_path = "target/lambda/orders-lambda/bootstrap.zip"
 memory_mb = 512
 timeout_seconds = 15
 reserved_concurrency = 5
 provisioned_concurrency = 0
 database_connections_per_instance = 0
+
+[[triggers]]
+kind = "http_api"
+id = "api"
+function_id = "api"
 
 [cost_policy]
 deny_fixed_compute = true

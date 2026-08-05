@@ -1,14 +1,19 @@
 schema = 1
-workspace_version = "0.7.0"
+workspace_version = "1.0.0"
 published_baseline = "0.6.0"
 workspace_release_state = "candidate"
 published_package_count = 28
 adoption_gate_task = "M6-T07"
+qualified_candidate_task = "M12-T06"
+qualified_candidate_source_tree_sha256 = "a678ebf52b4c7a9f60ae9adb43221984b5f5884d44f5d0400e14781a5bf28554"
+post_candidate_tasks = ["M6-T01"]
 
-# The published 0.6.0 baseline contains 28 packages. The 0.7.0 source
-# candidate adds the first-publication minco-plugin-realtime package.
-publishable_package_count = 29
-new_publishable_packages = ["minco-plugin-realtime"]
+# The published 0.6.0 baseline contains 28 packages. The 1.0.0 source
+# candidate adds first-publication realtime, ProjectView, local MCP, and local
+# Workbench packages. The post-candidate M6-T01 descendant adds the explicit
+# DynamoDB provider package without rewriting the exact candidate evidence.
+publishable_package_count = 33
+new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench", "minco-aws-dynamodb"]
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760

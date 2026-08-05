@@ -22,6 +22,17 @@ RELEASE_STATE = TRUTH["workspace_release_state"]
 PUBLISHED_PACKAGE_COUNT = TRUTH["published_package_count"]
 PUBLISHABLE_PACKAGE_COUNT = TRUTH["publishable_package_count"]
 NEW_PUBLISHABLE_PACKAGES = TRUTH["new_publishable_packages"]
+FACADE = tomllib.loads((ROOT / "crates/minco/Cargo.toml").read_text())
+CATALOG = tomllib.loads((ROOT / "plugins/catalog.toml").read_text())
+OFFICIAL_PLUGIN_FEATURES = set(FACADE["features"]["official-plugins"])
+CATALOG_FEATURE_BY_CRATE = {
+    entry["crate"]: entry["feature"] for entry in CATALOG["plugin"]
+}
+NEW_OFFICIAL_PLUGIN_PACKAGES = {
+    package
+    for package in NEW_PUBLISHABLE_PACKAGES
+    if CATALOG_FEATURE_BY_CRATE.get(package) in OFFICIAL_PLUGIN_FEATURES
+}
 PREVIOUS_PUBLISHED_BASELINE = "0.5.0"
 DRIFTED_PUBLISHED_BASELINE = "9.9.8"
 CANDIDATE_BASELINE = (
@@ -389,11 +400,12 @@ class RepositoryTruthTests(unittest.TestCase):
         self.assertIn("STATIC-TRUTH-CATALOG-002", self.truth_codes())
 
     def test_roadmap_task_drift_has_a_stable_code(self) -> None:
-        roadmap = self.root / "roadmap/roadmap.yaml"
-        roadmap.write_text(
-            roadmap.read_text().replace(
-                "- id: M6\n  name: Essential official extensions\n  status: active",
-                "- id: M6\n  name: Essential official extensions\n  status: complete",
+        task = self.root / "tasks/M6/M6-T01-dynamodb-adapter.md"
+        task.write_text(
+            task.read_text().replace(
+                "status: complete",
+                "status: active",
+                1,
             )
         )
         self.assertIn("STATIC-TRUTH-ROADMAP-001", self.truth_codes())
@@ -410,7 +422,16 @@ class RepositoryTruthTests(unittest.TestCase):
 
     def test_planned_milestone_rejects_ready_task_evidence(self) -> None:
         task = self.root / "tasks/M12/M12-T01-local-read-only-mcp.md"
-        task.write_text(task.read_text().replace("status: planned", "status: ready"))
+        task.write_text(
+            task.read_text().replace("status: complete", "status: ready", 1)
+        )
+        roadmap = self.root / "roadmap/roadmap.yaml"
+        roadmap.write_text(
+            roadmap.read_text().replace(
+                "- id: M12\n  name: AI workbench and 1.0 preparation\n  status: complete",
+                "- id: M12\n  name: AI workbench and 1.0 preparation\n  status: planned",
+            )
+        )
         self.assertIn("STATIC-TRUTH-ROADMAP-002", self.truth_codes())
 
     def test_default_dependency_growth_has_a_stable_code(self) -> None:
@@ -428,7 +449,7 @@ class RepositoryTruthTests(unittest.TestCase):
         ]
         value["candidate"]["facade"]["official_plugins"][
             "normal_dependency_packages"
-        ] = baseline_packages + len(NEW_PUBLISHABLE_PACKAGES)
+        ] = baseline_packages + len(NEW_OFFICIAL_PLUGIN_PACKAGES)
         measurements.write_text(json.dumps(value))
         self.assertNotIn("STATIC-BUDGET-004", self.truth_codes())
 
@@ -440,7 +461,7 @@ class RepositoryTruthTests(unittest.TestCase):
         ]
         value["candidate"]["facade"]["official_plugins"][
             "normal_dependency_packages"
-        ] = baseline_packages + len(NEW_PUBLISHABLE_PACKAGES) + 1
+        ] = baseline_packages + len(NEW_OFFICIAL_PLUGIN_PACKAGES) + 1
         measurements.write_text(json.dumps(value))
         self.assertIn("STATIC-BUDGET-004", self.truth_codes())
 
@@ -451,7 +472,7 @@ class RepositoryTruthTests(unittest.TestCase):
         measurements.write_text(json.dumps(value))
         self.assertIn("STATIC-MEASURE-002", self.truth_codes())
 
-    def test_source_manifest_revision_drift_has_a_stable_code(self) -> None:
+    def test_qualified_candidate_revision_drift_has_a_stable_code(self) -> None:
         measurements = self.root / "verification/adoption-measurements.json"
         value = json.loads(measurements.read_text())
         value["candidate"]["revision"] = f"source-tree-sha256:{'0' * 64}"

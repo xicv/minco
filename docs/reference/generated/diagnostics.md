@@ -15,16 +15,16 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `334`.
+Declared codes: `342`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
 | `MINCO-ARCH-001` | arch | `crates/minco-cli/src/architecture.rs:132` | 0 |
 | `MINCO-ARCH-002` | arch | `crates/minco-cli/src/architecture.rs:133` | 0 |
 | `MINCO-ARCH-003` | arch | `crates/minco-cli/src/architecture.rs:134` | 0 |
-| `MINCO-AUTH-001` | auth | `crates/minco-plan/src/model.rs:536` | 0 |
-| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1273` | 1 |
-| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1289` | 1 |
+| `MINCO-AUTH-001` | auth | `crates/minco-plan/src/model.rs:545` | 0 |
+| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1289` | 1 |
+| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1305` | 1 |
 | `MINCO-CONTRACT-001` | contract | `crates/minco-contract/src/validate.rs:64` | 0 |
 | `MINCO-CONTRACT-002` | contract | `crates/minco-contract/src/validate.rs:72` | 0 |
 | `MINCO-CONTRACT-003` | contract | `crates/minco-contract/src/validate.rs:84` | 0 |
@@ -53,74 +53,82 @@ Declared codes: `334`.
 | `MINCO-CONTRACT-026` | contract | `crates/minco-contract/src/validate.rs:381` | 2 |
 | `MINCO-CONTRACT-027` | contract | `crates/minco-contract/src/validate.rs:411` | 1 |
 | `MINCO-CONTRACT-028` | contract | `crates/minco-contract/src/validate.rs:268` | 2 |
-| `MINCO-COST-001` | cost | `crates/minco-plan/src/model.rs:630` | 0 |
-| `MINCO-COST-002` | cost | `crates/minco-plan/src/model.rs:644` | 1 |
-| `MINCO-COST-003` | cost | `crates/minco-plan/src/model.rs:710` | 0 |
-| `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:716` | 0 |
-| `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:761` | 1 |
-| `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:624` | 0 |
-| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2139` | 1 |
-| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2168` | 1 |
-| `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:665` | 2 |
-| `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:700` | 0 |
-| `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:773` | 0 |
-| `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:779` | 0 |
-| `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:797` | 0 |
-| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2211` | 2 |
-| `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:813` | 0 |
-| `MINCO-HTTP-001` | http | `crates/minco-plan/src/model.rs:588` | 0 |
-| `MINCO-HTTP-002` | http | `crates/minco-plan/src/model.rs:593` | 0 |
-| `MINCO-HTTP-003` | http | `crates/minco-plan/src/model.rs:597` | 0 |
-| `MINCO-HTTP-004` | http | `crates/minco-plan/src/model.rs:605` | 0 |
-| `MINCO-HTTP-005` | http | `crates/minco-plan/src/model.rs:612` | 0 |
-| `MINCO-HTTP-006` | http | `crates/minco-plan/src/model.rs:617` | 0 |
-| `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:581` | 1 |
-| `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:727` | 0 |
-| `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:738` | 0 |
-| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:5951` | 0 |
-| `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:691` | 0 |
-| `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:424` | 0 |
-| `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:541` | 0 |
-| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2110` | 1 |
-| `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:548` | 0 |
-| `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:558` | 1 |
-| `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:834` | 2 |
-| `MINCO-PLAN-011` | plan | `crates/minco-plan/src/model.rs:843` | 1 |
-| `MINCO-PLAN-012` | plan | `crates/minco-plan/src/model.rs:855` | 0 |
-| `MINCO-PLAN-013` | plan | `crates/minco-plan/src/model.rs:870` | 1 |
-| `MINCO-PLAN-014` | plan | `crates/minco-plan/src/model.rs:961` | 1 |
-| `MINCO-PLAN-015` | plan | `crates/minco-plan/src/model.rs:1003` | 5 |
-| `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:971` | 2 |
-| `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1183` | 0 |
-| `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1198` | 4 |
-| `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/tests/multi_runtime.rs:1006` | 0 |
+| `MINCO-COST-001` | cost | `crates/minco-plan/src/model.rs:639` | 0 |
+| `MINCO-COST-002` | cost | `crates/minco-plan/src/model.rs:653` | 1 |
+| `MINCO-COST-003` | cost | `crates/minco-plan/src/model.rs:719` | 0 |
+| `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:725` | 0 |
+| `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:770` | 1 |
+| `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:633` | 0 |
+| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2352` | 1 |
+| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2381` | 1 |
+| `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:674` | 2 |
+| `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:709` | 0 |
+| `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:782` | 0 |
+| `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:788` | 0 |
+| `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:807` | 0 |
+| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2424` | 2 |
+| `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:823` | 0 |
+| `MINCO-DYNAMODB-001` | dynamodb | `crates/minco-plan/src/model.rs:1344` | 0 |
+| `MINCO-DYNAMODB-002` | dynamodb | `crates/minco-plan/src/model.rs:1350` | 1 |
+| `MINCO-DYNAMODB-003` | dynamodb | `crates/minco-plan/src/model.rs:1360` | 1 |
+| `MINCO-DYNAMODB-004` | dynamodb | `crates/minco-plan/src/model.rs:1366` | 0 |
+| `MINCO-DYNAMODB-005` | dynamodb | `crates/minco-plan/src/model.rs:1415` | 0 |
+| `MINCO-DYNAMODB-006` | dynamodb | `crates/minco-plan/src/model.rs:1424` | 0 |
+| `MINCO-DYNAMODB-007` | dynamodb | `crates/minco-plan/src/model.rs:1376` | 1 |
+| `MINCO-DYNAMODB-008` | dynamodb | `crates/minco-plan/src/model.rs:1387` | 1 |
+| `MINCO-HTTP-001` | http | `crates/minco-plan/src/model.rs:597` | 0 |
+| `MINCO-HTTP-002` | http | `crates/minco-plan/src/model.rs:602` | 0 |
+| `MINCO-HTTP-003` | http | `crates/minco-plan/src/model.rs:606` | 0 |
+| `MINCO-HTTP-004` | http | `crates/minco-plan/src/model.rs:614` | 0 |
+| `MINCO-HTTP-005` | http | `crates/minco-plan/src/model.rs:621` | 0 |
+| `MINCO-HTTP-006` | http | `crates/minco-plan/src/model.rs:626` | 0 |
+| `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:590` | 1 |
+| `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:736` | 0 |
+| `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:747` | 0 |
+| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6165` | 0 |
+| `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:700` | 0 |
+| `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:433` | 0 |
+| `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:550` | 0 |
+| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2323` | 1 |
+| `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:557` | 0 |
+| `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:567` | 1 |
+| `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:844` | 2 |
+| `MINCO-PLAN-011` | plan | `crates/minco-plan/src/model.rs:853` | 1 |
+| `MINCO-PLAN-012` | plan | `crates/minco-plan/src/model.rs:865` | 0 |
+| `MINCO-PLAN-013` | plan | `crates/minco-plan/src/model.rs:880` | 1 |
+| `MINCO-PLAN-014` | plan | `crates/minco-plan/src/model.rs:971` | 1 |
+| `MINCO-PLAN-015` | plan | `crates/minco-plan/src/model.rs:1013` | 5 |
+| `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:1009` | 2 |
+| `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1193` | 0 |
+| `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1208` | 4 |
+| `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/tests/multi_runtime.rs:1094` | 0 |
 | `MINCO-PLAN-MIGRATE-002` | plan | `crates/minco-plan/tests/multi_runtime.rs:666` | 0 |
-| `MINCO-PREVIEW-001` | preview | `crates/minco-plan/src/model.rs:491` | 0 |
-| `MINCO-PREVIEW-002` | preview | `crates/minco-plan/src/model.rs:497` | 0 |
-| `MINCO-PREVIEW-003` | preview | `crates/minco-plan/src/model.rs:515` | 1 |
-| `MINCO-PREVIEW-004` | preview | `crates/minco-plan/src/model.rs:521` | 0 |
-| `MINCO-PREVIEW-006` | preview | `crates/minco-plan/src/model.rs:528` | 1 |
-| `MINCO-REALTIME-001` | realtime | `crates/minco-plan/src/model.rs:453` | 0 |
-| `MINCO-REALTIME-002` | realtime | `crates/minco-plan/src/model.rs:459` | 0 |
-| `MINCO-SCHEDULE-001` | schedule | `crates/minco-plan/src/model.rs:1099` | 1 |
-| `MINCO-SCHEDULE-002` | schedule | `crates/minco-plan/src/model.rs:1105` | 1 |
-| `MINCO-SCHEDULE-003` | schedule | `crates/minco-plan/src/model.rs:566` | 1 |
-| `MINCO-SCHEDULE-004` | schedule | `crates/minco-plan/src/model.rs:1116` | 1 |
-| `MINCO-SCHEDULE-005` | schedule | `crates/minco-plan/src/model.rs:1131` | 0 |
-| `MINCO-SCHEDULE-006` | schedule | `crates/minco-plan/src/model.rs:1140` | 0 |
-| `MINCO-SQS-001` | sqs | `crates/minco-plan/src/model.rs:1073` | 1 |
-| `MINCO-SQS-002` | sqs | `crates/minco-plan/src/model.rs:1027` | 1 |
-| `MINCO-SQS-003` | sqs | `crates/minco-plan/src/model.rs:905` | 1 |
-| `MINCO-SQS-004` | sqs | `crates/minco-plan/src/model.rs:898` | 1 |
-| `MINCO-SQS-005` | sqs | `crates/minco-plan/src/model.rs:925` | 0 |
-| `MINCO-SQS-006` | sqs | `crates/minco-plan/src/model.rs:945` | 1 |
-| `MINCO-SQS-007` | sqs | `crates/minco-plan/src/model.rs:1040` | 1 |
-| `MINCO-SQS-008` | sqs | `crates/minco-plan/src/model.rs:1051` | 1 |
-| `MINCO-SQS-009` | sqs | `crates/minco-plan/src/model.rs:1063` | 0 |
-| `MINCO-SQS-010` | sqs | `crates/minco-plan/src/model.rs:876` | 0 |
-| `MINCO-SQS-011` | sqs | `crates/minco-plan/src/model.rs:885` | 0 |
-| `MINCO-SQS-012` | sqs | `crates/minco-plan/src/model.rs:1173` | 1 |
-| `MINCO-STATIC-001` | static | `crates/minco-plan/src/model.rs:446` | 0 |
+| `MINCO-PREVIEW-001` | preview | `crates/minco-plan/src/model.rs:500` | 0 |
+| `MINCO-PREVIEW-002` | preview | `crates/minco-plan/src/model.rs:506` | 0 |
+| `MINCO-PREVIEW-003` | preview | `crates/minco-plan/src/model.rs:524` | 1 |
+| `MINCO-PREVIEW-004` | preview | `crates/minco-plan/src/model.rs:530` | 0 |
+| `MINCO-PREVIEW-006` | preview | `crates/minco-plan/src/model.rs:537` | 1 |
+| `MINCO-REALTIME-001` | realtime | `crates/minco-plan/src/model.rs:462` | 0 |
+| `MINCO-REALTIME-002` | realtime | `crates/minco-plan/src/model.rs:468` | 0 |
+| `MINCO-SCHEDULE-001` | schedule | `crates/minco-plan/src/model.rs:1109` | 1 |
+| `MINCO-SCHEDULE-002` | schedule | `crates/minco-plan/src/model.rs:1115` | 1 |
+| `MINCO-SCHEDULE-003` | schedule | `crates/minco-plan/src/model.rs:575` | 1 |
+| `MINCO-SCHEDULE-004` | schedule | `crates/minco-plan/src/model.rs:1126` | 1 |
+| `MINCO-SCHEDULE-005` | schedule | `crates/minco-plan/src/model.rs:1141` | 0 |
+| `MINCO-SCHEDULE-006` | schedule | `crates/minco-plan/src/model.rs:1150` | 0 |
+| `MINCO-SQS-001` | sqs | `crates/minco-plan/src/model.rs:1083` | 1 |
+| `MINCO-SQS-002` | sqs | `crates/minco-plan/src/model.rs:1037` | 1 |
+| `MINCO-SQS-003` | sqs | `crates/minco-plan/src/model.rs:915` | 1 |
+| `MINCO-SQS-004` | sqs | `crates/minco-plan/src/model.rs:908` | 1 |
+| `MINCO-SQS-005` | sqs | `crates/minco-plan/src/model.rs:935` | 0 |
+| `MINCO-SQS-006` | sqs | `crates/minco-plan/src/model.rs:955` | 1 |
+| `MINCO-SQS-007` | sqs | `crates/minco-plan/src/model.rs:1050` | 1 |
+| `MINCO-SQS-008` | sqs | `crates/minco-plan/src/model.rs:1061` | 1 |
+| `MINCO-SQS-009` | sqs | `crates/minco-plan/src/model.rs:1073` | 0 |
+| `MINCO-SQS-010` | sqs | `crates/minco-plan/src/model.rs:886` | 0 |
+| `MINCO-SQS-011` | sqs | `crates/minco-plan/src/model.rs:895` | 0 |
+| `MINCO-SQS-012` | sqs | `crates/minco-plan/src/model.rs:1183` | 1 |
+| `MINCO-STATIC-001` | static | `crates/minco-plan/src/model.rs:455` | 0 |
 | `PUBLISH-001` | publication | `scripts/validate_publish.py:134` | 0 |
 | `PUBLISH-002` | publication | `scripts/validate_publish.py:140` | 0 |
 | `PUBLISH-003` | publication | `scripts/validate_publish.py:143` | 0 |
@@ -164,17 +172,17 @@ Declared codes: `334`.
 | `PUBLISH-073` | publication | `scripts/validate_publish.py:495` | 0 |
 | `PUBLISH-074` | publication | `scripts/test/publish_validation.py:318` | 3 |
 | `STATIC-001` | repository truth | `scripts/validate_static.py:144` | 0 |
-| `STATIC-ARCH-001` | repository truth | `scripts/validate_static.py:951` | 0 |
-| `STATIC-ARCH-002` | repository truth | `scripts/validate_static.py:957` | 0 |
-| `STATIC-ARCH-003` | repository truth | `scripts/validate_static.py:963` | 0 |
-| `STATIC-ARCH-004` | repository truth | `scripts/validate_static.py:966` | 0 |
-| `STATIC-BUDGET-001` | repository truth | `scripts/validate_static.py:652` | 0 |
-| `STATIC-BUDGET-002` | repository truth | `scripts/validate_static.py:446` | 0 |
-| `STATIC-BUDGET-003` | repository truth | `scripts/validate_static.py:312` | 0 |
-| `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:421` | 3 |
-| `STATIC-BUDGET-005` | repository truth | `scripts/validate_static.py:409` | 0 |
-| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:475` | 1 |
-| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:492` | 1 |
+| `STATIC-ARCH-001` | repository truth | `scripts/validate_static.py:950` | 0 |
+| `STATIC-ARCH-002` | repository truth | `scripts/validate_static.py:956` | 0 |
+| `STATIC-ARCH-003` | repository truth | `scripts/validate_static.py:962` | 0 |
+| `STATIC-ARCH-004` | repository truth | `scripts/validate_static.py:965` | 0 |
+| `STATIC-BUDGET-001` | repository truth | `scripts/validate_static.py:651` | 0 |
+| `STATIC-BUDGET-002` | repository truth | `scripts/validate_static.py:445` | 0 |
+| `STATIC-BUDGET-003` | repository truth | `scripts/validate_static.py:311` | 0 |
+| `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:442` | 3 |
+| `STATIC-BUDGET-005` | repository truth | `scripts/validate_static.py:408` | 0 |
+| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:496` | 1 |
+| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:513` | 1 |
 | `STATIC-CARGO-001` | repository truth | `scripts/validate_static.py:175` | 0 |
 | `STATIC-CARGO-002` | repository truth | `scripts/validate_static.py:178` | 0 |
 | `STATIC-CARGO-003` | repository truth | `scripts/validate_static.py:184` | 0 |
@@ -183,107 +191,107 @@ Declared codes: `334`.
 | `STATIC-CARGO-006` | repository truth | `scripts/validate_static.py:198` | 0 |
 | `STATIC-CARGO-007` | repository truth | `scripts/validate_static.py:203` | 0 |
 | `STATIC-CARGO-008` | repository truth | `scripts/validate_static.py:206` | 0 |
-| `STATIC-CONTRACT-001` | repository truth | `scripts/validate_static.py:794` | 0 |
-| `STATIC-CONTRACT-002` | repository truth | `scripts/validate_static.py:799` | 0 |
-| `STATIC-CONTRACT-003` | repository truth | `scripts/validate_static.py:807` | 0 |
-| `STATIC-CONTRACT-004` | repository truth | `scripts/validate_static.py:810` | 0 |
-| `STATIC-CONTRACT-005` | repository truth | `scripts/validate_static.py:814` | 0 |
-| `STATIC-CONTRACT-006` | repository truth | `scripts/validate_static.py:816` | 0 |
-| `STATIC-CONTRACT-007` | repository truth | `scripts/validate_static.py:855` | 0 |
-| `STATIC-CONTRACT-008` | repository truth | `scripts/validate_static.py:904` | 0 |
-| `STATIC-CONTRACT-009` | repository truth | `scripts/validate_static.py:912` | 0 |
-| `STATIC-CONTRACT-010` | repository truth | `scripts/validate_static.py:917` | 0 |
-| `STATIC-CONTRACT-011` | repository truth | `scripts/validate_static.py:921` | 0 |
-| `STATIC-CONTRACT-012` | repository truth | `scripts/validate_static.py:927` | 0 |
-| `STATIC-CONTRACT-013` | repository truth | `scripts/validate_static.py:932` | 0 |
-| `STATIC-CONTRACT-014` | repository truth | `scripts/validate_static.py:830` | 0 |
-| `STATIC-CONTRACT-015` | repository truth | `scripts/validate_static.py:858` | 0 |
-| `STATIC-CONTRACT-016` | repository truth | `scripts/validate_static.py:873` | 0 |
-| `STATIC-CONTRACT-017` | repository truth | `scripts/validate_static.py:823` | 0 |
-| `STATIC-CONTRACT-019` | repository truth | `scripts/validate_static.py:891` | 0 |
-| `STATIC-CONTRACT-020` | repository truth | `scripts/validate_static.py:866` | 0 |
-| `STATIC-CONTRACT-021` | repository truth | `scripts/validate_static.py:842` | 0 |
-| `STATIC-COST-001` | repository truth | `scripts/validate_static.py:1177` | 0 |
-| `STATIC-COST-002` | repository truth | `scripts/validate_static.py:1180` | 0 |
-| `STATIC-COST-003` | repository truth | `scripts/validate_static.py:1186` | 0 |
-| `STATIC-COST-004` | repository truth | `scripts/validate_static.py:1188` | 0 |
-| `STATIC-COST-005` | repository truth | `scripts/validate_static.py:1190` | 0 |
+| `STATIC-CONTRACT-001` | repository truth | `scripts/validate_static.py:793` | 0 |
+| `STATIC-CONTRACT-002` | repository truth | `scripts/validate_static.py:798` | 0 |
+| `STATIC-CONTRACT-003` | repository truth | `scripts/validate_static.py:806` | 0 |
+| `STATIC-CONTRACT-004` | repository truth | `scripts/validate_static.py:809` | 0 |
+| `STATIC-CONTRACT-005` | repository truth | `scripts/validate_static.py:813` | 0 |
+| `STATIC-CONTRACT-006` | repository truth | `scripts/validate_static.py:815` | 0 |
+| `STATIC-CONTRACT-007` | repository truth | `scripts/validate_static.py:854` | 0 |
+| `STATIC-CONTRACT-008` | repository truth | `scripts/validate_static.py:903` | 0 |
+| `STATIC-CONTRACT-009` | repository truth | `scripts/validate_static.py:911` | 0 |
+| `STATIC-CONTRACT-010` | repository truth | `scripts/validate_static.py:916` | 0 |
+| `STATIC-CONTRACT-011` | repository truth | `scripts/validate_static.py:920` | 0 |
+| `STATIC-CONTRACT-012` | repository truth | `scripts/validate_static.py:926` | 0 |
+| `STATIC-CONTRACT-013` | repository truth | `scripts/validate_static.py:931` | 0 |
+| `STATIC-CONTRACT-014` | repository truth | `scripts/validate_static.py:829` | 0 |
+| `STATIC-CONTRACT-015` | repository truth | `scripts/validate_static.py:857` | 0 |
+| `STATIC-CONTRACT-016` | repository truth | `scripts/validate_static.py:872` | 0 |
+| `STATIC-CONTRACT-017` | repository truth | `scripts/validate_static.py:822` | 0 |
+| `STATIC-CONTRACT-019` | repository truth | `scripts/validate_static.py:890` | 0 |
+| `STATIC-CONTRACT-020` | repository truth | `scripts/validate_static.py:865` | 0 |
+| `STATIC-CONTRACT-021` | repository truth | `scripts/validate_static.py:841` | 0 |
+| `STATIC-COST-001` | repository truth | `scripts/validate_static.py:1176` | 0 |
+| `STATIC-COST-002` | repository truth | `scripts/validate_static.py:1179` | 0 |
+| `STATIC-COST-003` | repository truth | `scripts/validate_static.py:1185` | 0 |
+| `STATIC-COST-004` | repository truth | `scripts/validate_static.py:1187` | 0 |
+| `STATIC-COST-005` | repository truth | `scripts/validate_static.py:1189` | 0 |
 | `STATIC-DATA-001` | repository truth | `scripts/validate_static.py:162` | 0 |
-| `STATIC-DB-001` | repository truth | `scripts/validate_static.py:1211` | 0 |
-| `STATIC-GRAPH-001` | repository truth | `scripts/validate_static.py:1062` | 0 |
-| `STATIC-HTTP-001` | repository truth | `scripts/validate_static.py:1193` | 0 |
-| `STATIC-HTTP-002` | repository truth | `scripts/validate_static.py:1205` | 0 |
-| `STATIC-MEASURE-001` | repository truth | `scripts/validate_static.py:333` | 0 |
-| `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:452` | 1 |
-| `STATIC-MEASURE-003` | repository truth | `scripts/validate_static.py:421` | 0 |
-| `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:459` | 1 |
-| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:482` | 1 |
-| `STATIC-PLACEHOLDER-001` | repository truth | `scripts/validate_static.py:1270` | 0 |
-| `STATIC-PLAN-000` | repository truth | `scripts/validate_static.py:1158` | 0 |
-| `STATIC-PLAN-001` | repository truth | `scripts/validate_static.py:1164` | 0 |
-| `STATIC-PLAN-002` | repository truth | `scripts/validate_static.py:1171` | 0 |
-| `STATIC-PLAN-003` | repository truth | `scripts/validate_static.py:1174` | 0 |
-| `STATIC-PLUGIN-001` | repository truth | `scripts/validate_static.py:982` | 0 |
-| `STATIC-PLUGIN-002` | repository truth | `scripts/validate_static.py:984` | 0 |
-| `STATIC-PLUGIN-003` | repository truth | `scripts/validate_static.py:989` | 0 |
-| `STATIC-PLUGIN-004` | repository truth | `scripts/validate_static.py:995` | 0 |
-| `STATIC-PLUGIN-005` | repository truth | `scripts/validate_static.py:998` | 0 |
-| `STATIC-PYTHON-001` | repository truth | `scripts/validate_static.py:1128` | 0 |
-| `STATIC-QUALITY-001` | repository truth | `scripts/validate_static.py:1084` | 0 |
-| `STATIC-QUALITY-002` | repository truth | `scripts/validate_static.py:1086` | 0 |
-| `STATIC-QUALITY-003` | repository truth | `scripts/validate_static.py:1090` | 0 |
-| `STATIC-QUALITY-004` | repository truth | `scripts/validate_static.py:1103` | 0 |
-| `STATIC-ROADMAP-001` | repository truth | `scripts/validate_static.py:1013` | 0 |
-| `STATIC-ROADMAP-002` | repository truth | `scripts/validate_static.py:1017` | 0 |
-| `STATIC-RUST-001` | repository truth | `scripts/validate_static.py:1116` | 0 |
-| `STATIC-SAM-001` | repository truth | `scripts/validate_static.py:1223` | 0 |
-| `STATIC-SAM-002` | repository truth | `scripts/validate_static.py:1241` | 0 |
-| `STATIC-SAM-003` | repository truth | `scripts/validate_static.py:1244` | 0 |
-| `STATIC-SAM-004` | repository truth | `scripts/validate_static.py:1248` | 0 |
-| `STATIC-SAM-005` | repository truth | `scripts/validate_static.py:1235` | 0 |
-| `STATIC-SHELL-001` | repository truth | `scripts/validate_static.py:1139` | 0 |
-| `STATIC-SHELL-002` | repository truth | `scripts/validate_static.py:1141` | 0 |
-| `STATIC-TASK-001` | repository truth | `scripts/validate_static.py:1022` | 0 |
-| `STATIC-TASK-002` | repository truth | `scripts/validate_static.py:1028` | 0 |
-| `STATIC-TASK-003` | repository truth | `scripts/validate_static.py:1032` | 0 |
-| `STATIC-TASK-004` | repository truth | `scripts/validate_static.py:1035` | 0 |
-| `STATIC-TASK-005` | repository truth | `scripts/validate_static.py:1039` | 0 |
-| `STATIC-TASK-006` | repository truth | `scripts/validate_static.py:1041` | 0 |
-| `STATIC-TASK-007` | repository truth | `scripts/validate_static.py:1044` | 0 |
-| `STATIC-TASK-008` | repository truth | `scripts/validate_static.py:1046` | 0 |
-| `STATIC-TASK-009` | repository truth | `scripts/validate_static.py:1050` | 0 |
-| `STATIC-TRUTH-ADOPTION-001` | repository truth | `scripts/validate_static.py:707` | 0 |
-| `STATIC-TRUTH-CATALOG-001` | repository truth | `scripts/validate_static.py:551` | 0 |
-| `STATIC-TRUTH-CATALOG-002` | repository truth | `scripts/test/repository_truth.py:389` | 1 |
-| `STATIC-TRUTH-CATALOG-003` | repository truth | `scripts/validate_static.py:538` | 0 |
-| `STATIC-TRUTH-CATALOG-004` | repository truth | `scripts/validate_static.py:540` | 0 |
-| `STATIC-TRUTH-CATALOG-005` | repository truth | `scripts/validate_static.py:542` | 0 |
-| `STATIC-TRUTH-CATALOG-006` | repository truth | `scripts/validate_static.py:609` | 0 |
-| `STATIC-TRUTH-DESCRIPTOR-001` | repository truth | `scripts/validate_static.py:581` | 0 |
-| `STATIC-TRUTH-DESCRIPTOR-002` | repository truth | `scripts/validate_static.py:587` | 0 |
-| `STATIC-TRUTH-DESCRIPTOR-003` | repository truth | `scripts/validate_static.py:594` | 0 |
-| `STATIC-TRUTH-DOCS-001` | repository truth | `scripts/test/repository_truth.py:312` | 3 |
-| `STATIC-TRUTH-FACADE-001` | repository truth | `scripts/validate_static.py:563` | 0 |
-| `STATIC-TRUTH-FACADE-002` | repository truth | `scripts/validate_static.py:569` | 0 |
-| `STATIC-TRUTH-FACADE-003` | repository truth | `scripts/validate_static.py:626` | 0 |
-| `STATIC-TRUTH-FACADE-004` | repository truth | `scripts/validate_static.py:640` | 0 |
-| `STATIC-TRUTH-PACKAGES-001` | repository truth | `scripts/validate_static.py:475` | 0 |
-| `STATIC-TRUTH-PACKAGES-002` | repository truth | `scripts/validate_static.py:481` | 0 |
-| `STATIC-TRUTH-PACKAGES-003` | repository truth | `scripts/validate_static.py:505` | 0 |
-| `STATIC-TRUTH-PACKAGES-004` | repository truth | `scripts/test/repository_truth.py:357` | 1 |
-| `STATIC-TRUTH-PLAN-001` | repository truth | `scripts/validate_static.py:719` | 0 |
-| `STATIC-TRUTH-PLAN-002` | repository truth | `scripts/validate_static.py:725` | 0 |
-| `STATIC-TRUTH-PUBLISHED-001` | repository truth | `scripts/validate_static.py:234` | 0 |
-| `STATIC-TRUTH-PUBLISHED-002` | repository truth | `scripts/test/repository_truth.py:368` | 2 |
-| `STATIC-TRUTH-PUBLISHED-003` | repository truth | `scripts/test/repository_truth.py:379` | 1 |
-| `STATIC-TRUTH-RELEASE-001` | repository truth | `scripts/test/repository_truth.py:282` | 1 |
-| `STATIC-TRUTH-RELEASE-002` | repository truth | `scripts/test/repository_truth.py:292` | 1 |
-| `STATIC-TRUTH-RELEASE-003` | repository truth | `scripts/test/repository_truth.py:302` | 1 |
-| `STATIC-TRUTH-RELEASE-004` | repository truth | `scripts/validate_static.py:255` | 0 |
-| `STATIC-TRUTH-ROADMAP-001` | repository truth | `scripts/test/repository_truth.py:399` | 1 |
-| `STATIC-TRUTH-ROADMAP-002` | repository truth | `scripts/test/repository_truth.py:414` | 1 |
-| `STATIC-TRUTH-ROADMAP-003` | repository truth | `scripts/test/repository_truth.py:409` | 1 |
-| `STATIC-TRUTH-VERSION-001` | repository truth | `scripts/test/repository_truth.py:271` | 1 |
+| `STATIC-DB-001` | repository truth | `scripts/validate_static.py:1210` | 0 |
+| `STATIC-GRAPH-001` | repository truth | `scripts/validate_static.py:1061` | 0 |
+| `STATIC-HTTP-001` | repository truth | `scripts/validate_static.py:1192` | 0 |
+| `STATIC-HTTP-002` | repository truth | `scripts/validate_static.py:1204` | 0 |
+| `STATIC-MEASURE-001` | repository truth | `scripts/validate_static.py:332` | 0 |
+| `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:473` | 1 |
+| `STATIC-MEASURE-003` | repository truth | `scripts/validate_static.py:420` | 0 |
+| `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:480` | 1 |
+| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:503` | 1 |
+| `STATIC-PLACEHOLDER-001` | repository truth | `scripts/validate_static.py:1269` | 0 |
+| `STATIC-PLAN-000` | repository truth | `scripts/validate_static.py:1157` | 0 |
+| `STATIC-PLAN-001` | repository truth | `scripts/validate_static.py:1163` | 0 |
+| `STATIC-PLAN-002` | repository truth | `scripts/validate_static.py:1170` | 0 |
+| `STATIC-PLAN-003` | repository truth | `scripts/validate_static.py:1173` | 0 |
+| `STATIC-PLUGIN-001` | repository truth | `scripts/validate_static.py:981` | 0 |
+| `STATIC-PLUGIN-002` | repository truth | `scripts/validate_static.py:983` | 0 |
+| `STATIC-PLUGIN-003` | repository truth | `scripts/validate_static.py:988` | 0 |
+| `STATIC-PLUGIN-004` | repository truth | `scripts/validate_static.py:994` | 0 |
+| `STATIC-PLUGIN-005` | repository truth | `scripts/validate_static.py:997` | 0 |
+| `STATIC-PYTHON-001` | repository truth | `scripts/validate_static.py:1127` | 0 |
+| `STATIC-QUALITY-001` | repository truth | `scripts/validate_static.py:1083` | 0 |
+| `STATIC-QUALITY-002` | repository truth | `scripts/validate_static.py:1085` | 0 |
+| `STATIC-QUALITY-003` | repository truth | `scripts/validate_static.py:1089` | 0 |
+| `STATIC-QUALITY-004` | repository truth | `scripts/validate_static.py:1102` | 0 |
+| `STATIC-ROADMAP-001` | repository truth | `scripts/validate_static.py:1012` | 0 |
+| `STATIC-ROADMAP-002` | repository truth | `scripts/validate_static.py:1016` | 0 |
+| `STATIC-RUST-001` | repository truth | `scripts/validate_static.py:1115` | 0 |
+| `STATIC-SAM-001` | repository truth | `scripts/validate_static.py:1222` | 0 |
+| `STATIC-SAM-002` | repository truth | `scripts/validate_static.py:1240` | 0 |
+| `STATIC-SAM-003` | repository truth | `scripts/validate_static.py:1243` | 0 |
+| `STATIC-SAM-004` | repository truth | `scripts/validate_static.py:1247` | 0 |
+| `STATIC-SAM-005` | repository truth | `scripts/validate_static.py:1234` | 0 |
+| `STATIC-SHELL-001` | repository truth | `scripts/validate_static.py:1138` | 0 |
+| `STATIC-SHELL-002` | repository truth | `scripts/validate_static.py:1140` | 0 |
+| `STATIC-TASK-001` | repository truth | `scripts/validate_static.py:1021` | 0 |
+| `STATIC-TASK-002` | repository truth | `scripts/validate_static.py:1027` | 0 |
+| `STATIC-TASK-003` | repository truth | `scripts/validate_static.py:1031` | 0 |
+| `STATIC-TASK-004` | repository truth | `scripts/validate_static.py:1034` | 0 |
+| `STATIC-TASK-005` | repository truth | `scripts/validate_static.py:1038` | 0 |
+| `STATIC-TASK-006` | repository truth | `scripts/validate_static.py:1040` | 0 |
+| `STATIC-TASK-007` | repository truth | `scripts/validate_static.py:1043` | 0 |
+| `STATIC-TASK-008` | repository truth | `scripts/validate_static.py:1045` | 0 |
+| `STATIC-TASK-009` | repository truth | `scripts/validate_static.py:1049` | 0 |
+| `STATIC-TRUTH-ADOPTION-001` | repository truth | `scripts/validate_static.py:706` | 0 |
+| `STATIC-TRUTH-CATALOG-001` | repository truth | `scripts/validate_static.py:550` | 0 |
+| `STATIC-TRUTH-CATALOG-002` | repository truth | `scripts/test/repository_truth.py:400` | 1 |
+| `STATIC-TRUTH-CATALOG-003` | repository truth | `scripts/validate_static.py:537` | 0 |
+| `STATIC-TRUTH-CATALOG-004` | repository truth | `scripts/validate_static.py:539` | 0 |
+| `STATIC-TRUTH-CATALOG-005` | repository truth | `scripts/validate_static.py:541` | 0 |
+| `STATIC-TRUTH-CATALOG-006` | repository truth | `scripts/validate_static.py:608` | 0 |
+| `STATIC-TRUTH-DESCRIPTOR-001` | repository truth | `scripts/validate_static.py:580` | 0 |
+| `STATIC-TRUTH-DESCRIPTOR-002` | repository truth | `scripts/validate_static.py:586` | 0 |
+| `STATIC-TRUTH-DESCRIPTOR-003` | repository truth | `scripts/validate_static.py:593` | 0 |
+| `STATIC-TRUTH-DOCS-001` | repository truth | `scripts/test/repository_truth.py:323` | 3 |
+| `STATIC-TRUTH-FACADE-001` | repository truth | `scripts/validate_static.py:562` | 0 |
+| `STATIC-TRUTH-FACADE-002` | repository truth | `scripts/validate_static.py:568` | 0 |
+| `STATIC-TRUTH-FACADE-003` | repository truth | `scripts/validate_static.py:625` | 0 |
+| `STATIC-TRUTH-FACADE-004` | repository truth | `scripts/validate_static.py:639` | 0 |
+| `STATIC-TRUTH-PACKAGES-001` | repository truth | `scripts/validate_static.py:474` | 0 |
+| `STATIC-TRUTH-PACKAGES-002` | repository truth | `scripts/validate_static.py:480` | 0 |
+| `STATIC-TRUTH-PACKAGES-003` | repository truth | `scripts/validate_static.py:504` | 0 |
+| `STATIC-TRUTH-PACKAGES-004` | repository truth | `scripts/test/repository_truth.py:368` | 1 |
+| `STATIC-TRUTH-PLAN-001` | repository truth | `scripts/validate_static.py:718` | 0 |
+| `STATIC-TRUTH-PLAN-002` | repository truth | `scripts/validate_static.py:724` | 0 |
+| `STATIC-TRUTH-PUBLISHED-001` | repository truth | `scripts/validate_static.py:233` | 0 |
+| `STATIC-TRUTH-PUBLISHED-002` | repository truth | `scripts/test/repository_truth.py:379` | 2 |
+| `STATIC-TRUTH-PUBLISHED-003` | repository truth | `scripts/test/repository_truth.py:390` | 1 |
+| `STATIC-TRUTH-RELEASE-001` | repository truth | `scripts/test/repository_truth.py:293` | 1 |
+| `STATIC-TRUTH-RELEASE-002` | repository truth | `scripts/test/repository_truth.py:303` | 1 |
+| `STATIC-TRUTH-RELEASE-003` | repository truth | `scripts/test/repository_truth.py:313` | 1 |
+| `STATIC-TRUTH-RELEASE-004` | repository truth | `scripts/validate_static.py:254` | 0 |
+| `STATIC-TRUTH-ROADMAP-001` | repository truth | `scripts/test/repository_truth.py:411` | 1 |
+| `STATIC-TRUTH-ROADMAP-002` | repository truth | `scripts/test/repository_truth.py:435` | 1 |
+| `STATIC-TRUTH-ROADMAP-003` | repository truth | `scripts/test/repository_truth.py:421` | 1 |
+| `STATIC-TRUTH-VERSION-001` | repository truth | `scripts/test/repository_truth.py:282` | 1 |
 | `config.cli_override` | configuration | `crates/minco-cli/src/config_cmd.rs:410` | 1 |
 | `config.compiled_layer_forbidden` | configuration | `crates/minco-config/src/graph.rs:404` | 0 |
 | `config.digest_encoding` | configuration | `crates/minco-config/src/graph.rs:237` | 0 |

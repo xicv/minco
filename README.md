@@ -19,11 +19,11 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `0.6.0`
 >
-> Current workspace version: `0.7.0`
+> Current workspace version: `1.0.0`
 >
 > Workspace release state: `candidate`
 >
-> Current publishable package count: `29`
+> Current publishable package count: `33`
 
 ## Documentation
 

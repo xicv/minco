@@ -1,7 +1,7 @@
 # Incrementally adopting Minco
 
 Published baseline: `0.6.0`
-Current workspace version: `0.7.0`
+Current workspace version: `1.0.0`
 Workspace release state: `candidate`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
@@ -220,3 +220,10 @@ The dated
 [`CGSP and GarmentIQ validation`](two-application-validation-2026-08-03.md)
 shows how those evidence states are kept separate for real applications. It
 also records why native product quality is not automatically Minco adoption.
+The later
+[`1.0 adoption reconciliation`](1.0-adoption-reconciliation-2026-08-05.md)
+refreshes the exact product revisions after CGSP's bounded resource and staging
+evidence advanced. M12-T04 then used that evidence to freeze the source-level
+[`compatibility policy`](../reference/compatibility.md) and
+[`supported matrix`](../reference/supported-matrix.md); neither record claims a
+merge, publication, product rollout or live provider result.

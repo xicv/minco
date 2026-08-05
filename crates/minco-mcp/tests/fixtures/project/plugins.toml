@@ -1,0 +1,21 @@
+schema = 1
+
+[[plugin]]
+id = "health"
+crate = "fixture-health"
+path = "plugins/health"
+kind = "plugin"
+feature = "plugin-health"
+default_enabled = true
+stability = "stable"
+description = "Fixture health capability."
+
+[[plugin]]
+id = "feedback"
+crate = "fixture-feedback"
+path = "plugins/feedback"
+kind = "plugin"
+feature = "plugin-feedback"
+default_enabled = false
+stability = "stable"
+description = "Fixture feedback capability."

@@ -18,6 +18,11 @@ EXCLUDED_RELATIVE = {
     OUTPUT_RELATIVE,
     # This report contains the source-tree digest and is excluded to avoid self-reference.
     Path("verification/adoption-measurements.json"),
+    # Candidate qualification reports bind the source-tree digest and contain
+    # machine-specific timings, so they are evidence rather than source input.
+    Path("verification/1.0-candidate-load.json"),
+    Path("verification/1.0-candidate-recovery.json"),
+    Path("verification/1.0-candidate-release-gates.json"),
 }
 EXCLUDED_RELATIVE_PREFIXES = {
     Path("docs-site/.vitepress/cache"),

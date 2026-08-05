@@ -79,6 +79,7 @@ use sha2::{Digest as _, Sha256};
 use std::{
     ffi::{OsStr, OsString},
     fs,
+    io::Write as _,
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, Output, Stdio},
     sync::Arc,
@@ -154,6 +155,10 @@ enum Command {
     Vcs(VcsCommand),
     /// Inspect and advance the first-class client feedback loop.
     Feedback(FeedbackArgs),
+    /// Expose a bounded, local-only, read-only `ProjectView` over child-process stdio.
+    Mcp(McpArgs),
+    /// Inspect the bounded `ProjectView` through an opt-in local workbench.
+    Workbench(WorkbenchArgs),
 }
 
 #[derive(Debug, Args)]
@@ -177,6 +182,52 @@ struct CheckArgs {
     with_cargo: bool,
     #[arg(long)]
     with_optional: bool,
+}
+
+#[derive(Debug, Clone, Copy, Args)]
+struct McpArgs {
+    /// Validate the bounded view and MCP surface without starting a protocol server.
+    #[arg(long)]
+    check: bool,
+}
+
+#[derive(Debug, Clone, Args)]
+struct WorkbenchArgs {
+    /// Validate the bounded view and workbench surface without serving or writing.
+    #[arg(long)]
+    check: bool,
+    #[command(subcommand)]
+    command: Option<WorkbenchCommand>,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+enum WorkbenchCommand {
+    /// Export one deterministic snapshot into a new project-relative directory.
+    Export(WorkbenchExportArgs),
+    /// Serve the current bounded snapshot over an exact loopback origin.
+    Serve(WorkbenchServeArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+struct WorkbenchExportArgs {
+    #[arg(long, value_enum)]
+    format: WorkbenchExportFormat,
+    #[arg(long)]
+    output: PathBuf,
+}
+
+#[derive(Debug, Clone, Copy, Args)]
+struct WorkbenchServeArgs {
+    /// Loopback TCP port; zero asks the operating system to choose an available port.
+    #[arg(long, default_value_t = 0)]
+    port: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum WorkbenchExportFormat {
+    Json,
+    Mermaid,
+    Static,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -735,6 +786,7 @@ async fn main() -> Result<()> {
         json: as_json,
         command,
     } = cli;
+    let explicit_root = root.is_some();
     let command = match command {
         Command::New(args) => {
             let report = create_project(&NewProjectOptions {
@@ -783,7 +835,169 @@ async fn main() -> Result<()> {
         Command::Upgrade(_) => unreachable!("upgrade is handled before strict manifest loading"),
         Command::Vcs(command) => vcs_command(&root, command, as_json),
         Command::Feedback(args) => feedback_cmd::execute(&root, args, as_json).await,
+        Command::Mcp(args) => mcp_command(&root, args, as_json, explicit_root).await,
+        Command::Workbench(args) => {
+            workbench_command(&root, &manifest, args, as_json, explicit_root).await
+        }
     }
+}
+
+async fn mcp_command(root: &Path, args: McpArgs, as_json: bool, explicit_root: bool) -> Result<()> {
+    if !args.check && !explicit_root {
+        bail!(
+            "starting the Minco MCP server requires an explicit canonical project root via --root"
+        );
+    }
+
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("resolve MCP project root {}", root.display()))?;
+    let view = minco_project_view::load_project_view(&canonical_root)
+        .context("build bounded Minco ProjectView")?;
+
+    if args.check {
+        let tools = minco_mcp::MincoMcp::tool_catalog();
+        return print_value(
+            &json!({
+                "schema_version": 1,
+                "status": "ok",
+                "mode": "check",
+                "read_only": true,
+                "transport": "stdio",
+                "listening_sockets": 0,
+                "requires_explicit_root_to_serve": true,
+                "max_message_bytes": minco_mcp::DEFAULT_MAX_MCP_MESSAGE_BYTES,
+                "project": view.project,
+                "summary": view.summary,
+                "limits": view.limits,
+                "input_usage": view.input_usage,
+                "tool_names": tools.into_iter().map(|tool| tool.name).collect::<Vec<_>>(),
+            }),
+            as_json,
+        );
+    }
+
+    minco_mcp::serve_stdio(view)
+        .await
+        .context("serve local Minco MCP over stdio")
+}
+
+async fn workbench_command(
+    root: &Path,
+    manifest: &MincoManifest,
+    args: WorkbenchArgs,
+    as_json: bool,
+    explicit_root: bool,
+) -> Result<()> {
+    if args.check && args.command.is_some() {
+        bail!("--check cannot be combined with a workbench subcommand");
+    }
+    if !args.check && args.command.is_none() {
+        bail!("choose --check or a local workbench subcommand");
+    }
+
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("resolve workbench project root {}", root.display()))?;
+    let view = minco_project_view::load_project_view(&canonical_root)
+        .context("build bounded Minco ProjectView")?;
+    match args.command {
+        None => print_value(&minco_workbench::check_report(&view), as_json),
+        Some(WorkbenchCommand::Export(export)) => {
+            let format = match export.format {
+                WorkbenchExportFormat::Json => minco_workbench::ExportFormat::Json,
+                WorkbenchExportFormat::Mermaid => minco_workbench::ExportFormat::Mermaid,
+                WorkbenchExportFormat::Static => minco_workbench::ExportFormat::Static,
+            };
+            let canonical_inputs = workbench_canonical_inputs(manifest, &view);
+            let report = minco_workbench::export_project_view(
+                &view,
+                minco_workbench::ExportRequest {
+                    root: &canonical_root,
+                    destination: &export.output,
+                    canonical_inputs: &canonical_inputs,
+                    format,
+                },
+            )
+            .context("export bounded Minco ProjectView")?;
+            print_value(&report, as_json)
+        }
+        Some(WorkbenchCommand::Serve(serve)) => {
+            if !explicit_root {
+                bail!(
+                    "starting the Minco workbench requires an explicit canonical project root via --root"
+                );
+            }
+            let listener = minco_workbench::bind_loopback(serve.port)
+                .await
+                .context("bind local Minco workbench")?;
+            let address = listener
+                .local_addr()
+                .context("read local Minco workbench address")?;
+            let origin = format!("http://{address}");
+            if as_json {
+                println!(
+                    "{}",
+                    serde_json::to_string(&json!({
+                        "schema_version": 1,
+                        "status": "serving",
+                        "read_only": true,
+                        "loopback": true,
+                        "origin": origin,
+                        "address": address,
+                    }))?
+                );
+            } else {
+                println!("Minco Workbench: {origin}");
+            }
+            std::io::stdout()
+                .flush()
+                .context("flush workbench origin")?;
+            minco_workbench::serve_loopback(listener, view)
+                .await
+                .context("serve local Minco workbench")
+        }
+    }
+}
+
+fn workbench_canonical_inputs(
+    manifest: &MincoManifest,
+    view: &minco_project_view::ProjectView,
+) -> Vec<PathBuf> {
+    let mut inputs = vec![
+        PathBuf::from("minco.toml"),
+        manifest.contract.clone(),
+        manifest.generated.clone(),
+        manifest.deployment_config.clone(),
+        manifest.roadmap.clone(),
+        manifest.tasks.clone(),
+        manifest.plugin_catalog.clone(),
+        manifest.quality.clone(),
+        manifest.configuration.root.clone(),
+    ];
+    inputs.extend(manifest.architecture.domain_roots.iter().cloned());
+    inputs.extend(manifest.architecture.application_roots.iter().cloned());
+    inputs.extend(manifest.architecture.api_roots.iter().cloned());
+    inputs.extend(manifest.migrations.roots.iter().cloned());
+    inputs.extend(manifest.seeds.roots.iter().cloned());
+    for trace in manifest.operations.values() {
+        inputs.extend(trace.contract.iter().cloned());
+        inputs.extend(trace.generated.iter().cloned());
+        inputs.extend(trace.tests.iter().map(PathBuf::from));
+        inputs.extend(
+            trace
+                .handler
+                .iter()
+                .chain(trace.application.iter())
+                .filter_map(|reference| reference.split('#').next())
+                .filter(|path| !path.is_empty())
+                .map(PathBuf::from),
+        );
+    }
+    inputs.extend(view.provenance.iter().map(|source| source.path.clone()));
+    inputs.sort();
+    inputs.dedup();
+    inputs
 }
 
 fn promote_command(root: &Path, args: &PromoteArgs, as_json: bool) -> Result<()> {
@@ -6890,6 +7104,80 @@ mod cli_argument_tests {
     fn package_is_a_first_class_top_level_command() {
         let cli = Cli::try_parse_from(["cargo-minco", "package"]).expect("package command");
         assert!(matches!(cli.command, Command::Package(_)));
+    }
+
+    #[test]
+    fn local_mcp_check_is_a_first_class_non_serving_command() {
+        let cli = Cli::try_parse_from(["cargo-minco", "mcp", "--check", "--json"])
+            .expect("local MCP check command");
+
+        assert!(matches!(cli.command, Command::Mcp(McpArgs { check: true })));
+        assert!(cli.json);
+        assert!(cli.root.is_none());
+    }
+
+    #[test]
+    fn local_workbench_check_is_a_first_class_non_serving_command() {
+        let cli = Cli::try_parse_from(["cargo-minco", "workbench", "--check", "--json"])
+            .expect("local workbench check command");
+
+        assert!(matches!(
+            cli.command,
+            Command::Workbench(WorkbenchArgs {
+                check: true,
+                command: None,
+            })
+        ));
+        assert!(cli.json);
+        assert!(cli.root.is_none());
+    }
+
+    #[test]
+    fn local_workbench_export_requires_an_explicit_format_and_output() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "workbench",
+            "export",
+            "--format",
+            "static",
+            "--output",
+            "target/workbench",
+        ])
+        .expect("local workbench export command");
+
+        assert!(matches!(
+            cli.command,
+            Command::Workbench(WorkbenchArgs {
+                check: false,
+                command: Some(WorkbenchCommand::Export(WorkbenchExportArgs {
+                    format: WorkbenchExportFormat::Static,
+                    output,
+                })),
+            }) if output == Path::new("target/workbench")
+        ));
+    }
+
+    #[test]
+    fn local_workbench_serve_is_an_explicit_loopback_subcommand() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "--root",
+            "/tmp/project",
+            "workbench",
+            "serve",
+            "--port",
+            "0",
+        ])
+        .expect("local workbench serve command");
+
+        assert!(matches!(
+            cli.command,
+            Command::Workbench(WorkbenchArgs {
+                check: false,
+                command: Some(WorkbenchCommand::Serve(WorkbenchServeArgs { port: 0 })),
+            })
+        ));
+        assert_eq!(cli.root, Some(PathBuf::from("/tmp/project")));
     }
 
     #[test]

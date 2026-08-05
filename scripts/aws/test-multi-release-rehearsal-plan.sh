@@ -9,7 +9,7 @@ source scripts/aws/lib/common.sh
 fixture_dir="$(mktemp -d)"
 fixture_dir="$(cd "$fixture_dir" && pwd -P)"
 cleanup_fixture() {
-  rm -r -- "$fixture_dir"
+  rm -rf -- "$fixture_dir"
 }
 trap cleanup_fixture EXIT
 

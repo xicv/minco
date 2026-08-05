@@ -22,6 +22,7 @@ pub enum DatabaseKind {
     Memory,
     Sqlite,
     Postgres,
+    DynamoDb,
 }
 
 impl FromStr for DatabaseKind {
@@ -32,8 +33,11 @@ impl FromStr for DatabaseKind {
             "memory" => Ok(Self::Memory),
             "sqlite" => Ok(Self::Sqlite),
             "postgres" => Ok(Self::Postgres),
+            "dynamodb" => Ok(Self::DynamoDb),
             other => {
-                bail!("unsupported DATABASE_KIND {other}; expected memory, sqlite, or postgres")
+                bail!(
+                    "unsupported DATABASE_KIND {other}; expected memory, sqlite, postgres, or dynamodb"
+                )
             }
         }
     }
@@ -48,6 +52,9 @@ pub struct AppConfig {
     pub database_url: Option<String>,
     pub sqlite_path: PathBuf,
     pub database_max_connections: u32,
+    pub dynamodb_table_name: Option<String>,
+    pub dynamodb_endpoint_url: Option<String>,
+    pub aws_region: String,
     pub allowed_origins: Vec<String>,
     pub allow_development_headers: bool,
     pub disabled_plugins: Vec<String>,
@@ -78,6 +85,14 @@ impl AppConfig {
             .unwrap_or_else(|_| "2".into())
             .parse()
             .context("DATABASE_MAX_CONNECTIONS must be an integer")?;
+        let dynamodb_table_name = env::var("DYNAMODB_TABLE_NAME").ok();
+        let dynamodb_endpoint_url = env::var("DYNAMODB_ENDPOINT_URL")
+            .ok()
+            .or_else(|| env::var("AWS_ENDPOINT_URL").ok());
+        let aws_region = env::var("AWS_REGION")
+            .ok()
+            .or_else(|| env::var("AWS_DEFAULT_REGION").ok())
+            .unwrap_or_else(|| "ap-southeast-2".into());
         let allowed_origins = env::var("ALLOWED_ORIGINS")
             .unwrap_or_else(|_| "http://127.0.0.1:5173,http://localhost:5173".into())
             .split(',')
@@ -102,6 +117,9 @@ impl AppConfig {
             database_url,
             sqlite_path,
             database_max_connections,
+            dynamodb_table_name,
+            dynamodb_endpoint_url,
+            aws_region,
             allowed_origins,
             allow_development_headers,
             disabled_plugins,
@@ -124,6 +142,14 @@ impl AppConfig {
             && self.database_url.as_deref().is_none_or(str::is_empty)
         {
             bail!("DATABASE_URL is required when DATABASE_KIND=postgres");
+        }
+        if self.database_kind == DatabaseKind::DynamoDb
+            && self
+                .dynamodb_table_name
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            bail!("DYNAMODB_TABLE_NAME is required when DATABASE_KIND=dynamodb");
         }
         if self.database_max_connections == 0 {
             bail!("DATABASE_MAX_CONNECTIONS must be at least one");
@@ -238,6 +264,7 @@ async fn build_store(config: &AppConfig) -> Result<StoreBundle> {
         DatabaseKind::Memory => Ok(StoreBundle::new(Arc::new(MemoryOrderStore::new()))),
         DatabaseKind::Sqlite => build_sqlite_store(config).await,
         DatabaseKind::Postgres => build_postgres_store(config).await,
+        DatabaseKind::DynamoDb => build_dynamodb_store(config).await,
     }
 }
 
@@ -278,6 +305,30 @@ async fn build_postgres_store(config: &AppConfig) -> Result<StoreBundle> {
 #[cfg(not(feature = "postgres"))]
 async fn build_postgres_store(_config: &AppConfig) -> Result<StoreBundle> {
     bail!("the orders-service postgres feature is disabled")
+}
+
+#[cfg(feature = "dynamodb")]
+async fn build_dynamodb_store(config: &AppConfig) -> Result<StoreBundle> {
+    use minco_aws_dynamodb::DynamoDbConfig;
+    use orders_adapters::DynamoDbOrderStore;
+    let provider = DynamoDbConfig::new(
+        config
+            .dynamodb_table_name
+            .clone()
+            .context("DYNAMODB_TABLE_NAME is required")?,
+        config.aws_region.clone(),
+        config.dynamodb_endpoint_url.clone(),
+    )
+    .build()
+    .await?;
+    Ok(StoreBundle::new(Arc::new(DynamoDbOrderStore::new(
+        provider,
+    ))))
+}
+
+#[cfg(not(feature = "dynamodb"))]
+async fn build_dynamodb_store(_config: &AppConfig) -> Result<StoreBundle> {
+    bail!("the orders-service dynamodb feature is disabled")
 }
 
 fn parse_bool(name: &str, default: bool) -> Result<bool> {
@@ -334,6 +385,9 @@ mod tests {
             database_url: None,
             sqlite_path: "orders.db".into(),
             database_max_connections: 1,
+            dynamodb_table_name: None,
+            dynamodb_endpoint_url: None,
+            aws_region: "ap-southeast-2".into(),
             allowed_origins: vec!["https://app.example.invalid".into()],
             allow_development_headers: true,
             disabled_plugins: Vec::new(),
@@ -351,10 +405,42 @@ mod tests {
             database_url: None,
             sqlite_path: "orders.db".into(),
             database_max_connections: 1,
+            dynamodb_table_name: None,
+            dynamodb_endpoint_url: None,
+            aws_region: "ap-southeast-2".into(),
             allowed_origins: vec!["*".into()],
             allow_development_headers: true,
             disabled_plugins: Vec::new(),
         };
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn dynamodb_profile_requires_an_explicit_table_and_accepts_no_database_url() {
+        assert_eq!(
+            "dynamodb".parse::<DatabaseKind>().unwrap(),
+            DatabaseKind::DynamoDb
+        );
+        let config = AppConfig {
+            environment: "production".into(),
+            host: "127.0.0.1".parse().expect("IP"),
+            port: 3000,
+            database_kind: DatabaseKind::DynamoDb,
+            database_url: None,
+            sqlite_path: "orders.db".into(),
+            database_max_connections: 1,
+            dynamodb_table_name: Some("orders-production".into()),
+            dynamodb_endpoint_url: None,
+            aws_region: "ap-southeast-2".into(),
+            allowed_origins: vec!["https://app.example.invalid".into()],
+            allow_development_headers: false,
+            disabled_plugins: Vec::new(),
+        };
+        assert!(config.validate().is_ok());
+        let missing_table = AppConfig {
+            dynamodb_table_name: None,
+            ..config
+        };
+        assert!(missing_table.validate().is_err());
     }
 }

@@ -36,6 +36,9 @@ minco-deploy-aws.workspace = true
 minco-aws-adapters = { workspace = true, features = ["static-site"] }
 minco-dev.workspace = true
 minco-plan.workspace = true
+minco-project-view.workspace = true
+minco-mcp.workspace = true
+minco-workbench.workspace = true
 minco-plugin-feedback = { workspace = true, default-features = false, features = ["client"] }
 minco-release.workspace = true
 minco-sqlx-postgres.workspace = true

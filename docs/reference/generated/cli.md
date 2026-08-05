@@ -30,6 +30,7 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
 - `cargo minco feedback`
 - `cargo minco inspect`
 - `cargo minco make`
+- `cargo minco mcp`
 - `cargo minco new`
 - `cargo minco package`
 - `cargo minco perf`
@@ -44,6 +45,7 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
 - `cargo minco update`
 - `cargo minco upgrade`
 - `cargo minco vcs`
+- `cargo minco workbench`
   - `cargo minco config check`
   - `cargo minco config diff`
   - `cargo minco config explain`
@@ -111,6 +113,8 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
   - `cargo minco vcs status`
   - `cargo minco vcs task-finish`
   - `cargo minco vcs task-start`
+  - `cargo minco workbench export`
+  - `cargo minco workbench serve`
     - `cargo minco deploy static-site apply`
     - `cargo minco deploy static-site plan`
 
@@ -152,6 +156,8 @@ Commands:
   upgrade
   vcs
   feedback      Inspect and advance the first-class client feedback loop
+  mcp           Expose a bounded, local-only, read-only `ProjectView` over child-process stdio
+  workbench     Inspect the bounded `ProjectView` through an opt-in local workbench
   help          Print this message or the help of the given subcommand(s)
 
 Options:
@@ -407,6 +413,20 @@ Commands:
   help       Print this message or the help of the given subcommand(s)
 
 Options:
+      --root <ROOT>
+      --json
+  -h, --help         Print help
+```
+
+#### `cargo minco mcp`
+
+```text
+Expose a bounded, local-only, read-only `ProjectView` over child-process stdio
+
+Usage: cargo-minco mcp [OPTIONS]
+
+Options:
+      --check        Validate the bounded view and MCP surface without starting a protocol server
       --root <ROOT>
       --json
   -h, --help         Print help
@@ -689,6 +709,25 @@ Commands:
   help         Print this message or the help of the given subcommand(s)
 
 Options:
+      --root <ROOT>
+      --json
+  -h, --help         Print help
+```
+
+#### `cargo minco workbench`
+
+```text
+Inspect the bounded `ProjectView` through an opt-in local workbench
+
+Usage: cargo-minco workbench [OPTIONS] [COMMAND]
+
+Commands:
+  export  Export one deterministic snapshot into a new project-relative directory
+  serve   Serve the current bounded snapshot over an exact loopback origin
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+      --check        Validate the bounded view and workbench surface without serving or writing
       --root <ROOT>
       --json
   -h, --help         Print help
@@ -1736,6 +1775,35 @@ Options:
       --root <ROOT>
       --json
   -h, --help                       Print help
+```
+
+##### `cargo minco workbench export`
+
+```text
+Export one deterministic snapshot into a new project-relative directory
+
+Usage: cargo-minco workbench export [OPTIONS] --format <FORMAT> --output <OUTPUT>
+
+Options:
+      --format <FORMAT>  [possible values: json, mermaid, static]
+      --root <ROOT>
+      --json
+      --output <OUTPUT>
+  -h, --help             Print help
+```
+
+##### `cargo minco workbench serve`
+
+```text
+Serve the current bounded snapshot over an exact loopback origin
+
+Usage: cargo-minco workbench serve [OPTIONS]
+
+Options:
+      --port <PORT>  Loopback TCP port; zero asks the operating system to choose an available port [default: 0]
+      --root <ROOT>
+      --json
+  -h, --help         Print help
 ```
 
 ###### `cargo minco deploy static-site apply`

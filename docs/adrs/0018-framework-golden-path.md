@@ -111,6 +111,26 @@ artifact, or runtime behavior.
 M6-T10 remains a likely `0.4.0` boundary. Later tasks must state their own
 public and serialized compatibility impact.
 
+### 1.0 compatibility addendum (2026-08-05)
+
+M12-T04 completed the source-level review required by this ADR. The intended
+1.0 boundary includes every rustdoc-visible public item in the 32 publishable
+packages, all named Cargo features and defaults, the complete CLI and its
+machine-readable outputs, configuration schema 1, Plan schemas 1 and 2,
+release manifest schema 3, schema-1 deployment/plugin/project-view records,
+diagnostic codes and Rust `1.97.1` as the MSRV.
+
+The complete inventory and post-1.0 change rules are maintained in the
+[compatibility policy](../reference/compatibility.md). Catalog maturity does
+not weaken SemVer: a beta component remains opt-in and evidence-bounded, but a
+published 1.x Rust, feature, CLI or serialized boundary cannot break without
+the required version transition. Strict schema evolution uses a new version
+plus an explicit old reader or migration path; receipt digest payloads are not
+silently extended.
+
+This is a source freeze, not evidence of merge, tag, registry publication,
+application adoption, provider execution or production promotion.
+
 ## Safety
 
 This decision authorizes no AWS mutation, database mutation, crate upload, tag,

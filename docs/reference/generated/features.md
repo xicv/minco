@@ -17,6 +17,7 @@ Features are compile-time composition only. They do not discover plugins, select
 | Feature | Kind | Enables |
 |---|---|---|
 | `aws-adapters` | AWS adapter/runtime | `dep:minco-aws-adapters`, `minco-aws-adapters/full` |
+| `aws-dynamodb` | AWS adapter/runtime | `dep:minco-aws-dynamodb` |
 | `aws-lambda` | AWS adapter/runtime | `dep:minco-aws-lambda`, `http` |
 | `aws-worker` | AWS adapter/runtime | `dep:minco-aws-worker` |
 | `config` | framework plane | `dep:minco-config` |
@@ -24,7 +25,7 @@ Features are compile-time composition only. They do not discover plugins, select
 | `db` | framework plane | `dep:minco-db` |
 | `default` | bundle | `contract`, `http`, `default-plugins` |
 | `default-plugins` | bundle | `plugin-health`, `plugin-observability`, `plugin-idempotency` |
-| `full` | bundle | `config`, `db`, `contract`, `http`, `plan`, `release`, `test`, `official-plugins`, `sqlx-postgres`, `sqlx-sqlite`, `aws-adapters`, `aws-lambda`, `aws-worker` |
+| `full` | bundle | `config`, `db`, `contract`, `http`, `plan`, `release`, `test`, `official-plugins`, `sqlx-postgres`, `sqlx-sqlite`, `aws-adapters`, `aws-dynamodb`, `aws-lambda`, `aws-worker` |
 | `http` | framework plane | `dep:minco-http` |
 | `official-plugins` | bundle | `default-plugins`, `plugin-sessions`, `plugin-identity`, `plugin-object-storage`, `plugin-events`, `plugin-notifications`, `plugin-audit`, `plugin-feedback`, `plugin-static-site`, `plugin-realtime` |
 | `plan` | framework plane | `dep:minco-plan`, `contract` |
