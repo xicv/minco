@@ -385,3 +385,172 @@ provider-free plan after the five-call fake preflight and guards the one-owner
 cleanup and exact-source migration contracts. No AWS mutation was made by this
 source slice. Full local and exact hosted qualification, a newly reviewed live
 authority, the live three-phase run and terminal cleanup proof remain required.
+
+The first authority-approved provider execution on 2026-08-04 used one
+disposable temporary-RDS boundary and reached a complete phase-one
+CloudFormation apply plus a successful synthetic `POST /orders` response. It
+then failed closed before promotion because the hosted smoke script still
+parsed the pre-envelope response shape. The current OpenAPI contract returns
+the order beneath `data`, and idempotent replay returns the same
+`OrderDocument` without an implementation-only `replayed` field. A red-first
+fake-provider regression reproduced that exact failure, and the smoke now
+extracts `data.id`, verifies the enveloped GET response and requires the entire
+replayed document to equal the created document.
+
+The same failed execution exposed two cleanup timing conditions without
+weakening the absence contract. RDS removed its managed secret asynchronously
+after the database and stack were already absent, so the exact-ARN poll now
+allows up to 120 seconds and accepts only structured
+`ResourceNotFoundException`; a deterministic fake-provider regression fails
+under the former 30-second bound and passes under the new bound. The operator's
+local AWS login also expired during late teardown. The original false cleanup
+receipts were preserved, the original root profile was reauthenticated, every
+remaining target was checked against exact run tags or the deleted stack's
+resource record, and only those exact targets were removed. A fresh independent
+root-profile sweep then proved all fourteen application, database, network,
+identity, storage, parameter and log boundaries absent. Private receipts retain
+the provider identifiers; this public record intentionally retains no account,
+ARN, endpoint, resource name, credential, token or synthetic row value.
+
+This attempt is failure and cleanup evidence, not completion of M10-T08. The
+corrected source must pass complete local and exact hosted qualification, then
+receive a fresh bounded authority and complete all three release phases plus
+terminal cleanup before the task can close.
+
+A second authority-approved execution on 2026-08-04 started only after the
+corrected current revision passed exact-SHA hosted release qualification. Its
+provider-free authority, controller, resource-preflight and prior/current
+migration plans were separately sealed, and the migration plan digests were
+identical. The disposable database provisioned and migrated successfully, and
+the phase-one prior release applied to the temporary application stack. Hosted
+verification then failed closed for the same response-envelope reason because
+the selected prior revision predated the smoke-script correction. No later
+phase or promotion was accepted. This proved that hosted verification is
+source-bound per phase; qualifying only the current controller revision cannot
+repair a stale verifier in the prior checkout.
+
+The parent cleanup trap completed, but its first receipts remained false for
+three eventually consistent children: the temporary Lambda function, Cognito
+pool and RDS-managed secret. Both active children were rechecked against the
+exact run ownership tags before deletion, while the secret was already
+scheduled for provider-managed deletion. All three subsequently returned
+structured not-found responses. A separate root-profile sweep then proved the
+same fourteen application, database, network, identity, storage, parameter and
+log boundaries absent. The private evidence preserves exact identifiers and
+responses; this repository records only the redacted result.
+
+This second attempt is also failure and cleanup evidence, not task completion.
+The next rehearsal must use two distinct exact revisions that both contain the
+corrected hosted verifier while keeping the protected application, contract,
+migration, infrastructure and dependency inputs identical. A documentation-
+and-generated-evidence-only current descendant provides that controller
+distinction without changing the release surface under rehearsal.
+
+The third authority-approved execution on 2026-08-04 used that qualified pair.
+Phase one built, applied, passed fresh hosted verification and sealed its
+promotion receipt. Phase two then failed closed before apply because the real
+CloudFormation update included two effects that the original
+`bounded_release_update_v1` predicate did not represent: release-tag-only
+modifications on the fixed application resources, and retention of the prior
+generated Lambda version. The change set contained no import, indeterminate
+change, replacement, application-resource addition or application-resource
+deletion. The controller nevertheless rejected it, so phase two and rollback
+were not completed.
+
+The parent trap deleted the application and database stacks. The initial
+cleanup receipts again observed the temporary Lambda, Cognito pool and
+RDS-managed secret during provider-side eventual consistency. The active
+children were re-proven against exact run ownership tags before deletion, the
+managed secret was already scheduled for deletion, and all three later returned
+structured not-found responses. An independent root-profile sweep proved all
+fourteen boundaries absent.
+
+A red-first provider-free regression now captures the exact observed update.
+The fixed predicate permits properties plus release tags only on the candidate
+function and candidate alias, tag-only updates only on the eight fixed logical
+resources, and `retain` only for generated candidate Lambda versions. It still
+rejects properties on tag-only resources, unknown tagged resources, live alias
+routing changes, expanded IAM resources, replacements, imports, indeterminate
+changes and incomplete provider classifications. This third attempt remains
+failure and cleanup evidence; the corrected predicate still requires full
+local, exact-SHA hosted and live three-phase qualification.
+
+A fourth authority-approved execution on 2026-08-04 used the fully qualified
+change-set predicate. Phase one applied the prior release, passed five fresh
+hosted checks and sealed promotion. Phase two crossed the previously failing
+real update-policy boundary, applied the current release, passed its own five
+fresh hosted checks and sealed promotion. The rollback compatibility command
+then failed closed before rollback deployment. Although the two protected
+source trees and migration plans were identical and the exact-release data
+compatibility decision was `compatible`, the comparison hashed the evidence
+file path as part of each migration-plan binding. The phase-specific paths
+therefore produced different digests and an unnecessary second operator
+decision.
+
+The parent deleted both stacks, the run-owned storage, parameter and bootstrap
+identity boundary, but its first receipts conservatively remained false while
+the Lambda function, Cognito pool and RDS-managed secret converged. All three
+subsequently returned their service's structured not-found response without a
+manual delete. A separate root-profile sweep then proved all fourteen
+application, database, network, identity, storage, parameter and log resource
+boundaries absent. A read-only diagnostic during the slow VPC Lambda teardown
+observed zero remaining network interfaces. Exact provider identifiers and raw
+receipts remain private and are not retained here.
+
+A red-first CLI unit regression now proves that evidence namespace alone cannot
+change a database-plan compatibility digest, while plan and file content
+changes still do. The digest retains the plan kind, schema, catalog and plan
+digests, content digest and size, selected set and environment, and excludes
+only the evidence path. Reassessing the actual private phase-one and phase-two
+receipts with the corrected binary is provider-free, returns `compatible`, and
+still records no rebuild, replan, reverse SQL, automatic data repair or
+historical hosted-report reuse. A second red-first shell regression captures
+AWS CLI 2.36's schema-stable lowercase `message` alias. The structured-error
+helper accepts that alias only when it exactly equals `Message`; unknown fields,
+wrong service codes, wrong exit codes, mismatched aliases and legacy text remain
+rejected. This fourth attempt is failure and cleanup evidence; the corrected
+source still requires full local, exact-SHA hosted and live three-phase
+qualification.
+
+The fifth authority-approved execution on 2026-08-04 completed the bounded
+rehearsal. The exact prior implementation revision
+`9cbe8fdb64a6f68363fd1cac949ddfa554106667` and its distinct documentation-only
+descendant `4573239d83fff91fffd79ea9bda58afbe217ffe9` had identical protected
+application, contract, migration, infrastructure and dependency inputs. The
+current descendant passed complete local quality and the full hosted release
+qualification at
+<https://github.com/xicv/minco/actions/runs/30931041323>; the implementation
+revision had independently passed the same full hosted matrix at
+<https://github.com/xicv/minco/actions/runs/30928588074>.
+
+Under a fresh 60-minute, USD 25, `ap-southeast-2`, non-production temporary-RDS
+authority, the controller sealed its five-call absence preflight, created and
+migrated the disposable database, and revoked operator ingress before release
+deployment. Phase one applied the exact prior release, passed five fresh hosted
+checks and promoted it. Phase two applied the exact current release through the
+qualified update policy, passed five independently fresh hosted checks and
+promoted it. The rollback assessment returned `compatible`, bound the exact
+phase-one and phase-two evidence chains, and recorded no rebuild, replan,
+reverse SQL, automatic data repair or historical hosted-report reuse. Phase
+three then reused the phase-one release byte-for-byte, deployed it as a new
+candidate, passed another five fresh hosted checks and promoted it through the
+same guarded boundary.
+
+The sole parent cleanup trap removed both stacks and their run-owned resource
+boundaries. Its first conservative receipts observed the retained Lambda
+function/version and RDS-managed secret during provider-side eventual
+consistency; both subsequently returned their exact structured not-found
+responses without a manual delete. A separate root-profile sweep reverified
+caller identity and proved all fourteen application stack, artifact bucket,
+bootstrap role, bootstrap user, Cognito pool, HTTP API, Lambda execution role,
+Lambda function, Lambda log group, RDS instance, RDS secret, RDS stack, SSM
+parameter and VPC boundaries absent. Local non-root credentials and database
+secret files were also absent, and deleting the disposable database proved the
+synthetic data absent. The private evidence retains provider identifiers and
+raw responses; this repository records no account ID, ARN, endpoint, resource
+name, credential, token or synthetic value.
+
+The provider acceptance is complete, but this task remains `in_progress` until
+a separately owned roadmap transition atomically closes the completed M10 and
+M11 milestones and activates M12. M10-T08 does not own `roadmap/**`; changing
+that file from this workspace would violate the repository task boundary.

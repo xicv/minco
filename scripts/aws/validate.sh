@@ -43,6 +43,7 @@ bash scripts/aws/test-multi-release-rehearsal-authority.sh
 bash scripts/aws/test-multi-release-rehearsal-plan.sh
 bash scripts/aws/test-multi-release-phase-result.sh
 bash scripts/aws/test-bounded-multi-release-smoke.sh
+bash scripts/aws/test-smoke-response-contract.sh
 bash scripts/aws/test-temp-rds-cleanup.sh
 uv run --locked python scripts/validate_static.py
 command -v sam >/dev/null || { echo 'SAM CLI is required' >&2; exit 1; }

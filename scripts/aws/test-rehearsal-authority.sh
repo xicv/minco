@@ -93,6 +93,21 @@ aws_cli_service_error_is_any \
   echo "structured AWS service error helper rejected an allowed code set" >&2
   exit 1
 }
+structured_service_error_with_cli_alias="$fixture_dir/structured-service-error-with-cli-alias.json"
+jq '.message = .Message' \
+  "$structured_service_error" >"$structured_service_error_with_cli_alias"
+aws_cli_service_error_is \
+  "$structured_service_error_with_cli_alias" 254 ValidationError || {
+  echo "structured AWS service error helper rejected the AWS CLI lowercase message alias" >&2
+  exit 1
+}
+jq '.message = "different message"' \
+  "$structured_service_error_with_cli_alias" >"$structured_service_error_with_cli_alias.mismatch"
+if aws_cli_service_error_is \
+  "$structured_service_error_with_cli_alias.mismatch" 254 ValidationError; then
+  echo "structured AWS service error helper accepted a mismatched lowercase message alias" >&2
+  exit 1
+fi
 if aws_cli_service_error_is_any \
   "$structured_service_error" 254 AccessDenied NoSuchEntity; then
   echo "structured AWS service error helper accepted a missing code from its set" >&2

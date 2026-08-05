@@ -126,7 +126,10 @@ http_call POST /orders 201 \
   --header "Content-Type: application/json" \
   --header "Idempotency-Key: $idempotency_key" \
   --data-binary "@$body"
-order_id="$(jq -er '.order.id' "$MINCO_AWS_EVIDENCE_DIR/http-response.json")"
+created_order_document="$(
+  jq -cer '.data' "$MINCO_AWS_EVIDENCE_DIR/http-response.json"
+)"
+order_id="$(jq -er '.data.id' "$MINCO_AWS_EVIDENCE_DIR/http-response.json")"
 write_evidence_value "$MINCO_AWS_EVIDENCE_DIR/order-id.txt" "$order_id"
 write_evidence_value "$MINCO_AWS_EVIDENCE_DIR/idempotency-key.txt" "$idempotency_key"
 write_evidence_value "$MINCO_AWS_EVIDENCE_DIR/customer-reference.txt" "$customer_reference"
@@ -136,7 +139,7 @@ http_call GET "/orders/$order_id" 200 \
 jq -e \
   --arg id "$order_id" \
   --arg customer_reference "$customer_reference" \
-  '.id == $id and .customerReference == $customer_reference' \
+  '.data.id == $id and .data.customerReference == $customer_reference' \
   "$MINCO_AWS_EVIDENCE_DIR/http-response.json" >/dev/null
 http_call POST /orders 200 \
   --header "@$authorization_header" \
@@ -144,8 +147,8 @@ http_call POST /orders 200 \
   --header "Idempotency-Key: $idempotency_key" \
   --data-binary "@$body"
 jq -e \
-  --arg id "$order_id" \
-  '.replayed == true and .order.id == $id' \
+  --argjson created_order_document "$created_order_document" \
+  '.data == $created_order_document' \
   "$MINCO_AWS_EVIDENCE_DIR/http-response.json" >/dev/null
 smoke_request_id="$last_request_id"
 
