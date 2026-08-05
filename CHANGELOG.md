@@ -9,14 +9,17 @@ No changes yet.
 
 ## [1.0.0] - 2026-08-05
 
-This is a dated source-candidate record, not a publication record. The
-`1.0.0` workspace remains unpublished and untagged; no registry upload, GitHub
-release or documentation publication has occurred.
+The complete 33-package family is published from immutable tag `v1.0.0` at
+`39a69e36b051724c383da75d5907a824cbd2765b`. Exact-head and exact-main hosted
+release qualification passed, all 33 exact versions were independently
+verified on crates.io, and the versioned documentation was promoted separately
+after publication. No live AWS application resource changed as part of the
+release.
 
-### Release candidate
+### Release
 
-- Advanced the complete 33-package lock-step workspace from the reviewed
-  `0.7.0` source boundary to an unpublished `1.0.0` candidate, including every
+- Advanced and published the complete 33-package lock-step workspace from the
+  reviewed `0.7.0` source boundary to `1.0.0`, including every
   internal dependency and archive-visible Minco core compatibility range.
 - Added the access-pattern-specific `minco-aws-dynamodb` package and Orders
   adapter with conditional transactions, strong point reads, bounded indexed
@@ -24,7 +27,8 @@ release or documentation publication has occurred.
 - Added exact-source security, restore/rollback, bounded API/worker load,
   documentation, generated-consumer and unpacked-package qualification gates.
 - Kept source, local qualification, hosted qualification, tag, registry,
-  documentation, deployment and application proof as independent states.
+  documentation, deployment and application proof as independent states;
+  release publication does not imply a live AWS deployment.
 
 ### Documentation
 

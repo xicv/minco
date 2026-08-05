@@ -6,9 +6,7 @@ description: Install the Minco toolchain and choose a small, explicit framework 
 # Installation
 
 Minco uses ordinary Rust packages plus the `cargo minco` control plane. The
-1.0.0 candidate requires Rust 1.97.1. Until registry publication is complete,
-use the exact qualified source checkout instead of requesting 1.0.0 from
-crates.io.
+published 1.0.0 release requires Rust 1.97.1 and is available from crates.io.
 
 ## Install the CLI
 
@@ -18,8 +16,8 @@ cargo +1.97.1 install cargo-minco --version 1.0.0 --locked
 cargo minco --version
 ```
 
-After publication, the last command should print `minco 1.0.0`. Candidate
-reviewers use the repository-pinned toolchain and workspace binary:
+The last command should print `minco 1.0.0`. Contributors reviewing unreleased
+source use the repository-pinned toolchain and workspace binary:
 
 ```bash
 git clone https://github.com/xicv/minco.git

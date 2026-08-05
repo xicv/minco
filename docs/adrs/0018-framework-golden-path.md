@@ -113,9 +113,9 @@ public and serialized compatibility impact.
 
 ### 1.0 compatibility addendum (2026-08-05)
 
-M12-T04 completed the source-level review required by this ADR. The intended
-1.0 boundary includes every rustdoc-visible public item in the 32 publishable
-packages, all named Cargo features and defaults, the complete CLI and its
+M12-T04 completed the source-level review required by this ADR. That frozen
+boundary included every rustdoc-visible public item in the then-current 32
+publishable packages, all named Cargo features and defaults, the complete CLI and its
 machine-readable outputs, configuration schema 1, Plan schemas 1 and 2,
 release manifest schema 3, schema-1 deployment/plugin/project-view records,
 diagnostic codes and Rust `1.97.1` as the MSRV.
@@ -128,8 +128,10 @@ the required version transition. Strict schema evolution uses a new version
 plus an explicit old reader or migration path; receipt digest payloads are not
 silently extended.
 
-This is a source freeze, not evidence of merge, tag, registry publication,
-application adoption, provider execution or production promotion.
+The separately qualified DynamoDB descendant added the 33rd package before the
+complete family was published as 1.0.0. This historical source freeze remains
+distinct from merge, tag, registry, application adoption, provider execution
+and production-promotion evidence.
 
 ## Safety
 

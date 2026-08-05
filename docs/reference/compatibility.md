@@ -1,23 +1,22 @@
-# Compatibility policy and 1.0 source freeze
+# Compatibility policy and 1.0 release freeze
 
 Freeze reviewed: 2026-08-05
 
-Workspace candidate: `1.0.0`
+Published release: `1.0.0`
 
 Published comparison baseline: `0.6.0`
 
 MSRV: Rust `1.97.1`
 
-This page freezes the source boundary promoted into the Minco `1.0.0`
-candidate.
-It does not claim that the change is merged, tagged, published, deployed or
-proved in a consuming application. Those remain independent release gates.
+This page freezes the source boundary published as Minco `1.0.0`. Merge, tag,
+registry and versioned documentation gates are complete. Deployment and proof
+in a consuming application remain independent release gates.
 
 ## Frozen boundary
 
 The generated references are the exhaustive inventory authorities. The freeze
 applies to every rustdoc-visible public item in the
-[32 publishable packages](generated/packages.md), all named package features,
+[33 publishable packages](generated/packages.md), all named package features,
 the complete [CLI](generated/cli.md), the generated configuration and Plan
 [schemas](generated/schemas.md), the plugin [distribution contract](generated/plugins.md),
 and the generated [diagnostic codes](generated/diagnostics.md).
@@ -49,7 +48,7 @@ production readiness. Adding one of those promises requires its own design and
 evidence; it is not implied by a stable type or successful local check.
 
 No `#[deprecated]`, `#[doc(hidden)]`, `#[non_exhaustive]`, unstable feature or
-nightly feature marker exists in the candidate. Consequently, the current
+nightly feature marker exists in the release. Consequently, the current
 public structs and enums are exact shapes unless Rust itself makes an addition
 compatible. New fields or variants usually need a versioned sibling type or a
 major release; component maturity is not an escape hatch. The only retained
@@ -69,7 +68,7 @@ normal dependency package names from `cargo tree --locked -p minco`. Feature
 tree lines are deterministic dependency-shape evidence, not build-time or
 binary-size budgets.
 
-| Facade selection | 0.6.0 normal packages | candidate normal packages | delta | 0.6.0 feature lines | candidate feature lines | delta |
+| Facade selection | 0.6.0 normal packages | 1.0.0 normal packages | delta | 0.6.0 feature lines | 1.0.0 feature lines | delta |
 |---|---:|---:|---:|---:|---:|---:|
 | `--no-default-features` | 16 | 16 | 0 | 81 | 81 | 0 |
 | defaults | 105 | 105 | 0 | 820 | 825 | +5 |

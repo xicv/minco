@@ -6,22 +6,21 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `0.6.0` release contains the complete lock-step 28-package
+The published `1.0.0` release contains the complete lock-step 33-package
 inventory. A workspace version or source tag is not registry
 proof: release status must be verified independently against the exact
 crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The current workspace is an unpublished `1.0.0` candidate with 33 publishable
-packages. It adds the first-publication `minco-plugin-realtime`,
-`minco-project-view`, `minco-mcp`, `minco-workbench` and
-`minco-aws-dynamodb` packages. The
-published baseline remains the exact 28-package `0.6.0` family; source
-qualification or merge must not be described as registry publication.
+The current workspace matches that published family. Its first release added
+`minco-plugin-realtime`, `minco-project-view`, `minco-mcp`,
+`minco-workbench` and `minco-aws-dynamodb`; all five now have crates.io
+ownership, so repository truth retains no first-publication candidates. Source
+qualification or merge still must not be described as registry publication.
 
-The exact published source is immutable tag `v0.6.0` at
-`2c4605b7d4abcd865035196ffc0484c4a0e82f1e`. Later candidate qualification
+The exact published source is immutable tag `v1.0.0` at
+`39a69e36b051724c383da75d5907a824cbd2765b`. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
@@ -179,8 +178,9 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The published 28-package baseline has crossed that boundary; the five
-new 1.0.0 packages have not.
+exists. The complete 33-package 1.0.0 family has crossed that ownership
+boundary. Trusted-publisher configuration for its five newest packages remains
+a separate state that must be verified before a later OIDC upload.
 
 ## Trusted publishing after the first release
 

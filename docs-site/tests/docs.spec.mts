@@ -108,29 +108,33 @@ test('next documents the complete built-in component catalog', async ({ page }) 
   ).toBeVisible()
 })
 
-test('candidate version navigation resolves to the frozen complete 1.0 manual', async ({
+test('version navigation resolves to the frozen complete 1.0 manual', async ({
   page,
   isMobile
 }) => {
-  test.skip(release.state !== 'candidate', 'candidate-only navigation contract')
-  await page.goto(stablePath)
-  await waitForHydration(page)
-  if (isMobile) {
-    await page.getByRole('button', { name: 'mobile navigation' }).click()
-    const versionButton = page.getByRole('button', { name: `Version ${release.stable}` })
-    await versionButton.focus()
-    await page.keyboard.press('Enter')
+  if (release.state === 'candidate') {
+    await page.goto(stablePath)
+    await waitForHydration(page)
+    if (isMobile) {
+      await page.getByRole('button', { name: 'mobile navigation' }).click()
+      const versionButton = page.getByRole('button', { name: `Version ${release.stable}` })
+      await versionButton.focus()
+      await page.keyboard.press('Enter')
+    } else {
+      await page.getByRole('button', { name: `Version ${release.stable}` }).click()
+    }
+    const candidateLink = page.getByRole('link', {
+      name: `${release.workspace} · Release candidate`
+    })
+    if (isMobile) {
+      await candidateLink.focus()
+      await page.keyboard.press('Enter')
+    } else {
+      await candidateLink.click()
+    }
   } else {
-    await page.getByRole('button', { name: `Version ${release.stable}` }).click()
-  }
-  const candidateLink = page.getByRole('link', {
-    name: `${release.workspace} · Release candidate`
-  })
-  if (isMobile) {
-    await candidateLink.focus()
-    await page.keyboard.press('Enter')
-  } else {
-    await candidateLink.click()
+    await page.goto(candidatePath)
+    await waitForHydration(page)
   }
   await expect(page).toHaveURL(
     new RegExp(`/minco/${release.workspace.replaceAll('.', '\\.')}\\/$`)
@@ -138,7 +142,12 @@ test('candidate version navigation resolves to the frozen complete 1.0 manual', 
   await expect(
     page.getByRole('heading', { level: 1, name: `Minco ${release.workspace}` })
   ).toBeVisible()
-  await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+  if (release.state === 'candidate') {
+    await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+  } else {
+    await expect(page.getByText('Latest stable release.')).toBeVisible()
+    await expect(page.getByText('Release candidate documentation.')).toHaveCount(0)
+  }
 
   await page.goto(`${candidatePath}getting-started/installation`)
   await waitForHydration(page)
@@ -153,7 +162,11 @@ test('candidate version navigation resolves to the frozen complete 1.0 manual', 
     await page.goto(path)
     await waitForHydration(page)
     await expect(page.locator('h1')).toHaveCount(1)
-    await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+    if (release.state === 'candidate') {
+      await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+    } else {
+      await expect(page.getByText('Release candidate documentation.')).toHaveCount(0)
+    }
   }
 })
 
@@ -190,7 +203,7 @@ test('workspace documentation includes the plugin conformance API', async ({ pag
 test('navigation stays within the mobile viewport', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only')
   for (const path of [
-    `${stablePath}tutorials/first-api`,
+    `${stablePath}getting-started/first-application`,
     './next/guides/resource-api',
     './next/plugins/',
     './next/cookbook/'

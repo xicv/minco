@@ -1,19 +1,21 @@
 schema = 1
 workspace_version = "1.0.0"
-published_baseline = "0.6.0"
-workspace_release_state = "candidate"
-published_package_count = 28
+published_baseline = "1.0.0"
+workspace_release_state = "published"
+published_package_count = 33
 adoption_gate_task = "M6-T07"
 qualified_candidate_task = "M12-T06"
 qualified_candidate_source_tree_sha256 = "a678ebf52b4c7a9f60ae9adb43221984b5f5884d44f5d0400e14781a5bf28554"
+qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench"]
 post_candidate_tasks = ["M6-T01", "M12-T07"]
+published_release_task = "M12-T07"
+published_source_tree_sha256 = "ee8daf67f6613b2746367df9e651de11d66a7ab0df0275c616fd14cd1eb3a509"
 
-# The published 0.6.0 baseline contains 28 packages. The 1.0.0 source
-# candidate adds first-publication realtime, ProjectView, local MCP, and local
-# Workbench packages. The post-candidate M6-T01 descendant adds the explicit
-# DynamoDB provider package without rewriting the exact candidate evidence.
+# The published 1.0.0 baseline contains the complete 33-package family.
+# Realtime, ProjectView, local MCP, local Workbench, and the explicit DynamoDB
+# provider crossed their first-publication ownership boundary in this release.
 publishable_package_count = 33
-new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench", "minco-aws-dynamodb"]
+new_publishable_packages = []
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760

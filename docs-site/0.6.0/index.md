@@ -6,7 +6,7 @@ description: Stable documentation for Minco 0.6.0, the AWS-native Rust framework
 # Minco 0.6.0
 
 <div class="version-banner">
-  <span><strong>Latest stable release.</strong> These pages target Minco 0.6.0 and Rust 1.97.1.</span>
+  <span><strong>Previous stable release.</strong> These pages target Minco 0.6.0 and Rust 1.97.1.</span>
   <a href="../versions">View all versions</a>
 </div>
 

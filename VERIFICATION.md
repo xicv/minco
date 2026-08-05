@@ -2,14 +2,42 @@
 
 Date: 2026-08-05
 Current workspace version: `1.0.0`
-Published baseline: `0.6.0`
-Workspace release state: `candidate`
+Published baseline: `1.0.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M12-T08 `1.0.0` publication and stable documentation promotion
+
+The immutable `v1.0.0` tag resolves to exact merged main
+`39a69e36b051724c383da75d5907a824cbd2765b`. Exact-head hosted release run
+[`30986838335`](https://github.com/xicv/minco/actions/runs/30986838335) and
+exact-main hosted release run
+[`30990218161`](https://github.com/xicv/minco/actions/runs/30990218161) passed
+every release gate before upload.
+
+The complete dependency-ordered manual publication accepted all 33 public
+crates, including the five first-publication packages. The independent
+post-upload command
+`uv run --locked python scripts/validate_publish.py --expect-published
+--check-registry --require-registry` reported `errors: 0` and
+`registry_checks_succeeded: 33`. GitHub release
+[`v1.0.0`](https://github.com/xicv/minco/releases/tag/v1.0.0) is published from
+the same tag. Establishing ownership does not by itself verify trusted
+publisher configuration for the five new crates.
+
+Pages run
+[`30990196620`](https://github.com/xicv/minco/actions/runs/30990196620)
+deployed the candidate site from exact main before registry publication. This
+task promotes that already-qualified manual to stable in a separate source
+change and retains its post-merge Pages deployment as a separate gate.
+
+No live AWS application resource was created, modified, promoted or deleted by
+the crate release or documentation promotion.
+
 ## M12-T07 `1.0.0` exact release closure
 
-The unpublished workspace now contains the complete 33-package 1.0 family:
+At the M12-T07 source boundary, the unpublished workspace contained the complete 33-package 1.0 family:
 the published 28-package 0.6 baseline, realtime, ProjectView, local MCP,
 Workbench, and the post-candidate DynamoDB package. M12-T07 requalifies the
 exact descendant source instead of extending the earlier 32-package evidence
@@ -37,9 +65,10 @@ before requesting a token while repository truth lists a first-publication
 crate; this prevents the existing family from being partially uploaded before
 new-crate ownership exists.
 
-No `v1.0.0` tag, crates.io upload, GitHub release, stable documentation
-promotion, hosted exact-head run, AWS deployment or application adoption is
-claimed by this local source record. Those remain separately verified gates.
+That local source record did not itself claim a `v1.0.0` tag, crates.io upload,
+GitHub release, stable documentation promotion, hosted exact-head run, AWS
+deployment or application adoption. The first four later gates are recorded in
+M12-T08 above; AWS deployment and application adoption remain unclaimed.
 
 ## M11-T11/M11-T12 `0.7.0` realtime candidate
 
