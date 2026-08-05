@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 978,
+  "file_count": 985,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1434,8 +1434,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "92f7aa6ea89d3ef3c207c03b0d6d7bbef216bef59ea035937fa13aec8428901a",
-      "size_bytes": 5654
+      "sha256": "d771cd20fd2fee286002bb921d28a8bf9802a6e9fee65186c05f3acb136a924d",
+      "size_bytes": 5859
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -1646,6 +1646,11 @@
       "path": "docs/adrs/0032-access-pattern-dynamodb.md",
       "sha256": "2c247998e3de4c9f5a1117bf8c9c8b166c73a51cf1be1d9372e62a3f97c72a52",
       "size_bytes": 5300
+    },
+    {
+      "path": "docs/adrs/0033-agent-native-development.md",
+      "sha256": "bbfa3036a873682d7aa3ae8aa24fba93b8ce957cfdcb77b6400952f57ce0b3f5",
+      "size_bytes": 10244
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -3884,18 +3889,18 @@
     },
     {
       "path": "roadmap/roadmap.mmd",
-      "sha256": "dcd279dca4d5e6c4afa0ebde80c443fccc18a5921eb7895898db6c4cd4bbf769",
-      "size_bytes": 992
+      "sha256": "8719c21551fc5568d7e206a74012cf2388c15bf68c4f76a5acd42e6c2a0e6cab",
+      "size_bytes": 1096
     },
     {
       "path": "roadmap/roadmap.yaml",
-      "sha256": "f6852f8917efeb5766b3759da1ee626cffec6965787884210883e17954737df7",
-      "size_bytes": 7235
+      "sha256": "b75c2058d724034cb8f2505a9bcba4143527cd5c205830d3f88f28d7139c2259",
+      "size_bytes": 8162
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "9f51656e662fea25b333e440448b5af76a924aeb21f614e48421f9381b363442",
-      "size_bytes": 8295
+      "sha256": "8cbbfa8d0222583b02c1f9788da1e0502151a386790c53f15f006794f0c06971",
+      "size_bytes": 9195
     },
     {
       "path": "rust-toolchain.toml",
@@ -4583,6 +4588,36 @@
       "size_bytes": 3439
     },
     {
+      "path": "tasks/M13/M13-T01-agent-native-contract.md",
+      "sha256": "c8d281071e59c6408df4d4ca5f552d052dc7f8ebb56f84fc75c529817f4a8a7b",
+      "size_bytes": 3030
+    },
+    {
+      "path": "tasks/M13/M13-T02-portable-agent-skills.md",
+      "sha256": "9d3a2aab9c8702f8fd6d702b21da67cf566b56b920eff4eb3434c8f7e8447f94",
+      "size_bytes": 1502
+    },
+    {
+      "path": "tasks/M13/M13-T03-agent-plan-sync-doctor.md",
+      "sha256": "c1271178a80e131beff2a0ff5f6a32936aca1e392ee9a3e227455f845b0577ba",
+      "size_bytes": 1612
+    },
+    {
+      "path": "tasks/M13/M13-T04-agent-context.md",
+      "sha256": "89a87fb879d1fa239ea6f5057b68c453ee270430c9dc70f7bd883b64c18f2cf0",
+      "size_bytes": 1485
+    },
+    {
+      "path": "tasks/M13/M13-T05-generated-application-agent-setup.md",
+      "sha256": "2151e7f05f44a891b1a488f36c157587b4bf586dc595ddced211889734af1e2e",
+      "size_bytes": 1723
+    },
+    {
+      "path": "tasks/M13/M13-T06-cross-client-agent-qualification.md",
+      "sha256": "91679144cbb3414d03ec382be3f563fb1809da9516afb6c7d6fe3f9640b719cd",
+      "size_bytes": 1917
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -4814,7 +4849,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "67aebefd821e9bab4030707aea7ef92195bbb66acca5f45819978a702416f5a7",
+      "sha256": "6ddfffb17d54cf0a9f53f7dde5fbaee223281aa0ca6a970795b7002dd382719e",
       "size_bytes": 2021
     },
     {
@@ -4874,7 +4909,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "c88bb7dad7e828cbd2caa6ac550fc7081f9843ebb84b37df31b08c6b84f2d33f",
+      "sha256": "54fd16983fac3a2cc772ab2f79e0ecc2b37b5254fb4bbeb0b7f62cfe846675f5",
       "size_bytes": 754
     },
     {
@@ -4904,7 +4939,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "1594ced9c6b30498d93a1fc62cc20e46fae7377b4d0384b0bbefceeabfa602cc",
-  "total_size_bytes": 6728722,
+  "source_tree_sha256": "d232b5f23a8fb081ee540db68bcc1844d58138dc1e2d94822270c39db8fe1c76",
+  "total_size_bytes": 6752371,
   "version": "1.0.0"
 }
