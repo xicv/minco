@@ -1,10 +1,11 @@
-# 1.0 source-freeze support matrix
+# 1.0 candidate and post-candidate support matrix
 
 Workspace candidate: `1.0.0`
 Published install baseline: `0.6.0`
 MSRV: Rust `1.97.1`
-Compatibility state: M12-T04 source freeze reviewed; merge, tag, publication
-and application/live proof remain separate
+Compatibility state: the exact M12-T06 1.0 source candidate is reviewed; the
+M6-T01 DynamoDB slice is a separately qualified post-candidate descendant.
+Merge, tag, publication and application/live proof remain separate.
 
 This matrix combines authoritative feature/plugin metadata, exercised golden
 path recipes and the exact CGSP/GarmentIQ adoption reconciliation. It describes
@@ -19,6 +20,9 @@ it is not a blanket production-readiness promise.
 - **candidate beta** is opt-in, checked in the source candidate and usable with
   pinned versions. Its provider and production evidence remain bounded, but
   its published 1.x API/feature/CLI/schema boundary cannot break silently.
+- **post-candidate beta** is additive work on a descendant of the exact source
+  candidate. It must pass its own compatibility and packaging gates; it does
+  not rewrite the candidate's exact evidence or imply publication.
 - **application evidenced** means an exact downstream slice exercised the seam;
   it does not transfer product policy or deployment authority to Minco.
 - **unsupported** means Minco intentionally makes no current promise.
@@ -29,7 +33,7 @@ it is not a blanket production-readiness promise.
 | --- | --- | --- | --- | --- |
 | Static typed composition | candidate evidenced | graph, provenance, dependency and conformance suites | CGSP bounded platform layer; GarmentIQ can avoid composition entirely | no runtime scanning, dynamic libraries or global service locator |
 | OpenAPI contract/profile | candidate evidenced; published in 0.6.0 | contract check/sync, deterministic bindings, compatibility diff | CGSP 64 operations; GarmentIQ 25 operations | no semantic business-compatibility guarantee |
-| Resource wire convention | candidate evidenced | memory, Axum, SQLite and compiled PostgreSQL reference slices | CGSP 30 operations across six families | no ORM, generic repository, generated business logic or DynamoDB emulation |
+| Resource wire convention | candidate evidenced; DynamoDB post-candidate beta | memory, Axum, SQLite, compiled PostgreSQL and all-five-port DynamoDB Orders slices | CGSP 30 operations across six families | no ORM, generic repository, generated business logic or relational DynamoDB emulation |
 | Typed configuration | candidate evidenced | strict redacted config graph and generated applications | product configuration remains authoritative | values, secret-reference names and provider truth are not serialized into reports |
 | Database lifecycle | candidate beta | real SQLite and disposable PostgreSQL migration/seed/verify suites | CGSP retains its own SQLx migrations and forced RLS | no startup migration; backend semantics, backups and data policy remain explicit |
 | Axum/Tower HTTP conventions | candidate evidenced | in-process status/header/body/security contract tests | CGSP parity seam exists but deployed HTTP stays legacy | no application authorization or route ownership transfer |
@@ -37,6 +41,7 @@ it is not a blanket production-readiness promise.
 | SQS Lambda partial-batch worker | candidate beta; application evidenced | runtime and Plan tests | CGSP product record has staging execution; rollback rehearsal remains incomplete | Minco creates no queue, mapping, schedule or business handler |
 | PostgreSQL adapter | candidate beta | provider-specific profiles, generated app, disposable integration | CGSP deliberately keeps product SQLx/RLS authority | no transparent provider equivalence or current-price guarantee |
 | SQLite adapter | candidate beta | persistent-file lifecycle, transactions and feature isolation | no reviewed downstream production claim | no network, multi-instance, managed-backup or PostgreSQL-locking guarantee |
+| DynamoDB Orders adapter | post-candidate beta | standard SDK unit tests, explicit Plan/SAM/IAM and pinned Rustack five-port conformance with cleanup | no reviewed downstream or real-AWS claim | access-pattern-specific; GSI lists are eventually consistent; no SQL or generic repository |
 | Plan/SAM model | candidate evidenced | schema/policy snapshots, cost and IAM checks | CGSP consumes it only as advisory evidence | not an infrastructure apply, live price or product controller |
 | AWS deployment controller | candidate beta | exact-artifact apply/verify/promote/rollback/cleanup rehearsal | product deployment controllers remain separate | requires explicit account/region/change-set approval; no hidden mutation |
 | Static-site intent/publication | candidate beta | local contract and exact-byte/hash receipt tests | products retain their own site controllers | DNS, certificate, CloudFront/S3 mutation and live-site proof are separate |
@@ -53,7 +58,7 @@ capabilities, resources and metadata digests.
 | --- | --- | --- |
 | catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; the reviewed 1.0 Rust/CLI/serialized boundary follows SemVer |
 | candidate beta plugins | `audit`, `events`, `identity`, `notifications`, `object-storage`, `sessions`, `static-site`, `realtime` | explicit opt-in with provider/failure/retention policy required |
-| candidate beta adapters/runtimes | `aws-adapters`, `aws-lambda`, `aws-worker`, `sqlx-postgres`, `sqlx-sqlite` | explicit provider/runtime selection; no default activation |
+| candidate/post-candidate beta adapters/runtimes | `aws-adapters`, `aws-dynamodb`, `aws-lambda`, `aws-worker`, `sqlx-postgres`, `sqlx-sqlite` | explicit provider/runtime selection; no default activation; DynamoDB remains application access-pattern-specific |
 
 Memory/reference implementations are for tests and local development unless a
 component explicitly documents durable production behavior. Catalog evidence
@@ -68,6 +73,7 @@ provider.
 | Local HTTP/application tests | `contract`, `http`, `test` | reference resource slice and Axum contract suites | product authorization and behavior tests |
 | Local persistent SQLite | `sqlx-sqlite` | real file-backed lifecycle and generated app | product durability/concurrency fit |
 | PostgreSQL application | `sqlx-postgres` | disposable adapter and generated-app qualification | chosen provider, connection budget, backups and live integration |
+| DynamoDB Orders | `aws-dynamodb`, Orders `dynamodb`, `plan` | exact table/index contract and pinned Rustack all-five-port conformance | approved access-pattern fit, regional rates, backup/restore, quotas and separately approved real-AWS proof |
 | Native AWS HTTP | `aws-lambda`, `plan`, selected adapters | local package/Plan/SAM plus bounded controller rehearsal | approved target and exact live verification |
 | AWS SQS worker | `aws-worker`, `plan` | local runtime/Plan and CGSP staging evidence | application queue/mapping/IAM and rollback proof |
 | Local AI/developer view | `minco-project-view`, optionally `minco-mcp` or `minco-workbench` | redaction, containment, protocol and browser evidence | remain local and read-only |
@@ -100,3 +106,6 @@ for exact application revisions and evidence limitations. The reviewed Rust,
 Cargo feature, CLI, configuration, Plan, release and plugin commitment is in
 the [compatibility policy](compatibility.md); it does not by itself publish or
 deploy 1.0.
+
+The post-candidate DynamoDB boundary is described in the
+[Orders DynamoDB profile](../deployment/dynamodb-orders.md).

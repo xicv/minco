@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Plan model source SHA-256: `ee56cb43a1456018d49be1a636efd56215db3882492fb963a9aef77510c66e5f`.
+Plan model source SHA-256: `cadd072eb833f1c64887a586fa3c88f39abfca298464c398dae7e466db1d1567`.
 
 ## Composed configuration schema
 

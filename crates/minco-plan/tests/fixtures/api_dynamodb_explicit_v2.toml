@@ -1,29 +1,23 @@
 schema_version = 2
-application = "minco-orders-dynamodb-analysis"
-environment = "analysis"
+application = "orders"
+environment = "test"
 region = "ap-southeast-2"
 runtime = "lambda_zip_arm64"
 ingress = "api_gateway_http_api"
 allowed_origins = ["https://app.example.invalid"]
-allowed_headers = ["authorization", "content-type", "idempotency-key", "x-request-id"]
-log_retention_days = 14
 scheduled_wakeups = []
 uses_nat_gateway = false
 
 [auth]
 kind = "jwt"
 issuer = "https://issuer.example.invalid"
-audiences = ["minco-orders"]
+audiences = ["orders"]
 
 [database]
 kind = "dynamo_db_on_demand"
 read_request_units_million = 1.0
-write_request_units_million = 0.25
+write_request_units_million = 1.0
 storage_gb_month = 1.0
-# Supply reviewed regional rates before considering the estimate complete:
-# read_million_rate_usd = 0.0
-# write_million_rate_usd = 0.0
-# storage_rate_usd = 0.0
 
 [database.table]
 logical_id = "OrdersTable"
@@ -57,7 +51,7 @@ role = "http_api"
 artifact_path = "target/lambda/orders-lambda/bootstrap.zip"
 memory_mb = 512
 timeout_seconds = 15
-reserved_concurrency = 5
+reserved_concurrency = 2
 provisioned_concurrency = 0
 database_connections_per_instance = 0
 

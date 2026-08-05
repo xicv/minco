@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Workspace version: `1.0.0`. MSRV: `1.97.1`. Publishable packages: `32`.
+Workspace version: `1.0.0`. MSRV: `1.97.1`. Publishable packages: `33`.
 
 Publication is dependency ordered. A docs.rs link is present for every public package; archive-smoke packages are the subset exercised independently before publication.
 
@@ -47,7 +47,8 @@ Publication is dependency ordered. A docs.rs link is present for every public pa
 | 26 | `minco-plugin-feedback` | AI-ready client feedback loops with screenshots, voice, discussion, persistence, and an embeddable widget for Minco | no | [docs.rs](https://docs.rs/minco-plugin-feedback/1.0.0/minco_plugin_feedback/) |
 | 27 | `minco-plugin-realtime` | Provider-neutral subscriber-only realtime publication for Minco applications | yes | [docs.rs](https://docs.rs/minco-plugin-realtime/1.0.0/minco_plugin_realtime/) |
 | 28 | `minco-aws-adapters` | Production AWS and signed-webhook adapters for Minco official plugin ports | no | [docs.rs](https://docs.rs/minco-aws-adapters/1.0.0/minco_aws_adapters/) |
-| 29 | `minco-aws-lambda` | Native AWS Lambda HTTP runtime, API Gateway principal mapping, and SSM loading for Minco | no | [docs.rs](https://docs.rs/minco-aws-lambda/1.0.0/minco_aws_lambda/) |
-| 30 | `minco-aws-worker` | Explicit AWS Lambda SQS partial-batch worker runtime for Minco | no | [docs.rs](https://docs.rs/minco-aws-worker/1.0.0/minco_aws_worker/) |
-| 31 | `minco` | Contract-first, AI-native, AWS-native Rust web framework with static plugins and deployment planning | no | [docs.rs](https://docs.rs/minco/1.0.0/minco/) |
-| 32 | `cargo-minco` | Cargo subcommand for Minco local development, contracts, plugins, plans, releases, and JJ workflows | no | [docs.rs](https://docs.rs/cargo-minco/1.0.0/cargo_minco/) |
+| 29 | `minco-aws-dynamodb` | Validated AWS DynamoDB provider primitives for explicit Minco access models | yes | [docs.rs](https://docs.rs/minco-aws-dynamodb/1.0.0/minco_aws_dynamodb/) |
+| 30 | `minco-aws-lambda` | Native AWS Lambda HTTP runtime, API Gateway principal mapping, and SSM loading for Minco | no | [docs.rs](https://docs.rs/minco-aws-lambda/1.0.0/minco_aws_lambda/) |
+| 31 | `minco-aws-worker` | Explicit AWS Lambda SQS partial-batch worker runtime for Minco | no | [docs.rs](https://docs.rs/minco-aws-worker/1.0.0/minco_aws_worker/) |
+| 32 | `minco` | Contract-first, AI-native, AWS-native Rust web framework with static plugins and deployment planning | no | [docs.rs](https://docs.rs/minco/1.0.0/minco/) |
+| 33 | `cargo-minco` | Cargo subcommand for Minco local development, contracts, plugins, plans, releases, and JJ workflows | no | [docs.rs](https://docs.rs/cargo-minco/1.0.0/cargo_minco/) |

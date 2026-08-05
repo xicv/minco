@@ -64,7 +64,7 @@ milestones:
   - Deployment evidence contains no secrets.
 - id: M6
   name: Essential official extensions and explicit DynamoDB access
-  status: active
+  status: complete
   depends_on:
   - M5
   outcome: Optional sessions, identity, object storage, queue/outbox, notifications, audit, Feedback, static-site, and access-pattern-specific DynamoDB support use the same capability model.

@@ -208,7 +208,6 @@ class Validator:
     def validate_repository_truth(self) -> None:
         truth_path = self.root / "verification/repository-truth.toml"
         measurements_path = self.root / "verification/adoption-measurements.json"
-        source_manifest_path = self.root / "verification/source-manifest.json"
         cargo_path = self.root / "Cargo.toml"
         facade_path = self.root / "crates/minco/Cargo.toml"
         catalog_path = self.root / "plugins/catalog.toml"
@@ -344,20 +343,20 @@ class Validator:
                     "adoption report candidate requires an immutable source-tree-sha256 revision",
                     measurements_path,
                 )
-            if source_manifest_path.is_file():
-                source_manifest = json.loads(source_manifest_path.read_text())
-                source_tree_sha256 = source_manifest.get("source_tree_sha256")
-                expected_revision = f"source-tree-sha256:{source_tree_sha256}"
-                if (
-                    not isinstance(source_tree_sha256, str)
-                    or not re.fullmatch(r"[0-9a-f]{64}", source_tree_sha256)
-                    or candidate_revision != expected_revision
-                ):
-                    self.error(
-                        "STATIC-MEASURE-004",
-                        "adoption report candidate revision differs from the qualified source manifest",
-                        measurements_path,
-                    )
+            qualified_candidate_sha256 = truth.get(
+                "qualified_candidate_source_tree_sha256"
+            )
+            expected_revision = f"source-tree-sha256:{qualified_candidate_sha256}"
+            if (
+                not isinstance(qualified_candidate_sha256, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", qualified_candidate_sha256)
+                or candidate_revision != expected_revision
+            ):
+                self.error(
+                    "STATIC-MEASURE-004",
+                    "adoption report candidate revision differs from the immutable qualified candidate in repository truth",
+                    measurements_path,
+                )
             baseline_facade = measurements.get("baseline", {}).get("facade", {})
             candidate_facade = measurements.get("candidate", {}).get("facade", {})
             official_features = set(

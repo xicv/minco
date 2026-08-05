@@ -11,17 +11,23 @@ default = ["memory"]
 memory = []
 postgres = ["dep:minco-sqlx-postgres", "dep:sqlx", "sqlx/postgres"]
 sqlite = ["dep:minco-sqlx-sqlite", "dep:sqlx", "sqlx/sqlite"]
-all-databases = ["postgres", "sqlite"]
+dynamodb = ["dep:aws-sdk-dynamodb", "dep:minco-aws-dynamodb", "dep:sha2", "dep:tokio"]
+all-databases = ["dynamodb", "postgres", "sqlite"]
 
 [dependencies]
 async-trait.workspace = true
+aws-sdk-dynamodb = { workspace = true, optional = true }
 chrono.workspace = true
+futures.workspace = true
+minco-aws-dynamodb = { workspace = true, optional = true }
 minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
 orders-application.workspace = true
 orders-domain.workspace = true
 serde_json.workspace = true
+sha2 = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 uuid.workspace = true
 
 [dev-dependencies]

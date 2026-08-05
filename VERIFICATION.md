@@ -31,14 +31,24 @@ No `v1.0.0` tag, registry upload, GitHub release, stable documentation
 publication, hosted exact-head run, AWS deployment or application adoption is
 claimed by the local candidate.
 
-## M11-T11 `0.7.0` realtime candidate
+## M11-T11/M11-T12 `0.7.0` realtime candidate
 
 The unpublished 29-package source candidate adds
 `minco-plugin-realtime`, minimal AppSync Events planning/publication and a
-subscriber-only browser facade. It does not claim a tag, crates.io
-publication, live AWS deployment, browser/provider runtime or production
-enablement. Exact local, hosted and merge evidence is recorded in the task;
-the completed `0.6.0` evidence below remains the published baseline.
+subscriber-only browser facade. It does not claim a tag, crates.io publication
+or production enablement. Exact local, hosted and merge evidence is recorded in
+M11-T11; bounded disposable provider evidence is recorded in M11-T12. The
+completed `0.6.0` evidence below remains the published baseline.
+
+M11-T12 passed its exact-source live proof on 2026-08-05 at
+`2d721700998ad9abf93e4ea855bf938cd1b3a27e`: Cognito connection and
+claim-bound subscription, HTTP truth resynchronization before buffered event
+delivery, two real IAM publications through the Rust adapter across a browser
+reconnect, mismatched-channel rejection, and complete teardown all passed. The
+exact stack and versioned artifact bucket were independently proved absent, and
+the temporary proof permission was restored and reprovisioned to its exact
+original value. This is bounded non-production verification, not standing AWS
+deployment authority.
 
 The first exact-head essential run
 [`30893275719`](https://github.com/xicv/minco/actions/runs/30893275719)

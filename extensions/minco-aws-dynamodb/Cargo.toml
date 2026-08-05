@@ -1,0 +1,41 @@
+[package]
+name = "minco-aws-dynamodb"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Validated AWS DynamoDB provider primitives for explicit Minco access models"
+documentation = "https://docs.rs/minco-aws-dynamodb"
+readme = "README.md"
+keywords = ["minco", "aws", "dynamodb", "serverless"]
+categories = ["web-programming", "database"]
+publish = ["crates-io"]
+include = [
+  "src/**",
+  "tests/**",
+  "Cargo.toml",
+  "minco-plugin.json",
+  "README.md",
+  "LICENSE-MIT",
+  "LICENSE-APACHE",
+]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
+
+[dependencies]
+aws-config.workspace = true
+aws-sdk-dynamodb.workspace = true
+http.workspace = true
+minco-core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

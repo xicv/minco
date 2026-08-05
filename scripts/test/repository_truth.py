@@ -400,11 +400,12 @@ class RepositoryTruthTests(unittest.TestCase):
         self.assertIn("STATIC-TRUTH-CATALOG-002", self.truth_codes())
 
     def test_roadmap_task_drift_has_a_stable_code(self) -> None:
-        roadmap = self.root / "roadmap/roadmap.yaml"
-        roadmap.write_text(
-            roadmap.read_text().replace(
-                "- id: M6\n  name: Essential official extensions\n  status: active",
-                "- id: M6\n  name: Essential official extensions\n  status: complete",
+        task = self.root / "tasks/M6/M6-T01-dynamodb-adapter.md"
+        task.write_text(
+            task.read_text().replace(
+                "status: complete",
+                "status: active",
+                1,
             )
         )
         self.assertIn("STATIC-TRUTH-ROADMAP-001", self.truth_codes())
@@ -471,7 +472,7 @@ class RepositoryTruthTests(unittest.TestCase):
         measurements.write_text(json.dumps(value))
         self.assertIn("STATIC-MEASURE-002", self.truth_codes())
 
-    def test_source_manifest_revision_drift_has_a_stable_code(self) -> None:
+    def test_qualified_candidate_revision_drift_has_a_stable_code(self) -> None:
         measurements = self.root / "verification/adoption-measurements.json"
         value = json.loads(measurements.read_text())
         value["candidate"]["revision"] = f"source-tree-sha256:{'0' * 64}"

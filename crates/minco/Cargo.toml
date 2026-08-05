@@ -66,6 +66,7 @@ default-plugins = [
 sqlx-postgres = ["db", "dep:minco-sqlx-postgres"]
 sqlx-sqlite = ["db", "dep:minco-sqlx-sqlite"]
 aws-adapters = ["dep:minco-aws-adapters", "minco-aws-adapters/full"]
+aws-dynamodb = ["dep:minco-aws-dynamodb"]
 aws-lambda = ["dep:minco-aws-lambda", "http"]
 aws-worker = ["dep:minco-aws-worker"]
 full = [
@@ -80,6 +81,7 @@ full = [
   "sqlx-postgres",
   "sqlx-sqlite",
   "aws-adapters",
+  "aws-dynamodb",
   "aws-lambda",
   "aws-worker",
 ]
@@ -108,6 +110,7 @@ minco-plugin-realtime = { workspace = true, optional = true }
 minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
 minco-aws-adapters = { workspace = true, optional = true }
+minco-aws-dynamodb = { workspace = true, optional = true }
 minco-aws-lambda = { workspace = true, optional = true }
 minco-aws-worker = { workspace = true, optional = true }
 

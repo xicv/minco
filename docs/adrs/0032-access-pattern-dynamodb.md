@@ -30,10 +30,25 @@ eventual-consistency behavior is documented. Updates and soft deletes use
 revision conditions on the canonical item; soft deletion removes list-index
 attributes while retaining the canonical and idempotency records.
 
+The Orders model uses 16 calculated shards, queries no more than eight shards
+concurrently and stops after 128 provider pages per shard. Three GSIs preserve
+all current single- and two-field `createdAt`/`id` sort permutations: the
+normal created-at key, an inverted-ID created-at key for mixed direction, and
+an ID-leading key. The adapter performs a deterministic global merge and keeps
+the application cursor opaque. These constants and indexes are application
+policy, not provider-extension defaults.
+
 `minco-aws-dynamodb` is an official provider extension, not a repository. It
 owns validated table/client configuration, standard SDK endpoint selection, a
 provider descriptor and reusable AWS resource support. It contains no Orders
 types or business behavior.
+
+The initial implementation uses `aws-sdk-dynamodb` 1.120.0 with the repository's
+locked `aws-config` dependency. Its second implementation boundary is the
+existing `minco-aws-adapters` extension: both follow explicit opt-in provider
+configuration and descriptor conventions without introducing a service locator
+or an SDK facade. Local protocol conformance uses the repository-pinned Rustack
+revision rather than a different client or an in-memory DynamoDB substitute.
 
 Plan IR gains an optional, schema-closed DynamoDB table contract containing the
 logical table identity, scalar key attributes, secondary indexes, on-demand
@@ -62,6 +77,8 @@ packaging and qualification evidence.
 - Idempotency response snapshots survive later update and deletion.
 - On-demand mode removes provisioned throughput, not storage, backup, index,
   transfer or request costs.
+- Three projected-`ALL` indexes multiply storage and write work; that cost is
+  deliberate because it preserves the existing public sort contract.
 
 ## Compatibility
 
@@ -78,3 +95,6 @@ Custom non-loopback endpoints require HTTPS; loopback HTTP is local-only.
 Runtime IAM names exact table and index ARNs and never widens to `*`. Tests use
 unique Rustack-local resources and cleanup traps. Real AWS creation requires a
 separate, exact, time- and spend-bounded approval with absence-verified cleanup.
+
+The operational profile and exact access patterns are documented in
+[`dynamodb-orders.md`](../deployment/dynamodb-orders.md).

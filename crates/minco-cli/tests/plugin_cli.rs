@@ -312,6 +312,46 @@ fn plugin_explain_exposes_the_complete_static_decision_surface() {
 }
 
 #[test]
+fn explain_traces_every_orders_operation_to_the_dynamodb_adapter() {
+    for operation in [
+        "placeOrder",
+        "listOrders",
+        "getOrder",
+        "updateOrder",
+        "deleteOrder",
+    ] {
+        let output = run(&["explain", operation]);
+        assert!(
+            output.status.success(),
+            "{operation} stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let explanation: Value =
+            serde_json::from_slice(&output.stdout).expect("operation explanation JSON");
+        assert!(
+            explanation["adapters"]
+                .as_array()
+                .expect("operation adapters")
+                .iter()
+                .any(|adapter| adapter == "dynamodb"),
+            "{operation} must expose the DynamoDB adapter"
+        );
+        assert!(
+            explanation["tests"]
+                .as_array()
+                .expect("operation tests")
+                .iter()
+                .any(|test| {
+                    test.as_str().is_some_and(|test| {
+                        test.starts_with("examples/orders/adapters/tests/dynamodb.rs#")
+                    })
+                }),
+            "{operation} must expose DynamoDB conformance evidence"
+        );
+    }
+}
+
+#[test]
 fn plugin_doctor_proves_catalog_version_selection_and_static_registration() {
     let first = run(&["plugin", "doctor"]);
     let second = run(&["plugin", "doctor"]);
@@ -945,7 +985,12 @@ fn plugin_test_all_uses_the_public_offline_conformance_boundary() {
     );
     let reports: Value = serde_json::from_slice(&output.stdout).expect("conformance JSON");
     let reports = reports.as_array().expect("conformance reports");
-    assert_eq!(reports.len(), 17);
+    assert_eq!(reports.len(), 18);
+    assert!(
+        reports
+            .iter()
+            .any(|report| report["plugin_id"] == "aws-dynamodb")
+    );
     assert!(
         reports
             .iter()

@@ -21,6 +21,16 @@ stability = "beta"
 description = "Explicit opt-in AWS service adapters; the facade full feature is never enabled by default."
 
 [[plugin]]
+id = "aws-dynamodb"
+crate = "minco-aws-dynamodb"
+path = "extensions/minco-aws-dynamodb"
+kind = "adapter"
+feature = "aws-dynamodb"
+default_enabled = false
+stability = "beta"
+description = "Validated DynamoDB provider primitives for explicit application-owned access models."
+
+[[plugin]]
 id = "aws-lambda"
 crate = "minco-aws-lambda"
 path = "extensions/minco-aws-lambda"

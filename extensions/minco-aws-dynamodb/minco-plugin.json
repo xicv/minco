@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "id": "aws-dynamodb",
+  "kind": "adapter",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^1.0.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "aws-dynamodb",
+  "runtimes": ["native", "aws-lambda"],
+  "requires": [],
+  "provides": [
+    { "name": "aws.dynamodb.client", "version": "1.0.0" }
+  ],
+  "resources": [
+    {
+      "id": "aws-dynamodb-table",
+      "kind": "dynamo_db",
+      "idle_cost": "storage_only",
+      "iam_actions": [
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:TransactWriteItems",
+        "dynamodb:UpdateItem"
+      ]
+    }
+  ],
+  "data_classes": ["customer_provided", "personal", "confidential"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Provider failures are redacted and never fall back to another store."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-aws-dynamodb" },
+  "conformance": {
+    "profile": "minco-adapter-v1",
+    "evidence": ["cargo test -p minco-aws-dynamodb --all-features --locked"]
+  }
+}
