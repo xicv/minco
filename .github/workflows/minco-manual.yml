@@ -72,6 +72,9 @@ jobs:
       - name: Full release quality reproduction
         if: ${{ inputs.profile == 'release' }}
         run: ./scripts/quality.sh
+      - name: Standalone AppSync proof
+        if: ${{ inputs.profile == 'release' }}
+        run: proofs/realtime-appsync/scripts/test-local.sh
       - name: Bounded candidate recovery and load qualification
         if: ${{ inputs.profile == 'release' }}
         run: |

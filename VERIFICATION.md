@@ -7,29 +7,39 @@ Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M12 `1.0.0` local release candidate
+## M12-T07 `1.0.0` exact release closure
 
-The 32-package workspace has advanced from the reviewed `0.7.0` source freeze
-to an unpublished `1.0.0` candidate. M12-T06 repeats all ten mandatory local
-release gates after the version and compatibility move. The exact source-tree
-digest, file count, command statuses, exit codes, durations and redacted log
-digests are recorded in `verification/1.0-candidate-release-gates.json`;
-restore/rollback and bounded load detail remain separate exact-source records.
-The source manifest inventories 910 files, and the package gate covers all 32
-publishable archives, their configured unpacked tests, four external facade
-consumers, and an unpacked `cargo-minco` installation.
+The unpublished workspace now contains the complete 33-package 1.0 family:
+the published 28-package 0.6 baseline, realtime, ProjectView, local MCP,
+Workbench, and the post-candidate DynamoDB package. M12-T07 requalifies the
+exact descendant source instead of extending the earlier 32-package evidence
+by narrative.
 
-The locally built arm64 Orders ZIP is 5,116,868 bytes with SHA-256
-`83f5c75b535aeb9bdcb4b6143dd52f6ae5074a22c1eb9b3d69a445d9c9a647f8`.
-The worker ZIP is 576,350 bytes with SHA-256
-`59a119a792e53f353ca5462d826e8eb61b608e7272c1e78411095f23a8d70001`.
-No-default and default facade dependency-package counts are unchanged from the
-published baseline; the Orders ZIP is 2.0719% larger and remains within the
-reviewed 10 MiB budget.
+`verification/1.0-candidate-release-gates.json` records the source-tree digest,
+file count, all mandatory command statuses, exit codes, durations and private
+log digests. Its command set includes the complete quality/security matrix,
+the standalone AppSync consumer proof, Feedback browser tests, HTTP E2E,
+Rustack, the 33-package publish dry run and package inventory, recovery, load,
+and a final source-manifest check. Recovery and load details remain separate
+schema-validated exact-source records.
 
-No `v1.0.0` tag, registry upload, GitHub release, stable documentation
-publication, hosted exact-head run, AWS deployment or application adoption is
-claimed by the local candidate.
+The checked-in CLI integration now proves the MCP 2026-07-28
+`server/discover` lifecycle with per-request metadata. The standalone AppSync
+workspace is locked to the 1.0 dependencies and is a mandatory local and hosted
+release gate. The versioned documentation site contains a frozen 1.0.0 manual,
+candidate navigation, all 18 catalog components, and dedicated realtime,
+DynamoDB, ProjectView/MCP/workbench and complete deployment-lifecycle guidance.
+
+Publication remains ordered and non-atomic. Five crates require manual first
+publication, so the documented 1.0 procedure uses one short-lived manual token
+for the complete exact-tag family. The OIDC workflow refuses `publish=true`
+before requesting a token while repository truth lists a first-publication
+crate; this prevents the existing family from being partially uploaded before
+new-crate ownership exists.
+
+No `v1.0.0` tag, crates.io upload, GitHub release, stable documentation
+promotion, hosted exact-head run, AWS deployment or application adoption is
+claimed by this local source record. Those remain separately verified gates.
 
 ## M11-T11/M11-T12 `0.7.0` realtime candidate
 

@@ -81,6 +81,10 @@ class RecoveryRecordContractTests(unittest.TestCase):
 
 
 class ReleaseGateRecordContractTests(unittest.TestCase):
+    def test_standalone_appsync_proof_is_a_mandatory_release_gate(self) -> None:
+        commands = CANDIDATE_QUALIFICATION.MANDATORY_RELEASE_COMMANDS
+        self.assertIn("proofs/realtime-appsync/scripts/test-local.sh", commands)
+
     def test_pass_requires_every_mandatory_command_to_pass(self) -> None:
         commands = [
             {"command": command, "status": "PASS", "exit_code": 0}

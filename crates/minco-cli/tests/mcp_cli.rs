@@ -56,7 +56,7 @@ async fn serving_requires_an_explicit_root() {
 }
 
 #[tokio::test]
-async fn child_process_stdio_negotiates_and_lists_only_the_read_only_tools() {
+async fn child_process_stdio_discovers_current_protocol_and_lists_only_read_only_tools() {
     let root = repository_root();
     let mut child = Command::new(env!("CARGO_BIN_EXE_cargo-minco"))
         .arg("--root")
@@ -78,36 +78,57 @@ async fn child_process_stdio_negotiates_and_lists_only_the_read_only_tools() {
                 json!({
                     "jsonrpc": "2.0",
                     "id": 1,
-                    "method": "initialize",
+                    "method": "server/discover",
                     "params": {
-                        "protocolVersion": "2026-07-28",
-                        "capabilities": {},
-                        "clientInfo": {"name": "minco-test", "version": "1"}
+                        "_meta": {
+                            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                            "io.modelcontextprotocol/clientInfo": {
+                                "name": "minco-test",
+                                "version": "1"
+                            },
+                            "io.modelcontextprotocol/clientCapabilities": {}
+                        }
                     }
                 })
             )
             .as_bytes(),
         )
         .await
-        .expect("write initialize");
-    let initialized = timeout(Duration::from_secs(10), lines.next_line())
+        .expect("write server/discover");
+    let discovered = timeout(Duration::from_secs(10), lines.next_line())
         .await
-        .expect("initialize timeout")
-        .expect("read initialize response")
-        .expect("initialize response line");
-    let initialized: Value = serde_json::from_str(&initialized).expect("initialize JSON");
-    assert_eq!(initialized["id"], 1);
-    assert_eq!(initialized["result"]["protocolVersion"], "2026-07-28");
+        .expect("server/discover timeout")
+        .expect("read server/discover response")
+        .expect("server/discover response line");
+    let discovered: Value = serde_json::from_str(&discovered).expect("server/discover JSON");
+    assert_eq!(discovered["id"], 1);
+    assert_eq!(discovered["result"]["resultType"], "complete");
+    assert!(
+        discovered["result"]["supportedVersions"]
+            .as_array()
+            .expect("supported protocol versions")
+            .contains(&json!("2026-07-28"))
+    );
 
-    for message in [
-        json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
-        json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
-    ] {
-        stdin
-            .write_all(format!("{message}\n").as_bytes())
-            .await
-            .expect("write MCP message");
-    }
+    let list_request = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientInfo": {
+                    "name": "minco-test",
+                    "version": "1"
+                },
+                "io.modelcontextprotocol/clientCapabilities": {}
+            }
+        }
+    });
+    stdin
+        .write_all(format!("{list_request}\n").as_bytes())
+        .await
+        .expect("write tools/list");
     let listed = timeout(Duration::from_secs(10), lines.next_line())
         .await
         .expect("tools/list timeout")

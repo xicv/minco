@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "release"))
 from validate_publish import PublishValidator  # noqa: E402
 from publish import (  # noqa: E402
     archive_patch_arguments,
+    clean_workspace,
     external_consumer_manifest,
     packaged_test_command,
     publish_command,
@@ -71,6 +72,15 @@ publish_step = next(
     for step in release_steps
     if step.get("name") == "Publish selected crate family"
 )
+trusted_preflight = next(
+    step
+    for step in release_steps
+    if step.get("name") == "Refuse OIDC first publication"
+)
+assert trusted_preflight["if"] == "${{ inputs.publish }}"
+assert 'new_publishable_packages' in trusted_preflight["run"]
+assert "manual authenticated publication" in trusted_preflight["run"]
+assert release_steps.index(trusted_preflight) < release_steps.index(publish_step)
 assert publish_step["env"]["MINCO_RELEASE_TAG"] == "${{ inputs.release_tag }}"
 assert "${{ inputs.release_tag }}" not in publish_step["run"]
 assert publish_step["run"] == (
@@ -153,6 +163,31 @@ with tempfile.TemporaryDirectory(prefix="minco-package-patches-") as temporary:
     assert "--locked" not in packaged_test
 
 print("Coordinated dry-run and unpacked-archive fixtures passed.")
+
+with tempfile.TemporaryDirectory(prefix="minco-clean-jj-workspace-") as temporary:
+    release_root = Path(temporary)
+    (release_root / ".jj").mkdir()
+    clean = subprocess.CompletedProcess(args=[], returncode=0, stdout="")
+    with (
+        mock.patch("publish.ROOT", release_root),
+        mock.patch(
+            "publish.shutil.which",
+            side_effect=lambda command: "/usr/bin/jj" if command == "jj" else None,
+        ),
+        mock.patch("publish.run", return_value=clean) as run_mock,
+    ):
+        clean_workspace()
+        assert run_mock.call_args_list[1].args[0] == [
+            "jj",
+            "log",
+            "-r",
+            "@ & conflicts()",
+            "--no-graph",
+            "--template",
+            'change_id ++ "\n"',
+        ]
+
+print("JJ release-snapshot conflict fixture passed.")
 
 consumer_manifest = external_consumer_manifest(
     "minco-archive-no-default",

@@ -13,9 +13,10 @@ crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The current workspace is an unpublished `1.0.0` candidate with 32 publishable
+The current workspace is an unpublished `1.0.0` candidate with 33 publishable
 packages. It adds the first-publication `minco-plugin-realtime`,
-`minco-project-view`, `minco-mcp` and `minco-workbench` packages. The
+`minco-project-view`, `minco-mcp`, `minco-workbench` and
+`minco-aws-dynamodb` packages. The
 published baseline remains the exact 28-package `0.6.0` family; source
 qualification or merge must not be described as registry publication.
 
@@ -36,6 +37,9 @@ deployment proof.
 | `minco-plan` | Deployment Plan IR, database profiles, structural cost/performance policy, and SAM rendering. |
 | `minco-release` | Immutable release manifests and artifact digest verification. |
 | `minco-test` | In-process HTTP and command-evidence test helpers. |
+| `minco-project-view` | Bounded repository-native project graph and independent evidence lanes. |
+| `minco-mcp` | Local read-only MCP projection over ProjectView. |
+| `minco-workbench` | Accessible loopback and static ProjectView presentation. |
 | `minco-plugin-health` | Official health/readiness plugin. |
 | `minco-plugin-observability` | Official structured tracing plugin. |
 | `minco-plugin-idempotency` | Official idempotency primitives and port. |
@@ -51,6 +55,7 @@ deployment proof.
 | `minco-sqlx-postgres` | Bounded PostgreSQL pools and migrations. |
 | `minco-sqlx-sqlite` | SQLite pools, WAL policy, and migrations. |
 | `minco-aws-adapters` | Opt-in AWS provider adapters. |
+| `minco-aws-dynamodb` | Validated DynamoDB SDK client, table intent, readiness, and redacted provider errors. |
 | `minco-aws-lambda` | Native Lambda HTTP, API Gateway identity, and SSM integration. |
 | `minco-aws-worker` | Opt-in SQS Lambda worker with partial-batch responses. |
 | `minco` | Ergonomic facade with feature-gated re-exports and official defaults. |
@@ -155,12 +160,17 @@ trusted publishing is unavailable:
    git push origin refs/tags/v<workspace-version>
    ```
 
-5. Confirm the remote tag resolves to the qualified `main` SHA, then publish
-   only the new crate or explicitly selected recovery set:
+5. Confirm the remote tag resolves to the qualified `main` SHA. When the
+   release family contains any first-publication crate, use the short-lived
+   manual token for the complete dependency-ordered family so existing and new
+   packages cross the version boundary together:
 
    ```bash
-   scripts/release/publish.sh --execute --package <crate>
+   scripts/release/publish.sh --execute
    ```
+
+   Use explicit repeated `--package <crate>` selections only to resume after a
+   verified partial upload or for an independently reviewed recovery.
 
 Cargo multi-package publication is ordered but not atomic. If crates.io accepts
 some packages before a later upload fails, do not change or overwrite accepted
@@ -169,8 +179,8 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. Every package in the published 28-package `0.4.0` family has crossed
-that boundary.
+exists. The published 28-package baseline has crossed that boundary; the five
+new 1.0.0 packages have not.
 
 ## Trusted publishing after the first release
 
@@ -181,9 +191,11 @@ exists on crates.io, configure a trusted publisher for that package:
 - workflow: `publish-crates.yml`
 - environment: `crates-io`
 
-The complete published family has crossed the first-publication ownership
-boundary. Revalidate each package's current trusted-publisher configuration
-before a later upload rather than inferring it from historical release state.
+Only a family with an empty checked `new_publishable_packages` list in
+`verification/repository-truth.toml` has crossed the
+first-publication ownership boundary. Revalidate each package's current
+trusted-publisher configuration before a later upload rather than inferring it
+from historical release state.
 
 The checked-in workflow uses GitHub OIDC to obtain a short-lived crates.io token;
 it does not require a long-lived crates.io secret. Keep the workflow manual-only
@@ -213,12 +225,18 @@ false and uses the exact workspace-version tag. A release dispatch uses that
 same exact tag, leaves `authenticate=false`, and explicitly selects
 `publish=true`.
 
+The workflow refuses `publish=true` while repository truth still lists any
+first-publication package. This preflight runs before the OIDC token step and
+prevents an ordered upload from publishing existing crates and then failing at
+the first crate that lacks trusted-publisher ownership.
+
 The workflow refuses to publish unless:
 
 - the ref is exactly `refs/tags/v<workspace-version>`;
 - all static and Rust gates pass;
 - the publish dry run passes;
-- the operator explicitly selects `publish=true`.
+- the operator explicitly selects `publish=true`;
+- repository truth lists no first-publication package.
 
 After publication, require exact registry evidence for the complete workspace
 version:

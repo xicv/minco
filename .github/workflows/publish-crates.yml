@@ -116,6 +116,22 @@ jobs:
         run: cargo doc --workspace --all-features --no-deps --locked
       - name: Publish dry run
         run: scripts/release/publish.sh --skip-quality
+      - name: Refuse OIDC first publication
+        if: ${{ inputs.publish }}
+        run: |
+          uv run --locked python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          truth = tomllib.loads(Path("verification/repository-truth.toml").read_text())
+          new_packages = truth["new_publishable_packages"]
+          if new_packages:
+              names = ", ".join(new_packages)
+              raise SystemExit(
+                  "trusted publishing cannot bootstrap new crates; use the documented "
+                  f"manual authenticated publication for the complete family first: {names}"
+              )
+          PY
       - name: Obtain short-lived crates.io token
         if: ${{ inputs.publish }}
         id: auth

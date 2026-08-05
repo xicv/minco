@@ -221,7 +221,15 @@ def clean_workspace() -> None:
         if (result.stdout or "").strip():
             raise SystemExit("JJ working copy is not clean; publish from a dedicated release change")
         conflicts = run(
-            ["jj", "log", "-r", "conflicts()", "--no-graph", "--template", 'change_id ++ "\n"'],
+            [
+                "jj",
+                "log",
+                "-r",
+                "@ & conflicts()",
+                "--no-graph",
+                "--template",
+                'change_id ++ "\n"',
+            ],
             capture=True,
         )
         if (conflicts.stdout or "").strip():
