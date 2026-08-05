@@ -2,7 +2,7 @@
 id: M13-T03
 title: Implement digest-bound agent plan, sync and doctor commands
 milestone: M13
-status: planned
+status: ready
 priority: critical
 area: ai/cli
 depends_on: [M13-T02]

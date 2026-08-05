@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Framework Task"
+  short_description: "Execute repository-owned Minco tasks"
+  default_prompt: "Use $minco-framework-task to execute the ready Minco framework task in an isolated JJ workspace."

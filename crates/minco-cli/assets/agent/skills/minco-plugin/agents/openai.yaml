@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Plugin"
+  short_description: "Build static typed Minco plugins"
+  default_prompt: "Use $minco-plugin to design and implement this Minco plugin."

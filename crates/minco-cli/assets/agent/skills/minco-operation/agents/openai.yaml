@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Operation"
+  short_description: "Add an OpenAPI-first Minco operation"
+  default_prompt: "Use $minco-operation to add this operation through the complete Minco vertical slice."

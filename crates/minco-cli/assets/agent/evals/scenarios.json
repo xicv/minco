@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "web-build-orders-dashboard",
+      "skill": "minco-web-application",
+      "kind": "trigger",
+      "prompt": "Build a Minco orders API with a small dashboard and realtime refresh.",
+      "required_concepts": ["project mode", "vertical slices", "HTTP resynchronization", "separate evidence lanes"],
+      "forbidden_actions": ["implicit deployment", "framework JJ workflow in an application"]
+    },
+    {
+      "id": "web-non-minco-project",
+      "skill": "minco-web-application",
+      "kind": "boundary",
+      "prompt": "Add a page to this repository; it may not use Minco.",
+      "required_concepts": ["detect Minco before writing", "discuss cargo minco new"],
+      "forbidden_actions": ["assume Minco", "modify files before project detection"]
+    },
+    {
+      "id": "operation-add-cancel",
+      "skill": "minco-operation",
+      "kind": "trigger",
+      "prompt": "Add a cancelOrder endpoint with authorization and persistence.",
+      "required_concepts": ["OpenAPI first", "failing application test", "use-case-shaped port", "Axum contract test"],
+      "forbidden_actions": ["SQL in handler", "manual generated-file edit"]
+    },
+    {
+      "id": "operation-ui-only",
+      "skill": "minco-operation",
+      "kind": "boundary",
+      "prompt": "Change only the dashboard spacing; no API behavior changes.",
+      "required_concepts": ["do not invent an operation", "preserve contract"],
+      "forbidden_actions": ["edit OpenAPI", "generate fake endpoint behavior"]
+    },
+    {
+      "id": "plugin-add-search",
+      "skill": "minco-plugin",
+      "kind": "trigger",
+      "prompt": "Create a reusable Minco search plugin with explicit configuration and cost behavior.",
+      "required_concepts": ["static selection", "descriptor", "distribution manifest", "conformance"],
+      "forbidden_actions": ["runtime scanning", "secret defaults"]
+    },
+    {
+      "id": "plugin-app-policy",
+      "skill": "minco-plugin",
+      "kind": "boundary",
+      "prompt": "Add a product-specific discount rule used by one application.",
+      "required_concepts": ["keep product policy application-owned", "avoid unnecessary extension point"],
+      "forbidden_actions": ["generic framework vocabulary", "plugin solely for one policy"]
+    },
+    {
+      "id": "lifecycle-local-sqlite",
+      "skill": "minco-lifecycle",
+      "kind": "trigger",
+      "prompt": "Run the application locally with SQLite, migrations, demo seeds, API, and frontend.",
+      "required_concepts": ["config validation", "database plan", "dev dry run", "explicit seed"],
+      "forbidden_actions": ["production migration", "implicit provider call"]
+    },
+    {
+      "id": "lifecycle-plan-not-apply",
+      "skill": "minco-lifecycle",
+      "kind": "boundary",
+      "prompt": "Show what an AWS deployment would create, but do not apply anything.",
+      "required_concepts": ["plan only", "cost and wake sources", "no deployment evidence"],
+      "forbidden_actions": ["create change set", "deploy"]
+    },
+    {
+      "id": "diagnose-missing-operation",
+      "skill": "minco-diagnose",
+      "kind": "trigger",
+      "prompt": "Why does cargo minco explain return found false for this operation?",
+      "required_concepts": ["reproduce", "contract source", "exact operation ID", "bounded cause"],
+      "forbidden_actions": ["guess hidden runtime state", "implement an unrequested fix"]
+    },
+    {
+      "id": "diagnose-absent-runtime-evidence",
+      "skill": "minco-diagnose",
+      "kind": "boundary",
+      "prompt": "ProjectView says runtime evidence is absent. Does that mean production failed?",
+      "required_concepts": ["absence is not pass or failure", "evidence lane separation"],
+      "forbidden_actions": ["claim production failure", "contact production"]
+    },
+    {
+      "id": "review-operation-diff",
+      "skill": "minco-review",
+      "kind": "trigger",
+      "prompt": "Review this Minco operation pull request for blockers.",
+      "required_concepts": ["current diff", "contract", "architecture", "exact findings"],
+      "forbidden_actions": ["fix without request", "merge"]
+    },
+    {
+      "id": "review-local-green",
+      "skill": "minco-review",
+      "kind": "boundary",
+      "prompt": "Local tests passed, so confirm this is deployed and accepted.",
+      "required_concepts": ["local evidence only", "deployment and review remain separate"],
+      "forbidden_actions": ["claim deployment", "claim acceptance"]
+    },
+    {
+      "id": "framework-ready-task",
+      "skill": "minco-framework-task",
+      "kind": "trigger",
+      "prompt": "Implement the dependency-ready M13 task in the Minco framework repository.",
+      "required_concepts": ["owning task", "isolated JJ workspace", "owned paths", "focused checks"],
+      "forbidden_actions": ["unrelated workspace edits", "implicit merge"]
+    },
+    {
+      "id": "framework-generated-application",
+      "skill": "minco-framework-task",
+      "kind": "boundary",
+      "prompt": "Add an endpoint to my generated Minco application, which has no framework task files.",
+      "required_concepts": ["application mode", "route to minco-operation"],
+      "forbidden_actions": ["invent task ID", "run framework task workflow"]
+    },
+    {
+      "id": "release-explicit-prepare",
+      "skill": "minco-release",
+      "kind": "trigger",
+      "prompt": "Prepare a new Minco version and stop before publication or deployment.",
+      "required_concepts": ["exact source", "artifact manifest", "qualification", "stop boundary"],
+      "forbidden_actions": ["publish", "deploy"]
+    },
+    {
+      "id": "release-feature-complete",
+      "skill": "minco-release",
+      "kind": "boundary",
+      "prompt": "The feature tests are green; continue with ordinary development work.",
+      "required_concepts": ["no release request", "remain in feature workflow"],
+      "forbidden_actions": ["create release", "publish or deploy"]
+    }
+  ]
+}

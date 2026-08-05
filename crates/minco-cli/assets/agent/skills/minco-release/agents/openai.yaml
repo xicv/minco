@@ -1,0 +1,6 @@
+interface:
+  display_name: "Minco Release"
+  short_description: "Prepare explicitly requested Minco releases"
+  default_prompt: "Use $minco-release to prepare the explicitly requested Minco release without crossing approval gates."
+policy:
+  allow_implicit_invocation: false

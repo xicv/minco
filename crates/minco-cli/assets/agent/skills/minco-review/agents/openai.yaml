@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Review"
+  short_description: "Review Minco architecture and evidence"
+  default_prompt: "Use $minco-review to review this Minco change against its contracts and evidence."
