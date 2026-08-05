@@ -153,3 +153,19 @@ milestones:
   - Local read-only MCP and workbench surfaces expose bounded redacted graph and evidence models.
   - Public Rust APIs, Cargo features, CLI, configuration, Plan IR, and plugin contracts are audited and frozen.
   - Security, recovery, load, documentation, package, and release gates pass on the exact candidate.
+- id: M13
+  name: Agent-native application development
+  status: active
+  depends_on:
+  - M12
+  outcome: Version-matched portable skills and a deterministic agent CLI let Codex and Claude develop Minco
+    applications from authoritative project facts without implicit mutation authority.
+  exit_criteria:
+  - Portable focused skills preserve Minco architecture, source authority, application/framework mode and evidence
+    boundaries in Codex and Claude.
+  - Agent plan, sync, doctor, context and evaluation commands are deterministic, bounded, digest-bound and safe for
+    existing repositories.
+  - Fresh generated PostgreSQL and SQLite applications expose discoverable client projections without global setup
+    or user-owned configuration rewrites.
+  - Cross-client scenario evidence proves correct workflow routing and rejects implicit commit, push, release,
+    deployment, database, provider and production actions.

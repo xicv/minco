@@ -30,6 +30,14 @@ flowchart LR
     NM12T04["M12-T04<br/>Audit and freeze public APIs and Cargo features"]
     NM12T05["M12-T05<br/>Pass security recovery load and documentation release gates"]
     NM12T06["M12-T06<br/>Prepare the Minco 1.0 release candidate"]
+    NM12T07["M12-T07<br/>Close the exact Minco 1.0 release boundary"]
+    NM12T08["M12-T08<br/>Record and promote the published Minco 1.0 release"]
+    NM13T01["M13-T01<br/>Define the version-matched agent-native development contract"]
+    NM13T02["M13-T02<br/>Add the portable Minco workflow skill bundle and scenario contracts"]
+    NM13T03["M13-T03<br/>Implement digest-bound agent plan, sync and doctor commands"]
+    NM13T04["M13-T04<br/>Add bounded operation and task context projections for agents"]
+    NM13T05["M13-T05<br/>Integrate agent projections with freshly generated Minco applications"]
+    NM13T06["M13-T06<br/>Qualify Minco agent workflows across Codex and Claude"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -124,6 +132,15 @@ flowchart LR
     NM8T03 --> NM12T06
     NM12T02 --> NM12T06
     NM12T05 --> NM12T06
+    NM6T01 --> NM12T07
+    NM12T06 --> NM12T07
+    NM12T07 --> NM12T08
+    NM12T08 --> NM13T01
+    NM13T01 --> NM13T02
+    NM13T02 --> NM13T03
+    NM13T03 --> NM13T04
+    NM13T04 --> NM13T05
+    NM13T05 --> NM13T06
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01
