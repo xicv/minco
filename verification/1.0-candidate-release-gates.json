@@ -2,110 +2,121 @@
   "commands": [
     {
       "command": "uv run --locked python scripts/test/candidate_qualification.py",
-      "duration_seconds": 0.087,
+      "duration_seconds": 0.09,
       "exit_code": 0,
       "log": {
-        "bytes": 110,
+        "bytes": 111,
         "path": "target/minco/candidate-release-gates/logs/01.log",
-        "sha256": "34a82a30511a2175a5286cff0751874e9220ce5fb08cab87b09cc04e220f6b31"
+        "sha256": "72f09eca554e87a45b7156c6109520cf15e8b6ec157dc5c033610649b49b8698"
       },
       "status": "PASS"
     },
     {
       "command": "./scripts/quality.sh",
-      "duration_seconds": 444.28,
+      "duration_seconds": 207.038,
       "exit_code": 0,
       "log": {
-        "bytes": 418026,
+        "bytes": 379324,
         "path": "target/minco/candidate-release-gates/logs/02.log",
-        "sha256": "51bad42cbb22b20c577a38edc09217751f2d0b9290a61cc91def269f0635e943"
+        "sha256": "d07b96e407e303bc9eeea5f3bd27338d4e8a9532535e819a2c70b634dec62f08"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "proofs/realtime-appsync/scripts/test-local.sh",
+      "duration_seconds": 6.34,
+      "exit_code": 0,
+      "log": {
+        "bytes": 2166,
+        "path": "target/minco/candidate-release-gates/logs/03.log",
+        "sha256": "8693ad6db221e8b2e904830598b59b4f57974df7d42dfa3e793f73c033144fe0"
       },
       "status": "PASS"
     },
     {
       "command": "npm run --prefix plugins/minco-plugin-feedback test:browser",
-      "duration_seconds": 7.741,
+      "duration_seconds": 7.506,
       "exit_code": 0,
       "log": {
-        "bytes": 7039,
-        "path": "target/minco/candidate-release-gates/logs/03.log",
-        "sha256": "35aa25cd087e7ae6a3554f3e1b0c8c74013f57ddb991a494b62d6629542508d6"
+        "bytes": 7179,
+        "path": "target/minco/candidate-release-gates/logs/04.log",
+        "sha256": "7c966dbee218bb8975b1b714c04793f7ff5a0c587d9a86dcd0d83c12e0101d87"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/test/e2e.sh",
-      "duration_seconds": 22.045,
+      "duration_seconds": 1.472,
       "exit_code": 0,
       "log": {
-        "bytes": 7480,
-        "path": "target/minco/candidate-release-gates/logs/04.log",
-        "sha256": "0a20284482d1923ef0045c666169e9777b7b547178d1bb58a849c56d0f8820c2"
+        "bytes": 105,
+        "path": "target/minco/candidate-release-gates/logs/05.log",
+        "sha256": "d0fece98f973fa73d8346777f181b1e98fbecf095a98ab23dc7ee1617184bf41"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/dev/rustack-smoke.sh",
-      "duration_seconds": 78.507,
+      "duration_seconds": 15.417,
       "exit_code": 0,
       "log": {
-        "bytes": 9020,
-        "path": "target/minco/candidate-release-gates/logs/05.log",
-        "sha256": "d09a6cd5d0f1487ac74e2e05540e22dbb86e09e4aad58d5c7ea529c6ebe31932"
+        "bytes": 1085,
+        "path": "target/minco/candidate-release-gates/logs/06.log",
+        "sha256": "2ff8a1cffeaccdb2bcf1d99cf3928e83ad25a999007362b576c2c013da806f7b"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/release/publish.sh --skip-quality",
-      "duration_seconds": 389.678,
+      "duration_seconds": 194.761,
       "exit_code": 0,
       "log": {
-        "bytes": 247755,
-        "path": "target/minco/candidate-release-gates/logs/06.log",
-        "sha256": "7e3191cc832a9a41c3313fd87168962a7d6bf08753026932c71831d73bd96ec0"
+        "bytes": 220697,
+        "path": "target/minco/candidate-release-gates/logs/07.log",
+        "sha256": "ae8a2dc61ffafc2e1f217752bf06dbd636533f808cc5f23864e69a84618d2128"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/release/package-list.sh",
-      "duration_seconds": 3.009,
+      "duration_seconds": 2.694,
       "exit_code": 0,
       "log": {
-        "bytes": 10370,
-        "path": "target/minco/candidate-release-gates/logs/07.log",
-        "sha256": "860b386adf7464866a7163eb446541738c1135c24d19c273ba36816f3b344687"
+        "bytes": 10558,
+        "path": "target/minco/candidate-release-gates/logs/08.log",
+        "sha256": "81b396b15eb86cfb64f9e94754c413c47072a5cc442ca014049b25c4331467ea"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json",
-      "duration_seconds": 180.985,
+      "duration_seconds": 49.423,
       "exit_code": 0,
       "log": {
-        "bytes": 128,
-        "path": "target/minco/candidate-release-gates/logs/08.log",
-        "sha256": "489f3b7332de3df457752cd6e109fed2763a60c22f6461556450ddf5e02a07cf"
+        "bytes": 121,
+        "path": "target/minco/candidate-release-gates/logs/09.log",
+        "sha256": "d7be9b7fa5384399cda00d5655ac0b0edc7924074f473834c2c01f8f51b8d6c3"
       },
       "status": "PASS"
     },
     {
       "command": "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json",
-      "duration_seconds": 73.36,
+      "duration_seconds": 13.142,
       "exit_code": 0,
       "log": {
-        "bytes": 120,
-        "path": "target/minco/candidate-release-gates/logs/09.log",
-        "sha256": "f16c6819a4d8368e819c358f397456f81e5cffc8ed2ddc6cbdbab63c9e4347ff"
+        "bytes": 113,
+        "path": "target/minco/candidate-release-gates/logs/10.log",
+        "sha256": "575921cacfbed2730b2d023804c1ad450561386c42b627da2b53bfa42fd7e10b"
       },
       "status": "PASS"
     },
     {
       "command": "uv run --locked python scripts/source_manifest.py --check",
-      "duration_seconds": 7.162,
+      "duration_seconds": 8.04,
       "exit_code": 0,
       "log": {
         "bytes": 44,
-        "path": "target/minco/candidate-release-gates/logs/10.log",
+        "path": "target/minco/candidate-release-gates/logs/11.log",
         "sha256": "95fd2d97fba61c4cf3391f5920097a3b881e455ee63968b03a616447aa47408b"
       },
       "status": "PASS"
@@ -121,7 +132,7 @@
     ],
     "status": "PASS"
   },
-  "generated_at": "2026-08-05T00:12:36.759527+00:00",
+  "generated_at": "2026-08-05T07:43:49.325086+00:00",
   "kind": "minco.candidate-release-qualification.v1",
   "limitations": [
     "Local and emulator gates do not prove current AWS managed-service behavior.",
@@ -165,9 +176,9 @@
     "status": "PASS"
   },
   "source": {
-    "file_count": 909,
-    "source_tree_sha256": "3716966ce1cca7caac487a1274bcb1e07c0dca5e0b9b48f5311faeb68e35803e",
-    "version": "0.7.0"
+    "file_count": 977,
+    "source_tree_sha256": "ee8daf67f6613b2746367df9e651de11d66a7ab0df0275c616fd14cd1eb3a509",
+    "version": "1.0.0"
   },
   "status": "PASS"
 }

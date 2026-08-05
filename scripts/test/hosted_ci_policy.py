@@ -107,6 +107,7 @@ class HostedCiPolicyTests(unittest.TestCase):
             "Set up release Node runtime",
             "Install release qualification tools",
             "Full release quality reproduction",
+            "Standalone AppSync proof",
             "Upload Feedback browser evidence",
             "Publish dry run",
             "Install pinned Cargo Lambda",
@@ -118,6 +119,11 @@ class HostedCiPolicyTests(unittest.TestCase):
         self.assertTrue(release_only.issubset(steps))
         for name in release_only:
             self.assertIn("inputs.profile == 'release'", steps[name]["if"])
+
+        self.assertEqual(
+            steps["Standalone AppSync proof"]["run"],
+            "proofs/realtime-appsync/scripts/test-local.sh",
+        )
 
     def test_local_quality_retains_the_complete_authoritative_matrix(self) -> None:
         quality = (ROOT / "scripts/quality.sh").read_text()

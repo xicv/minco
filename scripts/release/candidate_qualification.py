@@ -26,6 +26,7 @@ DEFAULT_TARGET = ROOT / "target" / "minco" / "candidate-load" / "cargo"
 MANDATORY_RELEASE_COMMANDS = (
     "uv run --locked python scripts/test/candidate_qualification.py",
     "./scripts/quality.sh",
+    "proofs/realtime-appsync/scripts/test-local.sh",
     "npm run --prefix plugins/minco-plugin-feedback test:browser",
     "scripts/test/e2e.sh",
     "scripts/dev/rustack-smoke.sh",

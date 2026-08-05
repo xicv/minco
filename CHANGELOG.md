@@ -15,9 +15,12 @@ release or documentation publication has occurred.
 
 ### Release candidate
 
-- Advanced the complete 32-package lock-step workspace from the reviewed
+- Advanced the complete 33-package lock-step workspace from the reviewed
   `0.7.0` source boundary to an unpublished `1.0.0` candidate, including every
   internal dependency and archive-visible Minco core compatibility range.
+- Added the access-pattern-specific `minco-aws-dynamodb` package and Orders
+  adapter with conditional transactions, strong point reads, bounded indexed
+  list queries, exact IAM/cost intent, and disposable Rustack conformance.
 - Added exact-source security, restore/rollback, bounded API/worker load,
   documentation, generated-consumer and unpacked-package qualification gates.
 - Kept source, local qualification, hosted qualification, tag, registry,
@@ -30,8 +33,12 @@ release or documentation publication has occurred.
   boundaries, with explicit post-1.0 versioning rules and evidence limits.
 - Added the `0.7.0` to `1.0.0` adoption guide and completed the previously
   missing `0.6.0` to `0.7.0` Rust migrations found by a forced semver audit.
-- Reconciled the candidate narrative with the generated 32-package inventory,
-  including ProjectView, MCP and Workbench as local-only, read-only opt-ins.
+- Froze a complete versioned 1.0 documentation manual covering realtime,
+  ProjectView/MCP/workbench, DynamoDB, preview environments, exact static-site
+  publication, compatibility rollback and alarm-guarded canary promotion.
+- Reconciled the candidate narrative with the generated 33-package inventory,
+  including ProjectView, MCP and Workbench as local-only, read-only opt-ins and
+  DynamoDB as an access-pattern-specific adapter.
 
 ## [0.7.0] - 2026-08-04
 

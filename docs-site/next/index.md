@@ -37,7 +37,7 @@ exact reference when you need them.
   </a>
   <a class="doc-path-card" href="./plugins/">
     <strong>Choose built-in plugins</strong>
-    <span>Compare all 16 plugins, adapters, and runtimes by purpose, stability, and cost behavior.</span>
+    <span>Compare all 18 plugins, adapters, and runtimes by purpose, stability, and cost behavior.</span>
   </a>
   <a class="doc-path-card" href="./cookbook/">
     <strong>Follow practical recipes</strong>
@@ -51,8 +51,10 @@ exact reference when you need them.
 |---|---|
 | HTTP resources | JSON data envelopes, bounded cursor pages, strong entity tags, and Problem Details |
 | Plugins | Archive-visible distribution metadata and public offline conformance reports |
+| Realtime | Subscriber-only AppSync invalidation with authoritative HTTP resynchronization |
+| Local AI | Bounded ProjectView, read-only MCP, and accessible workbench projections |
 | Testing | Domain, application, adapter, HTTP, plugin, deployment, and release evidence remain distinct |
-| AWS | Zero provisioned application compute is enforced structurally; residual managed-service cost stays visible |
+| AWS | Zero provisioned application compute, explicit DynamoDB access patterns, and visible residual managed-service cost |
 
 ## The Golden Path
 
@@ -76,7 +78,11 @@ boot-time production migrations.
 - Add [identity and sessions](./guides/identity-and-sessions),
   [events and notifications](./guides/events-and-notifications),
   [files and static sites](./guides/files-and-static-sites), or the
+  [realtime invalidation path](./guides/realtime),
   [client feedback loop](./guides/feedback).
+- Inspect the same bounded project model through
+  [ProjectView, MCP, and the local workbench](./guides/project-view), or select
+  the [DynamoDB Orders adapter](./guides/dynamodb).
 - Review the [complete feature catalog](./features/),
   [built-in component catalog](./plugins/), and
   [Cargo feature reference](./reference/feature-flags).

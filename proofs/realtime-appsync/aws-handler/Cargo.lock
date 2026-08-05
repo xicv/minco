@@ -1359,7 +1359,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-adapters"
-version = "0.7.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "aws-credential-types",
@@ -1380,7 +1380,7 @@ dependencies = [
 
 [[package]]
 name = "minco-core"
-version = "0.7.0"
+version = "1.0.0"
 dependencies = [
  "semver",
  "serde",
@@ -1390,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-realtime"
-version = "0.7.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -1649,9 +1649,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.16"
+version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fcfdb36bda0c880c5931cdc7a2bcdc8ba4556847b9d912bca70bc94708711ad"
+checksum = "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
 dependencies = [
  "aho-corasick",
  "memchr",

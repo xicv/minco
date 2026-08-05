@@ -426,9 +426,14 @@ class RepositoryTruthTests(unittest.TestCase):
             task.read_text().replace("status: complete", "status: ready", 1)
         )
         roadmap = self.root / "roadmap/roadmap.yaml"
+        current_status = next(
+            milestone["status"]
+            for milestone in yaml.safe_load(roadmap.read_text())["milestones"]
+            if milestone["id"] == "M12"
+        )
         roadmap.write_text(
             roadmap.read_text().replace(
-                "- id: M12\n  name: AI workbench and 1.0 preparation\n  status: complete",
+                f"- id: M12\n  name: AI workbench and 1.0 preparation\n  status: {current_status}",
                 "- id: M12\n  name: AI workbench and 1.0 preparation\n  status: planned",
             )
         )

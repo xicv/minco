@@ -110,3 +110,11 @@ source because the canonical publish-validation report still identified the
 pre-bump `0.7.0` workspace. The report is now regenerated as `1.0.0` before the
 source manifest is frozen. That failed truth attempt was stopped and was not
 converted into accepted evidence.
+
+## Post-candidate inventory note
+
+M12-T06 qualified the exact 32-package source tree described above. The later
+M6-T01 merge added `minco-aws-dynamodb` as package 33. M12-T07 owns the new
+exact-source qualification, versioned documentation freeze, AppSync proof lock,
+modern MCP regression, first-publication preflight and release evidence; this
+historical task does not retroactively claim those later bytes.

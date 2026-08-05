@@ -8,6 +8,86 @@ const candidateItem =
     ? [{ text: `${release.workspace} · Release candidate`, link: workspace }]
     : []
 
+function workspaceSidebar(root: string) {
+  const link = (path = '') => `${root}${path}`
+  return [
+    {
+      text: 'Start Here',
+      collapsed: false,
+      items: [
+        { text: 'Overview', link: link() },
+        { text: 'Installation', link: link('getting-started/installation') },
+        { text: 'Build your first application', link: link('getting-started/first-application') },
+        { text: 'Framework tour', link: link('getting-started/framework-tour') },
+        { text: 'Project structure', link: link('getting-started/project-structure') }
+      ]
+    },
+    {
+      text: 'Essentials',
+      collapsed: false,
+      items: [
+        { text: 'Feature catalog', link: link('features/') },
+        { text: 'Configuration', link: link('guides/configuration') },
+        { text: 'Local development', link: link('guides/local-development') },
+        { text: 'Project view, MCP, and workbench', link: link('guides/project-view') },
+        { text: 'Build a resource API', link: link('guides/resource-api') },
+        { text: 'Migrations and seeders', link: link('guides/database-lifecycle') },
+        { text: 'Queues and workers', link: link('guides/background-work') },
+        { text: 'Testing and evidence', link: link('reference/testing') }
+      ]
+    },
+    {
+      text: 'Application Services',
+      collapsed: false,
+      items: [
+        { text: 'Identity and sessions', link: link('guides/identity-and-sessions') },
+        { text: 'Files and static sites', link: link('guides/files-and-static-sites') },
+        { text: 'Events and notifications', link: link('guides/events-and-notifications') },
+        { text: 'Realtime subscriptions', link: link('guides/realtime') },
+        { text: 'Client feedback loop', link: link('guides/feedback') },
+        { text: 'Resource API conventions', link: link('reference/resource-api') }
+      ]
+    },
+    {
+      text: 'Plugins and Extensions',
+      collapsed: false,
+      items: [
+        { text: 'Built-in catalog', link: link('plugins/') },
+        { text: 'Install and compose plugins', link: link('plugins/using-plugins') },
+        { text: 'Test a plugin', link: link('guides/plugin-conformance') }
+      ]
+    },
+    {
+      text: 'Deploy and Operate',
+      collapsed: false,
+      items: [
+        { text: 'Plan an AWS deployment', link: link('guides/deployment') },
+        { text: 'Use the DynamoDB adapter', link: link('guides/dynamodb') },
+        { text: 'Zero idle, precisely', link: link('explanation/zero-idle') },
+        { text: 'Testing and evidence', link: link('reference/testing') }
+      ]
+    },
+    {
+      text: 'Cookbook',
+      collapsed: false,
+      items: [
+        { text: 'Practical recipes', link: link('cookbook/') },
+        { text: 'Orders API end to end', link: link('cookbook/orders-api') },
+        { text: 'Exercised examples', link: link('examples/') }
+      ]
+    },
+    {
+      text: 'Reference',
+      items: [
+        { text: 'CLI commands', link: link('reference/cli') },
+        { text: 'Cargo feature flags', link: link('reference/feature-flags') },
+        { text: 'Plugin conformance', link: link('reference/plugin-conformance') },
+        { text: `Stable ${release.stable}`, link: stable }
+      ]
+    }
+  ]
+}
+
 export default defineConfig({
   lang: 'en-US',
   title: 'Minco',
@@ -173,85 +253,8 @@ export default defineConfig({
           ]
         }
       ],
-      '/next/': [
-        {
-          text: 'Start Here',
-          collapsed: false,
-          items: [
-            { text: 'Overview', link: '/next/' },
-            { text: 'Installation', link: '/next/getting-started/installation' },
-            { text: 'Build your first application', link: '/next/getting-started/first-application' },
-            { text: 'Framework tour', link: '/next/getting-started/framework-tour' },
-            { text: 'Project structure', link: '/next/getting-started/project-structure' }
-          ]
-        },
-        {
-          text: 'Essentials',
-          collapsed: false,
-          items: [
-            { text: 'Feature catalog', link: '/next/features/' },
-            { text: 'Configuration', link: '/next/guides/configuration' },
-            { text: 'Local development', link: '/next/guides/local-development' },
-            { text: 'Build a resource API', link: '/next/guides/resource-api' },
-            { text: 'Migrations and seeders', link: '/next/guides/database-lifecycle' },
-            { text: 'Queues and workers', link: '/next/guides/background-work' },
-            { text: 'Testing and evidence', link: '/next/reference/testing' }
-          ]
-        },
-        {
-          text: 'Application Services',
-          collapsed: false,
-          items: [
-            { text: 'Identity and sessions', link: '/next/guides/identity-and-sessions' },
-            { text: 'Files and static sites', link: '/next/guides/files-and-static-sites' },
-            { text: 'Events and notifications', link: '/next/guides/events-and-notifications' },
-            { text: 'Client feedback loop', link: '/next/guides/feedback' },
-            { text: 'Resource API conventions', link: '/next/reference/resource-api' }
-          ]
-        },
-        {
-          text: 'Plugins and Extensions',
-          collapsed: false,
-          items: [
-            { text: 'Built-in catalog', link: '/next/plugins/' },
-            { text: 'Install and compose plugins', link: '/next/plugins/using-plugins' },
-            {
-              text: 'Test a plugin',
-              link: '/next/guides/plugin-conformance'
-            }
-          ]
-        },
-        {
-          text: 'Deploy and Operate',
-          collapsed: false,
-          items: [
-            { text: 'Plan an AWS deployment', link: '/next/guides/deployment' },
-            { text: 'Zero idle, precisely', link: '/next/explanation/zero-idle' },
-            { text: 'Testing and evidence', link: '/next/reference/testing' }
-          ]
-        },
-        {
-          text: 'Cookbook',
-          collapsed: false,
-          items: [
-            { text: 'Practical recipes', link: '/next/cookbook/' },
-            { text: 'Orders API end to end', link: '/next/cookbook/orders-api' },
-            { text: 'Exercised examples', link: '/next/examples/' }
-          ]
-        },
-        {
-          text: 'Reference',
-          items: [
-            { text: 'CLI commands', link: '/next/reference/cli' },
-            { text: 'Cargo feature flags', link: '/next/reference/feature-flags' },
-            {
-              text: 'Plugin conformance',
-              link: '/next/reference/plugin-conformance'
-            },
-            { text: `Stable ${release.stable}`, link: stable }
-          ]
-        }
-      ]
+      '/next/': workspaceSidebar('/next/'),
+      [workspace]: workspaceSidebar(workspace)
     },
     search: {
       provider: 'local',

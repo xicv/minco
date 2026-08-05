@@ -5,7 +5,7 @@
     "rows": 1
   },
   "data_boundary": "temporary synthetic SQLite only; directory removed by the runner",
-  "generated_at": "2026-08-05T00:11:16.164461+00:00",
+  "generated_at": "2026-08-05T07:43:28.088515+00:00",
   "kind": "minco.candidate-recovery-qualification.v1",
   "limitations": [
     "The restore gate proves a repeatable application-level SQLite path, not managed PostgreSQL point-in-time recovery or a product RPO/RTO.",
@@ -18,7 +18,7 @@
     "repeat_apply": true,
     "verify": true
   },
-  "recovery_time_seconds": 20.01,
+  "recovery_time_seconds": 13.814,
   "restore": {
     "application_read": true,
     "integrity_check": "ok",
@@ -46,8 +46,8 @@
   },
   "schema_version": 1,
   "source": {
-    "source_tree_sha256": "3716966ce1cca7caac487a1274bcb1e07c0dca5e0b9b48f5311faeb68e35803e",
-    "version": "0.7.0"
+    "source_tree_sha256": "ee8daf67f6613b2746367df9e651de11d66a7ab0df0275c616fd14cd1eb3a509",
+    "version": "1.0.0"
   },
   "status": "PASS"
 }

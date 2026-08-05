@@ -6,6 +6,7 @@ const release = JSON.parse(
 ) as { stable: string; workspace: string; state: 'candidate' | 'published' }
 
 const stablePath = `./${release.stable}/`
+const candidatePath = `./${release.workspace}/`
 const workspaceSegment = release.state === 'published' ? release.workspace : 'next'
 const workspacePath = `./${workspaceSegment}/`
 
@@ -82,15 +83,17 @@ test('next documents the complete built-in component catalog', async ({ page }) 
   await expect(
     page.getByRole('heading', { level: 1, name: 'Built-in Plugins and Adapters' })
   ).toBeVisible()
-  await expect(page.getByText('16 built-in components')).toBeVisible()
+  await expect(page.getByText('18 built-in components')).toBeVisible()
   for (const name of [
     'Health',
     'Idempotency',
     'Identity',
     'Sessions',
     'Feedback',
+    'Realtime',
     'AWS Lambda',
     'AWS Worker',
+    'AWS DynamoDB',
     'SQLx PostgreSQL',
     'SQLx SQLite'
   ]) {
@@ -103,6 +106,55 @@ test('next documents the complete built-in component catalog', async ({ page }) 
   await expect(
     page.locator('.VPLocalSearchBox').locator('a[href*="/next/guides/background-work"]').first()
   ).toBeVisible()
+})
+
+test('candidate version navigation resolves to the frozen complete 1.0 manual', async ({
+  page,
+  isMobile
+}) => {
+  test.skip(release.state !== 'candidate', 'candidate-only navigation contract')
+  await page.goto(stablePath)
+  await waitForHydration(page)
+  if (isMobile) {
+    await page.getByRole('button', { name: 'mobile navigation' }).click()
+    const versionButton = page.getByRole('button', { name: `Version ${release.stable}` })
+    await versionButton.focus()
+    await page.keyboard.press('Enter')
+  } else {
+    await page.getByRole('button', { name: `Version ${release.stable}` }).click()
+  }
+  const candidateLink = page.getByRole('link', {
+    name: `${release.workspace} · Release candidate`
+  })
+  if (isMobile) {
+    await candidateLink.focus()
+    await page.keyboard.press('Enter')
+  } else {
+    await candidateLink.click()
+  }
+  await expect(page).toHaveURL(
+    new RegExp(`/minco/${release.workspace.replaceAll('.', '\\.')}\\/$`)
+  )
+  await expect(
+    page.getByRole('heading', { level: 1, name: `Minco ${release.workspace}` })
+  ).toBeVisible()
+  await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+
+  await page.goto(`${candidatePath}getting-started/installation`)
+  await waitForHydration(page)
+  await expect(page.getByText('cargo add minco@1.0.0', { exact: true })).toBeVisible()
+
+  for (const path of [
+    `${candidatePath}guides/realtime`,
+    `${candidatePath}guides/dynamodb`,
+    `${candidatePath}guides/project-view`,
+    `${candidatePath}guides/deployment`
+  ]) {
+    await page.goto(path)
+    await waitForHydration(page)
+    await expect(page.locator('h1')).toHaveCount(1)
+    await expect(page.getByText('Release candidate documentation.')).toBeVisible()
+  }
 })
 
 test('local search finds workspace plugin conformance documentation', async ({ page }) => {
