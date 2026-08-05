@@ -2,7 +2,7 @@
 id: M13-T05
 title: Integrate agent projections with freshly generated Minco applications
 milestone: M13
-status: planned
+status: ready
 priority: high
 area: ai/generator
 depends_on: [M13-T04]
