@@ -138,7 +138,8 @@ struct PluginEntry {
     id: String,
     #[serde(rename = "crate")]
     crate_name: String,
-    path: PathBuf,
+    #[serde(default)]
+    path: Option<PathBuf>,
     kind: String,
     feature: String,
     default_enabled: bool,

@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1014,
+  "file_count": 1016,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -304,8 +304,8 @@
     },
     {
       "path": "crates/minco-cli/src/agent_cmd.rs",
-      "sha256": "886d8ec57f06d8611022fc4f48b82b5b6f9a7ae7efe6cba35f64d376f2eee3ab",
-      "size_bytes": 56349
+      "sha256": "5aaea7ce5518657cfa487a9599e55b6bf9729a9b039823dfdd5ab4b74492b744",
+      "size_bytes": 59176
     },
     {
       "path": "crates/minco-cli/src/architecture.rs",
@@ -349,8 +349,8 @@
     },
     {
       "path": "crates/minco-cli/src/new_cmd.rs",
-      "sha256": "ccdd6865a2fd6d15ac1f0beb8f2c56719b51d45a7c8e8bec298d9e90f4c6ad20",
-      "size_bytes": 18400
+      "sha256": "065ebe28336af81fb7059c695a6a571bf11914932511a0b5cdaa45a3c8f0ff3b",
+      "size_bytes": 18465
     },
     {
       "path": "crates/minco-cli/src/plugin_cmd.rs",
@@ -394,8 +394,13 @@
     },
     {
       "path": "crates/minco-cli/templates/app/AGENTS.md.tmpl",
-      "sha256": "204e2e8c6e31481b88cad697e550e146080e1f41213d4f637595c7cca5863b91",
-      "size_bytes": 1086
+      "sha256": "454ab7eb8ee8136035c79d34e3bbff5fb1efe83a4d8339cd1de0743c1d156fb1",
+      "size_bytes": 1682
+    },
+    {
+      "path": "crates/minco-cli/templates/app/CLAUDE.md.tmpl",
+      "sha256": "3dc0f84febfaaef830d1ac6a4cf02e331cceaf9816bd657c4db2130efbe01bc2",
+      "size_bytes": 42
     },
     {
       "path": "crates/minco-cli/templates/app/Cargo.toml.tmpl",
@@ -669,8 +674,8 @@
     },
     {
       "path": "crates/minco-cli/tests/agent_cli.rs",
-      "sha256": "726548da46167e85ff539c52fa7da07515fc0a036e03a70f6e752003e001c346",
-      "size_bytes": 21100
+      "sha256": "8c62161a82e5db2c220106c323950533d84702b20941578c252cab85a33f7d13",
+      "size_bytes": 26963
     },
     {
       "path": "crates/minco-cli/tests/agent_skills.rs",
@@ -694,8 +699,8 @@
     },
     {
       "path": "crates/minco-cli/tests/generator_cli.rs",
-      "sha256": "7056eee0549972d22e4827a3d644f38a75e3a04a127ec24eaf2cd33a07dc075b",
-      "size_bytes": 14233
+      "sha256": "c97d24d5c9306cf5fb2dfd49a19960fbf354366fe0dd3bd886f08d2692d83386",
+      "size_bytes": 16400
     },
     {
       "path": "crates/minco-cli/tests/mcp_cli.rs",
@@ -1364,13 +1369,13 @@
     },
     {
       "path": "crates/minco-project-view/src/reader.rs",
-      "sha256": "a2db356e6d505f66dcb21d443326a7e3b9a69961ec1dad4fcc10c74ec01df14b",
-      "size_bytes": 41608
+      "sha256": "88786fedcb411a54e0fe556c00141deefdaa09509bc6a424b73befd5fd5b96aa",
+      "size_bytes": 41638
     },
     {
       "path": "crates/minco-project-view/tests/project_view.rs",
-      "sha256": "30a1fed39f0f0c093aca200f2041daf21fab576160af51002b4d7cf2cba64012",
-      "size_bytes": 10052
+      "sha256": "baa567c1c526d79cbaad0e4a473a13979fb64f380ea9e8f98b46282a65be9e2f",
+      "size_bytes": 10529
     },
     {
       "path": "crates/minco-release/Cargo.toml",
@@ -1978,6 +1983,11 @@
       "size_bytes": 6260
     },
     {
+      "path": "docs/how-to/agent-setup.md",
+      "sha256": "0b5bf34ce6c4a4ed67fc162bd540be3a545c6a11fd6f31b416b146e1852d3d99",
+      "size_bytes": 2720
+    },
+    {
       "path": "docs/how-to/local-mcp.md",
       "sha256": "7056d61bb01e2245b197820528838dc36a105e83e753663e1885c02c841afbbd",
       "size_bytes": 4013
@@ -2039,8 +2049,8 @@
     },
     {
       "path": "docs/reference/cli.md",
-      "sha256": "0a6b55e2c75cf44010cdac0269dd28724e3c51125561b97e622e17f0c57c5365",
-      "size_bytes": 16502
+      "sha256": "46d7a4b9ecb5f6b3a02de3391f05118c884ebc35eb21f6f93169ab8ebc1e5287",
+      "size_bytes": 17036
     },
     {
       "path": "docs/reference/compatibility.md",
@@ -2059,7 +2069,7 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "cadef1b8efe76f59b47f3f25b4cb9f40ac68e39d65f39231a9465b55c469eafc",
+      "sha256": "ae60d6eb655ca7fc497497092ed8a9ba701fe1d1fa72d4895fe511398338b122",
       "size_bytes": 29407
     },
     {
@@ -4534,8 +4544,8 @@
     },
     {
       "path": "scripts/test/scaffold_templates.py",
-      "sha256": "c5f5490ab15a42590927491466ad1edb856627cfb7742dee125a300fdbb1ff58",
-      "size_bytes": 9683
+      "sha256": "141f0d253580cd0ad9ed2ee90338dddef21cc44eab842ee5a0fbb6e218547706",
+      "size_bytes": 10325
     },
     {
       "path": "scripts/test/sqlite_schema.py",
@@ -4754,13 +4764,13 @@
     },
     {
       "path": "tasks/M13/M13-T05-generated-application-agent-setup.md",
-      "sha256": "875f1a1c3ab866948e3d4d5a73cc0e5c96d622ab5914268299b7e66e5e623a89",
-      "size_bytes": 1721
+      "sha256": "5758f75ca883e9cc62af43897737eb2eb141036ef67a3f28bc25bc1316e9fa02",
+      "size_bytes": 3814
     },
     {
       "path": "tasks/M13/M13-T06-cross-client-agent-qualification.md",
-      "sha256": "91679144cbb3414d03ec382be3f563fb1809da9516afb6c7d6fe3f9640b719cd",
-      "size_bytes": 1917
+      "sha256": "8636c3dea239c94fd067a5c3b6a515f8ed3d31a44f22250f71441ff1cc36cc55",
+      "size_bytes": 1915
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -4994,7 +5004,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "479fe735eb149722a917df741a1cb4ec89f193ea75ba38d4ed09c18f6ba5331e",
+      "sha256": "dfd78e63e8ab9ae27b15ac128b10a89e5377403f033426d0de3eb178ceebc3d1",
       "size_bytes": 2022
     },
     {
@@ -5054,7 +5064,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "e726f7f4b212d1c5a747dc4ab335edab803260dfdcaa177d64e1a91eab2bd480",
+      "sha256": "1280fae3e1f5a3dc3a5e6ff792d894fa50321842351ea6328054196452e5234f",
       "size_bytes": 754
     },
     {
@@ -5084,7 +5094,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "8fb5212a2e7ac73c36871d3b6ca477f97a327dcf07584f361461be318cddc2cd",
-  "total_size_bytes": 6874773,
+  "source_tree_sha256": "6ada71dfc8bb7ca7c3701ac91ec493ba28059284ca94febcd47339a8daf80db2",
+  "total_size_bytes": 6892827,
   "version": "1.0.0"
 }

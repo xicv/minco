@@ -1,4 +1,14 @@
-# Agent instructions
+# Minco application agent instructions
+
+This is a generated Minco application in application mode, not the Minco framework repository. Use
+`$minco-web-application` for the end-to-end application workflow. Inspect
+bounded project facts with `cargo minco agent context --json` or select one
+operation with `cargo minco agent context --operation <operationId> --json`.
+
+Set up repository-scoped Codex and Claude skills explicitly: first run
+`cargo minco agent plan --target all --json`, review every action and conflict,
+then run `cargo minco agent sync --target all --expect-plan-digest <sha256>` only
+with approval for those exact writes. Never replace user-owned instructions.
 
 1. `openapi/openapi.yaml` is the HTTP source of truth.
 2. Never edit `crates/api/src/generated.rs` manually; run `cargo minco contract sync`.
@@ -7,11 +17,10 @@
 5. HTTP handlers map contract DTOs to exactly one application use case and contain no SQL.
 6. Infrastructure implementations belong in `crates/adapters`.
 7. Add a failing application or HTTP test before implementing business behavior.
-8. Use one JJ workspace per task and keep task evidence in `tasks/`.
-9. Run `cargo minco check --with-cargo` before completing a task.
-10. Deployment cost, wake-source, performance, and database-profile changes require explicit review.
-11. Keep migration identity, ownership, risk, verification, and history in the
+8. Run `cargo minco check --with-cargo` before completing application work.
+9. Deployment cost, wake-source, performance, and database-profile changes require explicit review.
+10. Keep migration identity, ownership, risk, verification, and history in the
     selected root's `.minco-migrations.toml`; never change applied SQL only to
     change metadata.
-12. Use `cargo minco db plan`, digest-bound `db migrate`, and `db verify`.
+11. Use `cargo minco db plan`, digest-bound `db migrate`, and `db verify`.
     Application startup must not migrate.

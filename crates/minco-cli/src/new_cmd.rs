@@ -395,6 +395,7 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
             format!("cd {}", directory.display()),
             "cp .env.example .env".into(),
             "cargo minco doctor".into(),
+            "cargo minco agent plan --target all --json".into(),
             "cargo minco config check".into(),
             "cargo minco contract sync --check".into(),
             "cargo minco check --with-cargo".into(),

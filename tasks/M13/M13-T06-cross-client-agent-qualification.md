@@ -2,7 +2,7 @@
 id: M13-T06
 title: Qualify Minco agent workflows across Codex and Claude
 milestone: M13
-status: planned
+status: ready
 priority: critical
 area: ai/qualification
 depends_on: [M13-T05]

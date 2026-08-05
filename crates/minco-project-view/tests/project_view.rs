@@ -153,7 +153,6 @@ Fixture task.
 [[plugin]]
 id = "health"
 crate = "fixture-health"
-path = "plugins/health"
 kind = "plugin"
 feature = "plugin-health"
 default_enabled = true
@@ -272,6 +271,21 @@ fn projects_raw_repository_state_without_merging_evidence_lanes() {
 
     assert_eq!(view.schema_version, 1);
     assert_eq!(view.project.name, "fixture");
+    let registry_plugin = view
+        .nodes
+        .iter()
+        .find(|node| node.id == "feature:health")
+        .expect("registry plugin node");
+    assert_eq!(registry_plugin.properties["path"], serde_json::Value::Null);
+    let workspace_plugin = view
+        .nodes
+        .iter()
+        .find(|node| node.id == "feature:feedback")
+        .expect("workspace plugin node");
+    assert_eq!(
+        workspace_plugin.properties["path"],
+        serde_json::json!("plugins/feedback")
+    );
     let task = view
         .nodes
         .iter()
