@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 use clap::{Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -9,6 +10,7 @@ use std::{
 
 const MANIFEST_PATH: &str = ".minco/agent-manifest.json";
 const BUNDLE_JSON: &[u8] = include_bytes!("../assets/agent/bundle.json");
+const MAX_CONTEXT_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {
@@ -28,6 +30,13 @@ pub enum AgentCommand {
     Doctor {
         #[arg(long, value_enum, default_value = "all")]
         target: AgentTarget,
+    },
+    /// Return bounded project, operation, or task context without running checks.
+    Context {
+        #[arg(long, conflicts_with = "task")]
+        operation: Option<String>,
+        #[arg(long, conflicts_with = "operation")]
+        task: Option<String>,
     },
 }
 
@@ -237,6 +246,66 @@ struct McpDiagnosis {
     detail: &'static str,
 }
 
+#[derive(Debug, Serialize)]
+struct ContextReport {
+    schema_version: u32,
+    operation: &'static str,
+    minco_version: &'static str,
+    selection: ContextSelection,
+    found: bool,
+    project: ContextProject,
+    project_view_limits: minco_project_view::ViewLimits,
+    input_usage: minco_project_view::InputUsage,
+    documentation: Vec<String>,
+    context: Option<Value>,
+    diagnostics: Vec<ContextDiagnostic>,
+    bounds: ContextBounds,
+}
+
+#[derive(Debug, Serialize)]
+struct ContextSelection {
+    kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ContextProject {
+    name: String,
+    source_digest: String,
+    mode: &'static str,
+    project_view_schema_version: u32,
+}
+
+#[derive(Debug, Serialize)]
+struct ContextDiagnostic {
+    code: &'static str,
+    severity: &'static str,
+    message: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ContextBounds {
+    max_response_bytes: usize,
+    writes: usize,
+    commands_executed: usize,
+    network_requests: usize,
+    arbitrary_file_reads: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentBundle {
+    schema_version: u32,
+    minco_version: String,
+    skills: Vec<AgentBundleSkill>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentBundleSkill {
+    name: String,
+    documentation: Vec<String>,
+}
+
 pub fn execute(root: &Path, command: AgentCommand, as_json: bool) -> Result<()> {
     match command {
         AgentCommand::Plan { target } => print(&build_plan(root, target)?, as_json),
@@ -245,7 +314,208 @@ pub fn execute(root: &Path, command: AgentCommand, as_json: bool) -> Result<()> 
             expect_plan_digest,
         } => sync(root, target, &expect_plan_digest, as_json),
         AgentCommand::Doctor { target } => doctor(root, target, as_json),
+        AgentCommand::Context { operation, task } => {
+            context(root, operation.as_deref(), task.as_deref(), as_json)
+        }
     }
+}
+
+fn context(
+    root: &Path,
+    operation_id: Option<&str>,
+    task_id: Option<&str>,
+    as_json: bool,
+) -> Result<()> {
+    if let Some(identifier) = operation_id.or(task_id) {
+        validate_context_identifier(identifier)?;
+    }
+    let view = minco_project_view::load_project_view(root)
+        .context("build bounded Minco ProjectView for agent context")?;
+    let project = ContextProject {
+        name: view.project.name.clone(),
+        source_digest: view.project.source_digest.clone(),
+        mode: if view.project.name == "minco-framework" {
+            "framework"
+        } else {
+            "application"
+        },
+        project_view_schema_version: view.schema_version,
+    };
+    let bounds = ContextBounds {
+        max_response_bytes: MAX_CONTEXT_BYTES,
+        writes: 0,
+        commands_executed: 0,
+        network_requests: 0,
+        arbitrary_file_reads: 0,
+    };
+    let (selection, found, skill, projected, diagnostics) = match (operation_id, task_id) {
+        (Some(operation_id), None) => operation_context(&view, operation_id),
+        (None, Some(task_id)) => task_context(&view, task_id),
+        (None, None) => (
+            ContextSelection {
+                kind: "project",
+                id: None,
+            },
+            true,
+            if project.mode == "framework" {
+                "minco-framework-task"
+            } else {
+                "minco-web-application"
+            },
+            Some(json!({
+                "summary": view.summary,
+                "diagnostics": view.diagnostics,
+            })),
+            Vec::new(),
+        ),
+        (Some(_), Some(_)) => unreachable!("Clap rejects conflicting context selectors"),
+    };
+    let documentation = bundle_documentation(skill)?;
+    let report = ContextReport {
+        schema_version: 1,
+        operation: "context",
+        minco_version: env!("CARGO_PKG_VERSION"),
+        selection,
+        found,
+        project,
+        project_view_limits: view.limits,
+        input_usage: view.input_usage,
+        documentation,
+        context: projected,
+        diagnostics,
+        bounds,
+    };
+    let response_bytes = serde_json::to_vec(&report)?.len();
+    if response_bytes > MAX_CONTEXT_BYTES {
+        bail!(
+            "agent context response exceeds max_response_bytes={MAX_CONTEXT_BYTES}: {response_bytes}"
+        );
+    }
+    print(&report, as_json)
+}
+
+fn operation_context(
+    view: &minco_project_view::ProjectView,
+    operation_id: &str,
+) -> (
+    ContextSelection,
+    bool,
+    &'static str,
+    Option<Value>,
+    Vec<ContextDiagnostic>,
+) {
+    let selection = ContextSelection {
+        kind: "operation",
+        id: Some(operation_id.into()),
+    };
+    let Some(node) = view.operation(operation_id) else {
+        return (
+            selection,
+            false,
+            "minco-operation",
+            None,
+            vec![ContextDiagnostic {
+                code: "MINCO-AGENT-CONTEXT-OPERATION-ABSENT",
+                severity: "information",
+                message: format!(
+                    "operation {operation_id:?} is absent from the bounded ProjectView"
+                ),
+            }],
+        );
+    };
+    let edges = related_edges(view, &node.id);
+    (
+        selection,
+        true,
+        "minco-operation",
+        Some(json!({"node": node, "edges": edges})),
+        Vec::new(),
+    )
+}
+
+fn task_context(
+    view: &minco_project_view::ProjectView,
+    task_id: &str,
+) -> (
+    ContextSelection,
+    bool,
+    &'static str,
+    Option<Value>,
+    Vec<ContextDiagnostic>,
+) {
+    let selection = ContextSelection {
+        kind: "task",
+        id: Some(task_id.into()),
+    };
+    let node_id = format!("task:{task_id}");
+    let node = view.nodes.iter().find(|node| node.id == node_id);
+    let readiness = view.task(task_id);
+    let (Some(node), Some(readiness)) = (node, readiness) else {
+        return (
+            selection,
+            false,
+            "minco-framework-task",
+            None,
+            vec![ContextDiagnostic {
+                code: "MINCO-AGENT-CONTEXT-TASK-ABSENT",
+                severity: "information",
+                message: format!("task {task_id:?} is absent from the bounded ProjectView"),
+            }],
+        );
+    };
+    let edges = related_edges(view, &node.id);
+    (
+        selection,
+        true,
+        "minco-framework-task",
+        Some(json!({
+            "node": node,
+            "readiness": readiness,
+            "edges": edges,
+        })),
+        Vec::new(),
+    )
+}
+
+fn related_edges<'a>(
+    view: &'a minco_project_view::ProjectView,
+    node_id: &str,
+) -> Vec<&'a minco_project_view::ProjectEdge> {
+    view.edges
+        .iter()
+        .filter(|edge| edge.from == node_id || edge.to == node_id)
+        .collect()
+}
+
+fn validate_context_identifier(identifier: &str) -> Result<()> {
+    if identifier.is_empty()
+        || identifier.len() > 128
+        || !identifier
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
+    {
+        bail!(
+            "agent context selection must be a bounded exact identifier using ASCII letters, digits, dot, underscore, colon, or hyphen"
+        );
+    }
+    Ok(())
+}
+
+fn bundle_documentation(skill_name: &str) -> Result<Vec<String>> {
+    let bundle: AgentBundle =
+        serde_json::from_slice(BUNDLE_JSON).context("parse packaged Minco agent bundle")?;
+    if bundle.schema_version != 1 || bundle.minco_version != env!("CARGO_PKG_VERSION") {
+        bail!(
+            "packaged Minco agent bundle does not match cargo-minco {}",
+            env!("CARGO_PKG_VERSION")
+        );
+    }
+    bundle
+        .skills
+        .into_iter()
+        .find(|skill| skill.name == skill_name)
+        .map(|skill| skill.documentation)
+        .with_context(|| format!("packaged Minco agent bundle has no skill {skill_name}"))
 }
 
 fn build_plan(root: &Path, target: AgentTarget) -> Result<AgentPlan> {

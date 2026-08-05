@@ -304,8 +304,8 @@
     },
     {
       "path": "crates/minco-cli/src/agent_cmd.rs",
-      "sha256": "88c55477759fded9f65fd3d5b1bcd47d9641fedd97021b19b296ce003d498694",
-      "size_bytes": 48613
+      "sha256": "886d8ec57f06d8611022fc4f48b82b5b6f9a7ae7efe6cba35f64d376f2eee3ab",
+      "size_bytes": 56349
     },
     {
       "path": "crates/minco-cli/src/architecture.rs",
@@ -669,8 +669,8 @@
     },
     {
       "path": "crates/minco-cli/tests/agent_cli.rs",
-      "sha256": "c36b4ca8084f981942cf9816ced6c35c104ad9c742b2f0ffb0d83390bc7bf866",
-      "size_bytes": 16131
+      "sha256": "726548da46167e85ff539c52fa7da07515fc0a036e03a70f6e752003e001c346",
+      "size_bytes": 21100
     },
     {
       "path": "crates/minco-cli/tests/agent_skills.rs",
@@ -2039,8 +2039,8 @@
     },
     {
       "path": "docs/reference/cli.md",
-      "sha256": "764722189adf74003a6bc8dd7a84376da5d41bdbf7fb2e6952e1a3a55e53a01a",
-      "size_bytes": 16005
+      "sha256": "0a6b55e2c75cf44010cdac0269dd28724e3c51125561b97e622e17f0c57c5365",
+      "size_bytes": 16502
     },
     {
       "path": "docs/reference/compatibility.md",
@@ -2054,13 +2054,13 @@
     },
     {
       "path": "docs/reference/generated/cli.md",
-      "sha256": "2e43b254da87b38244a7c3242518e0fd47ebaf971678820f35f4e33a0b774129",
-      "size_bytes": 43032
+      "sha256": "d432f5b76c82eeaebf9cc1e8bb7c48d9e4e7cba63e072d67edb9871e95ed1a92",
+      "size_bytes": 43454
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "71b7bf3b20d904d247110f9d9470eb119a44b3fd171a5a7c4af10bf3ffce568e",
-      "size_bytes": 29218
+      "sha256": "cadef1b8efe76f59b47f3f25b4cb9f40ac68e39d65f39231a9465b55c469eafc",
+      "size_bytes": 29407
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -4749,13 +4749,13 @@
     },
     {
       "path": "tasks/M13/M13-T04-agent-context.md",
-      "sha256": "520e3770cb191c4c7e642d295af8a519da04989c11bf9aa97857851ba26c5182",
-      "size_bytes": 1483
+      "sha256": "3ee8a509e7342f031c7b37e4a2b37965cd63e13b053a509b37b2946fbca74c09",
+      "size_bytes": 3141
     },
     {
       "path": "tasks/M13/M13-T05-generated-application-agent-setup.md",
-      "sha256": "2151e7f05f44a891b1a488f36c157587b4bf586dc595ddced211889734af1e2e",
-      "size_bytes": 1723
+      "sha256": "875f1a1c3ab866948e3d4d5a73cc0e5c96d622ab5914268299b7e66e5e623a89",
+      "size_bytes": 1721
     },
     {
       "path": "tasks/M13/M13-T06-cross-client-agent-qualification.md",
@@ -4994,7 +4994,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "801b1711b6fb8df9f0e7633eb5bc4a4579755176bfe55c8f8bd948f7c9c5efef",
+      "sha256": "479fe735eb149722a917df741a1cb4ec89f193ea75ba38d4ed09c18f6ba5331e",
       "size_bytes": 2022
     },
     {
@@ -5084,7 +5084,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "0d512624b6dae90021995ec44b99921c03287ad13afcc941f9953bfed01caf41",
-  "total_size_bytes": 6859304,
+  "source_tree_sha256": "8fb5212a2e7ac73c36871d3b6ca477f97a327dcf07584f361461be318cddc2cd",
+  "total_size_bytes": 6874773,
   "version": "1.0.0"
 }

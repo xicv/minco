@@ -30,6 +30,13 @@ quality = "quality.toml"
     root
 }
 
+fn workspace_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("workspace root")
+}
+
 fn run(root: &Path, arguments: &[&str]) -> Output {
     let mut command = Command::new(cargo_minco());
     command.args([
@@ -92,6 +99,141 @@ fn plan(root: &Path, target: &str) -> Value {
 
 fn plan_digest(plan: &Value) -> &str {
     plan["plan_digest"].as_str().expect("plan digest")
+}
+
+fn documentation_paths(context: &Value) -> Vec<PathBuf> {
+    context["documentation"]
+        .as_array()
+        .expect("documentation identifiers")
+        .iter()
+        .map(|identifier| {
+            let identifier = identifier.as_str().expect("documentation identifier");
+            let relative = identifier
+                .strip_prefix("minco-1.0.0:")
+                .expect("versioned documentation identifier");
+            workspace_root()
+                .join("docs-site/1.0.0")
+                .join(format!("{relative}.md"))
+        })
+        .collect()
+}
+
+#[test]
+fn project_context_is_deterministic_bounded_and_read_only() {
+    let first = run(workspace_root(), &["context"]);
+    let second = run(workspace_root(), &["context"]);
+
+    assert!(first.status.success());
+    assert_eq!(first.stdout, second.stdout);
+    let context = json(&first);
+    assert_eq!(context["schema_version"], 1);
+    assert_eq!(context["operation"], "context");
+    assert_eq!(context["selection"]["kind"], "project");
+    assert_eq!(context["found"], true);
+    assert_eq!(context["project"]["name"], "minco-framework");
+    assert_eq!(context["project"]["mode"], "framework");
+    assert_eq!(context["bounds"]["writes"], 0);
+    assert_eq!(context["bounds"]["commands_executed"], 0);
+    assert_eq!(context["bounds"]["network_requests"], 0);
+    assert_eq!(context["bounds"]["max_response_bytes"], 65_536);
+    assert!(
+        context["context"]["summary"]["node_count"]
+            .as_u64()
+            .is_some_and(|count| count > 0)
+    );
+    assert!(
+        documentation_paths(&context)
+            .iter()
+            .all(|path| path.is_file())
+    );
+    assert!(first.stdout.len() <= 65_536);
+}
+
+#[test]
+fn operation_context_uses_the_project_view_and_reports_unknown_ids_without_guessing() {
+    let found = successful_json(&run(
+        workspace_root(),
+        &["context", "--operation", "placeOrder"],
+    ));
+    assert_eq!(found["selection"]["kind"], "operation");
+    assert_eq!(found["selection"]["id"], "placeOrder");
+    assert_eq!(found["found"], true);
+    assert_eq!(found["context"]["node"]["properties"]["method"], "POST");
+    assert_eq!(found["context"]["node"]["properties"]["path"], "/orders");
+    assert!(
+        found["context"]["edges"]
+            .as_array()
+            .expect("operation edges")
+            .iter()
+            .any(|edge| edge["to"] == "operation:placeOrder")
+    );
+    assert!(
+        documentation_paths(&found)
+            .iter()
+            .all(|path| path.is_file())
+    );
+
+    let absent = successful_json(&run(
+        workspace_root(),
+        &["context", "--operation", "notARealOperation"],
+    ));
+    assert_eq!(absent["found"], false);
+    assert_eq!(absent["context"], Value::Null);
+    assert_eq!(
+        absent["diagnostics"][0]["code"],
+        "MINCO-AGENT-CONTEXT-OPERATION-ABSENT"
+    );
+}
+
+#[test]
+fn task_context_uses_project_view_readiness_and_exact_task_edges() {
+    let found = successful_json(&run(workspace_root(), &["context", "--task", "M13-T04"]));
+    assert_eq!(found["selection"]["kind"], "task");
+    assert_eq!(found["selection"]["id"], "M13-T04");
+    assert_eq!(found["found"], true);
+    assert_eq!(
+        found["context"]["node"]["label"],
+        "Add bounded operation and task context projections for agents"
+    );
+    assert_eq!(found["context"]["node"]["properties"]["priority"], "high");
+    assert_eq!(found["context"]["readiness"]["raw_status"], "complete");
+    assert_eq!(found["context"]["readiness"]["dependencies_complete"], true);
+    assert_eq!(found["context"]["readiness"]["ready"], false);
+    assert!(
+        found["context"]["edges"]
+            .as_array()
+            .expect("task edges")
+            .iter()
+            .any(|edge| edge["to"] == "task:M13-T03")
+    );
+    assert!(
+        documentation_paths(&found)
+            .iter()
+            .all(|path| path.is_file())
+    );
+
+    let absent = successful_json(&run(workspace_root(), &["context", "--task", "M99-T99"]));
+    assert_eq!(absent["found"], false);
+    assert_eq!(absent["context"], Value::Null);
+    assert_eq!(
+        absent["diagnostics"][0]["code"],
+        "MINCO-AGENT-CONTEXT-TASK-ABSENT"
+    );
+}
+
+#[test]
+fn context_selection_is_mutually_exclusive_and_bounded() {
+    let exclusive = run(
+        workspace_root(),
+        &["context", "--operation", "placeOrder", "--task", "M13-T04"],
+    );
+    assert!(!exclusive.status.success());
+    assert!(String::from_utf8_lossy(&exclusive.stderr).contains("cannot be used with"));
+
+    let unbounded = "a".repeat(129);
+    let invalid = run(workspace_root(), &["context", "--operation", &unbounded]);
+    assert!(!invalid.status.success());
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("bounded exact identifier"));
 }
 
 fn digest(contents: &[u8]) -> String {

@@ -58,6 +58,7 @@ and browser verification.
 cargo minco agent plan --target codex|claude|all --json
 cargo minco agent sync --target codex|claude|all --expect-plan-digest SHA256 --json
 cargo minco agent doctor --target codex|claude|all --json
+cargo minco agent context [--operation ID | --task ID] --json
 ```
 
 `agent plan` is deterministic and read-only. It inventories only Minco's fixed
@@ -72,6 +73,13 @@ edited managed files, symlinks, non-regular entries and changed path identities
 fail closed. `agent doctor` performs no writes. Client MCP configuration remains
 user-owned, so this initial doctor reports it as `unknown` with a manual action
 instead of parsing or reserializing client JSON or TOML.
+
+`agent context` loads the existing bounded `ProjectView` and returns a compact
+project, exact-operation or exact-task projection with matching Minco 1.0
+documentation identifiers. Unknown IDs produce `found: false` and a stable
+diagnostic rather than guessed context. The response is capped at 64 KiB and
+reports zero writes, commands, network requests and arbitrary file reads; it
+does not run task checks or retrieve documentation.
 
 ## Typed configuration
 

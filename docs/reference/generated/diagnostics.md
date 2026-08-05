@@ -15,10 +15,12 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `342`.
+Declared codes: `344`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
+| `MINCO-AGENT-CONTEXT-OPERATION-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:418` | 1 |
+| `MINCO-AGENT-CONTEXT-TASK-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:460` | 1 |
 | `MINCO-ARCH-001` | arch | `crates/minco-cli/src/architecture.rs:132` | 0 |
 | `MINCO-ARCH-002` | arch | `crates/minco-cli/src/architecture.rs:133` | 0 |
 | `MINCO-ARCH-003` | arch | `crates/minco-cli/src/architecture.rs:134` | 0 |
