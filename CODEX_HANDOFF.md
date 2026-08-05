@@ -1,12 +1,13 @@
-# Minco 0.7.0 candidate handoff
+# Minco 1.0.0 release-candidate handoff
 
-Date: 2026-08-04
+Date: 2026-08-05
 Published baseline: `0.6.0`
-Current workspace version: `0.7.0`
+Current workspace version: `1.0.0`
 Workspace release state: `candidate`
 Published `0.6.0` source: `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`
-Last completed tasks: `M11-T01`, `M11-T02`, `M11-T03`, `M11-T07`, `M11-T08`, `M11-T11`
-Active task: none
+Last completed tasks: `M12-T01` through `M12-T06`
+Active task: none; the local 1.0 source candidate awaits separately authorised
+hosted and release actions
 
 ## Closed release boundary
 
@@ -30,12 +31,14 @@ version. It does not treat registry unavailability as a pass.
 
 ## Current state
 
-The workspace is now an unpublished `0.7.0` source candidate with 29
-publishable packages. It adds the first-publication `minco-plugin-realtime`
-package and minimal subscriber-only AppSync Events support. Source, hosted
-qualification, merge, tag, registry publication, live AWS deployment and
-production enablement remain separate gates; this candidate does not reopen or
-rewrite the completed `0.6.0` evidence below.
+The workspace is an unpublished `1.0.0` source candidate with 32 publishable
+packages. The four first-publication packages are `minco-plugin-realtime`,
+`minco-project-view`, `minco-mcp` and `minco-workbench`. Exact local source,
+package, generated-consumer, security, recovery, load, documentation and
+artifact qualification is recorded under `verification/`. Hosted
+qualification, merge, tag, registry publication, documentation publication,
+live AWS deployment and production enablement remain separate gates; this
+candidate does not reopen or rewrite the completed `0.6.0` evidence below.
 
 The `0.6.0` release adds archive-visible plugin distribution records, one
 public conformance kit and a detailed versioned documentation set. Tag,
@@ -45,11 +48,12 @@ proof are complete. PR #74 merged the stable documentation as exact commit
 deployed it and all 13 applicable live desktop/mobile browser checks passed.
 M11-T08 is complete.
 
-The remaining planned program is:
+The remaining release path is:
 
-1. complete bounded two-application adoption evidence;
-2. complete rollback/canary, static delivery and Verified Review Loop cleanup;
-3. continue the planned AI workbench and 1.0 compatibility-freeze program.
+1. obtain separately authorised hosted qualification for the exact resulting
+   source after review/merge;
+2. create and publish `v1.0.0` only under a separate explicit release
+   authority, then verify every registry and documentation surface.
 
 One task owns one isolated JJ workspace. Each task follows public-interface
 RED/GREEN/refactor cycles, focused checks, relevant local qualification,

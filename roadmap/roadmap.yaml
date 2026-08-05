@@ -141,7 +141,7 @@ milestones:
   - Package, feature, plugin, CLI, and diagnostic references derive from authoritative metadata.
 - id: M12
   name: AI workbench and 1.0 preparation
-  status: active
+  status: complete
   depends_on:
   - M7
   - M10

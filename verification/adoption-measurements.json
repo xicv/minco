@@ -53,27 +53,27 @@
     },
     "native_arm64_artifacts": {
       "orders_lambda": {
-        "compressed_bytes": 5102303,
+        "compressed_bytes": 5116868,
         "path": "target/lambda/orders-lambda/bootstrap.zip",
-        "sha256": "7864a2533e14dbb21abec1d7757e1ace047dc1c2b9c9b4c7e3081ff08288a5f7",
-        "uncompressed_bytes": 11187952
+        "sha256": "83f5c75b535aeb9bdcb4b6143dd52f6ae5074a22c1eb9b3d69a445d9c9a647f8",
+        "uncompressed_bytes": 11214104
       },
       "sqs_worker": {
-        "compressed_bytes": 574199,
+        "compressed_bytes": 576350,
         "path": "target/lambda/sqs_worker/bootstrap.zip",
-        "sha256": "80d7f8bb3c82a4ead305696437dcad88f5c1473b82373e8a606e5d61749b11f8",
-        "uncompressed_bytes": 1203520
+        "sha256": "59a119a792e53f353ca5462d826e8eb61b608e7272c1e78411095f23a8d70001",
+        "uncompressed_bytes": 1207744
       }
     },
-    "revision": "source-tree-sha256:87a74a885d20d324040293043f4603c9514f7aaea3cc2748c7a2d0e4048765e7"
+    "revision": "source-tree-sha256:a678ebf52b4c7a9f60ae9adb43221984b5f5884d44f5d0400e14781a5bf28554"
   },
   "comparison": {
     "all_feature_dependency_package_delta": 8,
     "default_dependency_package_delta": 0,
     "no_default_dependency_package_delta": 0,
     "official_plugin_dependency_package_delta": 1,
-    "orders_lambda_compressed_byte_delta": 89301,
-    "orders_lambda_compressed_percent_delta": 1.7814
+    "orders_lambda_compressed_byte_delta": 103866,
+    "orders_lambda_compressed_percent_delta": 2.0719
   },
   "limitations": [
     "Single local wall-clock samples are observational evidence, not CI budgets.",

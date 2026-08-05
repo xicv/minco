@@ -5,6 +5,24 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.0.0] - 2026-08-05
+
+This is a dated source-candidate record, not a publication record. The
+`1.0.0` workspace remains unpublished and untagged; no registry upload, GitHub
+release or documentation publication has occurred.
+
+### Release candidate
+
+- Advanced the complete 32-package lock-step workspace from the reviewed
+  `0.7.0` source boundary to an unpublished `1.0.0` candidate, including every
+  internal dependency and archive-visible Minco core compatibility range.
+- Added exact-source security, restore/rollback, bounded API/worker load,
+  documentation, generated-consumer and unpacked-package qualification gates.
+- Kept source, local qualification, hosted qualification, tag, registry,
+  documentation, deployment and application proof as independent states.
+
 ### Documentation
 
 - Froze the intended 1.0 Rust, Cargo feature, CLI, configuration, Plan,

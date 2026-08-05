@@ -13,7 +13,7 @@ crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The current workspace is an unpublished `0.7.0` candidate with 32 publishable
+The current workspace is an unpublished `1.0.0` candidate with 32 publishable
 packages. It adds the first-publication `minco-plugin-realtime`,
 `minco-project-view`, `minco-mcp` and `minco-workbench` packages. The
 published baseline remains the exact 28-package `0.6.0` family; source

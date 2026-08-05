@@ -49,7 +49,7 @@
       "minco-mcp",
       "minco-workbench"
     ],
-    "workspace_version": "0.7.0",
+    "workspace_version": "1.0.0",
     "workspace_packages": 37,
     "publishable_packages": 32,
     "private_packages": 5,

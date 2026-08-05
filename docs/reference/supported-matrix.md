@@ -1,6 +1,6 @@
 # 1.0 source-freeze support matrix
 
-Workspace candidate: `0.7.0`
+Workspace candidate: `1.0.0`
 Published install baseline: `0.6.0`
 MSRV: Rust `1.97.1`
 Compatibility state: M12-T04 source freeze reviewed; merge, tag, publication

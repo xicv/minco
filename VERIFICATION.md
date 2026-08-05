@@ -1,30 +1,44 @@
 # Minco verification and release evidence
 
-Date: 2026-08-04
-Current workspace version: `0.7.0`
+Date: 2026-08-05
+Current workspace version: `1.0.0`
 Published baseline: `0.6.0`
 Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M11-T11/M11-T12 `0.7.0` realtime candidate
+## M12 `1.0.0` local release candidate
+
+The 32-package workspace has advanced from the reviewed `0.7.0` source freeze
+to an unpublished `1.0.0` candidate. M12-T06 repeats all ten mandatory local
+release gates after the version and compatibility move. The exact source-tree
+digest, file count, command statuses, exit codes, durations and redacted log
+digests are recorded in `verification/1.0-candidate-release-gates.json`;
+restore/rollback and bounded load detail remain separate exact-source records.
+The source manifest inventories 910 files, and the package gate covers all 32
+publishable archives, their configured unpacked tests, four external facade
+consumers, and an unpacked `cargo-minco` installation.
+
+The locally built arm64 Orders ZIP is 5,116,868 bytes with SHA-256
+`83f5c75b535aeb9bdcb4b6143dd52f6ae5074a22c1eb9b3d69a445d9c9a647f8`.
+The worker ZIP is 576,350 bytes with SHA-256
+`59a119a792e53f353ca5462d826e8eb61b608e7272c1e78411095f23a8d70001`.
+No-default and default facade dependency-package counts are unchanged from the
+published baseline; the Orders ZIP is 2.0719% larger and remains within the
+reviewed 10 MiB budget.
+
+No `v1.0.0` tag, registry upload, GitHub release, stable documentation
+publication, hosted exact-head run, AWS deployment or application adoption is
+claimed by the local candidate.
+
+## M11-T11 `0.7.0` realtime candidate
 
 The unpublished 29-package source candidate adds
 `minco-plugin-realtime`, minimal AppSync Events planning/publication and a
-subscriber-only browser facade. It does not claim a tag, crates.io publication
-or production enablement. Exact local, hosted and merge evidence is recorded in
-M11-T11; bounded disposable provider evidence is recorded in M11-T12. The
-completed `0.6.0` evidence below remains the published baseline.
-
-M11-T12 passed its exact-source live proof on 2026-08-05 at
-`2d721700998ad9abf93e4ea855bf938cd1b3a27e`: Cognito connection and
-claim-bound subscription, HTTP truth resynchronization before buffered event
-delivery, two real IAM publications through the Rust adapter across a browser
-reconnect, mismatched-channel rejection, and complete teardown all passed. The
-exact stack and versioned artifact bucket were independently proved absent, and
-the temporary proof permission was restored and reprovisioned to its exact
-original value. This is bounded non-production verification, not standing AWS
-deployment authority.
+subscriber-only browser facade. It does not claim a tag, crates.io
+publication, live AWS deployment, browser/provider runtime or production
+enablement. Exact local, hosted and merge evidence is recorded in the task;
+the completed `0.6.0` evidence below remains the published baseline.
 
 The first exact-head essential run
 [`30893275719`](https://github.com/xicv/minco/actions/runs/30893275719)

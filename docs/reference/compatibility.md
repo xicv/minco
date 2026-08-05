@@ -2,13 +2,14 @@
 
 Freeze reviewed: 2026-08-05
 
-Workspace candidate: `0.7.0`
+Workspace candidate: `1.0.0`
 
 Published comparison baseline: `0.6.0`
 
 MSRV: Rust `1.97.1`
 
-This page freezes the source candidate that is intended to become Minco 1.0.
+This page freezes the source boundary promoted into the Minco `1.0.0`
+candidate.
 It does not claim that the change is merged, tagged, published, deployed or
 proved in a consuming application. Those remain independent release gates.
 

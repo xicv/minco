@@ -3,7 +3,7 @@
   "id": "idempotency",
   "kind": "plugin",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^0.7.0",
+  "core_compatibility": "^1.0.0",
   "stability": "stable",
   "default_enabled": true,
   "feature": "plugin-idempotency",

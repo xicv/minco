@@ -1,13 +1,13 @@
 schema = 1
-workspace_version = "0.7.0"
+workspace_version = "1.0.0"
 published_baseline = "0.6.0"
 workspace_release_state = "candidate"
 published_package_count = 28
 adoption_gate_task = "M6-T07"
 
-# The published 0.6.0 baseline contains 28 packages. The 0.7.0 source
+# The published 0.6.0 baseline contains 28 packages. The 1.0.0 source
 # candidate adds first-publication realtime, ProjectView, local MCP, and local
-# workbench packages.
+# Workbench packages.
 publishable_package_count = 32
 new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench"]
 

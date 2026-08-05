@@ -108,7 +108,7 @@ fn plugin_add_dry_run_resolves_an_explicit_version_without_writing() {
     assert_eq!(plan["plugin"]["id"], "health");
     assert_eq!(plan["plugin"]["crate"], "minco-plugin-health");
     assert_eq!(plan["plugin"]["feature"], "plugin-health");
-    assert_eq!(plan["plugin"]["resolved_version"], "0.7.0");
+    assert_eq!(plan["plugin"]["resolved_version"], "1.0.0");
     assert_eq!(plan["dry_run"], true);
     assert_eq!(plan["applied"], false);
     assert_eq!(
@@ -140,7 +140,7 @@ fn framework_catalog_add_is_idempotent_when_the_facade_already_declares_the_feat
         String::from_utf8_lossy(&output.stderr)
     );
     let plan: Value = serde_json::from_slice(&output.stdout).expect("framework add plan");
-    assert_eq!(plan["plugin"]["resolved_version"], "0.7.0");
+    assert_eq!(plan["plugin"]["resolved_version"], "1.0.0");
     assert_eq!(plan["changes"], serde_json::json!([]));
 }
 
@@ -159,7 +159,7 @@ fn plugin_add_rejects_a_cli_and_application_version_mismatch_before_writing() {
     let cargo_path = root.join("Cargo.toml");
     let cargo = fs::read_to_string(&cargo_path)
         .expect("workspace Cargo.toml")
-        .replace("version = \"0.7.0\"", "version = \"0.5.0\"");
+        .replace("version = \"1.0.0\"", "version = \"0.5.0\"");
     fs::write(&cargo_path, cargo).expect("set older Minco dependency");
     let before = snapshot(&root);
 
@@ -172,7 +172,7 @@ fn plugin_add_rejects_a_cli_and_application_version_mismatch_before_writing() {
     assert_eq!(snapshot(&root), before);
     let stderr = String::from_utf8(output.stderr).expect("UTF-8 version mismatch");
     assert!(stderr.contains("application Minco version 0.5.0"));
-    assert!(stderr.contains("cargo-minco 0.7.0"));
+    assert!(stderr.contains("cargo-minco 1.0.0"));
 }
 
 #[test]
@@ -182,8 +182,8 @@ fn plugin_add_plans_then_applies_cargo_and_selection_edits() {
     let cargo = fs::read_to_string(&cargo_path)
         .expect("workspace Cargo.toml")
         .replace(
-            "minco = { version = \"0.7.0\", features = [",
-            "minco = { version = \"0.7.0\", default-features = false, features = [",
+            "minco = { version = \"1.0.0\", features = [",
+            "minco = { version = \"1.0.0\", default-features = false, features = [",
         );
     fs::write(&cargo_path, cargo).expect("disable Minco default features");
 
@@ -326,7 +326,7 @@ fn plugin_doctor_proves_catalog_version_selection_and_static_registration() {
     let report: Value = serde_json::from_slice(&first.stdout).expect("plugin doctor JSON");
     assert_eq!(report["schema_version"], 1);
     assert_eq!(report["status"], "passed");
-    assert_eq!(report["resolved_minco_version"], "0.7.0");
+    assert_eq!(report["resolved_minco_version"], "1.0.0");
     assert_eq!(report["composition_root"], "crates/minco/src/lib.rs");
     let checks = report["checks"].as_array().expect("doctor checks");
     for code in [
@@ -373,7 +373,7 @@ plugin = "minco-plugin.json"
             "id": "metrics",
             "kind": "plugin",
             "plugin_version": "0.3.1",
-            "core_compatibility": "^0.7.0",
+            "core_compatibility": "^1.0.0",
             "stability": "experimental",
             "default_enabled": false,
             "feature": "plugin-metrics",
@@ -396,7 +396,7 @@ plugin = "minco-plugin.json"
     let current_cargo = fs::read_to_string(&cargo_path).expect("workspace Cargo.toml");
     fs::write(
         &cargo_path,
-        current_cargo.replace("version = \"0.7.0\"", "version = \"0.5.0\""),
+        current_cargo.replace("version = \"1.0.0\"", "version = \"0.5.0\""),
     )
     .expect("set older Minco dependency");
     let incompatible_before = snapshot(&root);
@@ -653,8 +653,8 @@ fn plugin_doctor_detects_enabled_plugins_missing_their_cargo_feature() {
     let cargo = fs::read_to_string(&cargo_path)
         .expect("workspace Cargo.toml")
         .replace(
-            "minco = { version = \"0.7.0\", features = [",
-            "minco = { version = \"0.7.0\", default-features = false, features = [",
+            "minco = { version = \"1.0.0\", features = [",
+            "minco = { version = \"1.0.0\", default-features = false, features = [",
         );
     fs::write(&cargo_path, cargo).expect("disable facade default features");
 
@@ -728,7 +728,7 @@ fn plugin_remove_applies_only_after_empty_ownership_metadata_is_available() {
         package.join("Cargo.toml"),
         r#"[package]
 name = "minco-plugin-health"
-version = "0.7.0"
+version = "1.0.0"
 include = ["src/**", "Cargo.toml", "minco-plugin.json"]
 
 [package.metadata.minco]
@@ -744,7 +744,7 @@ plugin = "minco-plugin.json"
             "id": "health",
             "kind": "plugin",
             "plugin_version": "1.0.0",
-            "core_compatibility": "^0.7.0",
+            "core_compatibility": "^1.0.0",
             "stability": "stable",
             "default_enabled": true,
             "feature": "plugin-health",
@@ -791,8 +791,8 @@ plugin = "minco-plugin.json"
     let cargo = fs::read_to_string(&cargo_path)
         .expect("workspace Cargo.toml")
         .replace(
-            "minco = { version = \"0.7.0\", features = [",
-            "minco = { version = \"0.7.0\", default-features = false, features = [\"plugin-health\", ",
+            "minco = { version = \"1.0.0\", features = [",
+            "minco = { version = \"1.0.0\", default-features = false, features = [\"plugin-health\", ",
     );
     fs::write(&cargo_path, cargo).expect("select explicit health feature");
 
@@ -900,7 +900,7 @@ fn plugin_list_reads_archive_visible_distribution_metadata_without_loading_plugi
 
     assert_eq!(health["distribution"]["schema"], 1);
     assert_eq!(health["distribution"]["plugin_version"], "1.0.0");
-    assert_eq!(health["distribution"]["core_compatibility"], "^0.7.0");
+    assert_eq!(health["distribution"]["core_compatibility"], "^1.0.0");
     assert_eq!(
         health["distribution"]["runtimes"],
         serde_json::json!(["native"])

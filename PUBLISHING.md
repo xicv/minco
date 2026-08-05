@@ -3,8 +3,9 @@
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
 The current published boundary is the 28-package lock-step `0.6.0` family.
-The workspace is an unpublished 29-package `0.7.0` candidate that adds the
-first-publication `minco-plugin-realtime` package.
+The workspace is an unpublished 32-package `1.0.0` candidate. It includes the
+first-publication `minco-plugin-realtime`, `minco-project-view`, `minco-mcp`
+and `minco-workbench` packages.
 Source/package qualification, merge, tag, upload and registry verification
 remain separate states for every later release.
 

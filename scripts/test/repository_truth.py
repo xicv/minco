@@ -422,12 +422,12 @@ class RepositoryTruthTests(unittest.TestCase):
     def test_planned_milestone_rejects_ready_task_evidence(self) -> None:
         task = self.root / "tasks/M12/M12-T01-local-read-only-mcp.md"
         task.write_text(
-            task.read_text().replace("status: in_progress", "status: ready", 1)
+            task.read_text().replace("status: complete", "status: ready", 1)
         )
         roadmap = self.root / "roadmap/roadmap.yaml"
         roadmap.write_text(
             roadmap.read_text().replace(
-                "- id: M12\n  name: AI workbench and 1.0 preparation\n  status: active",
+                "- id: M12\n  name: AI workbench and 1.0 preparation\n  status: complete",
                 "- id: M12\n  name: AI workbench and 1.0 preparation\n  status: planned",
             )
         )
