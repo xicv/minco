@@ -2,7 +2,7 @@
 id: M12-T06
 title: Prepare the Minco 1.0 release candidate
 milestone: M12
-status: planned
+status: ready
 priority: critical
 area: release/1.0
 depends_on: [M8-T03, M12-T02, M12-T05]

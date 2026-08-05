@@ -4234,8 +4234,8 @@
     },
     {
       "path": "tasks/M12/M12-T06-minco-1-0-rc.md",
-      "sha256": "c6ddd56668cda66de377706a905c8fe6ab19677d6c0115ec24fab2e8913d7035",
-      "size_bytes": 1459
+      "sha256": "e7496567915ae1733c014740f18cec16f391bf5d5c290373615cdd103356f29f",
+      "size_bytes": 1457
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -4559,7 +4559,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "3716966ce1cca7caac487a1274bcb1e07c0dca5e0b9b48f5311faeb68e35803e",
-  "total_size_bytes": 6317709,
+  "source_tree_sha256": "87a74a885d20d324040293043f4603c9514f7aaea3cc2748c7a2d0e4048765e7",
+  "total_size_bytes": 6317707,
   "version": "0.7.0"
 }
