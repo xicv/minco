@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.0.0`
 >
-> Current workspace version: `1.0.0`
+> Current workspace version: `1.1.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `33`
 
@@ -37,6 +37,7 @@ start directly with:
 - [Generated package, feature, plugin, CLI, schema, and diagnostic reference](docs/reference/generated/index.md)
 - [Plugin conformance](https://xicv.github.io/minco/1.0.0/guides/plugin-conformance)
 - [Zero idle, precisely](https://xicv.github.io/minco/1.0.0/explanation/zero-idle)
+- [Preview agent-native development](https://xicv.github.io/minco/1.1.0/guides/agent-development)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -73,6 +74,26 @@ cargo add minco@1.0.0 --features sqlx-postgres,aws-lambda,plan,release,test
 # Provider-neutral core only
 cargo add minco@1.0.0 --no-default-features
 ```
+
+## Agent-native application development
+
+The `1.1.0` candidate packages eight focused, version-matched workflow skills
+for Codex and Claude Code. Minco plans project-local projections before writing,
+requires the exact plan digest to synchronize them, and preserves user-owned
+instructions and client configuration.
+
+```bash
+cargo minco agent plan --target all --json
+cargo minco agent sync --target all --expect-plan-digest <sha256> --json
+cargo minco agent doctor --target all --json
+cargo minco agent context --operation placeOrder --json
+cargo minco agent eval --target all --json
+```
+
+Context and evaluation are bounded, read-only projections over authoritative
+Minco project facts. They do not invoke a model, contact a provider, run a task,
+or grant commit, release, deployment, database, or production authority. See
+the [agent development guide](https://xicv.github.io/minco/1.1.0/guides/agent-development).
 
 ## The resource API convention
 
@@ -169,10 +190,15 @@ availability, ownership and non-yanked state were independently verified after
 the complete dependency-ordered upload. Live AWS deployment remains a separate
 evidence boundary and was not part of this release.
 
+The workspace is preparing the compatible `1.1.0` agent-native release. Source,
+hosted qualification, immutable tag, registry upload, docs.rs, stable manual,
+and live application deployment remain separately verified states.
+
 See [`CHANGELOG.md`](CHANGELOG.md),
 [`docs/adoption/0.4.0-to-0.5.0.md`](docs/adoption/0.4.0-to-0.5.0.md),
 [`docs/adoption/0.5.0-to-0.6.0.md`](docs/adoption/0.5.0-to-0.6.0.md), and
 [`docs/adoption/0.6.0-to-1.0.0.md`](docs/adoption/0.6.0-to-1.0.0.md), and
+[`docs/adoption/1.0.0-to-1.1.0.md`](docs/adoption/1.0.0-to-1.1.0.md), and
 [`docs/development/publishing.md`](docs/development/publishing.md).
 
 ## License

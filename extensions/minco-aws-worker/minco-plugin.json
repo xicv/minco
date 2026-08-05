@@ -3,7 +3,7 @@
   "id": "aws-worker",
   "kind": "runtime",
   "plugin_version": "0.7.0",
-  "core_compatibility": "^1.0.0",
+  "core_compatibility": "^1.1.0",
   "stability": "beta",
   "default_enabled": false,
   "feature": "aws-worker",

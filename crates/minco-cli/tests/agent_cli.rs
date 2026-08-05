@@ -131,6 +131,8 @@ fn plan_digest(plan: &Value) -> &str {
 }
 
 fn documentation_paths(context: &Value) -> Vec<PathBuf> {
+    let version = env!("CARGO_PKG_VERSION");
+    let prefix = format!("minco-{version}:");
     context["documentation"]
         .as_array()
         .expect("documentation identifiers")
@@ -138,10 +140,10 @@ fn documentation_paths(context: &Value) -> Vec<PathBuf> {
         .map(|identifier| {
             let identifier = identifier.as_str().expect("documentation identifier");
             let relative = identifier
-                .strip_prefix("minco-1.0.0:")
+                .strip_prefix(&prefix)
                 .expect("versioned documentation identifier");
             workspace_root()
-                .join("docs-site/1.0.0")
+                .join(format!("docs-site/{version}"))
                 .join(format!("{relative}.md"))
         })
         .collect()

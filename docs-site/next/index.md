@@ -27,6 +27,10 @@ exact reference when you need them.
     <strong>Author a plugin</strong>
     <span>Package a statically linked plugin and exercise the public conformance boundary.</span>
   </a>
+  <a class="doc-path-card" href="./guides/agent-development">
+    <strong>Develop with coding agents</strong>
+    <span>Install version-matched Codex and Claude skills and inspect bounded project context.</span>
+  </a>
   <a class="doc-path-card" href="./guides/deployment">
     <strong>Operate on AWS</strong>
     <span>Review Plan IR, residual cost, exact artifacts, and mutation evidence.</span>
@@ -53,6 +57,7 @@ exact reference when you need them.
 | Plugins | Archive-visible distribution metadata and public offline conformance reports |
 | Realtime | Subscriber-only AppSync invalidation with authoritative HTTP resynchronization |
 | Local AI | Bounded ProjectView, read-only MCP, and accessible workbench projections |
+| Agent development | Version-matched skills, digest-bound client projections, bounded context, and deterministic evaluation |
 | Testing | Domain, application, adapter, HTTP, plugin, deployment, and release evidence remain distinct |
 | AWS | Zero provisioned application compute, explicit DynamoDB access patterns, and visible residual managed-service cost |
 
@@ -83,6 +88,8 @@ boot-time production migrations.
 - Inspect the same bounded project model through
   [ProjectView, MCP, and the local workbench](./guides/project-view), or select
   the [DynamoDB Orders adapter](./guides/dynamodb).
+- Set up [Codex and Claude Code](./guides/agent-development) with project-local,
+  version-matched Minco workflows.
 - Review the [complete feature catalog](./features/),
   [built-in component catalog](./plugins/), and
   [Cargo feature reference](./reference/feature-flags).

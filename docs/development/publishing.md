@@ -13,7 +13,8 @@ crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The current workspace matches that published family. Its first release added
+The `1.1.0` workspace is an unpublished candidate for that same 33-package
+family. The 1.0 release added
 `minco-plugin-realtime`, `minco-project-view`, `minco-mcp`,
 `minco-workbench` and `minco-aws-dynamodb`; all five now have crates.io
 ownership, so repository truth retains no first-publication candidates. Source

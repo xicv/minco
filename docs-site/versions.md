@@ -10,10 +10,13 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
+| 1.1.0 | Release candidate | 1.97.1 | [Open 1.1.0 docs](/1.1.0/) |
 | 1.0.0 | Latest stable | 1.97.1 | [Open 1.0.0 docs](/1.0.0/) |
 | 0.6.0 | Previous stable | 1.97.1 | [Open 0.6.0 docs](/0.6.0/) |
 | 0.5.0 | Previous stable | 1.97.1 | [Open 0.5.0 docs](/0.5.0/) |
 | Next | Unreleased | Repository-pinned | [Preview next](/next/) |
 
-For immutable source and package evidence, see the
+The 1.1.0 source, hosted, tag, registry and documentation states remain
+independent until publication completes. For the current immutable published
+baseline, see the
 [1.0.0 GitHub release](https://github.com/xicv/minco/releases/tag/v1.0.0).

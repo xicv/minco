@@ -64,7 +64,7 @@ impl AgentTarget {
         }
     }
 
-    fn clients(self) -> &'static [Client] {
+    const fn clients(self) -> &'static [Client] {
         match self {
             Self::Codex => &[Client::Codex],
             Self::Claude => &[Client::Claude],
@@ -703,7 +703,7 @@ fn evaluate_skills() -> Result<SkillEvaluation> {
             });
             continue;
         }
-        if let Err(error) = validate_skill(skill) {
+        if let Err(error) = validate_skill(skill, &bundle.minco_version) {
             issues.push(EvaluationIssue {
                 path: skill.path.clone(),
                 code: "invalid_skill",
@@ -748,17 +748,18 @@ fn evaluate_skills() -> Result<SkillEvaluation> {
     })
 }
 
-fn validate_skill(skill: &AgentBundleSkill) -> Result<()> {
+fn validate_skill(skill: &AgentBundleSkill, minco_version: &str) -> Result<()> {
     if skill.path != format!("skills/{}", skill.name) {
         bail!("bundle path does not match the skill name");
     }
     if !matches!(skill.mode.as_str(), "application" | "framework" | "shared") {
         bail!("bundle mode is not application, framework, or shared");
     }
+    let documentation_prefix = format!("minco-{minco_version}:");
     if skill.documentation.is_empty()
         || !skill.documentation.iter().all(|identifier| {
             identifier
-                .strip_prefix("minco-1.0.0:")
+                .strip_prefix(&documentation_prefix)
                 .is_some_and(|relative| {
                     !relative.is_empty()
                         && Path::new(relative)
@@ -1664,7 +1665,10 @@ mod secure {
                 detail: format!("{} contains a symlink or non-regular entry", path.display()),
             });
         }
-        if stat.st_size < 0 || stat.st_size as u64 > MAX_MANAGED_BYTES {
+        if u64::try_from(stat.st_size)
+            .ok()
+            .is_none_or(|size| size > MAX_MANAGED_BYTES)
+        {
             return Ok(Inspection::Unsafe {
                 detail: format!("{} exceeds the managed file size limit", path.display()),
             });
@@ -1683,7 +1687,7 @@ mod secure {
                 detail: format!("{} changed identity while opening", path.display()),
             });
         }
-        let mut contents = Vec::with_capacity(opened.st_size as usize);
+        let mut contents = Vec::new();
         File::from(fd)
             .take(MAX_MANAGED_BYTES + 1)
             .read_to_end(&mut contents)?;
@@ -1907,7 +1911,7 @@ mod secure {
     fn rollback(staged: &mut [StagedWrite]) {
         for entry in staged.iter_mut().rev() {
             match entry.state {
-                InstallState::Staged => {}
+                InstallState::Staged | InstallState::RestoreBlocked => {}
                 InstallState::Created => {
                     if identity_at(&entry.parent, &entry.name) == Some(entry.staged_identity) {
                         if unlinkat(&entry.parent, &entry.name, AtFlags::empty()).is_ok() {
@@ -1915,18 +1919,16 @@ mod secure {
                         } else {
                             entry.state = InstallState::RestoreBlocked;
                         }
-                    } else if identity_at(&entry.parent, &entry.staging_name).is_none()
-                        && renameat_with(
-                            &entry.parent,
-                            &entry.name,
-                            &entry.parent,
-                            &entry.staging_name,
-                            RenameFlags::NOREPLACE,
-                        )
-                        .is_ok()
-                    {
-                        entry.state = InstallState::RestoreBlocked;
                     } else {
+                        if identity_at(&entry.parent, &entry.staging_name).is_none() {
+                            let _ = renameat_with(
+                                &entry.parent,
+                                &entry.name,
+                                &entry.parent,
+                                &entry.staging_name,
+                                RenameFlags::NOREPLACE,
+                            );
+                        }
                         entry.state = InstallState::RestoreBlocked;
                     }
                 }
@@ -1961,7 +1963,6 @@ mod secure {
                         entry.state = InstallState::RestoreBlocked;
                     }
                 }
-                InstallState::RestoreBlocked => {}
             }
             let _ = fsync(&entry.parent);
         }
@@ -2018,8 +2019,13 @@ mod secure {
                 Ok(()) | Err(Errno::EXIST) => {}
                 Err(error) => return Err(error.into()),
             }
-            current = openat(&current, name, DIRECTORY_FLAGS, Mode::empty())
-                .with_context(|| format!("open projection parent component {:?}", name))?;
+            current =
+                openat(&current, name, DIRECTORY_FLAGS, Mode::empty()).with_context(|| {
+                    format!(
+                        "open projection parent component {}",
+                        Path::new(name).display()
+                    )
+                })?;
         }
         Ok((
             current,
@@ -2033,8 +2039,13 @@ mod secure {
             let Component::Normal(name) = component else {
                 bail!("agent projection path must be normalized and project-relative");
             };
-            current = openat(&current, name, DIRECTORY_FLAGS, Mode::empty())
-                .with_context(|| format!("reopen projection parent component {:?}", name))?;
+            current =
+                openat(&current, name, DIRECTORY_FLAGS, Mode::empty()).with_context(|| {
+                    format!(
+                        "reopen projection parent component {}",
+                        Path::new(name).display()
+                    )
+                })?;
         }
         Ok(current)
     }

@@ -51,7 +51,7 @@
       "minco-workbench",
       "minco-aws-dynamodb"
     ],
-    "workspace_version": "1.0.0",
+    "workspace_version": "1.1.0",
     "workspace_packages": 38,
     "publishable_packages": 33,
     "private_packages": 5,
@@ -97,11 +97,11 @@
       "orders-domain",
       "orders-service"
     ],
-    "registry_check_performed": false,
-    "registry_checks_succeeded": 0,
+    "registry_check_performed": true,
+    "registry_checks_succeeded": 33,
     "expect_unpublished": false,
     "expect_published": false,
-    "require_registry": false
+    "require_registry": true
   },
   "findings": [],
   "limitations": [

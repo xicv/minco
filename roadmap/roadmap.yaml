@@ -169,3 +169,14 @@ milestones:
     or user-owned configuration rewrites.
   - Cross-client scenario evidence proves correct workflow routing and rejects implicit commit, push, release,
     deployment, database, provider and production actions.
+- id: M14
+  name: Post-1.0 release train
+  status: active
+  depends_on:
+  - M13
+  outcome: Compatible post-1.0 Minco features ship as one qualified lock-step crate family with frozen versioned
+    documentation and independently verified publication evidence.
+  exit_criteria:
+  - The complete 33-package family is versioned and qualified from one exact main source tree.
+  - README, changelog, upgrade guidance and the versioned manual describe the released feature boundary.
+  - Tag, GitHub release, registry publication, docs.rs and stable documentation are verified as separate states.

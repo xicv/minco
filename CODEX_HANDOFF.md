@@ -1,12 +1,12 @@
-# Minco 1.0.0 release handoff
+# Minco 1.1.0 release-candidate handoff
 
-Date: 2026-08-05
+Date: 2026-08-06
 Published baseline: `1.0.0`
-Current workspace version: `1.0.0`
-Workspace release state: `published`
+Current workspace version: `1.1.0`
+Workspace release state: `candidate`
 Published `1.0.0` source: `39a69e36b051724c383da75d5907a824cbd2765b`
-Last completed tasks: `M12-T01` through `M12-T08`
-Active task: none
+Last completed tasks: `M13-T01` through `M13-T06`
+Active task: `M14-T01`
 
 ## Closed release boundary
 
@@ -27,19 +27,18 @@ uv run --locked python scripts/validate_publish.py \
 The command requires successful crates.io evidence for every exact workspace
 version. It does not treat registry unavailability as a pass.
 
-## Current state
+## Current candidate state
 
-The workspace matches the published `1.0.0` version and contains 33 public
-packages. Realtime, ProjectView, MCP, Workbench and DynamoDB crossed their
-first-publication ownership boundary. Exact local source, package,
-generated-consumer, security, recovery, load and documentation qualification
-is recorded under `verification/`; hosted qualification, registry publication,
-GitHub release and stable documentation remain separately evidenced.
+The workspace advances the same 33 public packages to `1.1.0` and adds the
+agent-native CLI/skill layer. The published baseline remains `1.0.0` until the
+exact candidate is merged, qualified, tagged, uploaded and independently
+verified. README and the versioned candidate manual document the new workflows;
+stable navigation is promoted only after publication.
 
-The next release-hardening recommendation is to configure and independently
-verify crates.io trusted publishing for the five packages first published in
-1.0.0. That work needs a new owning task and must not infer OIDC readiness from
-package ownership alone.
+Before upload, independently verify crates.io OIDC authentication, the exact
+main release qualification, immutable tag identity and all 33 absent exact
+registry versions. Do not infer trusted-publisher readiness from historical
+ownership alone.
 
 One task owns one isolated JJ workspace. Each task follows public-interface
 RED/GREEN/refactor cycles, focused checks, relevant local qualification,

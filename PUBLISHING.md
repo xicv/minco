@@ -3,7 +3,8 @@
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
 The current published boundary is the complete 33-package lock-step `1.0.0`
-family. Its first publication established ownership for
+family, while the workspace is the unpublished `1.1.0` candidate. The first
+1.0 publication established ownership for
 `minco-plugin-realtime`, `minco-project-view`, `minco-mcp`,
 `minco-workbench`, and `minco-aws-dynamodb`.
 Source/package qualification, merge, tag, upload and registry verification
@@ -27,8 +28,8 @@ scripts/release/publish.sh --execute
 
 The first 1.0.0 publication used a short-lived manual crates.io token for the
 complete exact-tag family because it contained first-publication crates.
-Repository truth now keeps `new_publishable_packages` empty. Configure and
-independently verify trusted publishing for those new packages before relying
-on the OIDC workflow for a later release.
+Repository truth now keeps `new_publishable_packages` empty. The `1.1.0`
+release must independently prove OIDC authentication before relying on the
+trusted-publishing workflow; ownership alone is not authentication evidence.
 
 Never use `--allow-dirty` or `--no-verify` for a Minco release.
