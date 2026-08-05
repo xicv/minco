@@ -2,7 +2,7 @@
 id: M13-T04
 title: Add bounded operation and task context projections for agents
 milestone: M13
-status: planned
+status: ready
 priority: high
 area: ai/context
 depends_on: [M13-T03]
