@@ -22,6 +22,10 @@ RELEASE_STATE = TRUTH["workspace_release_state"]
 PUBLISHED_PACKAGE_COUNT = TRUTH["published_package_count"]
 PUBLISHABLE_PACKAGE_COUNT = TRUTH["publishable_package_count"]
 NEW_PUBLISHABLE_PACKAGES = TRUTH["new_publishable_packages"]
+QUALIFIED_CANDIDATE_NEW_PUBLISHABLE_PACKAGES = TRUTH.get(
+    "qualified_candidate_new_publishable_packages",
+    NEW_PUBLISHABLE_PACKAGES,
+)
 FACADE = tomllib.loads((ROOT / "crates/minco/Cargo.toml").read_text())
 CATALOG = tomllib.loads((ROOT / "plugins/catalog.toml").read_text())
 OFFICIAL_PLUGIN_FEATURES = set(FACADE["features"]["official-plugins"])
@@ -30,10 +34,10 @@ CATALOG_FEATURE_BY_CRATE = {
 }
 NEW_OFFICIAL_PLUGIN_PACKAGES = {
     package
-    for package in NEW_PUBLISHABLE_PACKAGES
+    for package in QUALIFIED_CANDIDATE_NEW_PUBLISHABLE_PACKAGES
     if CATALOG_FEATURE_BY_CRATE.get(package) in OFFICIAL_PLUGIN_FEATURES
 }
-PREVIOUS_PUBLISHED_BASELINE = "0.5.0"
+PREVIOUS_PUBLISHED_BASELINE = "0.6.0"
 DRIFTED_PUBLISHED_BASELINE = "9.9.8"
 CANDIDATE_BASELINE = (
     PUBLISHED_BASELINE if RELEASE_STATE == "candidate" else PREVIOUS_PUBLISHED_BASELINE
@@ -113,6 +117,10 @@ class RepositoryTruthTests(unittest.TestCase):
         )
         guide.write_text(
             guide.read_text()
+            .replace(
+                f"Previous published baseline: `{PREVIOUS_PUBLISHED_BASELINE}`",
+                f"Published baseline: `{PREVIOUS_PUBLISHED_BASELINE}`",
+            )
             .replace(
                 f"Target version: `{WORKSPACE_VERSION}`",
                 f"Candidate workspace version: `{WORKSPACE_VERSION}`",
@@ -366,6 +374,16 @@ class RepositoryTruthTests(unittest.TestCase):
             )
         )
         self.assertIn("STATIC-TRUTH-PACKAGES-004", self.truth_codes())
+
+    def test_qualified_candidate_package_list_drift_has_a_stable_code(self) -> None:
+        truth = self.root / "verification/repository-truth.toml"
+        truth.write_text(
+            truth.read_text().replace(
+                "qualified_candidate_new_publishable_packages = [",
+                'qualified_candidate_new_publishable_packages = ["not-a-workspace-package", ',
+            )
+        )
+        self.assertIn("STATIC-TRUTH-PACKAGES-003", self.truth_codes())
 
     def test_current_published_baseline_requires_the_full_package_count(self) -> None:
         self.make_workspace_published()

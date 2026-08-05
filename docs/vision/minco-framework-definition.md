@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `0.6.0`
+Published baseline: `1.0.0`
 Current workspace version: `1.0.0`
-Workspace release state: `candidate`
-Reviewed release source: `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`
+Workspace release state: `published`
+Reviewed release source: `39a69e36b051724c383da75d5907a824cbd2765b`
 
 ## Product identity
 
@@ -18,14 +18,14 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The published `0.6.0` classification is:
+The published `1.0.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
-> distribution, public conformance, detailed versioned documentation, guarded
-> hosted verification, coordinated registry publication and independent
-> consumer verification. The earlier bounded disposable AWS rehearsal and
-> exact-artifact promotion remain the latest live deployment proof; production
-> runtime and later lifecycle/ecosystem programs remain incomplete.
+> distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
+> public conformance, versioned documentation, guarded lifecycle controls,
+> hosted verification and coordinated registry publication. The bounded
+> provider rehearsals retain their exact historical source scope; publication
+> does not itself prove a current live application deployment.
 
 The framework-completion program still prioritises one coherent path from a new
 contract to a safely deployed, observable, and upgradable application. Source
@@ -297,7 +297,8 @@ checked deterministically.
 
 ## Compatibility and version boundaries
 
-Minco remains a lock-step pre-1.0 crate family while the golden path is built.
+Before 1.0, Minco used a lock-step pre-1.0 crate family while the golden path
+was built. The published 1.x family now follows the compatibility policy.
 
 - Patch releases preserve the public Rust API and serialized contract of the
   current minor line.
@@ -313,7 +314,7 @@ Minco remains a lock-step pre-1.0 crate family while the golden path is built.
   decision proves the dependency and behavior impact.
 - Every significant public change includes a compatibility note, migration
   guide, fixture, and exact final-source checks.
-- The 1.0 candidate requires an explicit public API, Cargo feature, CLI,
+- The 1.0 release required an explicit public API, Cargo feature, CLI,
   configuration, Plan IR, and plugin-distribution freeze.
 
 The current Rust MSRV remains the manifest-pinned `1.97.1`. Changing it is an

@@ -1,15 +1,19 @@
 ---
 title: Minco 1.0.0
-description: Candidate documentation for the complete Minco 1.0 contract-to-cloud framework.
+description: Stable documentation for the complete Minco 1.0 contract-to-cloud framework.
 ---
 
 # Minco 1.0.0
 
-This is the frozen candidate manual for Minco 1.0.0: a contract-to-cloud Rust
-framework for low-idle-cost web applications on AWS. While the release remains
-a candidate, it documents qualified source and never changes the meaning of the
-[stable 0.6.0 documentation](/0.6.0/). Registry publication and the final
-documentation promotion remain separate gates.
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.0.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
+
+This is the stable manual for Minco 1.0.0: a contract-to-cloud Rust framework
+for low-idle-cost web applications on AWS. It documents the exact versioned
+surface published from [`v1.0.0`](https://github.com/xicv/minco/releases/tag/v1.0.0).
+The mutable [next manual](/next/) remains separate from this release.
 
 The manual is organized progressively: begin with one working application,
 then reach for focused guides, the component catalog, practical recipes, or

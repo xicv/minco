@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
-Published baseline: `0.6.0`
+Published baseline: `1.0.0`
 Current workspace version: `1.0.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -14,7 +14,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "0.6.0", default-features = false, features = ["contract"] }
+minco = { version = "1.0.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -147,10 +147,10 @@ The published `0.5.0` release is documented separately in the
 wire contract, pagination/concurrency/idempotency behavior, zero-idle cost
 evidence and local/hosted qualification split.
 
-Applications adopting the published `0.6.0` plugin metadata and conformance
-APIs must use the
-[`0.5.0` to `0.6.0` guide](0.5.0-to-0.6.0.md). Update the exact lock-step
-family together.
+Applications moving from the published `0.6.0` family to `1.0.0` must use the
+[`0.6.0` to `1.0.0` guide](0.6.0-to-1.0.0.md). It covers the complete plugin,
+realtime, ProjectView/MCP/workbench, DynamoDB and lifecycle boundary. Update
+the exact lock-step family together.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

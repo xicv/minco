@@ -366,9 +366,18 @@ class Validator:
                 entry.get("crate"): entry.get("feature")
                 for entry in catalog.get("plugin", [])
             }
+            candidate_new_packages_value = truth.get(
+                "qualified_candidate_new_publishable_packages",
+                truth.get("new_publishable_packages", []),
+            )
+            candidate_new_packages = (
+                candidate_new_packages_value
+                if isinstance(candidate_new_packages_value, list)
+                else []
+            )
             new_official_plugin_packages = {
                 package
-                for package in truth.get("new_publishable_packages", [])
+                for package in candidate_new_packages
                 if isinstance(package, str)
                 and catalog_feature_by_crate.get(package) in official_features
             }
@@ -493,6 +502,22 @@ class Validator:
                 truth_path,
             )
         new_publishable_packages = truth.get("new_publishable_packages", [])
+        qualified_candidate_new_packages = truth.get(
+            "qualified_candidate_new_publishable_packages",
+            new_publishable_packages,
+        )
+        if (
+            not isinstance(qualified_candidate_new_packages, list)
+            or any(
+                not isinstance(package, str) or package not in publishable
+                for package in qualified_candidate_new_packages
+            )
+        ):
+            self.error(
+                "STATIC-TRUTH-PACKAGES-003",
+                "qualified_candidate_new_publishable_packages must name publishable workspace packages",
+                truth_path,
+            )
         if (
             not isinstance(new_publishable_packages, list)
             or any(

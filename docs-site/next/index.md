@@ -8,7 +8,7 @@ description: Unreleased Minco documentation.
 This is the current-development manual for Minco: a contract-to-cloud Rust
 framework for low-idle-cost web applications on AWS. It documents the source on
 `main`; it never changes the meaning of the
-[stable 0.6.0 documentation](/0.6.0/).
+[stable 1.0.0 documentation](/1.0.0/).
 
 The manual is organized progressively: begin with one working application,
 then reach for focused guides, the component catalog, practical recipes, or
