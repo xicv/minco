@@ -59,6 +59,7 @@ cargo minco agent plan --target codex|claude|all --json
 cargo minco agent sync --target codex|claude|all --expect-plan-digest SHA256 --json
 cargo minco agent doctor --target codex|claude|all --json
 cargo minco agent context [--operation ID | --task ID] --json
+cargo minco agent eval --target codex|claude|all --json
 ```
 
 `agent plan` is deterministic and read-only. It inventories only Minco's fixed
@@ -88,6 +89,14 @@ documentation identifiers. Unknown IDs produce `found: false` and a stable
 diagnostic rather than guessed context. The response is capped at 64 KiB and
 reports zero writes, commands, network requests and arbitrary file reads; it
 does not run task checks or retrieve documentation.
+
+`agent eval` is read-only and deterministic. It validates the packaged portable
+skill format, requires each selected fixed-path projection to match the
+versioned canonical bytes, checks Codex/Claude parity for `--target all`, and
+validates every checked-in trigger and boundary scenario contract. Its report
+states zero writes, commands, network requests and model invocations. A passing
+result is local source/projection evidence, not a model quality score or hosted,
+deployment, runtime, review or production proof.
 
 ## Typed configuration
 

@@ -10,6 +10,7 @@ use std::{
 
 const MANIFEST_PATH: &str = ".minco/agent-manifest.json";
 const BUNDLE_JSON: &[u8] = include_bytes!("../assets/agent/bundle.json");
+const SCENARIOS_JSON: &[u8] = include_bytes!("../assets/agent/evals/scenarios.json");
 const CLAUDE_BRIDGE: &[u8] = include_bytes!("../templates/app/CLAUDE.md.tmpl");
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
 
@@ -38,6 +39,11 @@ pub enum AgentCommand {
         operation: Option<String>,
         #[arg(long, conflicts_with = "operation")]
         task: Option<String>,
+    },
+    /// Validate installed projections and deterministic workflow contracts.
+    Eval {
+        #[arg(long, value_enum)]
+        target: AgentTarget,
     },
 }
 
@@ -294,17 +300,122 @@ struct ContextBounds {
     arbitrary_file_reads: usize,
 }
 
+#[derive(Debug, Serialize)]
+struct EvaluationReport {
+    schema_version: u32,
+    operation: &'static str,
+    status: &'static str,
+    minco_version: &'static str,
+    target: &'static str,
+    bundle_digest: String,
+    scenario_suite_digest: String,
+    skills: SkillEvaluation,
+    projection: ProjectionEvaluation,
+    scenarios: ScenarioEvaluation,
+    bounds: EvaluationBounds,
+    forward_model: ForwardModelEvaluation,
+}
+
+#[derive(Debug, Serialize)]
+struct SkillEvaluation {
+    status: &'static str,
+    checked: usize,
+    files: usize,
+    issues: Vec<EvaluationIssue>,
+}
+
+#[derive(Debug, Serialize)]
+struct ProjectionEvaluation {
+    status: &'static str,
+    clients: Vec<ClientEvaluation>,
+    parity: ParityEvaluation,
+}
+
+#[derive(Debug, Serialize)]
+struct ClientEvaluation {
+    client: &'static str,
+    status: &'static str,
+    checked_files: usize,
+    matched_files: usize,
+    issues: Vec<EvaluationIssue>,
+}
+
+#[derive(Debug, Serialize)]
+struct ParityEvaluation {
+    status: &'static str,
+    compared_files: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct EvaluationIssue {
+    path: String,
+    code: &'static str,
+    detail: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ScenarioEvaluation {
+    status: &'static str,
+    total: usize,
+    trigger: usize,
+    boundary: usize,
+    skills_covered: usize,
+    results: Vec<ScenarioResult>,
+    issues: Vec<EvaluationIssue>,
+}
+
+#[derive(Debug, Serialize)]
+struct ScenarioResult {
+    id: String,
+    skill: String,
+    kind: String,
+    status: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct EvaluationBounds {
+    writes: usize,
+    commands_executed: usize,
+    network_requests: usize,
+    model_invocations: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ForwardModelEvaluation {
+    status: &'static str,
+    detail: &'static str,
+}
+
 #[derive(Debug, Deserialize)]
 struct AgentBundle {
     schema_version: u32,
     minco_version: String,
+    scenarios: String,
     skills: Vec<AgentBundleSkill>,
 }
 
 #[derive(Debug, Deserialize)]
 struct AgentBundleSkill {
     name: String,
+    path: String,
+    mode: String,
     documentation: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EvaluationSuite {
+    schema_version: u32,
+    scenarios: Vec<EvaluationScenario>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EvaluationScenario {
+    id: String,
+    skill: String,
+    kind: String,
+    prompt: String,
+    required_concepts: Vec<String>,
+    forbidden_actions: Vec<String>,
 }
 
 pub fn execute(root: &Path, command: AgentCommand, as_json: bool) -> Result<()> {
@@ -318,6 +429,7 @@ pub fn execute(root: &Path, command: AgentCommand, as_json: bool) -> Result<()> 
         AgentCommand::Context { operation, task } => {
             context(root, operation.as_deref(), task.as_deref(), as_json)
         }
+        AgentCommand::Eval { target } => evaluate(root, target, as_json),
     }
 }
 
@@ -517,6 +629,370 @@ fn bundle_documentation(skill_name: &str) -> Result<Vec<String>> {
         .find(|skill| skill.name == skill_name)
         .map(|skill| skill.documentation)
         .with_context(|| format!("packaged Minco agent bundle has no skill {skill_name}"))
+}
+
+fn evaluate(root: &Path, target: AgentTarget, as_json: bool) -> Result<()> {
+    let skills = evaluate_skills()?;
+    let projection = evaluate_projection(root, target)?;
+    let scenarios = evaluate_scenarios()?;
+    let status = if skills.status == "passed"
+        && projection.status == "passed"
+        && scenarios.status == "passed"
+    {
+        "passed"
+    } else {
+        "failed"
+    };
+    print(
+        &EvaluationReport {
+            schema_version: 1,
+            operation: "eval",
+            status,
+            minco_version: env!("CARGO_PKG_VERSION"),
+            target: target.as_str(),
+            bundle_digest: bundle_digest(),
+            scenario_suite_digest: digest(SCENARIOS_JSON),
+            skills,
+            projection,
+            scenarios,
+            bounds: EvaluationBounds {
+                writes: 0,
+                commands_executed: 0,
+                network_requests: 0,
+                model_invocations: 0,
+            },
+            forward_model: ForwardModelEvaluation {
+                status: "not_run",
+                detail: "deterministic evaluation does not invoke Codex, Claude, or another hosted model",
+            },
+        },
+        as_json,
+    )
+}
+
+fn evaluate_skills() -> Result<SkillEvaluation> {
+    let bundle: AgentBundle =
+        serde_json::from_slice(BUNDLE_JSON).context("parse packaged Minco agent bundle")?;
+    let mut issues = Vec::new();
+    if bundle.schema_version != 1 || bundle.minco_version != env!("CARGO_PKG_VERSION") {
+        issues.push(EvaluationIssue {
+            path: "bundle.json".into(),
+            code: "bundle_version_mismatch",
+            detail: format!(
+                "expected schema 1 and Minco {}, found schema {} and Minco {}",
+                env!("CARGO_PKG_VERSION"),
+                bundle.schema_version,
+                bundle.minco_version
+            ),
+        });
+    }
+    if bundle.scenarios != "evals/scenarios.json" {
+        issues.push(EvaluationIssue {
+            path: "bundle.json".into(),
+            code: "scenario_path_mismatch",
+            detail: "scenario contract must remain at evals/scenarios.json".into(),
+        });
+    }
+    let mut names = BTreeSet::new();
+    for skill in &bundle.skills {
+        if !names.insert(skill.name.as_str()) {
+            issues.push(EvaluationIssue {
+                path: skill.path.clone(),
+                code: "duplicate_skill",
+                detail: format!("skill {} appears more than once", skill.name),
+            });
+            continue;
+        }
+        if let Err(error) = validate_skill(skill) {
+            issues.push(EvaluationIssue {
+                path: skill.path.clone(),
+                code: "invalid_skill",
+                detail: error.to_string(),
+            });
+        }
+    }
+    let asset_names = ASSETS
+        .iter()
+        .filter_map(|asset| asset.path.split_once('/').map(|(name, _)| name))
+        .collect::<BTreeSet<_>>();
+    if asset_names != names {
+        issues.push(EvaluationIssue {
+            path: "bundle.json".into(),
+            code: "bundle_asset_mismatch",
+            detail: "bundle skill names and packaged asset directories differ".into(),
+        });
+    }
+    for name in &asset_names {
+        let count = ASSETS
+            .iter()
+            .filter(|asset| asset.path.starts_with(&format!("{name}/")))
+            .count();
+        if count != 3 {
+            issues.push(EvaluationIssue {
+                path: format!("skills/{name}"),
+                code: "skill_asset_count_mismatch",
+                detail: format!("expected three packaged files, found {count}"),
+            });
+        }
+    }
+    let status = if issues.is_empty() {
+        "passed"
+    } else {
+        "failed"
+    };
+    Ok(SkillEvaluation {
+        status,
+        checked: bundle.skills.len(),
+        files: ASSETS.len(),
+        issues,
+    })
+}
+
+fn validate_skill(skill: &AgentBundleSkill) -> Result<()> {
+    if skill.path != format!("skills/{}", skill.name) {
+        bail!("bundle path does not match the skill name");
+    }
+    if !matches!(skill.mode.as_str(), "application" | "framework" | "shared") {
+        bail!("bundle mode is not application, framework, or shared");
+    }
+    if skill.documentation.is_empty()
+        || !skill.documentation.iter().all(|identifier| {
+            identifier
+                .strip_prefix("minco-1.0.0:")
+                .is_some_and(|relative| {
+                    !relative.is_empty()
+                        && Path::new(relative)
+                            .components()
+                            .all(|component| matches!(component, Component::Normal(_)))
+                })
+        })
+    {
+        bail!("skill has invalid versioned documentation identifiers");
+    }
+    let instruction_path = format!("{}/SKILL.md", skill.name);
+    let instructions = asset_contents(&instruction_path)?;
+    let source = std::str::from_utf8(instructions).context("SKILL.md is not UTF-8")?;
+    let rest = source
+        .strip_prefix("---\n")
+        .context("SKILL.md has no YAML front matter start")?;
+    let (front, body) = rest
+        .split_once("\n---\n")
+        .context("SKILL.md has no YAML front matter end")?;
+    let metadata: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(front).context("parse portable skill front matter")?;
+    let mapping = metadata
+        .as_mapping()
+        .context("portable skill front matter is not a mapping")?;
+    if mapping.len() != 2
+        || metadata["name"].as_str() != Some(skill.name.as_str())
+        || !metadata["description"].as_str().is_some_and(|description| {
+            description.contains("Use when") && description.len() <= 1024
+        })
+    {
+        bail!(
+            "portable front matter must contain only matching name and bounded trigger description"
+        );
+    }
+    if !body.contains("references/workflow.md") {
+        bail!("SKILL.md does not route to references/workflow.md");
+    }
+    let reference_path = format!("{}/references/workflow.md", skill.name);
+    if asset_contents(&reference_path)?.is_empty() {
+        bail!("workflow reference is empty");
+    }
+    let metadata_path = format!("{}/agents/openai.yaml", skill.name);
+    let openai: serde_yaml_ng::Value = serde_yaml_ng::from_slice(asset_contents(&metadata_path)?)
+        .context("parse Codex skill metadata")?;
+    let expected_prompt = format!("${}", skill.name);
+    if !openai["interface"]["default_prompt"]
+        .as_str()
+        .is_some_and(|prompt| prompt.contains(&expected_prompt))
+    {
+        bail!("Codex default prompt does not name the portable skill");
+    }
+    if skill.name == "minco-release"
+        && openai["policy"]["allow_implicit_invocation"].as_bool() != Some(false)
+    {
+        bail!("release skill permits implicit invocation");
+    }
+    Ok(())
+}
+
+fn asset_contents(path: &str) -> Result<&'static [u8]> {
+    ASSETS
+        .iter()
+        .find(|asset| asset.path == path)
+        .map(|asset| asset.contents)
+        .with_context(|| format!("packaged asset is missing {path}"))
+}
+
+fn evaluate_projection(root: &Path, target: AgentTarget) -> Result<ProjectionEvaluation> {
+    let plan = build_plan(root, target)?;
+    let mut clients = Vec::new();
+    for client in target.clients() {
+        let mut matched_files = 0;
+        let mut issues = Vec::new();
+        for asset in ASSETS {
+            let path = format!("{}/{}", client.projection_root(), asset.path);
+            let action = plan.actions.iter().find(|action| action.path == path);
+            match action.map(|action| action.action) {
+                Some(ActionKind::Unchanged) => matched_files += 1,
+                Some(ActionKind::Create) | None => issues.push(EvaluationIssue {
+                    path,
+                    code: "projection_missing",
+                    detail: "projected skill file is not installed".into(),
+                }),
+                Some(ActionKind::Update) => issues.push(EvaluationIssue {
+                    path,
+                    code: "projection_outdated",
+                    detail: "projected skill file does not match the packaged asset".into(),
+                }),
+                Some(ActionKind::Conflict) => issues.push(EvaluationIssue {
+                    path,
+                    code: "projection_conflict",
+                    detail: "projected skill file has unsafe or ambiguous ownership".into(),
+                }),
+            }
+        }
+        for conflict in &plan.conflicts {
+            let belongs_to_client = conflict.path.starts_with(client.projection_root())
+                || (*client == Client::Claude
+                    && matches!(conflict.path.as_str(), "AGENTS.md" | "CLAUDE.md"))
+                || conflict.path == MANIFEST_PATH;
+            if belongs_to_client && !issues.iter().any(|issue| issue.path == conflict.path) {
+                issues.push(EvaluationIssue {
+                    path: conflict.path.clone(),
+                    code: "projection_plan_conflict",
+                    detail: conflict.detail.clone(),
+                });
+            }
+        }
+        clients.push(ClientEvaluation {
+            client: client.as_str(),
+            status: if issues.is_empty() {
+                "passed"
+            } else {
+                "failed"
+            },
+            checked_files: ASSETS.len(),
+            matched_files,
+            issues,
+        });
+    }
+    let all_clients_passed = clients.iter().all(|client| client.status == "passed");
+    let parity = if target.clients().len() == 2 {
+        ParityEvaluation {
+            status: if all_clients_passed {
+                "passed"
+            } else {
+                "failed"
+            },
+            compared_files: ASSETS.len(),
+        }
+    } else {
+        ParityEvaluation {
+            status: "not_applicable",
+            compared_files: 0,
+        }
+    };
+    Ok(ProjectionEvaluation {
+        status: if all_clients_passed {
+            "passed"
+        } else {
+            "failed"
+        },
+        clients,
+        parity,
+    })
+}
+
+fn evaluate_scenarios() -> Result<ScenarioEvaluation> {
+    let bundle: AgentBundle =
+        serde_json::from_slice(BUNDLE_JSON).context("parse packaged Minco agent bundle")?;
+    let suite: EvaluationSuite =
+        serde_json::from_slice(SCENARIOS_JSON).context("parse packaged agent scenarios")?;
+    let known_skills = bundle
+        .skills
+        .iter()
+        .map(|skill| skill.name.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut ids = BTreeSet::new();
+    let mut covered_skills = BTreeSet::new();
+    let mut coverage = BTreeSet::new();
+    let mut trigger = 0;
+    let mut boundary = 0;
+    let mut results = Vec::new();
+    let mut issues = Vec::new();
+    if suite.schema_version != 1 {
+        issues.push(EvaluationIssue {
+            path: "evals/scenarios.json".into(),
+            code: "scenario_schema_mismatch",
+            detail: format!("expected schema 1, found {}", suite.schema_version),
+        });
+    }
+    for scenario in &suite.scenarios {
+        let valid_kind = match scenario.kind.as_str() {
+            "trigger" => {
+                trigger += 1;
+                true
+            }
+            "boundary" => {
+                boundary += 1;
+                true
+            }
+            _ => false,
+        };
+        let valid = ids.insert(scenario.id.as_str())
+            && known_skills.contains(scenario.skill.as_str())
+            && valid_kind
+            && !scenario.prompt.trim().is_empty()
+            && !scenario.required_concepts.is_empty()
+            && !scenario.forbidden_actions.is_empty();
+        if valid {
+            covered_skills.insert(scenario.skill.as_str());
+            coverage.insert((scenario.skill.as_str(), scenario.kind.as_str()));
+        } else {
+            issues.push(EvaluationIssue {
+                path: "evals/scenarios.json".into(),
+                code: "invalid_scenario_contract",
+                detail: format!(
+                    "scenario {} has invalid or duplicate routing data",
+                    scenario.id
+                ),
+            });
+        }
+        results.push(ScenarioResult {
+            id: scenario.id.clone(),
+            skill: scenario.skill.clone(),
+            kind: scenario.kind.clone(),
+            status: if valid { "passed" } else { "failed" },
+        });
+    }
+    for skill in &known_skills {
+        for kind in ["trigger", "boundary"] {
+            if !coverage.contains(&(*skill, kind)) {
+                issues.push(EvaluationIssue {
+                    path: "evals/scenarios.json".into(),
+                    code: "missing_scenario_coverage",
+                    detail: format!("skill {skill} has no {kind} scenario"),
+                });
+            }
+        }
+    }
+    let status = if issues.is_empty() {
+        "passed"
+    } else {
+        "failed"
+    };
+    Ok(ScenarioEvaluation {
+        status,
+        total: suite.scenarios.len(),
+        trigger,
+        boundary,
+        skills_covered: covered_skills.len(),
+        results,
+        issues,
+    })
 }
 
 fn build_plan(root: &Path, target: AgentTarget) -> Result<AgentPlan> {

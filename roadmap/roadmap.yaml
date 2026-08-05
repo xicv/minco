@@ -155,7 +155,7 @@ milestones:
   - Security, recovery, load, documentation, package, and release gates pass on the exact candidate.
 - id: M13
   name: Agent-native application development
-  status: active
+  status: complete
   depends_on:
   - M12
   outcome: Version-matched portable skills and a deterministic agent CLI let Codex and Claude develop Minco

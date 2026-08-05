@@ -49,6 +49,7 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
 - `cargo minco workbench`
   - `cargo minco agent context`
   - `cargo minco agent doctor`
+  - `cargo minco agent eval`
   - `cargo minco agent plan`
   - `cargo minco agent sync`
   - `cargo minco config check`
@@ -183,6 +184,7 @@ Commands:
   sync     Apply an exact, conflict-free projection plan
   doctor   Diagnose projection ownership and drift without writing
   context  Return bounded project, operation, or task context without running checks
+  eval     Validate installed projections and deterministic workflow contracts
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -782,6 +784,20 @@ Usage: cargo-minco agent doctor [OPTIONS]
 Options:
       --root <ROOT>
       --target <TARGET>  [default: all] [possible values: codex, claude, all]
+      --json
+  -h, --help             Print help
+```
+
+##### `cargo minco agent eval`
+
+```text
+Validate installed projections and deterministic workflow contracts
+
+Usage: cargo-minco agent eval [OPTIONS] --target <TARGET>
+
+Options:
+      --root <ROOT>
+      --target <TARGET>  [possible values: codex, claude, all]
       --json
   -h, --help             Print help
 ```
