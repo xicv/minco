@@ -58,3 +58,11 @@ Local evidence on 2026-08-06:
   90-minute release-job budget assertion;
 - the modified Python policy test compiled successfully; and
 - static validation completed with zero errors and zero warnings.
+
+The first exact-head run with the expanded budget, GitHub Actions run
+`31063559421`, stopped at the terminal source-manifest check after all compiler,
+test, documentation, security and leak gates had passed. The task and workflow
+changes altered the canonical deep-review report, which had not been refreshed
+before the source manifest. Regenerating the standard offline deep-review report
+reproduced that single tracked drift locally; the candidate now binds the source
+manifest to the refreshed report before requalification.

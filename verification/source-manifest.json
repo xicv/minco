@@ -4959,8 +4959,8 @@
     },
     {
       "path": "tasks/M14/M14-T04-hosted-release-time-budget.md",
-      "sha256": "f7eaf9bf4c341d7bd959dc0561c0a9d1caef837e058f1bbcb3342ad0a585cac6",
-      "size_bytes": 2369
+      "sha256": "b0dba821e1b35fa8f20fb7535c522e3205742f7ebb3245f0435211cf739e00ab",
+      "size_bytes": 2898
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5199,7 +5199,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "065efcd9a039244401ef971a0aa79f81422558bc89a8bc98e5551d453e8dad42",
+      "sha256": "1793f2e4ed7e1947eb413b8333c55d5a3e1e1b506e15fd76e237835b9a32c040",
       "size_bytes": 2022
     },
     {
@@ -5289,7 +5289,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "1c66249b959892630aa0ad83e10162ae9f31cf43e7e068268ebc3be3df152367",
-  "total_size_bytes": 7067891,
+  "source_tree_sha256": "d6624d241c0590ed680423c4e3829e6e355e831de17b00087c4aadba52624870",
+  "total_size_bytes": 7068420,
   "version": "1.1.0"
 }
