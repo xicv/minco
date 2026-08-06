@@ -2,13 +2,11 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 33-package lock-step `1.0.0`
-family, while the workspace is the unpublished `1.1.0` candidate. The first
-1.0 publication established ownership for
-`minco-plugin-realtime`, `minco-project-view`, `minco-mcp`,
-`minco-workbench`, and `minco-aws-dynamodb`.
-Source/package qualification, merge, tag, upload and registry verification
-remain separate states for every later release.
+The current published boundary is the complete 33-package lock-step `1.1.0`
+family from immutable tag `v1.1.0` at
+`4d81543f7c5adb773655f23278abfe084de9f3e0`. Source/package qualification,
+merge, tag, upload, registry verification, docs.rs and documentation deployment
+remain separate states for every release.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:
@@ -26,10 +24,12 @@ explicit flag:
 scripts/release/publish.sh --execute
 ```
 
-The first 1.0.0 publication used a short-lived manual crates.io token for the
-complete exact-tag family because it contained first-publication crates.
-Repository truth now keeps `new_publishable_packages` empty. The `1.1.0`
-release must independently prove OIDC authentication before relying on the
-trusted-publishing workflow; ownership alone is not authentication evidence.
+The first 1.0.0 publication used a short-lived manual crates.io token because
+it contained first-publication crates. The 1.1.0 release independently verified
+all trusted-publisher configurations, used short-lived OIDC credentials, and
+resumed a partial upload only after proving the exact five-present/28-absent
+registry complement. Repository truth keeps `new_publishable_packages` empty.
+Every later release must re-prove authentication and registry state; ownership
+alone is not authentication evidence.
 
 Never use `--allow-dirty` or `--no-verify` for a Minco release.

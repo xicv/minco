@@ -2,18 +2,61 @@
 
 Date: 2026-08-06
 Current workspace version: `1.1.0`
-Published baseline: `1.0.0`
-Workspace release state: `candidate`
+Published baseline: `1.1.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T02 `1.1.0` publication and stable documentation promotion
+
+Immutable tag `v1.1.0` resolves to exact qualified source
+`4d81543f7c5adb773655f23278abfe084de9f3e0`, with source-tree digest
+`d6624d241c0590ed680423c4e3829e6e355e831de17b00087c4aadba52624870`.
+Exact merged-main release run
+[`31066636360`](https://github.com/xicv/minco/actions/runs/31066636360) and
+authentication-only run
+[`31068867047`](https://github.com/xicv/minco/actions/runs/31068867047) passed
+before upload.
+
+The first tag-bound upload run
+[`31068913557`](https://github.com/xicv/minco/actions/runs/31068913557)
+accepted five crates before a missing trusted-publisher configuration produced
+HTTP 403 for `minco-aws-dynamodb`. Registry reconciliation proved exactly five
+present and 28 absent versions. The missing five publisher configurations were
+created without recording a credential value. Recovery workflow change
+[`#126`](https://github.com/xicv/minco/pull/126) retained the complete tagged
+release gate and added an exact registry-complement preflight for an allowlisted
+resume set.
+
+Recovery run
+[`31072152251`](https://github.com/xicv/minco/actions/runs/31072152251)
+checked out and verified the immutable tag, passed static/package validation,
+format-as-check, facade, Clippy, workspace tests, generated applications,
+documentation and the 28-package publish dry run. It then proved the
+five-present/28-absent complement, obtained a short-lived OIDC token, published
+only the 28 absent crates in dependency order, and revoked the token. The
+independent registry command
+`uv run --locked python scripts/validate_publish.py --expect-published
+--check-registry --require-registry` reported `errors: 0` and
+`registry_checks_succeeded: 33`; the retained result is
+`verification/1.1-published-release-validation.json`.
+
+GitHub release
+[`v1.1.0`](https://github.com/xicv/minco/releases/tag/v1.1.0) is published from
+the same tag. docs.rs propagation and the exact post-merge Pages deployment are
+verified separately from registry publication. No live AWS application
+resource was created, modified, promoted or deleted by this crate release or
+documentation source promotion.
+
 ## M14-T01 `1.1.0` agent-native release candidate
 
-The candidate begins from exact merged main
+The candidate began from exact merged main
 `9ef9c469532ec2fa3e7b0675baafa83aa3febafe`, whose tree exactly matched the
 previously qualified cumulative M13 head. Full exact-main release qualification,
-candidate-local qualification, tag, upload, registry, docs.rs and stable Pages
-evidence remain pending and will be recorded only after each state exists.
+candidate-local qualification and subsequent exact-main qualification are
+retained as source evidence. Tag, registry, GitHub release, docs.rs and stable
+Pages remain separate later states recorded above or by their own deployment
+proof.
 
 The release includes the previously published realtime, Vapor-inspired
 contract-to-cloud lifecycle, ProjectView/MCP/workbench, DynamoDB, versioned docs

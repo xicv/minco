@@ -1,16 +1,17 @@
-# Compatibility policy and 1.0 release freeze
+# Compatibility policy and 1.x release line
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.0.0`
+Published release: `1.1.0`
 
-Published comparison baseline: `0.6.0`
+Published comparison baseline: `1.0.0`
 
 MSRV: Rust `1.97.1`
 
-This page freezes the source boundary published as Minco `1.0.0`. Merge, tag,
-registry and versioned documentation gates are complete. Deployment and proof
-in a consuming application remain independent release gates.
+This page retains the public boundary frozen at Minco `1.0.0` and applies it to
+the additive `1.1.0` release. Merge, tag, registry, GitHub release and versioned
+documentation are independently verified. Deployment and proof in a consuming
+application remain separate release gates.
 
 ## Frozen boundary
 
@@ -21,7 +22,7 @@ the complete [CLI](generated/cli.md), the generated configuration and Plan
 [schemas](generated/schemas.md), the plugin [distribution contract](generated/plugins.md),
 and the generated [diagnostic codes](generated/diagnostics.md).
 
-| Boundary | Frozen 1.0 commitment | Authority |
+| Boundary | Frozen 1.x commitment | Authority |
 |---|---|---|
 | Rust API | every rustdoc-visible public item in a publishable package follows Rust SemVer; private items are not frozen | package source and rustdoc |
 | Cargo features | feature names, meaning, default membership and dependency selection are compatibility surfaces | package manifests and [feature reference](generated/features.md) |
@@ -150,7 +151,7 @@ introduce a new schema version, keep an explicit old reader or migration path,
 and document its retirement boundary. Removing an old schema requires a major
 release unless that schema was never public or published.
 
-The MSRV for 1.0 is Rust `1.97.1`. A 1.x patch cannot raise it. A 1.x minor may
+The MSRV for 1.x is Rust `1.97.1`. A 1.x patch cannot raise it. A 1.x minor may
 raise it only through an explicit compatibility decision and release note; the
 repository's toolchain, package metadata, generated references and full matrix
 must move together.

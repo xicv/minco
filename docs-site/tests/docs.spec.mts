@@ -109,7 +109,7 @@ test('next documents the complete built-in component catalog', async ({ page }) 
   ).toBeVisible()
 })
 
-test('version navigation resolves to the frozen complete 1.0 manual', async ({
+test('version navigation resolves to the frozen current stable manual', async ({
   page,
   isMobile
 }) => {

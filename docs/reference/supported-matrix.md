@@ -1,10 +1,11 @@
-# 1.0 published support matrix
+# 1.1 published support matrix
 
-Workspace and published install baseline: `1.0.0`
+Workspace and published install baseline: `1.1.0`
 MSRV: Rust `1.97.1`
-Compatibility state: the exact M12-T06 candidate and separately qualified
-M6-T01 DynamoDB descendant were closed by M12-T07 and published together from
-`v1.0.0`. Registry, documentation and application/live proof remain separate.
+Compatibility state: the 1.0 framework boundary, separately qualified DynamoDB
+descendant, and additive agent-native layer are published together as the
+complete 33-package `v1.1.0` family. Registry, docs.rs, stable documentation and
+application/live proof remain separate.
 
 This matrix combines authoritative feature/plugin metadata, exercised golden
 path recipes and the exact CGSP/GarmentIQ adoption reconciliation. It describes
@@ -14,9 +15,9 @@ it is not a blanket production-readiness promise.
 ## How to read the state
 
 - **catalog stable** is the repository's current plugin metadata
-  classification. The frozen public boundary also follows the 1.0
+  classification. The frozen public boundary also follows the 1.x
   compatibility policy.
-- **published beta** is opt-in and usable with pinned exact 1.0 packages. Its
+- **published beta** is opt-in and usable with pinned exact 1.1 packages. Its
   provider and production evidence remain bounded, but its published 1.x
   API/feature/CLI/schema boundary cannot break silently.
 - **qualified descendant** identifies work, such as DynamoDB, added after the
@@ -46,6 +47,7 @@ it is not a blanket production-readiness promise.
 | Static-site intent/publication | published beta | local contract and exact-byte/hash receipt tests | products retain their own site controllers | DNS, certificate, CloudFront/S3 mutation and live-site proof are separate |
 | Release/promotion/rollback receipts | 1.0 evidenced | immutable manifest/digest and exact-artifact rehearsal | product release manifests remain authoritative for product rollbacks | no rebuild during promotion; data compatibility still needs operator evidence |
 | Local project view, MCP and workbench | published beta; local only | bounded/redacted model tests, stdio MCP and desktop/mobile browser journeys | no product adoption required for the repository view | read-only, no arbitrary shell, no hosted control plane or write authority |
+| Agent-native application development | 1.1 published; local only | version-matched skills, digest-bound plan/sync, bounded context, doctor and deterministic cross-client scenario evaluation | no reviewed downstream adoption claim | no model invocation, implicit mutation authority, provider access or framework-only policy inheritance |
 | Subscriber-only realtime | published beta | protocol, resync, Plan/SAM and failure-policy tests | no reviewed downstream live adoption | ephemeral invalidation only; not authoritative storage or guaranteed delivery |
 
 ## Official plugin and adapter metadata
@@ -55,7 +57,7 @@ capabilities, resources and metadata digests.
 
 | Catalog classification | Components | Interpretation |
 | --- | --- | --- |
-| catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; the reviewed 1.0 Rust/CLI/serialized boundary follows SemVer |
+| catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; the reviewed 1.x Rust/CLI/serialized boundary follows SemVer |
 | published beta plugins | `audit`, `events`, `identity`, `notifications`, `object-storage`, `sessions`, `static-site`, `realtime` | explicit opt-in with provider/failure/retention policy required |
 | published beta adapters/runtimes | `aws-adapters`, `aws-dynamodb`, `aws-lambda`, `aws-worker`, `sqlx-postgres`, `sqlx-sqlite` | explicit provider/runtime selection; no default activation; DynamoDB remains application access-pattern-specific |
 
