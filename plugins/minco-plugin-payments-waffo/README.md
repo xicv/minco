@@ -39,10 +39,10 @@ private_key = "env:WAFFO_PRIVATE_KEY"
 # webhook_public_key = "ssm:/my-app/test/waffo-webhook-public-key"
 # store_id = "STO_REPLACE_ME"
 # webhook_url = "https://api.example.com/webhooks/waffo"
-# webhook_events = ["order.created", "subscription.renewed"]
+# webhook_events = ["order.completed", "subscription.payment_succeeded"]
 ```
 
-Secret values never belong in this file. For Lambda deployments, use an `ssm:/absolute/name` reference and grant only `ssm:GetParameter` for that exact parameter. Local development can use `env:NAME`.
+Secret values never belong in this file. For Lambda deployments, use an `ssm:/absolute/name` reference and grant only `ssm:GetParameter` for that exact parameter. Local development can use `env:NAME`. RSA keys may use normal PEM, PEM with literal `\n` sequences, or raw base64 DER, matching the current Waffo SDK normalization contract.
 
 A production configuration must declare both `environment_class = "production"` and `environment = "production"`. Mutating commands additionally require:
 
