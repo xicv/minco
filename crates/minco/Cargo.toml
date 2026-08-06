@@ -27,6 +27,10 @@ test = ["dep:minco-test", "http"]
 plugin-health = ["dep:minco-plugin-health"]
 plugin-observability = ["dep:minco-plugin-observability"]
 plugin-idempotency = ["dep:minco-plugin-idempotency"]
+plugin-payments-waffo = [
+  "dep:minco-plugin-payments-waffo",
+  "plugin-idempotency",
+]
 plugin-sessions = ["dep:minco-plugin-sessions"]
 plugin-identity = ["dep:minco-plugin-identity", "http"]
 plugin-object-storage = ["dep:minco-plugin-object-storage"]
@@ -48,6 +52,7 @@ plugin-feedback = [
 ]
 official-plugins = [
   "default-plugins",
+  "plugin-payments-waffo",
   "plugin-sessions",
   "plugin-identity",
   "plugin-object-storage",
@@ -98,6 +103,7 @@ minco-test = { workspace = true, optional = true }
 minco-plugin-health = { workspace = true, optional = true }
 minco-plugin-observability = { workspace = true, optional = true }
 minco-plugin-idempotency = { workspace = true, optional = true }
+minco-plugin-payments-waffo = { workspace = true, optional = true }
 minco-plugin-sessions = { workspace = true, optional = true }
 minco-plugin-identity = { workspace = true, optional = true }
 minco-plugin-object-storage = { workspace = true, optional = true }
