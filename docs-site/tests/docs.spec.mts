@@ -63,6 +63,7 @@ test('next is visibly unreleased and exposes detailed learning paths', async ({ 
   await expect(page.getByRole('link', { name: 'Build an application' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Use resource APIs' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Author a plugin' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Develop with coding agents' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Operate on AWS' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Browse all features' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Choose built-in plugins' })).toBeVisible()
@@ -151,12 +152,15 @@ test('version navigation resolves to the frozen complete 1.0 manual', async ({
 
   await page.goto(`${candidatePath}getting-started/installation`)
   await waitForHydration(page)
-  await expect(page.getByText('cargo add minco@1.0.0', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(`cargo add minco@${release.workspace}`, { exact: true })
+  ).toBeVisible()
 
   for (const path of [
     `${candidatePath}guides/realtime`,
     `${candidatePath}guides/dynamodb`,
     `${candidatePath}guides/project-view`,
+    `${candidatePath}guides/agent-development`,
     `${candidatePath}guides/deployment`
   ]) {
     await page.goto(path)
@@ -200,11 +204,22 @@ test('workspace documentation includes the plugin conformance API', async ({ pag
   }
 })
 
+test('workspace documentation explains guarded agent setup', async ({ page }) => {
+  await page.goto(`${workspacePath}guides/agent-development`)
+  await waitForHydration(page)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Develop with Codex and Claude Code' })
+  ).toBeVisible()
+  await expect(page.getByText('cargo minco agent plan --target all --json')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Authority remains explicit' })).toBeVisible()
+})
+
 test('navigation stays within the mobile viewport', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only')
   for (const path of [
     `${stablePath}getting-started/first-application`,
     './next/guides/resource-api',
+    './next/guides/agent-development',
     './next/plugins/',
     './next/cookbook/'
   ]) {

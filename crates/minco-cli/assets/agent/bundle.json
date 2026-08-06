@@ -1,55 +1,55 @@
 {
   "schema_version": 1,
-  "minco_version": "1.0.0",
+  "minco_version": "1.1.0",
   "scenarios": "evals/scenarios.json",
   "skills": [
     {
       "name": "minco-diagnose",
       "path": "skills/minco-diagnose",
       "mode": "shared",
-      "documentation": ["minco-1.0.0:reference/cli", "minco-1.0.0:guides/project-view"]
+      "documentation": ["minco-1.1.0:reference/cli", "minco-1.1.0:guides/project-view"]
     },
     {
       "name": "minco-framework-task",
       "path": "skills/minco-framework-task",
       "mode": "framework",
-      "documentation": ["minco-1.0.0:reference/cli", "minco-1.0.0:getting-started/project-structure"]
+      "documentation": ["minco-1.1.0:reference/cli", "minco-1.1.0:getting-started/project-structure"]
     },
     {
       "name": "minco-lifecycle",
       "path": "skills/minco-lifecycle",
       "mode": "shared",
-      "documentation": ["minco-1.0.0:guides/local-development", "minco-1.0.0:guides/database-lifecycle"]
+      "documentation": ["minco-1.1.0:guides/local-development", "minco-1.1.0:guides/database-lifecycle"]
     },
     {
       "name": "minco-operation",
       "path": "skills/minco-operation",
       "mode": "application",
-      "documentation": ["minco-1.0.0:guides/resource-api", "minco-1.0.0:reference/resource-api"]
+      "documentation": ["minco-1.1.0:guides/resource-api", "minco-1.1.0:reference/resource-api"]
     },
     {
       "name": "minco-plugin",
       "path": "skills/minco-plugin",
       "mode": "application",
-      "documentation": ["minco-1.0.0:plugins/using-plugins", "minco-1.0.0:guides/plugin-conformance"]
+      "documentation": ["minco-1.1.0:plugins/using-plugins", "minco-1.1.0:guides/plugin-conformance"]
     },
     {
       "name": "minco-release",
       "path": "skills/minco-release",
       "mode": "shared",
-      "documentation": ["minco-1.0.0:guides/deployment", "minco-1.0.0:reference/cli"]
+      "documentation": ["minco-1.1.0:guides/deployment", "minco-1.1.0:reference/cli"]
     },
     {
       "name": "minco-review",
       "path": "skills/minco-review",
       "mode": "shared",
-      "documentation": ["minco-1.0.0:guides/feedback", "minco-1.0.0:guides/project-view"]
+      "documentation": ["minco-1.1.0:guides/feedback", "minco-1.1.0:guides/project-view"]
     },
     {
       "name": "minco-web-application",
       "path": "skills/minco-web-application",
       "mode": "application",
-      "documentation": ["minco-1.0.0:getting-started/first-application", "minco-1.0.0:getting-started/framework-tour"]
+      "documentation": ["minco-1.1.0:getting-started/first-application", "minco-1.1.0:getting-started/framework-tour"]
     }
   ]
 }

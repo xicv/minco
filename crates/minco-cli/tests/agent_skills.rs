@@ -85,6 +85,8 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
     assert_eq!(directories, expected);
 
     for skill in &bundle.skills {
+        let version = env!("CARGO_PKG_VERSION");
+        let prefix = format!("minco-{version}:");
         assert!(matches!(
             skill.mode.as_str(),
             "application" | "framework" | "shared"
@@ -94,11 +96,11 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
             skill
                 .documentation
                 .iter()
-                .all(|identifier| identifier.starts_with("minco-1.0.0:"))
+                .all(|identifier| identifier.starts_with(&prefix))
         );
         for identifier in &skill.documentation {
             let relative = identifier
-                .strip_prefix("minco-1.0.0:")
+                .strip_prefix(&prefix)
                 .expect("versioned documentation identifier");
             assert!(
                 Path::new(relative)
@@ -107,7 +109,7 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
             );
             let documentation = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../..")
-                .join("docs-site/1.0.0")
+                .join(format!("docs-site/{version}"))
                 .join(format!("{relative}.md"));
             assert!(
                 documentation.is_file(),

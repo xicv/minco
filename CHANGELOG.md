@@ -7,6 +7,53 @@ Semantic Versioning once public releases begin.
 
 No changes yet.
 
+## [1.1.0] - 2026-08-06
+
+The complete 33-package workspace is an unpublished release candidate. Source,
+hosted qualification, tag, registry upload, docs.rs, stable documentation and
+live application deployment remain separate states.
+
+### Added
+
+- Added eight version-matched Agent Skills for building a Minco application,
+  adding an OpenAPI-first operation or static plugin, using the application
+  lifecycle, diagnosing and reviewing projects, contributing to the framework,
+  and preparing an explicitly requested release.
+- Added deterministic `cargo minco agent plan`, digest-bound `sync`, read-only
+  `doctor`, bounded project/operation/task `context`, and cross-client `eval`
+  commands for Codex and Claude Code.
+- Added application-mode `AGENTS.md` generation and an optional managed Claude
+  `@AGENTS.md` bridge without inheriting framework-only JJ/release policy.
+- Added deterministic Codex/Claude projection parity, stale-plan, path-safety,
+  user-owned instruction preservation, and 16 positive/negative workflow
+  scenario contracts with explicit zero-model evaluation bounds.
+
+### Changed
+
+- Advanced the lock-step crate family and exact internal registry requirements
+  from `1.0.0` to the compatible `1.1.0` minor line.
+- Made packaged agent documentation validation derive its version prefix from
+  the exact `cargo-minco` package version instead of a 1.0 implementation
+  constant.
+- Advanced archive-visible official plugin core compatibility ranges to
+  `^1.1.0`; descriptor schema and capability versions remain unchanged.
+
+### Documentation
+
+- Added the agent-native development guide, README workflow, CLI reference,
+  `1.0.0` to `1.1.0` adoption guide, and frozen `1.1.0` candidate manual.
+- Retained source, local, hosted, review, registry, documentation, deployment,
+  runtime and production evidence as independent states; skill installation or
+  evaluation does not upgrade another evidence lane.
+
+### Compatibility boundary
+
+This is an additive post-1.0 minor release. Existing 1.0 application APIs,
+plugin descriptor schema, capability versions, deployment contracts and read-only
+MCP catalog remain compatible. Official plugin distributions advance their core
+compatibility range in lock-step with the crate family. Projects opt in to local agent projections by
+reviewing `agent plan` and supplying its exact digest to `agent sync`.
+
 ## [1.0.0] - 2026-08-05
 
 The complete 33-package family is published from immutable tag `v1.0.0` at

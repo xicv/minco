@@ -29,6 +29,7 @@ function workspaceSidebar(root: string) {
         { text: 'Feature catalog', link: link('features/') },
         { text: 'Configuration', link: link('guides/configuration') },
         { text: 'Local development', link: link('guides/local-development') },
+        { text: 'Develop with Codex and Claude', link: link('guides/agent-development') },
         { text: 'Project view, MCP, and workbench', link: link('guides/project-view') },
         { text: 'Build a resource API', link: link('guides/resource-api') },
         { text: 'Migrations and seeders', link: link('guides/database-lifecycle') },

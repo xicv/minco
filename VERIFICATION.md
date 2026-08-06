@@ -1,11 +1,25 @@
 # Minco verification and release evidence
 
-Date: 2026-08-05
-Current workspace version: `1.0.0`
+Date: 2026-08-06
+Current workspace version: `1.1.0`
 Published baseline: `1.0.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T01 `1.1.0` agent-native release candidate
+
+The candidate begins from exact merged main
+`9ef9c469532ec2fa3e7b0675baafa83aa3febafe`, whose tree exactly matched the
+previously qualified cumulative M13 head. Full exact-main release qualification,
+candidate-local qualification, tag, upload, registry, docs.rs and stable Pages
+evidence remain pending and will be recorded only after each state exists.
+
+The release includes the previously published realtime, Vapor-inspired
+contract-to-cloud lifecycle, ProjectView/MCP/workbench, DynamoDB, versioned docs
+and all other 1.0 features together with version-matched Codex/Claude skills and
+the guarded agent CLI. No live AWS application mutation is part of crate
+publication.
 
 ## M12-T08 `1.0.0` publication and stable documentation promotion
 
