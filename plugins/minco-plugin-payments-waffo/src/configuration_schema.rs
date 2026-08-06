@@ -1,3 +1,7 @@
+// This private helper module exposes selected items to sibling modules through
+// the crate root; `pub(super)` is intentional and narrower than public API.
+#![allow(clippy::redundant_pub_crate)]
+
 use crate::config::{
     DEFAULT_API_BASE_URL, DEFAULT_REQUEST_MAX_BYTES, DEFAULT_RESPONSE_MAX_BYTES,
     DEFAULT_WEBHOOK_MAX_BYTES,

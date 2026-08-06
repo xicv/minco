@@ -1,3 +1,7 @@
+// This private helper module exposes selected items to sibling modules through
+// the crate root; `pub(super)` is intentional and narrower than public API.
+#![allow(clippy::redundant_pub_crate)]
+
 use crate::WaffoError;
 use async_trait::async_trait;
 use aws_lc_rs::{rand::SystemRandom, rsa, signature};

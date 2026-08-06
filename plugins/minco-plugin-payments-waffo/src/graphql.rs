@@ -1,3 +1,7 @@
+// This private helper module exposes selected items to sibling modules through
+// the crate root; `pub(super)` is intentional and narrower than public API.
+#![allow(clippy::redundant_pub_crate)]
+
 use crate::WaffoError;
 
 pub(super) fn validate_graphql_query(query: &str) -> Result<(), WaffoError> {
