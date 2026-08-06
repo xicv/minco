@@ -22,77 +22,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply final reviewed compatibility corrections
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path: Path, old: str, new: str) -> None:
-              text = path.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"expected exactly one match in {path}: found {count}")
-              path.write_text(text.replace(old, new, 1))
-
-          config = Path("plugins/minco-plugin-payments-waffo/src/config.rs")
-          replace_once(
-              config,
-              "pub(crate) const DEFAULT_RESPONSE_MAX_BYTES",
-              "pub(super) const DEFAULT_RESPONSE_MAX_BYTES",
-          )
-          replace_once(
-              config,
-              "pub(crate) const DEFAULT_WEBHOOK_MAX_BYTES",
-              "pub(super) const DEFAULT_WEBHOOK_MAX_BYTES",
-          )
-
-          schema = Path("plugins/minco-plugin-payments-waffo/src/configuration_schema.rs")
-          replace_once(
-              schema,
-              "pub(crate) fn configuration_fields()",
-              "pub(super) fn configuration_fields()",
-          )
-
-          graphql = Path("plugins/minco-plugin-payments-waffo/src/graphql.rs")
-          replace_once(
-              graphql,
-              "pub(crate) fn validate_graphql_query",
-              "pub(super) fn validate_graphql_query",
-          )
-
-          readme = Path("plugins/minco-plugin-payments-waffo/README.md")
-          replace_once(
-              readme,
-              '# webhook_events = ["order.created", "subscription.renewed"]',
-              '# webhook_events = ["order.completed", "subscription.payment_succeeded"]',
-          )
-          replace_once(
-              readme,
-              "Secret values never belong in this file. For Lambda deployments, use an `ssm:/absolute/name` reference and grant only `ssm:GetParameter` for that exact parameter. Local development can use `env:NAME`.\n",
-              "Secret values never belong in this file. For Lambda deployments, use an `ssm:/absolute/name` reference and grant only `ssm:GetParameter` for that exact parameter. Local development can use `env:NAME`. RSA keys may use normal PEM, PEM with literal `\\n` sequences, or raw base64 DER, matching the current Waffo SDK normalization contract.\n",
-          )
-          PY
-
-          git diff --check
-
-      - name: Persist final source corrections
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            plugins/minco-plugin-payments-waffo/src/config.rs \
-            plugins/minco-plugin-payments-waffo/src/configuration_schema.rs \
-            plugins/minco-plugin-payments-waffo/src/graphql.rs \
-            plugins/minco-plugin-payments-waffo/README.md
-          if ! git diff --cached --quiet; then
-            git commit -m "fix: align Waffo configuration compatibility"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: 1.97.1
@@ -156,13 +85,14 @@ jobs:
           import json
           from pathlib import Path
 
-          data = json.loads(Path("/tmp/waffo-config-check.json").read_text())
+          output = Path("/tmp/waffo-config-check.json").read_text()
+          data = json.loads(output)
           assert data["schema"] == 1
           assert data["ok"] is True
           assert data["command"] == "config-check"
           assert data["data"]["waffoEnvironment"] == "test"
           assert data["data"]["privateKeyProvider"] == "environment_variable"
-          assert "WAFFO_PRIVATE_KEY" not in Path("/tmp/waffo-config-check.json").read_text()
+          assert "WAFFO_PRIVATE_KEY" not in output
           PY
 
       - name: Lint only plugin targets
