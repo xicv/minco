@@ -40,6 +40,7 @@ flowchart LR
     NM13T06["M13-T06<br/>Qualify Minco agent workflows across Codex and Claude"]
     NM14T01["M14-T01<br/>Prepare and publish the Minco 1.1.0 release candidate"]
     NM14T02["M14-T02<br/>Promote published Minco 1.1.0 repository and documentation truth"]
+    NM14T04["M14-T04<br/>Give hosted release qualification a cold-run time budget"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -145,6 +146,8 @@ flowchart LR
     NM13T05 --> NM13T06
     NM13T06 --> NM14T01
     NM14T01 --> NM14T02
+    NM14T04 --> NM14T02
+    NM14T01 --> NM14T04
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01
