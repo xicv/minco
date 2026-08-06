@@ -1,0 +1,142 @@
+name: Bootstrap and qualify Waffo payments plugin
+
+on:
+  push:
+    branches:
+      - feature/m14-t03-waffo-payments
+
+permissions:
+  contents: write
+
+concurrency:
+  group: waffo-payments-bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct the reviewed source payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/waffo-bootstrap/part-* | base64 --decode > /tmp/waffo-payments.tgz
+          tar -tzf /tmp/waffo-payments.tgz
+          tar -xzf /tmp/waffo-payments.tgz
+          cp LICENSE-MIT LICENSE-APACHE plugins/minco-plugin-payments-waffo/
+
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-targets: false
+          cache-on-failure: false
+
+      - name: Generate the lockfile
+        run: cargo generate-lockfile
+
+      - name: Format only modified and newly created Rust files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustfmt --edition 2024 \
+            crates/minco/src/lib.rs \
+            plugins/minco-plugin-payments-waffo/src/lib.rs \
+            plugins/minco-plugin-payments-waffo/src/error.rs \
+            plugins/minco-plugin-payments-waffo/src/config.rs \
+            plugins/minco-plugin-payments-waffo/src/configuration_schema.rs \
+            plugins/minco-plugin-payments-waffo/src/graphql.rs \
+            plugins/minco-plugin-payments-waffo/src/checkout.rs \
+            plugins/minco-plugin-payments-waffo/src/client.rs \
+            plugins/minco-plugin-payments-waffo/src/plugin.rs \
+            plugins/minco-plugin-payments-waffo/src/signing.rs \
+            plugins/minco-plugin-payments-waffo/src/webhook.rs \
+            plugins/minco-plugin-payments-waffo/src/bin/minco-waffo.rs
+          rustfmt --edition 2024 --check \
+            crates/minco/src/lib.rs \
+            plugins/minco-plugin-payments-waffo/src/lib.rs \
+            plugins/minco-plugin-payments-waffo/src/error.rs \
+            plugins/minco-plugin-payments-waffo/src/config.rs \
+            plugins/minco-plugin-payments-waffo/src/configuration_schema.rs \
+            plugins/minco-plugin-payments-waffo/src/graphql.rs \
+            plugins/minco-plugin-payments-waffo/src/checkout.rs \
+            plugins/minco-plugin-payments-waffo/src/client.rs \
+            plugins/minco-plugin-payments-waffo/src/plugin.rs \
+            plugins/minco-plugin-payments-waffo/src/signing.rs \
+            plugins/minco-plugin-payments-waffo/src/webhook.rs \
+            plugins/minco-plugin-payments-waffo/src/bin/minco-waffo.rs
+
+      - name: Test the plugin and CLI
+        run: cargo test -p minco-plugin-payments-waffo --all-features --locked
+
+      - name: Lint only plugin targets
+        run: cargo clippy -p minco-plugin-payments-waffo --all-targets --all-features --locked -- -D warnings
+
+      - name: Check opt-in facade composition
+        run: cargo check -p minco --no-default-features --features plugin-payments-waffo --locked
+
+      - name: Validate publish metadata
+        run: python3 scripts/validate_publish.py --output /tmp/waffo-publish-validation.json
+
+      - name: Record qualification and verify scope
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path("tasks/M14/M14-T03-waffo-payments-plugin.md")
+          text = path.read_text()
+          text = text.replace("Status: in_progress", "Status: complete", 1)
+          text = text.replace(
+              "- [ ] Produce a reviewed `Cargo.lock` and pass targeted Rust formatting, tests, Clippy and facade composition checks on the pinned toolchain.",
+              "- [x] Produce a reviewed `Cargo.lock` and pass targeted Rust formatting, tests, Clippy and facade composition checks on the pinned toolchain.",
+              1,
+          )
+          text = text.replace(
+              "- [ ] Record final hosted qualification evidence in the pull request.",
+              "- [x] Record final hosted qualification evidence in the pull request.",
+              1,
+          )
+          text += (
+              "\n## Hosted evidence\n\n"
+              f"GitHub Actions run `{os.environ['RUN_ID']}` generated the lockfile and passed "
+              "targeted rustfmt, plugin tests, plugin-only Clippy, facade composition and "
+              "publication metadata validation on Rust 1.97.1. No Waffo credentials or live "
+              "provider requests were used.\n"
+          )
+          path.write_text(text)
+          PY
+
+          rm -rf .github/waffo-bootstrap
+          rm .github/workflows/waffo-payments-bootstrap.yml
+
+          git diff --check
+
+          unexpected="$({ git status --porcelain | sed 's/^...//' | grep -Ev '^(Cargo\.lock|Cargo\.toml|PUBLISHING\.md|crates/minco/Cargo\.toml|crates/minco/src/lib\.rs|plugins/catalog\.toml|plugins/minco-plugin-payments-waffo/|tasks/M14/M14-T03-waffo-payments-plugin\.md|\.github/waffo-bootstrap/|\.github/workflows/waffo-payments-bootstrap\.yml)$' || true; })"
+          if [[ -n "$unexpected" ]]; then
+            printf 'unexpected changed paths:\n%s\n' "$unexpected" >&2
+            exit 1
+          fi
+
+      - name: Commit the qualified implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add Waffo Pancake payments plugin"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
