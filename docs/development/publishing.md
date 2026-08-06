@@ -6,22 +6,22 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.0.0` release contains the complete lock-step 33-package
+The published `1.1.0` release contains the complete lock-step 33-package
 inventory. A workspace version or source tag is not registry
 proof: release status must be verified independently against the exact
 crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The `1.1.0` workspace is an unpublished candidate for that same 33-package
-family. The 1.0 release added
-`minco-plugin-realtime`, `minco-project-view`, `minco-mcp`,
-`minco-workbench` and `minco-aws-dynamodb`; all five now have crates.io
-ownership, so repository truth retains no first-publication candidates. Source
-qualification or merge still must not be described as registry publication.
+The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
+`minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release keeps
+the same family and adds agent-native behavior within existing packages. All 33
+packages have crates.io ownership, so repository truth retains no
+first-publication candidates. Source qualification or merge still must not be
+described as registry publication.
 
-The exact published source is immutable tag `v1.0.0` at
-`39a69e36b051724c383da75d5907a824cbd2765b`. Later candidate qualification
+The exact published source is immutable tag `v1.1.0` at
+`4d81543f7c5adb773655f23278abfe084de9f3e0`. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
@@ -65,9 +65,10 @@ The reference Orders application is deliberately marked `publish = false`.
 
 ## Version policy
 
-All Minco packages use the same version. During the pre-1.0 period, a minor
-version may contain breaking public-API changes. Patch releases must remain
-compatible within the same minor line.
+All Minco packages use the same version. Published 1.x packages follow the
+project's Rust, Cargo, CLI, schema, diagnostic and behavioral compatibility
+policy. Additive minor releases and compatible patch releases must keep the
+complete family coordinated.
 
 The version is defined once in `[workspace.package]` in the root `Cargo.toml`.
 Every publishable internal path dependency also carries the same explicit
@@ -179,9 +180,10 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The complete 33-package 1.0.0 family has crossed that ownership
-boundary. Trusted-publisher configuration for its five newest packages remains
-a separate state that must be verified before a later OIDC upload.
+exists. The complete 33-package family has crossed that ownership boundary.
+Before 1.1.0 publication, trusted-publisher configuration was independently
+reconciled for all packages; every later OIDC upload must verify the current
+configuration again.
 
 ## Trusted publishing after the first release
 
@@ -230,6 +232,11 @@ The workflow refuses `publish=true` while repository truth still lists any
 first-publication package. This preflight runs before the OIDC token step and
 prevents an ordered upload from publishing existing crates and then failing at
 the first crate that lacks trusted-publisher ownership.
+
+Recovery input `resume_packages` is reserved for a verified partial upload. It
+must equal the exact registry-absent complement, and every unselected package
+must already be present and non-yanked at the tagged version. A failed ordered
+upload is never retried blindly.
 
 The workflow refuses to publish unless:
 

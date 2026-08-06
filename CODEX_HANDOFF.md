@@ -1,21 +1,23 @@
-# Minco 1.1.0 release-candidate handoff
+# Minco 1.1.0 published-release handoff
 
 Date: 2026-08-06
-Published baseline: `1.0.0`
+Published baseline: `1.1.0`
 Current workspace version: `1.1.0`
-Workspace release state: `candidate`
-Published `1.0.0` source: `39a69e36b051724c383da75d5907a824cbd2765b`
-Last completed tasks: `M13-T01` through `M13-T06`
-Active task: `M14-T01`
+Workspace release state: `published`
+Published `1.1.0` source: `4d81543f7c5adb773655f23278abfe084de9f3e0`
+Last completed release tasks: `M14-T01`, `M14-T04`, and `M14-T05`
+Active release task: `M14-T02`
 
 ## Closed release boundary
 
-Minco `1.0.0` is tagged, published as a GitHub release and available across the
-complete 33-package crates.io family. Exact PR-head and merged-main hosted
-release qualification passed. Independent registry verification found all 33
-exact versions non-yanked. No new AWS deployment was part of the `1.0.0`
-publication; the separately authorised bounded rehearsals retain their exact
-historical source scope. See `VERIFICATION.md` for exact evidence categories.
+Minco `1.1.0` is published from immutable tag `v1.1.0` at exact qualified
+commit `4d81543f7c5adb773655f23278abfe084de9f3e0`. Exact PR-head and merged-main
+release qualification passed. The guarded OIDC publication recovered from an
+independently reconciled five-present/28-absent registry state, and independent
+post-upload validation found all 33 exact versions non-yanked. GitHub release
+`v1.1.0` is published from the same tag. No live AWS application deployment was
+part of this crate release; bounded provider rehearsals retain their exact
+historical source scope. See `VERIFICATION.md` for separate evidence lanes.
 
 Post-release registry verification is:
 
@@ -27,18 +29,18 @@ uv run --locked python scripts/validate_publish.py \
 The command requires successful crates.io evidence for every exact workspace
 version. It does not treat registry unavailability as a pass.
 
-## Current candidate state
+## Current release state
 
-The workspace advances the same 33 public packages to `1.1.0` and adds the
-agent-native CLI/skill layer. The published baseline remains `1.0.0` until the
-exact candidate is merged, qualified, tagged, uploaded and independently
-verified. README and the versioned candidate manual document the new workflows;
-stable navigation is promoted only after publication.
+The 33 public packages advance together to `1.1.0` with the agent-native
+CLI/skill layer, realtime, Vapor-inspired lifecycle, ProjectView/MCP/workbench,
+DynamoDB, and the existing framework surface. README and the frozen versioned
+manual now describe that published boundary. Stable Pages deployment remains a
+post-merge exact-SHA gate, distinct from crates.io and docs.rs availability.
 
-Before upload, independently verify crates.io OIDC authentication, the exact
-main release qualification, immutable tag identity and all 33 absent exact
-registry versions. Do not infer trusted-publisher readiness from historical
-ownership alone.
+For a later release, independently verify current crates.io OIDC configuration,
+the exact merged-main qualification, immutable tag identity and exact registry
+state. Ownership or a previous successful OIDC run is not future authentication
+evidence.
 
 One task owns one isolated JJ workspace. Each task follows public-interface
 RED/GREEN/refactor cycles, focused checks, relevant local qualification,

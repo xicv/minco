@@ -46,7 +46,7 @@ cost intent only when the plugin really supports them.
   "id": "example",
   "kind": "plugin",
   "plugin_version": "0.1.0",
-  "core_compatibility": "^1.0.0",
+  "core_compatibility": "^1.1.0",
   "stability": "experimental",
   "default_enabled": false,
   "feature": "plugin-example",

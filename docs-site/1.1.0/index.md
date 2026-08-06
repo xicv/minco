@@ -1,14 +1,21 @@
 ---
 title: Minco 1.1.0
-description: Candidate documentation for Minco 1.1.0 agent-native application development.
+description: Stable documentation for Minco 1.1.0 agent-native application development.
 ---
 
 # Minco 1.1.0
 
-This is the frozen candidate manual for Minco 1.1.0: a compatible update to the
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.1.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
+
+This is the frozen stable manual for Minco 1.1.0: a compatible update to the
 contract-to-cloud Rust framework with version-matched Codex and Claude Code
-workflows. It remains separate from the [stable 1.0.0 manual](/1.0.0/) until
-registry publication and post-release verification complete.
+workflows, published from immutable
+[`v1.1.0`](https://github.com/xicv/minco/releases/tag/v1.1.0). The
+[1.0.0 manual](/1.0.0/) remains available for applications that have not yet
+upgraded.
 
 The manual is organized progressively: begin with one working application,
 then reach for focused guides, the component catalog, practical recipes, or

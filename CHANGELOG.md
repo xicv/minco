@@ -9,9 +9,11 @@ No changes yet.
 
 ## [1.1.0] - 2026-08-06
 
-The complete 33-package workspace is an unpublished release candidate. Source,
-hosted qualification, tag, registry upload, docs.rs, stable documentation and
-live application deployment remain separate states.
+The complete 33-package family is published from immutable tag `v1.1.0` at
+`4d81543f7c5adb773655f23278abfe084de9f3e0`. Exact source and merged-main
+qualification, tag identity, crates.io publication, the GitHub release,
+docs.rs, stable documentation and live application deployment remain separate
+evidence states.
 
 ### Added
 
@@ -41,7 +43,7 @@ live application deployment remain separate states.
 ### Documentation
 
 - Added the agent-native development guide, README workflow, CLI reference,
-  `1.0.0` to `1.1.0` adoption guide, and frozen `1.1.0` candidate manual.
+  `1.0.0` to `1.1.0` adoption guide, and frozen `1.1.0` manual.
 - Retained source, local, hosted, review, registry, documentation, deployment,
   runtime and production evidence as independent states; skill installation or
   evaluation does not upgrade another evidence lane.

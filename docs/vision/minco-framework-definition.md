@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `1.0.0`
+Published baseline: `1.1.0`
 Current workspace version: `1.1.0`
-Workspace release state: `candidate`
-Reviewed release source: `39a69e36b051724c383da75d5907a824cbd2765b`
+Workspace release state: `published`
+Reviewed release source: `4d81543f7c5adb773655f23278abfe084de9f3e0`
 
 ## Product identity
 
@@ -18,14 +18,16 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The published `1.0.0` classification is:
+The published `1.1.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
 > public conformance, versioned documentation, guarded lifecycle controls,
 > hosted verification and coordinated registry publication. The bounded
-> provider rehearsals retain their exact historical source scope; publication
-> does not itself prove a current live application deployment.
+> provider rehearsals retain their exact historical source scope. Version-
+> matched Codex and Claude skills add bounded project context without granting
+> mutation authority; publication does not itself prove a live application
+> deployment.
 
 The framework-completion program still prioritises one coherent path from a new
 contract to a safely deployed, observable, and upgradable application. Source

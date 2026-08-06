@@ -11,11 +11,11 @@ hero:
     alt: Minco robot cloud mascot
   actions:
     - theme: brand
-      text: Read the 1.0.0 docs
-      link: /1.0.0/
+      text: Read the 1.1.0 docs
+      link: /1.1.0/
     - theme: alt
       text: Build your first API
-      link: /1.0.0/getting-started/first-application
+      link: /1.1.0/getting-started/first-application
 
 features:
   - icon: "01"
