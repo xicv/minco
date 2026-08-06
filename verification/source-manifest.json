@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1055,
+  "file_count": 1056,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -24,8 +24,8 @@
     },
     {
       "path": ".github/workflows/publish-crates.yml",
-      "sha256": "a909e839eed46fb4eb32661ddcf3ab52cbb13a91a10a8e7c1ee30750a63b6024",
-      "size_bytes": 5470
+      "sha256": "c9220549da1eefd558df8fa75b03dfd9f579b5a74e7b50f936ae58f53deafd62",
+      "size_bytes": 9344
     },
     {
       "path": ".gitignore",
@@ -2074,7 +2074,7 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "0a60cab29ae5f5dfbef248787dce0f973bfd54a28e9a798da48b1a7b9edf6369",
+      "sha256": "a7e4f28cae5a7148d6c7a4dfc5e8473ff074b258ef40f0b3898c494dee566a4d",
       "size_bytes": 29407
     },
     {
@@ -4224,8 +4224,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "7155229d1ee423827f4747fdfed3c1add6ab3fafe03183d2f52f80bdc61e5769",
-      "size_bytes": 9548
+      "sha256": "3f5760eddc0886db48288a7f569dc37c42a206192de7ed6cd57c66cb7fcd0f7a",
+      "size_bytes": 9699
     },
     {
       "path": "rust-toolchain.toml",
@@ -4704,8 +4704,8 @@
     },
     {
       "path": "scripts/test/publish_validation.py",
-      "sha256": "372c0823b61a5a89fd66f7bf6b73cfb981519685aaa0afea2b505ac5cb27d5c3",
-      "size_bytes": 14045
+      "sha256": "87c5fa332eb54479c42f2b1f6b0893cae72e37f2baa269b891bb4e68a78f291f",
+      "size_bytes": 15562
     },
     {
       "path": "scripts/test/repository_truth.py",
@@ -4954,13 +4954,18 @@
     },
     {
       "path": "tasks/M14/M14-T02-promote-1-1-publication.md",
-      "sha256": "0a3357711ae16b3573449a9f8f0e6a0b05366c7546ad469844d32fbc7b4b29ae",
-      "size_bytes": 1597
+      "sha256": "bb0b393cec463a0254046d287159d85f1fec5501a73668fe869fb81bd6bb1cc5",
+      "size_bytes": 1606
     },
     {
       "path": "tasks/M14/M14-T04-hosted-release-time-budget.md",
       "sha256": "b0dba821e1b35fa8f20fb7535c522e3205742f7ebb3245f0435211cf739e00ab",
       "size_bytes": 2898
+    },
+    {
+      "path": "tasks/M14/M14-T05-resume-partial-crate-publication.md",
+      "sha256": "9bea78c0508edebc688a7d5fcd9d700f4bfdbe81d380c278932720f555e1027f",
+      "size_bytes": 4513
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5199,7 +5204,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "1793f2e4ed7e1947eb413b8333c55d5a3e1e1b506e15fd76e237835b9a32c040",
+      "sha256": "a498ce1c2f880b0b42fee6f1bcf06c222e8600e77f95b57851b76644f02cf834",
       "size_bytes": 2022
     },
     {
@@ -5259,7 +5264,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "864c8f779183a4d95015b2d090d92de15517bb7327a52b612a686a29e3beb038",
+      "sha256": "977945233bc5e9986124e81199dcb151190027797e8596fdafbd7e7f3f8fdf7e",
       "size_bytes": 754
     },
     {
@@ -5289,7 +5294,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "d6624d241c0590ed680423c4e3829e6e355e831de17b00087c4aadba52624870",
-  "total_size_bytes": 7068420,
+  "source_tree_sha256": "33ddb5f8ea8064c7158937575e7b83199916504dbfd005fd4afdfa3590ecdb65",
+  "total_size_bytes": 7078484,
   "version": "1.1.0"
 }

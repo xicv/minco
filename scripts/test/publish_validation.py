@@ -41,6 +41,8 @@ workflow = yaml.load(
 )
 dispatch_inputs = workflow["on"]["workflow_dispatch"]["inputs"]
 assert dispatch_inputs["release_tag"]["required"] == "false"
+assert dispatch_inputs["resume_packages"]["required"] == "false"
+assert dispatch_inputs["resume_packages"]["default"] == ""
 release_steps = workflow["jobs"]["release"]["steps"]
 checkout = next(
     step for step in release_steps if step.get("uses", "").startswith("actions/checkout@")
@@ -72,21 +74,43 @@ publish_step = next(
     for step in release_steps
     if step.get("name") == "Publish selected crate family"
 )
+static_validation = next(
+    step
+    for step in release_steps
+    if step.get("name") == "Static and packaging validation"
+)
 trusted_preflight = next(
     step
     for step in release_steps
     if step.get("name") == "Refuse OIDC first publication"
 )
+resume_preflight = next(
+    step
+    for step in release_steps
+    if step.get("name") == "Verify partial-publication registry complement"
+)
+assert static_validation["env"]["MINCO_RESUME_PACKAGES"] == "${{ inputs.resume_packages }}"
+assert 'if [[ -n "$MINCO_RESUME_PACKAGES" ]]' in static_validation["run"]
+assert "scripts/validate_publish.py --check-registry" in static_validation["run"]
 assert trusted_preflight["if"] == "${{ inputs.publish }}"
 assert 'new_publishable_packages' in trusted_preflight["run"]
 assert "manual authenticated publication" in trusted_preflight["run"]
 assert release_steps.index(trusted_preflight) < release_steps.index(publish_step)
+assert resume_preflight["if"] == "${{ inputs.publish && inputs.resume_packages != '' }}"
+assert resume_preflight["env"]["MINCO_RESUME_PACKAGES"] == "${{ inputs.resume_packages }}"
+assert "${{ inputs.resume_packages }}" not in resume_preflight["run"]
+assert 'if set(selected) != set(absent):' in resume_preflight["run"]
+assert 'if set(present) != expected_present:' in resume_preflight["run"]
+assert release_steps.index(resume_preflight) < release_steps.index(publish_step)
 assert publish_step["env"]["MINCO_RELEASE_TAG"] == "${{ inputs.release_tag }}"
+assert publish_step["env"]["MINCO_RESUME_PACKAGES"] == "${{ inputs.resume_packages }}"
 assert "${{ inputs.release_tag }}" not in publish_step["run"]
-assert publish_step["run"] == (
-    'GITHUB_REF="refs/tags/${MINCO_RELEASE_TAG}" '
-    "scripts/release/publish.sh --execute --skip-quality"
-)
+assert "${{ inputs.resume_packages }}" not in publish_step["run"]
+assert '[[ ! "$package" =~ ^[a-z0-9][a-z0-9_-]*$ ]]' in publish_step["run"]
+assert 'package_args+=(--package "$package")' in publish_step["run"]
+assert 'done <<< "$MINCO_RESUME_PACKAGES"' in publish_step["run"]
+assert 'GITHUB_REF="refs/tags/${MINCO_RELEASE_TAG}"' in publish_step["run"]
+assert 'scripts/release/publish.sh --execute --skip-quality "${package_args[@]}"' in publish_step["run"]
 
 print("Publish workflow tagged-checkout and pinned prerequisites passed.")
 
