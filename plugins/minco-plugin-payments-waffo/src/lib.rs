@@ -7,12 +7,12 @@
 
 mod checkout;
 mod client;
-pub(crate) mod config;
-pub(crate) mod configuration_schema;
+mod config;
+mod configuration_schema;
 mod error;
-pub(crate) mod graphql;
+mod graphql;
 mod plugin;
-pub(crate) mod signing;
+mod signing;
 mod webhook;
 
 pub use checkout::{CheckoutSession, CreateCheckoutSessionRequest, WaffoWebhook};

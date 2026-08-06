@@ -5,7 +5,7 @@ use crate::config::{
 use minco_core::{ConfigurationField, ConfigurationValueKind};
 use serde_json::json;
 
-pub fn configuration_fields() -> Vec<ConfigurationField> {
+pub(super) fn configuration_fields() -> Vec<ConfigurationField> {
     vec![
         field(
             "environment",
