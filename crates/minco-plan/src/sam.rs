@@ -125,6 +125,11 @@ pub fn render_sam_with_code_uris(
         writeln!(output, "          - {}", yaml_quote(header))
             .expect("writing to String cannot fail");
     }
+    output.push_str("        ExposeHeaders:\n");
+    for header in &plan.exposed_headers {
+        writeln!(output, "          - {}", yaml_quote(header))
+            .expect("writing to String cannot fail");
+    }
     output.push_str("        AllowOrigins:\n");
     for origin in &plan.allowed_origins {
         writeln!(output, "          - {}", yaml_quote(origin))
@@ -1225,6 +1230,18 @@ mod tests {
                 "authorization".into(),
                 "content-type".into(),
                 "idempotency-key".into(),
+                "if-match".into(),
+                "if-none-match".into(),
+                "x-request-id".into(),
+            ],
+            exposed_headers: vec![
+                "deprecation".into(),
+                "etag".into(),
+                "link".into(),
+                "location".into(),
+                "retry-after".into(),
+                "sunset".into(),
+                "www-authenticate".into(),
                 "x-request-id".into(),
             ],
             log_retention_days: 14,
@@ -1238,6 +1255,9 @@ mod tests {
         let plan = minimal_http_plan();
         let yaml = render_sam(&plan).expect("SAM");
         assert!(yaml.contains("AWS::Serverless::HttpApi"));
+        assert!(yaml.contains(
+            "        ExposeHeaders:\n          - 'deprecation'\n          - 'etag'\n          - 'link'\n          - 'location'\n          - 'retry-after'\n          - 'sunset'\n          - 'www-authenticate'\n          - 'x-request-id'\n"
+        ));
         assert!(yaml.contains("operationId: 'getHealth'"));
         assert!(yaml.contains("security: []"));
         assert!(yaml.contains("operationId: 'getOrder'"));

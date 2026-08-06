@@ -6,6 +6,7 @@ mod middleware;
 mod plugin;
 mod principal;
 mod resource;
+mod response;
 
 pub use error::{ApiFailure, ProblemDetails, problem_response};
 pub use middleware::{
@@ -21,4 +22,8 @@ pub use resource::{
     Cursor, CursorPageInfo, EntityTagError, ResourceCollection, ResourceDocument,
     ResourceListPolicy, ResourceListQuery, ResourceQueryError, SortDirection, SortTerm,
     StrongEntityTag, parse_if_match, parse_resource_list_query,
+};
+pub use response::{
+    ApiResponse, ApiResponseMetadata, ApiResponseMetadataError, BearerChallenge,
+    DEPRECATION_HEADER, SUNSET_HEADER,
 };

@@ -118,6 +118,7 @@ impl DeploymentConfig {
             uses_nat_gateway: self.uses_nat_gateway,
             allowed_origins: self.allowed_origins,
             allowed_headers,
+            exposed_headers: default_exposed_headers(),
             log_retention_days: self.log_retention_days,
             cost_policy: self.cost_policy,
             performance_policy: self.performance_policy,
@@ -157,6 +158,8 @@ pub struct DeploymentPlan {
     pub uses_nat_gateway: bool,
     pub allowed_origins: Vec<String>,
     pub allowed_headers: Vec<String>,
+    #[serde(default = "default_exposed_headers")]
+    pub exposed_headers: Vec<String>,
     pub log_retention_days: u32,
     pub cost_policy: CostPolicy,
     pub performance_policy: PerformancePolicy,
@@ -627,6 +630,12 @@ impl DeploymentPlan {
                     &format!("duplicate CORS request header: {}", header.as_str()),
                 ));
             }
+        }
+        if self.exposed_headers != default_exposed_headers() {
+            diagnostics.push(error(
+                "MINCO-HTTP-007",
+                "exposed CORS response headers must match the frontend-neutral HTTP boundary",
+            ));
         }
         if self.log_retention_days == 0 {
             diagnostics.push(error(
@@ -2105,6 +2114,24 @@ fn default_allowed_headers() -> Vec<String> {
         "authorization",
         "content-type",
         "idempotency-key",
+        "if-match",
+        "if-none-match",
+        "x-request-id",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
+fn default_exposed_headers() -> Vec<String> {
+    [
+        "deprecation",
+        "etag",
+        "link",
+        "location",
+        "retry-after",
+        "sunset",
+        "www-authenticate",
         "x-request-id",
     ]
     .into_iter()
@@ -2242,6 +2269,44 @@ mod tests {
         deployment.allowed_headers = vec!["X-Request-ID".into(), "Authorization".into()];
         let plan = deployment.into_plan(&contract);
         assert_eq!(plan.allowed_headers, ["authorization", "x-request-id"]);
+    }
+
+    #[test]
+    fn default_request_headers_include_the_resource_preconditions() {
+        assert_eq!(
+            default_allowed_headers(),
+            [
+                "authorization",
+                "content-type",
+                "idempotency-key",
+                "if-match",
+                "if-none-match",
+                "x-request-id",
+            ]
+        );
+    }
+
+    #[test]
+    fn plan_exposes_the_exact_frontend_neutral_response_headers() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let plan = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        })
+        .into_plan(&contract);
+
+        assert_eq!(plan.exposed_headers, default_exposed_headers());
     }
 
     #[test]
