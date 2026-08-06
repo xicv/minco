@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply exact internal visibility corrections
+      - name: Restore private-module visibility boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -30,20 +30,26 @@ jobs:
           from pathlib import Path
 
           replacements = {
+              Path("plugins/minco-plugin-payments-waffo/src/lib.rs"): [
+                  ("pub(crate) mod config;", "mod config;"),
+                  ("pub(crate) mod configuration_schema;", "mod configuration_schema;"),
+                  ("pub(crate) mod graphql;", "mod graphql;"),
+                  ("pub(crate) mod signing;", "mod signing;"),
+              ],
               Path("plugins/minco-plugin-payments-waffo/src/config.rs"): [
-                  ("pub(super) const DEFAULT_RESPONSE_MAX_BYTES", "pub const DEFAULT_RESPONSE_MAX_BYTES"),
-                  ("pub(super) const DEFAULT_WEBHOOK_MAX_BYTES", "pub const DEFAULT_WEBHOOK_MAX_BYTES"),
+                  ("pub const DEFAULT_RESPONSE_MAX_BYTES", "pub(super) const DEFAULT_RESPONSE_MAX_BYTES"),
+                  ("pub const DEFAULT_WEBHOOK_MAX_BYTES", "pub(super) const DEFAULT_WEBHOOK_MAX_BYTES"),
               ],
               Path("plugins/minco-plugin-payments-waffo/src/configuration_schema.rs"): [
-                  ("pub(super) fn configuration_fields()", "pub fn configuration_fields()"),
+                  ("pub fn configuration_fields()", "pub(super) fn configuration_fields()"),
               ],
               Path("plugins/minco-plugin-payments-waffo/src/graphql.rs"): [
-                  ("pub(super) fn validate_graphql_query", "pub fn validate_graphql_query"),
+                  ("pub fn validate_graphql_query", "pub(super) fn validate_graphql_query"),
               ],
               Path("plugins/minco-plugin-payments-waffo/src/signing.rs"): [
-                  ("pub(super) struct RequestSigner", "pub struct RequestSigner"),
-                  ("pub(super) fn canonical_request", "pub fn canonical_request"),
-                  ("pub(super) fn decode_pem", "pub fn decode_pem"),
+                  ("pub struct RequestSigner", "pub(super) struct RequestSigner"),
+                  ("pub fn canonical_request", "pub(super) fn canonical_request"),
+                  ("pub fn decode_pem", "pub(super) fn decode_pem"),
               ],
           }
 
@@ -58,18 +64,19 @@ jobs:
           PY
           git diff --check
 
-      - name: Persist exact visibility corrections
+      - name: Persist private-module visibility boundaries
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
+            plugins/minco-plugin-payments-waffo/src/lib.rs \
             plugins/minco-plugin-payments-waffo/src/config.rs \
             plugins/minco-plugin-payments-waffo/src/configuration_schema.rs \
             plugins/minco-plugin-payments-waffo/src/graphql.rs \
             plugins/minco-plugin-payments-waffo/src/signing.rs
-          git commit -m "fix: finalize Waffo internal visibility"
+          git commit -m "fix: restore private Waffo module boundaries"
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
