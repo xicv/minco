@@ -30,6 +30,31 @@ jobs:
           tar -tzf /tmp/waffo-payments.tgz
           tar -xzf /tmp/waffo-payments.tgz
           cp LICENSE-MIT LICENSE-APACHE plugins/minco-plugin-payments-waffo/
+          python3 - <<'PY'
+          from pathlib import Path
+
+          config = Path("plugins/minco-plugin-payments-waffo/src/config.rs")
+          text = config.read_text()
+          text = text.replace(
+              "pub const DEFAULT_RESPONSE_MAX_BYTES",
+              "pub(crate) const DEFAULT_RESPONSE_MAX_BYTES",
+              1,
+          )
+          text = text.replace(
+              "pub const DEFAULT_WEBHOOK_MAX_BYTES",
+              "pub(crate) const DEFAULT_WEBHOOK_MAX_BYTES",
+              1,
+          )
+          config.write_text(text)
+
+          cli = Path("plugins/minco-plugin-payments-waffo/src/bin/minco-waffo.rs")
+          text = cli.read_text().replace(
+              "io::{self, Read as _, Write as _}",
+              "io::{self, Read as _, Write}",
+              1,
+          )
+          cli.write_text(text)
+          PY
 
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
