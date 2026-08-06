@@ -76,7 +76,21 @@ blocks, links report 325 internal/14 external/132 canonical pages, and the
 desktop/mobile Playwright suite reports 19 passes with its desktop-only mobile
 case skipped by design.
 
-At this phase boundary, the five packages from the first upload have live
-docs.rs pages and the remaining 28 exact builds are visibly queued. Exact
-post-merge Pages deployment and complete docs.rs propagation remain external
-closure gates; they are not claimed by this pre-merge source evidence.
+Source-promotion PR
+[`#127`](https://github.com/xicv/minco/pull/127) passed exact-head hosted
+qualification run
+[`31075075306`](https://github.com/xicv/minco/actions/runs/31075075306) at
+`2a7cf87739148ba185f227b15d85843b31797463`. It merged as exact main
+`828fdb61557cb5135921a8067b2eb93d17ebc2bd`; merge tree
+`b351f3062741c1baa49b3be9d565934b1ead6075` exactly matched the reviewed PR
+tree. Pages run
+[`31075322828`](https://github.com/xicv/minco/actions/runs/31075322828)
+built and deployed from that merge. The hosted site then passed all 19
+applicable desktop/mobile Playwright checks, with its desktop-only
+mobile-viewport case skipped by design.
+
+The five packages from the first upload have live docs.rs pages and the
+remaining 28 exact builds are visibly queued without a build failure. Complete
+docs.rs propagation remains the final external closure gate, so this task and
+M14 remain `in_progress`/`active` until all 33 exact documentation URLs are
+independently verified.
