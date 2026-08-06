@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "74ac90a7658c57c928c018906cc236f1993af1a4230873c2922ba8a1730b5969",
-      "size_bytes": 109578
+      "sha256": "2cd944946fd41a9a00cb361a3d89ad89bac44ef84389c75755d44da6b25f922f",
+      "size_bytes": 110404
     },
     {
       "path": "config/jj/repo.toml",
@@ -4954,8 +4954,8 @@
     },
     {
       "path": "tasks/M14/M14-T02-promote-1-1-publication.md",
-      "sha256": "6fee9218c3cb09719ee4e4b078e5759dcb7eb58e9970294499420523fa258d50",
-      "size_bytes": 3364
+      "sha256": "18b1993ee544aeb7130c2708a3baceb227ac5bcf08e46bcc976e08fb233267bc",
+      "size_bytes": 4049
     },
     {
       "path": "tasks/M14/M14-T04-hosted-release-time-budget.md",
@@ -5299,7 +5299,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "0cb98c1a0ef6b09f50f783c42f52697da1445a3f5fbcbabcc3575b936a280765",
-  "total_size_bytes": 7087312,
+  "source_tree_sha256": "b58bec41dff2d83b3d2d8781cf1ff8d731b2ecee979947ed5d155da33b0dc4f3",
+  "total_size_bytes": 7088823,
   "version": "1.1.0"
 }

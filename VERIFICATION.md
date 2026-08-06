@@ -43,10 +43,25 @@ independent registry command
 
 GitHub release
 [`v1.1.0`](https://github.com/xicv/minco/releases/tag/v1.1.0) is published from
-the same tag. docs.rs propagation and the exact post-merge Pages deployment are
-verified separately from registry publication. No live AWS application
-resource was created, modified, promoted or deleted by this crate release or
-documentation source promotion.
+the same tag. Source-promotion PR
+[`#127`](https://github.com/xicv/minco/pull/127) passed exact-head hosted
+qualification run
+[`31075075306`](https://github.com/xicv/minco/actions/runs/31075075306) at
+`2a7cf87739148ba185f227b15d85843b31797463`, then merged as exact main
+`828fdb61557cb5135921a8067b2eb93d17ebc2bd`. The merge tree
+`b351f3062741c1baa49b3be9d565934b1ead6075` exactly matched the reviewed PR
+tree.
+
+Pages run
+[`31075322828`](https://github.com/xicv/minco/actions/runs/31075322828)
+built and deployed from that exact merge. A post-deployment Playwright run
+against `https://xicv.github.io/minco/` passed all 19 applicable desktop and
+mobile checks, with the desktop-only mobile-viewport case skipped by design.
+The rendered site identifies `1.1.0` as latest stable, keeps `next` unreleased,
+and exposes the frozen agent, realtime, lifecycle, ProjectView, plugin and
+reference guidance. docs.rs propagation remains a separate external closure
+gate. No live AWS application resource was created, modified, promoted or
+deleted by this crate release or documentation promotion.
 
 ## M14-T01 `1.1.0` agent-native release candidate
 
