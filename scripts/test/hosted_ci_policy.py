@@ -76,6 +76,7 @@ class HostedCiPolicyTests(unittest.TestCase):
         self.assertEqual(profile["options"], ["essential", "release"])
 
         self.assertEqual(workflow["permissions"], {"contents": "read"})
+        self.assertEqual(workflow["jobs"]["quality"]["timeout-minutes"], "90")
         self.assertEqual(
             workflow["concurrency"],
             {
