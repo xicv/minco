@@ -104,12 +104,7 @@ impl RequestSigner {
     }
 }
 
-pub(super) fn canonical_request(
-    method: &str,
-    path: &str,
-    timestamp: i64,
-    body: &[u8],
-) -> String {
+pub(super) fn canonical_request(method: &str, path: &str, timestamp: i64, body: &[u8]) -> String {
     let body_hash = STANDARD.encode(Sha256::digest(body));
     format!("{method}\n{path}\n{timestamp}\n{body_hash}")
 }
@@ -183,7 +178,11 @@ fn normalize_newlines(value: &str) -> Zeroizing<String> {
 
 fn compact_ascii_whitespace(value: &str) -> Zeroizing<String> {
     let mut compact = Zeroizing::new(String::with_capacity(value.len()));
-    compact.extend(value.chars().filter(|character| !character.is_ascii_whitespace()));
+    compact.extend(
+        value
+            .chars()
+            .filter(|character| !character.is_ascii_whitespace()),
+    );
     compact
 }
 
