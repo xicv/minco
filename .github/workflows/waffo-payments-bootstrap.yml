@@ -74,8 +74,8 @@ jobs:
           )
           text = webhook.read_text()
           count = text.count("verified.")
-          if count != 3:
-              raise SystemExit(f"expected three verified-field references, found {count}")
+          if count != 4:
+              raise SystemExit(f"expected four verified-field references, found {count}")
           webhook.write_text(text.replace("verified.", "verified_event."))
           PY
 
