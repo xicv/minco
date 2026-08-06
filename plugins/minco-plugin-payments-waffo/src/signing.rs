@@ -55,7 +55,7 @@ impl SecretResolver for EnvironmentSecretResolver {
 }
 
 #[derive(Clone)]
-pub(super) struct RequestSigner {
+pub struct RequestSigner {
     key_pair: Arc<rsa::KeyPair>,
 }
 
@@ -104,12 +104,12 @@ impl RequestSigner {
     }
 }
 
-pub(super) fn canonical_request(method: &str, path: &str, timestamp: i64, body: &[u8]) -> String {
+pub fn canonical_request(method: &str, path: &str, timestamp: i64, body: &[u8]) -> String {
     let body_hash = STANDARD.encode(Sha256::digest(body));
     format!("{method}\n{path}\n{timestamp}\n{body_hash}")
 }
 
-pub(super) fn decode_pem(
+pub fn decode_pem(
     value: &str,
     accepted_labels: &[&'static str],
 ) -> Result<(&'static str, Zeroizing<Vec<u8>>), ()> {

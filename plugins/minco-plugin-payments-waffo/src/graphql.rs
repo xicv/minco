@@ -1,6 +1,6 @@
 use crate::WaffoError;
 
-pub(super) fn validate_graphql_query(query: &str) -> Result<(), WaffoError> {
+pub fn validate_graphql_query(query: &str) -> Result<(), WaffoError> {
     let mut scanner = GraphqlScanner::new(query);
     if !matches!(
         scanner.next_token()?,

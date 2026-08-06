@@ -7,8 +7,8 @@ use url::Url;
 pub const CONFIGURATION_NAMESPACE: &str = "plugins.payments-waffo";
 pub const DEFAULT_API_BASE_URL: &str = "https://api.waffo.ai";
 pub const DEFAULT_REQUEST_MAX_BYTES: usize = 1024 * 1024;
-pub(super) const DEFAULT_RESPONSE_MAX_BYTES: usize = 2 * 1024 * 1024;
-pub(super) const DEFAULT_WEBHOOK_MAX_BYTES: usize = 1024 * 1024;
+pub const DEFAULT_RESPONSE_MAX_BYTES: usize = 2 * 1024 * 1024;
+pub const DEFAULT_WEBHOOK_MAX_BYTES: usize = 1024 * 1024;
 
 /// Local environment guard for a Waffo API key and webhook stream.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
