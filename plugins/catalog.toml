@@ -91,6 +91,16 @@ stability = "stable"
 description = "Idempotency keys, request fingerprints and a storage port."
 
 [[plugin]]
+id = "payments-waffo"
+crate = "minco-plugin-payments-waffo"
+path = "plugins/minco-plugin-payments-waffo"
+kind = "plugin"
+feature = "plugin-payments-waffo"
+default_enabled = false
+stability = "beta"
+description = "Signed Waffo Pancake checkout, payment queries, webhook automation and raw-body verification."
+
+[[plugin]]
 id = "identity"
 crate = "minco-plugin-identity"
 path = "plugins/minco-plugin-identity"
