@@ -22,31 +22,74 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Keep the test lint fix format-neutral
+      - name: Apply final reviewed compatibility corrections
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("plugins/minco-plugin-payments-waffo/src/webhook.rs")
-          text = path.read_text()
-          count = text.count("verified_event")
-          if count != 5:
-              raise SystemExit(f"expected five verified_event references, found {count}")
-          path.write_text(text.replace("verified_event", "event"))
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one match in {path}: found {count}")
+              path.write_text(text.replace(old, new, 1))
+
+          config = Path("plugins/minco-plugin-payments-waffo/src/config.rs")
+          replace_once(
+              config,
+              "pub(crate) const DEFAULT_RESPONSE_MAX_BYTES",
+              "pub(super) const DEFAULT_RESPONSE_MAX_BYTES",
+          )
+          replace_once(
+              config,
+              "pub(crate) const DEFAULT_WEBHOOK_MAX_BYTES",
+              "pub(super) const DEFAULT_WEBHOOK_MAX_BYTES",
+          )
+
+          schema = Path("plugins/minco-plugin-payments-waffo/src/configuration_schema.rs")
+          replace_once(
+              schema,
+              "pub(crate) fn configuration_fields()",
+              "pub(super) fn configuration_fields()",
+          )
+
+          graphql = Path("plugins/minco-plugin-payments-waffo/src/graphql.rs")
+          replace_once(
+              graphql,
+              "pub(crate) fn validate_graphql_query",
+              "pub(super) fn validate_graphql_query",
+          )
+
+          readme = Path("plugins/minco-plugin-payments-waffo/README.md")
+          replace_once(
+              readme,
+              '# webhook_events = ["order.created", "subscription.renewed"]',
+              '# webhook_events = ["order.completed", "subscription.payment_succeeded"]',
+          )
+          replace_once(
+              readme,
+              "Secret values never belong in this file. For Lambda deployments, use an `ssm:/absolute/name` reference and grant only `ssm:GetParameter` for that exact parameter. Local development can use `env:NAME`.\n",
+              "Secret values never belong in this file. For Lambda deployments, use an `ssm:/absolute/name` reference and grant only `ssm:GetParameter` for that exact parameter. Local development can use `env:NAME`. RSA keys may use normal PEM, PEM with literal `\\n` sequences, or raw base64 DER, matching the current Waffo SDK normalization contract.\n",
+          )
           PY
+
           git diff --check
 
-      - name: Persist the format-neutral naming fix
+      - name: Persist final source corrections
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add plugins/minco-plugin-payments-waffo/src/webhook.rs
+          git add \
+            plugins/minco-plugin-payments-waffo/src/config.rs \
+            plugins/minco-plugin-payments-waffo/src/configuration_schema.rs \
+            plugins/minco-plugin-payments-waffo/src/graphql.rs \
+            plugins/minco-plugin-payments-waffo/README.md
           if ! git diff --cached --quiet; then
-            git commit -m "fix: keep Waffo webhook test formatting stable"
+            git commit -m "fix: align Waffo configuration compatibility"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
@@ -80,6 +123,47 @@ jobs:
 
       - name: Test the plugin and command line
         run: cargo test -p minco-plugin-payments-waffo --all-features --locked
+
+      - name: Smoke the config-driven command line
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --quiet -p minco-plugin-payments-waffo --features cli --bin minco-waffo -- idempotency-key > /tmp/waffo-idempotency.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("/tmp/waffo-idempotency.json").read_text())
+          assert data["schema"] == 1
+          assert data["ok"] is True
+          assert data["command"] == "idempotency-key"
+          assert data["data"]["idempotencyKey"].startswith("minco_waffo_")
+          PY
+
+          cat > /tmp/minco.waffo.toml <<'TOML'
+          schema = 1
+          environment_class = "test"
+
+          [values.plugins.payments-waffo]
+          environment = "test"
+          merchant_id = "MER_TEST123"
+          private_key = "env:WAFFO_PRIVATE_KEY"
+          TOML
+
+          cargo run --quiet -p minco-plugin-payments-waffo --features cli --bin minco-waffo -- \
+            --config /tmp/minco.waffo.toml config-check > /tmp/waffo-config-check.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("/tmp/waffo-config-check.json").read_text())
+          assert data["schema"] == 1
+          assert data["ok"] is True
+          assert data["command"] == "config-check"
+          assert data["data"]["waffoEnvironment"] == "test"
+          assert data["data"]["privateKeyProvider"] == "environment_variable"
+          assert "WAFFO_PRIVATE_KEY" not in Path("/tmp/waffo-config-check.json").read_text()
+          PY
 
       - name: Lint only plugin targets
         run: cargo clippy -p minco-plugin-payments-waffo --all-targets --all-features --locked -- -D warnings
@@ -116,8 +200,9 @@ jobs:
           text += (
               "\n## Hosted evidence\n\n"
               f"GitHub Actions run `{os.environ['RUN_ID']}` passed targeted rustfmt checks, "
-              "plugin tests, plugin-only Clippy, facade composition and publication metadata "
-              "validation on Rust 1.97.1. No Waffo credentials or live provider requests were used.\n"
+              "plugin tests, command-line smoke tests, plugin-only Clippy, facade composition and "
+              "publication metadata validation on Rust 1.97.1. No Waffo credentials or live "
+              "provider requests were used.\n"
           )
           path.write_text(text)
           PY
