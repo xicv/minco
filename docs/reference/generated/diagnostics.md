@@ -145,7 +145,7 @@ Declared codes: `344`.
 | `PUBLISH-018` | publication | `scripts/validate_publish.py:227` | 0 |
 | `PUBLISH-019` | publication | `scripts/validate_publish.py:230` | 0 |
 | `PUBLISH-020` | publication | `scripts/validate_publish.py:232` | 0 |
-| `PUBLISH-021` | publication | `scripts/test/publish_validation.py:107` | 3 |
+| `PUBLISH-021` | publication | `scripts/test/publish_validation.py:131` | 3 |
 | `PUBLISH-030` | publication | `scripts/validate_publish.py:242` | 0 |
 | `PUBLISH-031` | publication | `scripts/validate_publish.py:249` | 0 |
 | `PUBLISH-032` | publication | `scripts/validate_publish.py:269` | 0 |
@@ -169,10 +169,10 @@ Declared codes: `344`.
 | `PUBLISH-067` | publication | `scripts/validate_publish.py:446` | 0 |
 | `PUBLISH-068` | publication | `scripts/validate_publish.py:425` | 0 |
 | `PUBLISH-070` | publication | `scripts/validate_publish.py:474` | 1 |
-| `PUBLISH-071` | publication | `scripts/test/publish_validation.py:429` | 2 |
-| `PUBLISH-072` | publication | `scripts/test/publish_validation.py:406` | 1 |
+| `PUBLISH-071` | publication | `scripts/test/publish_validation.py:453` | 2 |
+| `PUBLISH-072` | publication | `scripts/test/publish_validation.py:430` | 1 |
 | `PUBLISH-073` | publication | `scripts/validate_publish.py:495` | 0 |
-| `PUBLISH-074` | publication | `scripts/test/publish_validation.py:353` | 3 |
+| `PUBLISH-074` | publication | `scripts/test/publish_validation.py:377` | 3 |
 | `STATIC-001` | repository truth | `scripts/validate_static.py:144` | 0 |
 | `STATIC-ARCH-001` | repository truth | `scripts/validate_static.py:975` | 0 |
 | `STATIC-ARCH-002` | repository truth | `scripts/validate_static.py:981` | 0 |
