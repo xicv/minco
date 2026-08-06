@@ -3,7 +3,9 @@
 
 mod cost;
 mod model;
+#[allow(unreachable_pub)]
 mod sam;
+mod sam_cross_client;
 
 fn realtime_oidc_auth_is_valid(auth: &model::AuthPlan) -> bool {
     let model::AuthPlan::Jwt { issuer, audiences } = auth else {
@@ -80,4 +82,4 @@ pub use model::{
     RoutePlan, RuntimePlan, ScheduleCleanupPlan, ScheduleCompletionAction, Severity,
     StaticSiteDeployment, TriggerPlan,
 };
-pub use sam::{render_sam, render_sam_with_code_uri, render_sam_with_code_uris};
+pub use sam_cross_client::{render_sam, render_sam_with_code_uri, render_sam_with_code_uris};

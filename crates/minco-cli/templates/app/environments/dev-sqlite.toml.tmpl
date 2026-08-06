@@ -5,6 +5,7 @@ region = "local"
 runtime = "local_native"
 ingress = "local_tcp"
 allowed_origins = ["http://127.0.0.1:3000"]
+allowed_headers = ["authorization", "content-type", "idempotency-key", "if-match", "if-none-match", "x-request-id"]
 log_retention_days = 14
 scheduled_wakeups = []
 uses_nat_gateway = false

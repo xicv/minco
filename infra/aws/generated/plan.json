@@ -3,6 +3,8 @@
     "authorization",
     "content-type",
     "idempotency-key",
+    "if-match",
+    "if-none-match",
     "x-request-id"
   ],
   "allowed_origins": [
