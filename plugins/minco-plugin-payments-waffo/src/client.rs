@@ -41,7 +41,7 @@ impl fmt::Debug for WaffoClient {
 impl WaffoClient {
     pub(super) fn new(
         configuration: Arc<WaffoConfiguration>,
-        private_key: SecretValue,
+        private_key: &SecretValue,
         idempotency: Arc<IdempotencyService>,
     ) -> Result<Self, WaffoError> {
         let signer = RequestSigner::from_pem(private_key.expose())?;
@@ -170,11 +170,7 @@ impl WaffoClient {
         let data = self
             .action_value(ADD_WEBHOOK_PATH, &body, idempotency_key)
             .await?;
-        #[derive(Deserialize)]
-        struct Response {
-            webhook: WaffoWebhook,
-        }
-        Ok(decode_data::<Response>(data)?.webhook)
+        Ok(decode_data::<AddWebhookResponse>(data)?.webhook)
     }
 
     /// Execute a read-only GraphQL query using the same RSA request signature.
@@ -238,6 +234,11 @@ impl WaffoClient {
 }
 
 #[derive(Debug, Deserialize)]
+struct AddWebhookResponse {
+    webhook: WaffoWebhook,
+}
+
+#[derive(Debug, Deserialize)]
 struct ApiEnvelope {
     #[serde(default)]
     data: Option<Value>,
@@ -275,10 +276,14 @@ async fn parse_response(
     let envelope =
         serde_json::from_slice::<ApiEnvelope>(&bytes).map_err(WaffoError::InvalidResponse)?;
     if !status.is_success() || !envelope.errors.is_empty() {
-        let first = envelope.errors.into_iter().next().unwrap_or(WaffoApiError {
-            message: fallback_status_message(status),
-            layer: None,
-        });
+        let first = envelope
+            .errors
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| WaffoApiError {
+                message: fallback_status_message(status),
+                layer: None,
+            });
         return Err(WaffoError::Api {
             status: status.as_u16(),
             message: first.message,

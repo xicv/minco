@@ -262,11 +262,11 @@ mod tests {
         .unwrap();
         let header = signed_header(&key_pair, timestamp, &body);
 
-        let verified = verifier.verify_at(&header, &body, timestamp).unwrap();
+        let verified_event = verifier.verify_at(&header, &body, timestamp).unwrap();
 
-        assert!(verified.delivery_dedupe_key.starts_with("waffo-delivery-"));
-        assert!(verified.event_dedupe_key.starts_with("waffo-event-"));
-        assert_ne!(verified.delivery_dedupe_key, verified.event_dedupe_key);
+        assert!(verified_event.delivery_dedupe_key.starts_with("waffo-delivery-"));
+        assert!(verified_event.event_dedupe_key.starts_with("waffo-event-"));
+        assert_ne!(verified_event.delivery_dedupe_key, verified_event.event_dedupe_key);
     }
 
     #[test]

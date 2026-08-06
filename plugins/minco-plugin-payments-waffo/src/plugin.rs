@@ -88,7 +88,7 @@ impl fmt::Debug for WaffoService {
         formatter
             .debug_struct("WaffoService")
             .field("configuration", &self.configuration)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -111,7 +111,7 @@ impl WaffoService {
             .await?;
         WaffoClient::new(
             Arc::clone(&self.configuration),
-            private_key,
+            &private_key,
             Arc::clone(&self.idempotency),
         )
     }
