@@ -55,7 +55,7 @@ impl SecretResolver for EnvironmentSecretResolver {
 }
 
 #[derive(Clone)]
-pub(crate) struct RequestSigner {
+pub(super) struct RequestSigner {
     key_pair: Arc<rsa::KeyPair>,
 }
 
@@ -104,16 +104,29 @@ impl RequestSigner {
     }
 }
 
-pub(crate) fn canonical_request(method: &str, path: &str, timestamp: i64, body: &[u8]) -> String {
+pub(super) fn canonical_request(
+    method: &str,
+    path: &str,
+    timestamp: i64,
+    body: &[u8],
+) -> String {
     let body_hash = STANDARD.encode(Sha256::digest(body));
     format!("{method}\n{path}\n{timestamp}\n{body_hash}")
 }
 
-pub(crate) fn decode_pem(
+pub(super) fn decode_pem(
     value: &str,
     accepted_labels: &[&'static str],
 ) -> Result<(&'static str, Zeroizing<Vec<u8>>), ()> {
-    let value = value.trim();
+    if value.is_empty() || !value.is_ascii() {
+        return Err(());
+    }
+    let normalized = normalize_newlines(value);
+    let value = normalized.trim();
+    if value.is_empty() {
+        return Err(());
+    }
+
     for &label in accepted_labels {
         let begin = format!("-----BEGIN {label}-----");
         let end = format!("-----END {label}-----");
@@ -126,11 +139,52 @@ pub(crate) fn decode_pem(
         if !after_end.trim().is_empty() {
             return Err(());
         }
-        let encoded = Zeroizing::new(body.split_whitespace().collect::<String>());
+        let encoded = compact_ascii_whitespace(body);
+        if encoded.is_empty() {
+            return Err(());
+        }
         let der = STANDARD.decode(encoded.as_bytes()).map_err(|_| ())?;
         return Ok((label, Zeroizing::new(der)));
     }
-    Err(())
+
+    if value.contains("-----BEGIN ") || value.contains("-----END ") {
+        return Err(());
+    }
+    let label = accepted_labels.first().copied().ok_or(())?;
+    let encoded = compact_ascii_whitespace(value);
+    if encoded.is_empty() {
+        return Err(());
+    }
+    let der = STANDARD.decode(encoded.as_bytes()).map_err(|_| ())?;
+    Ok((label, Zeroizing::new(der)))
+}
+
+fn normalize_newlines(value: &str) -> Zeroizing<String> {
+    let bytes = value.as_bytes();
+    let mut normalized = Zeroizing::new(String::with_capacity(bytes.len()));
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(br"\r\n") {
+            normalized.push('\n');
+            index += 4;
+        } else if bytes[index..].starts_with(br"\n") {
+            normalized.push('\n');
+            index += 2;
+        } else if bytes[index] == b'\r' {
+            normalized.push('\n');
+            index += usize::from(bytes.get(index + 1) == Some(&b'\n')) + 1;
+        } else {
+            normalized.push(char::from(bytes[index]));
+            index += 1;
+        }
+    }
+    normalized
+}
+
+fn compact_ascii_whitespace(value: &str) -> Zeroizing<String> {
+    let mut compact = Zeroizing::new(String::with_capacity(value.len()));
+    compact.extend(value.chars().filter(|character| !character.is_ascii_whitespace()));
+    compact
 }
 
 #[cfg(test)]
@@ -163,5 +217,17 @@ mod tests {
         signature::UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256, public_key)
             .verify(message, &signature_bytes)
             .unwrap();
+    }
+
+    #[test]
+    fn pem_decoder_accepts_environment_and_raw_base64_forms() {
+        let escaped = "-----BEGIN PRIVATE KEY-----\\nAQID\\n-----END PRIVATE KEY-----";
+        let (label, decoded) = decode_pem(escaped, &["PRIVATE KEY", "RSA PRIVATE KEY"]).unwrap();
+        assert_eq!(label, "PRIVATE KEY");
+        assert_eq!(decoded.as_slice(), &[1, 2, 3]);
+
+        let (label, decoded) = decode_pem("AQID", &["PUBLIC KEY", "RSA PUBLIC KEY"]).unwrap();
+        assert_eq!(label, "PUBLIC KEY");
+        assert_eq!(decoded.as_slice(), &[1, 2, 3]);
     }
 }
