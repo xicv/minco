@@ -22,77 +22,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply reviewed lint corrections
+      - name: Keep the test lint fix format-neutral
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          def replace_once(path: Path, old: str, new: str) -> None:
-              text = path.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"expected exactly one match in {path}: found {count}")
-              path.write_text(text.replace(old, new, 1))
-
-          client = Path("plugins/minco-plugin-payments-waffo/src/client.rs")
-          replace_once(client, "        private_key: SecretValue,\n", "        private_key: &SecretValue,\n")
-          replace_once(
-              client,
-              "        #[derive(Deserialize)]\n        struct Response {\n            webhook: WaffoWebhook,\n        }\n        Ok(decode_data::<Response>(data)?.webhook)\n",
-              "        Ok(decode_data::<AddWebhookResponse>(data)?.webhook)\n",
-          )
-          replace_once(
-              client,
-              "#[derive(Debug, Deserialize)]\nstruct ApiEnvelope {\n",
-              "#[derive(Debug, Deserialize)]\nstruct AddWebhookResponse {\n    webhook: WaffoWebhook,\n}\n\n#[derive(Debug, Deserialize)]\nstruct ApiEnvelope {\n",
-          )
-          replace_once(
-              client,
-              "        let first = envelope.errors.into_iter().next().unwrap_or(WaffoApiError {\n            message: fallback_status_message(status),\n            layer: None,\n        });\n",
-              "        let first = envelope\n            .errors\n            .into_iter()\n            .next()\n            .unwrap_or_else(|| WaffoApiError {\n                message: fallback_status_message(status),\n                layer: None,\n            });\n",
-          )
-
-          plugin = Path("plugins/minco-plugin-payments-waffo/src/plugin.rs")
-          replace_once(
-              plugin,
-              "            .field(\"configuration\", &self.configuration)\n            .finish()\n",
-              "            .field(\"configuration\", &self.configuration)\n            .finish_non_exhaustive()\n",
-          )
-          replace_once(
-              plugin,
-              "        WaffoClient::new(\n            Arc::clone(&self.configuration),\n            private_key,\n            Arc::clone(&self.idempotency),\n        )\n",
-              "        WaffoClient::new(\n            Arc::clone(&self.configuration),\n            &private_key,\n            Arc::clone(&self.idempotency),\n        )\n",
-          )
-
-          webhook = Path("plugins/minco-plugin-payments-waffo/src/webhook.rs")
-          replace_once(
-              webhook,
-              "        let verified = verifier.verify_at(&header, &body, timestamp).unwrap();\n",
-              "        let verified_event = verifier.verify_at(&header, &body, timestamp).unwrap();\n",
-          )
-          text = webhook.read_text()
-          count = text.count("verified.")
-          if count != 4:
-              raise SystemExit(f"expected four verified-field references, found {count}")
-          webhook.write_text(text.replace("verified.", "verified_event."))
+          path = Path("plugins/minco-plugin-payments-waffo/src/webhook.rs")
+          text = path.read_text()
+          count = text.count("verified_event")
+          if count != 5:
+              raise SystemExit(f"expected five verified_event references, found {count}")
+          path.write_text(text.replace("verified_event", "event"))
           PY
-
           git diff --check
 
-      - name: Persist reviewed source corrections
+      - name: Persist the format-neutral naming fix
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            plugins/minco-plugin-payments-waffo/src/client.rs \
-            plugins/minco-plugin-payments-waffo/src/plugin.rs \
-            plugins/minco-plugin-payments-waffo/src/webhook.rs
+          git add plugins/minco-plugin-payments-waffo/src/webhook.rs
           if ! git diff --cached --quiet; then
-            git commit -m "fix: resolve Waffo lint findings"
+            git commit -m "fix: keep Waffo webhook test formatting stable"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
