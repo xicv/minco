@@ -1,3 +1,4 @@
+use crate::response::{DEPRECATION_HEADER, SUNSET_HEADER};
 use axum::Router;
 use http::{HeaderName, HeaderValue, Method, StatusCode, header};
 use std::{collections::BTreeMap, str::FromStr, time::Duration};
@@ -33,6 +34,8 @@ impl Default for HttpHeaderPolicy {
         for name in [
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
+            header::IF_MATCH,
+            header::IF_NONE_MATCH,
             HeaderName::from_static("idempotency-key"),
             REQUEST_ID_HEADER.clone(),
         ] {
@@ -40,9 +43,20 @@ impl Default for HttpHeaderPolicy {
                 .allow_request_header(name)
                 .expect("built-in header is valid");
         }
-        policy
-            .expose_response_header(REQUEST_ID_HEADER.clone())
-            .expect("built-in header is valid");
+        for name in [
+            header::ETAG,
+            header::LINK,
+            header::LOCATION,
+            header::RETRY_AFTER,
+            header::WWW_AUTHENTICATE,
+            DEPRECATION_HEADER.clone(),
+            REQUEST_ID_HEADER.clone(),
+            SUNSET_HEADER.clone(),
+        ] {
+            policy
+                .expose_response_header(name)
+                .expect("built-in header is valid");
+        }
         for name in [
             header::AUTHORIZATION,
             header::COOKIE,
@@ -378,6 +392,93 @@ mod tests {
                 .allow_request_header(HeaderName::from_static("*")),
             Err(HttpConfigurationError::WildcardHeader)
         ));
+    }
+
+    #[test]
+    fn default_policy_supports_conditional_requests_and_client_metadata() {
+        let policy = HttpHeaderPolicy::default();
+        let allowed = policy.allowed_request_headers();
+        for name in [header::IF_MATCH, header::IF_NONE_MATCH] {
+            assert!(allowed.contains(&name), "missing request header {name:?}");
+        }
+
+        let exposed = policy.exposed_response_headers();
+        for name in [
+            header::ETAG,
+            header::LINK,
+            header::LOCATION,
+            header::RETRY_AFTER,
+            header::WWW_AUTHENTICATE,
+            DEPRECATION_HEADER.clone(),
+            REQUEST_ID_HEADER.clone(),
+            SUNSET_HEADER.clone(),
+        ] {
+            assert!(exposed.contains(&name), "missing response header {name:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn default_cors_applies_the_cross_client_header_policy() {
+        let app = apply_standard_middleware(
+            Router::new().route("/", get(|| async { "ok" })),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let preflight = app
+            .clone()
+            .oneshot(
+                http::Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/")
+                    .header(header::ORIGIN, "http://127.0.0.1:3000")
+                    .header(header::ACCESS_CONTROL_REQUEST_METHOD, "PATCH")
+                    .header(
+                        header::ACCESS_CONTROL_REQUEST_HEADERS,
+                        "if-match,if-none-match",
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let allowed = preflight
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_HEADERS)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        for expected in ["if-match", "if-none-match"] {
+            assert!(
+                allowed
+                    .split(',')
+                    .map(str::trim)
+                    .any(|value| value.eq_ignore_ascii_case(expected)),
+                "missing {expected} in {allowed}"
+            );
+        }
+
+        let response = app
+            .oneshot(
+                http::Request::get("/")
+                    .header(header::ORIGIN, "http://127.0.0.1:3000")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let exposed = response
+            .headers()
+            .get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        for expected in ["etag", "retry-after", "www-authenticate", "deprecation", "sunset"] {
+            assert!(
+                exposed
+                    .split(',')
+                    .map(str::trim)
+                    .any(|value| value.eq_ignore_ascii_case(expected)),
+                "missing {expected} in {exposed}"
+            );
+        }
     }
 
     #[tokio::test]

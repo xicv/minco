@@ -56,6 +56,17 @@ Resources:
           - 'authorization'
           - 'content-type'
           - 'idempotency-key'
+          - 'if-match'
+          - 'if-none-match'
+          - 'x-request-id'
+        ExposeHeaders:
+          - 'deprecation'
+          - 'etag'
+          - 'link'
+          - 'location'
+          - 'retry-after'
+          - 'sunset'
+          - 'www-authenticate'
           - 'x-request-id'
         AllowOrigins:
           - 'https://app.example.invalid'
