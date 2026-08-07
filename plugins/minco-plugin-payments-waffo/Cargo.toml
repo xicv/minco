@@ -15,6 +15,7 @@ categories = ["web-programming", "api-bindings", "development-tools"]
 publish = ["crates-io"]
 include = [
   "src/**",
+  "agent/**",
   "Cargo.toml",
   "minco-plugin.json",
   "README.md",
