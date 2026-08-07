@@ -19,6 +19,11 @@ default-run = "cargo-minco"
 name = "cargo-minco"
 path = "src/main.rs"
 
+[[bin]]
+name = "minco-services"
+path = "src/bin/minco-services.rs"
+doc = false
+
 [dependencies]
 anyhow.workspace = true
 aws-config.workspace = true

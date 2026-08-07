@@ -9,7 +9,26 @@ mod supervisor;
 
 pub use supervisor::{DevEvent, DevStream, Supervisor, SupervisorError};
 
-const SUPPORTED_LOCAL_AWS_SERVICES: &[&str] = &["dynamodb", "s3", "sqs", "ssm", "sts"];
+const SUPPORTED_LOCAL_AWS_SERVICES: &[&str] = &[
+    "apigatewayv2",
+    "cloudfront",
+    "cloudwatch",
+    "dynamodb",
+    "dynamodbstreams",
+    "events",
+    "iam",
+    "kinesis",
+    "kms",
+    "lambda",
+    "logs",
+    "s3",
+    "secretsmanager",
+    "ses",
+    "sns",
+    "sqs",
+    "ssm",
+    "sts",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -256,25 +275,38 @@ impl DevPlan {
 
         let mut services = Vec::new();
         match graph.database {
-            DevDatabase::Postgres => services.push(ServicePlan {
-                id: "postgres".into(),
-                kind: ServiceKind::Postgres,
-                port: Some(55_432),
-                local_only: true,
-                aws_services: Vec::new(),
-                start: Some(compose_command(
-                    &graph.compose_file,
-                    &["up", "-d", "--wait"],
-                    "postgres",
-                    BTreeMap::new(),
-                )),
-                stop: Some(compose_command(
-                    &graph.compose_file,
-                    &["stop"],
-                    "postgres",
-                    BTreeMap::new(),
-                )),
-            }),
+            DevDatabase::Postgres => {
+                let postgres_port = 55_432;
+                let environment = BTreeMap::from([(
+                    "MINCO_POSTGRES_PORT".into(),
+                    postgres_port.to_string(),
+                )]);
+                services.push(ServicePlan {
+                    id: "postgres".into(),
+                    kind: ServiceKind::Postgres,
+                    port: Some(postgres_port),
+                    local_only: true,
+                    aws_services: Vec::new(),
+                    start: Some(service_runtime_command(
+                        "start",
+                        &graph.application,
+                        &graph.compose_file,
+                        "postgres",
+                        postgres_port,
+                        &[],
+                        environment,
+                    )),
+                    stop: Some(service_runtime_command(
+                        "stop",
+                        &graph.application,
+                        &graph.compose_file,
+                        "postgres",
+                        postgres_port,
+                        &[],
+                        BTreeMap::new(),
+                    )),
+                });
+            }
             DevDatabase::Sqlite => services.push(ServicePlan {
                 id: "sqlite".into(),
                 kind: ServiceKind::Sqlite,
@@ -301,17 +333,23 @@ impl DevPlan {
                 kind: ServiceKind::Rustack,
                 port: Some(rustack_port),
                 local_only: true,
-                aws_services,
-                start: Some(compose_command(
+                aws_services: aws_services.clone(),
+                start: Some(service_runtime_command(
+                    "start",
+                    &graph.application,
                     &graph.compose_file,
-                    &["up", "-d", "--wait"],
                     "rustack",
+                    rustack_port,
+                    &aws_services,
                     environment,
                 )),
-                stop: Some(compose_command(
+                stop: Some(service_runtime_command(
+                    "stop",
+                    &graph.application,
                     &graph.compose_file,
-                    &["stop"],
                     "rustack",
+                    rustack_port,
+                    &aws_services,
                     BTreeMap::new(),
                 )),
             });
@@ -413,17 +451,31 @@ fn override_readiness_port(
     Ok(ReadinessProbe::Http { url: url.into() })
 }
 
-fn compose_command(
+#[allow(clippy::too_many_arguments)]
+fn service_runtime_command(
+    action: &str,
+    application: &str,
     compose_file: &str,
-    action: &[&str],
     service: &str,
+    port: u16,
+    aws_services: &[String],
     environment: BTreeMap<String, String>,
 ) -> CommandSpec {
-    let mut arguments = vec!["compose".into(), "-f".into(), compose_file.into()];
-    arguments.extend(action.iter().map(ToString::to_string));
-    arguments.push(service.into());
+    let mut arguments = vec![
+        action.into(),
+        service.into(),
+        "--application".into(),
+        application.into(),
+        "--compose-file".into(),
+        compose_file.into(),
+        "--port".into(),
+        port.to_string(),
+    ];
+    if !aws_services.is_empty() {
+        arguments.extend(["--aws-services".into(), aws_services.join(",")]);
+    }
     CommandSpec {
-        program: "docker".into(),
+        program: "minco-services".into(),
         arguments,
         environment,
     }

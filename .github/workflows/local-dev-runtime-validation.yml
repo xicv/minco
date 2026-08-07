@@ -1,0 +1,43 @@
+name: Temporary local runtime validation
+
+on:
+  push:
+    branches:
+      - feature/local-dev-rustack-apple-container
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-local-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - name: Check only modified Rust files
+        run: |
+          rustfmt --edition 2024 --check \
+            crates/minco-dev/src/lib.rs \
+            crates/minco-dev/tests/dev_plan.rs \
+            crates/minco-cli/src/new_cmd.rs \
+            crates/minco-cli/src/bin/minco-services.rs
+      - name: Test the development service plan
+        run: cargo test --locked -p minco-dev --test dev_plan
+      - name: Test the local service runtime helper
+        run: cargo test --locked -p cargo-minco --bin minco-services
+      - name: Test generated application local development defaults
+        run: >-
+          cargo test --locked -p cargo-minco --bin cargo-minco
+          new_cmd::tests::scaffold_writes_a_layered_contract_first_workspace
+      - name: Lint the new standalone runtime helper
+        run: cargo clippy --locked -p cargo-minco --bin minco-services -- -D warnings
+      - name: Check patch whitespace
+        run: git diff --check HEAD^
