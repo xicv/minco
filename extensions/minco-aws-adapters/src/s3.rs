@@ -7,8 +7,9 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use hmac::{Hmac, Mac};
 use minco_plugin_object_storage::{
-    ObjectAccessSigner, ObjectKey, ObjectMetadata, ObjectStore, ObjectStoreError, PresignGetObject,
-    PresignPutObject, PresignedMethod, PresignedObjectRequest, PutObject, StoredObject,
+    ObjectAccessSigner, ObjectKey, ObjectMetadata, ObjectStore, ObjectStoreError,
+    ObjectUploadSigner, PresignGetObject, PresignPutObject, PresignedMethod,
+    PresignedObjectRequest, PutObject, SignObjectUpload, StoredObject,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
@@ -18,6 +19,17 @@ type HmacSha256 = Hmac<Sha256>;
 const META_SHA256: &str = "minco-sha256";
 const META_CREATED_AT: &str = "minco-created-at";
 const META_ATTRIBUTES: &str = "minco-attributes";
+const MAX_SINGLE_POST_SIZE_BYTES: u64 = 5 * 1024 * 1024 * 1024;
+
+struct S3PostObject {
+    key: ObjectKey,
+    content_type: String,
+    minimum_size_bytes: u64,
+    maximum_size_bytes: u64,
+    expires_in: TimeDelta,
+    attributes: BTreeMap<String, String>,
+    sha256: Option<String>,
+}
 
 #[derive(Clone)]
 pub struct S3ObjectAdapter {
@@ -95,6 +107,95 @@ impl S3ObjectAdapter {
             Some(endpoint) => format!("{endpoint}/{}", self.bucket),
             None => format!("https://{}.s3.{}.amazonaws.com", self.bucket, self.region),
         }
+    }
+
+    async fn sign_post(
+        &self,
+        request: S3PostObject,
+    ) -> Result<PresignedObjectRequest, ObjectStoreError> {
+        validate_expiry(request.expires_in)?;
+        validate_content_type(&request.content_type)?;
+        validate_post_size(request.minimum_size_bytes, request.maximum_size_bytes)?;
+        let checksum = request.sha256.as_deref().map(sha256_base64).transpose()?;
+        let credentials = self
+            .credentials
+            .provide_credentials()
+            .await
+            .map_err(|error| {
+                ObjectStoreError::Store(format!("AWS credentials are unavailable: {error}"))
+            })?;
+        let now = Utc::now();
+        let expires_at = now + request.expires_in;
+        let date = now.format("%Y%m%d").to_string();
+        let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
+        let scope = format!("{date}/{}/s3/aws4_request", self.region);
+        let credential = format!("{}/{}", credentials.access_key_id(), scope);
+        let attributes = encode_attributes(&request.attributes)?;
+        let key = self.provider_key(&request.key);
+        let created_at = now.to_rfc3339_opts(SecondsFormat::Millis, true);
+        let mut conditions = vec![
+            serde_json::json!({"bucket": self.bucket}),
+            serde_json::json!({"key": key}),
+            serde_json::json!({"Content-Type": request.content_type}),
+            serde_json::json!([
+                "content-length-range",
+                request.minimum_size_bytes,
+                request.maximum_size_bytes
+            ]),
+            serde_json::json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
+            serde_json::json!({"x-amz-credential": credential}),
+            serde_json::json!({"x-amz-date": amz_date}),
+            serde_json::json!({"x-amz-server-side-encryption": "AES256"}),
+            serde_json::json!({"x-amz-meta-minco-attributes": attributes}),
+            serde_json::json!({"x-amz-meta-minco-created-at": created_at}),
+        ];
+        if let Some(checksum) = &checksum {
+            conditions.push(serde_json::json!({"x-amz-checksum-algorithm": "SHA256"}));
+            conditions.push(serde_json::json!({"x-amz-checksum-sha256": checksum}));
+        }
+        if let Some(token) = credentials.session_token() {
+            conditions.push(serde_json::json!({"x-amz-security-token": token}));
+        }
+        let policy = serde_json::json!({
+            "expiration": expires_at.to_rfc3339_opts(SecondsFormat::Millis, true),
+            "conditions": conditions
+        });
+        let encoded_policy = STANDARD.encode(
+            serde_json::to_vec(&policy)
+                .map_err(|error| ObjectStoreError::Store(error.to_string()))?,
+        );
+        let signature = post_signature(
+            credentials.secret_access_key(),
+            &date,
+            &self.region,
+            encoded_policy.as_bytes(),
+        )?;
+        let mut form_fields = BTreeMap::from([
+            ("Content-Type".into(), request.content_type),
+            ("key".into(), key),
+            ("policy".into(), encoded_policy),
+            ("x-amz-algorithm".into(), "AWS4-HMAC-SHA256".into()),
+            ("x-amz-credential".into(), credential),
+            ("x-amz-date".into(), amz_date),
+            ("x-amz-server-side-encryption".into(), "AES256".into()),
+            ("x-amz-meta-minco-attributes".into(), attributes),
+            ("x-amz-meta-minco-created-at".into(), created_at),
+            ("x-amz-signature".into(), signature),
+        ]);
+        if let Some(checksum) = checksum {
+            form_fields.insert("x-amz-checksum-algorithm".into(), "SHA256".into());
+            form_fields.insert("x-amz-checksum-sha256".into(), checksum);
+        }
+        if let Some(token) = credentials.session_token() {
+            form_fields.insert("x-amz-security-token".into(), token.into());
+        }
+        Ok(PresignedObjectRequest {
+            method: PresignedMethod::Post,
+            url: self.post_url(),
+            headers: BTreeMap::new(),
+            form_fields,
+            expires_at,
+        })
     }
 }
 
@@ -241,78 +342,16 @@ impl ObjectAccessSigner for S3ObjectAdapter {
         &self,
         request: PresignPutObject,
     ) -> Result<PresignedObjectRequest, ObjectStoreError> {
-        validate_expiry(request.expires_in)?;
-        validate_content_type(&request.content_type)?;
-        if request.maximum_size_bytes == 0 {
-            return Err(ObjectStoreError::InvalidMaximumSize);
-        }
-        let credentials = self
-            .credentials
-            .provide_credentials()
-            .await
-            .map_err(|error| {
-                ObjectStoreError::Store(format!("AWS credentials are unavailable: {error}"))
-            })?;
-        let now = Utc::now();
-        let expires_at = now + request.expires_in;
-        let date = now.format("%Y%m%d").to_string();
-        let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
-        let scope = format!("{date}/{}/s3/aws4_request", self.region);
-        let credential = format!("{}/{}", credentials.access_key_id(), scope);
-        let attributes = encode_attributes(&request.attributes)?;
-        let key = self.provider_key(&request.key);
-        let created_at = now.to_rfc3339_opts(SecondsFormat::Millis, true);
-        let mut conditions = vec![
-            serde_json::json!({"bucket": self.bucket}),
-            serde_json::json!({"key": key}),
-            serde_json::json!({"Content-Type": request.content_type}),
-            serde_json::json!(["content-length-range", 0, request.maximum_size_bytes]),
-            serde_json::json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
-            serde_json::json!({"x-amz-credential": credential}),
-            serde_json::json!({"x-amz-date": amz_date}),
-            serde_json::json!({"x-amz-server-side-encryption": "AES256"}),
-            serde_json::json!({"x-amz-meta-minco-attributes": attributes}),
-            serde_json::json!({"x-amz-meta-minco-created-at": created_at}),
-        ];
-        if let Some(token) = credentials.session_token() {
-            conditions.push(serde_json::json!({"x-amz-security-token": token}));
-        }
-        let policy = serde_json::json!({
-            "expiration": expires_at.to_rfc3339_opts(SecondsFormat::Millis, true),
-            "conditions": conditions
-        });
-        let encoded_policy = STANDARD.encode(
-            serde_json::to_vec(&policy)
-                .map_err(|error| ObjectStoreError::Store(error.to_string()))?,
-        );
-        let signature = post_signature(
-            credentials.secret_access_key(),
-            &date,
-            &self.region,
-            encoded_policy.as_bytes(),
-        )?;
-        let mut form_fields = BTreeMap::from([
-            ("Content-Type".into(), request.content_type),
-            ("key".into(), key),
-            ("policy".into(), encoded_policy),
-            ("x-amz-algorithm".into(), "AWS4-HMAC-SHA256".into()),
-            ("x-amz-credential".into(), credential),
-            ("x-amz-date".into(), amz_date),
-            ("x-amz-server-side-encryption".into(), "AES256".into()),
-            ("x-amz-meta-minco-attributes".into(), attributes),
-            ("x-amz-meta-minco-created-at".into(), created_at),
-            ("x-amz-signature".into(), signature),
-        ]);
-        if let Some(token) = credentials.session_token() {
-            form_fields.insert("x-amz-security-token".into(), token.into());
-        }
-        Ok(PresignedObjectRequest {
-            method: PresignedMethod::Post,
-            url: self.post_url(),
-            headers: BTreeMap::new(),
-            form_fields,
-            expires_at,
+        self.sign_post(S3PostObject {
+            key: request.key,
+            content_type: request.content_type,
+            minimum_size_bytes: 0,
+            maximum_size_bytes: request.maximum_size_bytes,
+            expires_in: request.expires_in,
+            attributes: request.attributes,
+            sha256: None,
         })
+        .await
     }
 
     async fn sign_get(
@@ -351,6 +390,25 @@ impl ObjectAccessSigner for S3ObjectAdapter {
             form_fields: BTreeMap::new(),
             expires_at: Utc::now() + request.expires_in,
         })
+    }
+}
+
+#[async_trait]
+impl ObjectUploadSigner for S3ObjectAdapter {
+    async fn sign_upload(
+        &self,
+        request: SignObjectUpload,
+    ) -> Result<PresignedObjectRequest, ObjectStoreError> {
+        self.sign_post(S3PostObject {
+            key: request.key,
+            content_type: request.content_type,
+            minimum_size_bytes: request.size_bytes,
+            maximum_size_bytes: request.size_bytes,
+            expires_in: request.expires_in,
+            attributes: request.attributes,
+            sha256: Some(request.sha256),
+        })
+        .await
     }
 }
 
@@ -425,6 +483,19 @@ fn validate_expiry(value: TimeDelta) -> Result<(), ObjectStoreError> {
     }
 }
 
+const fn validate_post_size(
+    minimum_size_bytes: u64,
+    maximum_size_bytes: u64,
+) -> Result<(), ObjectStoreError> {
+    if maximum_size_bytes == 0 || minimum_size_bytes > maximum_size_bytes {
+        return Err(ObjectStoreError::InvalidMaximumSize);
+    }
+    if maximum_size_bytes > MAX_SINGLE_POST_SIZE_BYTES {
+        return Err(ObjectStoreError::ObjectTooLarge);
+    }
+    Ok(())
+}
+
 fn validate_download_name(value: &str) -> Result<(), ObjectStoreError> {
     if value.is_empty()
         || value.len() > 255
@@ -464,6 +535,30 @@ fn encode_attributes(attributes: &BTreeMap<String, String>) -> Result<String, Ob
         ));
     }
     Ok(encoded)
+}
+
+fn sha256_base64(value: &str) -> Result<String, ObjectStoreError> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(ObjectStoreError::Store(
+            "SHA-256 checksum must be exactly 64 hexadecimal characters".into(),
+        ));
+    }
+    let mut bytes = [0_u8; 32];
+    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+        bytes[index] = (hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?;
+    }
+    Ok(STANDARD.encode(bytes))
+}
+
+fn hex_nibble(value: u8) -> Result<u8, ObjectStoreError> {
+    match value {
+        b'0'..=b'9' => Ok(value - b'0'),
+        b'a'..=b'f' => Ok(value - b'a' + 10),
+        b'A'..=b'F' => Ok(value - b'A' + 10),
+        _ => Err(ObjectStoreError::Store(
+            "SHA-256 checksum contains a non-hexadecimal character".into(),
+        )),
+    }
 }
 
 fn decode_metadata(
@@ -584,5 +679,19 @@ mod tests {
         assert!(!valid_endpoint_override("https://example.com/prefix"));
         assert!(validate_download_name("report.pdf").is_ok());
         assert!(validate_download_name("report\".pdf").is_err());
+        assert!(validate_post_size(3, 3).is_ok());
+        assert!(matches!(
+            validate_post_size(0, 0),
+            Err(ObjectStoreError::InvalidMaximumSize)
+        ));
+        assert!(matches!(
+            validate_post_size(1, MAX_SINGLE_POST_SIZE_BYTES + 1),
+            Err(ObjectStoreError::ObjectTooLarge)
+        ));
+        assert_eq!(
+            sha256_base64(&"00".repeat(32)).unwrap(),
+            STANDARD.encode([0_u8; 32])
+        );
+        assert!(sha256_base64("invalid").is_err());
     }
 }

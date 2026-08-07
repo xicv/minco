@@ -11,8 +11,16 @@ composition.
 Enable only the required service features:
 
 ```toml
-minco-aws-adapters = { version = "0.6.0", features = ["s3", "sqs"] }
+minco-aws-adapters = { version = "1.1.0", features = ["s3", "sqs"] }
 ```
+
+The `s3` feature includes `S3ObjectStorage`, which composes the object store,
+private download signer, exact checksummed POST signer, and `HeadObject`
+metadata reader from one bucket/prefix/client configuration. Managed uploads
+bind the S3 policy to one generated key, exact byte count, exact media type,
+SHA-256 checksum, short expiry, encryption field, and signed Minco attributes.
+Single POST uploads are rejected above S3's 5 GiB boundary rather than emitting
+a capability that the provider cannot honor.
 
 The `full` feature enables S3, SQS, SES v2, Cognito user-pool administration,
 signed webhooks, S3/CloudFront static-site publication, and AppSync Events
@@ -35,4 +43,5 @@ memory. Production migrations and network calls remain explicit operations;
 plugin composition performs neither.
 
 See `docs/deployment/aws-plugin-adapters.md` in the Minco repository for local
-Rustack, bounded real-AWS, IAM, migration, and cleanup procedures.
+Rustack, bounded real-AWS, IAM, migration, and cleanup procedures. See
+`docs/how-to/object-uploads.md` for the private upload/download golden path.

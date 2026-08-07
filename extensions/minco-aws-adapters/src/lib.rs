@@ -11,6 +11,8 @@ pub mod notification;
 pub mod plugin;
 #[cfg(feature = "s3")]
 pub mod s3;
+#[cfg(feature = "s3")]
+pub mod s3_storage;
 #[cfg(feature = "ses")]
 pub mod ses;
 #[cfg(feature = "sqs")]
