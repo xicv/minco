@@ -1,0 +1,97 @@
+name: Waffo payments focused qualification
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/minco/**"
+      - "plugins/catalog.toml"
+      - "plugins/minco-plugin-payments-waffo/**"
+      - ".github/workflows/waffo-payments.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: waffo-payments-${{ github.event.pull_request.number }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-targets: false
+          cache-on-failure: false
+
+      - name: Verify formatting only for modified Waffo Rust files
+        run: |
+          rustfmt --edition 2024 --check \
+            plugins/minco-plugin-payments-waffo/src/lib.rs \
+            plugins/minco-plugin-payments-waffo/src/identifier.rs \
+            plugins/minco-plugin-payments-waffo/src/checkout.rs \
+            plugins/minco-plugin-payments-waffo/src/bin/minco-waffo.rs
+
+      - name: Test the plugin and command line
+        run: cargo test -p minco-plugin-payments-waffo --all-features --locked
+
+      - name: Lint only Waffo plugin targets
+        run: cargo clippy -p minco-plugin-payments-waffo --all-targets --all-features --locked -- -D warnings
+
+      - name: Check opt-in facade composition
+        run: cargo check -p minco --no-default-features --features plugin-payments-waffo --locked
+
+      - name: Smoke machine-readable commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --quiet --locked -p minco-plugin-payments-waffo --features cli --bin minco-waffo -- \
+            idempotency-key > /tmp/waffo-idempotency.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("/tmp/waffo-idempotency.json").read_text())
+          assert data["schema"] == 1
+          assert data["ok"] is True
+          assert data["command"] == "idempotency-key"
+          assert data["data"]["idempotencyKey"].startswith("minco_waffo_")
+          PY
+
+          cat > /tmp/minco.waffo.toml <<'TOML'
+          schema = 1
+          environment_class = "test"
+
+          [values.plugins.payments-waffo]
+          environment = "test"
+          merchant_id = "MER_0123456789ABCDEFGHIJKL"
+          private_key = "env:WAFFO_PRIVATE_KEY"
+          TOML
+
+          cargo run --quiet --locked -p minco-plugin-payments-waffo --features cli --bin minco-waffo -- \
+            --config /tmp/minco.waffo.toml config-check > /tmp/waffo-config.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          output = Path("/tmp/waffo-config.json").read_text()
+          data = json.loads(output)
+          assert data["schema"] == 1
+          assert data["ok"] is True
+          assert data["command"] == "config-check"
+          assert data["data"]["providerContractRevision"] == "df098331cf5ea7d43ad79ab223d9eda6d4ac8e5f"
+          assert "WAFFO_PRIVATE_KEY" not in output
+          PY
+
+          cargo run --quiet --locked -p minco-plugin-payments-waffo --features cli --bin minco-waffo -- \
+            checkout --help > /tmp/waffo-checkout-help.txt
+          grep -q -- "--product-id" /tmp/waffo-checkout-help.txt
+          grep -q -- "--idempotency-key" /tmp/waffo-checkout-help.txt
