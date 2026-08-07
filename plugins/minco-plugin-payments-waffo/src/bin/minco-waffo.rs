@@ -9,8 +9,8 @@ use minco_config::{
 use minco_core::{ConfigurationField, Plugin as _};
 use minco_plugin_idempotency::{IdempotencyService, MemoryIdempotencyStore};
 use minco_plugin_payments_waffo::{
-    CreateCheckoutSessionRequest, SecretResolver, SecretValue, WaffoConfiguration, WaffoError,
-    WaffoPlugin, WaffoService,
+    Checkout, CreateCheckoutSessionRequest, REVIEWED_WAFFO_SDK_REVISION, SecretResolver,
+    SecretValue, WaffoConfiguration, WaffoError, WaffoPlugin, WaffoService,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -77,6 +77,23 @@ enum Command {
         #[arg(long)]
         idempotency_key: String,
     },
+    /// Create a common hosted checkout directly from command-line flags.
+    Checkout {
+        #[arg(long)]
+        product_id: String,
+        #[arg(long, default_value = "AUD")]
+        currency: String,
+        #[arg(long)]
+        return_to: Option<String>,
+        #[arg(long)]
+        buyer_email: Option<String>,
+        #[arg(long)]
+        order_reference: Option<String>,
+        #[arg(long = "metadata", value_name = "KEY=VALUE", value_parser = parse_metadata_entry)]
+        metadata: Vec<(String, String)>,
+        #[arg(long)]
+        idempotency_key: String,
+    },
     /// Create a hosted checkout session from a typed JSON request file or stdin.
     CheckoutCreate {
         #[arg(long, value_name = "FILE|-", default_value = "-")]
@@ -103,6 +120,22 @@ enum Command {
         #[arg(long, value_name = "FILE|-", default_value = "-")]
         body: PathBuf,
     },
+}
+
+fn parse_metadata_entry(value: &str) -> std::result::Result<(String, String), String> {
+    let Some((key, value)) = value.split_once('=') else {
+        return Err("metadata must use KEY=VALUE".into());
+    };
+    if key.trim().is_empty()
+        || key.chars().any(char::is_control)
+        || value.chars().any(char::is_control)
+    {
+        return Err(
+            "metadata keys must be non-empty and metadata must not contain control characters"
+                .into(),
+        );
+    }
+    Ok((key.to_owned(), value.to_owned()))
 }
 
 #[derive(Debug)]
@@ -192,6 +225,7 @@ struct FailureBody<'a> {
 #[serde(rename_all = "camelCase")]
 struct ConfigReport {
     configuration_digest: String,
+    provider_contract_revision: &'static str,
     environment_class: EnvironmentClass,
     waffo_environment: &'static str,
     api_base_url: String,
@@ -243,6 +277,7 @@ async fn run(cli: Cli) -> Result<()> {
             "config-check",
             ConfigReport {
                 configuration_digest: loaded.digest.clone(),
+                provider_contract_revision: REVIEWED_WAFFO_SDK_REVISION,
                 environment_class: loaded.environment_class,
                 waffo_environment: configuration.environment().as_str(),
                 api_base_url: configuration.api_base_url().to_string(),
@@ -281,6 +316,35 @@ async fn run(cli: Cli) -> Result<()> {
             let result = client.action_value(&path, &body, &idempotency_key).await?;
             emit("action", result, cli.compact)
         }
+        Command::Checkout {
+            product_id,
+            currency,
+            return_to,
+            buyer_email,
+            order_reference,
+            metadata,
+            idempotency_key,
+        } => {
+            let mut checkout = Checkout::guest(product_id, currency);
+            if let Some(value) = return_to {
+                checkout = checkout.return_to(value);
+            }
+            if let Some(value) = buyer_email {
+                checkout = checkout.buyer_email(value);
+            }
+            if let Some(value) = order_reference {
+                checkout = checkout.order_reference(value);
+            }
+            for (key, value) in metadata {
+                checkout = checkout.metadata(key, value);
+            }
+            let request = checkout.build()?;
+            let client = loaded.service.client(&resolver).await?;
+            let result = client
+                .create_checkout_session(&request, &idempotency_key)
+                .await?;
+            emit("checkout", result, cli.compact)
+        }
         Command::CheckoutCreate {
             body,
             idempotency_key,
@@ -290,6 +354,7 @@ async fn run(cli: Cli) -> Result<()> {
                 configuration.request_max_bytes(),
             )?)
             .context("checkout request does not match the documented JSON contract")?;
+            request.validate()?;
             let client = loaded.service.client(&resolver).await?;
             let result = client
                 .create_checkout_session(&request, &idempotency_key)
