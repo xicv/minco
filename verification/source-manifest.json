@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1057,
+  "file_count": 1063,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -109,8 +109,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "52113407e44b85b6831613da01c8215e1e1a48268430d6ad92358c33c22ab03f",
-      "size_bytes": 12605
+      "sha256": "07f45e341f09ddb59afb11e1e0aeb9a76e9bffe9fd699b15758cff7574e7577a",
+      "size_bytes": 13120
     },
     {
       "path": "SECURITY.md",
@@ -2074,8 +2074,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "a7e4f28cae5a7148d6c7a4dfc5e8473ff074b258ef40f0b3898c494dee566a4d",
-      "size_bytes": 29407
+      "sha256": "fa5c6df5288e7ac2ce0ca16a7707fdeb2548b93a8859571c89956db5df6abfb9",
+      "size_bytes": 34526
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -2128,6 +2128,11 @@
       "size_bytes": 2323
     },
     {
+      "path": "docs/research/minimal-cost-framework-review-2026-08.md",
+      "sha256": "ad3e713c606b53af44f583cc68e1b7e22a93dfb693e142eb6cd824c6c87c629d",
+      "size_bytes": 28154
+    },
+    {
       "path": "docs/research/open-source-influences.md",
       "sha256": "e4386dff0f4f0b460b8ba2b187aa7b9f2626c9f0657d6c17ebcc0386e59adefb",
       "size_bytes": 1908
@@ -2164,8 +2169,8 @@
     },
     {
       "path": "docs/vision/minco-framework-definition.md",
-      "sha256": "3d941c9c0154b922f0c2efc3600fabbd8865cae6ab4f819b565ecf91e62a4d7e",
-      "size_bytes": 18806
+      "sha256": "519d821adc819e984c6f7b945c86b408c6a443fd6b21098d676ea4892aea141c",
+      "size_bytes": 19113
     },
     {
       "path": "docs-site/.gitignore",
@@ -4209,8 +4214,8 @@
     },
     {
       "path": "quality.toml",
-      "sha256": "800f477d1c15b3f7d246ff8f323fb28abdb96ce5cc97e806159171565fca0c03",
-      "size_bytes": 2400
+      "sha256": "e6f8492a0fd70402e9f54cd17c52e4e35085c0f94dfe2664ca68c0e7d42f5fd8",
+      "size_bytes": 2600
     },
     {
       "path": "roadmap/roadmap.mmd",
@@ -4449,8 +4454,8 @@
     },
     {
       "path": "scripts/ci/hosted-essential.sh",
-      "sha256": "facbd9ecacb0d7e917765577be47a9d3ae4f38caa3af062e1cafb324178a50dc",
-      "size_bytes": 578
+      "sha256": "10c11cb2a389f981743dc0a1ce229fabae5e8874bb730ce3095c8a78b798b758",
+      "size_bytes": 763
     },
     {
       "path": "scripts/deep_review.py",
@@ -4534,8 +4539,8 @@
     },
     {
       "path": "scripts/docs/generate_reference.py",
-      "sha256": "afddb402a4b368314c7f9f459f24af84ca8f28b8588089eb27a0b1ca3dacca55",
-      "size_bytes": 24198
+      "sha256": "cdceaab1c5cf763eade285720f5c3280536e1b4b5c6da2b576f3cb3f781e268b",
+      "size_bytes": 24284
     },
     {
       "path": "scripts/docs/test-browser.sh",
@@ -4574,8 +4579,8 @@
     },
     {
       "path": "scripts/quality.sh",
-      "sha256": "29d9a3bc9dc9bc17d09a207e2254df2c498eed994e210e7ba3e2272297993aa4",
-      "size_bytes": 2401
+      "sha256": "fb09174dd03a759c7c74ab2c8c9e26e46f8513b54ed7ebf39af8af67de885c5a",
+      "size_bytes": 2586
     },
     {
       "path": "scripts/release/candidate-load.sh",
@@ -4648,9 +4653,19 @@
       "size_bytes": 7346
     },
     {
+      "path": "scripts/test/current_product_truth.py",
+      "sha256": "7e957ffe06cde692966ff798eb056b1744819e71d17e51cb14cb6921c608ec56",
+      "size_bytes": 3101
+    },
+    {
       "path": "scripts/test/deep_review_exclusions.py",
       "sha256": "c94f5a3304dbb71c801167940484f1ecb225b71bbc7d76d9e351e3b9c5ed50ac",
       "size_bytes": 2770
+    },
+    {
+      "path": "scripts/test/deployment_assurance.py",
+      "sha256": "167de270508c1ecac869a69912af347af6faabb84052372d2e933f552d6a39c1",
+      "size_bytes": 7279
     },
     {
       "path": "scripts/test/e2e.sh",
@@ -4694,8 +4709,8 @@
     },
     {
       "path": "scripts/test/hosted_ci_policy.py",
-      "sha256": "d193efa36224dbd8252a47027399feaf5746a597e056806135c0b9d1876e68df",
-      "size_bytes": 6858
+      "sha256": "afe7f01b7217856a5e44af543ebe41da7459a4b5d8caf7c1148c54acc8d752f5",
+      "size_bytes": 7297
     },
     {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
@@ -4743,14 +4758,19 @@
       "size_bytes": 7394
     },
     {
+      "path": "scripts/validate_deployment_assurance.py",
+      "sha256": "619e5874ce95a44032a4d2d87fba287ad6a0a5a567ba4e93d0cc9f0f8502ab46",
+      "size_bytes": 25019
+    },
+    {
       "path": "scripts/validate_publish.py",
       "sha256": "9696f6e84a2dafa6b19d8ff952129d13803da2356210f4bc8450fb725d3c8d6e",
       "size_bytes": 23763
     },
     {
       "path": "scripts/validate_static.py",
-      "sha256": "c405fd4cb255c979c91fdca357860e349cec721327e4b589bf08970fcba03275",
-      "size_bytes": 79936
+      "sha256": "f6717c4745ff462e4b1db93e1a3094e0eb0d2fc87d4b3c30ca0db40bf073054d",
+      "size_bytes": 80747
     },
     {
       "path": "tasks/M0/M0-T01-constitution.md",
@@ -4966,6 +4986,11 @@
       "path": "tasks/M14/M14-T05-resume-partial-crate-publication.md",
       "sha256": "9bea78c0508edebc688a7d5fcd9d700f4bfdbe81d380c278932720f555e1027f",
       "size_bytes": 4513
+    },
+    {
+      "path": "tasks/M14/M14-T06-minimal-cost-assurance.md",
+      "sha256": "67d505f676c021970dac0816f6ccf6c2ef042208bd9844542681db50839066bb",
+      "size_bytes": 4125
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5213,6 +5238,11 @@
       "size_bytes": 2022
     },
     {
+      "path": "verification/deployment-assurance.toml",
+      "sha256": "ef26e8d1d5b68068698860f890497e9d8faad0459ff9ee4c0b5f7ac98c58e21c",
+      "size_bytes": 3877
+    },
+    {
       "path": "verification/feedback-contract.json",
       "sha256": "0029245f5c6fbbfe1e9a72040e423ec02b9bee0df45161d3130cad7a1b8c0cfa",
       "size_bytes": 559
@@ -5244,8 +5274,8 @@
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "b0025581445a289853b3e5808fa1341bffadee3012cf1d446811d155c4f7e7af",
-      "size_bytes": 1084
+      "sha256": "c09f179269a2782086891fa5d0fb5c3b0489a44e85f4f01a12544637ec278cf9",
+      "size_bytes": 1154
     },
     {
       "path": "verification/rust-dependency-hygiene.json",
@@ -5299,7 +5329,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "b58bec41dff2d83b3d2d8781cf1ff8d731b2ecee979947ed5d155da33b0dc4f3",
-  "total_size_bytes": 7088823,
+  "source_tree_sha256": "989858ff53e66fe1adcdc3528cd65da848847de23f12726c35274714e1c43b9c",
+  "total_size_bytes": 7168295,
   "version": "1.1.0"
 }

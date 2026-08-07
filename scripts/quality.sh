@@ -7,6 +7,9 @@ export CARGO_PROFILE_TEST_DEBUG=0
 uv run --locked python scripts/validate_static.py --output verification/static-validation.json
 scripts/docs/generate-reference.sh --check
 uv run --locked python scripts/test/repository_truth.py
+uv run --locked python scripts/validate_deployment_assurance.py
+uv run --locked python scripts/test/deployment_assurance.py
+uv run --locked python scripts/test/current_product_truth.py
 uv run --locked python scripts/test/hosted_ci_policy.py
 uv run --locked python scripts/test/examples/test_recipes.py
 uv run --locked python scripts/test/examples/validate.py --check
