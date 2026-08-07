@@ -234,6 +234,7 @@ impl CreateCheckoutSessionRequest {
 
 /// Fluent, serializable checkout intent for the common hosted-checkout path.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[must_use = "checkout builders return an updated value"]
 pub struct Checkout {
     request: CreateCheckoutSessionRequest,
 }
@@ -256,7 +257,7 @@ impl Checkout {
         self
     }
 
-    pub fn with_trial(mut self, enabled: bool) -> Self {
+    pub const fn with_trial(mut self, enabled: bool) -> Self {
         self.request.with_trial = Some(enabled);
         self
     }
@@ -271,12 +272,12 @@ impl Checkout {
         self
     }
 
-    pub fn expires_in_seconds(mut self, seconds: u64) -> Self {
+    pub const fn expires_in_seconds(mut self, seconds: u64) -> Self {
         self.request.expires_in_seconds = Some(seconds);
         self
     }
 
-    pub fn dark_mode(mut self, enabled: bool) -> Self {
+    pub const fn dark_mode(mut self, enabled: bool) -> Self {
         self.request.dark_mode = Some(enabled);
         self
     }
@@ -291,7 +292,7 @@ impl Checkout {
         self
     }
 
-    pub fn language(mut self, language: CashierLanguage) -> Self {
+    pub const fn language(mut self, language: CashierLanguage) -> Self {
         self.request.language = Some(language);
         self
     }
