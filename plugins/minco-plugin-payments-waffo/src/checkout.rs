@@ -176,7 +176,10 @@ impl CreateCheckoutSessionRequest {
         }
         if let Some(billing) = &self.billing_detail
             && (billing.country.len() != 2
-                || !billing.country.bytes().all(|byte| byte.is_ascii_uppercase()))
+                || !billing
+                    .country
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase()))
         {
             return Err(WaffoError::InvalidConfiguration(
                 "billing_detail.country must be an uppercase ISO 3166-1 alpha-2 code",
