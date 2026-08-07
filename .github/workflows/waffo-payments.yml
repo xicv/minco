@@ -1,6 +1,9 @@
 name: Waffo payments focused qualification
 
 on:
+  push:
+    branches:
+      - feature/m14-t03-waffo-payments
   pull_request:
     paths:
       - "Cargo.toml"
@@ -14,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: waffo-payments-${{ github.event.pull_request.number }}-${{ github.sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
