@@ -1,0 +1,111 @@
+schema = 1
+published_baseline = "1.1.0"
+reviewed_release_commit = "4d81543f7c5adb773655f23278abfe084de9f3e0"
+default_profile = "aws-http-api-lambda"
+
+[policy]
+required_aws_dimensions = [
+  "contract",
+  "code",
+  "cost",
+  "security",
+  "performance",
+  "recovery",
+  "provider",
+]
+required_local_dimensions = ["contract", "code", "performance"]
+forbidden_default_cost_classes = ["fixed_monthly", "scheduled_wakeup"]
+forbidden_default_wake_sources = ["poller", "schedule"]
+
+[[profile]]
+id = "aws-http-api-lambda"
+status = "stable"
+scope = "aws"
+runtime = "LambdaZipArm64"
+ingress = "ApiGatewayHttpApi"
+default = true
+zero_provisioned_compute = true
+idle_cost_classes = ["zero_compute", "request_only", "storage_only"]
+wake_sources = ["http_request"]
+dimensions = [
+  "contract",
+  "code",
+  "cost",
+  "security",
+  "performance",
+  "recovery",
+  "provider",
+]
+source_paths = [
+  "crates/minco-plan/src/model.rs",
+  "crates/minco-plan/src/cost.rs",
+  "crates/minco-plan/src/sam.rs",
+  "extensions/minco-aws-lambda/src/lib.rs",
+]
+evidence_paths = [
+  "VERIFICATION.md",
+  "scripts/release/candidate-load.sh",
+  "scripts/release/candidate-recovery.sh",
+]
+documentation_paths = [
+  "docs/deployment/aws-minimal.md",
+  "docs/deployment/release.md",
+  "docs/deployment/real-aws-smoke.md",
+]
+test_commands = [
+  "cargo test -p minco-plan --locked",
+  "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json",
+  "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json",
+]
+decision = "The default AWS web profile remains API Gateway HTTP API plus native ARM64 Lambda because it preserves zero provisioned compute while retaining JWT authorizers, exact CORS, candidate-stage verification, and guarded alias promotion."
+blockers = []
+
+[[profile]]
+id = "aws-lambda-function-url"
+status = "declared"
+scope = "aws"
+runtime = "LambdaZipArm64"
+ingress = "LambdaFunctionUrl"
+default = false
+zero_provisioned_compute = true
+idle_cost_classes = ["zero_compute", "request_only", "storage_only"]
+wake_sources = ["http_request"]
+dimensions = ["contract", "cost"]
+source_paths = ["crates/minco-plan/src/model.rs", "crates/minco-plan/src/sam.rs"]
+evidence_paths = ["docs/research/minimal-cost-framework-review-2026-08.md"]
+documentation_paths = ["docs/research/minimal-cost-framework-review-2026-08.md"]
+test_commands = []
+decision = "The public enum records a future topology, but Minco does not claim production support until rendering, authentication, candidate verification, cost projection, promotion, and hosted proof are implemented together."
+blockers = [
+  "The SAM renderer currently accepts only ApiGatewayHttpApi.",
+  "Function URL authentication is AWS_IAM or NONE rather than Minco's current API Gateway JWT authorizer contract.",
+  "CloudFront OAC for signed mutating requests introduces client payload-hash requirements that are unsuitable as an implicit generic-web default.",
+  "The runtime cost projection currently names API Gateway rates independently of ingress.",
+]
+
+[[profile]]
+id = "local-native"
+status = "stable"
+scope = "local"
+runtime = "LocalNative"
+ingress = "LocalTcp"
+default = false
+zero_provisioned_compute = false
+idle_cost_classes = []
+wake_sources = ["developer_process"]
+dimensions = ["contract", "code", "performance"]
+source_paths = [
+  "crates/minco-plan/src/model.rs",
+  "crates/minco-dev/src/lib.rs",
+]
+evidence_paths = ["scripts/test/e2e.sh", "scripts/test/generated_apps.sh"]
+documentation_paths = [
+  "docs/deployment/local-parity.md",
+  "docs/development/testing.md",
+]
+test_commands = [
+  "cargo test --workspace --all-targets --all-features --locked",
+  "scripts/test/e2e.sh",
+]
+decision = "LocalNative plus LocalTcp is the stable local execution topology; it is not an AWS billing claim and must preserve contract and application behavior rather than provider-resource parity."
+blockers = []

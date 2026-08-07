@@ -1,6 +1,7 @@
 schema = 1
 workspace_version = "1.1.0"
 published_baseline = "1.1.0"
+published_release_commit = "4d81543f7c5adb773655f23278abfe084de9f3e0"
 workspace_release_state = "published"
 published_package_count = 33
 adoption_gate_task = "M6-T07"
