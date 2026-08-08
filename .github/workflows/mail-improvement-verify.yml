@@ -1,0 +1,88 @@
+name: Mail improvement verification
+
+on:
+  push:
+    branches:
+      - automation/mail-improvement-verify
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mail-improvement-verify
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-targets: false
+          cache-on-failure: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          enable-cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - name: Materialize bounded patch archive
+        run: |
+          cat .github/mail-patch/payload.tgz.b64.part* | base64 --decode > /tmp/mail-payload.tgz
+          tar -xzf /tmp/mail-payload.tgz -C .
+      - name: Format only changed Rust sources
+        run: |
+          rustfmt --edition 2024 \
+            plugins/minco-plugin-notifications/src/lib.rs \
+            plugins/minco-plugin-notifications/src/mail.rs \
+            plugins/minco-plugin-notifications/src/mailpit.rs \
+            extensions/minco-aws-adapters/src/plugin.rs \
+            extensions/minco-aws-adapters/src/ses.rs
+      - name: Validate JSON and local container definition
+        run: |
+          python -m json.tool plugins/minco-plugin-notifications/minco-plugin.json >/dev/null
+          python -m json.tool extensions/minco-aws-adapters/minco-plugin.json >/dev/null
+          docker compose -f compose.mail.yml config --quiet
+      - name: Run targeted mail tests
+        run: |
+          cargo test -p minco-plugin-notifications
+          cargo test -p minco-aws-adapters --features ses
+      - name: Regenerate plugin reference and source evidence
+        run: |
+          uv sync --locked --only-dev
+          scripts/docs/generate-reference.sh
+          python scripts/source_manifest.py
+      - name: Build documentation
+        working-directory: docs-site
+        run: |
+          npm ci
+          npm run build
+      - name: Check exact-file formatting and locked reproducibility
+        run: |
+          rustfmt --edition 2024 --check \
+            plugins/minco-plugin-notifications/src/lib.rs \
+            plugins/minco-plugin-notifications/src/mail.rs \
+            plugins/minco-plugin-notifications/src/mailpit.rs \
+            extensions/minco-aws-adapters/src/plugin.rs \
+            extensions/minco-aws-adapters/src/ses.rs
+          cargo test -p minco-plugin-notifications --locked
+          cargo test -p minco-aws-adapters --features ses --locked
+          git diff --check
+      - name: Commit verified clean tree
+        if: ${{ github.actor != 'github-actions[bot]' }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm -r .github/mail-patch .github/workflows/mail-improvement-verify.yml
+          git add -A
+          git commit -m "chore(mail): format and regenerate evidence"
+          git push

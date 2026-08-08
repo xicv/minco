@@ -74,7 +74,7 @@ impl Plugin for AwsAdaptersPlugin {
         if self.selection.email_notifications {
             add_provider(
                 &mut descriptor,
-                "notifications.send",
+                "mail.send",
                 "aws.ses.email-notifications",
                 Some(ResourceIntent {
                     id: "aws-ses-identity".into(),
@@ -167,6 +167,12 @@ mod tests {
                 .provides
                 .iter()
                 .any(|capability| capability.name == "aws.appsync-events.realtime-publication")
+        );
+        assert!(
+            descriptor
+                .requires
+                .iter()
+                .any(|capability| capability.name == "mail.send")
         );
         assert!(
             descriptor

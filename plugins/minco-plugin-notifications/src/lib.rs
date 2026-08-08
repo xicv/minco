@@ -1,5 +1,11 @@
-//! Provider-neutral notifications and a deterministic memory reference sink.
+//! Provider-neutral notifications, first-class mail delivery, and deterministic test adapters.
 #![forbid(unsafe_code)]
+
+pub mod mail;
+pub mod mailpit;
+
+pub use mail::*;
+pub use mailpit::MailpitTransport;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -109,18 +115,53 @@ impl NotificationSink for MemoryNotificationSink {
 #[derive(Debug, Clone)]
 pub struct NotificationsPlugin {
     service: NotificationService,
+    mail_service: MailService,
 }
 
 impl NotificationsPlugin {
     pub fn new(sink: Arc<dyn NotificationSink>) -> Self {
+        let mail_transport = Arc::new(LegacyNotificationMailTransport::new(sink.clone()));
+        let mail_service = MailService::single(mail_transport, Arc::new(NoopMailObserver))
+            .expect("static notification compatibility transport");
         Self {
             service: NotificationService::new(sink),
+            mail_service,
         }
+    }
+
+    pub fn with_mail_service(mut self, mail_service: MailService) -> Self {
+        self.mail_service = mail_service;
+        self
     }
 
     pub fn memory() -> (Self, Arc<MemoryNotificationSink>) {
         let sink = Arc::new(MemoryNotificationSink::default());
-        (Self::new(sink.clone()), sink)
+        let mail_transport = Arc::new(MemoryMailTransport::default());
+        let mail_service = MailService::single(mail_transport, Arc::new(NoopMailObserver))
+            .expect("static memory mail transport");
+        (
+            Self::new(sink.clone()).with_mail_service(mail_service),
+            sink,
+        )
+    }
+
+    pub fn memory_with_mail() -> (
+        Self,
+        Arc<MemoryNotificationSink>,
+        Arc<MemoryMailTransport>,
+        Arc<MemoryMailObserver>,
+    ) {
+        let notification_sink = Arc::new(MemoryNotificationSink::default());
+        let mail_transport = Arc::new(MemoryMailTransport::default());
+        let mail_observer = Arc::new(MemoryMailObserver::default());
+        let mail_service = MailService::single(mail_transport.clone(), mail_observer.clone())
+            .expect("static memory mail transport");
+        (
+            Self::new(notification_sink.clone()).with_mail_service(mail_service),
+            notification_sink,
+            mail_transport,
+            mail_observer,
+        )
     }
 }
 
@@ -138,15 +179,24 @@ impl Plugin for NotificationsPlugin {
         descriptor
             .data_classes
             .extend([DataClass::Personal, DataClass::Confidential]);
-        descriptor.provides.push(CapabilityProvision {
-            name: "notifications.send".into(),
-            version: Version::new(1, 0, 0),
-        });
+        descriptor.provides.extend([
+            CapabilityProvision {
+                name: "notifications.send".into(),
+                version: Version::new(1, 0, 0),
+            },
+            CapabilityProvision {
+                name: "mail.send".into(),
+                version: Version::new(1, 0, 0),
+            },
+        ]);
         descriptor
     }
 
     fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
         context.services().insert(Arc::new(self.service.clone()))?;
+        context
+            .services()
+            .insert(Arc::new(self.mail_service.clone()))?;
         Ok(())
     }
 }
@@ -176,5 +226,27 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(sink.all().await[0].topic, "feedback.created");
+    }
+
+    #[tokio::test]
+    async fn memory_plugin_exposes_first_class_mail_service() {
+        let (plugin, _, mail_transport, mail_observer) = NotificationsPlugin::memory_with_mail();
+        let message = MailMessage::builder("account.welcome", "Welcome")
+            .to(MailAddress::new("person@example.com").unwrap())
+            .text("Welcome")
+            .build()
+            .unwrap();
+
+        plugin.mail_service.send(message).await.unwrap();
+
+        mail_transport.assert_sent_count(1).await;
+        assert_eq!(mail_observer.events().await.len(), 3);
+        assert!(
+            plugin
+                .descriptor()
+                .provides
+                .iter()
+                .any(|capability| capability.name == "mail.send")
+        );
     }
 }
