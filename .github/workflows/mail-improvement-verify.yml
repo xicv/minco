@@ -1,4 +1,4 @@
-name: Mail improvement SDK source export
+name: Mail improvement repository export
 
 on:
   push:
@@ -9,29 +9,23 @@ permissions:
   contents: read
 
 concurrency:
-  group: mail-improvement-sdk-source-export
+  group: mail-improvement-repository-export
   cancel-in-progress: true
 
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
-        with:
-          toolchain: 1.97.1
-      - name: Fetch dependencies and stage exact SES SDK source
-        run: |
-          cargo fetch
-          SDK_DIR="$(find "$CARGO_HOME/registry/src" -maxdepth 2 -type d -name 'aws-sdk-sesv2-1.128.0' -print -quit)"
-          test -n "$SDK_DIR"
-          mkdir -p /tmp/aws-sdk-sesv2-source
-          cp -R "$SDK_DIR"/. /tmp/aws-sdk-sesv2-source/
-      - name: Export exact SES SDK source
+      - name: Export exact branch snapshot
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: aws-sdk-sesv2-1.128.0-source
-          path: /tmp/aws-sdk-sesv2-source
+          name: minco-mail-branch-snapshot
+          path: |
+            .
+            !.git/**
+            !target/**
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
