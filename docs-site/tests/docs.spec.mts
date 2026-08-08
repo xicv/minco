@@ -104,8 +104,12 @@ test('next documents the complete built-in component catalog', async ({ page }) 
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   const search = page.locator('input[type="search"]')
   await search.fill('partial batch worker')
+  const backgroundSearchSegment = release.state === 'candidate' ? release.workspace : 'next'
   await expect(
-    page.locator('.VPLocalSearchBox').locator('a[href*="/next/guides/background-work"]').first()
+    page
+      .locator('.VPLocalSearchBox')
+      .locator(`a[href*="/${backgroundSearchSegment}/guides/background-work"]`)
+      .first()
   ).toBeVisible()
 })
 

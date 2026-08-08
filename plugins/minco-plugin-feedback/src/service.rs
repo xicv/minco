@@ -2,9 +2,9 @@ use crate::{
     AttachmentUpload, AudioInput, CreateFeedbackInput, CreateFeedbackResult, DeveloperReplyInput,
     FeedbackAccessToken, FeedbackAiContext, FeedbackAttachment, FeedbackAttachmentKind, FeedbackId,
     FeedbackListFilter, FeedbackMessage, FeedbackMessageSource, FeedbackMutationResult,
-    FeedbackStatus, FeedbackStoreError, FeedbackStoreService, FeedbackSummary, FeedbackThread,
-    FeedbackValidationError, FeedbackWarning, Transcript, TranscriptionError, TranscriptionService,
-    TransitionFeedbackInput, hash_access_token,
+    FeedbackReleaseBinding, FeedbackStatus, FeedbackStoreError, FeedbackStoreService,
+    FeedbackSummary, FeedbackThread, FeedbackValidationError, FeedbackWarning, Transcript,
+    TranscriptionError, TranscriptionService, TransitionFeedbackInput, hash_access_token,
 };
 use chrono::{TimeDelta, Utc};
 use minco_plugin_audit::{AuditEvent, AuditService};
@@ -442,6 +442,7 @@ pub struct FeedbackService {
     events: EventServices,
     transcription: Option<TranscriptionService>,
     config: Arc<FeedbackConfig>,
+    release_binding: Option<Arc<FeedbackReleaseBinding>>,
 }
 
 impl std::fmt::Debug for FeedbackService {
@@ -450,6 +451,7 @@ impl std::fmt::Debug for FeedbackService {
             .debug_struct("FeedbackService")
             .field("config", &self.config)
             .field("transcription_configured", &self.transcription.is_some())
+            .field("release_bound", &self.release_binding.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -478,7 +480,22 @@ impl FeedbackService {
             events,
             transcription,
             config: Arc::new(config),
+            release_binding: None,
         })
+    }
+
+    pub fn with_release_binding(
+        mut self,
+        binding: FeedbackReleaseBinding,
+    ) -> Result<Self, FeedbackServiceError> {
+        binding.validate()?;
+        self.release_binding = Some(Arc::new(binding));
+        Ok(self)
+    }
+
+    #[must_use]
+    pub fn release_binding(&self) -> Option<&FeedbackReleaseBinding> {
+        self.release_binding.as_deref()
     }
 
     #[must_use]
@@ -508,6 +525,11 @@ impl FeedbackService {
             .into());
         }
 
+        if let Some(binding) = self.release_binding.as_deref() {
+            input.context.release_id = Some(binding.release_id.clone());
+            input.context.environment = Some(binding.environment.clone());
+        }
+
         if uploads.len() > self.config.max_attachments {
             return Err(FeedbackServiceError::InvalidAttachment(format!(
                 "feedback contains {} attachments; configured maximum is {}",
@@ -530,6 +552,9 @@ impl FeedbackService {
         }
 
         let mut thread = FeedbackThread::create(input)?;
+        if let Some(binding) = self.release_binding.as_deref() {
+            thread.messages.push(binding.system_message()?);
+        }
         let client_token = FeedbackAccessToken::generate();
         let mut stored_keys = Vec::new();
         let mut warnings = Vec::new();
@@ -662,19 +687,12 @@ impl FeedbackService {
     ) -> Result<FeedbackMutationResult, FeedbackServiceError> {
         let mut thread = self.get_for_developer(id).await?;
         let expected_revision = thread.revision;
-        let asks_question = input.visible_to_client && input.body.trim_end().ends_with('?');
         thread.append_message(FeedbackMessage::developer(
             input.author_display,
             input.body,
             input.visible_to_client,
         )?);
-        if asks_question
-            && thread
-                .status
-                .can_transition_to(FeedbackStatus::NeedsClarification)
-        {
-            thread.transition(FeedbackStatus::NeedsClarification, None)?;
-        } else if thread.status == FeedbackStatus::New {
+        if thread.status == FeedbackStatus::New {
             thread.transition(FeedbackStatus::Acknowledged, None)?;
         }
         self.store.save(thread.clone(), expected_revision).await?;
@@ -1442,6 +1460,52 @@ mod tests {
         }
     }
 
+    fn release_binding() -> FeedbackReleaseBinding {
+        let release_digest = "a".repeat(64);
+        FeedbackReleaseBinding {
+            release_id: format!("minco.{}", &release_digest[..24]),
+            release_digest,
+            environment: "review".into(),
+            deployment_attempt_id: "review-20260807".into(),
+            deployment_receipt_digest: "b".repeat(64),
+            ui_build_id: None,
+            ui_build_digest: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn create_stamps_server_authoritative_release_identity() {
+        let identity = release_binding();
+        let harness = harness();
+        let service = harness
+            .service
+            .clone()
+            .with_release_binding(identity.clone())
+            .expect("valid release binding");
+        let mut input = input();
+        input.context.release_id = Some("client-controlled".into());
+        input.context.environment = Some("client-controlled".into());
+
+        let result = service
+            .create(input, Vec::new(), Uuid::now_v7())
+            .await
+            .expect("release-bound feedback");
+
+        assert_eq!(
+            result.thread.context.release_id,
+            Some(identity.release_id.clone())
+        );
+        assert_eq!(
+            result.thread.context.environment,
+            Some(identity.environment.clone())
+        );
+        assert_eq!(
+            FeedbackReleaseBinding::from_thread(&result.thread),
+            Some(identity)
+        );
+        assert!(result.thread.client_view().messages.is_empty());
+    }
+
     #[tokio::test]
     async fn create_persists_notifies_audits_and_publishes() {
         let harness = harness();
@@ -1477,7 +1541,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn developer_question_enters_clarification_loop() {
+    async fn developer_question_requires_an_explicit_clarification_transition() {
         let harness = harness();
         let created = harness
             .service
@@ -1498,7 +1562,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(result.thread.status, FeedbackStatus::NeedsClarification);
+        assert_eq!(result.thread.status, FeedbackStatus::Acknowledged);
         assert_eq!(
             harness
                 .audit

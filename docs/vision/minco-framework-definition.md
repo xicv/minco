@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.1.0`
-Current workspace version: `1.1.0`
-Workspace release state: `published`
+Current workspace version: `1.2.0`
+Workspace release state: `candidate`
 Reviewed release source: `4d81543f7c5adb773655f23278abfe084de9f3e0`
 
 ## Product identity
@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The published `1.1.0` classification is:
+The immutable published `1.1.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
@@ -29,11 +29,11 @@ The published `1.1.0` classification is:
 > mutation authority; publication does not itself prove a live application
 > deployment.
 
-The framework-completion program still prioritises one coherent path from a new
-contract to a safely deployed, observable, and upgradable application. Source
-and bounded release qualification do not substitute for production proof,
-rollback/canary, static-site domains, review-environment cleanup, a
-documentation product, multi-application adoption or the 1.0 freeze.
+The post-1.0 program now prioritises measured application adoption,
+support-truth coherence, feedback-to-task traceability, performance baselines,
+evidence freshness and client handover. Published source and bounded release
+qualification do not substitute for production proof, multi-application
+adoption or customer acceptance.
 
 ## The five-plane application graph
 
@@ -108,7 +108,7 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `0.6.0` state | Remaining boundary |
+| Area | Current published `1.1.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |
@@ -119,15 +119,15 @@ The framework-completion program preserves the accepted ADRs and
 | Provider adapters | Broad and explicit | Operational recipes and evidence |
 | Feedback | Stable vertical slice and Verified Review Loop foundation | Optional review-environment/delivery trace |
 | Local infrastructure | Graph-driven `cargo minco dev` with supervised process groups | Broader generated-app adoption |
-| Deployment Plan IR | Schema 2 API, workers, queues, DLQs, mappings and schedules | Profile research and compatibility freeze |
-| Deployment controller | Exact release, change set, apply, receipts, hosted verify, promote and bounded disposable AWS rehearsal | Rollback/canary and static-site domains |
+| Deployment Plan IR | Schema 2 API, workers, queues, DLQs, mappings, schedules, static sites, preview lifecycle and realtime projection | Support-profile assurance, adoption and compatibility evidence |
+| Deployment controller | Exact release, change set, apply, receipts, hosted verify, promote, rollback/canary, static-site publication and bounded disposable AWS rehearsal | Repeated live-application proof and broader operational adoption |
 | Configuration | Unified typed environment and opaque secret-reference graph | Measured application adoption |
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Versioned, searchable and browser-checked Diátaxis product with a detailed stable `0.6.0` line | Generated reference and broader exercised recipe matrix |
-| AI support | Stable paths and JSON inspection | Local read-only MCP and optional workbench |
-| Compatibility | Pre-1.0 policy | Explicit public API and feature freeze |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with a detailed stable `1.1.0` line | Broader exercised recipe and application-adoption matrix |
+| AI support | Version-matched Codex/Claude skills, bounded context/eval, ProjectView, read-only MCP and local workbench | Measured task outcomes, application evals and guarded narrow write tools |
+| Compatibility | Published 1.x public API, CLI, schema and feature freeze with additive 1.1 release evidence | Ongoing semver regression proof and multi-application adoption |
 
 ## Developer golden path
 

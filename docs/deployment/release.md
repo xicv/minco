@@ -64,6 +64,47 @@ executing the exact change-set ARN. Successful infrastructure apply leaves the
 receipt in `started`; hosted verification owns the eventual `succeeded`
 transition, while execution or wait errors write terminal `failed`.
 
+## Release-bound feedback and client handover
+
+A review application may inject one exact `FeedbackReleaseBinding` into the
+Feedback plugin. After clarification and `ready_for_development`,
+`cargo minco feedback task` verifies the release/deployment chain and emits a
+read-only repository task plan. Applying requires the exact plan digest and
+creates both the task and its immutable receipt.
+
+Once delivery evidence is assembled, inspect a handover without writing:
+
+```bash
+cargo minco handover \
+  --release-manifest target/minco/release.json \
+  --deployment-receipt target/minco/deployment-receipt.json \
+  --owner "Application owner"
+```
+
+The plan digest binds ownership, output paths, exact release, successful
+deployment, ProjectView, source manifest, performance policy/baseline, provider
+evidence, capability review, the deterministic operational-validation PASS
+receipt, and matching feedback-task receipts. The command rechecks the exact
+validated inputs and refuses stale source authority. Apply only that exact plan:
+
+Handover planning invokes the canonical validator with the repository-pinned
+`uv run --locked` toolchain. A missing `uv`, validator failure or any byte
+difference from `verification/operational-evidence-validation.json` fails
+closed before a plan is emitted.
+
+```bash
+cargo minco handover \
+  --release-manifest target/minco/release.json \
+  --deployment-receipt target/minco/deployment-receipt.json \
+  --owner "Application owner" \
+  --approve-plan-digest EXACT_DIGEST
+```
+
+JSON and Markdown outputs are deterministic, secret-free, confined under
+`verification/`, create-only, and idempotent only for exact bytes. A packet may
+truthfully report stale/missing live-provider proof or incomplete rates; it does
+not turn source qualification into production acceptance.
+
 ## Hosted verification
 
 The API function is published behind stable `candidate` and `live` Lambda

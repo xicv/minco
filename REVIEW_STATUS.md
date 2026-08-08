@@ -1,5 +1,14 @@
 # Review status
 
+Minco `1.1.0` is the current published baseline from exact release source
+`4d81543f7c5adb773655f23278abfe084de9f3e0`. The coordinated 33-package release, agent-native workflows,
+realtime, lifecycle, ProjectView/MCP/workbench and explicit DynamoDB boundaries
+are the current product line. Current release truth is guarded by
+`verification/repository-truth.toml`; the detailed records below are retained as
+historical release and provider evidence rather than current-version claims.
+
+## Historical release evidence
+
 Minco `0.6.0` is published from exact source
 `2c4605b7d4abcd865035196ffc0484c4a0e82f1e`. PR-head hosted release run
 `30688694186`, merged-main run `30689722134` and trusted publication run

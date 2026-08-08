@@ -1,0 +1,92 @@
+---
+title: Installation
+description: Install the Minco toolchain and choose a small, explicit framework feature set.
+---
+
+# Installation
+
+Minco uses ordinary Rust packages plus the `cargo minco` control plane. The
+published baseline is 1.1.0; this manual tracks the unpublished 1.2.0 candidate
+above that boundary. Minco 1.1.0 and the current candidate require Rust 1.97.1.
+Use the exact 1.1.0 packages for applications and the repository-pinned
+workspace binary when deliberately evaluating candidate source.
+
+The candidate version selector below is recorded for release-truth validation,
+but it is intentionally unavailable from crates.io until a separately
+authorized publication:
+
+```bash
+cargo add minco@1.2.0
+```
+
+Evaluate this candidate from one exact repository revision with path or Git
+dependencies; do not mix candidate and published packages.
+
+## Install the CLI
+
+```bash
+rustup toolchain install 1.97.1 --component clippy,rustfmt
+cargo +1.97.1 install cargo-minco --version 1.1.0 --locked
+cargo minco --version
+```
+
+The last command should print `minco 1.1.0`. Contributors reviewing unreleased
+source use the repository-pinned toolchain and workspace binary:
+
+```bash
+git clone https://github.com/xicv/minco.git
+cd minco
+cargo minco --version
+```
+
+## Add Minco to an application
+
+The facade's defaults are deliberately small: OpenAPI contracts, HTTP
+conventions, health, observability, and idempotency.
+
+```bash
+cargo add minco@1.1.0
+```
+
+Add only the capabilities the application needs:
+
+```bash
+# PostgreSQL API running on native Lambda
+cargo add minco@1.1.0 --features sqlx-postgres,aws-lambda,plan,release,test
+
+# Local or single-process SQLite API
+cargo add minco@1.1.0 --features sqlx-sqlite,test
+
+# Provider-neutral kernel only
+cargo add minco@1.1.0 --no-default-features
+```
+
+See [Cargo feature flags](../reference/feature-flags) before enabling `full`.
+Features compile code; they do not create cloud resources or discover plugins
+at runtime.
+
+## Verify the environment
+
+Run these from an application containing `minco.toml`:
+
+```bash
+cargo minco doctor
+cargo minco config check
+cargo minco contract check
+cargo minco check --with-cargo
+```
+
+`doctor` checks tools and project structure. `check` adds framework validation;
+`--with-cargo` makes compiler evidence explicit rather than treating static
+inspection as compilation.
+
+## Optional tools
+
+- Docker is needed for the local PostgreSQL and Rustack topology, not for an
+  SQLite-only application.
+- Jujutsu is the recommended task workflow; generated projects initialize a
+  colocated JJ/Git repository unless `--vcs none` is selected.
+- AWS credentials are needed only for an explicitly authorized provider-backed
+  command. Planning, rendering, local testing, and Rustack do not require them.
+
+Next: [build your first application](./first-application).

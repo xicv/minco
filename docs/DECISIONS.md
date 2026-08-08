@@ -37,3 +37,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0031](adrs/0031-subscriber-only-realtime.md) | Use subscriber-only AppSync Events with IAM publication, OIDC subscriptions and HTTP resynchronization for the minimal AWS realtime profile. | Accepted |
 | [ADR-0032](adrs/0032-access-pattern-dynamodb.md) | Keep DynamoDB access patterns application-owned and render only explicit table and IAM contracts. | Accepted |
 | [ADR-0033](adrs/0033-agent-native-development.md) | Project version-matched portable Agent Skills and bounded CLI context into Codex and Claude without granting implicit mutation authority. | Accepted |
+| [ADR-0034](adrs/0034-release-bound-delivery-evidence.md) | Bind feedback, operational evidence and client handover to exact release/deployment identities behind digest-approved, create-only workflows. | Accepted |

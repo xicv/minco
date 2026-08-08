@@ -3,7 +3,7 @@
   "id": "aws-adapters",
   "kind": "adapter",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^1.1.0",
+  "core_compatibility": "^1.2.0",
   "stability": "beta",
   "default_enabled": false,
   "feature": "aws-adapters",

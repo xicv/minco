@@ -1,12 +1,12 @@
-# Minco 1.1.0 published-release handoff
+# Minco 1.2.0 candidate handoff
 
-Date: 2026-08-06
+Date: 2026-08-07
 Published baseline: `1.1.0`
-Current workspace version: `1.1.0`
-Workspace release state: `published`
+Current workspace version: `1.2.0`
+Workspace release state: `candidate`
 Published `1.1.0` source: `4d81543f7c5adb773655f23278abfe084de9f3e0`
 Last completed release tasks: `M14-T01`, `M14-T04`, and `M14-T05`
-Active release task: `M14-T02`
+Active candidate task: `M14-T07`
 
 ## Closed release boundary
 
@@ -31,11 +31,13 @@ version. It does not treat registry unavailability as a pass.
 
 ## Current release state
 
-The 33 public packages advance together to `1.1.0` with the agent-native
-CLI/skill layer, realtime, Vapor-inspired lifecycle, ProjectView/MCP/workbench,
-DynamoDB, and the existing framework surface. README and the frozen versioned
-manual now describe that published boundary. Stable Pages deployment remains a
-post-merge exact-SHA gate, distinct from crates.io and docs.rs availability.
+The 33 public packages advance together in the workspace to the unpublished
+`1.2.0` candidate. M14-T07 adds topology-aware Plan cost/validation,
+release-bound Feedback task receipts, deterministic operational evidence and
+the digest-approved handover command without changing the published `1.1.0`
+baseline. The frozen stable manual remains `1.1.0`; the `1.2.0` manual is
+candidate-only. Stable Pages deployment remains a post-merge exact-SHA gate,
+distinct from crates.io and docs.rs availability.
 
 For a later release, independently verify current crates.io OIDC configuration,
 the exact merged-main qualification, immutable tag identity and exact registry

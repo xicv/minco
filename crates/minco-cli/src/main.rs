@@ -8,8 +8,10 @@ mod architecture;
 mod config;
 mod config_cmd;
 mod db_cmd;
+mod delivery_evidence;
 mod feedback_cmd;
 mod generator_cmd;
+mod handover_cmd;
 mod new_cmd;
 mod plugin_cmd;
 mod process;
@@ -27,6 +29,7 @@ use config::{MincoManifest, discover_root};
 use config_cmd::ConfigCommand;
 use feedback_cmd::FeedbackArgs;
 use generator_cmd::{MakeCommand, NamedArgs, StubsCommand};
+use handover_cmd::HandoverArgs;
 use minco_config::EnvironmentClass;
 use minco_contract::{
     CompatibilityClassification, Severity as ContractSeverity, diff_contracts, generate_rust,
@@ -159,6 +162,8 @@ enum Command {
     Vcs(VcsCommand),
     /// Inspect and advance the first-class client feedback loop.
     Feedback(FeedbackArgs),
+    /// Produce deterministic client handover JSON and Markdown from exact release evidence.
+    Handover(HandoverArgs),
     /// Expose a bounded, local-only, read-only `ProjectView` over child-process stdio.
     Mcp(McpArgs),
     /// Inspect the bounded `ProjectView` through an opt-in local workbench.
@@ -840,6 +845,7 @@ async fn main() -> Result<()> {
         Command::Upgrade(_) => unreachable!("upgrade is handled before strict manifest loading"),
         Command::Vcs(command) => vcs_command(&root, command, as_json),
         Command::Feedback(args) => feedback_cmd::execute(&root, args, as_json).await,
+        Command::Handover(args) => handover_cmd::execute(&root, &args, as_json),
         Command::Mcp(args) => mcp_command(&root, args, as_json, explicit_root).await,
         Command::Workbench(args) => {
             workbench_command(&root, &manifest, args, as_json, explicit_root).await

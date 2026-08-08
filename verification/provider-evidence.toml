@@ -1,0 +1,50 @@
+schema = 1
+kind = "minco.provider-evidence.v1"
+effective_date_authority = "verification/repository-truth.toml#operational_evidence_effective_date"
+
+[[profile]]
+id = "minimal-aws-current-candidate"
+support_status = "stable"
+evidence_state = "not_run"
+source_revision = "no-observed-source-no-provider-contact"
+observed_at = ""
+reviewed_at = "2026-08-07T00:00:00Z"
+evidence_kind = "none"
+provider_contact = false
+aws_region = "not_applicable"
+account_scope = "none"
+dimensions_proven = []
+cleanup_state = "not_required_no_contact"
+retained_resources = []
+max_age_days = 7
+evidence_paths = []
+evidence_sha256 = []
+qualification_receipt_path = ""
+limitations = [
+  "M14-T07 did not contact AWS or create live resources.",
+  "Static Plan and SAM checks do not qualify live provider behavior.",
+  "This record cannot qualify the 1.2.0 candidate without a separately authorised exact-source rehearsal and cleanup receipt."
+]
+
+[[profile]]
+id = "minimal-aws-release-0-4-historical"
+support_status = "historical"
+evidence_state = "stale"
+source_revision = "65bf94045448bdbeedd37e10b1a004c926513508"
+observed_at = "2026-07-30T20:49:04Z"
+reviewed_at = "2026-08-07T00:00:00Z"
+evidence_kind = "bounded_disposable_rehearsal_summary"
+provider_contact = true
+aws_region = "ap-southeast-2"
+account_scope = "bounded_disposable_nonproduction"
+dimensions_proven = ["deployment", "authentication", "smoke", "artifact_identity", "promotion", "cleanup"]
+cleanup_state = "verified_absent"
+retained_resources = []
+max_age_days = 7
+evidence_paths = ["VERIFICATION.md"]
+evidence_sha256 = ["88561bb1c562b3ed7f212c2e6bee022c7aead1ad3d7fec6f961752be954c50f5"]
+qualification_receipt_path = ""
+limitations = [
+  "This historical rehearsal is bound to release 0.4.0, not the current 1.2.0 candidate.",
+  "The checked-in evidence is a repository verification summary rather than a new provider receipt for this task."
+]

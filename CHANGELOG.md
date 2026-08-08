@@ -5,7 +5,38 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes yet.
+No changes beyond the current candidate.
+
+## [1.2.0] - 2026-08-07
+
+This is an unpublished candidate above the immutable `1.1.0` release. It does
+not imply a tag, registry publication, live AWS deployment or customer
+acceptance.
+
+### Added
+
+- Added exact release/deployment binding for feedback, deterministic
+  `cargo minco feedback task` conversion and create-only task receipts.
+- Added deterministic `cargo minco handover` planning and digest-approved JSON
+  and Markdown handover packets.
+- Added machine-readable performance, provider-freshness and AWS/Rust
+  capability ledgers with fail-closed validation.
+
+### Changed
+
+- Made deployment Plan validation and runtime cost evidence depend on the exact
+  runtime/ingress topology rather than always assuming API Gateway plus Lambda.
+- Added p99 to bounded candidate load evidence and made current evidence checks
+  part of both local and hosted-essential quality gates.
+- Advanced the lock-step 33-package workspace and version-matched agent bundle
+  to the unpublished `1.2.0` candidate.
+
+### Compatibility boundary
+
+The candidate is additive at the CLI and feedback-model boundaries. Unsupported
+Lambda Function URL combinations now fail during Plan validation instead of
+reaching provider rendering, which aligns behavior with the existing declared-
+but-unsupported assurance status.
 
 ## [1.1.0] - 2026-08-06
 

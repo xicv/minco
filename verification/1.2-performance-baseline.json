@@ -1,0 +1,14 @@
+{
+  "candidate_version": "1.2.0",
+  "kind": "minco.performance-baseline.v1",
+  "limitations": [
+    "No exact-tree hosted Linux candidate qualification artifact was available when this task was prepared.",
+    "Local macOS measurements, if generated under target/minco, are diagnostic only and are not production SLO or AWS-provider evidence."
+  ],
+  "production_slo": false,
+  "provider_contact": false,
+  "reason": "Exact-source hosted Linux performance qualification has not run.",
+  "schema_version": 1,
+  "source_tree_sha256": "89fab5363d5e97f56c6bace5a8d6b90ba2b300f23343c723c0544c26e068d659",
+  "status": "NOT RUN"
+}
