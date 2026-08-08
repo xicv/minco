@@ -1,4 +1,4 @@
-name: Mail improvement source export
+name: Mail improvement SDK source export
 
 on:
   push:
@@ -9,28 +9,29 @@ permissions:
   contents: read
 
 concurrency:
-  group: mail-improvement-source-export
+  group: mail-improvement-sdk-source-export
   cancel-in-progress: true
 
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Export exact review sources
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+      - name: Fetch locked dependencies and stage exact SES SDK source
+        run: |
+          cargo fetch --locked
+          SDK_DIR="$(find "$CARGO_HOME/registry/src" -maxdepth 2 -type d -name 'aws-sdk-sesv2-1.128.0' -print -quit)"
+          test -n "$SDK_DIR"
+          mkdir -p /tmp/aws-sdk-sesv2-source
+          cp -R "$SDK_DIR"/. /tmp/aws-sdk-sesv2-source/
+      - name: Export exact SES SDK source
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: minco-mail-review-sources
-          path: |
-            plugins/minco-plugin-notifications/src/mail.rs
-            plugins/minco-plugin-notifications/src/lib.rs
-            plugins/minco-plugin-notifications/Cargo.toml
-            plugins/minco-plugin-notifications/minco-plugin.json
-            extensions/minco-aws-adapters/src/ses.rs
-            extensions/minco-aws-adapters/src/plugin.rs
-            extensions/minco-aws-adapters/Cargo.toml
-            extensions/minco-aws-adapters/minco-plugin.json
-            compose.mail.yml
+          name: aws-sdk-sesv2-1.128.0-source
+          path: /tmp/aws-sdk-sesv2-source
           if-no-files-found: error
           retention-days: 1
