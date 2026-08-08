@@ -37,6 +37,34 @@ dry-run resolves no secret values.
 Publishing and mutating deployment actions remain explicit; the CLI does not
 silently upload crates or change cloud resources.
 
+Release-bound feedback and handover are also plan/apply workflows:
+
+```bash
+cargo minco feedback task FEEDBACK_ID \
+  --task-id M15-T01 \
+  --milestone M15 \
+  --release-manifest target/minco/release.json \
+  --deployment-receipt target/minco/deployment-receipt.json \
+  --json
+
+cargo minco handover \
+  --release-manifest target/minco/release.json \
+  --deployment-receipt target/minco/deployment-receipt.json \
+  --owner "Application owner" \
+  --json
+```
+
+Both commands are read-only until the exact printed plan digest is supplied with
+`--approve-plan-digest`. Feedback task creation is create-only and binds the
+thread, task, release, deployment, optional operation and optional UI build in
+an immutable receipt. Handover creates deterministic JSON and Markdown under
+`verification/` and reports stale or absent provider evidence instead of
+upgrading it into a production claim. Planning a handover requires the
+repository-pinned `uv` tool: the CLI runs the canonical operational validator
+with `uv run --locked` and refuses any checked receipt whose exact bytes differ.
+Explicit output alternatives must stay under `verification/handover/`; the two
+default `verification/handover.*` paths remain valid.
+
 When the typed `static-site` plugin is selected, `package` binds a deterministic
 asset manifest into the release. `deploy static-site plan` is local;
 `deploy static-site apply` requires the exact release digest and publishes

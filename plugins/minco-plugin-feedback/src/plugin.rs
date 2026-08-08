@@ -1,6 +1,7 @@
 use crate::{
-    FeedbackConfig, FeedbackService, FeedbackStore, FeedbackStoreService, MemoryFeedbackStore,
-    TranscriptionService, feedback_request_body_budget, feedback_router,
+    FeedbackConfig, FeedbackReleaseBinding, FeedbackService, FeedbackStore, FeedbackStoreService,
+    FeedbackValidationError, MemoryFeedbackStore, TranscriptionService,
+    feedback_request_body_budget, feedback_router,
 };
 use async_trait::async_trait;
 #[cfg(any(feature = "postgres", feature = "sqlite"))]
@@ -34,6 +35,7 @@ pub struct FeedbackPlugin {
     store: FeedbackStoreService,
     storage_profile: FeedbackStorageProfile,
     transcription: Option<TranscriptionService>,
+    release_binding: Option<FeedbackReleaseBinding>,
 }
 
 impl std::fmt::Debug for FeedbackPlugin {
@@ -42,6 +44,7 @@ impl std::fmt::Debug for FeedbackPlugin {
             .debug_struct("FeedbackPlugin")
             .field("storage_profile", &self.storage_profile)
             .field("transcription_configured", &self.transcription.is_some())
+            .field("release_bound", &self.release_binding.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -53,6 +56,7 @@ impl FeedbackPlugin {
             store: FeedbackStoreService::new(store),
             storage_profile: FeedbackStorageProfile::Custom,
             transcription: None,
+            release_binding: None,
         }
     }
 
@@ -62,6 +66,7 @@ impl FeedbackPlugin {
             store: FeedbackStoreService::new(Arc::new(MemoryFeedbackStore::default())),
             storage_profile: FeedbackStorageProfile::Memory,
             transcription: None,
+            release_binding: None,
         }
     }
 
@@ -71,6 +76,15 @@ impl FeedbackPlugin {
         self
     }
 
+    pub fn with_release_binding(
+        mut self,
+        binding: FeedbackReleaseBinding,
+    ) -> Result<Self, FeedbackValidationError> {
+        binding.validate()?;
+        self.release_binding = Some(binding);
+        Ok(self)
+    }
+
     #[cfg(feature = "postgres")]
     #[must_use]
     pub fn postgres(pool: sqlx::PgPool) -> Self {
@@ -78,6 +92,7 @@ impl FeedbackPlugin {
             store: FeedbackStoreService::new(Arc::new(crate::PostgresFeedbackStore::new(pool))),
             storage_profile: FeedbackStorageProfile::Postgres,
             transcription: None,
+            release_binding: None,
         }
     }
 
@@ -88,6 +103,7 @@ impl FeedbackPlugin {
             store: FeedbackStoreService::new(Arc::new(crate::SqliteFeedbackStore::new(pool))),
             storage_profile: FeedbackStorageProfile::Sqlite,
             transcription: None,
+            release_binding: None,
         }
     }
 }
@@ -214,7 +230,7 @@ impl Plugin for FeedbackPlugin {
                 (*services.get::<EventServices>()?).clone(),
             )
         };
-        let service = FeedbackService::new(
+        let mut service = FeedbackService::new(
             self.store.clone(),
             objects,
             notifications,
@@ -224,6 +240,11 @@ impl Plugin for FeedbackPlugin {
             config,
         )
         .map_err(|error| PluginError::Installation(error.to_string()))?;
+        if let Some(binding) = self.release_binding.clone() {
+            service = service
+                .with_release_binding(binding)
+                .map_err(|error| PluginError::Installation(error.to_string()))?;
+        }
 
         context.services().insert(Arc::new(self.store.clone()))?;
         context.services().insert(Arc::new(service.clone()))?;
@@ -725,6 +746,53 @@ mod tests {
             1
         );
     }
+    #[test]
+    fn feedback_plugin_installs_an_exact_server_release_binding() {
+        let release_digest = "a".repeat(64);
+        let binding = FeedbackReleaseBinding {
+            release_id: format!("minco.{}", &release_digest[..24]),
+            release_digest,
+            environment: "review".into(),
+            deployment_attempt_id: "attempt-1".into(),
+            deployment_receipt_digest: "b".repeat(64),
+            ui_build_id: None,
+            ui_build_digest: None,
+        };
+        let plugin = FeedbackPlugin::memory()
+            .with_release_binding(binding.clone())
+            .expect("valid release binding");
+        let mut manager = PluginManager::default();
+        manager.register(HealthPlugin).unwrap();
+        manager.register(IdentityPlugin::default()).unwrap();
+        manager.register(ObjectStoragePlugin::memory()).unwrap();
+        manager.register(NotificationsPlugin::memory().0).unwrap();
+        manager.register(AuditPlugin::memory().0).unwrap();
+        manager.register(EventsPlugin::memory().0).unwrap();
+        manager.register(plugin).unwrap();
+
+        let feedback_id = PluginId::new("feedback").unwrap();
+        let mut selection = PluginSelection::default();
+        selection.enabled.insert(feedback_id.clone());
+        selection
+            .set_configuration(
+                feedback_id,
+                &FeedbackConfig {
+                    project_id: "example".into(),
+                    ..FeedbackConfig::default()
+                },
+            )
+            .unwrap();
+        let application = manager.compose(&selection).unwrap();
+        assert_eq!(
+            application
+                .services
+                .get::<FeedbackService>()
+                .unwrap()
+                .release_binding(),
+            Some(&binding)
+        );
+    }
+
     #[test]
     fn memory_feedback_does_not_claim_database_migrations_or_transcription() {
         let descriptor = FeedbackPlugin::memory().descriptor();

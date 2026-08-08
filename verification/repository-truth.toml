@@ -1,8 +1,9 @@
 schema = 1
-workspace_version = "1.1.0"
+workspace_version = "1.2.0"
 published_baseline = "1.1.0"
 published_release_commit = "4d81543f7c5adb773655f23278abfe084de9f3e0"
-workspace_release_state = "published"
+workspace_release_state = "candidate"
+operational_evidence_effective_date = "2026-08-07"
 published_package_count = 33
 adoption_gate_task = "M6-T07"
 qualified_candidate_task = "M12-T06"

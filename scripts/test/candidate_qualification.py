@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Behavioral tests for the bounded 1.0 candidate qualification record."""
+"""Behavioral tests for bounded Minco candidate qualification records."""
 
 from __future__ import annotations
 
 import importlib.util
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -24,15 +25,38 @@ RECOVERY_SPEC.loader.exec_module(CANDIDATE_RECOVERY)
 
 
 class LoadRecordContractTests(unittest.TestCase):
-    def test_pass_requires_connection_queue_cost_and_artifact_measurements(self) -> None:
-        record = {
+    def passing_record(self) -> dict:
+        return {
+            "schema_version": 2,
+            "kind": "minco.candidate-load-qualification.v2",
             "status": "PASS",
-            "api": {"database_max_connections": 4, "requests": 40, "failures": 0},
+            "production_slo": False,
+            "provider_contact": False,
+            "source": {"version": "1.2.0", "source_tree_sha256": "a" * 64},
+            "topology": {"runtime": "local_native", "ingress": "local_tcp"},
+            "runner": {"scope": "local", "source_tree_sha256": "a" * 64},
+            "environment": {"fingerprint_sha256": "b" * 64},
+            "classification": {"warm": True, "cold_start_measured": False},
+            "api": {
+                "database_max_connections": 4,
+                "requests": 40,
+                "failures": 0,
+                "latency": {
+                    "minimum_ms": 1.0,
+                    "p50_ms": 2.0,
+                    "p95_ms": 3.0,
+                    "p99_ms": 4.0,
+                    "maximum_ms": 5.0,
+                },
+            },
             "worker": {"messages": 100, "failures": 0},
             "queue": {"batch_size": 10, "maximum_concurrency": 2},
             "cost": {"modeled_lambda_invocations": 10, "pricing_claim": "none"},
             "artifacts": {"orders_local_bytes": 1, "worker_crate_bytes": 1},
         }
+
+    def test_pass_requires_connection_queue_cost_and_artifact_measurements(self) -> None:
+        record = self.passing_record()
         CANDIDATE_QUALIFICATION.validate_load_record(record)
 
         del record["queue"]
@@ -40,27 +64,61 @@ class LoadRecordContractTests(unittest.TestCase):
             CANDIDATE_QUALIFICATION.validate_load_record(record)
 
     def test_pass_rejects_failures_or_zero_sized_artifacts(self) -> None:
-        record = {
-            "status": "PASS",
-            "api": {"database_max_connections": 4, "requests": 40, "failures": 1},
-            "worker": {"messages": 100, "failures": 0},
-            "queue": {"batch_size": 10, "maximum_concurrency": 2},
-            "cost": {"modeled_lambda_invocations": 10, "pricing_claim": "none"},
-            "artifacts": {"orders_local_bytes": 1, "worker_crate_bytes": 1},
-        }
+        record = self.passing_record()
+        record["api"]["failures"] = 1
         with self.assertRaisesRegex(ValueError, "api failures"):
             CANDIDATE_QUALIFICATION.validate_load_record(record)
 
-        record["api"]["failures"] = 0
+        record = self.passing_record()
         record["artifacts"]["worker_crate_bytes"] = 0
         with self.assertRaisesRegex(ValueError, "artifact"):
+            CANDIDATE_QUALIFICATION.validate_load_record(record)
+
+    def test_pass_rejects_non_finite_or_reordered_latency(self) -> None:
+        for invalid in (math.nan, math.inf, -math.inf, True):
+            with self.subTest(invalid=invalid):
+                record = self.passing_record()
+                record["api"]["latency"]["p95_ms"] = invalid
+                with self.assertRaisesRegex(ValueError, "finite"):
+                    CANDIDATE_QUALIFICATION.validate_load_record(record)
+
+        record = self.passing_record()
+        record["api"]["latency"]["p95_ms"] = 6.0
+        with self.assertRaisesRegex(ValueError, "monotonic"):
+            CANDIDATE_QUALIFICATION.validate_load_record(record)
+
+    def test_pass_cannot_claim_a_production_slo_or_provider_contact(self) -> None:
+        record = self.passing_record()
+        record["production_slo"] = True
+        with self.assertRaisesRegex(ValueError, "production_slo"):
+            CANDIDATE_QUALIFICATION.validate_load_record(record)
+
+        record = self.passing_record()
+        record["provider_contact"] = True
+        with self.assertRaisesRegex(ValueError, "provider contact"):
+            CANDIDATE_QUALIFICATION.validate_load_record(record)
+
+    def test_runner_provenance_binds_the_verified_source_tree(self) -> None:
+        record = self.passing_record()
+        record["runner"]["source_tree_sha256"] = "b" * 64
+        with self.assertRaisesRegex(ValueError, "runner source tree"):
             CANDIDATE_QUALIFICATION.validate_load_record(record)
 
     def test_latency_summary_is_deterministic_for_small_samples(self) -> None:
         self.assertEqual(
             CANDIDATE_QUALIFICATION.summarize_latencies([40.0, 10.0, 30.0, 20.0]),
-            {"minimum_ms": 10.0, "p50_ms": 20.0, "p95_ms": 40.0, "maximum_ms": 40.0},
+            {
+                "minimum_ms": 10.0,
+                "p50_ms": 20.0,
+                "p95_ms": 40.0,
+                "p99_ms": 40.0,
+                "maximum_ms": 40.0,
+            },
         )
+        for invalid in (math.nan, math.inf, -math.inf, True):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "finite"):
+                    CANDIDATE_QUALIFICATION.summarize_latencies([1.0, invalid])
 
 
 class RecoveryRecordContractTests(unittest.TestCase):

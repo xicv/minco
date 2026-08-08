@@ -1,5 +1,6 @@
 use crate::{
-    DatabaseDeployment, DeploymentPlan, DynamoDbDeletionPolicy, FunctionRole, NeonPlan, TriggerPlan,
+    DatabaseDeployment, DeploymentPlan, DynamoDbDeletionPolicy, FunctionRole, IngressPlan,
+    NeonPlan, RuntimePlan, TriggerPlan,
 };
 use serde::{Deserialize, Serialize};
 
@@ -140,6 +141,10 @@ pub struct SqsMappingCostDimension {
 
 #[must_use]
 pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
+    // Runtime cost is scoped to the selected deployed topology. Local parity
+    // declarations remain visible structurally below, but they are not AWS
+    // provider resources and therefore cannot require AWS rates or evidence.
+    let aws_provider_topology = matches!(&plan.runtime, RuntimePlan::LambdaZipArm64);
     let mut schedules: Vec<ScheduleCostDimension> = plan
         .triggers
         .iter()
@@ -163,7 +168,9 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
                 estimated_monthly_invocations: enabled
                     .then(|| monthly_schedule_invocations(expression))
                     .flatten(),
-                can_wake_scale_to_zero_database: *enabled && plan.database.can_scale_to_zero(),
+                can_wake_scale_to_zero_database: aws_provider_topology
+                    && *enabled
+                    && plan.database.can_scale_to_zero(),
                 action_after_completion: cleanup
                     .as_ref()
                     .map(|cleanup| cleanup.action_after_completion),
@@ -237,7 +244,7 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
                 queue_id: queue.id.clone(),
                 fifo: queue.fifo,
                 mappings,
-                regional_request_rate_required: true,
+                regional_request_rate_required: aws_provider_topology,
             }
         })
         .collect::<Vec<_>>();
@@ -245,101 +252,127 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
     if plan.database.has_fixed_compute() {
         fixed_cost_resources.push(format!("database:{}", plan.database.kind_name()));
     }
-    fixed_cost_resources.extend(
-        plan.functions
-            .iter()
-            .filter(|function| function.provisioned_concurrency > 0)
-            .map(|function| format!("provisioned_concurrency:{}", function.name)),
-    );
-    let mut request_based_resources = vec!["http_api".into()];
-    request_based_resources.extend(
-        plan.functions
-            .iter()
-            .map(|function| format!("lambda:{}", function.name)),
-    );
-    let realtime = plan.realtime.as_ref().map(|deployment| {
-        request_based_resources.push("appsync_events".into());
-        RealtimeCostDimension {
-            operation_unit_bytes: 5 * 1024,
-            maximum_units_per_event: deployment.max_event_bytes.div_ceil(5 * 1024),
-            event_operations_usd_per_million: 1,
-            connection_minutes_cents_per_million: 8,
-            fixed_monthly_usd: 0,
-            sends_client_pings: false,
-            usage_inputs_required: vec![
-                "monthly_connection_minutes".into(),
-                "monthly_connect_operations".into(),
-                "monthly_subscribe_operations".into(),
-                "monthly_subscription_handler_invocations".into(),
-                "monthly_published_event_units".into(),
-                "monthly_delivered_event_units".into(),
-            ],
-            charged_operation_kinds: vec![
-                "connect".into(),
-                "subscribe".into(),
-                "subscription_handler_invocation".into(),
-                "published_event_5_kib_unit".into(),
-                "delivered_event_5_kib_unit".into(),
-            ],
-            pricing_captured_at: APPSYNC_EVENTS_PRICING_CAPTURED_AT.into(),
-            pricing_source: APPSYNC_EVENTS_PRICING_SOURCE.into(),
+    if matches!(&plan.runtime, RuntimePlan::LambdaZipArm64) {
+        fixed_cost_resources.extend(
+            plan.functions
+                .iter()
+                .filter(|function| function.provisioned_concurrency > 0)
+                .map(|function| format!("provisioned_concurrency:{}", function.name)),
+        );
+    }
+    let mut request_based_resources = Vec::new();
+    let mut missing_rates = Vec::new();
+    let mut evidence = Vec::new();
+    match (&plan.runtime, &plan.ingress) {
+        (RuntimePlan::LambdaZipArm64, IngressPlan::ApiGatewayHttpApi) => {
+            request_based_resources.push("http_api".into());
+            missing_rates.push("regional_api_gateway_request_rate".into());
+            evidence.push(cost_evidence(
+                "http_api",
+                CostClass::RequestOnly,
+                PricingConfidence::RegionDependent,
+            ));
         }
-    });
-    request_based_resources.extend(plan.queues.iter().map(|queue| format!("sqs:{}", queue.id)));
-    request_based_resources.extend(
-        schedules
-            .iter()
-            .map(|schedule| format!("schedule:{}", schedule.trigger_id)),
-    );
-
-    let mut missing_rates = vec![
-        "regional_api_gateway_request_rate".into(),
-        "regional_lambda_request_and_duration_rates".into(),
-    ];
-    if !queues.is_empty() {
-        missing_rates.push("regional_sqs_request_rate".into());
+        (RuntimePlan::LambdaZipArm64, IngressPlan::LambdaFunctionUrl) => {
+            // Function URLs do not add a separately priced endpoint. The Lambda
+            // request and duration dimensions below remain authoritative.
+            request_based_resources.push("lambda_function_url".into());
+        }
+        _ => {}
     }
-    if !schedules.is_empty() {
-        missing_rates.push("regional_scheduler_invocation_rate".into());
-    }
-    let mut evidence = vec![
-        cost_evidence(
-            "http_api",
-            CostClass::RequestOnly,
-            PricingConfidence::RegionDependent,
-        ),
-        cost_evidence(
+    if matches!(&plan.runtime, RuntimePlan::LambdaZipArm64) {
+        request_based_resources.extend(
+            plan.functions
+                .iter()
+                .map(|function| format!("lambda:{}", function.name)),
+        );
+        missing_rates.push("regional_lambda_request_and_duration_rates".into());
+        evidence.push(cost_evidence(
             "lambda_compute",
             CostClass::ZeroCompute,
             PricingConfidence::RegionDependent,
-        ),
-    ];
-    evidence.extend(plan.queues.iter().map(|queue| {
-        cost_evidence(
-            &format!("sqs:{}", queue.id),
-            CostClass::RequestOnly,
-            PricingConfidence::RegionDependent,
-        )
-    }));
-    evidence.extend(schedules.iter().map(|schedule| {
-        cost_evidence(
-            &format!("schedule:{}", schedule.trigger_id),
-            CostClass::ScheduledWakeup,
-            PricingConfidence::RegionDependent,
-        )
-    }));
-    evidence.extend(
-        plan.functions
+        ));
+    }
+    let realtime = plan
+        .realtime
+        .as_ref()
+        .filter(|_| aws_provider_topology)
+        .map(|deployment| {
+            request_based_resources.push("appsync_events".into());
+            RealtimeCostDimension {
+                operation_unit_bytes: 5 * 1024,
+                maximum_units_per_event: deployment.max_event_bytes.div_ceil(5 * 1024),
+                event_operations_usd_per_million: 1,
+                connection_minutes_cents_per_million: 8,
+                fixed_monthly_usd: 0,
+                sends_client_pings: false,
+                usage_inputs_required: vec![
+                    "monthly_connection_minutes".into(),
+                    "monthly_connect_operations".into(),
+                    "monthly_subscribe_operations".into(),
+                    "monthly_subscription_handler_invocations".into(),
+                    "monthly_published_event_units".into(),
+                    "monthly_delivered_event_units".into(),
+                ],
+                charged_operation_kinds: vec![
+                    "connect".into(),
+                    "subscribe".into(),
+                    "subscription_handler_invocation".into(),
+                    "published_event_5_kib_unit".into(),
+                    "delivered_event_5_kib_unit".into(),
+                ],
+                pricing_captured_at: APPSYNC_EVENTS_PRICING_CAPTURED_AT.into(),
+                pricing_source: APPSYNC_EVENTS_PRICING_SOURCE.into(),
+            }
+        });
+    if aws_provider_topology {
+        request_based_resources.extend(plan.queues.iter().map(|queue| format!("sqs:{}", queue.id)));
+        request_based_resources.extend(
+            schedules
+                .iter()
+                .map(|schedule| format!("schedule:{}", schedule.trigger_id)),
+        );
+
+        if !queues.is_empty() {
+            missing_rates.push("regional_sqs_request_rate".into());
+        }
+        if !schedules.is_empty() {
+            missing_rates.push("regional_scheduler_invocation_rate".into());
+        }
+        evidence.extend(plan.queues.iter().map(|queue| {
+            cost_evidence(
+                &format!("sqs:{}", queue.id),
+                CostClass::RequestOnly,
+                PricingConfidence::RegionDependent,
+            )
+        }));
+        evidence.extend(schedules.iter().map(|schedule| {
+            cost_evidence(
+                &format!("schedule:{}", schedule.trigger_id),
+                CostClass::ScheduledWakeup,
+                PricingConfidence::RegionDependent,
+            )
+        }));
+        if plan
+            .functions
             .iter()
-            .filter(|function| function.provisioned_concurrency > 0)
-            .map(|function| {
-                cost_evidence(
-                    &format!("provisioned_concurrency:{}", function.name),
-                    CostClass::FixedMonthly,
-                    PricingConfidence::RegionDependent,
-                )
-            }),
-    );
+            .any(|function| function.provisioned_concurrency > 0)
+        {
+            missing_rates.push("regional_lambda_provisioned_concurrency_rate".into());
+        }
+        evidence.extend(
+            plan.functions
+                .iter()
+                .filter(|function| function.provisioned_concurrency > 0)
+                .map(|function| {
+                    cost_evidence(
+                        &format!("provisioned_concurrency:{}", function.name),
+                        CostClass::FixedMonthly,
+                        PricingConfidence::RegionDependent,
+                    )
+                }),
+        );
+    }
     if realtime.is_some() {
         evidence.push(cost_evidence(
             "appsync_events",
@@ -349,7 +382,7 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
     }
 
     RuntimeCostEstimate {
-        complete: false,
+        complete: missing_rates.is_empty(),
         schedules,
         workers,
         queues,
@@ -862,6 +895,87 @@ fn component(name: &str, monthly_usd: f64, formula: &str) -> CostComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn minimal_plan(runtime: RuntimePlan, ingress: IngressPlan) -> DeploymentPlan {
+        DeploymentPlan {
+            schema_version: 1,
+            application: "example".into(),
+            environment: "test".into(),
+            region: "ap-southeast-2".into(),
+            runtime,
+            ingress,
+            auth: crate::AuthPlan::None,
+            database: DatabaseDeployment::NeonPostgres {
+                plan: NeonPlan::Free,
+                compute_unit_hours: 0.0,
+                storage_gb_month: 0.0,
+                history_storage_gb_month: 0.0,
+            },
+            functions: vec![crate::FunctionPlan {
+                name: "api".into(),
+                role: FunctionRole::HttpApi,
+                artifact_path: "bootstrap.zip".into(),
+                memory_mb: 256,
+                timeout_seconds: 15,
+                reserved_concurrency: 1,
+                provisioned_concurrency: 0,
+                database_connections_per_instance: 1,
+            }],
+            queues: Vec::new(),
+            triggers: Vec::new(),
+            iam_intents: Vec::new(),
+            routes: Vec::new(),
+            application_graph: minco_core::ApplicationGraph::default(),
+            static_site: None,
+            realtime: None,
+            preview: None,
+            local_aws_services: Vec::new(),
+            scheduled_wakeups: Vec::new(),
+            uses_nat_gateway: false,
+            allowed_origins: vec!["https://example.invalid".into()],
+            allowed_headers: vec!["content-type".into()],
+            log_retention_days: 14,
+            cost_policy: crate::CostPolicy::default(),
+            performance_policy: crate::PerformancePolicy::default(),
+        }
+    }
+
+    #[test]
+    fn runtime_cost_uses_the_selected_ingress_instead_of_assuming_api_gateway() {
+        let function_url = estimate_runtime_cost(&minimal_plan(
+            RuntimePlan::LambdaZipArm64,
+            IngressPlan::LambdaFunctionUrl,
+        ));
+        assert!(
+            function_url
+                .request_based_resources
+                .contains(&"lambda_function_url".to_owned())
+        );
+        assert!(
+            !function_url
+                .missing_rates
+                .iter()
+                .any(|rate| rate.contains("api_gateway"))
+        );
+        assert!(
+            function_url
+                .evidence
+                .iter()
+                .all(|item| item.name != "lambda_function_url_endpoint")
+        );
+    }
+
+    #[test]
+    fn local_native_cost_projection_has_no_aws_runtime_rates() {
+        let local = estimate_runtime_cost(&minimal_plan(
+            RuntimePlan::LocalNative,
+            IngressPlan::LocalTcp,
+        ));
+        assert!(local.complete);
+        assert!(local.request_based_resources.is_empty());
+        assert!(local.missing_rates.is_empty());
+        assert!(local.evidence.is_empty());
+    }
 
     #[test]
     fn neon_launch_is_usage_based() {

@@ -509,6 +509,22 @@ class RepositoryTruthTests(unittest.TestCase):
         )
         self.assertFalse(SOURCE_MANIFEST.included(self.root, generated_template))
 
+    def test_source_manifest_excludes_release_bound_generated_evidence(self) -> None:
+        generated = [
+            self.root / "verification/1.2-performance-baseline.json",
+            self.root / "verification/handover.json",
+            self.root / "verification/handover.md",
+            self.root
+            / "verification/feedback-task-receipts/00000000-0000-0000-0000-000000000000.json",
+        ]
+        for path in generated:
+            with self.subTest(path=path):
+                self.assertFalse(SOURCE_MANIFEST.included(self.root, path))
+
+    def test_source_manifest_keeps_feedback_tasks_as_source(self) -> None:
+        task = self.root / "tasks/M14/M14-T99-feedback.md"
+        self.assertTrue(SOURCE_MANIFEST.included(self.root, task))
+
     def test_native_artifact_budget_has_a_stable_code(self) -> None:
         measurements = self.root / "verification/adoption-measurements.json"
         value = json.loads(measurements.read_text())

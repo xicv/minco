@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.1.0`
-Current workspace version: `1.1.0`
-Workspace release state: `published`
+Current workspace version: `1.2.0`
+Workspace release state: `candidate`
 Reviewed release source: `4d81543f7c5adb773655f23278abfe084de9f3e0`
 
 ## Product identity
@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The published `1.1.0` classification is:
+The immutable published `1.1.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,

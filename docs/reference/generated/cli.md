@@ -29,6 +29,7 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
 - `cargo minco doctor`
 - `cargo minco explain`
 - `cargo minco feedback`
+- `cargo minco handover`
 - `cargo minco inspect`
 - `cargo minco make`
 - `cargo minco mcp`
@@ -77,6 +78,7 @@ The executable is `cargo-minco`; Cargo exposes it as `cargo minco`. Hidden imple
   - `cargo minco feedback reply`
   - `cargo minco feedback show`
   - `cargo minco feedback status`
+  - `cargo minco feedback task`
   - `cargo minco make adapter`
   - `cargo minco make migration`
   - `cargo minco make module`
@@ -163,6 +165,7 @@ Commands:
   upgrade
   vcs
   feedback      Inspect and advance the first-class client feedback loop
+  handover      Produce deterministic client handover JSON and Markdown from exact release evidence
   mcp           Expose a bounded, local-only, read-only `ProjectView` over child-process stdio
   workbench     Inspect the bounded `ProjectView` through an opt-in local workbench
   help          Print this message or the help of the given subcommand(s)
@@ -399,6 +402,7 @@ Commands:
   reply       Reply to the client or add an internal developer note
   status      Move a feedback thread through its explicit workflow
   pull        Materialize an AI-ready feedback file in the repository task area
+  task        Create one deterministic repository task and binding receipt from release-bound feedback
   attachment  Download a screenshot, voice note, or other attachment
   help        Print this message or the help of the given subcommand(s)
 
@@ -408,6 +412,36 @@ Options:
       --json
       --token <TOKEN>  Developer bearer token configured by the Feedback plugin [env: MINCO_FEEDBACK_DEVELOPER_TOKEN]
   -h, --help           Print help
+```
+
+#### `cargo minco handover`
+
+```text
+Produce deterministic client handover JSON and Markdown from exact release evidence
+
+Usage: cargo-minco handover [OPTIONS] --release-manifest <RELEASE_MANIFEST> --deployment-receipt <DEPLOYMENT_RECEIPT> --owner <OWNER>
+
+Options:
+      --release-manifest <RELEASE_MANIFEST>
+          Exact independently verifiable release manifest
+      --root <ROOT>
+
+      --deployment-receipt <DEPLOYMENT_RECEIPT>
+          Exact successful deployment receipt for the release
+      --json
+
+      --owner <OWNER>
+          Accountable client handover owner
+      --json-output <JSON_OUTPUT>
+          Canonical JSON output under verification/ [default: verification/handover.json]
+      --markdown-output <MARKDOWN_OUTPUT>
+          Human-readable Markdown output under verification/ [default: verification/handover.md]
+      --feedback-receipts <FEEDBACK_RECEIPTS>
+          Optional directory under verification/ containing feedback-task receipts [default: verification/feedback-task-receipts]
+      --approve-plan-digest <APPROVE_PLAN_DIGEST>
+          Apply only the exact previously printed plan digest. Omit for a read-only plan
+  -h, --help
+          Print help
 ```
 
 #### `cargo minco inspect`
@@ -1282,6 +1316,45 @@ Options:
       --author <AUTHOR>
       --json
   -h, --help                     Print help
+```
+
+##### `cargo minco feedback task`
+
+```text
+Create one deterministic repository task and binding receipt from release-bound feedback
+
+Usage: cargo-minco feedback --url <URL> --token <TOKEN> task [OPTIONS] --task-id <TASK_ID> --milestone <MILESTONE> --release-manifest <RELEASE_MANIFEST> --deployment-receipt <DEPLOYMENT_RECEIPT> <ID>
+
+Arguments:
+  <ID>
+
+Options:
+      --root <ROOT>
+
+      --task-id <TASK_ID>
+
+      --json
+
+      --milestone <MILESTONE>
+
+      --area <AREA>
+          [default: product/feedback]
+      --depends-on <DEPENDS_ON>
+
+      --release-manifest <RELEASE_MANIFEST>
+
+      --deployment-receipt <DEPLOYMENT_RECEIPT>
+
+      --operation-id <OPERATION_ID>
+          Canonical `OpenAPI` operation affected by the feedback, when known
+      --output <OUTPUT>
+
+      --receipt <RECEIPT>
+
+      --approve-plan-digest <APPROVE_PLAN_DIGEST>
+          Apply only the exact previously printed plan digest. Omit for a read-only plan
+  -h, --help
+          Print help
 ```
 
 ##### `cargo minco make adapter`

@@ -185,6 +185,128 @@ pub enum FeedbackAttachmentKind {
     File,
 }
 
+const RELEASE_BINDING_MESSAGE_PREFIX: &str = "minco.feedback.release-binding.v1:";
+
+/// Exact server-authoritative release and deployment identity captured with feedback.
+///
+/// The binding is stored as an internal system message so the published `FeedbackContext`
+/// shape remains source compatible across Minco 1.x while durable feedback records still
+/// carry the immutable release and deployment receipt identities.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FeedbackReleaseBinding {
+    pub release_id: String,
+    pub release_digest: String,
+    pub environment: String,
+    pub deployment_attempt_id: String,
+    pub deployment_receipt_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_build_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_build_digest: Option<String>,
+}
+
+impl FeedbackReleaseBinding {
+    pub fn validate(&self) -> Result<(), FeedbackValidationError> {
+        validate_visible_text("release_id", &self.release_id, 200)?;
+        validate_sha256("release_digest", &self.release_digest)?;
+        validate_binding_identifier("environment", &self.environment, 100)?;
+        validate_binding_identifier("deployment_attempt_id", &self.deployment_attempt_id, 200)?;
+        validate_sha256("deployment_receipt_digest", &self.deployment_receipt_digest)?;
+        match (&self.ui_build_id, &self.ui_build_digest) {
+            (Some(build_id), Some(build_digest)) => {
+                validate_binding_identifier("ui_build_id", build_id, 200)?;
+                validate_sha256("ui_build_digest", build_digest)?;
+            }
+            (None, None) => {}
+            _ => {
+                return Err(FeedbackValidationError::InvalidField {
+                    field: "ui_build",
+                    detail: "ui_build_id and ui_build_digest must be configured together".into(),
+                });
+            }
+        }
+        let expected_release_id = format!("minco.{}", &self.release_digest[..24]);
+        if self.release_id != expected_release_id {
+            return Err(FeedbackValidationError::InvalidField {
+                field: "release_id",
+                detail: format!("must match the digest-derived release ID {expected_release_id}"),
+            });
+        }
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn from_thread(thread: &FeedbackThread) -> Option<Self> {
+        Self::exact_from_thread(thread).ok().flatten()
+    }
+
+    /// Return the one valid internal release binding, rejecting malformed or duplicate markers.
+    pub fn exact_from_thread(
+        thread: &FeedbackThread,
+    ) -> Result<Option<Self>, FeedbackValidationError> {
+        let mut binding = None;
+        for message in &thread.messages {
+            let Some(payload) = Self::binding_payload(message) else {
+                continue;
+            };
+            let candidate = serde_json::from_str::<Self>(payload).map_err(|error| {
+                FeedbackValidationError::InvalidField {
+                    field: "release_binding",
+                    detail: format!("contains malformed JSON: {error}"),
+                }
+            })?;
+            candidate.validate()?;
+            if binding.replace(candidate).is_some() {
+                return Err(FeedbackValidationError::InvalidField {
+                    field: "release_binding",
+                    detail: "must contain exactly one server-authoritative marker".into(),
+                });
+            }
+        }
+        Ok(binding)
+    }
+
+    #[must_use]
+    pub fn from_message(message: &FeedbackMessage) -> Option<Self> {
+        let payload = Self::binding_payload(message)?;
+        let binding = serde_json::from_str::<Self>(payload).ok()?;
+        binding.validate().ok()?;
+        Some(binding)
+    }
+
+    fn binding_payload(message: &FeedbackMessage) -> Option<&str> {
+        if message.author_role != FeedbackAuthorRole::System
+            || message.source != FeedbackMessageSource::StatusChange
+            || message.visible_to_client
+        {
+            return None;
+        }
+        message.body.strip_prefix(RELEASE_BINDING_MESSAGE_PREFIX)
+    }
+
+    /// Encode the binding as the non-client-visible system message used by durable stores.
+    ///
+    /// Applications normally use [`crate::FeedbackService::with_release_binding`], which
+    /// stamps this message automatically. This method is public for deterministic import,
+    /// migration, and verification tooling that constructs an already-authorized thread.
+    pub fn system_message(&self) -> Result<FeedbackMessage, FeedbackValidationError> {
+        self.validate()?;
+        let payload =
+            serde_json::to_string(self).map_err(|error| FeedbackValidationError::InvalidField {
+                field: "release_binding",
+                detail: format!("cannot serialize exact release binding: {error}"),
+            })?;
+        FeedbackMessage::new(
+            FeedbackAuthorRole::System,
+            Some("Minco release binding".into()),
+            format!("{RELEASE_BINDING_MESSAGE_PREFIX}{payload}"),
+            FeedbackMessageSource::StatusChange,
+            false,
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeedbackContext {
     pub page_url: String,
@@ -207,6 +329,29 @@ pub struct FeedbackContext {
 impl FeedbackContext {
     fn validate(&self) -> Result<(), FeedbackValidationError> {
         validate_visible_text("page_url", &self.page_url, 4_096)?;
+        let lower = self.page_url.to_ascii_lowercase();
+        if !(lower.starts_with("https://") || lower.starts_with("http://"))
+            || self.page_url.contains(['?', '#'])
+            || lower.contains("token=")
+            || lower.contains("authorization=")
+            || lower.contains("x-amz-credential=")
+        {
+            return Err(FeedbackValidationError::InvalidField {
+                field: "page_url",
+                detail: "must be an HTTP(S) URL redacted to scheme, authority and path without query or fragment credentials".into(),
+            });
+        }
+        let authority = self
+            .page_url
+            .split_once("://")
+            .map(|(_, value)| value.split('/').next().unwrap_or(value))
+            .unwrap_or_default();
+        if authority.contains('@') {
+            return Err(FeedbackValidationError::InvalidField {
+                field: "page_url",
+                detail: "must not contain URL user information".into(),
+            });
+        }
         validate_optional_text("route_name", self.route_name.as_deref(), 200)?;
         validate_optional_text("release_id", self.release_id.as_deref(), 200)?;
         validate_optional_text("environment", self.environment.as_deref(), 100)?;
@@ -242,6 +387,15 @@ pub struct FeedbackMessage {
     pub source: FeedbackMessageSource,
     pub visible_to_client: bool,
     pub created_at: DateTime<Utc>,
+}
+
+/// Explicit clarification state bound to durable message identities.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FeedbackClarification {
+    pub question_message_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_by_message_id: Option<Uuid>,
 }
 
 impl FeedbackMessage {
@@ -307,6 +461,8 @@ pub struct FeedbackThread {
     pub messages: Vec<FeedbackMessage>,
     #[serde(default)]
     pub attachments: Vec<FeedbackAttachment>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clarifications: Vec<FeedbackClarification>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -342,6 +498,7 @@ impl FeedbackThread {
             tags: input.tags,
             messages: Vec::new(),
             attachments: Vec::new(),
+            clarifications: Vec::new(),
             resolution: None,
             created_at: now,
             updated_at: now,
@@ -350,6 +507,13 @@ impl FeedbackThread {
     }
 
     pub fn append_message(&mut self, message: FeedbackMessage) {
+        if message.author_role == FeedbackAuthorRole::Client && message.visible_to_client {
+            for clarification in &mut self.clarifications {
+                if clarification.resolved_by_message_id.is_none() {
+                    clarification.resolved_by_message_id = Some(message.id);
+                }
+            }
+        }
         self.messages.push(message);
         self.touch();
     }
@@ -368,6 +532,44 @@ impl FeedbackThread {
             return Err(FeedbackValidationError::InvalidTransition {
                 current: self.status,
                 target,
+            });
+        }
+        if target == FeedbackStatus::NeedsClarification {
+            let question_message_id = self
+                .messages
+                .iter()
+                .rev()
+                .find(|message| {
+                    message.author_role == FeedbackAuthorRole::Developer
+                        && message.visible_to_client
+                })
+                .map(|message| message.id)
+                .ok_or_else(|| FeedbackValidationError::InvalidField {
+                    field: "clarification",
+                    detail: "needs_clarification requires one preceding client-visible developer message".into(),
+                })?;
+            if !self
+                .clarifications
+                .iter()
+                .any(|clarification| clarification.question_message_id == question_message_id)
+            {
+                self.clarifications.push(FeedbackClarification {
+                    question_message_id,
+                    resolved_by_message_id: None,
+                });
+            }
+        }
+        if target == FeedbackStatus::ReadyForDevelopment
+            && self
+                .clarifications
+                .iter()
+                .any(|clarification| clarification.resolved_by_message_id.is_none())
+        {
+            return Err(FeedbackValidationError::InvalidField {
+                field: "clarification",
+                detail:
+                    "ready_for_development requires every explicit clarification to be resolved"
+                        .into(),
             });
         }
         if matches!(target, FeedbackStatus::Resolved | FeedbackStatus::Closed) {
@@ -540,12 +742,15 @@ impl FeedbackAiContext {
     #[must_use]
     pub fn from_thread(thread: FeedbackThread) -> Self {
         let unresolved_questions = thread
-            .messages
+            .clarifications
             .iter()
-            .filter(|message| {
-                message.author_role == FeedbackAuthorRole::Developer
-                    && message.visible_to_client
-                    && message.body.trim_end().ends_with('?')
+            .filter(|clarification| clarification.resolved_by_message_id.is_none())
+            .filter_map(|clarification| {
+                thread.messages.iter().find(|message| {
+                    message.id == clarification.question_message_id
+                        && message.author_role == FeedbackAuthorRole::Developer
+                        && message.visible_to_client
+                })
             })
             .map(|message| message.body.clone())
             .collect();
@@ -609,6 +814,27 @@ impl FeedbackAiContext {
             "Release",
             feedback.context.release_id.as_deref().unwrap_or("unknown"),
         );
+        if let Some(binding) = FeedbackReleaseBinding::from_thread(feedback) {
+            output.push_str("\n## Exact release binding\n");
+            append_untrusted_text(&mut output, "Release digest", &binding.release_digest);
+            append_untrusted_text(
+                &mut output,
+                "Deployment attempt",
+                &binding.deployment_attempt_id,
+            );
+            append_untrusted_text(
+                &mut output,
+                "Deployment receipt digest",
+                &binding.deployment_receipt_digest,
+            );
+            if let (Some(build_id), Some(build_digest)) = (
+                binding.ui_build_id.as_deref(),
+                binding.ui_build_digest.as_deref(),
+            ) {
+                append_untrusted_text(&mut output, "UI build ID", build_id);
+                append_untrusted_text(&mut output, "UI build digest", build_digest);
+            }
+        }
         append_untrusted_text(
             &mut output,
             "Request ID",
@@ -616,6 +842,9 @@ impl FeedbackAiContext {
         );
         output.push_str("\n## Conversation\n");
         for message in &feedback.messages {
+            if FeedbackReleaseBinding::from_message(message).is_some() {
+                continue;
+            }
             let _ = write!(
                 output,
                 "\n### {:?} — {}\n",
@@ -691,6 +920,40 @@ fn validate_optional_text(
     Ok(())
 }
 
+fn validate_binding_identifier(
+    field: &'static str,
+    value: &str,
+    maximum: usize,
+) -> Result<(), FeedbackValidationError> {
+    if value.is_empty()
+        || value.chars().count() > maximum
+        || !value.chars().all(|character| {
+            character.is_ascii_alphanumeric()
+                || matches!(character, '-' | '_' | '.' | ':' | '/' | '@')
+        })
+    {
+        return Err(FeedbackValidationError::InvalidField {
+            field,
+            detail: format!("must contain 1-{maximum} ASCII identifier characters"),
+        });
+    }
+    Ok(())
+}
+
+fn validate_sha256(field: &'static str, value: &str) -> Result<(), FeedbackValidationError> {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err(FeedbackValidationError::InvalidField {
+            field,
+            detail: "must be one lowercase SHA-256 digest".into(),
+        });
+    }
+    Ok(())
+}
+
 fn validate_visible_text(
     field: &'static str,
     value: &str,
@@ -736,11 +999,101 @@ mod tests {
         .unwrap()
     }
 
+    fn release_binding() -> FeedbackReleaseBinding {
+        let release_digest = "a".repeat(64);
+        FeedbackReleaseBinding {
+            release_id: format!("minco.{}", &release_digest[..24]),
+            release_digest,
+            environment: "review".into(),
+            deployment_attempt_id: "review-20260807".into(),
+            deployment_receipt_digest: "b".repeat(64),
+            ui_build_id: Some("web-20260807".into()),
+            ui_build_digest: Some("c".repeat(64)),
+        }
+    }
+
+    #[test]
+    fn release_binding_round_trips_through_an_internal_system_message() {
+        let binding = release_binding();
+        let mut feedback = thread();
+        feedback
+            .messages
+            .push(binding.system_message().expect("valid binding message"));
+
+        assert_eq!(
+            FeedbackReleaseBinding::from_thread(&feedback),
+            Some(binding)
+        );
+        assert!(feedback.client_view().messages.is_empty());
+    }
+
+    #[test]
+    fn release_binding_rejects_non_digest_derived_identity() {
+        let mut binding = release_binding();
+        binding.release_id = "minco.invalid".into();
+        assert!(binding.validate().is_err());
+
+        binding = release_binding();
+        binding.ui_build_digest = None;
+        assert!(binding.validate().is_err());
+    }
+
+    #[test]
+    fn exact_release_binding_rejects_duplicate_or_malformed_markers() {
+        let binding = release_binding();
+        let message = binding.system_message().expect("valid binding message");
+        let mut feedback = thread();
+        feedback.messages.push(message.clone());
+        feedback.messages.push(message);
+        assert!(FeedbackReleaseBinding::exact_from_thread(&feedback).is_err());
+
+        let mut feedback = thread();
+        feedback.messages.push(
+            FeedbackMessage::new(
+                FeedbackAuthorRole::System,
+                Some("Minco release binding".into()),
+                format!("{RELEASE_BINDING_MESSAGE_PREFIX}{{not-json"),
+                FeedbackMessageSource::StatusChange,
+                false,
+            )
+            .expect("syntactically valid system message"),
+        );
+        assert!(FeedbackReleaseBinding::exact_from_thread(&feedback).is_err());
+    }
+
+    #[test]
+    fn ai_context_renders_exact_binding_without_exposing_marker_message() {
+        let binding = release_binding();
+        let mut feedback = thread();
+        feedback.context.release_id = Some(binding.release_id.clone());
+        feedback.context.environment = Some(binding.environment.clone());
+        feedback
+            .messages
+            .push(binding.system_message().expect("valid binding message"));
+
+        let markdown = FeedbackAiContext::from_thread(feedback).to_markdown();
+        assert!(markdown.contains("Exact release binding"));
+        assert!(markdown.contains(&binding.deployment_receipt_digest));
+        assert!(!markdown.contains(RELEASE_BINDING_MESSAGE_PREFIX));
+    }
+
     #[test]
     fn feedback_state_machine_supports_clarification_and_reopen_loops() {
         let mut feedback = thread();
+        feedback.append_message(
+            FeedbackMessage::developer(None, "Please clarify the expected result.", true).unwrap(),
+        );
         feedback
             .transition(FeedbackStatus::NeedsClarification, None)
+            .unwrap();
+        assert!(
+            feedback
+                .transition(FeedbackStatus::ReadyForDevelopment, None)
+                .is_err()
+        );
+        feedback.append_message(FeedbackMessage::client("It should remain open.").unwrap());
+        feedback
+            .transition(FeedbackStatus::Acknowledged, None)
             .unwrap();
         feedback
             .transition(FeedbackStatus::ReadyForDevelopment, None)
@@ -792,8 +1145,73 @@ mod tests {
             )
             .unwrap(),
         );
+        feedback
+            .transition(FeedbackStatus::NeedsClarification, None)
+            .unwrap();
         let context = FeedbackAiContext::from_thread(feedback);
         assert!(context.to_markdown().contains("Unresolved questions"));
+    }
+
+    #[test]
+    fn clarification_state_uses_message_identity_not_punctuation() {
+        let mut feedback = thread();
+        let question = FeedbackMessage::developer(
+            Some("developer".into()),
+            "Please provide the failing order identifier.",
+            true,
+        )
+        .unwrap();
+        let question_id = question.id;
+        feedback.append_message(question);
+        feedback
+            .transition(FeedbackStatus::NeedsClarification, None)
+            .unwrap();
+        assert_eq!(feedback.clarifications[0].question_message_id, question_id);
+        assert!(feedback.clarifications[0].resolved_by_message_id.is_none());
+
+        let answer = FeedbackMessage::client("Order 42").unwrap();
+        let answer_id = answer.id;
+        feedback.append_message(answer);
+        assert_eq!(
+            feedback.clarifications[0].resolved_by_message_id,
+            Some(answer_id)
+        );
+        assert!(
+            FeedbackAiContext::from_thread(feedback)
+                .unresolved_questions
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn page_url_rejects_query_fragment_and_user_information() {
+        for value in [
+            "https://example.test/orders?token=secret",
+            "https://example.test/orders#access_token",
+            "https://user:password@example.test/orders",
+        ] {
+            let mut input = CreateFeedbackInput {
+                project_id: "example".into(),
+                kind: FeedbackKind::Bug,
+                priority: FeedbackPriority::Normal,
+                title: "Redaction boundary".into(),
+                description: "Page URL must not carry credentials.".into(),
+                context: FeedbackContext {
+                    page_url: value.into(),
+                    route_name: None,
+                    release_id: None,
+                    environment: None,
+                    request_id: None,
+                    user_agent: None,
+                    viewport: None,
+                    client_subject: None,
+                },
+                tags: BTreeSet::new(),
+            };
+            assert!(FeedbackThread::create(input.clone()).is_err(), "{value}");
+            input.context.page_url = "https://example.test/orders".into();
+            assert!(FeedbackThread::create(input).is_ok());
+        }
     }
 
     #[test]

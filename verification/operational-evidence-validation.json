@@ -1,0 +1,41 @@
+{
+  "counts": {
+    "errors": 0,
+    "warnings": 2
+  },
+  "effective_date": "2026-08-07",
+  "effective_date_source": "repository_truth",
+  "findings": [
+    {
+      "code": "EVIDENCE-PROVIDER-021",
+      "message": "no current exact-source live-provider evidence qualifies this candidate",
+      "path": "verification/provider-evidence.toml",
+      "severity": "warning"
+    },
+    {
+      "code": "PERF-BASELINE-007",
+      "message": "exact-tree hosted Linux performance evidence is NOT RUN",
+      "path": "verification/1.2-performance-baseline.json",
+      "severity": "warning"
+    }
+  ],
+  "inputs": {
+    "verification/1.2-performance-baseline.json": "c15bdb93113a5d2696b6fc23663b597ec18b6261c287e0e07fe087af069cda64",
+    "verification/aws-capability-candidates.toml": "53b106b98813864dce64a3a5b18bbe7cde11b51d3a112ca47dd9c867559927a8",
+    "verification/performance-policy.toml": "4607529df112fc3fac5d79367251017ff3f647316ab2a52b5a08d21611fa0ad2",
+    "verification/provider-evidence.toml": "fd592d32245d37de3bfae9fb1fc5baf587eda3149a6c9b33ef8f020b4aed5726",
+    "verification/repository-truth.toml": "e8153a5caee01fbe5700d870eb6faa558565ef3cc41f50348d253dd507b4ad7b",
+    "verification/source-manifest.json": "c46ed274cd86e5b90362654027763fa7526e15e6cecbae7a0cd52df28578a13d"
+  },
+  "kind": "minco.operational-evidence-validation.v1",
+  "metrics": {
+    "capability_candidates": 14,
+    "current_provider_profiles": 0,
+    "performance_status": "NOT RUN",
+    "project_lessons": 3
+  },
+  "receipt_digest": "e1635150fb790f4a3bee3dbbe782da5adc3f2841714c3ab720c81fe759888c26",
+  "schema_version": 1,
+  "source_tree_sha256": "89fab5363d5e97f56c6bace5a8d6b90ba2b300f23343c723c0544c26e068d659",
+  "status": "PASS"
+}

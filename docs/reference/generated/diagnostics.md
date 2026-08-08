@@ -15,7 +15,7 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `394`.
+Declared codes: `501`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
@@ -68,14 +68,67 @@ Declared codes: `394`.
 | `ASSURANCE-TRUTH-001` | deployment assurance | `scripts/validate_deployment_assurance.py:140` | 0 |
 | `ASSURANCE-TRUTH-002` | deployment assurance | `scripts/validate_deployment_assurance.py:150` | 0 |
 | `ASSURANCE-TRUTH-003` | deployment assurance | `scripts/validate_deployment_assurance.py:156` | 0 |
+| `EVIDENCE-CAPABILITY-001` | operational evidence | `scripts/validate_operational_evidence.py:657` | 0 |
+| `EVIDENCE-CAPABILITY-002` | operational evidence | `scripts/validate_operational_evidence.py:659` | 0 |
+| `EVIDENCE-CAPABILITY-003` | operational evidence | `scripts/validate_operational_evidence.py:662` | 0 |
+| `EVIDENCE-CAPABILITY-004` | operational evidence | `scripts/validate_operational_evidence.py:666` | 0 |
+| `EVIDENCE-CAPABILITY-005` | operational evidence | `scripts/validate_operational_evidence.py:669` | 0 |
+| `EVIDENCE-CAPABILITY-006` | operational evidence | `scripts/validate_operational_evidence.py:674` | 0 |
+| `EVIDENCE-CAPABILITY-007` | operational evidence | `scripts/validate_operational_evidence.py:678` | 0 |
+| `EVIDENCE-CAPABILITY-008` | operational evidence | `scripts/validate_operational_evidence.py:683` | 0 |
+| `EVIDENCE-CAPABILITY-009` | operational evidence | `scripts/validate_operational_evidence.py:686` | 0 |
+| `EVIDENCE-CAPABILITY-010` | operational evidence | `scripts/validate_operational_evidence.py:689` | 0 |
+| `EVIDENCE-CAPABILITY-011` | operational evidence | `scripts/validate_operational_evidence.py:693` | 0 |
+| `EVIDENCE-CAPABILITY-012` | operational evidence | `scripts/test/operational_evidence.py:435` | 1 |
+| `EVIDENCE-CAPABILITY-013` | operational evidence | `scripts/validate_operational_evidence.py:701` | 0 |
+| `EVIDENCE-CAPABILITY-014` | operational evidence | `scripts/validate_operational_evidence.py:705` | 0 |
+| `EVIDENCE-CAPABILITY-015` | operational evidence | `scripts/validate_operational_evidence.py:709` | 0 |
+| `EVIDENCE-CAPABILITY-016` | operational evidence | `scripts/validate_operational_evidence.py:714` | 0 |
+| `EVIDENCE-CAPABILITY-017` | operational evidence | `scripts/validate_operational_evidence.py:716` | 0 |
+| `EVIDENCE-DATA-001` | operational evidence | `scripts/validate_operational_evidence.py:214` | 0 |
+| `EVIDENCE-DATA-002` | operational evidence | `scripts/validate_operational_evidence.py:217` | 0 |
+| `EVIDENCE-DATE-001` | operational evidence | `scripts/validate_operational_evidence.py:266` | 0 |
+| `EVIDENCE-PROVIDER-001` | operational evidence | `scripts/validate_operational_evidence.py:505` | 0 |
+| `EVIDENCE-PROVIDER-002` | operational evidence | `scripts/validate_operational_evidence.py:507` | 0 |
+| `EVIDENCE-PROVIDER-003` | operational evidence | `scripts/validate_operational_evidence.py:510` | 0 |
+| `EVIDENCE-PROVIDER-004` | operational evidence | `scripts/validate_operational_evidence.py:516` | 0 |
+| `EVIDENCE-PROVIDER-005` | operational evidence | `scripts/validate_operational_evidence.py:520` | 0 |
+| `EVIDENCE-PROVIDER-006` | operational evidence | `scripts/validate_operational_evidence.py:525` | 0 |
+| `EVIDENCE-PROVIDER-007` | operational evidence | `scripts/validate_operational_evidence.py:528` | 0 |
+| `EVIDENCE-PROVIDER-008` | operational evidence | `scripts/validate_operational_evidence.py:530` | 0 |
+| `EVIDENCE-PROVIDER-009` | operational evidence | `scripts/validate_operational_evidence.py:532` | 0 |
+| `EVIDENCE-PROVIDER-010` | operational evidence | `scripts/validate_operational_evidence.py:536` | 0 |
+| `EVIDENCE-PROVIDER-011` | operational evidence | `scripts/test/operational_evidence.py:383` | 2 |
+| `EVIDENCE-PROVIDER-012` | operational evidence | `scripts/test/operational_evidence.py:440` | 1 |
+| `EVIDENCE-PROVIDER-013` | operational evidence | `scripts/validate_operational_evidence.py:548` | 0 |
+| `EVIDENCE-PROVIDER-014` | operational evidence | `scripts/test/operational_evidence.py:329` | 1 |
+| `EVIDENCE-PROVIDER-015` | operational evidence | `scripts/validate_operational_evidence.py:553` | 0 |
+| `EVIDENCE-PROVIDER-016` | operational evidence | `scripts/validate_operational_evidence.py:555` | 0 |
+| `EVIDENCE-PROVIDER-017` | operational evidence | `scripts/validate_operational_evidence.py:561` | 0 |
+| `EVIDENCE-PROVIDER-018` | operational evidence | `scripts/validate_operational_evidence.py:567` | 0 |
+| `EVIDENCE-PROVIDER-019` | operational evidence | `scripts/validate_operational_evidence.py:582` | 0 |
+| `EVIDENCE-PROVIDER-020` | operational evidence | `scripts/test/operational_evidence.py:335` | 1 |
+| `EVIDENCE-PROVIDER-021` | operational evidence | `scripts/test/operational_evidence.py:230` | 3 |
+| `EVIDENCE-PROVIDER-022` | operational evidence | `scripts/validate_operational_evidence.py:557` | 1 |
+| `EVIDENCE-PROVIDER-023` | operational evidence | `scripts/test/operational_evidence.py:367` | 1 |
+| `EVIDENCE-PROVIDER-024` | operational evidence | `scripts/validate_operational_evidence.py:614` | 0 |
+| `EVIDENCE-PROVIDER-025` | operational evidence | `scripts/test/operational_evidence.py:341` | 1 |
+| `EVIDENCE-PROVIDER-026` | operational evidence | `scripts/validate_operational_evidence.py:624` | 0 |
+| `EVIDENCE-PROVIDER-027` | operational evidence | `scripts/validate_operational_evidence.py:627` | 0 |
+| `EVIDENCE-PROVIDER-028` | operational evidence | `scripts/validate_operational_evidence.py:651` | 0 |
+| `EVIDENCE-SOURCE-001` | operational evidence | `scripts/validate_operational_evidence.py:238` | 0 |
+| `EVIDENCE-SOURCE-002` | operational evidence | `scripts/validate_operational_evidence.py:243` | 0 |
+| `EVIDENCE-SOURCE-003` | operational evidence | `scripts/validate_operational_evidence.py:250` | 0 |
+| `EVIDENCE-SOURCE-004` | operational evidence | `scripts/test/operational_evidence.py:299` | 1 |
+| `EVIDENCE-SOURCE-005` | operational evidence | `scripts/validate_operational_evidence.py:257` | 0 |
 | `MINCO-AGENT-CONTEXT-OPERATION-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:531` | 1 |
 | `MINCO-AGENT-CONTEXT-TASK-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:573` | 1 |
 | `MINCO-ARCH-001` | arch | `crates/minco-cli/src/architecture.rs:132` | 0 |
 | `MINCO-ARCH-002` | arch | `crates/minco-cli/src/architecture.rs:133` | 0 |
 | `MINCO-ARCH-003` | arch | `crates/minco-cli/src/architecture.rs:134` | 0 |
-| `MINCO-AUTH-001` | auth | `crates/minco-plan/src/model.rs:545` | 0 |
-| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1289` | 1 |
-| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1305` | 1 |
+| `MINCO-AUTH-001` | auth | `crates/minco-plan/src/model.rs:546` | 0 |
+| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1309` | 1 |
+| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1325` | 1 |
 | `MINCO-CONTRACT-001` | contract | `crates/minco-contract/src/validate.rs:64` | 0 |
 | `MINCO-CONTRACT-002` | contract | `crates/minco-contract/src/validate.rs:72` | 0 |
 | `MINCO-CONTRACT-003` | contract | `crates/minco-contract/src/validate.rs:84` | 0 |
@@ -104,82 +157,136 @@ Declared codes: `394`.
 | `MINCO-CONTRACT-026` | contract | `crates/minco-contract/src/validate.rs:381` | 2 |
 | `MINCO-CONTRACT-027` | contract | `crates/minco-contract/src/validate.rs:411` | 1 |
 | `MINCO-CONTRACT-028` | contract | `crates/minco-contract/src/validate.rs:268` | 2 |
-| `MINCO-COST-001` | cost | `crates/minco-plan/src/model.rs:639` | 0 |
-| `MINCO-COST-002` | cost | `crates/minco-plan/src/model.rs:653` | 1 |
-| `MINCO-COST-003` | cost | `crates/minco-plan/src/model.rs:719` | 0 |
-| `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:725` | 0 |
-| `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:770` | 1 |
-| `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:633` | 0 |
-| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2352` | 1 |
-| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2381` | 1 |
-| `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:674` | 2 |
-| `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:709` | 0 |
-| `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:782` | 0 |
-| `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:788` | 0 |
-| `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:807` | 0 |
-| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2424` | 2 |
-| `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:823` | 0 |
-| `MINCO-DYNAMODB-001` | dynamodb | `crates/minco-plan/src/model.rs:1344` | 0 |
-| `MINCO-DYNAMODB-002` | dynamodb | `crates/minco-plan/src/model.rs:1350` | 1 |
-| `MINCO-DYNAMODB-003` | dynamodb | `crates/minco-plan/src/model.rs:1360` | 1 |
-| `MINCO-DYNAMODB-004` | dynamodb | `crates/minco-plan/src/model.rs:1366` | 0 |
-| `MINCO-DYNAMODB-005` | dynamodb | `crates/minco-plan/src/model.rs:1415` | 0 |
-| `MINCO-DYNAMODB-006` | dynamodb | `crates/minco-plan/src/model.rs:1424` | 0 |
-| `MINCO-DYNAMODB-007` | dynamodb | `crates/minco-plan/src/model.rs:1376` | 1 |
-| `MINCO-DYNAMODB-008` | dynamodb | `crates/minco-plan/src/model.rs:1387` | 1 |
-| `MINCO-HTTP-001` | http | `crates/minco-plan/src/model.rs:597` | 0 |
-| `MINCO-HTTP-002` | http | `crates/minco-plan/src/model.rs:602` | 0 |
-| `MINCO-HTTP-003` | http | `crates/minco-plan/src/model.rs:606` | 0 |
-| `MINCO-HTTP-004` | http | `crates/minco-plan/src/model.rs:614` | 0 |
-| `MINCO-HTTP-005` | http | `crates/minco-plan/src/model.rs:621` | 0 |
-| `MINCO-HTTP-006` | http | `crates/minco-plan/src/model.rs:626` | 0 |
-| `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:590` | 1 |
-| `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:736` | 0 |
-| `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:747` | 0 |
-| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6170` | 0 |
-| `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:700` | 0 |
+| `MINCO-COST-001` | cost | `crates/minco-plan/src/model.rs:640` | 0 |
+| `MINCO-COST-002` | cost | `crates/minco-plan/src/model.rs:654` | 1 |
+| `MINCO-COST-003` | cost | `crates/minco-plan/src/model.rs:720` | 0 |
+| `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:726` | 0 |
+| `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:771` | 1 |
+| `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:634` | 0 |
+| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2449` | 1 |
+| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2478` | 1 |
+| `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:675` | 2 |
+| `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:710` | 0 |
+| `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:783` | 0 |
+| `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:789` | 0 |
+| `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:808` | 0 |
+| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2521` | 2 |
+| `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:824` | 0 |
+| `MINCO-DYNAMODB-001` | dynamodb | `crates/minco-plan/src/model.rs:1364` | 0 |
+| `MINCO-DYNAMODB-002` | dynamodb | `crates/minco-plan/src/model.rs:1370` | 1 |
+| `MINCO-DYNAMODB-003` | dynamodb | `crates/minco-plan/src/model.rs:1380` | 1 |
+| `MINCO-DYNAMODB-004` | dynamodb | `crates/minco-plan/src/model.rs:1386` | 0 |
+| `MINCO-DYNAMODB-005` | dynamodb | `crates/minco-plan/src/model.rs:1435` | 0 |
+| `MINCO-DYNAMODB-006` | dynamodb | `crates/minco-plan/src/model.rs:1444` | 0 |
+| `MINCO-DYNAMODB-007` | dynamodb | `crates/minco-plan/src/model.rs:1396` | 1 |
+| `MINCO-DYNAMODB-008` | dynamodb | `crates/minco-plan/src/model.rs:1407` | 1 |
+| `MINCO-HANDOVER-001` | handover | `crates/minco-cli/src/handover_cmd.rs:256` | 14 |
+| `MINCO-HANDOVER-002` | handover | `crates/minco-cli/src/handover_cmd.rs:296` | 3 |
+| `MINCO-HANDOVER-003` | handover | `crates/minco-cli/src/handover_cmd.rs:335` | 37 |
+| `MINCO-HANDOVER-004` | handover | `crates/minco-cli/src/handover_cmd.rs:643` | 5 |
+| `MINCO-HANDOVER-005` | handover | `crates/minco-cli/src/handover_cmd.rs:264` | 4 |
+| `MINCO-HANDOVER-006` | handover | `crates/minco-cli/src/handover_cmd.rs:522` | 5 |
+| `MINCO-HANDOVER-007` | handover | `crates/minco-cli/src/handover_cmd.rs:499` | 2 |
+| `MINCO-HTTP-001` | http | `crates/minco-plan/src/model.rs:598` | 0 |
+| `MINCO-HTTP-002` | http | `crates/minco-plan/src/model.rs:603` | 0 |
+| `MINCO-HTTP-003` | http | `crates/minco-plan/src/model.rs:607` | 0 |
+| `MINCO-HTTP-004` | http | `crates/minco-plan/src/model.rs:615` | 0 |
+| `MINCO-HTTP-005` | http | `crates/minco-plan/src/model.rs:622` | 0 |
+| `MINCO-HTTP-006` | http | `crates/minco-plan/src/model.rs:627` | 0 |
+| `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:591` | 1 |
+| `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:737` | 0 |
+| `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:748` | 0 |
+| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6176` | 0 |
+| `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:701` | 0 |
 | `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:433` | 0 |
-| `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:550` | 0 |
-| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2323` | 1 |
-| `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:557` | 0 |
-| `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:567` | 1 |
-| `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:844` | 2 |
-| `MINCO-PLAN-011` | plan | `crates/minco-plan/src/model.rs:853` | 1 |
-| `MINCO-PLAN-012` | plan | `crates/minco-plan/src/model.rs:865` | 0 |
-| `MINCO-PLAN-013` | plan | `crates/minco-plan/src/model.rs:880` | 1 |
-| `MINCO-PLAN-014` | plan | `crates/minco-plan/src/model.rs:971` | 1 |
-| `MINCO-PLAN-015` | plan | `crates/minco-plan/src/model.rs:1013` | 5 |
-| `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:1009` | 2 |
-| `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1193` | 0 |
-| `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1208` | 4 |
-| `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/tests/multi_runtime.rs:1094` | 0 |
-| `MINCO-PLAN-MIGRATE-002` | plan | `crates/minco-plan/tests/multi_runtime.rs:666` | 0 |
-| `MINCO-PREVIEW-001` | preview | `crates/minco-plan/src/model.rs:500` | 0 |
-| `MINCO-PREVIEW-002` | preview | `crates/minco-plan/src/model.rs:506` | 0 |
-| `MINCO-PREVIEW-003` | preview | `crates/minco-plan/src/model.rs:524` | 1 |
-| `MINCO-PREVIEW-004` | preview | `crates/minco-plan/src/model.rs:530` | 0 |
-| `MINCO-PREVIEW-006` | preview | `crates/minco-plan/src/model.rs:537` | 1 |
-| `MINCO-REALTIME-001` | realtime | `crates/minco-plan/src/model.rs:462` | 0 |
-| `MINCO-REALTIME-002` | realtime | `crates/minco-plan/src/model.rs:468` | 0 |
-| `MINCO-SCHEDULE-001` | schedule | `crates/minco-plan/src/model.rs:1109` | 1 |
-| `MINCO-SCHEDULE-002` | schedule | `crates/minco-plan/src/model.rs:1115` | 1 |
-| `MINCO-SCHEDULE-003` | schedule | `crates/minco-plan/src/model.rs:575` | 1 |
-| `MINCO-SCHEDULE-004` | schedule | `crates/minco-plan/src/model.rs:1126` | 1 |
-| `MINCO-SCHEDULE-005` | schedule | `crates/minco-plan/src/model.rs:1141` | 0 |
-| `MINCO-SCHEDULE-006` | schedule | `crates/minco-plan/src/model.rs:1150` | 0 |
-| `MINCO-SQS-001` | sqs | `crates/minco-plan/src/model.rs:1083` | 1 |
-| `MINCO-SQS-002` | sqs | `crates/minco-plan/src/model.rs:1037` | 1 |
-| `MINCO-SQS-003` | sqs | `crates/minco-plan/src/model.rs:915` | 1 |
-| `MINCO-SQS-004` | sqs | `crates/minco-plan/src/model.rs:908` | 1 |
-| `MINCO-SQS-005` | sqs | `crates/minco-plan/src/model.rs:935` | 0 |
-| `MINCO-SQS-006` | sqs | `crates/minco-plan/src/model.rs:955` | 1 |
-| `MINCO-SQS-007` | sqs | `crates/minco-plan/src/model.rs:1050` | 1 |
-| `MINCO-SQS-008` | sqs | `crates/minco-plan/src/model.rs:1061` | 1 |
-| `MINCO-SQS-009` | sqs | `crates/minco-plan/src/model.rs:1073` | 0 |
-| `MINCO-SQS-010` | sqs | `crates/minco-plan/src/model.rs:886` | 0 |
-| `MINCO-SQS-011` | sqs | `crates/minco-plan/src/model.rs:895` | 0 |
-| `MINCO-SQS-012` | sqs | `crates/minco-plan/src/model.rs:1183` | 1 |
-| `MINCO-STATIC-001` | static | `crates/minco-plan/src/model.rs:455` | 0 |
+| `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:551` | 0 |
+| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2364` | 1 |
+| `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:558` | 0 |
+| `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:568` | 1 |
+| `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:864` | 2 |
+| `MINCO-PLAN-011` | plan | `crates/minco-plan/src/model.rs:873` | 1 |
+| `MINCO-PLAN-012` | plan | `crates/minco-plan/src/model.rs:885` | 0 |
+| `MINCO-PLAN-013` | plan | `crates/minco-plan/src/model.rs:900` | 1 |
+| `MINCO-PLAN-014` | plan | `crates/minco-plan/src/model.rs:991` | 1 |
+| `MINCO-PLAN-015` | plan | `crates/minco-plan/src/model.rs:1008` | 5 |
+| `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:1001` | 2 |
+| `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1213` | 0 |
+| `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1228` | 4 |
+| `MINCO-PLAN-INGRESS-001` | plan | `crates/minco-plan/src/model.rs:2392` | 3 |
+| `MINCO-PLAN-INGRESS-002` | plan | `crates/minco-plan/src/model.rs:2420` | 5 |
+| `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/src/model.rs:391` | 1 |
+| `MINCO-PLAN-MIGRATE-002` | plan | `crates/minco-plan/src/model.rs:398` | 2 |
+| `MINCO-PLAN-MIGRATE-003` | plan | `crates/minco-plan/src/model.rs:423` | 0 |
+| `MINCO-PREVIEW-001` | preview | `crates/minco-plan/src/model.rs:501` | 0 |
+| `MINCO-PREVIEW-002` | preview | `crates/minco-plan/src/model.rs:507` | 0 |
+| `MINCO-PREVIEW-003` | preview | `crates/minco-plan/src/model.rs:525` | 1 |
+| `MINCO-PREVIEW-004` | preview | `crates/minco-plan/src/model.rs:531` | 0 |
+| `MINCO-PREVIEW-006` | preview | `crates/minco-plan/src/model.rs:538` | 1 |
+| `MINCO-REALTIME-001` | realtime | `crates/minco-plan/src/model.rs:463` | 0 |
+| `MINCO-REALTIME-002` | realtime | `crates/minco-plan/src/model.rs:469` | 0 |
+| `MINCO-SCHEDULE-001` | schedule | `crates/minco-plan/src/model.rs:1129` | 1 |
+| `MINCO-SCHEDULE-002` | schedule | `crates/minco-plan/src/model.rs:1135` | 1 |
+| `MINCO-SCHEDULE-003` | schedule | `crates/minco-plan/src/model.rs:576` | 1 |
+| `MINCO-SCHEDULE-004` | schedule | `crates/minco-plan/src/model.rs:1146` | 1 |
+| `MINCO-SCHEDULE-005` | schedule | `crates/minco-plan/src/model.rs:1161` | 0 |
+| `MINCO-SCHEDULE-006` | schedule | `crates/minco-plan/src/model.rs:1170` | 0 |
+| `MINCO-SQS-001` | sqs | `crates/minco-plan/src/model.rs:1103` | 1 |
+| `MINCO-SQS-002` | sqs | `crates/minco-plan/src/model.rs:1057` | 1 |
+| `MINCO-SQS-003` | sqs | `crates/minco-plan/src/model.rs:935` | 1 |
+| `MINCO-SQS-004` | sqs | `crates/minco-plan/src/model.rs:928` | 1 |
+| `MINCO-SQS-005` | sqs | `crates/minco-plan/src/model.rs:955` | 0 |
+| `MINCO-SQS-006` | sqs | `crates/minco-plan/src/model.rs:975` | 1 |
+| `MINCO-SQS-007` | sqs | `crates/minco-plan/src/model.rs:1070` | 1 |
+| `MINCO-SQS-008` | sqs | `crates/minco-plan/src/model.rs:1081` | 1 |
+| `MINCO-SQS-009` | sqs | `crates/minco-plan/src/model.rs:1093` | 0 |
+| `MINCO-SQS-010` | sqs | `crates/minco-plan/src/model.rs:906` | 0 |
+| `MINCO-SQS-011` | sqs | `crates/minco-plan/src/model.rs:915` | 0 |
+| `MINCO-SQS-012` | sqs | `crates/minco-plan/src/model.rs:1203` | 1 |
+| `MINCO-STATIC-001` | static | `crates/minco-plan/src/model.rs:456` | 0 |
+| `PERF-BASELINE-001` | performance evidence | `scripts/validate_operational_evidence.py:386` | 0 |
+| `PERF-BASELINE-002` | performance evidence | `scripts/validate_operational_evidence.py:389` | 0 |
+| `PERF-BASELINE-003` | performance evidence | `scripts/test/operational_evidence.py:308` | 1 |
+| `PERF-BASELINE-004` | performance evidence | `scripts/validate_operational_evidence.py:399` | 0 |
+| `PERF-BASELINE-005` | performance evidence | `scripts/validate_operational_evidence.py:401` | 0 |
+| `PERF-BASELINE-006` | performance evidence | `scripts/validate_operational_evidence.py:403` | 0 |
+| `PERF-BASELINE-007` | performance evidence | `scripts/test/operational_evidence.py:229` | 1 |
+| `PERF-BASELINE-008` | performance evidence | `scripts/validate_operational_evidence.py:407` | 0 |
+| `PERF-BASELINE-009` | performance evidence | `scripts/validate_operational_evidence.py:414` | 0 |
+| `PERF-BASELINE-010` | performance evidence | `scripts/validate_operational_evidence.py:417` | 0 |
+| `PERF-BASELINE-011` | performance evidence | `scripts/test/operational_evidence.py:406` | 1 |
+| `PERF-BASELINE-012` | performance evidence | `scripts/test/operational_evidence.py:406` | 1 |
+| `PERF-BASELINE-013` | performance evidence | `scripts/validate_operational_evidence.py:464` | 0 |
+| `PERF-BASELINE-014` | performance evidence | `scripts/test/operational_evidence.py:406` | 1 |
+| `PERF-BASELINE-015` | performance evidence | `scripts/validate_operational_evidence.py:474` | 0 |
+| `PERF-BASELINE-016` | performance evidence | `scripts/test/operational_evidence.py:416` | 1 |
+| `PERF-COMPARE-001` | performance evidence | `scripts/validate_operational_evidence.py:482` | 0 |
+| `PERF-COMPARE-002` | performance evidence | `scripts/validate_operational_evidence.py:489` | 0 |
+| `PERF-COMPARE-003` | performance evidence | `scripts/validate_operational_evidence.py:493` | 0 |
+| `PERF-COMPARE-004` | performance evidence | `scripts/validate_operational_evidence.py:495` | 0 |
+| `PERF-COMPARE-005` | performance evidence | `scripts/validate_operational_evidence.py:501` | 0 |
+| `PERF-DATA-001` | performance evidence | `scripts/test/operational_evidence.py:314` | 1 |
+| `PERF-DATA-002` | performance evidence | `scripts/validate_operational_evidence.py:229` | 0 |
+| `PERF-MEASURE-001` | performance evidence | `scripts/validate_operational_evidence.py:326` | 0 |
+| `PERF-MEASURE-002` | performance evidence | `scripts/validate_operational_evidence.py:330` | 0 |
+| `PERF-MEASURE-003` | performance evidence | `scripts/validate_operational_evidence.py:332` | 0 |
+| `PERF-MEASURE-004` | performance evidence | `scripts/validate_operational_evidence.py:336` | 0 |
+| `PERF-MEASURE-005` | performance evidence | `scripts/validate_operational_evidence.py:342` | 0 |
+| `PERF-MEASURE-006` | performance evidence | `scripts/validate_operational_evidence.py:349` | 0 |
+| `PERF-MEASURE-007` | performance evidence | `scripts/validate_operational_evidence.py:351` | 0 |
+| `PERF-MEASURE-008` | performance evidence | `scripts/validate_operational_evidence.py:353` | 0 |
+| `PERF-MEASURE-009` | performance evidence | `scripts/validate_operational_evidence.py:356` | 0 |
+| `PERF-MEASURE-010` | performance evidence | `scripts/validate_operational_evidence.py:374` | 0 |
+| `PERF-MEASURE-011` | performance evidence | `scripts/test/operational_evidence.py:423` | 1 |
+| `PERF-MEASURE-012` | performance evidence | `scripts/test/operational_evidence.py:429` | 1 |
+| `PERF-POLICY-001` | performance evidence | `scripts/validate_operational_evidence.py:277` | 0 |
+| `PERF-POLICY-002` | performance evidence | `scripts/test/operational_evidence.py:322` | 1 |
+| `PERF-POLICY-003` | performance evidence | `scripts/validate_operational_evidence.py:301` | 0 |
+| `PERF-POLICY-004` | performance evidence | `scripts/validate_operational_evidence.py:304` | 0 |
+| `PERF-POLICY-005` | performance evidence | `scripts/validate_operational_evidence.py:309` | 0 |
+| `PERF-POLICY-006` | performance evidence | `scripts/validate_operational_evidence.py:313` | 0 |
+| `PERF-POLICY-007` | performance evidence | `scripts/validate_operational_evidence.py:317` | 0 |
+| `PERF-POLICY-008` | performance evidence | `scripts/validate_operational_evidence.py:320` | 0 |
+| `PERF-POLICY-009` | performance evidence | `scripts/validate_operational_evidence.py:322` | 0 |
 | `PUBLISH-001` | publication | `scripts/validate_publish.py:134` | 0 |
 | `PUBLISH-002` | publication | `scripts/validate_publish.py:140` | 0 |
 | `PUBLISH-003` | publication | `scripts/validate_publish.py:143` | 0 |
@@ -232,8 +339,8 @@ Declared codes: `394`.
 | `STATIC-BUDGET-003` | repository truth | `scripts/validate_static.py:320` | 0 |
 | `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:465` | 3 |
 | `STATIC-BUDGET-005` | repository truth | `scripts/validate_static.py:426` | 0 |
-| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:519` | 1 |
-| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:536` | 1 |
+| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:535` | 1 |
+| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:552` | 1 |
 | `STATIC-CARGO-001` | repository truth | `scripts/validate_static.py:175` | 0 |
 | `STATIC-CARGO-002` | repository truth | `scripts/validate_static.py:178` | 0 |
 | `STATIC-CARGO-003` | repository truth | `scripts/validate_static.py:184` | 0 |
@@ -276,7 +383,7 @@ Declared codes: `394`.
 | `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:496` | 1 |
 | `STATIC-MEASURE-003` | repository truth | `scripts/validate_static.py:438` | 0 |
 | `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:503` | 1 |
-| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:526` | 1 |
+| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:542` | 1 |
 | `STATIC-PLACEHOLDER-001` | repository truth | `scripts/validate_static.py:1309` | 0 |
 | `STATIC-PLAN-000` | repository truth | `scripts/validate_static.py:1197` | 0 |
 | `STATIC-PLAN-001` | repository truth | `scripts/validate_static.py:1203` | 0 |

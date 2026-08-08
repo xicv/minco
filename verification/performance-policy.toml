@@ -1,0 +1,65 @@
+schema = 1
+kind = "minco.performance-policy.v1"
+candidate_version = "1.2.0"
+candidate_release_state = "candidate"
+baseline_path = "verification/1.2-performance-baseline.json"
+source_manifest_path = "verification/source-manifest.json"
+production_slo = false
+runtime = "local_native"
+ingress = "local_tcp"
+required_runner_scope = "github_hosted"
+provider_contact = false
+
+[minimum_samples]
+api_requests = 80
+worker_messages = 1000
+
+[[metric]]
+id = "api_p95_ms"
+baseline_path = "api.latency.p95_ms"
+candidate_path = "api.latency.p95_ms"
+direction = "lower"
+absolute_regression_budget = 5.0
+relative_regression_budget = 0.20
+zero_allowed = false
+unit = "milliseconds"
+
+[[metric]]
+id = "api_p99_ms"
+baseline_path = "api.latency.p99_ms"
+candidate_path = "api.latency.p99_ms"
+direction = "lower"
+absolute_regression_budget = 10.0
+relative_regression_budget = 0.25
+zero_allowed = false
+unit = "milliseconds"
+
+[[metric]]
+id = "api_throughput"
+baseline_path = "api.throughput_requests_per_second"
+candidate_path = "api.throughput_requests_per_second"
+direction = "higher"
+absolute_regression_budget = 5.0
+relative_regression_budget = 0.15
+zero_allowed = false
+unit = "requests_per_second"
+
+[[metric]]
+id = "worker_throughput"
+baseline_path = "worker.throughput_messages_per_second"
+candidate_path = "worker.throughput_messages_per_second"
+direction = "higher"
+absolute_regression_budget = 50.0
+relative_regression_budget = 0.15
+zero_allowed = false
+unit = "messages_per_second"
+
+[[metric]]
+id = "orders_artifact_bytes"
+baseline_path = "artifacts.orders_local_bytes"
+candidate_path = "artifacts.orders_local_bytes"
+direction = "lower"
+absolute_regression_budget = 262144.0
+relative_regression_budget = 0.10
+zero_allowed = false
+unit = "bytes"
