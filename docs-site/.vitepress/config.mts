@@ -16,10 +16,12 @@ function workspaceSidebar(root: string) {
       collapsed: false,
       items: [
         { text: 'Overview', link: link() },
+        { text: 'Find a page', link: link('reference/documentation-map') },
         { text: 'Installation', link: link('getting-started/installation') },
         { text: 'Build your first application', link: link('getting-started/first-application') },
         { text: 'Framework tour', link: link('getting-started/framework-tour') },
-        { text: 'Project structure', link: link('getting-started/project-structure') }
+        { text: 'Project structure', link: link('getting-started/project-structure') },
+        { text: 'Architecture', link: link('explanation/architecture') }
       ]
     },
     {
@@ -29,6 +31,7 @@ function workspaceSidebar(root: string) {
         { text: 'Feature catalog', link: link('features/') },
         { text: 'Configuration', link: link('guides/configuration') },
         { text: 'Local development', link: link('guides/local-development') },
+        { text: 'Troubleshooting', link: link('guides/troubleshooting') },
         { text: 'Develop with Codex and Claude', link: link('guides/agent-development') },
         { text: 'Project view, MCP, and workbench', link: link('guides/project-view') },
         { text: 'Build a resource API', link: link('guides/resource-api') },
@@ -65,6 +68,7 @@ function workspaceSidebar(root: string) {
         { text: 'Plan an AWS deployment', link: link('guides/deployment') },
         { text: 'Use the DynamoDB adapter', link: link('guides/dynamodb') },
         { text: 'Zero idle, precisely', link: link('explanation/zero-idle') },
+        { text: 'Production blueprint', link: link('cookbook/production-blueprint') },
         { text: 'Testing and evidence', link: link('reference/testing') }
       ]
     },
@@ -73,6 +77,7 @@ function workspaceSidebar(root: string) {
       collapsed: false,
       items: [
         { text: 'Practical recipes', link: link('cookbook/') },
+        { text: 'Production blueprint', link: link('cookbook/production-blueprint') },
         { text: 'Orders API end to end', link: link('cookbook/orders-api') },
         { text: 'Exercised examples', link: link('examples/') }
       ]
@@ -80,9 +85,12 @@ function workspaceSidebar(root: string) {
     {
       text: 'Reference',
       items: [
+        { text: 'Find a page', link: link('reference/documentation-map') },
         { text: 'CLI commands', link: link('reference/cli') },
         { text: 'Cargo feature flags', link: link('reference/feature-flags') },
+        { text: 'Resource API', link: link('reference/resource-api') },
         { text: 'Plugin conformance', link: link('reference/plugin-conformance') },
+        { text: 'Testing and evidence', link: link('reference/testing') },
         { text: `Stable ${release.stable}`, link: stable }
       ]
     }
@@ -117,17 +125,20 @@ export default defineConfig({
     ]
   },
   head: [
-    ['meta', { name: 'theme-color', content: '#6d5ce7' }],
+    ['meta', { name: 'theme-color', content: '#10151d' }],
+    ['meta', { name: 'color-scheme', content: 'light dark' }],
     ['link', { rel: 'icon', href: '/minco/minco-icon.svg', type: 'image/svg+xml' }]
   ],
   themeConfig: {
     logo: {
       src: '/minco-icon.svg',
-      alt: 'Minco'
+      alt: 'Minco connected runtime mark'
     },
     siteTitle: 'Minco',
     nav: [
       { text: 'Documentation', link: stable },
+      { text: 'Find a page', link: `${stable}reference/documentation-map` },
+      { text: 'Blueprint', link: `${stable}cookbook/production-blueprint` },
       {
         text: `Version ${release.stable}`,
         items: [
@@ -261,10 +272,32 @@ export default defineConfig({
       provider: 'local',
       options: {
         detailedView: true,
+        _render(src, env, md) {
+          const html = md.render(src, env)
+          if (env.frontmatter?.search === false) return ''
+
+          const path = env.relativePath.replaceAll('\\', '/')
+          const isHistoricalManual =
+            path.startsWith('0.5.0/') ||
+            path.startsWith('0.6.0/') ||
+            path.startsWith('1.0.0/')
+
+          return isHistoricalManual ? '' : html
+        },
+        miniSearch: {
+          searchOptions: {
+            fuzzy: 0.2,
+            prefix: true,
+            boost: { title: 5, text: 2, titles: 2 }
+          }
+        },
         translations: {
           button: {
             buttonText: 'Search Minco docs',
             buttonAriaLabel: 'Search Minco documentation'
+          },
+          modal: {
+            noResultsText: 'No current Minco documentation found for this query.'
           }
         }
       }
@@ -279,7 +312,7 @@ export default defineConfig({
     },
     socialLinks: [{ icon: 'github', link: 'https://github.com/xicv/minco' }],
     footer: {
-      message: 'Minimal cost, maximum capability.',
+      message: 'Contract. Plan. Run. Prove.',
       copyright: 'Released under the MIT License.'
     }
   }
