@@ -55,8 +55,10 @@ jobs:
               chunks.append(compact)
 
           payload = "".join(chunks)
-          if len(payload) % 4:
-              raise SystemExit(f"base64 payload length {len(payload)} is not divisible by four")
+          remainder = len(payload) % 4
+          if remainder == 1:
+              raise SystemExit(f"base64 payload has impossible length {len(payload)}")
+          payload += "=" * ((4 - remainder) % 4)
           try:
               archive = base64.b64decode(payload, validate=True)
           except binascii.Error as error:
