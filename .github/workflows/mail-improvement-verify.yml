@@ -1,4 +1,4 @@
-name: Mail improvement recovery
+name: Mail improvement source export
 
 on:
   push:
@@ -6,67 +6,31 @@ on:
       - automation/mail-improvement-verify
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: mail-improvement-recovery
+  group: mail-improvement-source-export
   cancel-in-progress: true
 
 jobs:
-  recover:
-    if: github.actor != 'github-actions[bot]'
+  export:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Recover inspectable staged sources
-        run: |
-          python - <<'PY'
-          import base64
-          import binascii
-          import glob
-          import pathlib
-          import tarfile
-
-          alphabet = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
-          chunks = []
-          for name in sorted(glob.glob(".github/mail-patch/payload.tgz.b64.part*")):
-              compact = "".join(pathlib.Path(name).read_text(encoding="utf-8").split())
-              invalid = [character for character in compact if character not in alphabet]
-              if invalid:
-                  raise SystemExit(f"{name} contains invalid base64 characters")
-              chunks.append(compact)
-
-          payload = "".join(chunks)
-          remainder = len(payload) % 4
-          if remainder == 1:
-              raise SystemExit(f"base64 payload has impossible length {len(payload)}")
-          payload += "=" * ((4 - remainder) % 4)
-          try:
-              archive = base64.b64decode(payload, validate=True)
-          except binascii.Error as error:
-              raise SystemExit(f"invalid base64 payload: {error}") from error
-
-          archive_path = pathlib.Path("/tmp/mail-payload.tgz")
-          archive_path.write_bytes(archive)
-          with tarfile.open(archive_path, mode="r:gz") as bundle:
-              members = bundle.getmembers()
-              unsafe = [member.name for member in members if member.name.startswith("/") or ".." in pathlib.PurePosixPath(member.name).parts]
-              if unsafe:
-                  raise SystemExit(f"unsafe archive paths: {unsafe}")
-              print("Recovered archive members:")
-              for member in members:
-                  print(member.name)
-              bundle.extractall(".")
-          PY
-          git status --short
-      - name: Commit recovered sources for review
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add plugins/minco-plugin-notifications/src/mail.rs
-          if [ -f extensions/minco-aws-adapters/src/ses.rs ]; then
-            git add extensions/minco-aws-adapters/src/ses.rs
-          fi
-          git commit -m "chore(mail): recover staged sources for final review"
-          git push
+      - name: Export exact review sources
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: minco-mail-review-sources
+          path: |
+            plugins/minco-plugin-notifications/src/mail.rs
+            plugins/minco-plugin-notifications/src/lib.rs
+            plugins/minco-plugin-notifications/Cargo.toml
+            plugins/minco-plugin-notifications/minco-plugin.json
+            extensions/minco-aws-adapters/src/ses.rs
+            extensions/minco-aws-adapters/src/plugin.rs
+            extensions/minco-aws-adapters/Cargo.toml
+            extensions/minco-aws-adapters/minco-plugin.json
+            compose.mail.yml
+          if-no-files-found: error
+          retention-days: 1
