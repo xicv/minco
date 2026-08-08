@@ -467,7 +467,7 @@ impl LifecycleReceipt {
 
 #[derive(Debug)]
 struct ServiceLock {
-    _file: std::fs::File,
+    file: std::fs::File,
 }
 
 impl ServiceLock {
@@ -496,7 +496,16 @@ impl ServiceLock {
                 anyhow::anyhow!("lock local service operation: {error}")
             }
         })?;
-        Ok(Self { _file: file })
+        Ok(Self { file })
+    }
+}
+
+impl Drop for ServiceLock {
+    fn drop(&mut self) {
+        // A descriptor inherited across a concurrent process spawn can outlive
+        // this guard. Explicitly releasing the lock prevents that duplicate
+        // from extending the operation lifetime beyond the Rust owner.
+        let _ = self.file.unlock();
     }
 }
 
@@ -3031,8 +3040,13 @@ mod tests {
             .expect_err("stale receipt must not authorize changed configuration");
         assert!(error.to_string().contains("disagrees"));
 
+        let inherited_descriptor = first_lock
+            .file
+            .try_clone()
+            .expect("model an inherited service-lock descriptor");
         drop(first_lock);
         ServiceLock::acquire(&directory, &spec).expect("lock released after drop");
+        drop(inherited_descriptor);
         std::fs::write(receipt_path(&directory, &spec), b"{broken")
             .expect("corrupt receipt fixture");
         let error = read_receipt(&directory, &spec).expect_err("corrupt receipt must fail");

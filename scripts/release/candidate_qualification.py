@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Run bounded local load qualification for the Minco 1.0 candidate."""
+"""Run bounded local load qualification for a Minco release candidate."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import http.client
 import json
 import os
@@ -15,7 +16,7 @@ import tomllib
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from math import ceil
+from math import ceil, isfinite
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,30 @@ def validate_load_record(record: Mapping[str, Any]) -> None:
 
     if record.get("status") != "PASS":
         return
+    if record.get("schema_version") != 2 or record.get("kind") != "minco.candidate-load-qualification.v2":
+        raise ValueError("PASS load record requires candidate qualification schema v2")
+    if record.get("production_slo") is not False:
+        raise ValueError("PASS load record must explicitly set production_slo to false")
+    if record.get("provider_contact") is not False:
+        raise ValueError("local candidate load qualification must not claim provider contact")
+    for section in ("source", "topology", "runner", "environment", "classification"):
+        value = record.get(section)
+        if not isinstance(value, Mapping) or not value:
+            raise ValueError(f"PASS load record requires {section} provenance")
+    source_tree_sha256 = record["source"].get("source_tree_sha256")
+    if (
+        not isinstance(source_tree_sha256, str)
+        or len(source_tree_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in source_tree_sha256)
+        or record["runner"].get("source_tree_sha256") != source_tree_sha256
+    ):
+        raise ValueError("PASS load record runner source tree must match verified source authority")
+    if record["topology"].get("runtime") != "local_native" or record["topology"].get("ingress") != "local_tcp":
+        raise ValueError("local candidate load topology must be local_native/local_tcp")
+    if record["classification"].get("warm") is not True:
+        raise ValueError("candidate load record must classify warm measurements")
+    if record["classification"].get("cold_start_measured") is not False:
+        raise ValueError("candidate load record must not imply cold-start evidence")
     for section in ("api", "worker", "queue", "cost", "artifacts"):
         value = record.get(section)
         if not isinstance(value, Mapping) or not value:
@@ -51,11 +76,35 @@ def validate_load_record(record: Mapping[str, Any]) -> None:
     for section in ("api", "worker"):
         if record[section].get("failures") != 0:
             raise ValueError(f"PASS load record requires zero {section} failures")
+    api_requests = record["api"].get("requests")
+    latency = record["api"].get("latency")
+    if not isinstance(api_requests, int) or isinstance(api_requests, bool) or api_requests <= 0:
+        raise ValueError("PASS load record requires a positive API request count")
+    validate_latency_summary(latency)
     if any(
         not isinstance(size, int) or isinstance(size, bool) or size <= 0
         for size in record["artifacts"].values()
     ):
         raise ValueError("PASS load record requires positive artifact sizes")
+
+
+def finite_number(value: Any) -> bool:
+    """Return whether a JSON measurement is a finite number and not a bool."""
+
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(value)
+
+
+def validate_latency_summary(value: Any) -> None:
+    """Validate the ordered, finite latency contract used by candidate evidence."""
+
+    if not isinstance(value, Mapping):
+        raise ValueError("PASS load record requires an API latency summary")
+    keys = ("minimum_ms", "p50_ms", "p95_ms", "p99_ms", "maximum_ms")
+    measurements = [value.get(key) for key in keys]
+    if any(not finite_number(item) or item < 0 for item in measurements):
+        raise ValueError("latency measurements must be finite non-negative numbers")
+    if measurements != sorted(measurements):
+        raise ValueError("latency percentiles must be monotonic")
 
 
 def validate_recovery_record(record: Mapping[str, Any]) -> None:
@@ -106,6 +155,8 @@ def summarize_latencies(samples: list[float]) -> dict[str, float]:
 
     if not samples:
         raise ValueError("latency samples must not be empty")
+    if any(not finite_number(sample) or sample < 0 for sample in samples):
+        raise ValueError("latency samples must be finite non-negative numbers")
     ordered = sorted(samples)
 
     def nearest_rank(percentile: float) -> float:
@@ -115,8 +166,48 @@ def summarize_latencies(samples: list[float]) -> dict[str, float]:
         "minimum_ms": round(ordered[0], 3),
         "p50_ms": round(nearest_rank(0.50), 3),
         "p95_ms": round(nearest_rank(0.95), 3),
+        "p99_ms": round(nearest_rank(0.99), 3),
         "maximum_ms": round(ordered[-1], 3),
     }
+
+
+def environment_record() -> dict[str, Any]:
+    """Return sanitized runner provenance and its canonical fingerprint."""
+
+    environment: dict[str, Any] = {
+        "os": platform.system().lower(),
+        "os_release": platform.release(),
+        "architecture": platform.machine().lower(),
+        "python": platform.python_version(),
+        "github_actions": os.environ.get("GITHUB_ACTIONS") == "true",
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(environment, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    return {"fingerprint_sha256": fingerprint, "dimensions": environment}
+
+
+def runner_record(source_tree_sha256: str) -> dict[str, Any]:
+    """Return bounded CI identity without copying arbitrary environment values."""
+
+    hosted = os.environ.get("GITHUB_ACTIONS") == "true"
+    record: dict[str, Any] = {
+        "scope": "github_hosted" if hosted else "local",
+        "source_tree_sha256": source_tree_sha256,
+    }
+    if hosted:
+        record.update(
+            {
+                "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+                "source_sha": os.environ.get("GITHUB_SHA", ""),
+                "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+                "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+                "runner_os": os.environ.get("RUNNER_OS", ""),
+                "runner_arch": os.environ.get("RUNNER_ARCH", ""),
+                "runner_image": os.environ.get("ImageOS", ""),
+            }
+        )
+    return record
 
 
 def run_checked(
@@ -507,15 +598,21 @@ def main() -> int:
     queue = queue_measurements()
     modeled_invocations = ceil(worker["messages"] / queue["batch_size"])
     record: dict[str, Any] = {
-        "schema_version": 1,
-        "kind": "minco.candidate-load-qualification.v1",
+        "schema_version": 2,
+        "kind": "minco.candidate-load-qualification.v2",
         "status": "PASS",
         "generated_at": datetime.now(UTC).isoformat(),
+        "production_slo": False,
+        "provider_contact": False,
         "source": {
             "version": manifest["version"],
             "source_tree_sha256": manifest["source_tree_sha256"],
         },
         "scope": "bounded local synthetic load; no AWS contact and no production SLO claim",
+        "topology": {"runtime": "local_native", "ingress": "local_tcp"},
+        "runner": runner_record(manifest["source_tree_sha256"]),
+        "environment": environment_record(),
+        "classification": {"warm": True, "cold_start_measured": False},
         "tools": {
             "python": platform.python_version(),
             "cargo": run_checked(["cargo", "--version"], log_path=log_dir / "cargo-version.log").strip(),
@@ -541,7 +638,7 @@ def main() -> int:
     }
     validate_load_record(record)
     output = safe_output_path(args.output)
-    output.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    output.write_text(json.dumps(record, allow_nan=False, indent=2, sort_keys=True) + "\n")
     print(f"Candidate load qualification PASS: {output}")
     return 0
 

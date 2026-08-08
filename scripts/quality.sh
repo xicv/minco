@@ -10,6 +10,8 @@ uv run --locked python scripts/test/repository_truth.py
 uv run --locked python scripts/validate_deployment_assurance.py
 uv run --locked python scripts/test/deployment_assurance.py
 uv run --locked python scripts/test/current_product_truth.py
+uv run --locked python scripts/validate_operational_evidence.py --check-output verification/operational-evidence-validation.json
+uv run --locked python scripts/test/operational_evidence.py
 uv run --locked python scripts/test/hosted_ci_policy.py
 uv run --locked python scripts/test/examples/test_recipes.py
 uv run --locked python scripts/test/examples/validate.py --check

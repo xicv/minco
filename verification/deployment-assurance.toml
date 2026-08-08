@@ -80,7 +80,7 @@ blockers = [
   "The SAM renderer currently accepts only ApiGatewayHttpApi.",
   "Function URL authentication is AWS_IAM or NONE rather than Minco's current API Gateway JWT authorizer contract.",
   "CloudFront OAC for signed mutating requests introduces client payload-hash requirements that are unsuitable as an implicit generic-web default.",
-  "The runtime cost projection currently names API Gateway rates independently of ingress.",
+  "The topology-aware cost projection is bounded, but renderer, authentication, candidate verification, promotion, recovery and live provider evidence remain incomplete.",
 ]
 
 [[profile]]

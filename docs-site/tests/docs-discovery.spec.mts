@@ -63,7 +63,10 @@ test('next exposes merged browser and native client guidance without rewriting s
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   await page.locator('input[type="search"]').fill('PKCE mobile API')
   await expect(
-    page.locator('.VPLocalSearchBox a[href*="/next/guides/mobile-api"]').first()
+    page
+      .locator('.VPLocalSearchBox')
+      .getByRole('link', { name: 'Browser and native clients' })
+      .first()
   ).toBeVisible()
 })
 

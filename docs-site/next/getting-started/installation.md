@@ -6,9 +6,10 @@ description: Install the Minco toolchain and choose a small, explicit framework 
 # Installation
 
 Minco uses ordinary Rust packages plus the `cargo minco` control plane. The
-published baseline is 1.1.0; this manual tracks unreleased source after that
-boundary. Minco 1.1.0 requires Rust 1.97.1. Use the exact published packages for
-applications and the repository-pinned workspace binary for source review.
+published baseline is 1.1.0; this manual tracks the unpublished 1.2.0 candidate
+above that boundary. Minco 1.1.0 and the current candidate require Rust 1.97.1.
+Use the exact 1.1.0 packages for applications and the repository-pinned
+workspace binary when deliberately evaluating candidate source.
 
 ## Install the CLI
 

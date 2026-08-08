@@ -23,8 +23,26 @@ EXCLUDED_RELATIVE = {
     Path("verification/1.0-candidate-load.json"),
     Path("verification/1.0-candidate-recovery.json"),
     Path("verification/1.0-candidate-release-gates.json"),
+    Path("verification/1.2-performance-baseline.json"),
+    Path("verification/operational-evidence-validation.json"),
+    # Local quality reports are regenerated from the source tree. Keep their
+    # validators and reviewed policy inputs bound, but exclude the receipts to
+    # prevent a quality-run/source-manifest digest cycle.
+    Path("verification/static-validation.json"),
+    Path("verification/deep-review.json"),
+    Path("verification/publish-validation.json"),
+    # Handover packets bind source/project digests and are generated evidence.
+    Path("verification/handover.json"),
+    Path("verification/handover.md"),
 }
 EXCLUDED_RELATIVE_PREFIXES = {
+    # Feedback-to-task receipts bind the source manifest and are generated evidence.
+    Path("verification/feedback-task-receipts"),
+    # Explicit alternative handover outputs remain generated evidence.
+    Path("verification/handover"),
+    # Exact-source provider qualification receipts are generated only after the
+    # reviewed source ledger is frozen; the ledger and validator remain source-bound.
+    Path("verification/provider-evidence-receipts"),
     Path("docs-site/.vitepress/cache"),
     Path("docs-site/.vitepress/dist"),
     # Local Plan/SAM renders are reproducible outputs and are absent from clean checkouts.

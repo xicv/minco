@@ -1,0 +1,257 @@
+schema = 1
+kind = "minco.aws-capability-candidates.v1"
+reviewed_on = "2026-08-07"
+
+[[candidate]]
+id = "lambda-function-urls"
+name = "Lambda Function URLs"
+support_state = "declared"
+residual_idle_cost_class = "request_only_with_lambda_compute_and_transfer"
+wake_sources = ["public_https_request"]
+security_auth_implications = ["AWS_IAM or NONE differs from the current API Gateway JWT authorizer boundary", "no PrivateLink support"]
+prerequisites = ["renderer", "authentication policy", "candidate verification", "pricing", "promotion", "recovery"]
+implementation_paths = ["crates/minco-plan/src/model.rs", "crates/minco-plan/src/cost.rs"]
+tests_evidence = ["crates/minco-plan/tests/multi_runtime.rs"]
+blockers = ["declared ingress is intentionally rejected before provider rendering"]
+adoption_trigger = "Complete the full rendering, security, cost, performance, promotion and recovery boundary with live proof."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html", "https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html", "https://docs.aws.amazon.com/lambda/latest/dg/furls-http-invoke-decision.html"]
+
+[[candidate]]
+id = "aurora-serverless-v2-zero-acu"
+name = "Aurora Serverless v2 scale-to-zero"
+support_state = "research"
+residual_idle_cost_class = "storage_and_retained_cluster_resources"
+wake_sources = ["database_connection", "maintenance", "replication_or_integration_activity"]
+security_auth_implications = ["private networking and database authentication remain mandatory", "RDS Proxy prevents automatic pause"]
+prerequisites = ["eligible engine and Region", "resume-latency budget", "migration and recovery proof", "exact retained-resource pricing"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["version and Region eligibility", "resume can exceed 30 seconds after deep sleep", "storage remains billable"]
+adoption_trigger = "A database profile proves eligibility, resume behavior, recovery, security, pricing and exact-source provider evidence."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html", "https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.requirements.html"]
+
+[[candidate]]
+id = "aurora-dsql"
+name = "Aurora DSQL"
+support_state = "research"
+residual_idle_cost_class = "storage_only_when_no_dpu_activity"
+wake_sources = ["database_request"]
+security_auth_implications = ["IAM database authentication with expiring tokens", "PostgreSQL compatibility is a bounded subset"]
+prerequisites = ["use-case-shaped adapter", "asynchronous DDL model", "token renewal", "optimistic concurrency", "recovery and pricing proof"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["not PostgreSQL-semantic equivalence", "no Minco adapter or migration contract"]
+adoption_trigger = "A domain-specific port and adapter prove compatibility, recovery, latency, cost and live provider behavior."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html", "https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with.html", "https://docs.aws.amazon.com/aurora-dsql/latest/userguide/authentication-authorization.html"]
+
+[[candidate]]
+id = "aws-appconfig"
+name = "AWS AppConfig and experimentation"
+support_state = "deferred"
+residual_idle_cost_class = "polling_and_experiment_hours"
+wake_sources = ["agent_poll", "configuration_request", "experiment_evaluation"]
+security_auth_implications = ["configuration retrieval needs scoped IAM", "agent caching and polling become runtime behavior"]
+prerequisites = ["explicit opt-in integration", "validation and rollback", "polling cost and data boundary", "no always-on Minco control plane"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["Lambda extension polls by default", "experimentation and receipt requests are billable"]
+adoption_trigger = "A customer requirement justifies an explicit plugin with bounded polling, security, rollback and cost evidence."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html", "https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-agent.html", "https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-integration-lambda-extensions-config.html"]
+
+[[candidate]]
+id = "eventbridge-scheduler"
+name = "EventBridge Scheduler"
+support_state = "research"
+residual_idle_cost_class = "scheduled_wakeup"
+wake_sources = ["one_time_schedule", "rate_schedule", "cron_schedule"]
+security_auth_implications = ["execution role and target permissions are required", "at-least-once delivery requires idempotency"]
+prerequisites = ["explicit schedule Plan IR", "retry and DLQ policy", "cleanup", "regional pricing and provider evidence"]
+implementation_paths = ["crates/minco-plan/src/model.rs", "crates/minco-plan/src/cost.rs"]
+tests_evidence = ["crates/minco-plan/tests/multi_runtime.rs"]
+blockers = ["provider rendering and guarded apply are intentionally incomplete"]
+adoption_trigger = "A schedule slice proves exact target IAM, cleanup, wake cost, retry behavior and live evidence."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/scheduler/latest/UserGuide/what-is-scheduler.html", "https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html", "https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-schedule.html"]
+
+[[candidate]]
+id = "eventbridge-pipes"
+name = "EventBridge Pipes"
+support_state = "deferred"
+residual_idle_cost_class = "request_only"
+wake_sources = ["source_record"]
+security_auth_implications = ["source, enrichment and target IAM are distinct", "filter mismatch can remove SQS messages"]
+prerequisites = ["source-specific ordering", "delivery and failure semantics", "filter safety", "cost and recovery proof"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["a generic event facade would erase source-specific semantics"]
+adoption_trigger = "A concrete source-to-target use case proves filtering, IAM, ordering, failure and cost behavior."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/eventbridge/latest/userguide/pipes-concepts.html", "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-pipes-event-filtering.html"]
+
+[[candidate]]
+id = "step-functions-express"
+name = "Step Functions Express Workflows"
+support_state = "deferred"
+residual_idle_cost_class = "request_and_duration"
+wake_sources = ["workflow_execution"]
+security_auth_implications = ["workflow role permissions are explicit", "asynchronous and synchronous delivery guarantees differ"]
+prerequisites = ["workflow-specific Plan IR", "idempotency", "CloudWatch log retention", "five-minute bound", "pricing and recovery"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["Express lacks callback task-token and .sync patterns", "no generic orchestration abstraction is justified"]
+adoption_trigger = "A bounded orchestration use case proves delivery semantics, logs, recovery, security and cost."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html", "https://aws.amazon.com/step-functions/pricing/"]
+
+[[candidate]]
+id = "appsync-events"
+name = "AWS AppSync Events"
+support_state = "research"
+residual_idle_cost_class = "connection_minutes_and_operations"
+wake_sources = ["websocket_connect", "publish", "subscribe"]
+security_auth_implications = ["API key, IAM, Cognito, OIDC and Lambda authorization have different trust boundaries", "channel authorization is required"]
+prerequisites = ["exact channel model", "fan-out and backpressure", "recovery", "usage inputs", "provider evidence"]
+implementation_paths = ["crates/minco-plan/src/model.rs", "crates/minco-plan/src/cost.rs", "plugins/minco-plugin-realtime"]
+tests_evidence = ["crates/minco-plan/tests/multi_runtime.rs", "proofs/realtime-appsync"]
+blockers = ["provider rendering, authorization and live evidence are incomplete"]
+adoption_trigger = "The realtime plugin proves exact auth, limits, cost, promotion, recovery and provider behavior."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-welcome.html", "https://aws.amazon.com/appsync/pricing/"]
+
+[[candidate]]
+id = "powertools-rust"
+name = "Powertools for AWS Lambda in Rust"
+support_state = "deferred"
+residual_idle_cost_class = "none_as_library"
+wake_sources = []
+security_auth_implications = ["telemetry and idempotency utilities can process sensitive request data"]
+prerequisites = ["official Rust support or a separately reviewed Minco integration", "redaction and overhead evidence"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["official AWS Powertools documentation does not list Rust"]
+adoption_trigger = "Official Rust support and a bounded plugin prove redaction, overhead and compatibility."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/powertools-for-lambda.html", "https://docs.aws.amazon.com/lambda/latest/dg/lambda-rust.html"]
+
+[[candidate]]
+id = "lambda-web-adapter"
+name = "Lambda Web Adapter"
+support_state = "research"
+residual_idle_cost_class = "lambda_request_and_compute"
+wake_sources = ["http_request"]
+security_auth_implications = ["extension and HTTP translation join the runtime trust boundary"]
+prerequisites = ["packaging", "health and event mapping", "auth", "promotion", "recovery", "cost evidence"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["upstream framework support is not Minco support"]
+adoption_trigger = "A second runtime implementation proves a necessary static extension point and complete delivery boundary."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://github.com/aws/aws-lambda-web-adapter"]
+
+[[candidate]]
+id = "cloudfront-functions-kvs"
+name = "CloudFront Functions and KeyValueStore"
+support_state = "deferred"
+residual_idle_cost_class = "request_and_storage"
+wake_sources = ["viewer_request", "viewer_response"]
+security_auth_implications = ["edge code has strict runtime limits", "KVS update and read authorities are separate"]
+prerequisites = ["explicit CDN topology", "origin and auth boundary", "immutable publication", "KVS concurrency and rollback", "pricing"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["JavaScript-only edge runtime", "not a Minco Rust application runtime"]
+adoption_trigger = "A CDN-specific plugin proves origin security, publication, rollback, limits and cost."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html", "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/kvs-with-functions.html"]
+
+[[candidate]]
+id = "lambda-managed-instances"
+name = "Lambda Managed Instances"
+support_state = "rejected"
+residual_idle_cost_class = "fixed_ec2_capacity_and_management_fee"
+wake_sources = ["lambda_invocation"]
+security_auth_implications = ["EC2-backed capacity provider and VPC authority enlarge the deployment boundary"]
+prerequisites = ["a separate non-minimal profile"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["normally retains multi-AZ instances", "does not scale to zero", "conflicts with the minimal profile"]
+adoption_trigger = "Only a separately approved fixed-capacity profile may reconsider this service."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/lambda-managed-instances.html", "https://docs.aws.amazon.com/lambda/latest/dg/lambda-managed-instances-runtimes.html"]
+
+[[candidate]]
+id = "lambda-durable-functions"
+name = "Lambda Durable Functions"
+support_state = "deferred"
+residual_idle_cost_class = "request_state_and_duration"
+wake_sources = ["durable_execution", "checkpoint_resume"]
+security_auth_implications = ["checkpoint state, replay and version migration become durable authority"]
+prerequisites = ["Rust runtime support", "replay-safe programming model", "state retention and encryption", "recovery and pricing"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["current supported-runtime documentation does not list Rust"]
+adoption_trigger = "AWS supports Rust and a dedicated orchestration design proves replay, migration, security, recovery and cost."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/durable-step-functions.html", "https://docs.aws.amazon.com/lambda/latest/dg/durable-supported-runtimes.html"]
+
+[[candidate]]
+id = "lambda-microvms"
+name = "Lambda MicroVMs"
+support_state = "deferred"
+residual_idle_cost_class = "unknown_pending_pricing_and_cleanup_model"
+wake_sources = ["sandbox_or_job_start"]
+security_auth_implications = ["per-user or per-job VM isolation requires a dedicated sandbox threat model"]
+prerequisites = ["image lifecycle", "persistence", "cleanup", "pricing", "live evidence"]
+implementation_paths = []
+tests_evidence = []
+blockers = ["new compute primitive has no Minco topology, cost or recovery contract"]
+adoption_trigger = "A sandbox product requirement and complete threat, lifecycle, cleanup, pricing and evidence design exist."
+decision_date = "2026-08-07"
+review_date = "2026-08-07"
+upstream_sources = ["https://aws.amazon.com/blogs/compute/announcing-lambda-microvms-serverless-compute-environments-with-vm-level-isolation-and-near-instant-startup/"]
+
+[[lesson]]
+id = "cargo-lambda"
+project = "Cargo Lambda"
+adopt = "Cargo-native deterministic target artifacts and bounded local emulation patterns."
+reject = "Delegating Minco deployment authority or treating Cargo Lambda support as Minco support."
+zero_idle_effect = "Compatible when the selected Lambda topology retains zero provisioned concurrency."
+ai_first_effect = "Machine-readable commands and deterministic artifacts improve inspectability."
+evidence_needed = "Exact artifact, provider rendering, security, promotion and recovery parity."
+upstream_sources = ["https://github.com/cargo-lambda/cargo-lambda"]
+
+[[lesson]]
+id = "rust-test-tools"
+project = "cargo-nextest, cargo-semver-checks, cargo-llvm-cov and cargo-mutants"
+adopt = "Selective profiles, explicit release baselines, reproducible coverage and bounded mutation tests."
+reject = "Unmeasured repository-wide thresholds or replacing authoritative tests without parity evidence."
+zero_idle_effect = "Build-time tooling creates no deployed idle resource."
+ai_first_effect = "Structured reports sharpen automated review when findings remain explainable."
+evidence_needed = "Measured CI duration, determinism, false-positive rate and maintenance cost."
+upstream_sources = ["https://github.com/nextest-rs/nextest", "https://github.com/obi1kenobi/cargo-semver-checks", "https://github.com/taiki-e/cargo-llvm-cov", "https://github.com/sourcefrog/cargo-mutants"]
+
+[[lesson]]
+id = "application-frameworks"
+project = "Loco, SST, Encore, Wing and Nitric"
+adopt = "Convention-driven productivity, visible resource graphs, preflight/runtime separation and explicit infrastructure intent."
+reject = "Hidden Redis, workers or schedulers; required managed control planes; generic portability layers that erase AWS security, cost and recovery semantics."
+zero_idle_effect = "Only explicit, request-driven resources fit the minimal profile."
+ai_first_effect = "Inspectability and stable intent improve agent reasoning; hidden state weakens it."
+evidence_needed = "Two concrete Minco implementations before any new extension point, plus cost, security, recovery and provider proof."
+upstream_sources = ["https://github.com/loco-rs/loco", "https://github.com/sst/sst", "https://github.com/encoredev/encore", "https://github.com/winglang/wing", "https://github.com/nitrictech/nitric"]

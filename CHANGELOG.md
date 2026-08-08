@@ -5,8 +5,22 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+No changes beyond the current candidate.
+
+## [1.2.0] - 2026-08-07
+
+This is an unpublished candidate above the immutable `1.1.0` release. It does
+not imply a tag, registry publication, live AWS deployment or customer
+acceptance.
+
 ### Added
 
+- Added exact release/deployment binding for feedback, deterministic
+  `cargo minco feedback task` conversion and create-only task receipts.
+- Added deterministic `cargo minco handover` planning and digest-approved JSON
+  and Markdown handover packets.
+- Added machine-readable performance, provider-freshness and AWS/Rust
+  capability ledgers with fail-closed validation.
 - Added an explicit `mail.send` contract with validated To/CC/BCC/reply-to,
   text and HTML alternatives, bounded attachments and inline content, safe
   headers and tags, acceptance receipts, deterministic capture, and
@@ -18,12 +32,25 @@ Semantic Versioning once public releases begin.
   configuration-set support, and policy-gated direct/SNS/EventBridge delivery
   event normalization.
 
+### Changed
+
+- Made deployment Plan validation and runtime cost evidence depend on the exact
+  runtime/ingress topology rather than always assuming API Gateway plus Lambda.
+- Added p99 to bounded candidate load evidence and made current evidence checks
+  part of both local and hosted-essential quality gates.
+- Advanced the lock-step 33-package workspace and version-matched agent bundle
+  to the unpublished `1.2.0` candidate.
+
 ### Compatibility
 
 - Existing generic notification APIs, `NotificationsPlugin::new`,
   `NotificationsPlugin::memory`, `SesNotificationSink`, and
   `aws.ses.email-notifications` remain available. The new `mail.send` and
   `aws.ses.mail-delivery` capabilities are additive and opt-in.
+- The candidate is additive at the CLI and feedback-model boundaries.
+  Unsupported Lambda Function URL combinations now fail during Plan validation
+  instead of reaching provider rendering, which aligns behavior with the
+  existing declared-but-unsupported assurance status.
 
 ### Safety and cost
 
