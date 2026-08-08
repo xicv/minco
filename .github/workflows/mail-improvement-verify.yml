@@ -37,8 +37,40 @@ jobs:
           cache-dependency-path: docs-site/package-lock.json
       - name: Materialize bounded patch archive
         run: |
-          cat .github/mail-patch/payload.tgz.b64.part* | base64 --decode > /tmp/mail-payload.tgz
-          tar -xzf /tmp/mail-payload.tgz -C .
+          python - <<'PY'
+          import base64
+          import binascii
+          import glob
+          import pathlib
+          import tarfile
+
+          alphabet = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+          chunks = []
+          for name in sorted(glob.glob(".github/mail-patch/payload.tgz.b64.part*")):
+              text = pathlib.Path(name).read_text(encoding="utf-8")
+              compact = "".join(text.split())
+              invalid = [(index, character, ord(character)) for index, character in enumerate(compact) if character not in alphabet]
+              if invalid:
+                  raise SystemExit(f"{name} contains invalid base64 characters: {invalid[:8]}")
+              chunks.append(compact)
+
+          payload = "".join(chunks)
+          if len(payload) % 4:
+              raise SystemExit(f"base64 payload length {len(payload)} is not divisible by four")
+          try:
+              archive = base64.b64decode(payload, validate=True)
+          except binascii.Error as error:
+              raise SystemExit(f"invalid base64 payload: {error}") from error
+
+          archive_path = pathlib.Path("/tmp/mail-payload.tgz")
+          archive_path.write_bytes(archive)
+          with tarfile.open(archive_path, mode="r:gz") as bundle:
+              members = bundle.getmembers()
+              unsafe = [member.name for member in members if member.name.startswith("/") or ".." in pathlib.PurePosixPath(member.name).parts]
+              if unsafe:
+                  raise SystemExit(f"unsafe archive paths: {unsafe}")
+              bundle.extractall(".")
+          PY
       - name: Format only changed Rust sources
         run: |
           rustfmt --edition 2024 \
