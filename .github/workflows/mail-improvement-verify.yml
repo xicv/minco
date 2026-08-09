@@ -1,4 +1,4 @@
-name: Mail implementation materialization
+name: Mail staged-source diagnostics
 
 on:
   push:
@@ -6,49 +6,23 @@ on:
       - automation/mail-improvement-verify
 
 permissions:
-  contents: write
-
-concurrency:
-  group: mail-implementation-materialization
-  cancel-in-progress: true
+  contents: read
 
 jobs:
-  materialize:
+  diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Reconstruct and verify reviewed source bytes
+      - name: Report exact staged part identities
         run: |
-          cat .github/mail-rebuild/src/mail.rs.part* > /tmp/mail.rs
-          cat .github/mail-rebuild/src/mailpit.rs.part* > /tmp/mailpit.rs
-          cat .github/mail-rebuild/src/ses.rs.part* > /tmp/ses.rs
+          sha256sum .github/mail-rebuild/src/mail.rs.part*
+          wc -c .github/mail-rebuild/src/mail.rs.part*
           printf '%s  %s\n' \
-            '9bbacb713400f30ae3b72ae51b0bfdc1b15e6f035b23193887b8b875d9298bcd' /tmp/mail.rs \
-            'a7cd341375cd8f12fa9e0b186b6404d854e8675c7865e20fe169cc8ab355287f' /tmp/mailpit.rs \
-            '2cbd832d5c9b000703d57f8e9d50edb1b29925c0a1088e684b8d6487b0169422' /tmp/ses.rs \
+            'f5f7c32d4d922585e1e11c1d0f71ed73d6360e4ed98004db52ac986c0a801206' .github/mail-rebuild/src/mail.rs.part00 \
+            '90f4c0c0380ae314aadb049dd51ae1bfc088aef47068cd3a070f141cbe8f6ad8' .github/mail-rebuild/src/mail.rs.part01 \
+            '2befd92fd46323b3a1570d3b0d0d4b0a17ec8963b8d8ae235b5068a8945f9622' .github/mail-rebuild/src/mail.rs.part02 \
+            'ecdade09a3ac4a20006cdfcf44dc394e2c7b2bfbed7a10841efe799387b1bb8c' .github/mail-rebuild/src/mail.rs.part03 \
+            '8720a88939e54a50943b21076384375d2e2e5471f6f1ec7cf1de43f0874473c8' .github/mail-rebuild/src/mail.rs.part04 \
+            'ddc252fb77b2704475469feb6079ccf648269d733d432b04c75624a107d7bced' .github/mail-rebuild/src/mail.rs.part05 \
             | sha256sum --check --strict
-          test "$(wc -c < /tmp/mail.rs)" -eq 52899
-          test "$(wc -c < /tmp/mailpit.rs)" -eq 13049
-          test "$(wc -c < /tmp/ses.rs)" -eq 21090
-      - name: Apply only reviewed sources to the clean branch
-        run: |
-          git fetch origin agent/complete-mail-delivery
-          git checkout -B agent/complete-mail-delivery origin/agent/complete-mail-delivery
-          install -m 0644 /tmp/mail.rs plugins/minco-plugin-notifications/src/mail.rs
-          install -m 0644 /tmp/mailpit.rs plugins/minco-plugin-notifications/src/mailpit.rs
-          install -m 0644 /tmp/ses.rs extensions/minco-aws-adapters/src/ses.rs
-          git diff --check
-          test "$(git status --short | wc -l | tr -d ' ')" -eq 3
-      - name: Commit bounded implementation
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
-            plugins/minco-plugin-notifications/src/mail.rs \
-            plugins/minco-plugin-notifications/src/mailpit.rs \
-            extensions/minco-aws-adapters/src/ses.rs
-          git commit -m "feat(mail): add transport and delivery implementation"
-          git push origin HEAD:agent/complete-mail-delivery
