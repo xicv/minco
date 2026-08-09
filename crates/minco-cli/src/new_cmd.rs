@@ -527,9 +527,10 @@ mod tests {
         assert_eq!(manifest["development"]["api"]["id"].as_str(), Some("api"));
         assert!(destination.join("infra/local/compose.yaml").is_file());
         let environment = std::fs::read_to_string(destination.join(".env.example")).unwrap();
-        assert!(environment.contains(
-            "DATABASE_URL=postgresql://minco:minco@127.0.0.1:55432/minco_orders"
-        ));
+        assert!(
+            environment
+                .contains("DATABASE_URL=postgresql://minco:minco@127.0.0.1:55432/minco_orders")
+        );
         let catalog = minco_db::load_catalog(&destination, &[PathBuf::from("migrations/postgres")])
             .expect("load generated lifecycle catalog");
         assert_eq!(catalog.sets[0].id, "example-api-postgres");

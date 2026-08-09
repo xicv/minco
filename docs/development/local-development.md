@@ -32,7 +32,7 @@ truth, while `cargo minco dev` supplies the graph-selected services, ports and
 Rustack capabilities and supervises the application processes.
 
 The default `auto` runtime prefers a ready Docker Compose installation and then
-falls back to Apple Container on Apple silicon macOS 26 or newer:
+falls back to Apple Container 1.2.x on Apple silicon macOS 26 or newer:
 
 ```bash
 MINCO_CONTAINER_RUNTIME=auto cargo minco dev
@@ -47,14 +47,30 @@ Minco development graph. Start Apple's runtime once with `container system
 start`; Minco does not mutate the global runtime lifecycle.
 
 Container and Compose project names include the normalized application name
-and a fingerprint of the Compose path. Separate checkouts and JJ workspaces do
-not silently share service instances. PostgreSQL data remains in a named
-volume; stopping `cargo minco dev` does not reset it.
+and a fingerprint of the canonical Compose path. Separate checkouts and JJ
+workspaces do not silently share service instances, while relative and symlink
+aliases of one Compose file resolve to one identity. Required ownership labels,
+an application-scoped lock and a secret-free atomic receipt under
+`target/minco/dev` bind shutdown to the exact runtime selected by startup. A
+same-named resource with missing or mismatched ownership is left untouched.
 
-Both runtimes bind database and emulator ports to `127.0.0.1`. Minco performs
-its own bounded PostgreSQL protocol and Rustack health probes, prints recent
-container logs on failure, and cleans up a service that failed to start. The
-following local-only overrides are available when an application needs them:
+PostgreSQL data remains in a labeled named volume; ordinary stop removes no
+data. This slice deliberately has no reset command. Remove a volume only after
+inspecting its complete ownership labels and making a separate explicit
+data-loss decision. A legacy implicit Compose project may have a
+`local_minco-postgres` volume; Minco never adopts or deletes that volume
+automatically.
+
+Both runtimes bind database and emulator ports to `127.0.0.1`. PostgreSQL
+readiness authenticates with SQLx, verifies the expected user and database, and
+executes `SELECT 1`. Rustack readiness parses the health JSON and requires every
+requested service to report `running`; an STS selection also executes an actual
+Rust SDK `GetCallerIdentity` against the loopback endpoint with static local
+credentials. Failed starts collect bounded logs with configured secret values
+redacted and remove only an attempt-created container. Persistent volumes are
+preserved. The following local-only overrides are available when an application
+needs them. Image overrides must remain fully qualified `@sha256:` references;
+mutable tags are rejected before runtime inspection or mutation:
 
 ```text
 MINCO_POSTGRES_IMAGE
@@ -67,10 +83,29 @@ AWS_REGION
 AWS_DEFAULT_REGION
 ```
 
-Rustack starts only the AWS service identifiers derived from the selected
-application graph. The default image is the pinned multi-platform Rustack
-0.9.1 release. Local emulation never grants permission to contact AWS, and the
-development plan continues to report `external_aws_contact = false`.
+Rustack starts only the 18 identifiers supported by its exact 0.9.1 contract:
+`apigatewayv2`, `cloudfront`, `cloudwatch`, `dynamodb`,
+`dynamodbstreams`, `events`, `iam`, `kinesis`, `kms`, `lambda`, `logs`,
+`s3`, `secretsmanager`, `ses`, `sns`, `sqs`, `ssm`, and `sts`. The default
+image is the immutable multi-platform index
+`ghcr.io/tyrchen/rustack:0.9.1@sha256:18cd91395e17453e2c34b299e45f4679dc2427473dc1db6541bbe212fd70a104`.
+It is built from upstream commit
+`ab8bc61a3e45058c7d42de8443f9d215cc110b18`, includes native arm64, and has
+BuildKit provenance attestations; the tag is unsigned and no OCI signature was
+established. The verified upstream namespace remains authoritative while the
+identical xicv fork does not publish a separate image.
+
+The PostgreSQL default is likewise immutable:
+`docker.io/library/postgres:18.4-alpine3.24@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15`.
+Local application processes receive a loopback `AWS_ENDPOINT_URL`, static local
+credentials, explicit region, disabled EC2 metadata lookup, and S3 path-style
+selection. No provider-chain endpoint fallback is used, and the development
+plan continues to report `external_aws_contact = false`.
+
+Service lifecycle dispatch is a hidden subcommand of the exact running
+`cargo-minco` executable. There is no separately installed helper and no `PATH`
+lookup or cross-version helper coupling. This is also the published-package
+contract.
 
 Useful explicit controls are:
 

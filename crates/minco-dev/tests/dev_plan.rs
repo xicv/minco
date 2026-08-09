@@ -223,8 +223,9 @@ fn service_activation_and_cleanup_commands_are_explicit_and_deterministic() {
     assert_eq!(
         plan.services[0].start,
         Some(command_with_environment(
-            "minco-services",
+            "cargo-minco",
             &[
+                "__local-service",
                 "start",
                 "postgres",
                 "--application",
@@ -240,8 +241,9 @@ fn service_activation_and_cleanup_commands_are_explicit_and_deterministic() {
     assert_eq!(
         plan.services[0].stop,
         Some(command(
-            "minco-services",
+            "cargo-minco",
             &[
+                "__local-service",
                 "stop",
                 "postgres",
                 "--application",
@@ -256,8 +258,9 @@ fn service_activation_and_cleanup_commands_are_explicit_and_deterministic() {
     assert_eq!(
         plan.services[1].start,
         Some(command_with_environment(
-            "minco-services",
+            "cargo-minco",
             &[
+                "__local-service",
                 "start",
                 "rustack",
                 "--application",
@@ -278,8 +281,9 @@ fn service_activation_and_cleanup_commands_are_explicit_and_deterministic() {
     assert_eq!(
         plan.services[1].stop,
         Some(command(
-            "minco-services",
+            "cargo-minco",
             &[
+                "__local-service",
                 "stop",
                 "rustack",
                 "--application",

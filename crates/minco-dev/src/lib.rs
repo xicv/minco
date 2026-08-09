@@ -277,10 +277,8 @@ impl DevPlan {
         match graph.database {
             DevDatabase::Postgres => {
                 let postgres_port = 55_432;
-                let environment = BTreeMap::from([(
-                    "MINCO_POSTGRES_PORT".into(),
-                    postgres_port.to_string(),
-                )]);
+                let environment =
+                    BTreeMap::from([("MINCO_POSTGRES_PORT".into(), postgres_port.to_string())]);
                 services.push(ServicePlan {
                     id: "postgres".into(),
                     kind: ServiceKind::Postgres,
@@ -462,6 +460,7 @@ fn service_runtime_command(
     environment: BTreeMap<String, String>,
 ) -> CommandSpec {
     let mut arguments = vec![
+        "__local-service".into(),
         action.into(),
         service.into(),
         "--application".into(),
@@ -475,7 +474,7 @@ fn service_runtime_command(
         arguments.extend(["--aws-services".into(), aws_services.join(",")]);
     }
     CommandSpec {
-        program: "minco-services".into(),
+        program: "cargo-minco".into(),
         arguments,
         environment,
     }

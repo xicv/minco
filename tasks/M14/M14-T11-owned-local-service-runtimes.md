@@ -2,7 +2,7 @@
 id: M14-T11
 title: Harden owned local service runtimes
 milestone: M14
-status: in_progress
+status: complete
 priority: critical
 area: developer-experience/runtime
 depends_on: [M4-T02, M9-T05]
@@ -18,6 +18,7 @@ owned_paths:
   - docs/DECISIONS.md
   - docs/adrs/0036-owned-local-service-runtimes.md
   - docs/development/local-development.md
+  - docs/reference/generated/**
   - verification/**
   - tasks/M14/M14-T11-owned-local-service-runtimes.md
 checks:
@@ -127,7 +128,170 @@ production deployment/cost plans.
 
 ## Evidence
 
-Evidence is intentionally incomplete until research, red-green implementation,
-local Docker/Apple integration, packaging, generated-project and hosted checks
-have run against the final exact SHA. Unavailable tools and intentionally
-unrun live/cloud boundaries remain explicit failures or skips, never passes.
+### Implementation and red-green review
+
+The final implementation has one hidden, version-coupled
+`cargo-minco __local-service` boundary rather than a separately installable
+helper. `LocalServiceSpec` is shared by Docker and Apple adapters; the CLI
+composition root injects `current_exe()` only when turning the deterministic
+DevPlan into processes. Application and workspace scoped locks and atomic,
+secret-free receipts preserve the selected runtime. A receipt never authorizes
+mutation without fresh structured runtime inspection and exact Minco label,
+image, port, mount and configuration verification.
+
+The TDD review reproduced and closed these specific failures before the final
+green runs:
+
+- clean packaged generated applications could exceed the original 30-second
+  application-readiness budget while compiling; a missing-constant compiler
+  failure preceded the bounded five-minute development budget;
+- receiptless `auto` startup incorrectly reused shutdown's strict all-runtime
+  discovery and failed when the non-selected installed runtime was stopped;
+  startup now checks every ready runtime for ambiguity while preserving Docker
+  preference and Apple fallback, and receiptless shutdown remains strict;
+- Apple inspect reports the selected platform manifest digest rather than the
+  configured OCI index digest; exact canonical image identity now accepts that
+  verified relation without accepting a mutable tag;
+- Docker `stop` uses `--timeout`, while Apple `stop` uses `--time`;
+- application receipts previously shared a workspace-only path and could
+  collide; their path is now workspace, application and service scoped;
+- long normalized names could discard workspace identity; they now retain the
+  workspace fingerprint, with symlink aliases stable and distinct JJ
+  workspaces distinct;
+- stale changed-configuration receipts, malformed/missing labels, image or
+  digest mismatches, unexpected Docker mounts, stopped-container ports,
+  missing volumes and occupied foreign ports all have fail-closed regression
+  tests; and
+- image overrides are rejected unless they are full immutable `@sha256:`
+  references with a 64-hex digest; and
+- the first hosted unit/package job exposed its missing JJ prerequisite when
+  three existing compatibility tests selected the default VCS profile; the
+  workflow now installs the repository-canonical pinned `jj-cli` 0.43.0, and
+  the three-test boundary plus `actionlint` pass locally; and
+- the corrected hosted unit/package job then reached the generated-app checks
+  and exposed their missing `rg` prerequisite after package verification and
+  PostgreSQL generation had passed; the workflow now also installs the
+  repository-canonical pinned ripgrep 15.2.0.
+- the final merge-gate review reproduced a fail-open edge where an unsuccessful
+  runtime inspection with empty output was treated as resource absence; the
+  container and volume paths now accept only explicit missing-resource
+  diagnostics, with a regression test covering the empty failure response.
+
+### Local test and validation matrix
+
+All commands below were executed in the isolated `minco-task-m14-t11`
+workspace on Rust 1.97.1 unless a different boundary is stated.
+
+| Boundary | Command or operation | Observed result |
+|---|---|---|
+| Targeted format | `rustfmt --edition 2024 --check` on the five changed Rust files | Passed; no formatter ran in write mode. The required task-finish gate later invoked non-mutating `cargo fmt --all -- --check`; it passed and rewrote nothing. |
+| Affected unit/integration | `cargo test -p minco-dev --all-targets --all-features --locked` | Passed: 9 plan and 9 supervisor tests. |
+| Affected CLI | `cargo test -p cargo-minco --all-targets --all-features --locked` | Passed after the merge-gate correction: 116 unit tests and every CLI integration target. One earlier parallel validation attempt transiently failed the immediate lock-release assertion; its exact isolated rerun and the complete isolated package rerun passed. |
+| Affected lint | package-scoped `cargo clippy` for `minco-dev` and `cargo-minco`, all targets/features, locked, `-D warnings` | Both passed after task-owned findings were fixed. |
+| Build | `cargo build --locked -p cargo-minco --bins` | Passed with only `cargo-minco`; the old helper binary is absent. |
+| Generated applications | `scripts/test/generated_apps.sh` | Passed PostgreSQL and SQLite generation, compilation and tests; expected generated TODO tests failed only where the harness requires them to. |
+| Package | `cargo package --locked -p cargo-minco --allow-dirty` | Passed against the final local source: 117 files, 1.1 MiB unpacked and 222.5 KiB compressed; registry-dependency verification passed. |
+| Install | `cargo install --locked --force --path target/package/cargo-minco-1.1.0 --root /tmp/minco-m14-t11-package-artifact-final.uh9j9i` | Passed from the final packaged source; exactly one executable, `bin/cargo-minco`, was installed. |
+| Restricted path | installed `cargo minco dev --dry-run --json` with only the temporary Cargo root plus system paths | Passed; plans retain symbolic `cargo-minco __local-service`, not a host-specific path. Runtime execution additionally requires the runtime CLI path. |
+| Workflow/YAML | `actionlint`; Ruby YAML parses of the workflow, root Compose and generated Compose template; `docker compose ... config --format json` | Passed; Compose exposes exactly `postgres` and `rustack`. |
+| Safe quality subset | every safe `scripts/quality.sh` stage run individually | Static validation had 0 errors/warnings; generated reference, repository truth (41), hosted policy (4), recipes (11 plus matrix), publish, deep-review, AWS portability, SQLx isolation, feedback browser (40), snippets (321), link (457 internal, 14 external, 141 canonical) and docs browser (34, 2 intended skips) checks passed. The required task-finish gate later ran non-mutating workspace format and Clippy checks; both passed without rewrites or source fixes. |
+| Compiler matrix | `cargo check` for `minco` no-default/default/official-plugins/aws-worker/all-features, the all-target/all-feature workspace, and `cargo-minco` | Passed. |
+| Workspace regression | `cargo test --workspace --all-targets --all-features --locked` | Passed all runnable tests. Nine explicitly environment-gated tests remained ignored: 4 configured PostgreSQL, 1 DynamoDB Rustack, 2 bounded real-AWS/S3, and 2 Rustack adapter/Lambda tests. |
+| Documentation | `npm --prefix docs-site run build`; docs link/browser checks | Manual site build and checks passed. `scripts/docs/build.sh` did not pass because the unchanged lockfile reports `nanoid <3.3.17`, GHSA-2v37-7h3g-55p8, one high advisory. |
+| Secrets/integrity | final-diff Gitleaks, source-manifest generation/check, current-commit conflict query, changed-file whitespace and diff inspection | Passed at the final local source boundary; the source manifest covers 1084 files and the changed-file scan found no trailing whitespace. The JJ-only task workspace has no `.git`, so the Git-only `git diff --check` transport check remains literally unavailable there. |
+
+`scripts/quality.sh` itself was not run end-to-end; its safe stages were
+reproduced individually. The required task-finish workflow later invoked
+non-mutating `cargo fmt --all -- --check` and workspace-wide Clippy through
+`cargo minco check --with-cargo`; both passed, rewrote nothing and required no
+source fix. This is recorded as an exact workflow deviation from the narrower
+requested formatter/lint boundary. The task does not change or waive the
+unrelated docs-site advisory.
+
+### Docker integration
+
+Docker client 29.7.1, daemon 29.6.2 and Compose 5.3.1 on arm64 qualified exact
+owned services with unique application identities:
+
+- Rustack on loopback port 54566 passed structured capability health, Rust SDK
+  STS and AWS CLI STS against local account `000000000000`;
+- PostgreSQL on loopback port 55439 authenticated as the expected user/database,
+  executed SQL and preserved sentinel `m14-t11-docker` across ordinary
+  stop/restart;
+- `auto` with both runtimes ready selected Docker and shutdown touched only the
+  selected Docker resources;
+- with Apple Container restored to its pre-task stopped state, the final
+  installed package selected Docker under `auto`, started Rustack on 54575,
+  passed readiness, stopped it exactly, and left Apple stopped;
+- an installed generated application served its native API on loopback 33091
+  with Rustack 54570 and PostgreSQL 55432, and Ctrl-C stopped the API and exact
+  owned containers while retaining the database volume;
+- a foreign process on 54571 and a same-named container without the full Minco
+  ownership contract were refused and left untouched; and
+- the legacy `local_minco-postgres` volume was diagnosed but never adopted,
+  stopped or deleted.
+
+The daemon-stopped case was not exercised against the real daemon because an
+unrelated user-owned CGSP PostgreSQL container was running. The fake-runner
+test covers Docker-unavailable Apple fallback; preserving the unrelated
+container took precedence over a disruptive live daemon test. After exact
+label inspection, every task-created Docker container, volume and Compose
+network was removed; the unrelated container was not touched.
+
+### Apple Container integration
+
+The local machine is macOS 26.5.2 build 25F84 on arm64 with Apple Container
+1.2.0. Its global service was stopped before the task, started only for this
+qualification, and restored to stopped state afterward.
+
+- Rustack on loopback 54567 was native arm64, retained the expected labels and
+  immutable image reference, passed structured health, Rust SDK STS and AWS CLI
+  STS against local account `000000000000`;
+- PostgreSQL on loopback 55440 authenticated, executed SQL and preserved
+  sentinel `m14-t11-apple` across stop/restart in its named ext4 volume;
+- a same-named unlabeled container was rejected without lifecycle mutation;
+- an installed generated application served its native API on 33092 with
+  Rustack 54573 and PostgreSQL 55432;
+- killing the supervisor after readiness left secret-free receipts and owned
+  containers, while the orphan native API process was identified by its
+  disposable project working directory and terminated normally;
+- the next invocation reused the exact resources, became ready, and Ctrl-C
+  stopped only those resources; repeated explicit stops were idempotent; and
+- task-created Apple containers and volumes were removed only after exact label
+  inspection.
+
+Apple evidence is local-machine evidence, not hosted Apple CI. Installed 1.2.0
+and current stable 1.2.2 are within the deliberately bounded 1.2.x support
+line.
+
+### Security, provenance and remaining boundaries
+
+The Rustack image remains the upstream-published immutable OCI index
+`ghcr.io/tyrchen/rustack:0.9.1@sha256:18cd91395e17453e2c34b299e45f4679dc2427473dc1db6541bbe212fd70a104`,
+built from exact MIT-licensed commit
+`ab8bc61a3e45058c7d42de8443f9d215cc110b18`. Native arm64 manifest
+`ec5a7ffee62c29bebd4862c826c34335928fd017977ed78c551d2dba5e94f5fb`
+and amd64 are present. BuildKit SLSA provenance attestations exist, but no Git
+tag or OCI signature was established: attested, not signed. The exact 18-service
+allowlist and health schema are tied to v0.9.1.
+
+Every published port is loopback-only. Local SDK configuration has an explicit
+Rustack endpoint, region and local credentials with EC2 metadata disabled; no
+real AWS call was made. Plans, argv, logs, errors, receipts and generated files
+were inspected for secret values. This task adds no deployment resource, NAT,
+fixed compute, schedule or provisioned concurrency and changes no production
+cost model.
+
+There is intentionally no destructive public reset command in this slice.
+Ordinary stop preserves data; manual volume deletion remains outside Minco and
+requires an explicit operator data-loss decision after ownership inspection.
+Hosted Linux unit/package/generated and Docker qualification is supplied by
+`.github/workflows/local-dev-runtime-validation.yml`; there is no hosted Apple
+runner. Real AWS tests remain intentionally unrun. Final draft-PR and exact-SHA
+hosted results are external evidence recorded at handoff, not inferred from
+local success. Draft PR [#134](https://github.com/xicv/minco/pull/134) exists.
+On implementation SHA `93aa70f6698fe6b151875ddb11a05ccfcc51115a`, hosted
+run [31298039515](https://github.com/xicv/minco/actions/runs/31298039515)
+passed the real Docker job and failed the unit/package job only because JJ was
+absent; the pinned-JJ workflow correction is locally green and the final task
+head is requalified separately before handoff.

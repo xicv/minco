@@ -88,7 +88,7 @@ Declared codes: `345`.
 | `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:593` | 1 |
 | `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:745` | 0 |
 | `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:756` | 0 |
-| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6170` | 0 |
+| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6218` | 0 |
 | `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:709` | 0 |
 | `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:436` | 0 |
 | `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:553` | 0 |

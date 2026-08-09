@@ -14,6 +14,7 @@ mod new_cmd;
 mod plugin_cmd;
 mod process;
 mod roadmap;
+mod service_runtime;
 mod update;
 mod upgrade_cmd;
 mod vcs;
@@ -91,6 +92,7 @@ use std::{
 
 const LIVE_ALIAS_LOGICAL_ID: &str = "LiveFunctionAlias";
 const LIVE_FUNCTION_VERSION_PARAMETER: &str = "LiveFunctionVersion";
+const DEVELOPMENT_READINESS_TIMEOUT: Duration = Duration::from_mins(5);
 
 #[derive(Debug, Parser)]
 #[command(
@@ -115,6 +117,8 @@ enum Command {
     Doctor,
     /// Run the graph-declared local development topology.
     Dev(DevArgs),
+    #[command(name = "__local-service", hide = true)]
+    LocalService(service_runtime::LocalServiceArgs),
     Check(CheckArgs),
     #[command(subcommand)]
     Config(ConfigCommand),
@@ -801,6 +805,7 @@ async fn main() -> Result<()> {
             })?;
             return print_value(&report, as_json);
         }
+        Command::LocalService(arguments) => return service_runtime::execute(arguments).await,
         other => other,
     };
 
@@ -812,6 +817,9 @@ async fn main() -> Result<()> {
     let manifest = MincoManifest::load(&root)?;
     match command {
         Command::New(_) => unreachable!("new is handled before project discovery"),
+        Command::LocalService(_) => {
+            unreachable!("local service command is handled before project discovery")
+        }
         Command::Agent(command) => agent_cmd::execute(&root, command, as_json),
         Command::Doctor => doctor(&root, as_json),
         Command::Dev(args) => dev(&root, &manifest, args, as_json).await,
@@ -2954,7 +2962,25 @@ async fn dev(root: &Path, manifest: &MincoManifest, args: DevArgs, as_json: bool
         port: args.port,
         rustack_port: args.rustack_port,
     };
-    let plan = DevPlan::derive(&graph, &options)?;
+    for service in &graph.local_aws_services {
+        if !service_runtime::supports_local_aws_service(service) {
+            bail!("local AWS service `{service}` is not supported by Rustack 0.9.1");
+        }
+    }
+    let requested_aws_services = graph.local_aws_services.clone();
+    let rustack_port = options.rustack_port.unwrap_or(4_566);
+    let mut dependency_compatible_graph = graph.clone();
+    dependency_compatible_graph
+        .local_aws_services
+        .retain(|service| matches!(service.as_str(), "dynamodb" | "s3" | "sqs" | "ssm" | "sts"));
+    let mut plan = DevPlan::derive(&dependency_compatible_graph, &options)?;
+    service_runtime::normalize_dev_plan_services(
+        &mut plan,
+        &graph.application,
+        &graph.compose_file,
+        &requested_aws_services,
+        rustack_port,
+    );
     if args.dry_run {
         return print_value(&plan, as_json);
     }
@@ -2976,9 +3002,13 @@ async fn dev(root: &Path, manifest: &MincoManifest, args: DevArgs, as_json: bool
     }
     let (events, receiver) = tokio::sync::mpsc::unbounded_channel();
     let renderer = tokio::spawn(render_development_events(receiver, as_json));
+    let service_program =
+        std::env::current_exe().context("resolve the running cargo-minco path")?;
+    let execution_plan = bind_local_service_program(&plan, &service_program)?;
     let result = Supervisor::new(root)
+        .with_readiness_timeout(DEVELOPMENT_READINESS_TIMEOUT)
         .run_until(
-            &plan,
+            &execution_plan,
             &runtime_environment,
             async {
                 let _ = tokio::signal::ctrl_c().await;
@@ -2991,6 +3021,22 @@ async fn dev(root: &Path, manifest: &MincoManifest, args: DevArgs, as_json: bool
         .context("development event renderer failed")??;
     result?;
     Ok(())
+}
+
+fn bind_local_service_program(plan: &DevPlan, program: &Path) -> Result<DevPlan> {
+    let program = program
+        .to_str()
+        .context("the running cargo-minco path must be valid UTF-8")?;
+    let mut execution_plan = plan.clone();
+    for service in &mut execution_plan.services {
+        if let Some(start) = &mut service.start {
+            start.program = program.into();
+        }
+        if let Some(stop) = &mut service.stop {
+            stop.program = program.into();
+        }
+    }
+    Ok(execution_plan)
 }
 
 fn validate_project_file(root: &Path, relative: &Path, label: &str) -> Result<()> {
@@ -3085,10 +3131,12 @@ fn development_runtime_environment(
         values.extend([
             ("AWS_ACCESS_KEY_ID".into(), "test".into()),
             ("AWS_DEFAULT_REGION".into(), region.into()),
+            ("AWS_REGION".into(), region.into()),
             (
                 "AWS_ENDPOINT_URL".into(),
                 format!("http://127.0.0.1:{port}"),
             ),
+            ("AWS_S3_FORCE_PATH_STYLE".into(), "true".into()),
             ("AWS_SECRET_ACCESS_KEY".into(), "test".into()),
         ]);
     }
@@ -7786,6 +7834,84 @@ Resources:
     }
 
     #[test]
+    fn hidden_local_service_command_is_version_coupled_to_cargo_minco() {
+        let cli = Cli::try_parse_from([
+            "cargo-minco",
+            "__local-service",
+            "start",
+            "postgres",
+            "--application",
+            "orders",
+            "--compose-file",
+            "infra/local/compose.yaml",
+            "--port",
+            "55432",
+        ])
+        .expect("hidden local service command");
+
+        assert!(matches!(
+            cli.command,
+            Command::LocalService(service_runtime::LocalServiceArgs {
+                action: service_runtime::Action::Start(_),
+            })
+        ));
+    }
+
+    #[test]
+    fn service_execution_binds_the_exact_cli_without_changing_serialized_plan_commands() {
+        let symbolic = minco_dev::CommandSpec {
+            program: "cargo-minco".into(),
+            arguments: vec!["__local-service".into(), "start".into()],
+            environment: std::collections::BTreeMap::new(),
+        };
+        let mut plan = DevPlan {
+            schema_version: 1,
+            application: "orders".into(),
+            environment: "local".into(),
+            profile: "default".into(),
+            external_aws_contact: false,
+            services: vec![minco_dev::ServicePlan {
+                id: "postgres".into(),
+                kind: ServiceKind::Postgres,
+                port: Some(55_432),
+                local_only: true,
+                aws_services: Vec::new(),
+                start: Some(symbolic.clone()),
+                stop: Some(symbolic),
+            }],
+            lifecycle: Vec::new(),
+            processes: Vec::new(),
+            omitted_schedule_ids: Vec::new(),
+        };
+        plan.services[0]
+            .stop
+            .as_mut()
+            .expect("stop command")
+            .arguments[1] = "stop".into();
+        let exact = Path::new("/opt/minco/bin/cargo-minco");
+
+        let execution = bind_local_service_program(&plan, exact).expect("exact binding");
+
+        assert_eq!(
+            plan.services[0].start.as_ref().expect("start").program,
+            "cargo-minco"
+        );
+        assert_eq!(
+            execution.services[0].start.as_ref().expect("start").program,
+            exact.to_str().expect("UTF-8 exact path")
+        );
+        assert_eq!(
+            execution.services[0].stop.as_ref().expect("stop").program,
+            exact.to_str().expect("UTF-8 exact path")
+        );
+    }
+
+    #[test]
+    fn development_readiness_timeout_allows_a_clean_native_build() {
+        assert!(DEVELOPMENT_READINESS_TIMEOUT >= Duration::from_mins(2));
+    }
+
+    #[test]
     fn development_database_override_rejects_remote_hosts() {
         validate_local_postgres_url("postgres://minco:minco@127.0.0.1:55432/minco_orders")
             .expect("loopback PostgreSQL URL");
@@ -7797,6 +7923,47 @@ Resources:
         assert!(error.to_string().contains("loopback"));
         assert!(!error.to_string().contains("operator"));
         assert!(!error.to_string().contains("secret"));
+    }
+
+    #[test]
+    fn local_aws_runtime_environment_has_no_public_endpoint_or_metadata_fallback() {
+        let plan = DevPlan {
+            schema_version: 1,
+            application: "orders".into(),
+            environment: "local".into(),
+            profile: "default".into(),
+            external_aws_contact: false,
+            services: vec![minco_dev::ServicePlan {
+                id: "rustack".into(),
+                kind: ServiceKind::Rustack,
+                port: Some(45_666),
+                local_only: true,
+                aws_services: vec!["s3".into(), "sts".into()],
+                start: None,
+                stop: None,
+            }],
+            lifecycle: Vec::new(),
+            processes: Vec::new(),
+            omitted_schedule_ids: Vec::new(),
+        };
+
+        let environment = development_runtime_environment(
+            &plan,
+            DevDatabase::None,
+            "local",
+            EnvironmentClass::Local,
+            "ap-southeast-2",
+        )
+        .expect("local AWS runtime environment");
+
+        assert_eq!(environment["AWS_ENDPOINT_URL"], "http://127.0.0.1:45666");
+        assert_eq!(environment["AWS_REGION"], "ap-southeast-2");
+        assert_eq!(environment["AWS_DEFAULT_REGION"], "ap-southeast-2");
+        assert_eq!(environment["AWS_EC2_METADATA_DISABLED"], "true");
+        assert_eq!(environment["AWS_S3_FORCE_PATH_STYLE"], "true");
+        assert_eq!(environment["AWS_ACCESS_KEY_ID"], "test");
+        assert_eq!(environment["AWS_SECRET_ACCESS_KEY"], "test");
+        assert!(environment["AWS_ENDPOINT_URL"].starts_with("http://127.0.0.1:"));
     }
 
     #[test]

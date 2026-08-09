@@ -104,6 +104,7 @@ aws-sdk-s3 = { version = "1.140.0", default-features = false, features = ["defau
 aws-sdk-sesv2 = { version = "1.128.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aws-sdk-sqs = { version = "1.105.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aws-sdk-ssm = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-sts = { version = "1.110.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
 axum = { version = "0.8.9", features = ["json", "macros"] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde", "clock"] }
