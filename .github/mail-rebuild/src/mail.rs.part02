@@ -1,0 +1,302 @@
+        duration_ms: duration.map(|value| u64::try_from(value.as_millis()).unwrap_or(u64::MAX)),
+        }
+    }
+}
+
+#[async_trait]
+pub trait MailObserver: Send + Sync + fmt::Debug {
+    async fn observe(&self, event: &MailSubmissionEvent);
+}
+
+#[derive(Debug, Default)]
+pub struct NoopMailObserver;
+
+#[async_trait]
+impl MailObserver for NoopMailObserver {
+    async fn observe(&self, _event: &MailSubmissionEvent) {}
+}
+
+#[derive(Debug, Default)]
+pub struct MemoryMailObserver {
+    events: RwLock<Vec<MailSubmissionEvent>>,
+}
+
+impl MemoryMailObserver {
+    pub async fn events(&self) -> Vec<MailSubmissionEvent> {
+        self.events.read().await.clone()
+    }
+
+    pub async fn clear(&self) {
+        self.events.write().await.clear();
+    }
+}
+
+#[async_trait]
+impl MailObserver for MemoryMailObserver {
+    async fn observe(&self, event: &MailSubmissionEvent) {
+        self.events.write().await.push(event.clone());
+    }
+}
+
+#[derive(Clone)]
+pub struct CompositeMailObserver {
+    observers: Vec<Arc<dyn MailObserver>>,
+}
+
+impl CompositeMailObserver {
+    pub fn new(observers: Vec<Arc<dyn MailObserver>>) -> Self {
+        Self { observers }
+    }
+}
+
+impl fmt::Debug for CompositeMailObserver {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CompositeMailObserver")
+            .field("observer_count", &self.observers.len())
+            .finish()
+    }
+}
+
+#[async_trait]
+impl MailObserver for CompositeMailObserver {
+    async fn observe(&self, event: &MailSubmissionEvent) {
+        for observer in &self.observers {
+            observer.observe(event).await;
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TracingMailObserver;
+
+#[async_trait]
+impl MailObserver for TracingMailObserver {
+    async fn observe(&self, event: &MailSubmissionEvent) {
+        match event.kind {
+            MailSubmissionEventKind::AttemptFailed => tracing::warn!(
+                target: "minco.mail",
+                mail_event_id = %event.event_id,
+                mail_message_id = %event.message_id,
+                mail_topic = %event.topic,
+                mail_transport = %event.transport,
+                mail_event = ?event.kind,
+                mail_attempt = event.attempt,
+                mail_failure_kind = ?event.failure_kind,
+                mail_duration_ms = event.duration_ms,
+                "mail submission event"
+            ),
+            _ => tracing::info!(
+                target: "minco.mail",
+                mail_event_id = %event.event_id,
+                mail_message_id = %event.message_id,
+                mail_topic = %event.topic,
+                mail_transport = %event.transport,
+                mail_event = ?event.kind,
+                mail_attempt = event.attempt,
+                mail_failure_kind = ?event.failure_kind,
+                mail_duration_ms = event.duration_ms,
+                "mail submission event"
+            ),
+        }
+    }
+}
+
+#[async_trait]
+pub trait MailTransport: Send + Sync + fmt::Debug {
+    fn name(&self) -> &str;
+
+    async fn send(
+        &self,
+        message: &MailMessage,
+        attempt: u32,
+    ) -> Result<MailReceipt, MailError>;
+}
+
+#[derive(Clone)]
+pub struct MailService {
+    transports: Vec<Arc<dyn MailTransport>>,
+    observer: Arc<dyn MailObserver>,
+}
+
+impl MailService {
+    pub fn new(
+        transports: Vec<Arc<dyn MailTransport>>,
+        observer: Arc<dyn MailObserver>,
+    ) -> Result<Self, MailError> {
+        if transports.is_empty() {
+            return Err(MailError::new(
+                MailErrorKind::Configuration,
+                "mail",
+                "mail service requires at least one transport",
+            ));
+        }
+        let mut names = BTreeSet::new();
+        for transport in &transports {
+            if !valid_transport_name(transport.name())
+                || !names.insert(transport.name().to_owned())
+            {
+                return Err(MailError::new(
+                    MailErrorKind::Configuration,
+                    "mail",
+                    "mail transport names must be unique stable identifiers",
+                ));
+            }
+        }
+        Ok(Self {
+            transports,
+            observer,
+        })
+    }
+
+    pub fn single(
+        transport: Arc<dyn MailTransport>,
+        observer: Arc<dyn MailObserver>,
+    ) -> Result<Self, MailError> {
+        Self::new(vec![transport], observer)
+    }
+
+    async fn observe(&self, event: MailSubmissionEvent) {
+        let _ = timeout(OBSERVER_TIMEOUT, self.observer.observe(&event)).await;
+    }
+
+    pub async fn send(&self, message: MailMessage) -> Result<MailReceipt, MailError> {
+        message.validate()?;
+        self.observe(MailSubmissionEvent::new(
+            &message,
+            "mail.service",
+            MailSubmissionEventKind::Prepared,
+            0,
+            None,
+            None,
+        ))
+        .await;
+
+        for (index, transport) in self.transports.iter().enumerate() {
+            let attempt = u32::try_from(index + 1).map_err(|_| {
+                MailError::new(
+                    MailErrorKind::Configuration,
+                    "mail",
+                    "mail transport attempt count overflow",
+                )
+            })?;
+            self.observe(MailSubmissionEvent::new(
+                &message,
+                transport.name(),
+                MailSubmissionEventKind::Attempting,
+                attempt,
+                None,
+                None,
+            ))
+            .await;
+
+            let started_at = Instant::now();
+            match transport.send(&message, attempt).await {
+                Ok(receipt) => {
+                    validate_receipt(&receipt, &message, transport.name(), attempt)?;
+                    self.observe(MailSubmissionEvent::new(
+                        &message,
+                        transport.name(),
+                        MailSubmissionEventKind::Accepted,
+                        attempt,
+                        None,
+                        Some(started_at.elapsed()),
+                    ))
+                    .await;
+                    return Ok(receipt);
+                }
+                Err(error) => {
+                    let error = normalize_transport_error(error, transport.name());
+                    self.observe(MailSubmissionEvent::new(
+                        &message,
+                        transport.name(),
+                        MailSubmissionEventKind::AttemptFailed,
+                        attempt,
+                        Some(error.kind),
+                        Some(started_at.elapsed()),
+                    ))
+                    .await;
+                    let has_fallback = index + 1 < self.transports.len();
+                    if !error.can_failover() || !has_fallback {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+
+        Err(MailError::new(
+            MailErrorKind::Unavailable,
+            "mail",
+            "all configured mail transports were unavailable",
+        ))
+    }
+}
+
+impl fmt::Debug for MailService {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MailService")
+            .field(
+                "transports",
+                &self
+                    .transports
+                    .iter()
+                    .map(|transport| transport.name())
+                    .collect::<Vec<_>>(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+pub struct MemoryMailTransport {
+    name: String,
+    messages: RwLock<Vec<MailMessage>>,
+}
+
+impl MemoryMailTransport {
+    pub fn named(name: impl Into<String>) -> Result<Self, MailError> {
+        let name = name.into();
+        if !valid_transport_name(&name) {
+            return Err(MailError::new(
+                MailErrorKind::Configuration,
+                "memory",
+                "memory mail transport name is invalid",
+            ));
+        }
+        Ok(Self {
+            name,
+            messages: RwLock::new(Vec::new()),
+        })
+    }
+
+    pub async fn messages(&self) -> Vec<MailMessage> {
+        self.messages.read().await.clone()
+    }
+
+    pub async fn count(&self) -> usize {
+        self.messages.read().await.len()
+    }
+
+    pub async fn clear(&self) {
+        self.messages.write().await.clear();
+    }
+
+    pub async fn sent_to(&self, address: &str) -> bool {
+        let Ok(expected) = MailAddress::new(address) else {
+            return false;
+        };
+        self.messages.read().await.iter().any(|message| {
+            message
+                .recipients()
+                .any(|recipient| same_mailbox(recipient, &expected))
+        })
+    }
+
+    pub async fn assert_sent_count(&self, expected: usize) {
+        assert_eq!(self.count().await, expected, "unexpected sent-mail count");
+    }
+
+    pub async fn assert_sent_to(&self, address: &str) {
+        assert!(
+            self.sent_to(address).await,
+            "no captur
