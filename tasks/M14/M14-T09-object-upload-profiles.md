@@ -1,11 +1,11 @@
 ---
-id: M14-T08
+id: M14-T09
 title: Add statically composed object-upload profiles
 milestone: M14
 status: planned
 priority: medium
 area: plugins/object-storage
-depends_on: [M14-T07]
+depends_on: [M14-T08]
 operations: []
 owned_paths:
   - docs/adrs/**
@@ -15,7 +15,7 @@ owned_paths:
   - extensions/minco-aws-adapters/tests/real_aws_s3.rs
   - plugins/minco-plugin-object-storage/README.md
   - plugins/minco-plugin-object-storage/src/uploads.rs
-  - tasks/M14/M14-T08-object-upload-profiles.md
+  - tasks/M14/M14-T09-object-upload-profiles.md
   - verification/source-manifest.json
 checks:
   - uv run --locked python scripts/validate_static.py
@@ -73,7 +73,7 @@ infrastructure.
 
 ## Evidence
 
-Created during the M14-T07 senior hardening review because Minco's typed service
+Created during the M14-T08 senior hardening review because Minco's typed service
 collection permits one `ObjectUploadService` instance and the current managed
 plugin therefore exposes one exact policy. Widening that policy across unrelated
 product purposes would weaken prefix, media, and size boundaries. The follow-up

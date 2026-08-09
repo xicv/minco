@@ -21,7 +21,7 @@ requires a provider checksum rather than trusting user metadata alone.
 
 One managed plugin instance intentionally installs one exact upload policy.
 Keep that policy purpose-specific instead of combining unrelated product
-limits. Statically composed named profiles are tracked separately in M14-T08.
+limits. Statically composed named profiles are tracked separately in M14-T09.
 Applications that need separate principals may use
 `ManagedObjectStoragePlugin::new_with_signers` to supply distinct private
 download and upload signers without a runtime locator.

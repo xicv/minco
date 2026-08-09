@@ -1,5 +1,5 @@
 ---
-id: M14-T07
+id: M14-T08
 title: Add a verified direct-object upload lifecycle
 milestone: M14
 status: active
@@ -27,8 +27,8 @@ owned_paths:
   - plugins/minco-plugin-object-storage/src/lib.rs
   - plugins/minco-plugin-object-storage/src/uploads.rs
   - scripts/aws/run-adapter-smoke.sh
-  - tasks/M14/M14-T07-verified-object-uploads.md
-  - tasks/M14/M14-T08-object-upload-profiles.md
+  - tasks/M14/M14-T08-verified-object-uploads.md
+  - tasks/M14/M14-T09-object-upload-profiles.md
   - verification/source-manifest.json
   - verification/deep-review.json
   - verification/static-validation.json
@@ -77,7 +77,7 @@ proxying browser bytes through Lambda, or adding hidden compute/schedules.
 - formatting checks name only modified Rust files; package-scoped compiler,
   test, and Clippy gates do not rewrite source files.
 - one managed service exposes one exact purpose-specific policy; statically
-  composed multiple product profiles remain the dependent M14-T08 task rather
+  composed multiple product profiles remain the dependent M14-T09 task rather
   than widening this task's authorization and configuration surface.
 
 ## Compatibility

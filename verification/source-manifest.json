@@ -1809,7 +1809,7 @@
     },
     {
       "path": "docs/adrs/0035-verified-direct-object-uploads.md",
-      "sha256": "11257a7aa37b352d7d396344cc230dde67e082633d1fd8fc328b446935e9e3a5",
+      "sha256": "37864ea19a1206830813bb88dd916599a96b401455da066dfc35db5bc8187b4a",
       "size_bytes": 8758
     },
     {
@@ -2019,7 +2019,7 @@
     },
     {
       "path": "docs/how-to/object-uploads.md",
-      "sha256": "da325bf394256022fc426a8dd5ec84a9bbe19d226cf49767e9b271c565acb08e",
+      "sha256": "fbf6ab687f7ac3edc7cddeb012bdcd73455719994274beada62ebcea4e592c7b",
       "size_bytes": 10483
     },
     {
@@ -2139,7 +2139,7 @@
     },
     {
       "path": "docs/research/object-storage-review-2026-08.md",
-      "sha256": "347987becffa6fe9353796df58982613169b0f9ba6efc6b90524d0f394db1697",
+      "sha256": "0860efb55a6a7f00239b56c307fd2bb0d84d7595a9601bb301366c0c5b01cbd7",
       "size_bytes": 14885
     },
     {
@@ -3859,7 +3859,7 @@
     },
     {
       "path": "plugins/minco-plugin-object-storage/README.md",
-      "sha256": "8f08f1b5795cefae0dc735f312a33a6bc779fe62dbdf6a8448a1fa5387821080",
+      "sha256": "ec38e2b2c3125042025a76a0d9974f50f0b5b05c4f5a807b96710249d9cb6c7e",
       "size_bytes": 2025
     },
     {
@@ -5003,13 +5003,13 @@
       "size_bytes": 4513
     },
     {
-      "path": "tasks/M14/M14-T07-verified-object-uploads.md",
-      "sha256": "d0f347fdd96e7a5cde4636f959b66e8f2111ff34e8aa2eba5f5e479f7a681ad1",
+      "path": "tasks/M14/M14-T08-verified-object-uploads.md",
+      "sha256": "63872382100ab95a0fb03eb7e271b303776e74cca28416d7ad104380b7c9b4c8",
       "size_bytes": 6366
     },
     {
-      "path": "tasks/M14/M14-T08-object-upload-profiles.md",
-      "sha256": "57efb36509c62bfc906c86c1ebbb33698c80fd411a54ea48c970651d0169ac52",
+      "path": "tasks/M14/M14-T09-object-upload-profiles.md",
+      "sha256": "3406cbe9c40c345fdb3683170f99d0abc55b16585c81962ff8d4249252451b77",
       "size_bytes": 3660
     },
     {
@@ -5344,7 +5344,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "744b3b85fb989ebab5ede5c4448ce588c2cf287a8ae2012c2380aa5e66677540",
+  "source_tree_sha256": "ba7218bd1ab16758d425c71eed9edafe2eddfcde7402fe53f8b0be5cf6a6dd38",
   "total_size_bytes": 7212116,
   "version": "1.1.0"
 }

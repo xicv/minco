@@ -202,7 +202,7 @@ rustdoc instead of inferred from string configuration.
    additive later.
 6. **Multiple product upload profiles.** One managed plugin installs one typed
    service and one exact policy. A broad union would weaken prefix/type/size
-   separation, so M14-T08 retains statically composed named profiles for
+   separation, so M14-T09 retains statically composed named profiles for
    avatars, images, documents, and attachments with application-owned
    authorization.
 

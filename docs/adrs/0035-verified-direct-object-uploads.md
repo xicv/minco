@@ -85,7 +85,7 @@ to their threat model.
   not trusted-state retention. An accepted object may be verified later;
   applications own pending-record expiry and cleanup.
 - One managed plugin installs one exact upload policy. Multiple named product
-  profiles remain M14-T08 so this change does not introduce a runtime service
+  profiles remain M14-T09 so this change does not introduce a runtime service
   locator or a dangerously broad union policy.
 - S3 single POST uploads are rejected above 5 GiB. Multipart upload needs its
   own upload-ID, part-manifest, retry, complete/abort, checksum, and lifecycle

@@ -49,7 +49,7 @@ separately, but that split configuration must be reviewed for drift.
 One managed plugin instance currently installs one `ObjectUploadService` with
 one policy. Use a policy narrow enough for one product purpose. Do not combine
 avatars, documents, and attachments into a broad prefix/type/size union merely
-to share the service; typed multi-profile composition is retained as M14-T08.
+to share the service; typed multi-profile composition is retained as M14-T09.
 
 ## 2. Hash the bounded file
 
