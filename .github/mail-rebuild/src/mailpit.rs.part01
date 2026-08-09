@@ -1,0 +1,117 @@
+_data {
+            MailErrorKind::Ambiguous
+        } else {
+            MailErrorKind::Unavailable
+        },
+        "mailpit",
+        message,
+    )
+}
+
+fn dot_stuff(message: &[u8]) -> Vec<u8> {
+    let mut output = Vec::with_capacity(message.len() + 16);
+    let mut at_line_start = true;
+    for byte in message {
+        if at_line_start && *byte == b'.' {
+            output.push(b'.');
+        }
+        output.push(*byte);
+        at_line_start = *byte == b'\n';
+    }
+    output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::MailMessage;
+    use tokio::{
+        io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+        net::TcpListener,
+    };
+
+    #[tokio::test]
+    async fn loopback_smtp_captures_rich_mime_without_bcc_header() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let endpoint = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut stream = BufReader::new(stream);
+            stream.get_mut().write_all(b"220 mailpit ESMTP\r\n").await.unwrap();
+            let mut captured = Vec::new();
+            loop {
+                let mut line = String::new();
+                if stream.read_line(&mut line).await.unwrap() == 0 {
+                    break;
+                }
+                if line.starts_with("EHLO") {
+                    stream
+                        .get_mut()
+                        .write_all(b"250-mailpit\r\n250 8BITMIME\r\n")
+                        .await
+                        .unwrap();
+                } else if line.starts_with("MAIL FROM") || line.starts_with("RCPT TO") {
+                    stream.get_mut().write_all(b"250 ok\r\n").await.unwrap();
+                } else if line == "DATA\r\n" {
+                    stream
+                        .get_mut()
+                        .write_all(b"354 send data\r\n")
+                        .await
+                        .unwrap();
+                    loop {
+                        let mut data_line = Vec::new();
+                        stream.read_until(b'\n', &mut data_line).await.unwrap();
+                        if data_line == b".\r\n" {
+                            break;
+                        }
+                        captured.extend_from_slice(&data_line);
+                    }
+                    stream.get_mut().write_all(b"250 accepted\r\n").await.unwrap();
+                } else if line.starts_with("QUIT") {
+                    stream.get_mut().write_all(b"221 bye\r\n").await.unwrap();
+                    break;
+                }
+            }
+            captured
+        });
+
+        let transport = MailpitTransport::new(
+            MailpitTransportConfig::new(
+                endpoint,
+                MailAddress::new("no-reply@example.com").unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let message = MailMessage::builder("account.welcome", "Welcome")
+            .to(MailAddress::new("person@example.com").unwrap())
+            .bcc(MailAddress::new("audit@example.com").unwrap())
+            .text("Hello")
+            .html("<p>Hello</p>")
+            .build()
+            .unwrap();
+        let receipt = transport.send(&message, 1).await.unwrap();
+        assert_eq!(receipt.transport, "mailpit");
+        let captured = String::from_utf8(server.await.unwrap()).unwrap();
+        assert!(!captured.contains("Bcc:"));
+        assert!(!captured.contains("audit@example.com"));
+        assert!(captured.contains("multipart/alternative"));
+    }
+
+    #[test]
+    fn remote_plaintext_smtp_is_rejected() {
+        let endpoint = SocketAddr::from(([192, 0, 2, 1], 1025));
+        assert!(
+            MailpitTransportConfig::new(
+                endpoint,
+                MailAddress::new("no-reply@example.com").unwrap()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn dot_stuffing_covers_every_line_start() {
+        assert_eq!(dot_stuff(b".a\r\n.b\r\n"), b"..a\r\n..b\r\n");
+    }
+}
