@@ -2,12 +2,15 @@
 
 use aws_credential_types::{Credentials, provider::SharedCredentialsProvider};
 use chrono::TimeDelta;
-use minco_aws_adapters::{s3::S3ObjectAdapter, sqs::SqsEventPublisher};
+use minco_aws_adapters::{s3::S3Addressing, s3_storage::S3ObjectStorage, sqs::SqsEventPublisher};
+use minco_core::{PluginId, PluginManager, PluginSelection};
 use minco_plugin_events::{DomainEvent, EventPublisher};
 use minco_plugin_object_storage::{
-    ObjectAccessSigner, ObjectKey, ObjectStore, PresignGetObject, PresignPutObject,
-    PresignedMethod, PutObject,
+    IssueObjectUpload, ObjectAccessSigner, ObjectKey, ObjectStore, ObjectUploadError,
+    ObjectUploadPolicy, ObjectUploadService, PresignGetObject, PresignPutObject, PresignedMethod,
+    PutObject,
 };
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -33,13 +36,15 @@ async fn s3_and_sqs_adapters_use_standard_sdk_endpoints() {
         .endpoint_url(&endpoint)
         .load()
         .await;
-    let s3 = aws_sdk_s3::Client::from_conf(
-        aws_sdk_s3::config::Builder::from(&shared)
-            .force_path_style(true)
-            .build(),
-    );
-    let adapter =
-        S3ObjectAdapter::new(s3, credentials, &bucket, "adapter", region, Some(endpoint)).unwrap();
+    let storage = S3ObjectStorage::from_sdk_builder(
+        aws_sdk_s3::config::Builder::from(&shared),
+        credentials,
+        &bucket,
+        "adapter",
+        S3Addressing::new(region, Some(endpoint)).unwrap(),
+    )
+    .unwrap();
+    let adapter = storage.adapter();
 
     let server_key = ObjectKey::parse("server.txt").unwrap();
     let metadata = adapter
@@ -91,6 +96,80 @@ async fn s3_and_sqs_adapters_use_standard_sdk_endpoints() {
         b"rustack-direct-adapter"
     );
 
+    let managed_body = b"rustack-managed-upload";
+    let managed_sha256 = format!("{:x}", Sha256::digest(managed_body));
+    let policy =
+        ObjectUploadPolicy::new(ObjectKey::parse("managed").unwrap(), 1024, ["text/plain"])
+            .unwrap();
+    let mut manager = PluginManager::default();
+    manager.register(storage.plugin(policy).unwrap()).unwrap();
+    let mut selection = PluginSelection::default();
+    selection
+        .enabled
+        .insert(PluginId::new("object-storage").unwrap());
+    let application = manager.compose(&selection).unwrap();
+    let uploads = application.services.get::<ObjectUploadService>().unwrap();
+    let issued = uploads
+        .issue(IssueObjectUpload {
+            content_type: "text/plain".into(),
+            size_bytes: managed_body.len() as u64,
+            sha256: managed_sha256.clone(),
+            attributes: BTreeMap::from([("source".into(), "managed-rustack".into())]),
+        })
+        .await
+        .unwrap();
+    assert_eq!(issued.grant.request.method, PresignedMethod::Post);
+    assert!(
+        !issued
+            .grant
+            .key
+            .as_str()
+            .rsplit('/')
+            .next()
+            .unwrap()
+            .contains('.'),
+        "managed upload keys must not inherit a client file extension"
+    );
+    let mut managed_form = reqwest::multipart::Form::new();
+    for (name, value) in issued.grant.request.form_fields.clone() {
+        managed_form = managed_form.text(name, value);
+    }
+    managed_form = managed_form.part(
+        "file",
+        reqwest::multipart::Part::bytes(managed_body.to_vec())
+            .mime_str("text/plain")
+            .unwrap(),
+    );
+    let managed_response = reqwest::Client::new()
+        .post(&issued.grant.request.url)
+        .multipart(managed_form)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        managed_response.status().is_success(),
+        "{}",
+        managed_response.status()
+    );
+    match uploads.verify(&issued.pending).await {
+        Ok(verified) => {
+            assert_eq!(verified.key, issued.grant.key);
+            assert_eq!(verified.metadata.content_type, "text/plain");
+            assert_eq!(verified.metadata.size_bytes, managed_body.len() as u64);
+            assert_eq!(
+                verified.metadata.sha256.as_deref(),
+                Some(managed_sha256.as_str())
+            );
+            assert_eq!(verified.metadata.attributes["source"], "managed-rustack");
+        }
+        // Rustack currently accepts the signed multipart POST but does not
+        // reproduce S3's checksum metadata contract. The managed path must
+        // fail closed; exact policy/signature units plus the ignored real-S3
+        // conformance test cover successful provider verification.
+        Err(ObjectUploadError::ChecksumMismatch) => {}
+        Err(error) => panic!("unexpected managed verification result: {error}"),
+    }
+
     let signed_get = adapter
         .sign_get(PresignGetObject {
             key: direct_key.clone(),
@@ -116,6 +195,7 @@ async fn s3_and_sqs_adapters_use_standard_sdk_endpoints() {
     );
     assert!(adapter.delete(&server_key).await.unwrap());
     assert!(adapter.delete(&direct_key).await.unwrap());
+    assert!(adapter.delete(&issued.grant.key).await.unwrap());
 
     let sqs = aws_sdk_sqs::Client::new(&shared);
     let publisher = SqsEventPublisher::new(sqs.clone(), &queue_url, false).unwrap();

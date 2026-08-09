@@ -22,6 +22,21 @@ SHA-256 checksum, short expiry, encryption field, and signed Minco attributes.
 Single POST uploads are rejected above S3's 5 GiB boundary rather than emitting
 a capability that the provider cannot honor.
 
+Prefer `S3ObjectStorage::from_sdk_builder` so the SDK client and manual POST
+signer share the generated S3 endpoint resolver, region, credentials, endpoint
+override, and path-style decision. Custom endpoints default to path style and
+dotted AWS bucket names avoid virtual-host TLS mismatch. Temporary credentials
+shorten the bearer capability with a safety skew; invalid or insufficient
+credential lifetime fails closed. The compatible `new` constructor is retained
+for intentionally preconfigured clients, where configuration drift must be
+reviewed explicitly.
+
+Rustack exercises SDK transport, managed issuance/POST, and fail-closed
+verification, but does not currently reproduce S3's checksum metadata contract.
+The ignored S3-only real-provider test uses a pre-existing bucket, journals
+every operation, performs no `GetObject`, and cleans its run-owned keys. It is
+never a substitute for explicit authorization to use a target AWS account.
+
 The `full` feature enables S3, SQS, SES v2, Cognito user-pool administration,
 signed webhooks, S3/CloudFront static-site publication, and AppSync Events
 publication. Select only `appsync-events` for the minimal realtime adapter. It

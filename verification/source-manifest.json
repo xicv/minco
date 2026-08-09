@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1064,
+  "file_count": 1066,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1584,7 +1584,7 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "d7804c4611b967e9078c7d33f3abe46cea2badc612adb76715971de332b99021",
+      "sha256": "b2742b00993cea299668c426839e777594147e513cd351adef1b00bf18e3d42c",
       "size_bytes": 6074
     },
     {
@@ -1808,9 +1808,9 @@
       "size_bytes": 10244
     },
     {
-      "path": "docs/adrs/0034-verified-direct-object-uploads.md",
-      "sha256": "10c6817ebaa6bb9c048cc7d67c2e94695fa58ed68e95ca6d1be17d174f1b7101",
-      "size_bytes": 7496
+      "path": "docs/adrs/0035-verified-direct-object-uploads.md",
+      "sha256": "11257a7aa37b352d7d396344cc230dde67e082633d1fd8fc328b446935e9e3a5",
+      "size_bytes": 8758
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -2019,8 +2019,8 @@
     },
     {
       "path": "docs/how-to/object-uploads.md",
-      "sha256": "159a4e611befca0a087610ca467e8b7c2971de6dc57b0fb0186dcfa054352fd1",
-      "size_bytes": 8555
+      "sha256": "da325bf394256022fc426a8dd5ec84a9bbe19d226cf49767e9b271c565acb08e",
+      "size_bytes": 10483
     },
     {
       "path": "docs/how-to/postgres-profiles.md",
@@ -2139,8 +2139,8 @@
     },
     {
       "path": "docs/research/object-storage-review-2026-08.md",
-      "sha256": "5e523bb74b84a61f947f0672eb2930891972fdf2b8bff5dcffed716a110b63e1",
-      "size_bytes": 12061
+      "sha256": "347987becffa6fe9353796df58982613169b0f9ba6efc6b90524d0f394db1697",
+      "size_bytes": 14885
     },
     {
       "path": "docs/research/open-source-influences.md",
@@ -3184,8 +3184,8 @@
     },
     {
       "path": "extensions/minco-aws-adapters/Cargo.toml",
-      "sha256": "146b9be06eb5f0266d26cfd7d34bd996b3ff1e976f4e97e77f87469427a61cef",
-      "size_bytes": 3038
+      "sha256": "d8f9b186c3fd134ecbc58cfe85996b527f7594c272ceab9380f55ca7e9387900",
+      "size_bytes": 3063
     },
     {
       "path": "extensions/minco-aws-adapters/LICENSE-APACHE",
@@ -3199,8 +3199,8 @@
     },
     {
       "path": "extensions/minco-aws-adapters/README.md",
-      "sha256": "4b3def5881a35feab0b17a2e268240610b7b1fe1215a818362c97edcc8baa543",
-      "size_bytes": 2511
+      "sha256": "06154fb98614eaa078941ae8c54d52cf6448965c1adfc3d6b291f3858b005a6f",
+      "size_bytes": 3457
     },
     {
       "path": "extensions/minco-aws-adapters/examples/render_smoke_assets.rs",
@@ -3244,13 +3244,13 @@
     },
     {
       "path": "extensions/minco-aws-adapters/src/s3.rs",
-      "sha256": "b97cc1f756467c3ad11b3b4754839c7f0ed14641456dec56f427a42fbea0c5a3",
-      "size_bytes": 25139
+      "sha256": "acb7ea4d3f7a3fe8469e6950321bd0f467721d3bd3559d8e65825dee2df5e0f2",
+      "size_bytes": 38473
     },
     {
       "path": "extensions/minco-aws-adapters/src/s3_storage.rs",
-      "sha256": "f55c7ca635c98bbdecc8ec7ce02f3e91cb231facb8005b662485f655072fefb9",
-      "size_bytes": 11214
+      "sha256": "55b3a14500032b9ece048e493c40af53439a420b76a730a94791433a75333c92",
+      "size_bytes": 14166
     },
     {
       "path": "extensions/minco-aws-adapters/src/ses.rs",
@@ -3278,9 +3278,14 @@
       "size_bytes": 10240
     },
     {
+      "path": "extensions/minco-aws-adapters/tests/real_aws_s3.rs",
+      "sha256": "6a83c99811f50e567bb0a469be74089484bce0e8d46dd110e456c6b9af8a14b9",
+      "size_bytes": 12174
+    },
+    {
       "path": "extensions/minco-aws-adapters/tests/rustack.rs",
-      "sha256": "e11721b9f12bc6f0dcab611d3d2f2803425c75d1e2472a6ec56eac4ba82d2afb",
-      "size_bytes": 5112
+      "sha256": "ee47e1cb716ed4a09c01a9f2cd2bf0391035083b0e67148d48ce91413236c345",
+      "size_bytes": 8299
     },
     {
       "path": "extensions/minco-aws-dynamodb/Cargo.toml",
@@ -3854,8 +3859,8 @@
     },
     {
       "path": "plugins/minco-plugin-object-storage/README.md",
-      "sha256": "634225ebc9329e830a7b73b98b39d8d92ca50e9a46be87160145f27488e897bf",
-      "size_bytes": 1235
+      "sha256": "8f08f1b5795cefae0dc735f312a33a6bc779fe62dbdf6a8448a1fa5387821080",
+      "size_bytes": 2025
     },
     {
       "path": "plugins/minco-plugin-object-storage/minco-plugin.json",
@@ -3874,8 +3879,8 @@
     },
     {
       "path": "plugins/minco-plugin-object-storage/src/uploads.rs",
-      "sha256": "3a2eaad9e2889f4d71ce59e344f8d438ff73ee27e5d34a79ec97f48c1f5955c3",
-      "size_bytes": 25904
+      "sha256": "a2370d92d3aa5c151768f71e4a1ecdb8b785278f41abf572fd4e6edafb47a096",
+      "size_bytes": 28473
     },
     {
       "path": "plugins/minco-plugin-observability/Cargo.toml",
@@ -4389,8 +4394,8 @@
     },
     {
       "path": "scripts/aws/run-adapter-smoke.sh",
-      "sha256": "4a60d94ab10f502acf35a8870039215c561f4f70f0174a1f3c681a9093ace89c",
-      "size_bytes": 21607
+      "sha256": "fc5c03b0ea955c1c212c5f6e078adacaa24e5ce5cd971a6ea90cc84579f7b5e7",
+      "size_bytes": 21916
     },
     {
       "path": "scripts/aws/run-bounded-multi-release-smoke.sh",
@@ -4998,9 +5003,14 @@
       "size_bytes": 4513
     },
     {
-      "path": "tasks/M14/M14-T06-verified-object-uploads.md",
-      "sha256": "8a3693bc4df4d8d57dcfc1811be08051d7716af8b14b86751130e7fa1c8066f3",
-      "size_bytes": 4473
+      "path": "tasks/M14/M14-T07-verified-object-uploads.md",
+      "sha256": "d0f347fdd96e7a5cde4636f959b66e8f2111ff34e8aa2eba5f5e479f7a681ad1",
+      "size_bytes": 6366
+    },
+    {
+      "path": "tasks/M14/M14-T08-object-upload-profiles.md",
+      "sha256": "57efb36509c62bfc906c86c1ebbb33698c80fd411a54ea48c970651d0169ac52",
+      "size_bytes": 3660
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5244,7 +5254,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "c30f00bd039b6600e38d92d1b02315d00c5cd79a631c5062cc09427b6286884e",
+      "sha256": "948bf01a7a71de095f19c4982d8ca3c60b89d4c4c5e591ff91133af6bf22796c",
       "size_bytes": 2022
     },
     {
@@ -5304,7 +5314,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "8f8aacd55f9c79d180f944c20749281a3e07b46ceb7ca003bb854d6eb11bb53d",
+      "sha256": "baa3493847a92f8776d93b5b5f9b6108ea6d00db7db8056672b9af1814ce4120",
       "size_bytes": 754
     },
     {
@@ -5334,7 +5344,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "005851a311ef325dbc6f9fa0a20e6aa5097464b1807e0207e1dad6192fe118d4",
-  "total_size_bytes": 7164263,
+  "source_tree_sha256": "744b3b85fb989ebab5ede5c4448ce588c2cf287a8ae2012c2380aa5e66677540",
+  "total_size_bytes": 7212116,
   "version": "1.1.0"
 }

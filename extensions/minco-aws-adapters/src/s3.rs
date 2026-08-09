@@ -1,25 +1,35 @@
 use async_trait::async_trait;
-use aws_credential_types::provider::{ProvideCredentials, SharedCredentialsProvider};
+use aws_credential_types::{
+    Credentials,
+    provider::{ProvideCredentials, SharedCredentialsProvider},
+};
 use aws_sdk_s3::{
-    presigning::PresigningConfig, primitives::ByteStream, types::ServerSideEncryption,
+    config::endpoint::{DefaultResolver, Params, ResolveEndpoint},
+    presigning::PresigningConfig,
+    primitives::ByteStream,
+    types::ServerSideEncryption,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use hmac::{Hmac, Mac};
 use minco_plugin_object_storage::{
     ObjectAccessSigner, ObjectKey, ObjectMetadata, ObjectStore, ObjectStoreError,
-    ObjectUploadSigner, PresignGetObject, PresignPutObject, PresignedMethod,
+    ObjectUploadError, ObjectUploadSigner, PresignGetObject, PresignPutObject, PresignedMethod,
     PresignedObjectRequest, PutObject, SignObjectUpload, StoredObject,
 };
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 type HmacSha256 = Hmac<Sha256>;
 
 const META_SHA256: &str = "minco-sha256";
 const META_CREATED_AT: &str = "minco-created-at";
 const META_ATTRIBUTES: &str = "minco-attributes";
-const MAX_SINGLE_POST_SIZE_BYTES: u64 = 5 * 1024 * 1024 * 1024;
+pub const MAX_SINGLE_POST_SIZE_BYTES: u64 = 5 * 1024 * 1024 * 1024;
+const CREDENTIAL_EXPIRY_SAFETY_SKEW: TimeDelta = TimeDelta::seconds(60);
 
 struct S3PostObject {
     key: ObjectKey,
@@ -31,14 +41,87 @@ struct S3PostObject {
     sha256: Option<String>,
 }
 
+/// Endpoint inputs shared by the generated S3 endpoint resolver and the SDK
+/// client used for object operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct S3Addressing {
+    region: String,
+    endpoint_override: Option<String>,
+    force_path_style: bool,
+}
+
+impl S3Addressing {
+    pub fn new(
+        region: impl Into<String>,
+        endpoint_override: Option<String>,
+    ) -> Result<Self, ObjectStoreError> {
+        let region = region.into();
+        validate_region(&region)?;
+        if endpoint_override
+            .as_deref()
+            .is_some_and(|endpoint| !valid_endpoint_override(endpoint))
+        {
+            return Err(ObjectStoreError::Store(
+                "S3 endpoint override is invalid".into(),
+            ));
+        }
+        let endpoint_override =
+            endpoint_override.map(|endpoint| endpoint.trim_end_matches('/').to_owned());
+        Ok(Self {
+            region,
+            force_path_style: endpoint_override.is_some(),
+            endpoint_override,
+        })
+    }
+
+    /// Explicitly select path-style bucket addressing.
+    #[must_use]
+    pub const fn with_path_style(mut self, force_path_style: bool) -> Self {
+        self.force_path_style = force_path_style;
+        self
+    }
+
+    pub fn region(&self) -> &str {
+        &self.region
+    }
+
+    pub fn endpoint_override(&self) -> Option<&str> {
+        self.endpoint_override.as_deref()
+    }
+
+    pub const fn force_path_style(&self) -> bool {
+        self.force_path_style
+    }
+
+    pub(crate) fn for_bucket(mut self, bucket: &str) -> Self {
+        if bucket.contains('.') {
+            self.force_path_style = true;
+        }
+        self
+    }
+
+    async fn resolve_bucket_endpoint(&self, bucket: &str) -> Result<String, ObjectUploadError> {
+        let params = Params::builder()
+            .bucket(bucket)
+            .region(&self.region)
+            .force_path_style(self.force_path_style)
+            .set_endpoint(self.endpoint_override.clone())
+            .build()
+            .map_err(|_| ObjectUploadError::EndpointResolution)?;
+        let endpoint = ResolveEndpoint::resolve_endpoint(&DefaultResolver::new(), &params)
+            .await
+            .map_err(|_| ObjectUploadError::EndpointResolution)?;
+        Ok(endpoint.url().trim_end_matches('/').to_owned())
+    }
+}
+
 #[derive(Clone)]
 pub struct S3ObjectAdapter {
     client: aws_sdk_s3::Client,
     credentials: SharedCredentialsProvider,
     bucket: String,
     key_prefix: String,
-    region: String,
-    endpoint_override: Option<String>,
+    addressing: S3Addressing,
 }
 
 impl std::fmt::Debug for S3ObjectAdapter {
@@ -47,8 +130,7 @@ impl std::fmt::Debug for S3ObjectAdapter {
             .debug_struct("S3ObjectAdapter")
             .field("bucket", &self.bucket)
             .field("key_prefix", &self.key_prefix)
-            .field("region", &self.region)
-            .field("endpoint_override", &self.endpoint_override)
+            .field("addressing", &self.addressing)
             .field("credentials", &"[REDACTED PROVIDER]")
             .finish_non_exhaustive()
     }
@@ -64,139 +146,137 @@ impl S3ObjectAdapter {
         endpoint_override: Option<String>,
     ) -> Result<Self, ObjectStoreError> {
         let bucket = bucket.into();
+        let addressing = S3Addressing::new(region, endpoint_override)?;
+        Self::new_with_addressing(client, credentials, bucket, key_prefix, addressing)
+    }
+
+    pub fn new_with_addressing(
+        client: aws_sdk_s3::Client,
+        credentials: SharedCredentialsProvider,
+        bucket: impl Into<String>,
+        key_prefix: impl Into<String>,
+        addressing: S3Addressing,
+    ) -> Result<Self, ObjectStoreError> {
+        let bucket = bucket.into();
         let key_prefix = normalize_prefix(&key_prefix.into())?;
-        let region = region.into();
         validate_bucket(&bucket)?;
-        if region.trim().is_empty()
-            || region.len() > 64
-            || !region
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-        {
-            return Err(ObjectStoreError::Store("AWS region is invalid".into()));
-        }
-        if endpoint_override
-            .as_deref()
-            .is_some_and(|endpoint| !valid_endpoint_override(endpoint))
-        {
-            return Err(ObjectStoreError::Store(
-                "S3 endpoint override is invalid".into(),
-            ));
-        }
+        let addressing = addressing.for_bucket(&bucket);
         Ok(Self {
             client,
             credentials,
             bucket,
             key_prefix,
-            region,
-            endpoint_override: endpoint_override
-                .map(|endpoint| endpoint.trim_end_matches('/').to_owned()),
+            addressing,
         })
     }
 
     fn provider_key(&self, key: &ObjectKey) -> String {
-        if self.key_prefix.is_empty() {
-            key.as_str().to_owned()
-        } else {
-            format!("{}/{}", self.key_prefix, key.as_str())
-        }
-    }
-
-    fn post_url(&self) -> String {
-        match &self.endpoint_override {
-            Some(endpoint) => format!("{endpoint}/{}", self.bucket),
-            None => format!("https://{}.s3.{}.amazonaws.com", self.bucket, self.region),
-        }
+        provider_key(&self.key_prefix, key)
     }
 
     async fn sign_post(
         &self,
         request: S3PostObject,
-    ) -> Result<PresignedObjectRequest, ObjectStoreError> {
-        validate_expiry(request.expires_in)?;
-        validate_content_type(&request.content_type)?;
-        validate_post_size(request.minimum_size_bytes, request.maximum_size_bytes)?;
-        let checksum = request.sha256.as_deref().map(sha256_base64).transpose()?;
+    ) -> Result<PresignedObjectRequest, ObjectUploadError> {
         let credentials = self
             .credentials
             .provide_credentials()
             .await
-            .map_err(|error| {
-                ObjectStoreError::Store(format!("AWS credentials are unavailable: {error}"))
-            })?;
-        let now = Utc::now();
-        let expires_at = now + request.expires_in;
-        let date = now.format("%Y%m%d").to_string();
-        let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
-        let scope = format!("{date}/{}/s3/aws4_request", self.region);
-        let credential = format!("{}/{}", credentials.access_key_id(), scope);
-        let attributes = encode_attributes(&request.attributes)?;
-        let key = self.provider_key(&request.key);
-        let created_at = now.to_rfc3339_opts(SecondsFormat::Millis, true);
-        let mut conditions = vec![
-            serde_json::json!({"bucket": self.bucket}),
-            serde_json::json!({"key": key}),
-            serde_json::json!({"Content-Type": request.content_type}),
-            serde_json::json!([
-                "content-length-range",
-                request.minimum_size_bytes,
-                request.maximum_size_bytes
-            ]),
-            serde_json::json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
-            serde_json::json!({"x-amz-credential": credential}),
-            serde_json::json!({"x-amz-date": amz_date}),
-            serde_json::json!({"x-amz-server-side-encryption": "AES256"}),
-            serde_json::json!({"x-amz-meta-minco-attributes": attributes}),
-            serde_json::json!({"x-amz-meta-minco-created-at": created_at}),
-        ];
-        if let Some(checksum) = &checksum {
-            conditions.push(serde_json::json!({"x-amz-checksum-algorithm": "SHA256"}));
-            conditions.push(serde_json::json!({"x-amz-checksum-sha256": checksum}));
-        }
-        if let Some(token) = credentials.session_token() {
-            conditions.push(serde_json::json!({"x-amz-security-token": token}));
-        }
-        let policy = serde_json::json!({
-            "expiration": expires_at.to_rfc3339_opts(SecondsFormat::Millis, true),
-            "conditions": conditions
-        });
-        let encoded_policy = STANDARD.encode(
-            serde_json::to_vec(&policy)
-                .map_err(|error| ObjectStoreError::Store(error.to_string()))?,
-        );
-        let signature = post_signature(
-            credentials.secret_access_key(),
-            &date,
-            &self.region,
-            encoded_policy.as_bytes(),
-        )?;
-        let mut form_fields = BTreeMap::from([
-            ("Content-Type".into(), request.content_type),
-            ("key".into(), key),
-            ("policy".into(), encoded_policy),
-            ("x-amz-algorithm".into(), "AWS4-HMAC-SHA256".into()),
-            ("x-amz-credential".into(), credential),
-            ("x-amz-date".into(), amz_date),
-            ("x-amz-server-side-encryption".into(), "AES256".into()),
-            ("x-amz-meta-minco-attributes".into(), attributes),
-            ("x-amz-meta-minco-created-at".into(), created_at),
-            ("x-amz-signature".into(), signature),
-        ]);
-        if let Some(checksum) = checksum {
-            form_fields.insert("x-amz-checksum-algorithm".into(), "SHA256".into());
-            form_fields.insert("x-amz-checksum-sha256".into(), checksum);
-        }
-        if let Some(token) = credentials.session_token() {
-            form_fields.insert("x-amz-security-token".into(), token.into());
-        }
-        Ok(PresignedObjectRequest {
-            method: PresignedMethod::Post,
-            url: self.post_url(),
-            headers: BTreeMap::new(),
-            form_fields,
-            expires_at,
-        })
+            .map_err(|_| ObjectStoreError::Store("AWS credentials are unavailable".into()))?;
+        sign_post_at(
+            &self.bucket,
+            &self.key_prefix,
+            &self.addressing,
+            request,
+            &credentials,
+            Utc::now(),
+        )
+        .await
     }
+}
+
+async fn sign_post_at(
+    bucket: &str,
+    key_prefix: &str,
+    addressing: &S3Addressing,
+    request: S3PostObject,
+    credentials: &Credentials,
+    now: DateTime<Utc>,
+) -> Result<PresignedObjectRequest, ObjectUploadError> {
+    validate_expiry(request.expires_in)?;
+    validate_content_type(&request.content_type)?;
+    validate_post_size(request.minimum_size_bytes, request.maximum_size_bytes)?;
+    let checksum = request.sha256.as_deref().map(sha256_base64).transpose()?;
+    let expires_at = effective_capability_expiry(now, request.expires_in, credentials)?;
+    let date = now.format("%Y%m%d").to_string();
+    let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
+    let scope = format!("{date}/{}/s3/aws4_request", addressing.region());
+    let credential = format!("{}/{}", credentials.access_key_id(), scope);
+    let attributes = encode_attributes(&request.attributes)?;
+    let key = provider_key(key_prefix, &request.key);
+    let created_at = now.to_rfc3339_opts(SecondsFormat::Millis, true);
+    let mut conditions = vec![
+        serde_json::json!({"bucket": bucket}),
+        serde_json::json!({"key": key}),
+        serde_json::json!({"Content-Type": request.content_type}),
+        serde_json::json!([
+            "content-length-range",
+            request.minimum_size_bytes,
+            request.maximum_size_bytes
+        ]),
+        serde_json::json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
+        serde_json::json!({"x-amz-credential": credential}),
+        serde_json::json!({"x-amz-date": amz_date}),
+        serde_json::json!({"x-amz-server-side-encryption": "AES256"}),
+        serde_json::json!({"x-amz-meta-minco-attributes": attributes}),
+        serde_json::json!({"x-amz-meta-minco-created-at": created_at}),
+    ];
+    if let Some(checksum) = &checksum {
+        conditions.push(serde_json::json!({"x-amz-checksum-algorithm": "SHA256"}));
+        conditions.push(serde_json::json!({"x-amz-checksum-sha256": checksum}));
+    }
+    if let Some(token) = credentials.session_token() {
+        conditions.push(serde_json::json!({"x-amz-security-token": token}));
+    }
+    let policy = serde_json::json!({
+        "expiration": expires_at.to_rfc3339_opts(SecondsFormat::Millis, true),
+        "conditions": conditions
+    });
+    let encoded_policy = STANDARD.encode(
+        serde_json::to_vec(&policy).map_err(|error| ObjectStoreError::Store(error.to_string()))?,
+    );
+    let signature = post_signature(
+        credentials.secret_access_key(),
+        &date,
+        addressing.region(),
+        encoded_policy.as_bytes(),
+    )?;
+    let mut form_fields = BTreeMap::from([
+        ("Content-Type".into(), request.content_type),
+        ("key".into(), key),
+        ("policy".into(), encoded_policy),
+        ("x-amz-algorithm".into(), "AWS4-HMAC-SHA256".into()),
+        ("x-amz-credential".into(), credential),
+        ("x-amz-date".into(), amz_date),
+        ("x-amz-server-side-encryption".into(), "AES256".into()),
+        ("x-amz-meta-minco-attributes".into(), attributes),
+        ("x-amz-meta-minco-created-at".into(), created_at),
+        ("x-amz-signature".into(), signature),
+    ]);
+    if let Some(checksum) = checksum {
+        form_fields.insert("x-amz-checksum-algorithm".into(), "SHA256".into());
+        form_fields.insert("x-amz-checksum-sha256".into(), checksum);
+    }
+    if let Some(token) = credentials.session_token() {
+        form_fields.insert("x-amz-security-token".into(), token.into());
+    }
+    Ok(PresignedObjectRequest {
+        method: PresignedMethod::Post,
+        url: addressing.resolve_bucket_endpoint(bucket).await?,
+        headers: BTreeMap::new(),
+        form_fields,
+        expires_at,
+    })
 }
 
 #[async_trait]
@@ -352,6 +432,7 @@ impl ObjectAccessSigner for S3ObjectAdapter {
             sha256: None,
         })
         .await
+        .map_err(upload_error_to_store)
     }
 
     async fn sign_get(
@@ -398,7 +479,7 @@ impl ObjectUploadSigner for S3ObjectAdapter {
     async fn sign_upload(
         &self,
         request: SignObjectUpload,
-    ) -> Result<PresignedObjectRequest, ObjectStoreError> {
+    ) -> Result<PresignedObjectRequest, ObjectUploadError> {
         self.sign_post(S3PostObject {
             key: request.key,
             content_type: request.content_type,
@@ -414,6 +495,19 @@ impl ObjectUploadSigner for S3ObjectAdapter {
 
 fn valid_endpoint_override(endpoint: &str) -> bool {
     crate::validated_service_uri(endpoint).is_some_and(|uri| uri.path() == "/")
+}
+
+fn validate_region(region: &str) -> Result<(), ObjectStoreError> {
+    if region.trim().is_empty()
+        || region.len() > 64
+        || !region
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    {
+        Err(ObjectStoreError::Store("AWS region is invalid".into()))
+    } else {
+        Ok(())
+    }
 }
 
 fn validate_bucket(bucket: &str) -> Result<(), ObjectStoreError> {
@@ -436,7 +530,7 @@ pub(crate) fn valid_bucket_name(bucket: &str) -> bool {
         && !bucket.contains("-.")
         && !bucket.starts_with("xn--")
         && !bucket.starts_with("sthree-")
-        && !bucket.starts_with("amzn_s3_demo_")
+        && !bucket.starts_with("amzn-s3-demo-")
         && !bucket.ends_with("-s3alias")
         && !bucket.ends_with("--ol-s3")
         && bucket.strip_suffix(".mrap").is_none()
@@ -499,7 +593,9 @@ const fn validate_post_size(
 fn validate_download_name(value: &str) -> Result<(), ObjectStoreError> {
     if value.is_empty()
         || value.len() > 255
-        || value.chars().any(char::is_control)
+        || !value
+            .bytes()
+            .all(|byte| byte == b' ' || byte.is_ascii_graphic())
         || value
             .chars()
             .any(|character| matches!(character, '"' | '\\' | '/' | ';'))
@@ -509,6 +605,52 @@ fn validate_download_name(value: &str) -> Result<(), ObjectStoreError> {
         ));
     }
     Ok(())
+}
+
+fn provider_key(key_prefix: &str, key: &ObjectKey) -> String {
+    if key_prefix.is_empty() {
+        key.as_str().to_owned()
+    } else {
+        format!("{key_prefix}/{}", key.as_str())
+    }
+}
+
+fn effective_capability_expiry(
+    now: DateTime<Utc>,
+    expires_in: TimeDelta,
+    credentials: &Credentials,
+) -> Result<DateTime<Utc>, ObjectUploadError> {
+    let requested_expiry = now
+        .checked_add_signed(expires_in)
+        .ok_or(ObjectUploadError::InvalidExpiry)?;
+    let Some(credential_expiry) = credentials.expiry() else {
+        return Ok(requested_expiry);
+    };
+    let credential_expiry = system_time_to_utc(credential_expiry)?;
+    let safe_credential_expiry = credential_expiry
+        .checked_sub_signed(CREDENTIAL_EXPIRY_SAFETY_SKEW)
+        .ok_or(ObjectUploadError::InvalidCredentialExpiry)?;
+    if safe_credential_expiry <= now {
+        return Err(ObjectUploadError::CredentialLifetimeTooShort);
+    }
+    Ok(requested_expiry.min(safe_credential_expiry))
+}
+
+fn system_time_to_utc(value: SystemTime) -> Result<DateTime<Utc>, ObjectUploadError> {
+    let since_epoch = value
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| ObjectUploadError::InvalidCredentialExpiry)?;
+    let seconds = i64::try_from(since_epoch.as_secs())
+        .map_err(|_| ObjectUploadError::InvalidCredentialExpiry)?;
+    DateTime::from_timestamp(seconds, since_epoch.subsec_nanos())
+        .ok_or(ObjectUploadError::InvalidCredentialExpiry)
+}
+
+fn upload_error_to_store(error: ObjectUploadError) -> ObjectStoreError {
+    match error {
+        ObjectUploadError::ObjectStore(error) => error,
+        error => ObjectStoreError::Store(error.to_string()),
+    }
 }
 
 fn encode_attributes(attributes: &BTreeMap<String, String>) -> Result<String, ObjectStoreError> {
@@ -651,17 +793,262 @@ fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
+    use std::collections::BTreeSet;
 
-    #[test]
-    fn post_policy_signature_matches_the_aws_sigv4_example_shape() {
-        let signature = post_signature("secret", "20260725", "ap-southeast-2", b"policy").unwrap();
-        assert_eq!(signature.len(), 64);
-        assert!(signature.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    const ACCESS_KEY: &str = "AKIDEXAMPLE";
+    const SECRET_KEY: &str = "fixed-test-secret-never-log";
+    const SESSION_TOKEN: &str = "fixed-session-token-never-log";
+
+    fn fixed_now() -> DateTime<Utc> {
+        "2026-08-09T01:02:03Z".parse().unwrap()
+    }
+
+    fn as_system_time(value: DateTime<Utc>) -> SystemTime {
+        let seconds = u64::try_from(value.timestamp()).unwrap();
+        UNIX_EPOCH
+            + std::time::Duration::from_secs(seconds)
+            + std::time::Duration::from_nanos(u64::from(value.timestamp_subsec_nanos()))
+    }
+
+    fn credentials(session_token: Option<&str>, expiry: Option<DateTime<Utc>>) -> Credentials {
+        Credentials::new(
+            ACCESS_KEY,
+            SECRET_KEY,
+            session_token.map(str::to_owned),
+            expiry.map(as_system_time),
+            "minco-fixed-policy-test",
+        )
+    }
+
+    fn fixed_post() -> S3PostObject {
+        let digest = Sha256::digest(b"verified upload");
+        S3PostObject {
+            key: ObjectKey::parse("images/018f6f4a-8d29-7a31-a8dc-123456789abc").unwrap(),
+            content_type: "image/png".into(),
+            minimum_size_bytes: 15,
+            maximum_size_bytes: 15,
+            expires_in: TimeDelta::minutes(10),
+            attributes: BTreeMap::from([
+                (
+                    "minco.upload_id".into(),
+                    "018f6f4a-8d29-7a31-a8dc-123456789abc".into(),
+                ),
+                ("tenant".into(), "acme".into()),
+            ]),
+            sha256: Some(hex(&digest)),
+        }
+    }
+
+    fn condition_fields(policy: &Value) -> BTreeSet<String> {
+        policy["conditions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|condition| {
+                if let Some(object) = condition.as_object() {
+                    object.keys().next().cloned()
+                } else {
+                    condition.as_array().and_then(|values| {
+                        values
+                            .get(1)
+                            .and_then(Value::as_str)
+                            .map(|field| field.trim_start_matches('$').to_owned())
+                    })
+                }
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn managed_post_policy_is_a_complete_deterministic_contract() {
+        let now = fixed_now();
+        let credential_expiry = now + TimeDelta::minutes(5);
+        let addressing = S3Addressing::new("ap-southeast-2", None).unwrap();
+        let request = fixed_post();
+        let expected_checksum = sha256_base64(request.sha256.as_deref().unwrap()).unwrap();
+        let expected_attributes = encode_attributes(&request.attributes).unwrap();
+        let signed = sign_post_at(
+            "minco-objects",
+            "tenant-uploads",
+            &addressing,
+            request,
+            &credentials(Some(SESSION_TOKEN), Some(credential_expiry)),
+            now,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            signed.url,
+            "https://minco-objects.s3.ap-southeast-2.amazonaws.com"
+        );
+        assert_eq!(signed.expires_at, now + TimeDelta::minutes(4));
+        let policy_bytes = STANDARD.decode(&signed.form_fields["policy"]).unwrap();
+        let policy: Value = serde_json::from_slice(&policy_bytes).unwrap();
+        assert_eq!(policy["expiration"], "2026-08-09T01:06:03.000Z");
+        let conditions = policy["conditions"].as_array().unwrap();
+        for expected in [
+            serde_json::json!({"bucket": "minco-objects"}),
+            serde_json::json!({"key": "tenant-uploads/images/018f6f4a-8d29-7a31-a8dc-123456789abc"}),
+            serde_json::json!({"Content-Type": "image/png"}),
+            serde_json::json!(["content-length-range", 15, 15]),
+            serde_json::json!({"x-amz-checksum-algorithm": "SHA256"}),
+            serde_json::json!({"x-amz-checksum-sha256": expected_checksum.clone()}),
+            serde_json::json!({"x-amz-server-side-encryption": "AES256"}),
+            serde_json::json!({"x-amz-meta-minco-attributes": expected_attributes.clone()}),
+            serde_json::json!({"x-amz-meta-minco-created-at": "2026-08-09T01:02:03.000Z"}),
+            serde_json::json!({"x-amz-security-token": SESSION_TOKEN}),
+        ] {
+            assert!(
+                conditions.contains(&expected),
+                "missing condition {expected}"
+            );
+        }
+
+        let covered = condition_fields(&policy);
+        for field in signed
+            .form_fields
+            .keys()
+            .filter(|field| !matches!(field.as_str(), "policy" | "x-amz-signature" | "file"))
+        {
+            assert!(
+                covered.contains(field),
+                "returned field lacks condition: {field}"
+            );
+        }
+        assert_eq!(
+            signed.form_fields["x-amz-checksum-sha256"],
+            expected_checksum
+        );
+        assert_eq!(signed.form_fields["x-amz-security-token"], SESSION_TOKEN);
+        assert_eq!(
+            signed.form_fields["x-amz-signature"],
+            "6c21f38e5a98818daaa6b0029796ef379c24e7c6e5a5a7b3e66bf6a28ae476ce"
+        );
+
+        let serialized = serde_json::to_string(&signed).unwrap();
+        let debug = format!("{signed:?}");
+        for output in [
+            signed.url.as_str(),
+            std::str::from_utf8(&policy_bytes).unwrap(),
+            serialized.as_str(),
+            debug.as_str(),
+        ] {
+            assert!(!output.contains(SECRET_KEY));
+        }
+        assert!(debug.contains("[REDACTED PRESIGNED URL]"));
+        assert!(!debug.contains(SESSION_TOKEN));
+    }
+
+    #[tokio::test]
+    async fn generated_endpoint_rules_cover_partitions_and_safe_bucket_forms() {
+        let commercial = S3Addressing::new("ap-southeast-2", None).unwrap();
+        assert_eq!(
+            commercial
+                .resolve_bucket_endpoint("minco-objects")
+                .await
+                .unwrap(),
+            "https://minco-objects.s3.ap-southeast-2.amazonaws.com"
+        );
+        assert_eq!(
+            commercial
+                .clone()
+                .for_bucket("uploads.example.com")
+                .resolve_bucket_endpoint("uploads.example.com")
+                .await
+                .unwrap(),
+            "https://s3.ap-southeast-2.amazonaws.com/uploads.example.com"
+        );
+        assert_eq!(
+            S3Addressing::new("cn-north-1", None)
+                .unwrap()
+                .resolve_bucket_endpoint("minco-objects")
+                .await
+                .unwrap(),
+            "https://minco-objects.s3.cn-north-1.amazonaws.com.cn"
+        );
+        assert_eq!(
+            S3Addressing::new("ap-southeast-2", Some("http://127.0.0.1:4566".into()))
+                .unwrap()
+                .resolve_bucket_endpoint("minco-objects")
+                .await
+                .unwrap(),
+            "http://127.0.0.1:4566/minco-objects"
+        );
+    }
+
+    #[tokio::test]
+    async fn credential_expiry_bounds_capabilities_and_rejects_unsafe_lifetimes() {
+        let now = fixed_now();
+        let addressing = S3Addressing::new("ap-southeast-2", None).unwrap();
+
+        let static_signed = sign_post_at(
+            "minco-objects",
+            "tenant-uploads",
+            &addressing,
+            fixed_post(),
+            &credentials(None, None),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(static_signed.expires_at, now + TimeDelta::minutes(10));
+
+        let temporary_signed = sign_post_at(
+            "minco-objects",
+            "tenant-uploads",
+            &addressing,
+            fixed_post(),
+            &credentials(None, Some(now + TimeDelta::minutes(5))),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(temporary_signed.expires_at, now + TimeDelta::minutes(4));
+
+        let too_soon = sign_post_at(
+            "minco-objects",
+            "tenant-uploads",
+            &addressing,
+            fixed_post(),
+            &credentials(Some(SESSION_TOKEN), Some(now + TimeDelta::seconds(30))),
+            now,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            too_soon,
+            ObjectUploadError::CredentialLifetimeTooShort
+        ));
+        assert!(!too_soon.to_string().contains(SECRET_KEY));
+
+        let pre_epoch = Credentials::new(
+            ACCESS_KEY,
+            SECRET_KEY,
+            Some(SESSION_TOKEN.into()),
+            UNIX_EPOCH.checked_sub(std::time::Duration::from_secs(1)),
+            "minco-invalid-expiry-test",
+        );
+        assert!(matches!(
+            sign_post_at(
+                "minco-objects",
+                "tenant-uploads",
+                &addressing,
+                fixed_post(),
+                &pre_epoch,
+                now,
+            )
+            .await,
+            Err(ObjectUploadError::InvalidCredentialExpiry)
+        ));
     }
 
     #[test]
     fn storage_boundaries_reject_ambiguous_provider_values() {
         assert!(validate_bucket("minco-objects").is_ok());
+        assert!(validate_bucket("amzn-s3-demo-private").is_err());
+        assert!(validate_bucket("amzn_s3_demo_private").is_err());
         assert!(validate_bucket("Minco_Objects").is_err());
         assert!(validate_bucket("192.0.2.1").is_err());
         assert!(validate_bucket("xn--minco").is_err());
@@ -677,8 +1064,19 @@ mod tests {
         ));
         assert!(!valid_endpoint_override("http://example.com"));
         assert!(!valid_endpoint_override("https://example.com/prefix"));
-        assert!(validate_download_name("report.pdf").is_ok());
-        assert!(validate_download_name("report\".pdf").is_err());
+        for file_name in ["report.pdf", "quarterly report-1_2.pdf"] {
+            assert!(validate_download_name(file_name).is_ok(), "{file_name}");
+        }
+        for file_name in [
+            "report\".pdf",
+            "report\\.pdf",
+            "folder/report.pdf",
+            "report;inline.pdf",
+            "report\n.pdf",
+            "résumé.pdf",
+        ] {
+            assert!(validate_download_name(file_name).is_err(), "{file_name}");
+        }
         assert!(validate_post_size(3, 3).is_ok());
         assert!(matches!(
             validate_post_size(0, 0),

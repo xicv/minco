@@ -1,4 +1,4 @@
-use crate::s3::S3ObjectAdapter;
+use crate::s3::{MAX_SINGLE_POST_SIZE_BYTES, S3Addressing, S3ObjectAdapter};
 use async_trait::async_trait;
 use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_sdk_s3::types::ChecksumMode;
@@ -46,13 +46,48 @@ impl S3ObjectStorage {
     ) -> Result<Self, ObjectStoreError> {
         let bucket = bucket.into();
         let key_prefix = key_prefix.into();
-        let adapter = Arc::new(S3ObjectAdapter::new(
+        let addressing = S3Addressing::new(region, endpoint_override)?;
+        Self::new_with_addressing(client, credentials, bucket, key_prefix, addressing)
+    }
+
+    /// Build the SDK client and manual POST signer from one authoritative
+    /// endpoint, region, credential, and addressing configuration.
+    pub fn from_sdk_builder(
+        builder: aws_sdk_s3::config::Builder,
+        credentials: SharedCredentialsProvider,
+        bucket: impl Into<String>,
+        key_prefix: impl Into<String>,
+        addressing: S3Addressing,
+    ) -> Result<Self, ObjectStoreError> {
+        let bucket = bucket.into();
+        let addressing = addressing.for_bucket(&bucket);
+        let mut builder = builder
+            .endpoint_resolver(aws_sdk_s3::config::endpoint::DefaultResolver::new())
+            .region(aws_sdk_s3::config::Region::new(
+                addressing.region().to_owned(),
+            ))
+            .force_path_style(addressing.force_path_style())
+            .credentials_provider(credentials.clone());
+        builder.set_endpoint_url(addressing.endpoint_override().map(str::to_owned));
+        let client = aws_sdk_s3::Client::from_conf(builder.build());
+        Self::new_with_addressing(client, credentials, bucket, key_prefix, addressing)
+    }
+
+    pub fn new_with_addressing(
+        client: aws_sdk_s3::Client,
+        credentials: SharedCredentialsProvider,
+        bucket: impl Into<String>,
+        key_prefix: impl Into<String>,
+        addressing: S3Addressing,
+    ) -> Result<Self, ObjectStoreError> {
+        let bucket = bucket.into();
+        let key_prefix = key_prefix.into();
+        let adapter = Arc::new(S3ObjectAdapter::new_with_addressing(
             client.clone(),
             credentials,
             bucket.clone(),
             key_prefix.clone(),
-            region,
-            endpoint_override,
+            addressing,
         )?);
         let metadata = Arc::new(S3ObjectMetadataReader {
             client,
@@ -62,10 +97,19 @@ impl S3ObjectStorage {
         Ok(Self { adapter, metadata })
     }
 
-    pub fn plugin(&self, policy: ObjectUploadPolicy) -> ManagedObjectStoragePlugin {
+    pub fn plugin(
+        &self,
+        policy: ObjectUploadPolicy,
+    ) -> Result<ManagedObjectStoragePlugin, ObjectStoreError> {
+        validate_managed_policy(&policy)?;
         let store: Arc<dyn ObjectStore> = self.adapter.clone();
         let metadata: Arc<dyn ObjectMetadataReader> = self.metadata.clone();
-        ManagedObjectStoragePlugin::new(store, self.adapter.clone(), metadata, policy)
+        Ok(ManagedObjectStoragePlugin::new(
+            store,
+            self.adapter.clone(),
+            metadata,
+            policy,
+        ))
     }
 
     pub fn adapter(&self) -> Arc<S3ObjectAdapter> {
@@ -74,6 +118,14 @@ impl S3ObjectStorage {
 
     pub fn metadata_reader(&self) -> Arc<S3ObjectMetadataReader> {
         Arc::clone(&self.metadata)
+    }
+}
+
+const fn validate_managed_policy(policy: &ObjectUploadPolicy) -> Result<(), ObjectStoreError> {
+    if policy.maximum_size_bytes() > MAX_SINGLE_POST_SIZE_BYTES {
+        Err(ObjectStoreError::ObjectTooLarge)
+    } else {
+        Ok(())
     }
 }
 
@@ -225,8 +277,12 @@ fn decode_sha256(
         (Some(metadata), Some(provider)) if metadata != provider => Err(ObjectStoreError::Store(
             "S3 checksum metadata does not match the provider checksum".into(),
         )),
-        (Some(metadata), _) => Ok(Some(metadata)),
-        (None, provider) => Ok(provider),
+        (_, Some(provider)) => Ok(Some(provider)),
+        // User-controlled metadata is corroborating evidence only. Managed
+        // verification must fail closed when S3 does not expose its own
+        // checksum, while compatibility objects remain readable with no
+        // verified checksum.
+        (_, None) => Ok(None),
     }
 }
 
@@ -334,5 +390,25 @@ mod tests {
         let provider = STANDARD.encode([1_u8; 32]);
         let error = decode_sha256(Some(&metadata), Some(&provider)).unwrap_err();
         assert!(error.to_string().contains("does not match"));
+    }
+
+    #[test]
+    fn metadata_only_checksum_is_not_treated_as_provider_verified() {
+        let metadata = hex(&Sha256::digest(b"metadata-only"));
+        assert_eq!(decode_sha256(Some(&metadata), None).unwrap(), None);
+    }
+
+    #[test]
+    fn managed_s3_policy_rejects_an_unissuable_single_post_size() {
+        let policy = ObjectUploadPolicy::new(
+            ObjectKey::parse("uploads").unwrap(),
+            MAX_SINGLE_POST_SIZE_BYTES + 1,
+            ["application/octet-stream"],
+        )
+        .unwrap();
+        assert!(matches!(
+            validate_managed_policy(&policy),
+            Err(ObjectStoreError::ObjectTooLarge)
+        ));
     }
 }

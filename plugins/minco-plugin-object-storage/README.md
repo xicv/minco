@@ -13,6 +13,19 @@ Issuance deliberately returns two values: send the bearer `ObjectUploadGrant`
 to the authorized client and persist only the non-secret `PendingObjectUpload`
 in trusted application state.
 
+`PendingObjectUpload.capability_expires_at` is the bearer request's expiry, not
+the trusted record's retention deadline. An upload accepted before expiry can
+be verified afterward; the application owns pending-record cleanup. Managed
+verification also checks that the provider reports the same logical key and
+requires a provider checksum rather than trusting user metadata alone.
+
+One managed plugin instance intentionally installs one exact upload policy.
+Keep that policy purpose-specific instead of combining unrelated product
+limits. Statically composed named profiles are tracked separately in M14-T08.
+Applications that need separate principals may use
+`ManagedObjectStoragePlugin::new_with_signers` to supply distinct private
+download and upload signers without a runtime locator.
+
 The application remains responsible for authorization, ownership/quota rules,
 and content inspection or malware scanning required by its risk model. MIME,
 filename, and checksum metadata do not establish that an untrusted file is safe

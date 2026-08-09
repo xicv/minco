@@ -1,6 +1,7 @@
 # Object storage and file-transfer review — 2026-08
 
-Research date: 2026-08-07 (Australia/Adelaide).
+Initial research: 2026-08-07. Senior hardening review: 2026-08-09
+(Australia/Adelaide).
 
 ## Executive assessment
 
@@ -18,6 +19,13 @@ The implemented change closes that bounded lifecycle without proxying bytes
 through Lambda or adding an always-on service. It does not declare large-file
 streaming, content scanning, multipart resumability, or CDN publication
 complete.
+
+The 2026-08-09 hardening pass additionally found that hand-built POST URLs,
+credential-expiry assumptions, metadata-only checksum trust, collision-prone
+task/ADR numbering, and policy-shape-only tests were not sufficient release
+evidence. The final design uses the locked `aws-sdk-s3 1.140.0` generated
+endpoint resolver, bounds bearer lifetime by temporary credential expiry,
+requires a provider checksum, and tests a fixed independent signature vector.
 
 ## Current code path before this change
 
@@ -87,11 +95,20 @@ rustdoc instead of inferred from string configuration.
 - AWS S3 presigned URL guidance: URLs are bearer capabilities; expiry,
   credential scope, signature age, checksum, and network policy matter:
   <https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html>.
-- AWS S3 POST policy and `PostObject`: exact form conditions,
+- AWS S3 POST policy and `PostObject`: every submitted field needs a policy
+  condition except the documented signature/file/policy exclusions; exact form conditions,
   `content-length-range`, checksum algorithm/value fields, and checksum
   rejection on mismatch:
-  <https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-HTTPPOSTConstructPolicy.html>
-  and <https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html>.
+  <https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sigv4-HTTPPOSTConstructPolicy.html>
+  and <https://docs.aws.amazon.com/AmazonS3/latest/developerguide/RESTObjectPOST.html>.
+- AWS `HeadObject`: checksum mode returns stored checksums without downloading
+  bytes, and SSE-KMS checksum retrieval can require additional KMS permissions:
+  <https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html>.
+- AWS bucket and virtual-host rules: reserved prefixes/suffixes must be rejected,
+  dotted bucket names do not match the standard wildcard certificate, and
+  China-region endpoints use the `.amazonaws.com.cn` partition suffix:
+  <https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html>
+  and <https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html>.
 - AWS conditional writes: `If-None-Match: *` protects create-only PUT and
   multipart-complete operations, but it is not a condition in the current POST
   workflow:
@@ -142,6 +159,21 @@ rustdoc instead of inferred from string configuration.
 9. **Weak operational guidance.** The new how-to documents authorization,
    browser hashing/request fidelity, secret separation, idempotent completion,
    private downloads, exact CORS, lifecycle, and content-safety boundaries.
+10. **Hand-built S3 POST endpoint.** `S3Addressing` now delegates endpoint
+    construction to the locked SDK's generated resolver, including China,
+    dotted-bucket path style, and path-style custom loopback endpoints.
+11. **Capability could outlive temporary credentials.** Issuance now uses the
+    earlier of requested expiry and credential expiry minus a safety skew, and
+    exposes typed failures for invalid or insufficient lifetime.
+12. **Metadata could masquerade as provider checksum evidence.** S3 metadata is
+    now corroborating only; missing or conflicting provider checksums fail the
+    managed verification contract closed.
+13. **Policy tests did not prove SigV4 output.** A fixed clock, credentials,
+    request, exact decoded policy, field coverage, and independently reproduced
+    HMAC signature vector make policy/signature drift visible.
+14. **Provider maximum rejected too late.** `S3ObjectStorage::plugin` rejects a
+    policy over S3's 5 GiB single-POST limit during composition, before any
+    request can be authorized or issued.
 
 ### P1 retained explicitly
 
@@ -150,11 +182,13 @@ rustdoc instead of inferred from string configuration.
    validation, safe decoding, malware scanning, CDR, quarantine, and promotion
    where risk requires them. No always-on scanner belongs in Minco's default
    profile.
-2. **Real-provider conformance.** The implementation has deterministic unit,
-   compiler, Clippy, and documentation gates. A bounded opt-in target-account
-   test should verify actual browser POST, checksum rejection, CORS, `HeadObject`
-   checksum return, IAM denial, and cleanup without becoming a default mutating
-   CI job.
+2. **Real-provider conformance.** An ignored S3-only, pre-existing-bucket test
+   now covers managed issue/POST/verify, provider checksum/metadata, changed
+   bytes, changed size/type/attributes, rejected-object absence, missing
+   provider checksum, conflicts, and cleanup without `GetObject`. It is not a
+   default mutating CI job and remains unexecuted when the bounded AWS
+   environment variables are absent. Rustack covers standard transport and
+   fail-closed behavior but not successful provider-checksum verification.
 3. **Bucket deployment contract.** Object storage consumes an
    application-supplied bucket/prefix. A future explicit Plan IR profile can
    render Block Public Access, ownership, exact CORS, lifecycle, HTTPS-only
@@ -166,6 +200,11 @@ rustdoc instead of inferred from string configuration.
 5. **Download filename internationalization.** The current safe ASCII filename
    avoids header injection. A tested RFC 6266 `filename*` representation can be
    additive later.
+6. **Multiple product upload profiles.** One managed plugin installs one typed
+   service and one exact policy. A broad union would weaken prefix/type/size
+   separation, so M14-T08 retains statically composed named profiles for
+   avatars, images, documents, and attachments with application-owned
+   authorization.
 
 ### P2 separate capabilities
 

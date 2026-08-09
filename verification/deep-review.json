@@ -17,11 +17,11 @@
       "contract_schemas": 13,
       "plugins": 18,
       "milestones": 15,
-      "tasks": 84,
-      "rust_files": 172,
+      "tasks": 86,
+      "rust_files": 176,
       "python_files": 30,
       "shell_files": 77,
-      "implementation_files_scanned": 419
+      "implementation_files_scanned": 423
     },
     "findings": [],
     "limitations": [
@@ -30,10 +30,10 @@
     ]
   },
   "metrics": {
-    "rust_files": 172,
-    "rust_lines": 83517,
+    "rust_files": 176,
+    "rust_lines": 85716,
     "unsafe_tokens": 13,
-    "production_unwrap_expect": 177,
+    "production_unwrap_expect": 178,
     "sql_files": 16
   },
   "findings": [

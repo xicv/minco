@@ -1,4 +1,4 @@
-# ADR 0034: Verify direct object uploads through typed application policy
+# ADR 0035: Verify direct object uploads through typed application policy
 
 ## Status
 
@@ -41,14 +41,21 @@ inside the object-storage plugin:
 7. `ObjectUploadService::verify` performs one metadata lookup and accepts only
    the issued key, media type, exact byte count, SHA-256, and attributes; and
 8. `ObjectMetadataReader` is a provider-neutral port implemented by the memory
-   adapter and by S3 `HeadObject` with checksum mode enabled.
+   adapter and by S3 `HeadObject` with checksum mode enabled;
+9. user metadata can corroborate but never replace the provider checksum; and
+10. the S3 SDK's generated endpoint resolver is authoritative for commercial,
+    China, dotted-bucket, and custom path-style addressing.
 
 The existing `ObjectStoragePlugin`, `ObjectStore`, `ObjectAccessSigner`, signing
 requests, and serialized presigned-request types remain source compatible. The
 stronger managed path uses the additive `ObjectUploadSigner` contract.
 Applications opt into `ManagedObjectStoragePlugin`; S3 applications use the
 `S3ObjectStorage` bundle so storage, private downloads, upload signing, and
-metadata lookup share one exact bucket and prefix configuration.
+metadata lookup share one exact bucket and prefix configuration. The golden
+`from_sdk_builder` constructor creates the SDK client and signer from the same
+region, endpoint override, credentials, and addressing mode. An upload
+capability is shortened to the signing credentials' remaining lifetime with a
+safety skew; credentials that are invalid or expire too soon fail closed.
 
 Checksum and metadata verification establish that the stored bytes match the
 bytes for which the capability was issued. They are not content inspection.
@@ -74,6 +81,12 @@ to their threat model.
 - `ObjectHead.sha256` remains optional because legacy objects and the older
   compatibility-preserving `sign_put` path may not have a provider checksum.
   Managed uploads require one and fail closed if S3 does not return it.
+- `PendingObjectUpload.capability_expires_at` describes the bearer capability,
+  not trusted-state retention. An accepted object may be verified later;
+  applications own pending-record expiry and cleanup.
+- One managed plugin installs one exact upload policy. Multiple named product
+  profiles remain M14-T08 so this change does not introduce a runtime service
+  locator or a dangerously broad union policy.
 - S3 single POST uploads are rejected above 5 GiB. Multipart upload needs its
   own upload-ID, part-manifest, retry, complete/abort, checksum, and lifecycle
   contracts.
@@ -87,6 +100,11 @@ to their threat model.
   retention, versioning, and scanning remain explicit application deployment
   policy. Minco documents the required profile but does not silently mutate an
   externally supplied bucket.
+- Rustack accepts the signed multipart transport but does not currently
+  reproduce S3's provider-checksum metadata. Emulator verification therefore
+  proves fail-closed behavior; deterministic policy/signature tests and a
+  bounded ignored pre-existing-bucket real-S3 conformance suite cover the exact
+  checksum contract.
 
 ## Alternatives rejected
 

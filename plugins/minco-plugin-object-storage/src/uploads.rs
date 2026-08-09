@@ -102,7 +102,7 @@ pub trait ObjectUploadSigner: Send + Sync + std::fmt::Debug {
     async fn sign_upload(
         &self,
         request: SignObjectUpload,
-    ) -> Result<PresignedObjectRequest, ObjectStoreError>;
+    ) -> Result<PresignedObjectRequest, ObjectUploadError>;
 }
 
 /// Closed upload policy owned by the application composition root.
@@ -196,7 +196,12 @@ pub struct PendingObjectUpload {
     pub expected_size_bytes: u64,
     pub expected_sha256: String,
     pub expected_attributes: BTreeMap<String, String>,
-    pub expires_at: DateTime<Utc>,
+    /// Expiry of the bearer upload capability, not of the pending record.
+    ///
+    /// Verification may happen after this timestamp when the provider accepted
+    /// the upload before the capability expired. Pending-record retention and
+    /// cleanup remain application-owned.
+    pub capability_expires_at: DateTime<Utc>,
 }
 
 /// Split result that prevents the bearer request from becoming trusted state by
@@ -284,7 +289,7 @@ impl ObjectUploadService {
                 attributes: attributes.clone(),
             })
             .await?;
-        let expires_at = signed.expires_at;
+        let capability_expires_at = signed.expires_at;
         Ok(IssuedObjectUpload {
             grant: ObjectUploadGrant {
                 key: key.clone(),
@@ -296,7 +301,7 @@ impl ObjectUploadService {
                 expected_size_bytes: size_bytes,
                 expected_sha256: sha256,
                 expected_attributes: attributes,
-                expires_at,
+                capability_expires_at,
             },
         })
     }
@@ -308,6 +313,9 @@ impl ObjectUploadService {
         let Some(metadata) = self.metadata.head(&pending.key).await? else {
             return Err(ObjectUploadError::MissingObject);
         };
+        if metadata.key != pending.key {
+            return Err(ObjectUploadError::ObjectKeyMismatch);
+        }
         let actual_content_type = normalize_content_type(&metadata.content_type)
             .map_err(|_| ObjectUploadError::ContentTypeMismatch)?;
         if actual_content_type != pending.expected_content_type {
@@ -358,6 +366,18 @@ impl ManagedObjectStoragePlugin {
     {
         let access_signer: Arc<dyn ObjectAccessSigner> = signer.clone();
         let upload_signer: Arc<dyn ObjectUploadSigner> = signer;
+        Self::new_with_signers(store, access_signer, upload_signer, metadata_reader, policy)
+    }
+
+    /// Construct managed storage with independent private-download and upload
+    /// signers while retaining static, typed composition.
+    pub fn new_with_signers(
+        store: Arc<dyn ObjectStore>,
+        access_signer: Arc<dyn ObjectAccessSigner>,
+        upload_signer: Arc<dyn ObjectUploadSigner>,
+        metadata_reader: Arc<dyn ObjectMetadataReader>,
+        policy: ObjectUploadPolicy,
+    ) -> Self {
         let metadata = ObjectMetadataService::new(metadata_reader);
         let uploads = ObjectUploadService::new(upload_signer, metadata.clone(), policy);
         Self {
@@ -392,6 +412,7 @@ impl Plugin for ManagedObjectStoragePlugin {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum ObjectUploadError {
     #[error("upload policy maximum size must be greater than zero")]
@@ -412,6 +433,8 @@ pub enum ObjectUploadError {
     InvalidExpiry,
     #[error("the uploaded object does not exist")]
     MissingObject,
+    #[error("the provider reported metadata for a different object key")]
+    ObjectKeyMismatch,
     #[error("the uploaded object's content type does not match the issued capability")]
     ContentTypeMismatch,
     #[error("the uploaded object's signed attributes do not match the issued capability")]
@@ -422,6 +445,12 @@ pub enum ObjectUploadError {
     ObjectTooLarge { actual: u64, maximum: u64 },
     #[error("the uploaded object is {actual} bytes; the issued size is {expected} bytes")]
     ObjectSizeMismatch { actual: u64, expected: u64 },
+    #[error("the provider endpoint for the upload capability could not be resolved")]
+    EndpointResolution,
+    #[error("the signing credentials have an invalid expiration time")]
+    InvalidCredentialExpiry,
+    #[error("the signing credentials expire too soon to issue an upload capability")]
+    CredentialLifetimeTooShort,
     #[error(transparent)]
     ObjectStore(#[from] ObjectStoreError),
 }
@@ -542,7 +571,7 @@ mod tests {
         async fn sign_upload(
             &self,
             request: SignObjectUpload,
-        ) -> Result<PresignedObjectRequest, ObjectStoreError> {
+        ) -> Result<PresignedObjectRequest, ObjectUploadError> {
             Ok(PresignedObjectRequest {
                 method: PresignedMethod::Post,
                 url: "https://objects.example/upload".into(),
@@ -639,7 +668,10 @@ mod tests {
                 .map(String::as_str),
             Some("3")
         );
-        assert_eq!(first.grant.request.expires_at, first.pending.expires_at);
+        assert_eq!(
+            first.grant.request.expires_at,
+            first.pending.capability_expires_at
+        );
     }
 
     #[tokio::test]
@@ -719,6 +751,37 @@ mod tests {
         ));
     }
 
+    #[derive(Debug)]
+    struct WrongKeyMetadataReader;
+
+    #[async_trait]
+    impl ObjectMetadataReader for WrongKeyMetadataReader {
+        async fn head(&self, _key: &ObjectKey) -> Result<Option<ObjectHead>, ObjectStoreError> {
+            Ok(Some(ObjectHead {
+                key: ObjectKey::parse("uploads/images/different").unwrap(),
+                content_type: "image/png".into(),
+                size_bytes: 3,
+                sha256: Some(sha256(b"png")),
+                created_at: Utc::now(),
+                attributes: BTreeMap::new(),
+            }))
+        }
+    }
+
+    #[tokio::test]
+    async fn verification_rejects_metadata_for_a_different_logical_key() {
+        let service = ObjectUploadService::new(
+            Arc::new(TestSigner),
+            ObjectMetadataService::new(Arc::new(WrongKeyMetadataReader)),
+            policy(),
+        );
+        let issued = service.issue(request()).await.unwrap();
+        assert!(matches!(
+            service.verify(&issued.pending).await,
+            Err(ObjectUploadError::ObjectKeyMismatch)
+        ));
+    }
+
     #[test]
     fn managed_plugin_advertises_and_installs_the_lifecycle() {
         let store = Arc::new(MemoryObjectStore::default());
@@ -726,8 +789,9 @@ mod tests {
         let metadata: Arc<dyn ObjectMetadataReader> = store;
         let mut manager = PluginManager::default();
         manager
-            .register(ManagedObjectStoragePlugin::new(
+            .register(ManagedObjectStoragePlugin::new_with_signers(
                 object_store,
+                Arc::new(TestSigner),
                 Arc::new(TestSigner),
                 metadata,
                 policy(),

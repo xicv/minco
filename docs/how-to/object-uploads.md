@@ -13,7 +13,7 @@ Create the policy in the composition root, never from request data:
 
 ```rust
 use chrono::TimeDelta;
-use minco_aws_adapters::s3_storage::S3ObjectStorage;
+use minco_aws_adapters::{s3::S3Addressing, s3_storage::S3ObjectStorage};
 use minco_plugin_object_storage::{ObjectKey, ObjectUploadPolicy};
 
 let policy = ObjectUploadPolicy::new(
@@ -23,22 +23,33 @@ let policy = ObjectUploadPolicy::new(
 )?
 .with_expiry(TimeDelta::minutes(10))?;
 
-let storage = S3ObjectStorage::new(
-    s3_client,
+let addressing = S3Addressing::new(region.clone(), endpoint_override)?;
+let storage = S3ObjectStorage::from_sdk_builder(
+    aws_sdk_s3::config::Builder::from(&shared_aws_config),
     credentials,
     bucket_name,
     "application-owned-prefix",
-    region,
-    endpoint_override,
+    addressing,
 )?;
-plugin_manager.register(storage.plugin(policy))?;
+plugin_manager.register(storage.plugin(policy)?)?;
 ```
 
 The wrapper installs the existing `ObjectStoreService` and
 `ObjectAccessService`, plus `ObjectMetadataService` and `ObjectUploadService`.
 The graph advertises the additional metadata and upload capabilities only for
-this managed composition. The S3 bundle prevents bucket/prefix drift between
-server writes, private downloads, upload signing, and metadata verification.
+this managed composition. `from_sdk_builder` is the golden path: the SDK client
+and manual POST signer derive region, endpoint override, credentials,
+path-versus-virtual-host addressing, bucket, and prefix from one configuration.
+Endpoint overrides default to path-style addressing; dotted AWS bucket names
+also use path style so HTTPS hostname validation remains sound. The compatible
+`S3ObjectStorage::new` constructor remains available when an application
+deliberately supplies an already-configured SDK client and signing credentials
+separately, but that split configuration must be reviewed for drift.
+
+One managed plugin instance currently installs one `ObjectUploadService` with
+one policy. Use a policy narrow enough for one product purpose. Do not combine
+avatars, documents, and attachments into a broad prefix/type/size union merely
+to share the service; typed multi-profile composition is retained as M14-T08.
 
 ## 2. Hash the bounded file
 
@@ -100,8 +111,11 @@ return_to_client(issued.grant);
 `ObjectUploadGrant` contains the provider URL, policy, signature, and possibly a
 temporary security token. It is a bearer credential intended for the authorized
 client. `PendingObjectUpload` contains only the expected key, media type, exact
-byte count, SHA-256, signed attributes, and expiry. Persist only the pending
-record; do not store or log the grant.
+byte count, SHA-256, signed attributes, and bearer-capability expiry. That
+timestamp does not expire the trusted pending record: an upload accepted before
+capability expiry may be verified later. Application-owned retention and
+cleanup decide how long pending state survives. Persist only the pending record;
+do not store or log the grant.
 
 The generated object key is an extensionless UUIDv7 under the configured
 prefix. A client filename never becomes storage identity. Store a separately
@@ -158,6 +172,12 @@ completion transition idempotent. A client can retry the POST or completion
 request; the signed checksum means a replay can only write the same declared
 bytes to its unique key.
 
+Minco treats user metadata as corroborating evidence only. Managed completion
+requires the checksum returned by S3 with checksum mode enabled and fails closed
+when it is absent or conflicts with `minco-sha256` metadata. This is why an
+S3-like emulator accepting a POST is not, by itself, managed-verification
+evidence.
+
 This establishes transfer integrity, not content safety. For hostile input, keep
 the object in an application-owned quarantine state and run the required magic
 signature checks, safe decoder, malware scanner, or content-disarm process
@@ -185,12 +205,19 @@ downloads easier. For justified high-volume delivery, put CloudFront in front
 of a separate publication profile rather than changing the private upload
 bucket.
 
+The compatibility download filename is deliberately limited to visible ASCII
+and excludes quotes, backslashes, slashes, and semicolons before it is placed in
+`Content-Disposition`. Store international display names in application data;
+an RFC 6266 `filename*` representation remains a separate additive capability.
+
 ## S3 deployment checklist
 
 The application-owned bucket should have all S3 Block Public Access controls
 enabled, Object Ownership set to bucket-owner enforced, private IAM scoped to
 the exact bucket/prefix, and HTTPS-only access. SSE-S3 is the low-cost default;
-select SSE-KMS only when its key policy, request cost, and quota are justified.
+select SSE-KMS only when its key policy, request cost, quota, and the additional
+KMS permissions needed to retrieve checksum metadata through `HeadObject` are
+explicitly qualified.
 
 Configure browser CORS for the exact application origins and only the methods
 the UI uses (`POST`, and optionally `GET`/`HEAD`). Allow only headers observed in
@@ -214,7 +241,8 @@ while application compute is at zero.
   payloads. Direct transfer is the normal user-file path.
 - Managed S3 POST requires an exact SHA-256. `ObjectHead.sha256` remains optional
   because legacy objects and the older compatibility `sign_put` path may not
-  have a provider checksum.
+  have a provider checksum. Metadata alone is never promoted to a verified
+  provider checksum.
 - One S3 POST is capped at 5 GiB and Minco rejects a larger capability. In
   practice, browser memory and user experience usually require a much lower
   application policy.
