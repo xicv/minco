@@ -2,7 +2,7 @@
 id: M14-T07
 title: Add rich observable low-cost outbound mail
 milestone: M14
-status: in_progress
+status: complete
 priority: high
 area: plugins/mail
 depends_on: [M14-T02]
@@ -90,26 +90,30 @@ and must name the account, Region, verified identity, configuration set,
 mailbox-simulator fixture, spend boundary, and cleanup/evidence path.
 
 The recovery and hardening pass started from exact implementation head
-`5f214207f5b440f1cc2f6d3696a37d761e268c6f` on current `main`
-`80c0bc71dc21252e853e960745ed984a1a4fe9f5`. The locally qualified product
-commit is `8aeb714c6fb128f04053ba8cbb058368e57b48b1`; the following evidence-only
-task update is separately requalified before remote handoff.
+`5f214207f5b440f1cc2f6d3696a37d761e268c6f` on then-current `main`
+`80c0bc71dc21252e853e960745ed984a1a4fe9f5`. The originally qualified product
+commit `8aeb714c6fb128f04053ba8cbb058368e57b48b1` is rebased as
+`8752f1fa64719bcf48632042659347ee8f186cb1` onto current `main`
+`2786e272542c950ba07aa411265d825fd875c373`. The dependency blocker remediation
+is isolated in `13912586679c6316815beac4174fcd0b79f51934`; this completion evidence is
+requalified again at the final remote head.
 
 Current local evidence on macOS 26.5.2 arm64 uses Rust/Cargo 1.97.1, JJ 0.43.0,
 GitHub CLI 2.97.0, uv 0.11.32, Node 26.5.1, npm 11.17.0, Docker Desktop 4.84.0,
 Docker Engine 29.6.2 arm64, and Compose 5.3.1:
 
-- `cargo minco task verify M14-T07 --json` passes all nine declared checks,
+- `cargo minco task verify M14-T07 --json` passes all ten declared checks,
   including 17 notification tests, 21 SES-feature AWS adapter tests, strict
-  Clippy, warning-denying rustdoc, Compose validation, static validation, and
-  source-manifest verification;
-- all-feature facade check/tests, all-feature workspace check/Clippy/tests,
+  Clippy, warning-denying rustdoc, Compose validation, a zero-vulnerability
+  docs-site audit, static validation, and source-manifest verification;
+- the authoritative `./scripts/quality.sh` passes, including all-feature facade
+  check/tests, all-feature workspace check/Clippy/tests,
   the 51-test full AWS adapter suite, generated application tests, workspace
   rustdoc, `cargo deny`, `cargo audit`, ShellCheck, diff whitespace validation,
   and Gitleaks pass. Credential-gated AWS, S3, Rustack, and PostgreSQL tests
   remain ignored by their explicit environment contracts;
-- generated reference checks and the 1,088-file source manifest are current,
-  static validation reports zero errors and warnings across 88 tasks and 180
+- generated reference checks and the 1,092-file source manifest are current,
+  static validation reports zero errors and warnings across 89 tasks and 181
   Rust files, and 328 documentation snippets pass;
 - the pinned Mailpit index digest
   `sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d`
@@ -124,12 +128,11 @@ Docker Engine 29.6.2 arm64, and Compose 5.3.1:
   measured a 170,885,672-byte peak memory footprint (176,537,600-byte maximum
   resident set) on this Mac, below the reference Lambda's 512-MiB allocation;
   documentation recommends object-storage links for large files; and
-- `./scripts/quality.sh`, `scripts/docs/check-links.sh`, and
-  `scripts/docs/build.sh` stop before documentation rendering on the unchanged
-  `docs-site` dependency `nanoid <3.3.17` advisory
-  `GHSA-2v37-7h3g-55p8`. That lockfile is outside this task's product scope, so
-  this task remains `in_progress` and its replacement pull request remains
-  draft rather than weakening or hiding the gate.
+- the VitePress 1.6.4 / PostCSS 8.5.25 graph now locks `nanoid` 3.3.18 instead
+  of vulnerable 3.3.16. `npm audit` reports zero vulnerabilities,
+  `scripts/docs/build.sh` renders successfully, `scripts/docs/check-links.sh`
+  verifies 457 internal, 14 external, and 141 canonical pages, and the docs
+  browser suite passes 34 tests with its two desktop-only exclusions skipped.
 
 No live AWS request, SES identity or configuration mutation, deployment, real
 email, release, tag, crate publication, queue, worker, schedule, database, NAT

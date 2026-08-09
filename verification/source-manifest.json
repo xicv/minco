@@ -5124,8 +5124,8 @@
     },
     {
       "path": "tasks/M14/M14-T07-rich-observable-mail-delivery.md",
-      "sha256": "1df1a5b25a43a993ca622581855292711250d0e42f77af02bed98699304a0711",
-      "size_bytes": 6945
+      "sha256": "f1a689821d3ce7c40ee9b1d1ba6cd8d5916e4d3a4ca29c1cc25691a59c4eb3cb",
+      "size_bytes": 7223
     },
     {
       "path": "tasks/M14/M14-T08-verified-object-uploads.md",
@@ -5474,7 +5474,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "b8970126f4bc08ca866735265fdb570a64ae1c69c3ca04fb5610058811df72f9",
-  "total_size_bytes": 7821649,
+  "source_tree_sha256": "62d8c480f32ac811d6f4f9d182880c45f37ae062a67aed10f5b88775eba7fe6d",
+  "total_size_bytes": 7821927,
   "version": "1.1.0"
 }
