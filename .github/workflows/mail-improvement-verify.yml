@@ -75,13 +75,25 @@ jobs:
               smtp.send_message(message)
           PY
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error http://127.0.0.1:8025/view/latest.txt > /tmp/mailpit-latest.txt \
-              && grep -F "$MAIL_SUBJECT" /tmp/mailpit-latest.txt \
-              && grep -F 'Minco local mail qualification body' /tmp/mailpit-latest.txt; then
-              break
+            if curl --fail --silent --show-error http://127.0.0.1:8025/api/v1/message/latest > /tmp/mailpit-latest.json \
+              && curl --fail --silent --show-error http://127.0.0.1:8025/view/latest.txt > /tmp/mailpit-latest.txt \
+              && python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          message = json.loads(Path('/tmp/mailpit-latest.json').read_text(encoding='utf-8'))
+          if message.get('Subject') != os.environ['MAIL_SUBJECT']:
+              raise SystemExit(1)
+          PY
+            then
+              if grep -F 'Minco local mail qualification body' /tmp/mailpit-latest.txt; then
+                break
+              fi
             fi
             if [ "$attempt" -eq 30 ]; then
               echo 'Mailpit did not expose the captured message' >&2
+              cat /tmp/mailpit-latest.json || true
               cat /tmp/mailpit-latest.txt || true
               exit 1
             fi
