@@ -5,7 +5,36 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- Added an explicit `mail.send` contract with validated To/CC/BCC/reply-to,
+  text and HTML alternatives, bounded attachments and inline content, safe
+  headers and tags, acceptance receipts, deterministic capture, and
+  privacy-safe submission and delivery observation.
+- Added a loopback-only Mailpit SMTP transport and a bounded, pinned local inbox
+  for macOS and other Docker-compatible development environments.
+- Added an Amazon SES v2 rich-mail transport with one SDK submission attempt,
+  bounded timeouts, fixed sender identity, raw MIME, Minco correlation tags,
+  configuration-set support, and policy-gated direct/SNS/EventBridge delivery
+  event normalization.
+
+### Compatibility
+
+- Existing generic notification APIs, `NotificationsPlugin::new`,
+  `NotificationsPlugin::memory`, `SesNotificationSink`, and
+  `aws.ses.email-notifications` remain available. The new `mail.send` and
+  `aws.ses.mail-delivery` capabilities are additive and opt-in.
+
+### Safety and cost
+
+- Ambiguous mail-submission outcomes never retry or fail over automatically,
+  provider acceptance remains distinct from final mailbox delivery, and direct
+  SES introduces no queue, worker, schedule, database, NAT gateway, provisioned
+  concurrency, dedicated IP, or other fixed-capacity service.
+- SNS and EventBridge wrappers require an exact trust policy and a successful
+  caller-supplied verifier; direct trusted normalization rejects wrappers. SES
+  topics are provider-safely encoded, merged tags are capped at 50, and delivery
+  deduplication is explicitly bounded and in-process.
 
 ## [1.1.0] - 2026-08-06
 
