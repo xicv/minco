@@ -614,6 +614,15 @@ else
 fi
 RUST_BACKTRACE=0 cargo test \
   -p minco-aws-adapters \
+  --features s3 \
+  --test real_aws_s3 \
+  --locked \
+  managed_uploads_conform_on_bounded_real_s3 \
+  -- --ignored --exact --nocapture \
+  2>&1 | tee "$MINCO_AWS_EVIDENCE_DIR/managed-s3-test.log"
+chmod 600 "$MINCO_AWS_EVIDENCE_DIR/managed-s3-test.log"
+RUST_BACKTRACE=0 cargo test \
+  -p minco-aws-adapters \
   --all-features \
   --test real_aws \
   --locked \
