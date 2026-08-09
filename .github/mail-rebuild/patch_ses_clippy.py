@@ -13,8 +13,8 @@ replacements = [
         'let output = request.send().await.map_err(|error| classify_send_error(&error))?;',
     ),
     (
-        '''fn classify_send_error(\n    error: aws_sdk_sesv2::error::SdkError<SendEmailError>,\n) -> MailError {''',
-        '''fn classify_send_error(\n    error: &aws_sdk_sesv2::error::SdkError<SendEmailError>,\n) -> MailError {''',
+        'fn classify_send_error(error: aws_sdk_sesv2::error::SdkError<SendEmailError>) -> MailError {',
+        'fn classify_send_error(error: &aws_sdk_sesv2::error::SdkError<SendEmailError>) -> MailError {',
     ),
 ]
 
