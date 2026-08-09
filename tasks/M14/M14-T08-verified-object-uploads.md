@@ -35,7 +35,7 @@ owned_paths:
 checks:
   - uv run --locked python scripts/validate_static.py
   - uv run --locked python scripts/source_manifest.py --check
-  - rustfmt --edition 2024 --check plugins/minco-plugin-object-storage/src/lib.rs plugins/minco-plugin-object-storage/src/uploads.rs extensions/minco-aws-adapters/src/lib.rs extensions/minco-aws-adapters/src/s3.rs extensions/minco-aws-adapters/src/s3_storage.rs extensions/minco-aws-adapters/tests/rustack.rs extensions/minco-aws-adapters/tests/real_aws_s3.rs
+  - rustfmt --edition 2024 --check plugins/minco-plugin-object-storage/src/base.rs plugins/minco-plugin-object-storage/src/lib.rs plugins/minco-plugin-object-storage/src/uploads.rs extensions/minco-aws-adapters/src/lib.rs extensions/minco-aws-adapters/src/s3.rs extensions/minco-aws-adapters/src/s3_storage.rs extensions/minco-aws-adapters/tests/rustack.rs extensions/minco-aws-adapters/tests/real_aws_s3.rs
   - cargo check -p minco-plugin-object-storage --all-targets --locked
   - cargo test -p minco-plugin-object-storage --locked
   - cargo clippy -p minco-plugin-object-storage --all-targets --locked -- -D warnings
@@ -99,7 +99,7 @@ Current local evidence on pinned Rust 1.97.1:
 
 - static validation reports zero errors and zero warnings across 86 tasks and
   176 Rust files;
-- targeted rustfmt checks only the seven modified Rust files;
+- targeted rustfmt checks only the eight modified Rust files;
 - `minco-plugin-object-storage` compiles, passes 10 tests, and passes
   warning-denying Clippy;
 - `minco-aws-adapters` with `s3` compiles, passes 15 tests with the ignored
@@ -118,8 +118,19 @@ stopping at the unchanged docs-site lockfile's current `nanoid <3.3.17`
 lock manifests; the storage task does not silently change that unrelated
 baseline dependency.
 
-Final cross-PR integration, exact-head hosted qualification, and source
-manifest evidence are appended before this task moves from `active` to
-`complete`. No real AWS call, deployment, database mutation, release, fixed
-compute, NAT Gateway, provisioned concurrency, or hidden schedule is authorized
-by this task.
+Open-PR inspection found PR #129 owns M14-T06 and M14-T07, while PR #130's
+original M14-T06 also collided. M14-T08 is the first identifier not present on
+main or any open PR; the retained multi-profile follow-up therefore uses
+M14-T09. Disposable integration commit `51277b09` applied exact PR #129 head
+`0eba2608e2a67be61ed04b675bce48133cb18273` before this task. Only
+`docs/DECISIONS.md` and the three generated verification reports conflicted;
+combining both ADR rows and regenerating the reports produced a clean tree.
+Static validation, source-manifest check, both affected package check/test/
+Clippy sets, and `git diff --check` then passed on the integrated Minco 1.2.0
+tree. The disposable worktree was removed after recording its recoverable local
+merge commit.
+
+Exact-head hosted qualification and final source-manifest evidence are appended
+before this task moves from `active` to `complete`. No real AWS call,
+deployment, database mutation, release, fixed compute, NAT Gateway, provisioned
+concurrency, or hidden schedule is authorized by this task.
