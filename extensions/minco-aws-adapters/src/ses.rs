@@ -273,11 +273,7 @@ impl MailTransport for SesMailTransport {
         SES_TRANSPORT_NAME
     }
 
-    async fn send(
-        &self,
-        message: &MailMessage,
-        attempt: u32,
-    ) -> Result<MailReceipt, MailError> {
+    async fn send(&self, message: &MailMessage, attempt: u32) -> Result<MailReceipt, MailError> {
         message.validate()?;
         let raw = render_mime(message, &self.config.from)?;
         let raw_message = RawMessage::builder()
@@ -292,13 +288,25 @@ impl MailTransport for SesMailTransport {
             })?;
         let destination = Destination::builder()
             .set_to_addresses(Some(
-                message.to.iter().map(|value| value.address.clone()).collect(),
+                message
+                    .to
+                    .iter()
+                    .map(|value| value.address.clone())
+                    .collect(),
             ))
             .set_cc_addresses(Some(
-                message.cc.iter().map(|value| value.address.clone()).collect(),
+                message
+                    .cc
+                    .iter()
+                    .map(|value| value.address.clone())
+                    .collect(),
             ))
             .set_bcc_addresses(Some(
-                message.bcc.iter().map(|value| value.address.clone()).collect(),
+                message
+                    .bcc
+                    .iter()
+                    .map(|value| value.address.clone())
+                    .collect(),
             ))
             .build();
         let tags = ses_tags(message, &self.config)?;
@@ -369,23 +377,23 @@ fn ses_tags(
         .collect()
 }
 
-fn classify_send_error(
-    error: aws_sdk_sesv2::error::SdkError<SendEmailError>,
-) -> MailError {
-    let kind = error.as_service_error().map_or(MailErrorKind::Ambiguous, |service| {
-        if service.is_too_many_requests_exception() || service.is_limit_exceeded_exception() {
-            MailErrorKind::Throttled
-        } else if service.is_message_rejected() || service.is_bad_request_exception() {
-            MailErrorKind::Rejected
-        } else if service.is_mail_from_domain_not_verified_exception()
-            || service.is_not_found_exception()
-            || service.is_sending_paused_exception()
-        {
-            MailErrorKind::Configuration
-        } else {
-            MailErrorKind::Ambiguous
-        }
-    });
+fn classify_send_error(error: aws_sdk_sesv2::error::SdkError<SendEmailError>) -> MailError {
+    let kind = error
+        .as_service_error()
+        .map_or(MailErrorKind::Ambiguous, |service| {
+            if service.is_too_many_requests_exception() || service.is_limit_exceeded_exception() {
+                MailErrorKind::Throttled
+            } else if service.is_message_rejected() || service.is_bad_request_exception() {
+                MailErrorKind::Rejected
+            } else if service.is_mail_from_domain_not_verified_exception()
+                || service.is_not_found_exception()
+                || service.is_sending_paused_exception()
+            {
+                MailErrorKind::Configuration
+            } else {
+                MailErrorKind::Ambiguous
+            }
+        });
     MailError::new(kind, SES_TRANSPORT_NAME, "SES SendEmail failed")
 }
 
@@ -582,7 +590,11 @@ mod mail_tests {
         assert_eq!(event.message_id, message_id);
         assert_eq!(event.kind, MailDeliveryEventKind::Delivered);
         assert_eq!(event.topic, "invoice.ready");
-        assert!(!serde_json::to_string(&event).unwrap().contains("secret@example.com"));
+        assert!(
+            !serde_json::to_string(&event)
+                .unwrap()
+                .contains("secret@example.com")
+        );
     }
 
     #[test]

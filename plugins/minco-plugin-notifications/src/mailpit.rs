@@ -95,11 +95,7 @@ impl MailTransport for MailpitTransport {
         "mailpit"
     }
 
-    async fn send(
-        &self,
-        message: &MailMessage,
-        attempt: u32,
-    ) -> Result<MailReceipt, MailError> {
+    async fn send(&self, message: &MailMessage, attempt: u32) -> Result<MailReceipt, MailError> {
         message.validate()?;
         let mime = render_mime(message, &self.config.from)?;
         let stream = timeout(
@@ -124,7 +120,9 @@ impl MailTransport for MailpitTransport {
         let mut connection = SmtpConnection::new(stream, self.config.command_timeout);
 
         connection.expect_response(220, false).await?;
-        connection.command("EHLO minco.local\r\n", 250, false).await?;
+        connection
+            .command("EHLO minco.local\r\n", 250, false)
+            .await?;
         connection
             .command(
                 &format!("MAIL FROM:<{}>\r\n", self.config.from.address),
@@ -134,11 +132,7 @@ impl MailTransport for MailpitTransport {
             .await?;
         for recipient in message.recipients() {
             connection
-                .command(
-                    &format!("RCPT TO:<{}>\r\n", recipient.address),
-                    250,
-                    false,
-                )
+                .command(&format!("RCPT TO:<{}>\r\n", recipient.address), 250, false)
                 .await?;
         }
         connection.command("DATA\r\n", 354, false).await?;
@@ -251,7 +245,10 @@ impl SmtpConnection {
             let code = line[..3].parse::<u16>().map_err(|_| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, "SMTP status is malformed")
             })?;
-            if status.replace(code).is_some_and(|previous| previous != code) {
+            if status
+                .replace(code)
+                .is_some_and(|previous| previous != code)
+            {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "SMTP multiline status changed",
@@ -314,7 +311,11 @@ mod tests {
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
             let mut stream = BufReader::new(stream);
-            stream.get_mut().write_all(b"220 mailpit ESMTP\r\n").await.unwrap();
+            stream
+                .get_mut()
+                .write_all(b"220 mailpit ESMTP\r\n")
+                .await
+                .unwrap();
             let mut captured = Vec::new();
             loop {
                 let mut line = String::new();
@@ -343,7 +344,11 @@ mod tests {
                         }
                         captured.extend_from_slice(&data_line);
                     }
-                    stream.get_mut().write_all(b"250 accepted\r\n").await.unwrap();
+                    stream
+                        .get_mut()
+                        .write_all(b"250 accepted\r\n")
+                        .await
+                        .unwrap();
                 } else if line.starts_with("QUIT") {
                     stream.get_mut().write_all(b"221 bye\r\n").await.unwrap();
                     break;

@@ -58,10 +58,7 @@ impl MailAddress {
         Ok(address)
     }
 
-    pub fn named(
-        address: impl Into<String>,
-        name: impl Into<String>,
-    ) -> Result<Self, MailError> {
+    pub fn named(address: impl Into<String>, name: impl Into<String>) -> Result<Self, MailError> {
         let address = Self {
             address: address.into(),
             name: Some(name.into()),
@@ -178,7 +175,9 @@ impl MailAttachment {
             return Err(MailError::invalid("mail attachment file name is invalid"));
         }
         if !valid_content_type(&self.content_type) {
-            return Err(MailError::invalid("mail attachment content type is invalid"));
+            return Err(MailError::invalid(
+                "mail attachment content type is invalid",
+            ));
         }
         if self.content.is_empty() {
             return Err(MailError::invalid("mail attachment must not be empty"));
@@ -205,7 +204,10 @@ impl fmt::Debug for MailAttachment {
             .field("content_type", &self.content_type)
             .field("size_bytes", &self.content.len())
             .field("disposition", &self.disposition)
-            .field("content_id", &self.content_id.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "content_id",
+                &self.content_id.as_ref().map(|_| "[REDACTED]"),
+            )
             .finish()
     }
 }
@@ -681,11 +683,7 @@ impl MailObserver for TracingMailObserver {
 pub trait MailTransport: Send + Sync + fmt::Debug {
     fn name(&self) -> &str;
 
-    async fn send(
-        &self,
-        message: &MailMessage,
-        attempt: u32,
-    ) -> Result<MailReceipt, MailError>;
+    async fn send(&self, message: &MailMessage, attempt: u32) -> Result<MailReceipt, MailError>;
 }
 
 #[derive(Clone)]
@@ -708,8 +706,7 @@ impl MailService {
         }
         let mut names = BTreeSet::new();
         for transport in &transports {
-            if !valid_transport_name(transport.name())
-                || !names.insert(transport.name().to_owned())
+            if !valid_transport_name(transport.name()) || !names.insert(transport.name().to_owned())
             {
                 return Err(MailError::new(
                     MailErrorKind::Configuration,
@@ -900,11 +897,7 @@ impl MailTransport for MemoryMailTransport {
         &self.name
     }
 
-    async fn send(
-        &self,
-        message: &MailMessage,
-        attempt: u32,
-    ) -> Result<MailReceipt, MailError> {
+    async fn send(&self, message: &MailMessage, attempt: u32) -> Result<MailReceipt, MailError> {
         message.validate()?;
         let mut messages = self.messages.write().await;
         messages.push(message.clone());
@@ -943,11 +936,7 @@ impl MailTransport for LegacyNotificationMailTransport {
         "legacy-notification"
     }
 
-    async fn send(
-        &self,
-        message: &MailMessage,
-        attempt: u32,
-    ) -> Result<MailReceipt, MailError> {
+    async fn send(&self, message: &MailMessage, attempt: u32) -> Result<MailReceipt, MailError> {
         message.validate()?;
         if message.to.len() != 1
             || !message.cc.is_empty()
@@ -981,18 +970,21 @@ impl MailTransport for LegacyNotificationMailTransport {
         notification.id = message.id;
         notification.created_at = message.created_at;
         notification.metadata = message.metadata.clone();
-        self.sink.send(notification).await.map_err(|error| match error {
-            NotificationError::InvalidRecipient => MailError::new(
-                MailErrorKind::Rejected,
-                self.name(),
-                "legacy notification recipient was rejected",
-            ),
-            NotificationError::Delivery(_) => MailError::new(
-                MailErrorKind::Ambiguous,
-                self.name(),
-                "legacy notification delivery outcome is unknown",
-            ),
-        })?;
+        self.sink
+            .send(notification)
+            .await
+            .map_err(|error| match error {
+                NotificationError::InvalidRecipient => MailError::new(
+                    MailErrorKind::Rejected,
+                    self.name(),
+                    "legacy notification recipient was rejected",
+                ),
+                NotificationError::Delivery(_) => MailError::new(
+                    MailErrorKind::Ambiguous,
+                    self.name(),
+                    "legacy notification delivery outcome is unknown",
+                ),
+            })?;
         Ok(MailReceipt {
             message_id: message.id,
             transport: self.name().into(),
@@ -1057,10 +1049,7 @@ pub enum MailDeliveryDisposition {
 
 #[async_trait]
 pub trait MailDeliveryEventSink: Send + Sync + fmt::Debug {
-    async fn record(
-        &self,
-        event: MailDeliveryEvent,
-    ) -> Result<MailDeliveryDisposition, MailError>;
+    async fn record(&self, event: MailDeliveryEvent) -> Result<MailDeliveryDisposition, MailError>;
 }
 
 #[derive(Debug, Default)]
@@ -1077,10 +1066,7 @@ impl MemoryMailDeliveryEventSink {
 
 #[async_trait]
 impl MailDeliveryEventSink for MemoryMailDeliveryEventSink {
-    async fn record(
-        &self,
-        event: MailDeliveryEvent,
-    ) -> Result<MailDeliveryDisposition, MailError> {
+    async fn record(&self, event: MailDeliveryEvent) -> Result<MailDeliveryDisposition, MailError> {
         event.validate()?;
         let mut source_ids = self.source_ids.write().await;
         if !source_ids.insert(event.source_event_id.clone()) {
@@ -1096,10 +1082,7 @@ pub struct TracingMailDeliveryEventSink;
 
 #[async_trait]
 impl MailDeliveryEventSink for TracingMailDeliveryEventSink {
-    async fn record(
-        &self,
-        event: MailDeliveryEvent,
-    ) -> Result<MailDeliveryDisposition, MailError> {
+    async fn record(&self, event: MailDeliveryEvent) -> Result<MailDeliveryDisposition, MailError> {
         event.validate()?;
         match event.kind {
             MailDeliveryEventKind::Delivered
@@ -1137,10 +1120,7 @@ pub fn deterministic_mail_event_id(parts: &[&str]) -> String {
     format!("sha256:{}", lower_hex(&digest.finalize()))
 }
 
-pub fn render_mime(
-    message: &MailMessage,
-    from: &MailAddress,
-) -> Result<Vec<u8>, MailError> {
+pub fn render_mime(message: &MailMessage, from: &MailAddress) -> Result<Vec<u8>, MailError> {
     message.validate()?;
     from.validate()?;
 
@@ -1168,7 +1148,10 @@ pub fn render_mime(
         &mut rendered,
         &format!("Subject: {}", encode_unstructured_header(&message.subject)),
     );
-    writeln_crlf(&mut rendered, &format!("Date: {}", message.created_at.to_rfc2822()));
+    writeln_crlf(
+        &mut rendered,
+        &format!("Date: {}", message.created_at.to_rfc2822()),
+    );
     writeln_crlf(
         &mut rendered,
         &format!("Message-ID: <{}@{}>", message.id, from.domain()),
@@ -1211,7 +1194,11 @@ fn render_body_entity(message: &MailMessage) -> String {
         let mut related = multipart_header("related", &boundary);
         append_part(&mut related, &boundary, &entity);
         for attachment in inline {
-            append_part(&mut related, &boundary, &render_attachment_entity(attachment));
+            append_part(
+                &mut related,
+                &boundary,
+                &render_attachment_entity(attachment),
+            );
         }
         finish_multipart(&mut related, &boundary);
         entity = related;
@@ -1364,10 +1351,7 @@ fn validate_receipt(
         || receipt.attempt != attempt
         || receipt.provider_message_id.trim().is_empty()
         || receipt.provider_message_id.len() > MAX_PROVIDER_MESSAGE_ID_BYTES
-        || receipt
-            .provider_message_id
-            .chars()
-            .any(char::is_control)
+        || receipt.provider_message_id.chars().any(char::is_control)
     {
         return Err(MailError::new(
             MailErrorKind::Ambiguous,
@@ -1434,8 +1418,7 @@ fn valid_local_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric()
         || matches!(
             byte,
-            b'!'
-                | b'#'
+            b'!' | b'#'
                 | b'$'
                 | b'%'
                 | b'&'
@@ -1486,7 +1469,10 @@ fn valid_content_type(value: &str) -> bool {
         && value.len() <= 127
         && value.bytes().all(|byte| {
             byte.is_ascii_alphanumeric()
-                || matches!(byte, b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_')
+                || matches!(
+                    byte,
+                    b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_'
+                )
                 || byte == b'/'
         })
 }
@@ -1646,11 +1632,8 @@ mod tests {
             outcomes: Mutex::new(VecDeque::from([Err(MailErrorKind::Ambiguous)])),
         });
         let fallback = Arc::new(MemoryMailTransport::named("fallback").unwrap());
-        let service = MailService::new(
-            vec![primary, fallback.clone()],
-            Arc::new(NoopMailObserver),
-        )
-        .unwrap();
+        let service =
+            MailService::new(vec![primary, fallback.clone()], Arc::new(NoopMailObserver)).unwrap();
         let error = service.send(message()).await.unwrap_err();
         assert!(error.is_ambiguous());
         assert_eq!(fallback.count().await, 0);
