@@ -1,0 +1,249 @@
+sesv2::Client::from_conf(service_config), config)
+    }
+}
+
+#[async_trait]
+impl MailTransport for SesMailTransport {
+    fn name(&self) -> &str {
+        SES_TRANSPORT_NAME
+    }
+
+    async fn send(
+        &self,
+        message: &MailMessage,
+        attempt: u32,
+    ) -> Result<MailReceipt, MailError> {
+        message.validate()?;
+        let raw = render_mime(message, &self.config.from)?;
+        let raw_message = RawMessage::builder()
+            .data(Blob::new(raw))
+            .build()
+            .map_err(|_| {
+                MailError::new(
+                    MailErrorKind::InvalidMessage,
+                    self.name(),
+                    "SES raw message could not be constructed",
+                )
+            })?;
+        let destination = Destination::builder()
+            .set_to_addresses(Some(
+                message.to.iter().map(|value| value.address.clone()).collect(),
+            ))
+            .set_cc_addresses(Some(
+                message.cc.iter().map(|value| value.address.clone()).collect(),
+            ))
+            .set_bcc_addresses(Some(
+                message.bcc.iter().map(|value| value.address.clone()).collect(),
+            ))
+            .build();
+        let tags = ses_tags(message, &self.config)?;
+        let mut request = self
+            .client
+            .send_email()
+            .from_email_address(self.config.from.formatted())
+            .destination(destination)
+            .content(EmailContent::builder().raw(raw_message).build())
+            .set_email_tags(Some(tags))
+            .set_configuration_set_name(self.config.configuration_set.clone())
+            .set_endpoint_id(self.config.endpoint_id.clone())
+            .set_tenant_name(self.config.tenant_name.clone());
+        if let Some(identity_arn) = &self.config.from_identity_arn {
+            request = request.from_email_address_identity_arn(identity_arn);
+        }
+        let output = request.send().await.map_err(classify_send_error)?;
+        let provider_message_id = output.message_id().ok_or_else(|| {
+            MailError::new(
+                MailErrorKind::Ambiguous,
+                self.name(),
+                "SES accepted the request without a message identifier",
+            )
+        })?;
+        if provider_message_id.trim().is_empty()
+            || provider_message_id.len() > 512
+            || provider_message_id.chars().any(char::is_control)
+        {
+            return Err(MailError::new(
+                MailErrorKind::Ambiguous,
+                self.name(),
+                "SES returned an invalid message identifier",
+            ));
+        }
+        Ok(MailReceipt {
+            message_id: message.id,
+            transport: self.name().into(),
+            provider_message_id: provider_message_id.to_owned(),
+            accepted_at: chrono::Utc::now(),
+            attempt,
+        })
+    }
+}
+
+fn ses_tags(
+    message: &MailMessage,
+    config: &SesMailTransportConfig,
+) -> Result<Vec<MessageTag>, MailError> {
+    let mut values = config.default_tags.clone();
+    values.extend(message.tags.clone());
+    values.insert("minco_message_id".into(), message.id.to_string());
+    values.insert("minco_topic".into(), message.topic.clone());
+    values
+        .into_iter()
+        .map(|(name, value)| {
+            MessageTag::builder()
+                .name(name)
+                .value(value)
+                .build()
+                .map_err(|_| {
+                    MailError::new(
+                        MailErrorKind::InvalidMessage,
+                        SES_TRANSPORT_NAME,
+                        "SES message tags are invalid",
+                    )
+                })
+        })
+        .collect()
+}
+
+fn classify_send_error(
+    error: aws_sdk_sesv2::error::SdkError<SendEmailError>,
+) -> MailError {
+    let kind = error.as_service_error().map_or(MailErrorKind::Ambiguous, |service| {
+        if service.is_too_many_requests_exception() || service.is_limit_exceeded_exception() {
+            MailErrorKind::Throttled
+        } else if service.is_message_rejected() || service.is_bad_request_exception() {
+            MailErrorKind::Rejected
+        } else if service.is_mail_from_domain_not_verified_exception()
+            || service.is_not_found_exception()
+            || service.is_sending_paused_exception()
+        {
+            MailErrorKind::Configuration
+        } else {
+            MailErrorKind::Ambiguous
+        }
+    });
+    MailError::new(kind, SES_TRANSPORT_NAME, "SES SendEmail failed")
+}
+
+pub fn parse_ses_event(bytes: &[u8]) -> Result<MailDeliveryEvent, MailError> {
+    if bytes.is_empty() || bytes.len() > 1_000_000 {
+        return Err(MailError::new(
+            MailErrorKind::InvalidMessage,
+            SES_TRANSPORT_NAME,
+            "SES event envelope is empty or too large",
+        ));
+    }
+    let envelope: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| {
+        MailError::new(
+            MailErrorKind::InvalidMessage,
+            SES_TRANSPORT_NAME,
+            "SES event envelope is not valid JSON",
+        )
+    })?;
+    let (event, envelope_id) = unwrap_event(envelope)?;
+    let event_type = event
+        .get("eventType")
+        .or_else(|| event.get("notificationType"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| invalid_event("SES event type is missing"))?;
+    let mail = event
+        .get("mail")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| invalid_event("SES mail event is missing"))?;
+    let tags = mail
+        .get("tags")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| invalid_event("SES correlation tags are missing"))?;
+    let message_id = first_tag(tags, "minco_message_id")?
+        .parse::<Uuid>()
+        .map_err(|_| invalid_event("SES Minco message ID is invalid"))?;
+    let topic = first_tag(tags, "minco_topic")?.to_owned();
+    let provider_message_id = mail
+        .get("messageId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let occurred_at = event_timestamp(&event).unwrap_or_else(chrono::Utc::now);
+    let kind = map_event_kind(event_type, &event)?;
+    let source_event_id = envelope_id.as_deref().map_or_else(
+        || {
+            deterministic_mail_event_id(&[
+                event_type,
+                &message_id.to_string(),
+                provider_message_id.as_deref().unwrap_or(""),
+                &occurred_at.to_rfc3339(),
+            ])
+        },
+        str::to_owned,
+    );
+    let normalized = MailDeliveryEvent {
+        source_event_id,
+        message_id,
+        topic,
+        transport: SES_TRANSPORT_NAME.into(),
+        kind,
+        occurred_at,
+        provider_message_id,
+    };
+    normalized.validate()?;
+    Ok(normalized)
+}
+
+fn unwrap_event(
+    envelope: serde_json::Value,
+) -> Result<(serde_json::Value, Option<String>), MailError> {
+    if let Some(message) = envelope.get("Message").and_then(serde_json::Value::as_str) {
+        let parsed = serde_json::from_str::<serde_json::Value>(message)
+            .map_err(|_| invalid_event("SNS SES message is not valid JSON"))?;
+        let envelope_id = envelope
+            .get("MessageId")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
+        return Ok((parsed, envelope_id));
+    }
+    if let Some(detail) = envelope.get("detail").cloned() {
+        let envelope_id = envelope
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
+        return Ok((detail, envelope_id));
+    }
+    let envelope_id = envelope
+        .get("id")
+        .or_else(|| envelope.get("eventId"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    Ok((envelope, envelope_id))
+}
+
+fn first_tag<'a>(
+    tags: &'a serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) -> Result<&'a str, MailError> {
+    let value = tags
+        .get(name)
+        .and_then(serde_json::Value::as_array)
+        .and_then(|values| values.first())
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| invalid_event("SES Minco correlation tag is missing"))?;
+    if value.is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
+        return Err(invalid_event("SES Minco correlation tag is invalid"));
+    }
+    Ok(value)
+}
+
+fn event_timestamp(event: &serde_json::Value) -> Option<chrono::DateTime<chrono::Utc>> {
+    [
+        event.pointer("/mail/timestamp"),
+        event.pointer("/delivery/timestamp"),
+        event.pointer("/bounce/timestamp"),
+        event.pointer("/complaint/timestamp"),
+        event.pointer("/reject/timestamp"),
+        event.pointer("/deliveryDelay/timestamp"),
+        event.pointer("/renderingFailure/timestamp"),
+        event.pointer("/open/timestamp"),
+        event.pointer("/click/timestamp"),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(serde_json::Value::as_str)
+    .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+    .map(
