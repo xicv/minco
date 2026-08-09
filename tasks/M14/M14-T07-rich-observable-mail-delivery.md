@@ -86,3 +86,49 @@ smoke before changing this task to complete. Provider acceptance must not be
 reported as mailbox delivery. Any real SES smoke remains separately authorised
 and must name the account, Region, verified identity, configuration set,
 mailbox-simulator fixture, spend boundary, and cleanup/evidence path.
+
+The recovery and hardening pass started from exact implementation head
+`5f214207f5b440f1cc2f6d3696a37d761e268c6f` on current `main`
+`80c0bc71dc21252e853e960745ed984a1a4fe9f5`. The locally qualified product
+commit is `8aeb714c6fb128f04053ba8cbb058368e57b48b1`; the following evidence-only
+task update is separately requalified before remote handoff.
+
+Current local evidence on macOS 26.5.2 arm64 uses Rust/Cargo 1.97.1, JJ 0.43.0,
+GitHub CLI 2.97.0, uv 0.11.32, Node 26.5.1, npm 11.17.0, Docker Desktop 4.84.0,
+Docker Engine 29.6.2 arm64, and Compose 5.3.1:
+
+- `cargo minco task verify M14-T07 --json` passes all nine declared checks,
+  including 17 notification tests, 21 SES-feature AWS adapter tests, strict
+  Clippy, warning-denying rustdoc, Compose validation, static validation, and
+  source-manifest verification;
+- all-feature facade check/tests, all-feature workspace check/Clippy/tests,
+  the 51-test full AWS adapter suite, generated application tests, workspace
+  rustdoc, `cargo deny`, `cargo audit`, ShellCheck, diff whitespace validation,
+  and Gitleaks pass. Credential-gated AWS, S3, Rustack, and PostgreSQL tests
+  remain ignored by their explicit environment contracts;
+- generated reference checks and the 1,088-file source manifest are current,
+  static validation reports zero errors and warnings across 88 tasks and 180
+  Rust files, and 328 documentation snippets pass;
+- the pinned Mailpit index digest
+  `sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d`
+  resolves to the arm64 manifest
+  `sha256:60d1dbefeabfec01540dade90a3dc39c8e85e4086b94e8dcff85eaa939f20dbd`.
+  A loopback-only SMTP/API smoke captured one rich message and verified To, CC,
+  BCC envelope delivery, Reply-To, Unicode headers, text/HTML alternatives,
+  attachment and inline-content SHA-256 values, and the safe custom header.
+  The byte-level SMTP test separately proves BCC is absent from MIME. The
+  task-created container, network, inbox, and volume were removed afterward;
+- the near-25-MiB attachment test stays within the provider request bound and
+  measured a 170,885,672-byte peak memory footprint (176,537,600-byte maximum
+  resident set) on this Mac, below the reference Lambda's 512-MiB allocation;
+  documentation recommends object-storage links for large files; and
+- `./scripts/quality.sh`, `scripts/docs/check-links.sh`, and
+  `scripts/docs/build.sh` stop before documentation rendering on the unchanged
+  `docs-site` dependency `nanoid <3.3.17` advisory
+  `GHSA-2v37-7h3g-55p8`. That lockfile is outside this task's product scope, so
+  this task remains `in_progress` and its replacement pull request remains
+  draft rather than weakening or hiding the gate.
+
+No live AWS request, SES identity or configuration mutation, deployment, real
+email, release, tag, crate publication, queue, worker, schedule, database, NAT
+Gateway, provisioned concurrency, or dedicated IP was created by this work.
