@@ -1,5 +1,11 @@
-//! Provider-neutral notifications and a deterministic memory reference sink.
+//! Provider-neutral notifications, rich outbound mail, and deterministic test adapters.
 #![forbid(unsafe_code)]
+
+pub mod mail;
+pub mod mailpit;
+
+pub use mail::*;
+pub use mailpit::{MailpitTransport, MailpitTransportConfig};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -109,18 +115,56 @@ impl NotificationSink for MemoryNotificationSink {
 #[derive(Debug, Clone)]
 pub struct NotificationsPlugin {
     service: NotificationService,
+    mail_service: Option<MailService>,
 }
 
 impl NotificationsPlugin {
     pub fn new(sink: Arc<dyn NotificationSink>) -> Self {
         Self {
             service: NotificationService::new(sink),
+            mail_service: None,
         }
+    }
+
+    pub fn with_mail_service(mut self, mail_service: MailService) -> Self {
+        self.mail_service = Some(mail_service);
+        self
+    }
+
+    pub fn with_legacy_mail(
+        mut self,
+        sink: Arc<dyn NotificationSink>,
+        observer: Arc<dyn MailObserver>,
+    ) -> Result<Self, MailError> {
+        self.mail_service = Some(MailService::single(
+            Arc::new(LegacyNotificationMailTransport::new(sink)),
+            observer,
+        )?);
+        Ok(self)
     }
 
     pub fn memory() -> (Self, Arc<MemoryNotificationSink>) {
         let sink = Arc::new(MemoryNotificationSink::default());
         (Self::new(sink.clone()), sink)
+    }
+
+    pub fn memory_with_mail() -> (
+        Self,
+        Arc<MemoryNotificationSink>,
+        Arc<MemoryMailTransport>,
+        Arc<MemoryMailObserver>,
+    ) {
+        let notification_sink = Arc::new(MemoryNotificationSink::default());
+        let mail_transport = Arc::new(MemoryMailTransport::default());
+        let mail_observer = Arc::new(MemoryMailObserver::default());
+        let mail_service = MailService::single(mail_transport.clone(), mail_observer.clone())
+            .expect("static memory mail transport");
+        (
+            Self::new(notification_sink.clone()).with_mail_service(mail_service),
+            notification_sink,
+            mail_transport,
+            mail_observer,
+        )
     }
 }
 
@@ -142,11 +186,20 @@ impl Plugin for NotificationsPlugin {
             name: "notifications.send".into(),
             version: Version::new(1, 0, 0),
         });
+        if self.mail_service.is_some() {
+            descriptor.provides.push(CapabilityProvision {
+                name: "mail.send".into(),
+                version: Version::new(1, 0, 0),
+            });
+        }
         descriptor
     }
 
     fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
         context.services().insert(Arc::new(self.service.clone()))?;
+        if let Some(mail_service) = &self.mail_service {
+            context.services().insert(Arc::new(mail_service.clone()))?;
+        }
         Ok(())
     }
 }
@@ -176,5 +229,38 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(sink.all().await[0].topic, "feedback.created");
+    }
+
+    #[tokio::test]
+    async fn memory_plugin_exposes_mail_only_when_explicitly_selected() {
+        let (plain, _) = NotificationsPlugin::memory();
+        assert!(
+            plain
+                .descriptor()
+                .provides
+                .iter()
+                .all(|capability| capability.name != "mail.send")
+        );
+
+        let (mail, _, transport, observer) = NotificationsPlugin::memory_with_mail();
+        assert!(
+            mail.descriptor()
+                .provides
+                .iter()
+                .any(|capability| capability.name == "mail.send")
+        );
+        let message = MailMessage::builder("account.welcome", "Welcome")
+            .to(MailAddress::new("person@example.com").unwrap())
+            .text("Welcome")
+            .build()
+            .unwrap();
+        mail.mail_service
+            .as_ref()
+            .unwrap()
+            .send(message)
+            .await
+            .unwrap();
+        transport.assert_sent_count(1).await;
+        assert_eq!(observer.events().await.len(), 3);
     }
 }
