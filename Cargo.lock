@@ -2551,13 +2551,16 @@ name = "minco-plugin-notifications"
 version = "1.1.0"
 dependencies = [
  "async-trait",
+ "base64",
  "chrono",
  "minco-core",
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
