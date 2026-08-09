@@ -5004,8 +5004,8 @@
     },
     {
       "path": "tasks/M14/M14-T08-verified-object-uploads.md",
-      "sha256": "98e82ed1368d2a637b3082189caf96a140f29257b1f2d743c1f2383442a19955",
-      "size_bytes": 7163
+      "sha256": "32c65cdcdeb4075729f3135ae702218d6ec87bb6cd29207daf8accba6ef9062d",
+      "size_bytes": 7441
     },
     {
       "path": "tasks/M14/M14-T09-object-upload-profiles.md",
@@ -5344,7 +5344,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "834cfe86ebe35a1a15e0578f367199fb7c00abfd716020e3dd66cdd412ebf1f8",
-  "total_size_bytes": 7212913,
+  "source_tree_sha256": "76d386d2eacf43a2ac076cb2d45fffaa4c7f36f8a35e85a1f14298d752f52be6",
+  "total_size_bytes": 7213191,
   "version": "1.1.0"
 }

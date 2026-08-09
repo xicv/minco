@@ -2,7 +2,7 @@
 id: M14-T08
 title: Add a verified direct-object upload lifecycle
 milestone: M14
-status: active
+status: complete
 priority: high
 area: plugins/object-storage
 depends_on: [M14-T02]
@@ -130,7 +130,12 @@ Clippy sets, and `git diff --check` then passed on the integrated Minco 1.2.0
 tree. The disposable worktree was removed after recording its recoverable local
 merge commit.
 
-Exact-head hosted qualification and final source-manifest evidence are appended
-before this task moves from `active` to `complete`. No real AWS call,
-deployment, database mutation, release, fixed compute, NAT Gateway, provisioned
-concurrency, or hidden schedule is authorized by this task.
+Official essential hosted run
+[31288782105](https://github.com/xicv/minco/actions/runs/31288782105) passed in
+4m02s at exact hardened source head
+`e50ed5d2c80c2d3b57df6f876a0ebe9f3aa667d6`. The selected profile ran the
+clean-runner gate and skipped release, Rustack, and E2E-only stages as intended.
+The task-closing status/evidence commit is separately requalified at its exact
+final SHA before PR handoff. No real AWS call, deployment, database mutation,
+release, fixed compute, NAT Gateway, provisioned concurrency, or hidden
+schedule is authorized by this task.
