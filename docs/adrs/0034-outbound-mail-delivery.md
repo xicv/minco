@@ -38,14 +38,18 @@ safe custom headers, provider tags, application metadata, and creation time.
 The runtime attachment bytes deliberately do not implement Serde, preventing a
 large byte vector from accidentally becoming an outbox or queue persistence
 format. Durable mail intent should store object references, digests, lengths,
-and media types in an application-owned schema.
+and media types in an application-owned schema. Rendering is intentionally
+in-memory and can transiently retain the raw attachment, Base64 output, and
+final MIME buffer; large-file workflows should send an access-controlled object
+link instead of approaching the 25 MiB raw boundary.
 
 `MailTransport` returns a `MailReceipt` only when a provider has accepted a
 submission and returned a valid provider message identifier. `MailService`
-observes prepared, attempting, failed, and accepted states. It advances to a
-fallback only for an explicit throttled or unavailable outcome. Timeouts,
-connection loss after SMTP DATA, malformed acceptance receipts, and unknown SDK
-outcomes are ambiguous and stop the chain.
+observes prepared, attempting, failed, and accepted states. A malformed
+acceptance receipt emits an ambiguous failed-attempt observation before it is
+returned. The service advances to a fallback only for an explicit throttled or
+unavailable outcome. Timeouts, connection loss after SMTP DATA, malformed
+acceptance receipts, and unknown SDK outcomes are ambiguous and stop the chain.
 
 The existing notification API and `SesNotificationSink` remain compatible.
 `LegacyNotificationMailTransport` is opt-in and rejects every rich feature it
@@ -58,9 +62,13 @@ The provider-neutral MIME renderer uses CRLF, Base64 transfer encoding,
 `multipart/alternative`, `multipart/related`, and `multipart/mixed` as needed.
 BCC recipients remain in the transport envelope and never appear in MIME
 headers. Custom headers cannot replace envelope, MIME, routing, or signature
-headers. Recipient count, body size, attachment count and raw bytes, custom
+headers, including Minco and SES control headers. Address display names and
+subjects use bounded UTF-8 encoded words; custom application header values are
+printable ASCII. Every physical header line is checked against the 998-byte RFC
+hard limit. Recipient count, body size, attachment count and raw bytes, custom
 headers, tags, metadata, content IDs, and the final rendered message size are
-bounded before transport I/O.
+bounded before transport I/O. An independent RFC 5322/MIME parser exercises the
+rendered rich-message fixture in tests.
 
 Mailbox duplicate detection preserves the local part and case-normalizes only
 the domain. Internationalized local parts are not claimed in this version.
@@ -70,36 +78,66 @@ the domain. Internationalized local parts are not claimed in this version.
 The SES transport uses raw MIME so one renderer defines local and provider
 behavior. It fixes the configured sender identity, adds reserved
 `minco_message_id` and `minco_topic` tags, and optionally applies a configuration
-set, endpoint ID, tenant name, and sending-identity ARN.
+set, endpoint ID, tenant name, and sending-identity ARN. Minco topics allow dots,
+while SES tags do not, so the topic is reversibly encoded with unpadded URL-safe
+Base64. The final merged tag set is capped at 50; this is a Minco operational
+limit because the current SES v2 service model constrains each tag component but
+does not declare a list maximum.
 
-The recommended constructor derives an SES client from the normal AWS SDK
+The public constructor derives an SES client from the normal AWS SDK
 configuration with one total send attempt plus bounded operation and attempt
-timeouts. Minco does not hide SDK retries at the mail-submission boundary.
+timeouts. The arbitrary-client executor seam is private and test-only, so public
+construction cannot bypass the one-attempt policy. Minco does not hide SDK
+retries at the mail-submission boundary.
 Service responses proving throttling or pre-acceptance rejection are classified
 separately from ambiguous transport and server failures.
 
 ### Delivery-event boundary
 
-`MailDeliveryEvent` represents delivery, permanent/transient bounce, complaint,
-reject, delay, rendering failure, and optional open/click/subscription events.
-The SES parser accepts direct, SNS-wrapped, or EventBridge-wrapped event JSON,
-requires Minco correlation tags, drops recipient and raw provider payload data,
-and derives a deterministic source event ID when the envelope does not provide
-one.
+`MailDeliveryEvent` represents submission, delivery, permanent/transient/
+undetermined bounce, complaint, reject, delay, rendering failure, and optional
+open/click/subscription events. Occurrence time comes from the event-specific
+object; submission, reject, and rendering failure use the SES mail timestamp
+because those official shapes do not provide a later event timestamp. Missing
+or invalid required timestamps fail closed rather than falling back to wall
+clock time.
 
-Delivery-event sinks own deduplication. The memory sink is deterministic for
-tests. The tracing sink records bounded source ID, Minco message UUID, stable
-topic, transport, and event kind; it excludes recipients, subjects, bodies,
-URLs, IP addresses, user agents, metadata values, attachment names, and provider
-message IDs.
+Direct SES JSON can be normalized only through an API explicitly named as
+already trusted; it rejects SNS and EventBridge wrappers. Wrapped input must use
+an exact `SesEventTrustPolicy` plus a caller-supplied
+`SesEventEnvelopeVerifier`. SNS policy checks the exact topic ARN before the
+verifier authenticates the AWS signature and certificate URL. EventBridge
+policy checks source, account, Region, allowed detail type, and optional
+resource ARN; the verifier must attest the selected rule/bus invocation
+boundary. Minco deliberately does not implement ad-hoc SNS cryptography or
+pretend an unsigned EventBridge JSON body authenticates itself.
+
+Normalization requires Minco correlation tags, decodes the topic, drops
+recipient and raw provider payload data, and derives a deterministic opaque
+source event ID from the authenticated envelope ID or canonical direct event.
+Unknown bounce types remain undetermined instead of being guessed transient.
+
+Delivery-event sinks own deduplication. The memory sink is deterministic and
+test-scoped. The tracing sink caps its in-process source-ID window at 4,096
+entries. Neither provides replay safety across restarts; that requires a durable
+application-owned event store. The tracing sink records a digest of the source
+ID, Minco message UUID, stable topic, transport, and event kind; it excludes raw
+source IDs, recipients, subjects, bodies, URLs, IP addresses, user agents,
+metadata values, attachment names, and provider message IDs.
 
 ### Local development
 
 A pinned Mailpit Compose service is development-only. Host ports are bound to
-loopback, the inbox is bounded by count and age, message size and recipient
-count match Minco's boundaries, reverse DNS and update checks are disabled, and
-remote CSS/fonts are blocked. No relay, forwarding, webhook, POP3, Prometheus,
-or chaos feature is configured.
+loopback, the inbox is bounded by count and age, container CPU/memory/PIDs,
+message size, and recipient count. Reverse DNS and update checks are disabled,
+and the Mailpit preview remote-CSS/font control is enabled; that control is not
+a general browser or host-network isolation boundary and does not block remote
+images such as tracking pixels. Untrusted HTML should not be opened without a
+separately isolated browser/network policy. No relay, forwarding,
+webhook, POP3, Prometheus, or chaos feature is configured. The image-native
+`/mailpit readyz` health command and a bounded host-side `/readyz` probe provide
+separate container and host reachability evidence. The service has no automatic
+restart policy.
 
 `MailpitTransport` accepts loopback endpoints only, implements bounded SMTP
 commands and multiline responses, dot-stuffs DATA, and treats connection loss
@@ -119,6 +157,11 @@ after DATA as ambiguous.
   intent representation.
 - Exactly-once email delivery is not claimed.
 - Provider acceptance and final mailbox delivery remain separate evidence.
+- Runtime capability truth is selection-dependent: the static notifications
+  distribution describes its plain constructor, while an explicitly installed
+  rich `MailService` adds `mail.send`; the AWS aggregate selection must
+  independently opt into `rich_mail` before it requires and provides the SES
+  rich-mail capabilities.
 
 ## Compatibility
 

@@ -73,6 +73,7 @@ pub fn runtime_iam_policy(
     if graph
         .capabilities
         .contains_key("aws.ses.email-notifications")
+        || graph.capabilities.contains_key("aws.ses.mail-delivery")
     {
         statements.push(json!({
             "Sid": "MincoEmailDelivery",
@@ -213,6 +214,7 @@ mod tests {
             "aws.s3.object-storage",
             "aws.sqs.event-publication",
             "aws.ses.email-notifications",
+            "aws.ses.mail-delivery",
             "aws.cognito.identity-administration",
             "aws.cloudfront.static-site",
             "aws.appsync-events.realtime-publication",

@@ -40,7 +40,7 @@ Publication is dependency ordered. A docs.rs link is present for every public pa
 | 19 | `minco-plugin-identity` | Verified-claims identity mapping and permission authorization for Minco | no | [docs.rs](https://docs.rs/minco-plugin-identity/1.1.0/minco_plugin_identity/) |
 | 20 | `minco-plugin-object-storage` | Provider-neutral object storage port and reference memory implementation for Minco | no | [docs.rs](https://docs.rs/minco-plugin-object-storage/1.1.0/minco_plugin_object_storage/) |
 | 21 | `minco-plugin-events` | Domain event publisher and transactional outbox ports for Minco | no | [docs.rs](https://docs.rs/minco-plugin-events/1.1.0/minco_plugin_events/) |
-| 22 | `minco-plugin-notifications` | Provider-neutral notification delivery port and reference memory sink for Minco | no | [docs.rs](https://docs.rs/minco-plugin-notifications/1.1.0/minco_plugin_notifications/) |
+| 22 | `minco-plugin-notifications` | Provider-neutral notification and rich outbound mail ports with deterministic local test adapters for Minco | no | [docs.rs](https://docs.rs/minco-plugin-notifications/1.1.0/minco_plugin_notifications/) |
 | 23 | `minco-plugin-audit` | Append-only audit event port and reference memory sink for Minco | no | [docs.rs](https://docs.rs/minco-plugin-audit/1.1.0/minco_plugin_audit/) |
 | 24 | `minco-sqlx-postgres` | Bounded SQLx PostgreSQL pools, migrations, and safe seed execution for Minco | no | [docs.rs](https://docs.rs/minco-sqlx-postgres/1.1.0/minco_sqlx_postgres/) |
 | 25 | `minco-sqlx-sqlite` | SQLx SQLite pools, migrations, and safe seed execution for Minco applications | no | [docs.rs](https://docs.rs/minco-sqlx-sqlite/1.1.0/minco_sqlx_sqlite/) |

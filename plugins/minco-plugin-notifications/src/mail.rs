@@ -5,12 +5,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::{self, Write as _},
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::{sync::RwLock, time::timeout};
+use tokio::{sync::RwLock, task::JoinSet, time::timeout};
 use uuid::Uuid;
 
 const MAX_RECIPIENTS: usize = 50;
@@ -22,9 +22,15 @@ const MAX_HEADERS: usize = 15;
 const MAX_USER_TAGS: usize = 48;
 const MAX_METADATA_BYTES: usize = 64 * 1024;
 const MAX_PROVIDER_MESSAGE_ID_BYTES: usize = 512;
+const MAX_TRACING_DELIVERY_DEDUPE_IDS: usize = 4_096;
 const OBSERVER_TIMEOUT: Duration = Duration::from_millis(100);
+const OBSERVER_CHILD_TIMEOUT: Duration = Duration::from_millis(75);
+const MAX_OBSERVERS: usize = 16;
+const HEADER_SOFT_LINE_BYTES: usize = 78;
+const HEADER_HARD_LINE_BYTES: usize = 998;
+const ENCODED_WORD_INPUT_BYTES: usize = 45;
 const RESERVED_TAGS: [&str; 2] = ["minco_message_id", "minco_topic"];
-const RESERVED_HEADERS: [&str; 15] = [
+const RESERVED_HEADERS: [&str; 17] = [
     "bcc",
     "cc",
     "content-transfer-encoding",
@@ -40,6 +46,8 @@ const RESERVED_HEADERS: [&str; 15] = [
     "sender",
     "subject",
     "to",
+    "x-minco-message-id",
+    "x-minco-topic",
 ];
 
 #[derive(Clone, PartialEq, Eq)]
@@ -80,11 +88,11 @@ impl MailAddress {
     pub fn formatted(&self) -> String {
         match &self.name {
             None => self.address.clone(),
-            Some(name) if name.is_ascii() => {
+            Some(name) if name.is_ascii() && name.len() <= 60 => {
                 let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
                 format!("\"{escaped}\" <{}>", self.address)
             }
-            Some(name) => format!("{} <{}>", encode_header_word(name), self.address),
+            Some(name) => format!("{} <{}>", encode_header_words(name), self.address),
         }
     }
 
@@ -620,8 +628,15 @@ pub struct CompositeMailObserver {
 }
 
 impl CompositeMailObserver {
-    pub fn new(observers: Vec<Arc<dyn MailObserver>>) -> Self {
-        Self { observers }
+    pub fn new(observers: Vec<Arc<dyn MailObserver>>) -> Result<Self, MailError> {
+        if observers.is_empty() || observers.len() > MAX_OBSERVERS {
+            return Err(MailError::new(
+                MailErrorKind::Configuration,
+                "mail",
+                "mail observer composition must contain between 1 and 16 observers",
+            ));
+        }
+        Ok(Self { observers })
     }
 }
 
@@ -637,8 +652,35 @@ impl fmt::Debug for CompositeMailObserver {
 #[async_trait]
 impl MailObserver for CompositeMailObserver {
     async fn observe(&self, event: &MailSubmissionEvent) {
-        for observer in &self.observers {
-            observer.observe(event).await;
+        let mut tasks = JoinSet::new();
+        for (index, observer) in self.observers.iter().cloned().enumerate() {
+            let event = event.clone();
+            tasks.spawn(async move {
+                (
+                    index,
+                    timeout(OBSERVER_CHILD_TIMEOUT, observer.observe(&event))
+                        .await
+                        .is_ok(),
+                )
+            });
+        }
+        while let Some(result) = tasks.join_next().await {
+            match result {
+                Ok((_, true)) => {}
+                Ok((index, false)) => tracing::warn!(
+                    target: "minco.mail",
+                    mail_event_id = %event.event_id,
+                    mail_event = ?event.kind,
+                    mail_observer_index = index,
+                    "mail observer timed out"
+                ),
+                Err(_) => tracing::warn!(
+                    target: "minco.mail",
+                    mail_event_id = %event.event_id,
+                    mail_event = ?event.kind,
+                    "mail observer task failed"
+                ),
+            }
         }
     }
 }
@@ -729,7 +771,17 @@ impl MailService {
     }
 
     async fn observe(&self, event: MailSubmissionEvent) {
-        let _ = timeout(OBSERVER_TIMEOUT, self.observer.observe(&event)).await;
+        if timeout(OBSERVER_TIMEOUT, self.observer.observe(&event))
+            .await
+            .is_err()
+        {
+            tracing::warn!(
+                target: "minco.mail",
+                mail_event_id = %event.event_id,
+                mail_event = ?event.kind,
+                "mail observer timed out"
+            );
+        }
     }
 
     pub async fn send(&self, message: MailMessage) -> Result<MailReceipt, MailError> {
@@ -765,7 +817,20 @@ impl MailService {
             let started_at = Instant::now();
             match transport.send(&message, attempt).await {
                 Ok(receipt) => {
-                    validate_receipt(&receipt, &message, transport.name(), attempt)?;
+                    if let Err(error) =
+                        validate_receipt(&receipt, &message, transport.name(), attempt)
+                    {
+                        self.observe(MailSubmissionEvent::new(
+                            &message,
+                            transport.name(),
+                            MailSubmissionEventKind::AttemptFailed,
+                            attempt,
+                            Some(error.kind),
+                            Some(started_at.elapsed()),
+                        ))
+                        .await;
+                        return Err(error);
+                    }
                     self.observe(MailSubmissionEvent::new(
                         &message,
                         transport.name(),
@@ -1001,9 +1066,11 @@ impl MailTransport for LegacyNotificationMailTransport {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MailDeliveryEventKind {
+    Submitted,
     Delivered,
     BouncedPermanent,
     BouncedTransient,
+    BouncedUndetermined,
     Complaint,
     Rejected,
     DeliveryDelayed,
@@ -1082,20 +1149,71 @@ impl MailDeliveryEventSink for MemoryMailDeliveryEventSink {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct TracingMailDeliveryEventSink;
+#[derive(Debug)]
+pub struct TracingMailDeliveryEventSink {
+    source_ids: RwLock<DeliveryDedupeWindow>,
+}
+
+impl Default for TracingMailDeliveryEventSink {
+    fn default() -> Self {
+        Self {
+            source_ids: RwLock::new(DeliveryDedupeWindow::new(MAX_TRACING_DELIVERY_DEDUPE_IDS)),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct DeliveryDedupeWindow {
+    source_ids: BTreeSet<String>,
+    insertion_order: VecDeque<String>,
+    capacity: usize,
+}
+
+impl DeliveryDedupeWindow {
+    fn new(capacity: usize) -> Self {
+        assert!(capacity > 0, "delivery dedupe capacity must be positive");
+        Self {
+            source_ids: BTreeSet::new(),
+            insertion_order: VecDeque::new(),
+            capacity,
+        }
+    }
+
+    fn record_if_new(&mut self, source_event_id: &str) -> bool {
+        if self.source_ids.contains(source_event_id) {
+            return false;
+        }
+        if self.source_ids.len() == self.capacity
+            && let Some(oldest) = self.insertion_order.pop_front()
+        {
+            self.source_ids.remove(&oldest);
+        }
+        let source_event_id = source_event_id.to_owned();
+        self.source_ids.insert(source_event_id.clone());
+        self.insertion_order.push_back(source_event_id);
+        true
+    }
+}
 
 #[async_trait]
 impl MailDeliveryEventSink for TracingMailDeliveryEventSink {
     async fn record(&self, event: MailDeliveryEvent) -> Result<MailDeliveryDisposition, MailError> {
         event.validate()?;
+        {
+            let mut source_ids = self.source_ids.write().await;
+            if !source_ids.record_if_new(&event.source_event_id) {
+                return Ok(MailDeliveryDisposition::Duplicate);
+            }
+        }
+        let source_event_digest = deterministic_mail_event_id(&[&event.source_event_id]);
         match event.kind {
-            MailDeliveryEventKind::Delivered
+            MailDeliveryEventKind::Submitted
+            | MailDeliveryEventKind::Delivered
             | MailDeliveryEventKind::Opened
             | MailDeliveryEventKind::Clicked
             | MailDeliveryEventKind::SubscriptionChanged => tracing::info!(
                 target: "minco.mail",
-                mail_source_event_id = %event.source_event_id,
+                mail_source_event_digest = %source_event_digest,
                 mail_message_id = %event.message_id,
                 mail_topic = %event.topic,
                 mail_transport = %event.transport,
@@ -1104,7 +1222,7 @@ impl MailDeliveryEventSink for TracingMailDeliveryEventSink {
             ),
             _ => tracing::warn!(
                 target: "minco.mail",
-                mail_source_event_id = %event.source_event_id,
+                mail_source_event_digest = %source_event_digest,
                 mail_message_id = %event.message_id,
                 mail_topic = %event.topic,
                 mail_transport = %event.transport,
@@ -1130,29 +1248,17 @@ pub fn render_mime(message: &MailMessage, from: &MailAddress) -> Result<Vec<u8>,
     from.validate()?;
 
     let mut rendered = String::new();
-    writeln_crlf(&mut rendered, &format!("From: {}", from.formatted()));
+    write_address_header(&mut rendered, "From", std::slice::from_ref(from))?;
     if !message.to.is_empty() {
-        writeln_crlf(
-            &mut rendered,
-            &format!("To: {}", format_addresses(&message.to)),
-        );
+        write_address_header(&mut rendered, "To", &message.to)?;
     }
     if !message.cc.is_empty() {
-        writeln_crlf(
-            &mut rendered,
-            &format!("Cc: {}", format_addresses(&message.cc)),
-        );
+        write_address_header(&mut rendered, "Cc", &message.cc)?;
     }
     if !message.reply_to.is_empty() {
-        writeln_crlf(
-            &mut rendered,
-            &format!("Reply-To: {}", format_addresses(&message.reply_to)),
-        );
+        write_address_header(&mut rendered, "Reply-To", &message.reply_to)?;
     }
-    writeln_crlf(
-        &mut rendered,
-        &format!("Subject: {}", encode_unstructured_header(&message.subject)),
-    );
+    write_unstructured_header(&mut rendered, "Subject", &message.subject)?;
     writeln_crlf(
         &mut rendered,
         &format!("Date: {}", message.created_at.to_rfc2822()),
@@ -1168,9 +1274,18 @@ pub fn render_mime(message: &MailMessage, from: &MailAddress) -> Result<Vec<u8>,
     );
     writeln_crlf(&mut rendered, &format!("X-Minco-Topic: {}", message.topic));
     for (name, value) in &message.headers {
-        writeln_crlf(&mut rendered, &format!("{name}: {value}"));
+        write_ascii_header(&mut rendered, name, value)?;
     }
     rendered.push_str(&render_body_entity(message));
+
+    if rendered
+        .split("\r\n")
+        .any(|line| line.len() > HEADER_HARD_LINE_BYTES)
+    {
+        return Err(MailError::invalid(
+            "rendered mail contains a header line above the RFC hard boundary",
+        ));
+    }
 
     let bytes = rendered.into_bytes();
     if bytes.len() > MAX_RENDERED_MESSAGE_BYTES {
@@ -1320,24 +1435,117 @@ fn percent_encode(value: &str) -> String {
     encoded
 }
 
-fn format_addresses(addresses: &[MailAddress]) -> String {
-    addresses
-        .iter()
-        .map(MailAddress::formatted)
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-fn encode_unstructured_header(value: &str) -> String {
-    if value.is_ascii() {
-        value.to_owned()
-    } else {
-        encode_header_word(value)
+fn write_address_header(
+    target: &mut String,
+    name: &str,
+    addresses: &[MailAddress],
+) -> Result<(), MailError> {
+    let prefix = format!("{name}: ");
+    target.push_str(&prefix);
+    let mut line_bytes = prefix.len();
+    for (index, address) in addresses.iter().enumerate() {
+        let formatted = address.formatted();
+        if formatted.len() + 1 > HEADER_HARD_LINE_BYTES {
+            return Err(MailError::invalid(
+                "rendered mail address exceeds the RFC header boundary",
+            ));
+        }
+        if index > 0 {
+            if line_bytes + 2 + formatted.len() > HEADER_SOFT_LINE_BYTES {
+                target.push_str(",\r\n ");
+                line_bytes = 1;
+            } else {
+                target.push_str(", ");
+                line_bytes += 2;
+            }
+        }
+        if line_bytes + formatted.len() > HEADER_HARD_LINE_BYTES {
+            return Err(MailError::invalid(
+                "rendered mail address header exceeds the RFC hard boundary",
+            ));
+        }
+        target.push_str(&formatted);
+        line_bytes += formatted.len();
     }
+    target.push_str("\r\n");
+    Ok(())
 }
 
-fn encode_header_word(value: &str) -> String {
-    format!("=?UTF-8?B?{}?=", STANDARD.encode(value.as_bytes()))
+fn write_unstructured_header(
+    target: &mut String,
+    name: &str,
+    value: &str,
+) -> Result<(), MailError> {
+    if value.is_ascii() && name.len() + value.len() + 2 <= HEADER_SOFT_LINE_BYTES {
+        return write_ascii_header(target, name, value);
+    }
+    let encoded = encode_header_words(value);
+    let prefix = format!("{name}: ");
+    target.push_str(&prefix);
+    let mut line_bytes = prefix.len();
+    for (index, word) in encoded.split(' ').enumerate() {
+        if index > 0 {
+            if line_bytes + 1 + word.len() > HEADER_SOFT_LINE_BYTES {
+                target.push_str("\r\n ");
+                line_bytes = 1;
+            } else {
+                target.push(' ');
+                line_bytes += 1;
+            }
+        }
+        if line_bytes + word.len() > HEADER_HARD_LINE_BYTES {
+            return Err(MailError::invalid(
+                "rendered unstructured header exceeds the RFC hard boundary",
+            ));
+        }
+        target.push_str(word);
+        line_bytes += word.len();
+    }
+    target.push_str("\r\n");
+    Ok(())
+}
+
+fn write_ascii_header(target: &mut String, name: &str, value: &str) -> Result<(), MailError> {
+    let prefix = format!("{name}: ");
+    target.push_str(&prefix);
+    let mut line_bytes = prefix.len();
+    let mut remaining = value;
+    while line_bytes + remaining.len() > HEADER_SOFT_LINE_BYTES {
+        let available = HEADER_SOFT_LINE_BYTES.saturating_sub(line_bytes);
+        let split = remaining
+            .get(..available.min(remaining.len()))
+            .and_then(|candidate| candidate.rfind(' '));
+        let Some(split) = split.filter(|split| *split > 0) else {
+            break;
+        };
+        target.push_str(&remaining[..split]);
+        target.push_str("\r\n ");
+        remaining = &remaining[split + 1..];
+        line_bytes = 1;
+    }
+    if line_bytes + remaining.len() > HEADER_HARD_LINE_BYTES {
+        return Err(MailError::invalid(
+            "rendered custom header exceeds the RFC hard boundary",
+        ));
+    }
+    target.push_str(remaining);
+    target.push_str("\r\n");
+    Ok(())
+}
+
+fn encode_header_words(value: &str) -> String {
+    let mut words = Vec::new();
+    let mut remaining = value;
+    while !remaining.is_empty() {
+        let mut end = remaining.len().min(ENCODED_WORD_INPUT_BYTES);
+        while !remaining.is_char_boundary(end) {
+            end -= 1;
+        }
+        let (chunk, rest) = remaining.split_at(end);
+        words.push(format!("=?UTF-8?B?{}?=", STANDARD.encode(chunk.as_bytes())));
+        remaining = rest;
+    }
+    words.join(" ")
 }
 
 fn writeln_crlf(target: &mut String, value: &str) {
@@ -1499,11 +1707,10 @@ fn valid_header(name: &str, value: &str) -> bool {
         && !RESERVED_HEADERS
             .iter()
             .any(|reserved| name.eq_ignore_ascii_case(reserved))
+        && !name.to_ascii_lowercase().starts_with("x-ses-")
         && !value.is_empty()
         && value.len() <= 998
-        && !value
-            .chars()
-            .any(|character| matches!(character, '\r' | '\n') || character.is_control())
+        && value.bytes().all(|byte| matches!(byte, 32..=126))
 }
 
 fn valid_tag_component(value: &str) -> bool {
@@ -1548,6 +1755,7 @@ fn lower_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mail_parser::MessageParser;
     use std::collections::VecDeque;
     use tokio::sync::Mutex;
 
@@ -1598,12 +1806,148 @@ mod tests {
         assert!(rendered.contains("multipart/mixed"));
         assert!(rendered.contains("application/pdf"));
         assert!(rendered.contains("=?UTF-8?B?"));
+
+        let parsed = MessageParser::default()
+            .parse(rendered.as_bytes())
+            .expect("rendered MIME must be independently parseable");
+        assert_eq!(parsed.subject(), Some("Invoice ✓"));
+        assert_eq!(parsed.body_text(0).as_deref(), Some("Plain body"));
+        assert_eq!(parsed.body_html(0).as_deref(), Some("<p>HTML body</p>"));
+        assert!(parsed.attachment(0).is_some());
+        assert!(parsed.bcc().is_none());
+    }
+
+    #[test]
+    fn mime_folds_large_address_and_unstructured_headers_within_the_hard_limit() {
+        let mut builder = MailMessage::builder(
+            "invoice.ready",
+            format!("Quarterly statement {}", "長".repeat(240)),
+        )
+        .text("Body")
+        .header("X-Long-Audit-Token", "segment ".repeat(120));
+        for index in 0..50 {
+            let local = format!("recipient-{index:02}-{}", "x".repeat(48));
+            let domain = format!("{}.{}.example", "a".repeat(63), "b".repeat(63));
+            let address = MailAddress::named(
+                format!("{local}@{domain}"),
+                format!("Recipient {index:02} {}", "名".repeat(70)),
+            )
+            .unwrap();
+            builder = builder.to(address);
+        }
+        for index in 0..10 {
+            builder = builder.reply_to(
+                MailAddress::named(
+                    format!("reply-{index}@example.com"),
+                    format!("Reply destination {index} {}", "係".repeat(50)),
+                )
+                .unwrap(),
+            );
+        }
+        let rendered = render_mime(
+            &builder.build().unwrap(),
+            &MailAddress::named("no-reply@example.com", "送信者".repeat(25)).unwrap(),
+        )
+        .unwrap();
+        let header_end = rendered
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .expect("rendered header terminator");
+        for line in rendered[..header_end].split(|byte| *byte == b'\n') {
+            let line = line.strip_suffix(b"\r").unwrap_or(line);
+            assert!(
+                line.len() <= 998,
+                "physical MIME header line is {} bytes",
+                line.len()
+            );
+        }
+    }
+
+    #[test]
+    fn near_attachment_boundary_stays_inside_the_rendered_provider_limit() {
+        let message = MailMessage::builder("attachment.boundary", "Boundary")
+            .to(MailAddress::new("person@example.com").unwrap())
+            .text("Body")
+            .attachment(
+                MailAttachment::attachment(
+                    "boundary.bin",
+                    "application/octet-stream",
+                    vec![0_u8; MAX_ATTACHMENT_BYTES],
+                )
+                .unwrap(),
+            )
+            .build()
+            .unwrap();
+        let rendered =
+            render_mime(&message, &MailAddress::new("no-reply@example.com").unwrap()).unwrap();
+        assert!(rendered.len() > MAX_ATTACHMENT_BYTES);
+        assert!(rendered.len() <= MAX_RENDERED_MESSAGE_BYTES);
+    }
+
+    #[test]
+    fn custom_headers_cannot_spoof_minco_or_ses_control_state() {
+        for name in [
+            "x-minco-message-id",
+            "X-MiNcO-ToPiC",
+            "X-SES-MESSAGE-TAGS",
+            "x-ses-configuration-set",
+            "X-SES-SOURCE-ARN",
+        ] {
+            let result = MailMessage::builder("topic", "Subject")
+                .to(MailAddress::new("person@example.com").unwrap())
+                .text("Body")
+                .header(name, "spoof")
+                .build();
+            assert!(result.is_err(), "{name} must be reserved");
+        }
+        assert!(
+            MailMessage::builder("topic", "Subject")
+                .to(MailAddress::new("person@example.com").unwrap())
+                .text("Body")
+                .header("X-Application-Label", "not ASCII: ✓")
+                .build()
+                .is_err()
+        );
     }
 
     #[derive(Debug)]
     struct ScriptedTransport {
         name: &'static str,
         outcomes: Mutex<VecDeque<Result<(), MailErrorKind>>>,
+    }
+
+    #[derive(Debug)]
+    struct InvalidReceiptTransport;
+
+    #[async_trait]
+    impl MailTransport for InvalidReceiptTransport {
+        fn name(&self) -> &'static str {
+            "invalid-receipt"
+        }
+
+        async fn send(
+            &self,
+            message: &MailMessage,
+            attempt: u32,
+        ) -> Result<MailReceipt, MailError> {
+            Ok(MailReceipt {
+                message_id: message.id,
+                transport: self.name().into(),
+                provider_message_id: String::new(),
+                accepted_at: Utc::now(),
+                attempt,
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct SlowObserver;
+
+    #[async_trait]
+    impl MailObserver for SlowObserver {
+        async fn observe(&self, _event: &MailSubmissionEvent) {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
     }
 
     #[async_trait]
@@ -1664,6 +2008,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn invalid_acceptance_receipt_emits_ambiguous_failure_observation() {
+        let observer = Arc::new(MemoryMailObserver::default());
+        let service =
+            MailService::single(Arc::new(InvalidReceiptTransport), observer.clone()).unwrap();
+        let error = service.send(message()).await.unwrap_err();
+        assert_eq!(error.kind, MailErrorKind::Ambiguous);
+        let events = observer.events().await;
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[2].kind, MailSubmissionEventKind::AttemptFailed);
+        assert_eq!(events[2].failure_kind, Some(MailErrorKind::Ambiguous));
+    }
+
+    #[tokio::test]
+    async fn slow_first_observer_does_not_suppress_later_observers() {
+        let fast = Arc::new(MemoryMailObserver::default());
+        let observer = Arc::new(
+            CompositeMailObserver::new(vec![Arc::new(SlowObserver), fast.clone()]).unwrap(),
+        );
+        let service =
+            MailService::single(Arc::new(MemoryMailTransport::default()), observer).unwrap();
+        let started = Instant::now();
+        service.send(message()).await.unwrap();
+        assert_eq!(fast.events().await.len(), 3);
+        assert!(started.elapsed() < Duration::from_millis(400));
+    }
+
+    #[tokio::test]
     async fn delivery_sink_deduplicates_provider_events() {
         let sink = MemoryMailDeliveryEventSink::default();
         let event = MailDeliveryEvent {
@@ -1684,5 +2055,37 @@ mod tests {
             MailDeliveryDisposition::Duplicate
         );
         assert_eq!(sink.events().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn tracing_delivery_sink_also_deduplicates_provider_events() {
+        let sink = TracingMailDeliveryEventSink::default();
+        let event = MailDeliveryEvent {
+            source_event_id: "provider-event-1".into(),
+            message_id: Uuid::now_v7(),
+            topic: "invoice.ready".into(),
+            transport: "aws.ses".into(),
+            kind: MailDeliveryEventKind::Delivered,
+            occurred_at: Utc::now(),
+            provider_message_id: Some("provider-message".into()),
+        };
+        assert_eq!(
+            sink.record(event.clone()).await.unwrap(),
+            MailDeliveryDisposition::Recorded
+        );
+        assert_eq!(
+            sink.record(event).await.unwrap(),
+            MailDeliveryDisposition::Duplicate
+        );
+    }
+
+    #[test]
+    fn tracing_delivery_dedupe_window_evicts_the_oldest_id() {
+        let mut window = DeliveryDedupeWindow::new(2);
+        assert!(window.record_if_new("one"));
+        assert!(window.record_if_new("two"));
+        assert!(!window.record_if_new("one"));
+        assert!(window.record_if_new("three"));
+        assert!(window.record_if_new("one"));
     }
 }

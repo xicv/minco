@@ -72,14 +72,28 @@ reply-to headers, alternatives and attachments, safe custom headers, an optional
 configuration set, endpoint ID, tenant name, and sending-identity ARN.
 
 Minco reserves `minco_message_id` and `minco_topic` SES tags for correlation.
+The dotted Minco topic is reversibly encoded as unpadded URL-safe Base64 so the
+provider tag remains within SES's ASCII character set. The final merged set is
+capped at 50 tags as an explicit Minco operational limit; the current SES v2
+service model does not publish a list maximum.
 Provider acceptance returns a `MailReceipt`; it is not final mailbox-delivery
 evidence. Timeouts and unknown dispatch outcomes are classified as ambiguous
 and never trigger automatic retry or provider failover.
 
-`parse_ses_event` normalizes direct, SNS-wrapped, and EventBridge-wrapped SES
-delivery events. It requires the reserved correlation tags, derives a stable
-source event ID when necessary, and drops recipient and raw provider payload
-data before returning `MailDeliveryEvent`.
+`normalize_trusted_ses_event` normalizes only direct SES JSON that an internal
+transport already authenticated and rejects SNS/EventBridge wrappers. Wrapped
+input uses `verify_and_normalize_ses_event` with an exact
+`SesEventTrustPolicy` and caller-supplied `SesEventEnvelopeVerifier`. SNS callers
+must verify the AWS signature and certificate URL after the exact topic ARN
+matches. EventBridge callers must authenticate the selected rule/bus invocation
+and match source, account, Region, allowed detail type, and optional resource
+ARN. The adapter does not claim that arbitrary JSON is trusted provider input.
+
+Normalization uses event-specific timestamps, supports the official `Send` and
+`Rendering Failure` names and subscription timestamp shape, keeps unknown bounce
+types undetermined, requires the encoded correlation tags, derives an opaque
+deterministic source event ID, and drops recipient and raw provider payload data
+before returning `MailDeliveryEvent`.
 
 Direct SES is the default low-cost shape: enabling mail does not create a queue,
 worker, DLQ, schedule, database, NAT gateway, provisioned concurrency, dedicated
@@ -96,9 +110,11 @@ lock cleanup fails closed; the adapter never steals or silently expires a lock.
 Register the crate's explicit `AwsAdaptersPlugin` marker with the selected
 provider flags so Plan resource/cost intent and least-privilege IAM are derived
 from AWS selections, not from generic capabilities that may be backed by
-memory. Use the additive `AwsSesMailPlugin` marker when the rich SES mail
-transport is selected. Production migrations and network calls remain explicit operations;
-plugin composition performs neither.
+memory. Set `AwsAdapterSelection::rich_mail` only when a rich notifications
+plugin is also selected; this adds the `mail.send` requirement,
+`aws.ses.mail-delivery` provision, SES identity resource intent, and exact
+SendEmail IAM derivation. Production migrations and network calls remain
+explicit operations; plugin composition performs neither.
 
 See `docs/deployment/aws-plugin-adapters.md` in the Minco repository for local
 Rustack, bounded real-AWS, IAM, migration, and cleanup procedures. See

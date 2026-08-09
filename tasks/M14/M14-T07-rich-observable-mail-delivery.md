@@ -22,8 +22,8 @@ checks:
   - cargo clippy -p minco-plugin-notifications --all-targets --all-features --locked -- -D warnings
   - cargo test -p minco-aws-adapters --features ses --locked
   - cargo clippy -p minco-aws-adapters --all-targets --features ses --locked -- -D warnings
-  - RUSTDOCFLAGS=-D warnings cargo doc -p minco-plugin-notifications --all-features --no-deps --locked
-  - RUSTDOCFLAGS=-D warnings cargo doc -p minco-aws-adapters --features ses --no-deps --locked
+  - RUSTDOCFLAGS='-D warnings' cargo doc -p minco-plugin-notifications --all-features --no-deps --locked
+  - RUSTDOCFLAGS='-D warnings' cargo doc -p minco-aws-adapters --features ses --no-deps --locked
   - docker compose -f compose.mail.yml config --quiet
   - uv run --locked python scripts/validate_static.py
   - uv run --locked python scripts/source_manifest.py --check

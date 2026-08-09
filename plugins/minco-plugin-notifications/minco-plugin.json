@@ -9,8 +9,7 @@
   "feature": "plugin-notifications",
   "runtimes": ["native"],
   "provides": [
-    { "name": "notifications.send", "version": "1.0.0" },
-    { "name": "mail.send", "version": "1.0.0" }
+    { "name": "notifications.send", "version": "1.0.0" }
   ],
   "data_classes": ["personal", "confidential"],
   "retention": "application_defined",

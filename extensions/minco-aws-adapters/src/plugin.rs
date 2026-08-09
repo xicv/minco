@@ -10,6 +10,7 @@ pub struct AwsAdapterSelection {
     pub object_storage: bool,
     pub event_publication: bool,
     pub email_notifications: bool,
+    pub rich_mail: bool,
     pub identity_administration: bool,
     pub static_site: bool,
     pub realtime_publication: bool,
@@ -76,14 +77,20 @@ impl Plugin for AwsAdaptersPlugin {
                 &mut descriptor,
                 "notifications.send",
                 "aws.ses.email-notifications",
-                Some(ResourceIntent {
-                    id: "aws-ses-identity".into(),
-                    kind: ResourceKind::Custom("ses-identity".into()),
-                    idle_cost: IdleCostClass::ProviderManaged,
-                    wake_sources: Vec::new(),
-                    dependencies: Vec::new(),
-                }),
+                None,
             );
+        }
+        if self.selection.rich_mail {
+            add_provider(&mut descriptor, "mail.send", "aws.ses.mail-delivery", None);
+        }
+        if self.selection.email_notifications || self.selection.rich_mail {
+            descriptor.resources.push(ResourceIntent {
+                id: "aws-ses-identity".into(),
+                kind: ResourceKind::Custom("ses-identity".into()),
+                idle_cost: IdleCostClass::ProviderManaged,
+                wake_sources: Vec::new(),
+                dependencies: Vec::new(),
+            });
         }
         if self.selection.identity_administration {
             add_provider(
@@ -143,6 +150,8 @@ fn add_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use minco_core::{PluginManager, PluginSelection};
+    use minco_plugin_notifications::NotificationsPlugin;
 
     #[test]
     fn selected_providers_have_explicit_non_fixed_cost_intents() {
@@ -150,6 +159,7 @@ mod tests {
             object_storage: true,
             event_publication: true,
             email_notifications: true,
+            rich_mail: true,
             identity_administration: true,
             static_site: true,
             realtime_publication: true,
@@ -181,39 +191,70 @@ mod tests {
                 .all(|resource| resource.wake_sources.is_empty())
         );
     }
-}
 
-#[derive(Debug, Clone, Default)]
-pub struct AwsSesMailPlugin;
+    #[test]
+    fn rich_mail_capabilities_are_selected_together() {
+        let plain = AwsAdaptersPlugin::new(AwsAdapterSelection {
+            email_notifications: true,
+            ..AwsAdapterSelection::default()
+        })
+        .unwrap()
+        .descriptor();
+        assert!(plain.requires.iter().all(|item| item.name != "mail.send"));
+        assert!(
+            plain
+                .provides
+                .iter()
+                .all(|item| item.name != "aws.ses.mail-delivery")
+        );
 
-impl Plugin for AwsSesMailPlugin {
-    fn descriptor(&self) -> PluginDescriptor {
-        let mut descriptor = PluginDescriptor::new(
-            PluginId::new("aws-ses-mail").expect("static plugin ID"),
-            "1.0.0".parse().expect("static version"),
-            "Explicit Amazon SES v2 rich-mail transport selection",
+        let rich = AwsAdaptersPlugin::new(AwsAdapterSelection {
+            rich_mail: true,
+            ..AwsAdapterSelection::default()
+        })
+        .unwrap()
+        .descriptor();
+        assert!(rich.requires.iter().any(|item| item.name == "mail.send"));
+        assert!(
+            rich.provides
+                .iter()
+                .any(|item| item.name == "aws.ses.mail-delivery")
         );
-        descriptor.documentation = Some("https://docs.rs/minco-aws-adapters".into());
-        descriptor.core_compatibility = concat!("^", env!("CARGO_PKG_VERSION"))
-            .parse()
-            .expect("package version");
-        descriptor.stability = PluginStability::Beta;
-        add_provider(
-            &mut descriptor,
-            "mail.send",
-            "aws.ses.mail-delivery",
-            Some(ResourceIntent {
-                id: "aws-ses-mail-identity".into(),
-                kind: ResourceKind::Custom("ses-identity".into()),
-                idle_cost: IdleCostClass::ProviderManaged,
-                wake_sources: Vec::new(),
-                dependencies: Vec::new(),
-            }),
-        );
-        descriptor
+        assert_eq!(rich.resources.len(), 1);
     }
 
-    fn install(&self, _context: &mut PluginContext<'_>) -> Result<(), PluginError> {
-        Ok(())
+    #[test]
+    fn graph_requires_explicit_rich_mail_on_both_sides() {
+        let aws = AwsAdaptersPlugin::new(AwsAdapterSelection {
+            rich_mail: true,
+            ..AwsAdapterSelection::default()
+        })
+        .unwrap();
+        let mut selection = PluginSelection::default();
+        selection.enabled.extend([
+            PluginId::new("notifications").unwrap(),
+            PluginId::new("aws-adapters").unwrap(),
+        ]);
+
+        let mut plain_manager = PluginManager::default();
+        plain_manager
+            .register(NotificationsPlugin::memory().0)
+            .unwrap();
+        plain_manager.register(aws.clone()).unwrap();
+        assert!(plain_manager.compose(&selection).is_err());
+
+        let mut rich_manager = PluginManager::default();
+        rich_manager
+            .register(NotificationsPlugin::memory_with_mail().0)
+            .unwrap();
+        rich_manager.register(aws).unwrap();
+        let application = rich_manager.compose(&selection).unwrap();
+        assert!(application.graph.capabilities.contains_key("mail.send"));
+        assert!(
+            application
+                .graph
+                .capabilities
+                .contains_key("aws.ses.mail-delivery")
+        );
     }
 }

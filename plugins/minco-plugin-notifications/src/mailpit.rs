@@ -317,6 +317,7 @@ mod tests {
                 .await
                 .unwrap();
             let mut captured = Vec::new();
+            let mut recipients = Vec::new();
             loop {
                 let mut line = String::new();
                 if stream.read_line(&mut line).await.unwrap() == 0 {
@@ -328,7 +329,10 @@ mod tests {
                         .write_all(b"250-mailpit\r\n250 8BITMIME\r\n")
                         .await
                         .unwrap();
-                } else if line.starts_with("MAIL FROM") || line.starts_with("RCPT TO") {
+                } else if line.starts_with("MAIL FROM") {
+                    stream.get_mut().write_all(b"250 ok\r\n").await.unwrap();
+                } else if line.starts_with("RCPT TO") {
+                    recipients.push(line.trim().to_owned());
                     stream.get_mut().write_all(b"250 ok\r\n").await.unwrap();
                 } else if line == "DATA\r\n" {
                     stream
@@ -354,7 +358,7 @@ mod tests {
                     break;
                 }
             }
-            captured
+            (captured, recipients)
         });
 
         let transport = MailpitTransport::new(
@@ -374,7 +378,13 @@ mod tests {
             .unwrap();
         let receipt = transport.send(&message, 1).await.unwrap();
         assert_eq!(receipt.transport, "mailpit");
-        let captured = String::from_utf8(server.await.unwrap()).unwrap();
+        let (captured, recipients) = server.await.unwrap();
+        let captured = String::from_utf8(captured).unwrap();
+        assert!(
+            recipients
+                .iter()
+                .any(|recipient| recipient == "RCPT TO:<audit@example.com>")
+        );
         assert!(!captured.contains("Bcc:"));
         assert!(!captured.contains("audit@example.com"));
         assert!(captured.contains("multipart/alternative"));

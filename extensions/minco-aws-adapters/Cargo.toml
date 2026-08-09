@@ -45,7 +45,12 @@ s3 = [
   "dep:minco-plugin-object-storage",
 ]
 sqs = ["dep:aws-sdk-sqs", "dep:http", "dep:minco-plugin-events"]
-ses = ["dep:aws-config", "dep:aws-sdk-sesv2", "dep:minco-plugin-notifications"]
+ses = [
+  "dep:aws-config",
+  "dep:aws-sdk-sesv2",
+  "dep:base64",
+  "dep:minco-plugin-notifications",
+]
 cognito = [
   "dep:aws-sdk-cognitoidentityprovider",
   "dep:minco-plugin-identity",
@@ -92,6 +97,7 @@ uuid.workspace = true
 [dev-dependencies]
 axum.workspace = true
 http.workspace = true
+minco-plugin-notifications.workspace = true
 reqwest.workspace = true
 tempfile.workspace = true
 tokio.workspace = true

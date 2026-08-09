@@ -13,7 +13,7 @@ readme = "README.md"
 keywords = ["minco", "notifications", "email", "webhook"]
 categories = ["web-programming"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "examples/**", "scripts/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [package.metadata.minco]
 plugin = "minco-plugin.json"
@@ -31,6 +31,9 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+mail-parser = "0.11.5"
 
 [package.metadata.docs.rs]
 all-features = true

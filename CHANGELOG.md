@@ -15,8 +15,8 @@ Semantic Versioning once public releases begin.
   for macOS and other Docker-compatible development environments.
 - Added an Amazon SES v2 rich-mail transport with one SDK submission attempt,
   bounded timeouts, fixed sender identity, raw MIME, Minco correlation tags,
-  configuration-set support, and normalized direct/SNS/EventBridge delivery
-  events.
+  configuration-set support, and policy-gated direct/SNS/EventBridge delivery
+  event normalization.
 
 ### Compatibility
 
@@ -31,6 +31,10 @@ Semantic Versioning once public releases begin.
   provider acceptance remains distinct from final mailbox delivery, and direct
   SES introduces no queue, worker, schedule, database, NAT gateway, provisioned
   concurrency, dedicated IP, or other fixed-capacity service.
+- SNS and EventBridge wrappers require an exact trust policy and a successful
+  caller-supplied verifier; direct trusted normalization rejects wrappers. SES
+  topics are provider-safely encoded, merged tags are capped at 50, and delivery
+  deduplication is explicitly bounded and in-process.
 
 ## [1.1.0] - 2026-08-06
 
