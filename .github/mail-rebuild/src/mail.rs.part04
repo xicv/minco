@@ -1,0 +1,290 @@
+()));
+    writeln_crlf(
+        &mut rendered,
+        &format!("Message-ID: <{}@{}>", message.id, from.domain()),
+    );
+    writeln_crlf(&mut rendered, "MIME-Version: 1.0");
+    writeln_crlf(
+        &mut rendered,
+        &format!("X-Minco-Message-ID: {}", message.id),
+    );
+    writeln_crlf(&mut rendered, &format!("X-Minco-Topic: {}", message.topic));
+    for (name, value) in &message.headers {
+        writeln_crlf(&mut rendered, &format!("{name}: {value}"));
+    }
+    rendered.push_str(&render_body_entity(message));
+
+    let bytes = rendered.into_bytes();
+    if bytes.len() > MAX_RENDERED_MESSAGE_BYTES {
+        return Err(MailError::invalid(
+            "rendered mail exceeds the 39 MB provider boundary",
+        ));
+    }
+    Ok(bytes)
+}
+
+fn render_body_entity(message: &MailMessage) -> String {
+    let regular = message
+        .attachments
+        .iter()
+        .filter(|attachment| attachment.disposition == MailAttachmentDisposition::Attachment)
+        .collect::<Vec<_>>();
+    let inline = message
+        .attachments
+        .iter()
+        .filter(|attachment| attachment.disposition == MailAttachmentDisposition::Inline)
+        .collect::<Vec<_>>();
+
+    let mut entity = render_alternative_entity(message);
+    if !inline.is_empty() {
+        let boundary = format!("minco-related-{}", message.id.simple());
+        let mut related = multipart_header("related", &boundary);
+        append_part(&mut related, &boundary, &entity);
+        for attachment in inline {
+            append_part(&mut related, &boundary, &render_attachment_entity(attachment));
+        }
+        finish_multipart(&mut related, &boundary);
+        entity = related;
+    }
+    if !regular.is_empty() {
+        let boundary = format!("minco-mixed-{}", message.id.simple());
+        let mut mixed = multipart_header("mixed", &boundary);
+        append_part(&mut mixed, &boundary, &entity);
+        for attachment in regular {
+            append_part(&mut mixed, &boundary, &render_attachment_entity(attachment));
+        }
+        finish_multipart(&mut mixed, &boundary);
+        entity = mixed;
+    }
+    entity
+}
+
+fn render_alternative_entity(message: &MailMessage) -> String {
+    match (&message.text, &message.html) {
+        (Some(text), Some(html)) => {
+            let boundary = format!("minco-alternative-{}", message.id.simple());
+            let mut alternative = multipart_header("alternative", &boundary);
+            append_part(
+                &mut alternative,
+                &boundary,
+                &render_text_entity("text/plain", text),
+            );
+            append_part(
+                &mut alternative,
+                &boundary,
+                &render_text_entity("text/html", html),
+            );
+            finish_multipart(&mut alternative, &boundary);
+            alternative
+        }
+        (Some(text), None) => render_text_entity("text/plain", text),
+        (None, Some(html)) => render_text_entity("text/html", html),
+        (None, None) => unreachable!("validated mail has a body"),
+    }
+}
+
+fn render_text_entity(content_type: &str, body: &str) -> String {
+    let mut rendered = String::new();
+    writeln_crlf(
+        &mut rendered,
+        &format!("Content-Type: {content_type}; charset=UTF-8"),
+    );
+    writeln_crlf(&mut rendered, "Content-Transfer-Encoding: base64");
+    rendered.push_str("\r\n");
+    rendered.push_str(&base64_lines(body.as_bytes()));
+    rendered
+}
+
+fn render_attachment_entity(attachment: &MailAttachment) -> String {
+    let mut rendered = String::new();
+    writeln_crlf(
+        &mut rendered,
+        &format!("Content-Type: {}", attachment.content_type),
+    );
+    writeln_crlf(&mut rendered, "Content-Transfer-Encoding: base64");
+    let disposition = match attachment.disposition {
+        MailAttachmentDisposition::Attachment => "attachment",
+        MailAttachmentDisposition::Inline => "inline",
+    };
+    writeln_crlf(
+        &mut rendered,
+        &format!(
+            "Content-Disposition: {disposition}; filename*=UTF-8''{}",
+            percent_encode(&attachment.file_name)
+        ),
+    );
+    if let Some(content_id) = &attachment.content_id {
+        writeln_crlf(&mut rendered, &format!("Content-ID: <{content_id}>"));
+    }
+    rendered.push_str("\r\n");
+    rendered.push_str(&base64_lines(&attachment.content));
+    rendered
+}
+
+fn multipart_header(subtype: &str, boundary: &str) -> String {
+    format!("Content-Type: multipart/{subtype}; boundary=\"{boundary}\"\r\n\r\n")
+}
+
+fn append_part(target: &mut String, boundary: &str, part: &str) {
+    let _ = write!(target, "--{boundary}\r\n{part}");
+    if !target.ends_with("\r\n") {
+        target.push_str("\r\n");
+    }
+}
+
+fn finish_multipart(target: &mut String, boundary: &str) {
+    let _ = write!(target, "--{boundary}--\r\n");
+}
+
+fn base64_lines(bytes: &[u8]) -> String {
+    let encoded = STANDARD.encode(bytes);
+    let mut rendered = String::with_capacity(encoded.len() + encoded.len() / 76 * 2 + 2);
+    for chunk in encoded.as_bytes().chunks(76) {
+        rendered.push_str(std::str::from_utf8(chunk).expect("base64 is ASCII"));
+        rendered.push_str("\r\n");
+    }
+    rendered
+}
+
+fn percent_encode(value: &str) -> String {
+    let mut encoded = String::new();
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(*byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(*byte));
+        } else {
+            let _ = write!(encoded, "%{byte:02X}");
+        }
+    }
+    encoded
+}
+
+fn format_addresses(addresses: &[MailAddress]) -> String {
+    addresses
+        .iter()
+        .map(MailAddress::formatted)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn encode_unstructured_header(value: &str) -> String {
+    if value.is_ascii() {
+        value.to_owned()
+    } else {
+        encode_header_word(value)
+    }
+}
+
+fn encode_header_word(value: &str) -> String {
+    format!("=?UTF-8?B?{}?=", STANDARD.encode(value.as_bytes()))
+}
+
+fn writeln_crlf(target: &mut String, value: &str) {
+    target.push_str(value);
+    target.push_str("\r\n");
+}
+
+fn validate_receipt(
+    receipt: &MailReceipt,
+    message: &MailMessage,
+    transport: &str,
+    attempt: u32,
+) -> Result<(), MailError> {
+    if receipt.message_id != message.id
+        || receipt.transport != transport
+        || receipt.attempt != attempt
+        || receipt.provider_message_id.trim().is_empty()
+        || receipt.provider_message_id.len() > MAX_PROVIDER_MESSAGE_ID_BYTES
+        || receipt
+            .provider_message_id
+            .chars()
+            .any(char::is_control)
+    {
+        return Err(MailError::new(
+            MailErrorKind::Ambiguous,
+            transport,
+            "mail transport returned an invalid acceptance receipt",
+        ));
+    }
+    Ok(())
+}
+
+fn normalize_transport_error(error: MailError, transport: &str) -> MailError {
+    if error.transport == transport {
+        error
+    } else {
+        MailError::new(
+            MailErrorKind::Protocol,
+            transport,
+            "mail transport returned an error for a different transport",
+        )
+    }
+}
+
+fn same_mailbox(left: &MailAddress, right: &MailAddress) -> bool {
+    left.normalized_key() == right.normalized_key()
+}
+
+fn validate_email_address(value: &str) -> Result<(), MailError> {
+    if value.len() > 254
+        || !value.is_ascii()
+        || value
+            .chars()
+            .any(|character| character.is_control() || character.is_ascii_whitespace())
+        || value.matches('@').count() != 1
+    {
+        return Err(MailError::invalid("mail address is invalid"));
+    }
+    let (local, domain) = value
+        .rsplit_once('@')
+        .ok_or_else(|| MailError::invalid("mail address is invalid"))?;
+    if local.is_empty()
+        || local.len() > 64
+        || local.starts_with('.')
+        || local.ends_with('.')
+        || local.contains("..")
+        || !local.bytes().all(valid_local_byte)
+        || domain.is_empty()
+        || domain.len() > 253
+        || domain.split('.').any(|label| {
+            label.is_empty()
+                || label.len() > 63
+                || label.starts_with('-')
+                || label.ends_with('-')
+                || !label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
+    {
+        return Err(MailError::invalid("mail address is invalid"));
+    }
+    Ok(())
+}
+
+fn valid_local_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!'
+                | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'/'
+                | b'='
+                | b'?'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'{'
+                | b'|'
+                | b'}'
+                | b'~'
+        )
+}
+
+fn valid_
