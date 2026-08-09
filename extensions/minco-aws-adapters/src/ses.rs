@@ -159,7 +159,6 @@ mod tests {
 }
 
 use aws_sdk_sesv2::{
-    config::Config as SesConfig,
     operation::send_email::SendEmailError,
     primitives::Blob,
     types::{MessageTag, RawMessage},
@@ -323,7 +322,10 @@ impl MailTransport for SesMailTransport {
         if let Some(identity_arn) = &self.config.from_identity_arn {
             request = request.from_email_address_identity_arn(identity_arn);
         }
-        let output = request.send().await.map_err(classify_send_error)?;
+        let output = request
+            .send()
+            .await
+            .map_err(|error| classify_send_error(&error))?;
         let provider_message_id = output.message_id().ok_or_else(|| {
             MailError::new(
                 MailErrorKind::Ambiguous,
@@ -377,7 +379,7 @@ fn ses_tags(
         .collect()
 }
 
-fn classify_send_error(error: aws_sdk_sesv2::error::SdkError<SendEmailError>) -> MailError {
+fn classify_send_error(error: &aws_sdk_sesv2::error::SdkError<SendEmailError>) -> MailError {
     let kind = error
         .as_service_error()
         .map_or(MailErrorKind::Ambiguous, |service| {
