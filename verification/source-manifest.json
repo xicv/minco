@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1060,
+  "file_count": 1071,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -104,8 +104,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "6a6d05a9ddda9fbe58f53b236522918c8a87bc8b89606ada84481a92efc80218",
-      "size_bytes": 8385
+      "sha256": "b377fa74e7a558835d1a602212ce759927bdb97b3786eb659438b0bff7dd589f",
+      "size_bytes": 8379
     },
     {
       "path": "REVIEW_STATUS.md",
@@ -1864,8 +1864,8 @@
     },
     {
       "path": "docs/assets/minco-icon.svg",
-      "sha256": "12fcdb8eecfe7fb7c390e03a3d09ddca7538c7766c4a897c071ae263f0aeb7d9",
-      "size_bytes": 2898
+      "sha256": "90bfbbe07b179880dada3fe54fd8581f4746d68290d6f98ee2884aa0c00e4b4a",
+      "size_bytes": 1164
     },
     {
       "path": "docs/deployment/aws-minimal.md",
@@ -2189,8 +2189,8 @@
     },
     {
       "path": "docs-site/.vitepress/config.mts",
-      "sha256": "a24e7748ea0217074467d1d2926bb1d3ad78c2cea94822692d10a653cda99d38",
-      "size_bytes": 9838
+      "sha256": "bbc76cced78f3a2456a8e5144cb616cfda98d37690f2f24e51e801be5820c777",
+      "size_bytes": 11529
     },
     {
       "path": "docs-site/.vitepress/theme/Layout.vue",
@@ -2204,8 +2204,8 @@
     },
     {
       "path": "docs-site/.vitepress/theme/style.css",
-      "sha256": "fa29d8956d213bd9414645143435be7cb6916dae5e973a1c711e52f197aac796",
-      "size_bytes": 5005
+      "sha256": "7ef6dad1722ed1e9df20c0adcd404cc8b274b4ea9ea8213a5fa9a0a309afa3be",
+      "size_bytes": 30377
     },
     {
       "path": "docs-site/0.5.0/explanation/architecture.md",
@@ -2534,18 +2534,28 @@
     },
     {
       "path": "docs-site/1.1.0/cookbook/index.md",
-      "sha256": "cd6aaac46ad78bd28034b674b54dfc9872744bf13cca5f887433f10989fc0233",
-      "size_bytes": 3740
+      "sha256": "f3a729e5fd1920521c7f4cb4993f113d60ff396844fc8503a544341120da1d3a",
+      "size_bytes": 5446
     },
     {
       "path": "docs-site/1.1.0/cookbook/orders-api.md",
-      "sha256": "fda1315c4b83cbb32e3e497c7b1b48e8a657228653470bf516d093fa81fd8c03",
-      "size_bytes": 4153
+      "sha256": "e6db0d415c767cdbac1fd82a36dcaf9379951be28eb404f6085014eedb5dd3ee",
+      "size_bytes": 11848
+    },
+    {
+      "path": "docs-site/1.1.0/cookbook/production-blueprint.md",
+      "sha256": "cf6de77c209e1b5874f4592eab000a228b722c52c7f77f5419b0dcdcff45b452",
+      "size_bytes": 16044
     },
     {
       "path": "docs-site/1.1.0/examples/index.md",
       "sha256": "4f3a243c751ced345772b2fb45e14f4dcef020894e938527a673b752a4cb685b",
       "size_bytes": 4196
+    },
+    {
+      "path": "docs-site/1.1.0/explanation/architecture.md",
+      "sha256": "3c37bc83e48c6c9fbb1cb2c600d87e69770b52b48d322e3f0104485e9f7e2241",
+      "size_bytes": 6549
     },
     {
       "path": "docs-site/1.1.0/explanation/zero-idle.md",
@@ -2559,8 +2569,8 @@
     },
     {
       "path": "docs-site/1.1.0/getting-started/first-application.md",
-      "sha256": "65593749d7f2eb3189ddf5018d7cea93550f8f8b9431e08d76ee03929ddfa7ee",
-      "size_bytes": 2689
+      "sha256": "3891a116ccc12cdb716832de8e45fa25f05e0553ac46917b9d8f6eb525dfd45c",
+      "size_bytes": 7507
     },
     {
       "path": "docs-site/1.1.0/getting-started/framework-tour.md",
@@ -2594,8 +2604,8 @@
     },
     {
       "path": "docs-site/1.1.0/guides/database-lifecycle.md",
-      "sha256": "3d13978f5db18ab022e8df8e67b40dbca65c3f46f368315e5d9444a3a4cb29a2",
-      "size_bytes": 2759
+      "sha256": "7792d9fd07d411269747ceb07559e673c7947418bf87b37d8d73a0e45511565b",
+      "size_bytes": 3807
     },
     {
       "path": "docs-site/1.1.0/guides/deployment.md",
@@ -2619,13 +2629,13 @@
     },
     {
       "path": "docs-site/1.1.0/guides/files-and-static-sites.md",
-      "sha256": "fc68556fe9ab66eab859d53e8613480f7054c5a61c7be056c0cbc9cfae7a65f3",
-      "size_bytes": 2665
+      "sha256": "7292a9bfc9d73d50b86095c4205b2daddb341b26499a85b97be7451c44df131c",
+      "size_bytes": 3071
     },
     {
       "path": "docs-site/1.1.0/guides/identity-and-sessions.md",
-      "sha256": "d77d639fbb1a28b58445bb2083f1b7edad24db2ab1ec2c65dd6d9c5aef8b91f2",
-      "size_bytes": 2999
+      "sha256": "94b9a457f341822f09453225bd79cee783aa283f63f4891da74fc59d7196c84a",
+      "size_bytes": 3246
     },
     {
       "path": "docs-site/1.1.0/guides/local-development.md",
@@ -2653,9 +2663,14 @@
       "size_bytes": 4210
     },
     {
+      "path": "docs-site/1.1.0/guides/troubleshooting.md",
+      "sha256": "3cccd4fe6d527db0379c7ea14e96181cb9efd8445e3f5986813eac9b77d79109",
+      "size_bytes": 10954
+    },
+    {
       "path": "docs-site/1.1.0/index.md",
-      "sha256": "de140780e78ceed8d6474e9fc271481a49a0d67c88be6fab0680febc114cf627",
-      "size_bytes": 5013
+      "sha256": "2f33312468968ed8ea050300007a17ea29372506b18538a241711007fba0d3fc",
+      "size_bytes": 8836
     },
     {
       "path": "docs-site/1.1.0/plugins/index.md",
@@ -2669,8 +2684,13 @@
     },
     {
       "path": "docs-site/1.1.0/reference/cli.md",
-      "sha256": "b1bc27ba24089f2f5a1e7b84a85d0c4084110a15cbd02eb55cb7a406271ee8c3",
-      "size_bytes": 4010
+      "sha256": "4d04c3d54c4592b865d451bdbe06f78a6cbac3104a4bd270bf3f263dc16bd377",
+      "size_bytes": 4105
+    },
+    {
+      "path": "docs-site/1.1.0/reference/documentation-map.md",
+      "sha256": "e6dd9cb19345c7cffc98d915924b5ba6e7a6764d05863f3df55dc87234d350db",
+      "size_bytes": 7492
     },
     {
       "path": "docs-site/1.1.0/reference/feature-flags.md",
@@ -2694,23 +2714,33 @@
     },
     {
       "path": "docs-site/index.md",
-      "sha256": "af5c6f7f1659d62cfe7ec7096b309dd66a0033db53b0a23b7c5b03fd11d124da",
-      "size_bytes": 1195
+      "sha256": "32be6ea8567c2b8d94fd400b6bde9fcb64141c971a230a213707a1c46a999835",
+      "size_bytes": 5921
     },
     {
       "path": "docs-site/next/cookbook/index.md",
-      "sha256": "cd6aaac46ad78bd28034b674b54dfc9872744bf13cca5f887433f10989fc0233",
-      "size_bytes": 3740
+      "sha256": "f3a729e5fd1920521c7f4cb4993f113d60ff396844fc8503a544341120da1d3a",
+      "size_bytes": 5446
     },
     {
       "path": "docs-site/next/cookbook/orders-api.md",
-      "sha256": "fda1315c4b83cbb32e3e497c7b1b48e8a657228653470bf516d093fa81fd8c03",
-      "size_bytes": 4153
+      "sha256": "e6db0d415c767cdbac1fd82a36dcaf9379951be28eb404f6085014eedb5dd3ee",
+      "size_bytes": 11848
+    },
+    {
+      "path": "docs-site/next/cookbook/production-blueprint.md",
+      "sha256": "cf6de77c209e1b5874f4592eab000a228b722c52c7f77f5419b0dcdcff45b452",
+      "size_bytes": 16044
     },
     {
       "path": "docs-site/next/examples/index.md",
       "sha256": "4f3a243c751ced345772b2fb45e14f4dcef020894e938527a673b752a4cb685b",
       "size_bytes": 4196
+    },
+    {
+      "path": "docs-site/next/explanation/architecture.md",
+      "sha256": "3c37bc83e48c6c9fbb1cb2c600d87e69770b52b48d322e3f0104485e9f7e2241",
+      "size_bytes": 6549
     },
     {
       "path": "docs-site/next/explanation/zero-idle.md",
@@ -2724,8 +2754,8 @@
     },
     {
       "path": "docs-site/next/getting-started/first-application.md",
-      "sha256": "65593749d7f2eb3189ddf5018d7cea93550f8f8b9431e08d76ee03929ddfa7ee",
-      "size_bytes": 2689
+      "sha256": "3891a116ccc12cdb716832de8e45fa25f05e0553ac46917b9d8f6eb525dfd45c",
+      "size_bytes": 7507
     },
     {
       "path": "docs-site/next/getting-started/framework-tour.md",
@@ -2759,8 +2789,8 @@
     },
     {
       "path": "docs-site/next/guides/database-lifecycle.md",
-      "sha256": "3d13978f5db18ab022e8df8e67b40dbca65c3f46f368315e5d9444a3a4cb29a2",
-      "size_bytes": 2759
+      "sha256": "7792d9fd07d411269747ceb07559e673c7947418bf87b37d8d73a0e45511565b",
+      "size_bytes": 3807
     },
     {
       "path": "docs-site/next/guides/deployment.md",
@@ -2784,18 +2814,23 @@
     },
     {
       "path": "docs-site/next/guides/files-and-static-sites.md",
-      "sha256": "fc68556fe9ab66eab859d53e8613480f7054c5a61c7be056c0cbc9cfae7a65f3",
-      "size_bytes": 2665
+      "sha256": "a05c8fac954d18e9132293b67d2a731a05a4ac133461302b39af38fe83a410f5",
+      "size_bytes": 3074
     },
     {
       "path": "docs-site/next/guides/identity-and-sessions.md",
-      "sha256": "d77d639fbb1a28b58445bb2083f1b7edad24db2ab1ec2c65dd6d9c5aef8b91f2",
-      "size_bytes": 2999
+      "sha256": "94b9a457f341822f09453225bd79cee783aa283f63f4891da74fc59d7196c84a",
+      "size_bytes": 3246
     },
     {
       "path": "docs-site/next/guides/local-development.md",
       "sha256": "df28e6188111fb1df959c5045e0919a0d8120531400496684d7459a49ff731b9",
       "size_bytes": 2470
+    },
+    {
+      "path": "docs-site/next/guides/mobile-api.md",
+      "sha256": "f09325f3d22a2be8675431e48bccfe4333574607317feb0d3bd8aee287ca121f",
+      "size_bytes": 8936
     },
     {
       "path": "docs-site/next/guides/plugin-conformance.md",
@@ -2818,9 +2853,14 @@
       "size_bytes": 4210
     },
     {
+      "path": "docs-site/next/guides/troubleshooting.md",
+      "sha256": "3cccd4fe6d527db0379c7ea14e96181cb9efd8445e3f5986813eac9b77d79109",
+      "size_bytes": 10954
+    },
+    {
       "path": "docs-site/next/index.md",
-      "sha256": "fc9c2393ac700e2bb3f29df172471bf6dc36d37e0cd638cf6b290879108ad355",
-      "size_bytes": 4665
+      "sha256": "f7851c86dfa9944456f952b2bdae7191b9e7420d90466d77a55b9f1168c1f41e",
+      "size_bytes": 8955
     },
     {
       "path": "docs-site/next/plugins/index.md",
@@ -2834,8 +2874,13 @@
     },
     {
       "path": "docs-site/next/reference/cli.md",
-      "sha256": "b1bc27ba24089f2f5a1e7b84a85d0c4084110a15cbd02eb55cb7a406271ee8c3",
-      "size_bytes": 4010
+      "sha256": "600171f2785548a148dc5c324c29804c84b99644c3c6ada8afe1ceffd6be51a1",
+      "size_bytes": 4105
+    },
+    {
+      "path": "docs-site/next/reference/documentation-map.md",
+      "sha256": "0c727758ba0df5de295fb1ca7c66f7b8fb7d6147810afaf8b329b6723654166f",
+      "size_bytes": 7749
     },
     {
       "path": "docs-site/next/reference/feature-flags.md",
@@ -2874,8 +2919,13 @@
     },
     {
       "path": "docs-site/public/minco-icon.svg",
-      "sha256": "6ec6e77ee024fbce45a2c5eb73e868e642bd5e652232c7d9f05b8161202d22b2",
-      "size_bytes": 2552
+      "sha256": "90bfbbe07b179880dada3fe54fd8581f4746d68290d6f98ee2884aa0c00e4b4a",
+      "size_bytes": 1164
+    },
+    {
+      "path": "docs-site/public/minco-system.svg",
+      "sha256": "a84c0fcc32c40c162f4ebdf72e4897ca6a5c23d40a93618ef80d4f577dbbcb48",
+      "size_bytes": 6391
     },
     {
       "path": "docs-site/release.json",
@@ -2883,9 +2933,14 @@
       "size_bytes": 72
     },
     {
+      "path": "docs-site/tests/docs-discovery.spec.mts",
+      "sha256": "2e0813398465ee070efa5b4b5d8f18d6e8d3f7fa196032774f4f65d7b23e3f7d",
+      "size_bytes": 5455
+    },
+    {
       "path": "docs-site/tests/docs.spec.mts",
-      "sha256": "4138e47418ed9f795d8c688071e0cb408e108132373db1099cbf5560ca7af646",
-      "size_bytes": 11011
+      "sha256": "8cdd463f293d52bf10e0207a907831a5a236510bc8083d12ad4055da223091a0",
+      "size_bytes": 13948
     },
     {
       "path": "docs-site/versions.md",
@@ -5314,7 +5369,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "66be13436d771063540af4bd172f267dbe7a60b5e22a3f6e012ef57b93d50a9c",
-  "total_size_bytes": 7129262,
+  "source_tree_sha256": "5b37792817e38129474c5ed205e30469f23629b5d738e35eea7eaa4a0997e6f4",
+  "total_size_bytes": 7304123,
   "version": "1.1.0"
 }

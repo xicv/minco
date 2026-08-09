@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/minco-icon.svg" width="180" alt="Minco mascot: a purple robot cloud" />
+  <img src="docs/assets/minco-icon.svg" width="180" alt="Minco connected runtime mark" />
 </p>
 
 <h1 align="center">Minco</h1>
