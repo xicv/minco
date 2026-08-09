@@ -1,0 +1,295 @@
+ed mail was sent to the expected address"
+        );
+    }
+}
+
+impl Default for MemoryMailTransport {
+    fn default() -> Self {
+        Self::named("memory").expect("static memory transport name")
+    }
+}
+
+impl fmt::Debug for MemoryMailTransport {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MemoryMailTransport")
+            .field("name", &self.name)
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl MailTransport for MemoryMailTransport {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    async fn send(
+        &self,
+        message: &MailMessage,
+        attempt: u32,
+    ) -> Result<MailReceipt, MailError> {
+        message.validate()?;
+        let mut messages = self.messages.write().await;
+        messages.push(message.clone());
+        Ok(MailReceipt {
+            message_id: message.id,
+            transport: self.name.clone(),
+            provider_message_id: format!("memory:{}:{}", message.id, messages.len()),
+            accepted_at: Utc::now(),
+            attempt,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct LegacyNotificationMailTransport {
+    sink: Arc<dyn NotificationSink>,
+}
+
+impl LegacyNotificationMailTransport {
+    pub fn new(sink: Arc<dyn NotificationSink>) -> Self {
+        Self { sink }
+    }
+}
+
+impl fmt::Debug for LegacyNotificationMailTransport {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("LegacyNotificationMailTransport")
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl MailTransport for LegacyNotificationMailTransport {
+    fn name(&self) -> &str {
+        "legacy-notification"
+    }
+
+    async fn send(
+        &self,
+        message: &MailMessage,
+        attempt: u32,
+    ) -> Result<MailReceipt, MailError> {
+        message.validate()?;
+        if message.to.len() != 1
+            || !message.cc.is_empty()
+            || !message.bcc.is_empty()
+            || !message.reply_to.is_empty()
+            || message.html.is_some()
+            || !message.attachments.is_empty()
+            || !message.headers.is_empty()
+            || !message.tags.is_empty()
+        {
+            return Err(MailError::new(
+                MailErrorKind::Configuration,
+                self.name(),
+                "legacy notification transport accepts only one plain-text recipient",
+            ));
+        }
+        let text = message.text.clone().ok_or_else(|| {
+            MailError::new(
+                MailErrorKind::Configuration,
+                self.name(),
+                "legacy notification transport requires a text body",
+            )
+        })?;
+        let mut notification = Notification::new(
+            message.topic.clone(),
+            NotificationChannel::Email,
+            message.to[0].address.clone(),
+            message.subject.clone(),
+            text,
+        );
+        notification.id = message.id;
+        notification.created_at = message.created_at;
+        notification.metadata = message.metadata.clone();
+        self.sink.send(notification).await.map_err(|error| match error {
+            NotificationError::InvalidRecipient => MailError::new(
+                MailErrorKind::Rejected,
+                self.name(),
+                "legacy notification recipient was rejected",
+            ),
+            NotificationError::Delivery(_) => MailError::new(
+                MailErrorKind::Ambiguous,
+                self.name(),
+                "legacy notification delivery outcome is unknown",
+            ),
+        })?;
+        Ok(MailReceipt {
+            message_id: message.id,
+            transport: self.name().into(),
+            provider_message_id: format!("legacy:{}", message.id),
+            accepted_at: Utc::now(),
+            attempt,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MailDeliveryEventKind {
+    Delivered,
+    BouncedPermanent,
+    BouncedTransient,
+    Complaint,
+    Rejected,
+    DeliveryDelayed,
+    RenderingFailed,
+    Opened,
+    Clicked,
+    SubscriptionChanged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MailDeliveryEvent {
+    pub source_event_id: String,
+    pub message_id: Uuid,
+    pub topic: String,
+    pub transport: String,
+    pub kind: MailDeliveryEventKind,
+    pub occurred_at: DateTime<Utc>,
+    pub provider_message_id: Option<String>,
+}
+
+impl MailDeliveryEvent {
+    pub fn validate(&self) -> Result<(), MailError> {
+        if self.source_event_id.trim().is_empty()
+            || self.source_event_id.len() > 512
+            || self.source_event_id.chars().any(char::is_control)
+            || self.message_id.is_nil()
+            || !valid_topic(&self.topic)
+            || !valid_transport_name(&self.transport)
+            || self.provider_message_id.as_deref().is_some_and(|value| {
+                value.trim().is_empty()
+                    || value.len() > MAX_PROVIDER_MESSAGE_ID_BYTES
+                    || value.chars().any(char::is_control)
+            })
+        {
+            return Err(MailError::invalid("mail delivery event is invalid"));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MailDeliveryDisposition {
+    Recorded,
+    Duplicate,
+}
+
+#[async_trait]
+pub trait MailDeliveryEventSink: Send + Sync + fmt::Debug {
+    async fn record(
+        &self,
+        event: MailDeliveryEvent,
+    ) -> Result<MailDeliveryDisposition, MailError>;
+}
+
+#[derive(Debug, Default)]
+pub struct MemoryMailDeliveryEventSink {
+    source_ids: RwLock<BTreeSet<String>>,
+    events: RwLock<Vec<MailDeliveryEvent>>,
+}
+
+impl MemoryMailDeliveryEventSink {
+    pub async fn events(&self) -> Vec<MailDeliveryEvent> {
+        self.events.read().await.clone()
+    }
+}
+
+#[async_trait]
+impl MailDeliveryEventSink for MemoryMailDeliveryEventSink {
+    async fn record(
+        &self,
+        event: MailDeliveryEvent,
+    ) -> Result<MailDeliveryDisposition, MailError> {
+        event.validate()?;
+        let mut source_ids = self.source_ids.write().await;
+        if !source_ids.insert(event.source_event_id.clone()) {
+            return Ok(MailDeliveryDisposition::Duplicate);
+        }
+        self.events.write().await.push(event);
+        Ok(MailDeliveryDisposition::Recorded)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TracingMailDeliveryEventSink;
+
+#[async_trait]
+impl MailDeliveryEventSink for TracingMailDeliveryEventSink {
+    async fn record(
+        &self,
+        event: MailDeliveryEvent,
+    ) -> Result<MailDeliveryDisposition, MailError> {
+        event.validate()?;
+        match event.kind {
+            MailDeliveryEventKind::Delivered
+            | MailDeliveryEventKind::Opened
+            | MailDeliveryEventKind::Clicked
+            | MailDeliveryEventKind::SubscriptionChanged => tracing::info!(
+                target: "minco.mail",
+                mail_source_event_id = %event.source_event_id,
+                mail_message_id = %event.message_id,
+                mail_topic = %event.topic,
+                mail_transport = %event.transport,
+                mail_delivery_event = ?event.kind,
+                "mail delivery event"
+            ),
+            _ => tracing::warn!(
+                target: "minco.mail",
+                mail_source_event_id = %event.source_event_id,
+                mail_message_id = %event.message_id,
+                mail_topic = %event.topic,
+                mail_transport = %event.transport,
+                mail_delivery_event = ?event.kind,
+                "mail delivery event"
+            ),
+        }
+        Ok(MailDeliveryDisposition::Recorded)
+    }
+}
+
+pub fn deterministic_mail_event_id(parts: &[&str]) -> String {
+    let mut digest = Sha256::new();
+    for part in parts {
+        digest.update(u64::try_from(part.len()).unwrap_or(u64::MAX).to_be_bytes());
+        digest.update(part.as_bytes());
+    }
+    format!("sha256:{}", lower_hex(&digest.finalize()))
+}
+
+pub fn render_mime(
+    message: &MailMessage,
+    from: &MailAddress,
+) -> Result<Vec<u8>, MailError> {
+    message.validate()?;
+    from.validate()?;
+
+    let mut rendered = String::new();
+    writeln_crlf(&mut rendered, &format!("From: {}", from.formatted()));
+    if !message.to.is_empty() {
+        writeln_crlf(
+            &mut rendered,
+            &format!("To: {}", format_addresses(&message.to)),
+        );
+    }
+    if !message.cc.is_empty() {
+        writeln_crlf(
+            &mut rendered,
+            &format!("Cc: {}", format_addresses(&message.cc)),
+        );
+    }
+    if !message.reply_to.is_empty() {
+        writeln_crlf(
+            &mut rendered,
+            &format!("Reply-To: {}", format_addresses(&message.reply_to)),
+        );
+    }
+    writeln_crlf(
+        &mut rendered,
+        &format!("Subject: {}", encode_unstructured_header(&message.subject)),
+    );
+    writeln_crlf(&mut rendered, &format!("Date: {}", message.created_at.to_rfc2822
