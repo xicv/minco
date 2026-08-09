@@ -182,3 +182,38 @@ mod tests {
         );
     }
 }
+
+#[derive(Debug, Clone, Default)]
+pub struct AwsSesMailPlugin;
+
+impl Plugin for AwsSesMailPlugin {
+    fn descriptor(&self) -> PluginDescriptor {
+        let mut descriptor = PluginDescriptor::new(
+            PluginId::new("aws-ses-mail").expect("static plugin ID"),
+            "1.0.0".parse().expect("static version"),
+            "Explicit Amazon SES v2 rich-mail transport selection",
+        );
+        descriptor.documentation = Some("https://docs.rs/minco-aws-adapters".into());
+        descriptor.core_compatibility = concat!("^", env!("CARGO_PKG_VERSION"))
+            .parse()
+            .expect("package version");
+        descriptor.stability = PluginStability::Beta;
+        add_provider(
+            &mut descriptor,
+            "mail.send",
+            "aws.ses.mail-delivery",
+            Some(ResourceIntent {
+                id: "aws-ses-mail-identity".into(),
+                kind: ResourceKind::Custom("ses-identity".into()),
+                idle_cost: IdleCostClass::ProviderManaged,
+                wake_sources: Vec::new(),
+                dependencies: Vec::new(),
+            }),
+        );
+        descriptor
+    }
+
+    fn install(&self, _context: &mut PluginContext<'_>) -> Result<(), PluginError> {
+        Ok(())
+    }
+}
