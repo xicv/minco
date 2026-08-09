@@ -19,10 +19,11 @@ are `--root PATH` and `--json`.
 | Inspection | `inspect`, `explain`, `config`, `cost`, `perf` |
 | Coding agents | `agent plan`, `sync`, `doctor`, `context`, `eval` |
 | Data | `db plan`, `status`, `verify`, `migrate`, `seed` |
-| Plugins | `plugin list`, `enable`, `disable`, `new`, `validate`, `test` |
-| Deployment | `deploy`, `package`, `release`, `promote` |
+| Plugins | `plugin list`, `add`, `explain`, `doctor`, `init`, `remove`, `enable`, `disable`, `new`, `validate`, `test` |
+| Deployment | `deploy`, `destroy`, `package`, `release`, `promote`, `rollback` |
 | Compatibility | `update`, `upgrade` |
 | Work | `roadmap`, `task`, `vcs` |
+| Local interfaces | `mcp`, `workbench` |
 | Feedback | `feedback` |
 
 ## Machine-Readable Interfaces
@@ -76,11 +77,11 @@ plan first:
 cargo minco make resource order --dry-run --json
 ```
 
-`plugin new` writes a local plugin skeleton immediately; preview and dry-run
-support for plugin mutations is planned work. `plugin list`, `validate`, and
-`test --all` inspect local packages and never download or execute unknown code.
-The broader add, init, explain, doctor, and safe remove workflows also remain
-planned and are not documented as implemented.
+Plugin mutations expose a plan before writing. `plugin add`, `init`, `remove`,
+`enable`, `disable`, and `new` accept `--dry-run`; `plugin list`, `explain`,
+`doctor`, `validate`, and `test --all` inspect local state. These commands use
+the reviewed catalog and statically linked packages. They do not download or
+dynamically load unknown code.
 
 ## Guarded Mutations
 

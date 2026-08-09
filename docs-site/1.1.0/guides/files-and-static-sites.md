@@ -33,6 +33,14 @@ Application policy owns:
 Treat filenames, metadata, images, audio, and documents as untrusted input. An
 object-store success does not make content safe to parse or execute.
 
+### Current upload boundary
+
+Minco 1.1.0 ships provider-neutral object-storage service ports, but it does
+not ship a direct-to-object-store signed-upload HTTP flow. The application owns
+the upload use case and HTTP policy, then calls the selected adapter through
+the typed service boundary. Treat any future direct-upload contract as shipped
+only after it appears in the versioned API, implementation, and tests.
+
 ## Configure a static site
 
 Enable the plugin, then point `minco.toml` at application-owned build output.
@@ -51,7 +59,7 @@ Review the exact asset publication before mutation:
 
 ```bash
 cargo minco deploy static-site plan \
-  --release-manifest target/minco/release.json \
+  --manifest target/minco/release.json \
   --json
 ```
 

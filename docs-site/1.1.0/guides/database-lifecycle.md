@@ -36,20 +36,25 @@ new digest and invalidates the previous approval.
 
 ```bash
 cargo minco db plan --set orders-postgres --json
-cargo minco db status --json
-cargo minco db verify --json
+cargo minco db status \
+  --set orders-postgres \
+  --database-url-env MINCO_DATABASE_URL \
+  --json
+cargo minco db verify \
+  --set orders-postgres \
+  --database-url-env MINCO_DATABASE_URL \
+  --json
 ```
 
 Planning is offline. Status and verification are read-only database operations
-when a connection is explicitly supplied.
+when a connection is explicitly supplied. Set `MINCO_DATABASE_URL` through the
+shell or CI secret mechanism; pass only its variable name to Minco, never a
+password-bearing URL on the command line.
 
 ## Apply an exact migration plan
 
 ```bash
-cargo minco db plan \
-  --set orders-postgres \
-  --environment production \
-  --json
+cargo minco db plan --set orders-postgres --json
 ```
 
 After reviewing the target, history, ordered steps, risks, and digest, pass that
@@ -58,13 +63,17 @@ exact digest to the mutating command:
 ```bash
 cargo minco db migrate \
   --set orders-postgres \
-  --environment production \
-  --approve-digest REVIEWED_DIGEST \
+  --database-url-env MINCO_DATABASE_URL \
+  --expected-plan-digest REVIEWED_DIGEST \
+  --receipt target/minco/orders-postgres-migration-receipt.json \
   --json
 ```
 
-The runner records durable receipts. Target/environment mismatches, changed
-files, missing approvals, or incompatible history fail before mutation.
+The runner writes the durable receipt to the explicit destination. A changed
+plan digest, missing connection variable, incompatible history, or destructive
+plan without `--allow-destructive` fails before mutation. Environment ownership
+and deployment authority remain separate release checks; they are not inferred
+from a migration flag.
 
 ## Classify seed data
 
@@ -73,17 +82,37 @@ reviewed class, plus the allowed environments and preservation behavior.
 
 ```bash
 cargo minco db seed \
+  --set orders-postgres-seeds \
   --profile demo \
   --environment local \
   --dry-run \
   --json
 ```
 
-A mutating run requires the classification and environment gates to pass. Use
-verification as a separate read-only stage:
+A mutating run requires the classification and environment gates to pass, the
+exact dry-run digest, a direct connection variable, and a receipt destination:
 
 ```bash
-cargo minco db seed --verify --json
+cargo minco db seed \
+  --set orders-postgres-seeds \
+  --profile demo \
+  --environment local \
+  --database-url-env MINCO_DATABASE_URL \
+  --expected-plan-digest REVIEWED_DIGEST \
+  --receipt target/minco/orders-postgres-demo-seed-receipt.json \
+  --json
+```
+
+Use verification as a separate read-only stage:
+
+```bash
+cargo minco db seed \
+  --set orders-postgres-seeds \
+  --profile demo \
+  --environment local \
+  --database-url-env MINCO_DATABASE_URL \
+  --verify \
+  --json
 ```
 
 ## Choose an adapter
