@@ -10,6 +10,7 @@ operations: []
 owned_paths:
   - Cargo.lock
   - compose.mail.yml
+  - docs-site/package-lock.json
   - docs/adrs/0034-outbound-mail-delivery.md
   - docs-site/next/guides/events-and-notifications.md
   - extensions/minco-aws-adapters/**
@@ -25,6 +26,7 @@ checks:
   - RUSTDOCFLAGS='-D warnings' cargo doc -p minco-plugin-notifications --all-features --no-deps --locked
   - RUSTDOCFLAGS='-D warnings' cargo doc -p minco-aws-adapters --features ses --no-deps --locked
   - docker compose -f compose.mail.yml config --quiet
+  - npm audit --prefix docs-site --audit-level=moderate
   - uv run --locked python scripts/validate_static.py
   - uv run --locked python scripts/source_manifest.py --check
 ---

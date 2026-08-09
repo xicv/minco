@@ -2944,7 +2944,7 @@
     },
     {
       "path": "docs-site/package-lock.json",
-      "sha256": "33eaadbcc517b890c4c543c469f7c39b10231412d3b0d64a5ad769cd6b61b9c3",
+      "sha256": "2c87ddac02f7d19523ab252739631ca545dc569116cc7861379ff91dd328ccfe",
       "size_bytes": 94078
     },
     {
@@ -5124,8 +5124,8 @@
     },
     {
       "path": "tasks/M14/M14-T07-rich-observable-mail-delivery.md",
-      "sha256": "15e58635acc6cb125609969c9a01e380a86cc7b462f72efffa757e87e6e5ebb6",
-      "size_bytes": 6857
+      "sha256": "1df1a5b25a43a993ca622581855292711250d0e42f77af02bed98699304a0711",
+      "size_bytes": 6945
     },
     {
       "path": "tasks/M14/M14-T08-verified-object-uploads.md",
@@ -5474,7 +5474,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "4ba07b36278dc05f0e04048966845835c88f7e2c9a72444e6028375c85db1e1e",
-  "total_size_bytes": 7821561,
+  "source_tree_sha256": "b8970126f4bc08ca866735265fdb570a64ae1c69c3ca04fb5610058811df72f9",
+  "total_size_bytes": 7821649,
   "version": "1.1.0"
 }
