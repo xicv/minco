@@ -84,6 +84,48 @@ Confirm the expected process, port, lifecycle stages, readiness probe, database
 profile, and explicitly required services. A dry run is the safest place to
 catch a wrong profile or hidden assumption.
 
+## Rustack or a local port will not start
+
+Preview the selected topology before changing containers or stored data:
+
+```bash
+cargo minco dev --dry-run --json
+```
+
+Compare the emitted service and process ports with listeners owned by other
+workspaces. If the topology is correct but a port is occupied, choose explicit
+workspace-local overrides:
+
+```bash
+cargo minco dev --port 31000 --rustack-port 4567
+```
+
+Also confirm that Docker is available for the selected PostgreSQL or Rustack
+profile and that its declared services reached readiness. Ctrl-C stops the
+supervised processes and selected containers; it does not reset volumes. Do
+not delete local data merely to hide a port-ownership or readiness failure.
+
+## Migration or seed execution is refused
+
+Recreate the source plan and compare its digest with the approval you reviewed:
+
+```bash
+cargo minco db plan --set orders-postgres --json
+cargo minco db migrate \
+  --set orders-postgres \
+  --database-url-env MINCO_DATABASE_URL \
+  --expected-plan-digest REVIEWED_DIGEST \
+  --receipt target/minco/orders-postgres-migration-receipt.json \
+  --json
+```
+
+A changed SQL file or sidecar produces a new digest. A missing connection
+variable, stale digest, incompatible history, reused receipt destination, or
+destructive plan without explicit allowance should stop before mutation. Seed
+runs add profile and environment allowlists and derive their approval digest
+from the matching `--dry-run`. See [migrations and seeders](./database-lifecycle)
+for the complete commands; do not bypass the refusal with an unrelated flag.
+
 ## PostgreSQL connections are exhausted or bursty
 
 Do not treat a larger connection pool as the default fix for Lambda workloads.
@@ -132,6 +174,20 @@ Check:
 
 Do not convert a fingerprint conflict into a silent second create.
 
+## Browser login or session requests fail
+
+First identify which boundary rejected the request: provider authentication,
+verified-claim mapping, application authorization, session lookup, or browser
+transport. Minco does not supply the provider login UI.
+
+Check the configured issuer and audience, claim-to-principal mapping, required
+permission, session expiry/revocation, and cookie transport policy. For browser
+failures, also compare the exact allowed origin, method, request headers,
+exposed headers, credentials mode, and cookie `Secure`, `SameSite`, domain, and
+path settings. Do not loosen CORS to a wildcard or enable development identity
+headers in production to make the request pass. Local fake claims and a
+successful browser preflight are not provider-authentication evidence.
+
 ## Update or delete returns `428` or `412`
 
 - `428` means the required precondition is missing.
@@ -156,6 +212,26 @@ cargo minco plugin test --all --json
 Then verify the Cargo feature/dependency and typed constructor registration in
 the composition root. Passing offline conformance is not equivalent to provider
 or production proof.
+
+## Worker messages retry or reach the DLQ
+
+Inspect the declared worker, queue, event-source mapping, retry and DLQ policy,
+visibility timeout, batch size, concurrency, and database connection budget:
+
+```bash
+cargo minco inspect --json
+cargo minco deploy plan --json
+cargo minco perf --json
+```
+
+Confirm that `ReportBatchItemFailures` is enabled and that the worker returns
+only failed message identifiers; otherwise successful records can be retried.
+Queue visibility must exceed the function timeout with a reviewed margin, and
+the maximum-receive policy determines when repeated failures reach the DLQ.
+Use redacted message IDs and request/correlation IDs to separate a poison
+message from a transient adapter failure. The application use case must still
+be idempotent because delivery is at least once. Replaying or redriving a DLQ
+is an explicit operational mutation, not a diagnostic step.
 
 ## Codex or Claude project skills are stale
 

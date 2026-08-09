@@ -24,31 +24,35 @@ reference when the next decision requires it.
     <strong>Use resource APIs</strong>
     <span>Implement create, list, read, update, and delete with one client-facing convention.</span>
   </a>
-  <a class="doc-path-card" data-index="03 · EXTEND" href="./guides/plugin-conformance">
+  <a class="doc-path-card" data-index="03 · CLIENTS" href="./guides/mobile-api">
+    <strong>Serve browser and native clients</strong>
+    <span>Use one API with explicit PKCE, CORS, retry, compatibility, and device-trust boundaries.</span>
+  </a>
+  <a class="doc-path-card" data-index="04 · EXTEND" href="./guides/plugin-conformance">
     <strong>Author a plugin</strong>
     <span>Package a statically linked plugin and exercise the public conformance boundary.</span>
   </a>
-  <a class="doc-path-card" data-index="04 · AGENTS" href="./guides/agent-development">
+  <a class="doc-path-card" data-index="05 · AGENTS" href="./guides/agent-development">
     <strong>Develop with coding agents</strong>
     <span>Install version-matched Codex and Claude skills and inspect bounded project context.</span>
   </a>
-  <a class="doc-path-card" data-index="05 · AWS" href="./guides/deployment">
+  <a class="doc-path-card" data-index="06 · AWS" href="./guides/deployment">
     <strong>Operate on AWS</strong>
     <span>Review Plan IR, residual cost, exact artifacts, guarded mutation, and recovery evidence.</span>
   </a>
-  <a class="doc-path-card" data-index="06 · MAP" href="./features/">
+  <a class="doc-path-card" data-index="07 · MAP" href="./features/">
     <strong>Browse all features</strong>
     <span>See the framework surface by contract, data, runtime, deployment, and evidence plane.</span>
   </a>
-  <a class="doc-path-card" data-index="07 · COMPOSE" href="./plugins/">
+  <a class="doc-path-card" data-index="08 · COMPOSE" href="./plugins/">
     <strong>Choose built-in plugins</strong>
     <span>Compare all 18 plugins, adapters, and runtimes by purpose, stability, and cost behavior.</span>
   </a>
-  <a class="doc-path-card" data-index="08 · RECIPES" href="./cookbook/">
+  <a class="doc-path-card" data-index="09 · RECIPES" href="./cookbook/">
     <strong>Follow practical recipes</strong>
     <span>Combine the pieces for CRUD, background work, feedback, files, and safe AWS delivery.</span>
   </a>
-  <a class="doc-path-card" data-index="09 · BLUEPRINT" href="./cookbook/production-blueprint">
+  <a class="doc-path-card" data-index="10 · BLUEPRINT" href="./cookbook/production-blueprint">
     <strong>Follow a production blueprint</strong>
     <span>Design a burst-ready Orders system from traffic pattern through cost, failure, and evidence.</span>
   </a>
@@ -67,17 +71,22 @@ runtime service locator or an undocumented control plane.
     <p>OpenAPI operations, schemas, examples, authentication, pagination, idempotency, and public failures.</p>
   </div>
   <div class="framework-plane">
-    <span>02 · Application</span>
+    <span>02 · Code</span>
     <strong>What the business owns</strong>
     <p>Pure domain rules, use cases, owned ports, authorization decisions, and explicit adapter boundaries.</p>
   </div>
   <div class="framework-plane">
-    <span>03 · Runtime</span>
-    <strong>Where code executes</strong>
-    <p>Local processes, Axum HTTP, Lambda HTTP, SQS workers, static delivery, databases, and plugins.</p>
+    <span>03 · Capabilities</span>
+    <strong>What the application selects</strong>
+    <p>Statically linked plugins, typed services, facade features, declared dependencies, and explicit composition.</p>
   </div>
   <div class="framework-plane">
-    <span>04 · Evidence</span>
+    <span>04 · Resources</span>
+    <strong>Where code executes</strong>
+    <p>Local processes, Axum HTTP, Lambda HTTP, SQS workers, static delivery, databases, and provider topology.</p>
+  </div>
+  <div class="framework-plane">
+    <span>05 · Evidence</span>
     <strong>What can be claimed</strong>
     <p>Nearest-boundary tests, Plan IR, artifact digests, change sets, hosted verification, promotion, and rollback.</p>
   </div>
@@ -117,6 +126,7 @@ runtime service locator or an undocumented control plane.
 | Area | Shipped boundary | Use it to answer |
 |---|---|---|
 | HTTP resources | JSON data envelopes, bounded cursor pages, strong entity tags, idempotent create, and Problem Details | What must every client implement consistently? |
+| Browser and native clients | Exact CORS inventories, response metadata, PKCE guidance, bounded retry, and installed-client compatibility | How does one API serve web, iOS, Android, desktop, and automation safely? |
 | Plugins | Archive-visible metadata, static composition, facade features, and public offline conformance reports | What can be added without runtime scanning? |
 | Data | Explicit SQLite, PostgreSQL, and access-pattern-specific DynamoDB adapters | Which persistence model matches the query and cost profile? |
 | Realtime | Subscriber-only AppSync invalidation with authoritative HTTP resynchronization | How can clients refresh without treating events as durable truth? |
@@ -144,6 +154,7 @@ boot-time production migrations.
   [database lifecycle controls](./guides/database-lifecycle), and
   [graph-driven local development](./guides/local-development).
 - Add [identity and sessions](./guides/identity-and-sessions),
+  [browser and native client guidance](./guides/mobile-api),
   [events and notifications](./guides/events-and-notifications),
   [files and static sites](./guides/files-and-static-sites), the
   [realtime invalidation path](./guides/realtime), or the

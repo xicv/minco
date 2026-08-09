@@ -43,6 +43,30 @@ test('current documentation map exposes every major documentation surface', asyn
   }
 })
 
+test('next exposes merged browser and native client guidance without rewriting stable', async ({
+  page
+}) => {
+  await page.goto('./next/reference/documentation-map')
+  await waitForHydration(page)
+  await expect(
+    page.getByRole('link', { name: 'Browser and native clients' }).first()
+  ).toBeVisible()
+
+  await page.goto(`${stablePath}reference/documentation-map`)
+  await waitForHydration(page)
+  await expect(
+    page.getByRole('link', { name: 'Browser and native clients' })
+  ).toHaveCount(0)
+
+  await page.goto('./next/')
+  await waitForHydration(page)
+  await page.getByRole('button', { name: 'Search Minco documentation' }).click()
+  await page.locator('input[type="search"]').fill('PKCE mobile API')
+  await expect(
+    page.locator('.VPLocalSearchBox a[href*="/next/guides/mobile-api"]').first()
+  ).toBeVisible()
+})
+
 test('search includes current troubleshooting language and excludes frozen manuals', async ({
   page
 }) => {
@@ -58,9 +82,71 @@ test('search includes current troubleshooting language and excludes frozen manua
     results.locator(`a[href*="/${release.stable}/guides/troubleshooting"]`).first()
   ).toBeVisible()
 
+  await search.fill('login')
+  await expect(
+    results
+      .locator(`a[href*="/${release.stable}/guides/identity-and-sessions"]`)
+      .first()
+  ).toBeVisible()
+
+  await search.fill('direct upload')
+  await expect(
+    results
+      .locator(`a[href*="/${release.stable}/guides/files-and-static-sites"]`)
+      .first()
+  ).toBeVisible()
+
   await expect(results.locator('a[href*="/0.5.0/"]')).toHaveCount(0)
   await expect(results.locator('a[href*="/0.6.0/"]')).toHaveCount(0)
   await expect(results.locator('a[href*="/1.0.0/"]')).toHaveCount(0)
+})
+
+test('stable overview presents all five framework planes', async ({ page }) => {
+  await page.goto(stablePath)
+  await waitForHydration(page)
+
+  const planes = page.locator('.framework-plane')
+  await expect(planes).toHaveCount(5)
+
+  for (const label of [
+    'Contract',
+    'Code',
+    'Capabilities',
+    'Resources',
+    'Evidence'
+  ]) {
+    await expect(
+      planes.locator('span').filter({ hasText: new RegExp(`${label}$`) })
+    ).toHaveCount(1)
+  }
+})
+
+test('versioned command examples match the shipped CLI surface', async ({
+  page
+}) => {
+  await page.goto(`${stablePath}guides/database-lifecycle`)
+  await waitForHydration(page)
+
+  const databaseGuide = page.locator('main')
+  await expect(databaseGuide).toContainText('--database-url-env')
+  await expect(databaseGuide).toContainText('--expected-plan-digest')
+  await expect(databaseGuide).toContainText('--receipt')
+  await expect(databaseGuide).not.toContainText('--approve-digest')
+
+  await page.goto(`${stablePath}guides/files-and-static-sites`)
+  await expect(page.locator('main')).toContainText(
+    '--manifest target/minco/release.json'
+  )
+  await expect(page.locator('main')).not.toContainText('--release-manifest')
+
+  await page.goto(`${stablePath}reference/cli`)
+  const cliReference = page.locator('main')
+  const pluginCommands = cliReference
+    .getByRole('row')
+    .filter({ has: page.getByRole('cell', { name: 'Plugins', exact: true }) })
+  await expect(pluginCommands).toContainText('add')
+  await expect(pluginCommands).toContainText('doctor')
+  await expect(pluginCommands).toContainText('remove')
 })
 
 test('architecture and troubleshooting pages stay readable on narrow viewports', async ({

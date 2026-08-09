@@ -72,17 +72,22 @@ runtime service locator or an undocumented control plane.
     <p>OpenAPI operations, schemas, examples, authentication, pagination, idempotency, and public failures.</p>
   </div>
   <div class="framework-plane">
-    <span>02 · Application</span>
+    <span>02 · Code</span>
     <strong>What the business owns</strong>
     <p>Pure domain rules, use cases, owned ports, authorization decisions, and explicit adapter boundaries.</p>
   </div>
   <div class="framework-plane">
-    <span>03 · Runtime</span>
-    <strong>Where code executes</strong>
-    <p>Local processes, Axum HTTP, Lambda HTTP, SQS workers, static delivery, databases, and plugins.</p>
+    <span>03 · Capabilities</span>
+    <strong>What the application selects</strong>
+    <p>Statically linked plugins, typed services, facade features, declared dependencies, and explicit composition.</p>
   </div>
   <div class="framework-plane">
-    <span>04 · Evidence</span>
+    <span>04 · Resources</span>
+    <strong>Where code executes</strong>
+    <p>Local processes, Axum HTTP, Lambda HTTP, SQS workers, static delivery, databases, and provider topology.</p>
+  </div>
+  <div class="framework-plane">
+    <span>05 · Evidence</span>
     <strong>What can be claimed</strong>
     <p>Nearest-boundary tests, Plan IR, artifact digests, change sets, hosted verification, promotion, and rollback.</p>
   </div>

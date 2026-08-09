@@ -35,6 +35,9 @@ function workspaceSidebar(root: string) {
         { text: 'Develop with Codex and Claude', link: link('guides/agent-development') },
         { text: 'Project view, MCP, and workbench', link: link('guides/project-view') },
         { text: 'Build a resource API', link: link('guides/resource-api') },
+        ...(root === '/next/'
+          ? [{ text: 'Browser and native clients', link: link('guides/mobile-api') }]
+          : []),
         { text: 'Migrations and seeders', link: link('guides/database-lifecycle') },
         { text: 'Queues and workers', link: link('guides/background-work') },
         { text: 'Testing and evidence', link: link('reference/testing') }

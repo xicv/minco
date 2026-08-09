@@ -10,6 +10,11 @@ provider claims into application principals, scopes, and permissions. Sessions
 issue and revoke provider-neutral session records. Business authorization stays
 inside application use cases.
 
+Minco does not provide a login or sign-in screen and does not replace an
+identity provider. The selected ingress or provider completes authentication;
+Minco maps its verified claims and applies application-owned session and
+authorization policy.
+
 ## Enable the components
 
 ```bash

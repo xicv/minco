@@ -324,6 +324,22 @@ test('navigation stays within the mobile viewport', async ({ page, isMobile }) =
   await expect(page.getByText('Unreleased documentation.')).toBeVisible()
   await page.locator('.VPNavBarHamburger').click()
   await expect(page.getByRole('link', { name: 'Documentation' })).toBeVisible()
+  const navigationScreen = await page.locator('.VPNavScreen').evaluate(screen => {
+    const bounds = screen.getBoundingClientRect()
+    const topElement = document.elementFromPoint(
+      window.innerWidth / 2,
+      bounds.top + 24
+    )
+    return {
+      height: bounds.height,
+      viewportHeight: window.innerHeight,
+      ownsTopPoint: topElement !== null && screen.contains(topElement)
+    }
+  })
+  expect(navigationScreen.height).toBeGreaterThan(
+    navigationScreen.viewportHeight / 2
+  )
+  expect(navigationScreen.ownsTopPoint).toBe(true)
 })
 
 test('core pages have labelled semantics and no browser errors', async ({ page }) => {

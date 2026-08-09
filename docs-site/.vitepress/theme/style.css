@@ -134,11 +134,11 @@ button {
       color-mix(in srgb, var(--vp-c-bg) 97%, transparent),
       color-mix(in srgb, var(--vp-c-bg) 91%, transparent)
     );
-  backdrop-filter: blur(18px) saturate(130%);
 }
 
 .VPNavBar {
   border-bottom: 0;
+  backdrop-filter: blur(18px) saturate(130%);
 }
 
 .VPNavBarTitle .logo {
@@ -1017,6 +1017,18 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.framework-plane-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.framework-plane {
+  grid-column: span 2;
+}
+
+.framework-plane:nth-last-child(-n + 2) {
+  grid-column: span 3;
+}
+
 .framework-plane,
 .doc-summary-card,
 .scenario-fact,
@@ -1300,6 +1312,11 @@ button {
   .scenario-fact-grid,
   .evidence-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .framework-plane,
+  .framework-plane:nth-last-child(-n + 2) {
+    grid-column: auto;
   }
 
   .home-flow {

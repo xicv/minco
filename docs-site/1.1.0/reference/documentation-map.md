@@ -31,8 +31,8 @@ than by crate layout.
 | Exact HTTP resource shapes | [Resource API reference](./resource-api) | envelope, pagination, filter, sort, precondition |
 | Configuration and secrets | [Configuration](../guides/configuration) | precedence, environment, secret reference, redaction |
 | PostgreSQL/SQLite lifecycle | [Migrations and seeders](../guides/database-lifecycle) | SQLx, migration, seed, plan, verify |
-| Identity and sessions | [Identity and sessions](../guides/identity-and-sessions) | claims, principal, permission, session, revocation |
-| Files and frontend assets | [Files and static sites](../guides/files-and-static-sites) | object storage, S3, signed access, CloudFront, SPA |
+| Identity and sessions | [Identity and sessions](../guides/identity-and-sessions) | login, sign in, claims, principal, permission, session, revocation |
+| Files and frontend assets | [Files and static sites](../guides/files-and-static-sites) | upload, direct upload, object storage, S3, signed access, CloudFront, SPA |
 | Events and delivery intent | [Events and notifications](../guides/events-and-notifications) | outbox, email, webhook, notification |
 | Background execution | [Queues and workers](../guides/background-work) | SQS, worker, partial batch, FIFO, DLQ |
 | Realtime refresh signals | [Realtime subscriptions](../guides/realtime) | AppSync, subscription, invalidation, resync |
@@ -98,6 +98,7 @@ Minco deliberately uses precise terms. These aliases can help when searching:
 | controller / route handler | `handler`, `operationId`, `resource API` |
 | service layer | `application use case`, `application port` |
 | repository / DAO | `adapter`, `port`, `SQLx`, `DynamoDB` |
+| login / sign in | `identity`, `verified claims`, `sessions`, `revocation` |
 | cron / scheduled job | `schedule`, `wake source`, `worker` |
 | background job | `SQS`, `worker`, `partial batch`, `DLQ` |
 | optimistic locking | `ETag`, `If-Match`, `412`, `revision` |
