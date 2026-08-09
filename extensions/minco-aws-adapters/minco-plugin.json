@@ -12,6 +12,7 @@
     { "name": "storage.object", "version": "^1.0" },
     { "name": "events.publish", "version": "^1.0" },
     { "name": "notifications.send", "version": "^1.0" },
+    { "name": "mail.send", "version": "^1.0" },
     { "name": "identity.admin", "version": "^1.0" },
     { "name": "static-site.provider", "version": "^1.0" },
     { "name": "realtime.publish", "version": "^1.0" }
@@ -20,6 +21,7 @@
     { "name": "aws.s3.object-storage", "version": "1.0.0" },
     { "name": "aws.sqs.event-publication", "version": "1.0.0" },
     { "name": "aws.ses.email-notifications", "version": "1.0.0" },
+    { "name": "aws.ses.mail-delivery", "version": "1.0.0" },
     { "name": "aws.cognito.identity-administration", "version": "1.0.0" },
     { "name": "aws.cloudfront.static-site", "version": "1.0.0" },
     { "name": "aws.appsync-events.realtime-publication", "version": "1.0.0" }
@@ -73,7 +75,7 @@
   "retention": "application_defined",
   "failure_policy": {
     "mode": "fail_closed",
-    "description": "Selected provider operations return their AWS failure and never substitute an in-memory or different provider."
+    "description": "Selected provider operations return bounded AWS failures; ambiguous mail submission outcomes never retry or substitute another provider automatically."
   },
   "documentation": { "reference": "https://docs.rs/minco-aws-adapters" },
   "conformance": {
