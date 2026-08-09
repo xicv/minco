@@ -1,0 +1,293 @@
+  return Err(MailError::invalid(
+                "mail message exceeds the reply-to address boundary",
+            ));
+        }
+        for reply_to in &self.reply_to {
+            reply_to.validate()?;
+        }
+
+        match (&self.text, &self.html) {
+            (None, None) => {
+                return Err(MailError::invalid(
+                    "mail message requires a text or HTML body",
+                ));
+            }
+            (Some(text), _) if !valid_body(text) => {
+                return Err(MailError::invalid("mail text body is invalid"));
+            }
+            (_, Some(html)) if !valid_body(html) => {
+                return Err(MailError::invalid("mail HTML body is invalid"));
+            }
+            _ => {}
+        }
+
+        if self.attachments.len() > MAX_ATTACHMENT_COUNT {
+            return Err(MailError::invalid(
+                "mail message exceeds the attachment count boundary",
+            ));
+        }
+        let mut attachment_bytes = 0_usize;
+        let mut content_ids = BTreeSet::new();
+        for attachment in &self.attachments {
+            attachment.validate()?;
+            attachment_bytes = attachment_bytes
+                .checked_add(attachment.content.len())
+                .ok_or_else(|| MailError::invalid("mail attachment size overflow"))?;
+            if let Some(content_id) = &attachment.content_id
+                && !content_ids.insert(content_id.to_ascii_lowercase())
+            {
+                return Err(MailError::invalid(
+                    "mail inline attachment content IDs must be unique",
+                ));
+            }
+        }
+        if attachment_bytes > MAX_ATTACHMENT_BYTES {
+            return Err(MailError::invalid(
+                "mail attachments exceed the 25 MiB raw-content boundary",
+            ));
+        }
+
+        if self.headers.len() > MAX_HEADERS
+            || self
+                .headers
+                .iter()
+                .any(|(name, value)| !valid_header(name, value))
+        {
+            return Err(MailError::invalid("mail custom headers are invalid"));
+        }
+        if self.tags.len() > MAX_USER_TAGS
+            || self.tags.iter().any(|(name, value)| {
+                RESERVED_TAGS
+                    .iter()
+                    .any(|reserved| name.eq_ignore_ascii_case(reserved))
+                    || !valid_tag_component(name)
+                    || !valid_tag_component(value)
+            })
+        {
+            return Err(MailError::invalid("mail delivery tags are invalid"));
+        }
+        let metadata_size = serde_json::to_vec(&self.metadata)
+            .map_err(|_| MailError::invalid("mail metadata cannot be serialized"))?
+            .len();
+        if metadata_size > MAX_METADATA_BYTES {
+            return Err(MailError::invalid(
+                "mail metadata exceeds the 64 KiB boundary",
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for MailMessage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MailMessage")
+            .field("id", &self.id)
+            .field("topic", &self.topic)
+            .field("to_count", &self.to.len())
+            .field("cc_count", &self.cc.len())
+            .field("bcc_count", &self.bcc.len())
+            .field("reply_to_count", &self.reply_to.len())
+            .field("subject", &"[REDACTED]")
+            .field("text_bytes", &self.text.as_ref().map(String::len))
+            .field("html_bytes", &self.html.as_ref().map(String::len))
+            .field("attachment_count", &self.attachments.len())
+            .field("header_count", &self.headers.len())
+            .field("tag_count", &self.tags.len())
+            .field("metadata_count", &self.metadata.len())
+            .field("created_at", &self.created_at)
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MailMessageBuilder {
+    message: MailMessage,
+}
+
+impl MailMessageBuilder {
+    pub fn id(mut self, id: Uuid) -> Self {
+        self.message.id = id;
+        self
+    }
+
+    pub fn created_at(mut self, created_at: DateTime<Utc>) -> Self {
+        self.message.created_at = created_at;
+        self
+    }
+
+    pub fn to(mut self, address: MailAddress) -> Self {
+        self.message.to.push(address);
+        self
+    }
+
+    pub fn cc(mut self, address: MailAddress) -> Self {
+        self.message.cc.push(address);
+        self
+    }
+
+    pub fn bcc(mut self, address: MailAddress) -> Self {
+        self.message.bcc.push(address);
+        self
+    }
+
+    pub fn reply_to(mut self, address: MailAddress) -> Self {
+        self.message.reply_to.push(address);
+        self
+    }
+
+    pub fn text(mut self, body: impl Into<String>) -> Self {
+        self.message.text = Some(body.into());
+        self
+    }
+
+    pub fn html(mut self, body: impl Into<String>) -> Self {
+        self.message.html = Some(body.into());
+        self
+    }
+
+    pub fn attachment(mut self, attachment: MailAttachment) -> Self {
+        self.message.attachments.push(attachment);
+        self
+    }
+
+    pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.message.headers.insert(name.into(), value.into());
+        self
+    }
+
+    pub fn tag(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.message.tags.insert(name.into(), value.into());
+        self
+    }
+
+    pub fn metadata(mut self, name: impl Into<String>, value: serde_json::Value) -> Self {
+        self.message.metadata.insert(name.into(), value);
+        self
+    }
+
+    pub fn build(self) -> Result<MailMessage, MailError> {
+        self.message.validate()?;
+        Ok(self.message)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MailErrorKind {
+    InvalidMessage,
+    Configuration,
+    Authentication,
+    Rejected,
+    Throttled,
+    Unavailable,
+    Ambiguous,
+    Protocol,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MailRetryAdvice {
+    Never,
+    SafeAfterBackoff,
+    ReconcileBeforeRetry,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
+#[error("mail transport {transport} failed ({kind:?}): {message}")]
+pub struct MailError {
+    pub kind: MailErrorKind,
+    pub transport: String,
+    pub message: String,
+}
+
+impl MailError {
+    pub fn new(
+        kind: MailErrorKind,
+        transport: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind,
+            transport: sanitize_diagnostic(&transport.into(), 64),
+            message: sanitize_diagnostic(&message.into(), 2_048),
+        }
+    }
+
+    pub fn retry_advice(&self) -> MailRetryAdvice {
+        match self.kind {
+            MailErrorKind::Throttled | MailErrorKind::Unavailable => {
+                MailRetryAdvice::SafeAfterBackoff
+            }
+            MailErrorKind::Ambiguous => MailRetryAdvice::ReconcileBeforeRetry,
+            MailErrorKind::InvalidMessage
+            | MailErrorKind::Configuration
+            | MailErrorKind::Authentication
+            | MailErrorKind::Rejected
+            | MailErrorKind::Protocol => MailRetryAdvice::Never,
+        }
+    }
+
+    pub fn can_failover(&self) -> bool {
+        self.retry_advice() == MailRetryAdvice::SafeAfterBackoff
+    }
+
+    pub fn is_ambiguous(&self) -> bool {
+        self.kind == MailErrorKind::Ambiguous
+    }
+
+    pub(crate) fn invalid(message: impl Into<String>) -> Self {
+        Self::new(MailErrorKind::InvalidMessage, "mail", message)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MailReceipt {
+    pub message_id: Uuid,
+    pub transport: String,
+    pub provider_message_id: String,
+    pub accepted_at: DateTime<Utc>,
+    pub attempt: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MailSubmissionEventKind {
+    Prepared,
+    Attempting,
+    AttemptFailed,
+    Accepted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MailSubmissionEvent {
+    pub event_id: Uuid,
+    pub message_id: Uuid,
+    pub topic: String,
+    pub transport: String,
+    pub kind: MailSubmissionEventKind,
+    pub occurred_at: DateTime<Utc>,
+    pub attempt: u32,
+    pub failure_kind: Option<MailErrorKind>,
+    pub duration_ms: Option<u64>,
+}
+
+impl MailSubmissionEvent {
+    fn new(
+        message: &MailMessage,
+        transport: impl Into<String>,
+        kind: MailSubmissionEventKind,
+        attempt: u32,
+        failure_kind: Option<MailErrorKind>,
+        duration: Option<Duration>,
+    ) -> Self {
+        Self {
+            event_id: Uuid::now_v7(),
+            message_id: message.id,
+            topic: message.topic.clone(),
+            transport: transport.into(),
+            kind,
+            occurred_at: Utc::now(),
+            attempt,
+            failure_kind,
+     
