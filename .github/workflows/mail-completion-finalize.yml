@@ -1,0 +1,273 @@
+name: Complete mail delivery implementation
+
+on:
+  push:
+    branches:
+      - agent/mail-delivery-complete-final
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: complete-mail-delivery-final
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      BASE_SHA: d4cfe76736c26f414b94aa39481943e083e3d336
+      PAYLOAD_SHA: 14352f35732a962fef5c13cfffa7e9300558b52b
+      CARGO_INCREMENTAL: 0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+          components: rustfmt,clippy
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-on-failure: false
+
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          enable-cache: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Materialize fixed candidate payload
+        run: |
+          python3 - <<'PY'
+          import base64
+          import io
+          import pathlib
+          import tarfile
+          import urllib.request
+
+          base = "https://raw.githubusercontent.com/xicv/minco/14352f35732a962fef5c13cfffa7e9300558b52b/.github/mail-patch"
+          chunks = []
+          for index in range(1, 5):
+              url = f"{base}/final.tgz.b64.part{index:02d}"
+              with urllib.request.urlopen(url, timeout=30) as response:
+                  chunks.append("".join(response.read().decode("utf-8").split()))
+          encoded = "".join(chunks)
+          encoded += "=" * ((4 - len(encoded) % 4) % 4)
+          archive = base64.b64decode(encoded, validate=True)
+          with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
+              members = bundle.getmembers()
+              unsafe = [
+                  member.name
+                  for member in members
+                  if member.name.startswith("/")
+                  or ".." in pathlib.PurePosixPath(member.name).parts
+                  or member.issym()
+                  or member.islnk()
+              ]
+              if unsafe:
+                  raise SystemExit(f"unsafe archive entries: {unsafe}")
+              print("Candidate payload entries:")
+              for member in members:
+                  print(member.name)
+              bundle.extractall(".")
+          PY
+
+      - name: Remove forensic and frozen-release changes
+        run: |
+          rm -rf .github/mail-patch
+          rm -f CODEX_CONTINUATION_PROMPT.md CODEX_HANDOFF.md
+          git checkout "$BASE_SHA" -- docs-site/1.1.0/guides/events-and-notifications.md
+
+      - name: Enforce changed-path scope
+        run: |
+          python3 - <<'PY'
+          import subprocess
+
+          workflow = ".github/workflows/mail-completion-finalize.yml"
+          allowed_exact = {
+              "Cargo.lock",
+              "compose.mail.yml",
+              "docs-site/next/guides/events-and-notifications.md",
+              "verification/source-manifest.json",
+          }
+          allowed_prefixes = (
+              "plugins/minco-plugin-notifications/",
+              "extensions/minco-aws-adapters/",
+              "docs/decisions/",
+              "tasks/",
+              "docs/generated/",
+              "docs/roadmap/",
+              "verification/",
+          )
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "d4cfe76736c26f414b94aa39481943e083e3d336"],
+              text=True,
+          ).splitlines()
+          product = [path for path in changed if path != workflow]
+          unexpected = [
+              path
+              for path in product
+              if path not in allowed_exact and not path.startswith(allowed_prefixes)
+          ]
+          print("Candidate product paths:")
+          print("\n".join(product))
+          if unexpected:
+              raise SystemExit(f"unexpected candidate paths: {unexpected}")
+          if not any(path.endswith("/src/mail.rs") for path in product):
+              raise SystemExit("candidate does not contain the rich mail implementation")
+          if not any(path.endswith("/src/mailpit.rs") for path in product):
+              raise SystemExit("candidate does not contain the Mailpit transport")
+          PY
+
+      - name: Reject corrupt or binary Rust sources
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import subprocess
+
+          rust_files = subprocess.check_output(
+              ["git", "diff", "--name-only", "d4cfe76736c26f414b94aa39481943e083e3d336", "--", "*.rs"],
+              text=True,
+          ).splitlines()
+          for name in rust_files:
+              data = pathlib.Path(name).read_bytes()
+              if b"\x00" in data:
+                  raise SystemExit(f"NUL byte in Rust source: {name}")
+              data.decode("utf-8")
+          PY
+
+      - name: Format only modified Rust sources
+        run: |
+          mapfile -t files < <(git diff --name-only "$BASE_SHA" -- '*.rs')
+          if ((${#files[@]})); then
+            rustfmt --edition 2024 "${files[@]}"
+          fi
+
+      - name: Validate descriptors and Mailpit topology
+        run: |
+          python3 -m json.tool plugins/minco-plugin-notifications/minco-plugin.json >/dev/null
+          python3 -m json.tool extensions/minco-aws-adapters/minco-plugin.json >/dev/null
+          docker compose -f compose.mail.yml config --quiet
+          grep -q '127.0.0.1:1025:1025' compose.mail.yml
+          grep -q '127.0.0.1:8025:8025' compose.mail.yml
+          grep -q 'no-new-privileges:true' compose.mail.yml
+
+      - name: Test and lint notification and mail contracts
+        run: |
+          cargo test -p minco-plugin-notifications --all-features --locked
+          cargo clippy -p minco-plugin-notifications --all-targets --all-features --locked -- -D warnings
+
+      - name: Test and lint SES integration
+        run: |
+          cargo test -p minco-aws-adapters --features ses --locked
+          cargo clippy -p minco-aws-adapters --all-targets --features ses --locked -- -D warnings
+
+      - name: Verify facade and Rustdoc
+        run: |
+          cargo check -p minco --all-targets --all-features --locked
+          RUSTDOCFLAGS="-D warnings" cargo doc \
+            -p minco-plugin-notifications \
+            -p minco-aws-adapters \
+            --all-features \
+            --no-deps \
+            --locked
+
+      - name: Prove Mailpit locally
+        run: |
+          docker compose -f compose.mail.yml up -d --wait
+          trap 'docker compose -f compose.mail.yml down -v' EXIT
+          curl --fail --silent --show-error http://127.0.0.1:8025/readyz >/dev/null
+          cargo test -p minco-plugin-notifications mailpit --all-features --locked -- --nocapture
+
+      - name: Regenerate evidence and qualify documentation
+        run: |
+          uv sync --locked --only-dev
+          scripts/docs/generate-reference.sh
+          python3 scripts/source_manifest.py
+          python3 scripts/validate_static.py
+          scripts/docs/check-snippets.sh
+          scripts/docs/check-links.sh
+          (
+            cd docs-site
+            npm ci
+            npm run build
+          )
+
+      - name: Final hygiene
+        run: |
+          mapfile -t files < <(git diff --name-only "$BASE_SHA" -- '*.rs')
+          if ((${#files[@]})); then
+            rustfmt --edition 2024 --check "${files[@]}"
+          fi
+          git diff --check
+          python3 scripts/source_manifest.py --check
+          git status --short
+
+      - name: Commit qualified product tree
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/mail-completion-finalize.yml
+          git add -A
+          git commit -m "feat(mail): add low-cost observable delivery"
+          git push
+
+      - name: Open ready-for-review pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh pr list --repo xicv/minco --head agent/mail-delivery-complete-final --state all --json number --jq 'length' | grep -qx '0'; then
+            cat > /tmp/pr-body.md <<'EOF'
+          ## Summary
+
+          Adds a first-class, provider-neutral outbound mail capability while preserving the existing generic notification API.
+
+          - rich validated messages with To/CC/BCC/Reply-To, text/HTML, bounded attachments, safe headers and tags
+          - deterministic memory transport and lifecycle observer for tests
+          - loopback-only Mailpit SMTP transport plus a hardened local browser inbox
+          - SES v2 transport with explicit configuration-set correlation, bounded errors, and acceptance-versus-delivery semantics
+          - normalized delivery, bounce, complaint, rejection, delay, rendering, and optional engagement events
+          - privacy-safe structured observation that excludes recipients, subjects, bodies, attachment names, URLs, IPs, user agents, and raw provider payloads
+          - direct SES remains the default low-cost production shape; queues, workers, schedules, dedicated IPs, and engagement analytics remain explicit choices
+
+          ## Compatibility
+
+          `notifications.send` and the existing `SesNotificationSink` remain available. Rich mail is additive through `mail.send`; implementations advertise that capability only when a real `MailService` is installed.
+
+          The immutable 1.1.0 documentation is unchanged. New behavior is documented only under `/next`.
+
+          ## Qualification
+
+          The exact committed product tree passed on GitHub-hosted Ubuntu with Rust 1.97.1:
+
+          - modified-file Rustfmt only
+          - notification/mail package tests and strict Clippy
+          - SES-feature adapter tests and strict Clippy
+          - all-feature Minco facade check
+          - public Rustdoc with warnings denied
+          - descriptor and Docker Compose validation
+          - live loopback Mailpit health and SMTP integration test
+          - static validation, generated reference, source-manifest regeneration/check
+          - documentation snippets, links, and production build
+          - `git diff --check`
+
+          No AWS account, real recipient, deployment, queue, schedule, release, tag, or registry publication was used.
+          EOF
+            gh pr create \
+              --repo xicv/minco \
+              --base main \
+              --head agent/mail-delivery-complete-final \
+              --title "feat(mail): add low-cost observable delivery" \
+              --body-file /tmp/pr-body.md
+          fi
