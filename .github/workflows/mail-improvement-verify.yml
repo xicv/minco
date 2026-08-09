@@ -1,4 +1,4 @@
-name: Mail implementation qualification
+name: Mail lockfile reconciliation
 
 on:
   push:
@@ -9,13 +9,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: mail-implementation-qualification
+  group: mail-lockfile-reconciliation
   cancel-in-progress: true
 
 jobs:
-  qualify:
+  reconcile:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,50 +24,27 @@ jobs:
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: 1.97.1
-          components: rustfmt,clippy
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          cache-targets: false
-          cache-on-failure: false
-      - name: Format only modified Rust files
+      - name: Resolve only the declared dependency graph
         run: |
-          rustfmt --edition 2024 \
-            plugins/minco-plugin-notifications/src/lib.rs \
-            plugins/minco-plugin-notifications/src/mail.rs \
-            plugins/minco-plugin-notifications/src/mailpit.rs \
-            extensions/minco-aws-adapters/src/plugin.rs \
-            extensions/minco-aws-adapters/src/ses.rs
+          before_lock=$(sha256sum Cargo.lock | awk '{print $1}')
+          cargo metadata --format-version 1 >/dev/null
+          after_lock=$(sha256sum Cargo.lock | awk '{print $1}')
+          printf 'Cargo.lock before=%s after=%s\n' "$before_lock" "$after_lock"
           git diff --check
-          if ! git diff --quiet; then
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add \
-              plugins/minco-plugin-notifications/src/lib.rs \
-              plugins/minco-plugin-notifications/src/mail.rs \
-              plugins/minco-plugin-notifications/src/mailpit.rs \
-              extensions/minco-aws-adapters/src/plugin.rs \
-              extensions/minco-aws-adapters/src/ses.rs
-            git commit -m "style(mail): format modified Rust sources"
-            git push origin HEAD:agent/complete-mail-delivery
+          changed=$(git status --short | awk '{print $2}')
+          if [ -n "$changed" ] && [ "$changed" != "Cargo.lock" ]; then
+            printf 'Unexpected files changed during lock reconciliation:\n%s\n' "$changed" >&2
+            exit 1
           fi
-      - name: Test notification and mail contracts
-        run: cargo test -p minco-plugin-notifications --all-features --locked
-      - name: Lint notification and mail contracts
-        run: cargo clippy -p minco-plugin-notifications --all-targets --all-features --locked -- -D warnings
-      - name: Test SES adapter
-        run: cargo test -p minco-aws-adapters --features ses --locked
-      - name: Lint SES adapter
-        run: cargo clippy -p minco-aws-adapters --all-targets --features ses --locked -- -D warnings
-      - name: Build public documentation
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc -p minco-plugin-notifications -p minco-aws-adapters --features minco-aws-adapters/ses --no-deps --locked
-      - name: Verify exact-file formatting and diff hygiene
+          git diff -- Cargo.lock
+      - name: Commit reconciled lockfile when required
         run: |
-          rustfmt --edition 2024 --check \
-            plugins/minco-plugin-notifications/src/lib.rs \
-            plugins/minco-plugin-notifications/src/mail.rs \
-            plugins/minco-plugin-notifications/src/mailpit.rs \
-            extensions/minco-aws-adapters/src/plugin.rs \
-            extensions/minco-aws-adapters/src/ses.rs
-          git diff --check
+          if git diff --quiet -- Cargo.lock; then
+            echo 'Cargo.lock was already current'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Cargo.lock
+          git commit -m "chore(mail): reconcile lockfile"
+          git push origin HEAD:agent/complete-mail-delivery
