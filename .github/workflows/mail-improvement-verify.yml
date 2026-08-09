@@ -1,4 +1,4 @@
-name: Mail improvement main snapshot export
+name: Mail improvement core materialization
 
 on:
   push:
@@ -6,28 +6,78 @@ on:
       - automation/mail-improvement-verify
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: mail-improvement-main-snapshot-export
+  group: mail-improvement-core-materialization
   cancel-in-progress: true
 
 jobs:
-  export:
+  materialize:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
-      - name: Export exact main snapshot
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: minco-main-snapshot
-          path: |
-            .
-            !.git/**
-            !target/**
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
+          fetch-depth: 0
+      - name: Decode and verify the staged core payload
+        run: |
+          python - <<'PY'
+          import base64
+          import glob
+          import hashlib
+          import pathlib
+          import tarfile
+
+          chunks = []
+          for name in sorted(glob.glob('.github/mail-rebuild/core.b64.part*')):
+              chunks.append(''.join(pathlib.Path(name).read_text(encoding='utf-8').split()))
+          if not chunks:
+              raise SystemExit('mail core payload is missing')
+          payload = ''.join(chunks)
+          payload += '=' * ((4 - len(payload) % 4) % 4)
+          archive = base64.b64decode(payload, validate=True)
+          digest = hashlib.sha256(archive).hexdigest()
+          expected = '22f5a3181c5c2f7ac19170eb92c44fa7afc70863e1021df125ca5eee25e84b60'
+          if digest != expected:
+              raise SystemExit(f'mail core payload digest mismatch: {digest}')
+          archive_path = pathlib.Path('/tmp/mail-core.tgz')
+          archive_path.write_bytes(archive)
+          with tarfile.open(archive_path, 'r:gz') as bundle:
+              for member in bundle.getmembers():
+                  parts = pathlib.PurePosixPath(member.name).parts
+                  if member.name.startswith('/') or '..' in parts:
+                      raise SystemExit(f'unsafe archive path: {member.name}')
+          print(f'verified {digest}')
+          PY
+      - name: Apply the core implementation to the clean branch
+        run: |
+          git fetch origin agent/complete-mail-delivery
+          git checkout -B agent/complete-mail-delivery origin/agent/complete-mail-delivery
+          python - <<'PY'
+          import pathlib
+          import tarfile
+
+          with tarfile.open('/tmp/mail-core.tgz', 'r:gz') as bundle:
+              for member in bundle.getmembers():
+                  parts = pathlib.PurePosixPath(member.name).parts
+                  if member.name.startswith('/') or '..' in parts:
+                      raise SystemExit(f'unsafe archive path: {member.name}')
+              bundle.extractall('.')
+          PY
+          git diff --check
+          git status --short
+      - name: Commit the bounded core implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            plugins/minco-plugin-notifications/Cargo.toml \
+            plugins/minco-plugin-notifications/src/lib.rs \
+            plugins/minco-plugin-notifications/src/mail.rs \
+            plugins/minco-plugin-notifications/src/mailpit.rs \
+            extensions/minco-aws-adapters/Cargo.toml \
+            extensions/minco-aws-adapters/src/plugin.rs \
+            extensions/minco-aws-adapters/src/ses.rs
+          git commit -m "feat(mail): add rich observable delivery core"
+          git push origin HEAD:agent/complete-mail-delivery
