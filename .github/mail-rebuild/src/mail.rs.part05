@@ -1,0 +1,237 @@
+topic(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+fn valid_transport_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+fn valid_body(value: &str) -> bool {
+    !value.is_empty() && value.len() <= MAX_BODY_BYTES && !value.contains('\0')
+}
+
+fn valid_content_type(value: &str) -> bool {
+    let Some((kind, subtype)) = value.split_once('/') else {
+        return false;
+    };
+    !kind.is_empty()
+        && !subtype.is_empty()
+        && value.len() <= 127
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(byte, b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_')
+                || byte == b'/'
+        })
+}
+
+fn valid_content_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 255
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() && !matches!(byte, b'<' | b'>' | b'"' | b'\\'))
+}
+
+fn valid_header(name: &str, value: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 78
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        && !RESERVED_HEADERS
+            .iter()
+            .any(|reserved| name.eq_ignore_ascii_case(reserved))
+        && !value.is_empty()
+        && value.len() <= 998
+        && !value
+            .chars()
+            .any(|character| matches!(character, '\r' | '\n') || character.is_control())
+}
+
+fn valid_tag_component(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+}
+
+fn sanitize_diagnostic(value: &str, max_bytes: usize) -> String {
+    let mut sanitized = value
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect::<String>();
+    while sanitized.len() > max_bytes {
+        sanitized.pop();
+    }
+    if sanitized.trim().is_empty() {
+        "unspecified mail error".into()
+    } else {
+        sanitized
+    }
+}
+
+fn lower_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::VecDeque;
+    use tokio::sync::Mutex;
+
+    fn message() -> MailMessage {
+        MailMessage::builder("account.welcome", "Welcome")
+            .to(MailAddress::new("person@example.com").unwrap())
+            .text("Welcome")
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn address_deduplication_preserves_local_part_case() {
+        let message = MailMessage::builder("topic", "Subject")
+            .to(MailAddress::new("Person@Example.com").unwrap())
+            .cc(MailAddress::new("person@example.com").unwrap())
+            .text("Body")
+            .build();
+        assert!(message.is_ok());
+
+        let duplicate = MailMessage::builder("topic", "Subject")
+            .to(MailAddress::new("person@Example.com").unwrap())
+            .cc(MailAddress::new("person@example.com").unwrap())
+            .text("Body")
+            .build();
+        assert!(duplicate.is_err());
+    }
+
+    #[test]
+    fn mime_omits_bcc_and_encodes_bodies_and_attachments() {
+        let message = MailMessage::builder("invoice.ready", "Invoice ✓")
+            .to(MailAddress::new("person@example.com").unwrap())
+            .bcc(MailAddress::new("audit@example.com").unwrap())
+            .text("Plain body")
+            .html("<p>HTML body</p>")
+            .attachment(
+                MailAttachment::attachment("invoice.pdf", "application/pdf", b"PDF".to_vec())
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+        let rendered = String::from_utf8(
+            render_mime(&message, &MailAddress::new("no-reply@example.com").unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(!rendered.contains("audit@example.com"));
+        assert!(!rendered.contains("Plain body"));
+        assert!(rendered.contains("multipart/mixed"));
+        assert!(rendered.contains("application/pdf"));
+        assert!(rendered.contains("=?UTF-8?B?"));
+    }
+
+    #[derive(Debug)]
+    struct ScriptedTransport {
+        name: &'static str,
+        outcomes: Mutex<VecDeque<Result<(), MailErrorKind>>>,
+    }
+
+    #[async_trait]
+    impl MailTransport for ScriptedTransport {
+        fn name(&self) -> &str {
+            self.name
+        }
+
+        async fn send(
+            &self,
+            message: &MailMessage,
+            attempt: u32,
+        ) -> Result<MailReceipt, MailError> {
+            match self.outcomes.lock().await.pop_front().unwrap_or(Ok(())) {
+                Ok(()) => Ok(MailReceipt {
+                    message_id: message.id,
+                    transport: self.name.into(),
+                    provider_message_id: format!("{}:{}", self.name, message.id),
+                    accepted_at: Utc::now(),
+                    attempt,
+                }),
+                Err(kind) => Err(MailError::new(kind, self.name, "scripted failure")),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn ambiguous_outcome_never_fails_over() {
+        let primary = Arc::new(ScriptedTransport {
+            name: "primary",
+            outcomes: Mutex::new(VecDeque::from([Err(MailErrorKind::Ambiguous)])),
+        });
+        let fallback = Arc::new(MemoryMailTransport::named("fallback").unwrap());
+        let service = MailService::new(
+            vec![primary, fallback.clone()],
+            Arc::new(NoopMailObserver),
+        )
+        .unwrap();
+        let error = service.send(message()).await.unwrap_err();
+        assert!(error.is_ambiguous());
+        assert_eq!(fallback.count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn explicit_unavailability_can_use_fallback() {
+        let primary = Arc::new(ScriptedTransport {
+            name: "primary",
+            outcomes: Mutex::new(VecDeque::from([Err(MailErrorKind::Unavailable)])),
+        });
+        let fallback = Arc::new(MemoryMailTransport::named("fallback").unwrap());
+        let observer = Arc::new(MemoryMailObserver::default());
+        let service = MailService::new(vec![primary, fallback.clone()], observer.clone()).unwrap();
+        let receipt = service.send(message()).await.unwrap();
+        assert_eq!(receipt.transport, "fallback");
+        assert_eq!(fallback.count().await, 1);
+        assert_eq!(observer.events().await.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn delivery_sink_deduplicates_provider_events() {
+        let sink = MemoryMailDeliveryEventSink::default();
+        let event = MailDeliveryEvent {
+            source_event_id: "provider-event-1".into(),
+            message_id: Uuid::now_v7(),
+            topic: "invoice.ready".into(),
+            transport: "aws.ses".into(),
+            kind: MailDeliveryEventKind::Delivered,
+            occurred_at: Utc::now(),
+            provider_message_id: Some("provider-message".into()),
+        };
+        assert_eq!(
+            sink.record(event.clone()).await.unwrap(),
+            MailDeliveryDisposition::Recorded
+        );
+        assert_eq!(
+            sink.record(event).await.unwrap(),
+            MailDeliveryDisposition::Duplicate
+        );
+        assert_eq!(sink.events().await.len(), 1);
+    }
+}
