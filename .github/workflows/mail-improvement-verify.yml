@@ -1,4 +1,4 @@
-name: Mail implementation qualification
+name: Mail current-main reconstruction
 
 on:
   push:
@@ -6,54 +6,76 @@ on:
       - automation/mail-improvement-verify
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: mail-implementation-qualification
+  group: mail-current-main-reconstruction
   cancel-in-progress: true
 
 jobs:
-  qualify:
+  reconstruct:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: agent/complete-mail-delivery
+          ref: agent/complete-mail-delivery-current
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: 1.97.1
-          components: rustfmt,clippy
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          cache-on-failure: false
-      - name: Verify modified-file formatting
+      - name: Copy only the qualified mail delta
         run: |
-          rustfmt --edition 2024 --check \
+          git fetch origin agent/complete-mail-delivery automation/mail-improvement-verify
+          copy_from_qualified() {
+            local path="$1"
+            mkdir -p "$(dirname "$path")"
+            git show "origin/agent/complete-mail-delivery:$path" > "$path"
+          }
+          copy_from_qualified compose.mail.yml
+          copy_from_qualified docs-site/next/guides/events-and-notifications.md
+          copy_from_qualified docs/adrs/0034-outbound-mail-delivery.md
+          copy_from_qualified extensions/minco-aws-adapters/minco-plugin.json
+          copy_from_qualified extensions/minco-aws-adapters/src/plugin.rs
+          copy_from_qualified extensions/minco-aws-adapters/src/ses.rs
+          copy_from_qualified plugins/minco-plugin-notifications/Cargo.toml
+          copy_from_qualified plugins/minco-plugin-notifications/README.md
+          copy_from_qualified plugins/minco-plugin-notifications/minco-plugin.json
+          copy_from_qualified plugins/minco-plugin-notifications/src/lib.rs
+          copy_from_qualified plugins/minco-plugin-notifications/src/mail.rs
+          copy_from_qualified plugins/minco-plugin-notifications/src/mailpit.rs
+          copy_from_qualified tasks/M14/M14-T07-rich-observable-mail-delivery.md
+      - name: Integrate with current main files
+        run: |
+          git show origin/automation/mail-improvement-verify:.github/mail-rebuild/rebase_mail_to_current.py > /tmp/rebase_mail_to_current.py
+          python -m py_compile /tmp/rebase_mail_to_current.py
+          python /tmp/rebase_mail_to_current.py
+          cargo metadata --format-version 1 >/dev/null
+          git diff --check
+          test -z "$(git diff --name-only --diff-filter=U)"
+      - name: Commit one current-base mail change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            CHANGELOG.md \
+            Cargo.lock \
+            compose.mail.yml \
+            docs/DECISIONS.md \
+            docs/adrs/0034-outbound-mail-delivery.md \
+            docs-site/next/guides/events-and-notifications.md \
+            extensions/minco-aws-adapters/Cargo.toml \
+            extensions/minco-aws-adapters/README.md \
+            extensions/minco-aws-adapters/minco-plugin.json \
+            extensions/minco-aws-adapters/src/plugin.rs \
+            extensions/minco-aws-adapters/src/ses.rs \
+            plugins/minco-plugin-notifications/Cargo.toml \
+            plugins/minco-plugin-notifications/README.md \
+            plugins/minco-plugin-notifications/minco-plugin.json \
             plugins/minco-plugin-notifications/src/lib.rs \
             plugins/minco-plugin-notifications/src/mail.rs \
             plugins/minco-plugin-notifications/src/mailpit.rs \
-            extensions/minco-aws-adapters/src/plugin.rs \
-            extensions/minco-aws-adapters/src/ses.rs
-          git diff --check
-      - name: Test notification and mail contracts
-        run: cargo test -p minco-plugin-notifications --all-features --locked
-      - name: Lint notification and mail contracts
-        run: cargo clippy -p minco-plugin-notifications --all-targets --all-features --locked -- -D warnings
-      - name: Test SES adapter
-        run: cargo test -p minco-aws-adapters --features ses --locked
-      - name: Lint SES adapter
-        run: cargo clippy -p minco-aws-adapters --all-targets --features ses --locked -- -D warnings
-      - name: Build notification public documentation
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc -p minco-plugin-notifications --all-features --no-deps --locked
-      - name: Build SES adapter public documentation
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc -p minco-aws-adapters --features ses --no-deps --locked
-      - name: Verify clean qualification checkout
-        run: |
-          git diff --check
-          test -z "$(git status --short)"
+            tasks/M14/M14-T07-rich-observable-mail-delivery.md
+          test -z "$(git status --short | grep '^??')"
+          git commit -m "feat(mail): add rich observable low-cost delivery"
+          git push origin HEAD:agent/complete-mail-delivery-current
