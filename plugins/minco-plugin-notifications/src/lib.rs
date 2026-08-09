@@ -112,6 +112,7 @@ impl NotificationSink for MemoryNotificationSink {
     }
 }
 
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct NotificationsPlugin {
     service: NotificationService,

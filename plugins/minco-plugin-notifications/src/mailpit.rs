@@ -91,7 +91,7 @@ impl fmt::Debug for MailpitTransport {
 
 #[async_trait]
 impl MailTransport for MailpitTransport {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "mailpit"
     }
 

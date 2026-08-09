@@ -70,9 +70,7 @@ impl MailAddress {
     pub fn validate(&self) -> Result<(), MailError> {
         validate_email_address(&self.address)?;
         if self.name.as_deref().is_some_and(|name| {
-            name.trim().is_empty()
-                || name.len() > 256
-                || name.chars().any(|character| character.is_control())
+            name.trim().is_empty() || name.len() > 256 || name.chars().any(char::is_control)
         }) {
             return Err(MailError::invalid("mail display name is invalid"));
         }
@@ -212,7 +210,7 @@ impl fmt::Debug for MailAttachment {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct MailMessage {
     pub id: Uuid,
     pub topic: String,
@@ -385,18 +383,19 @@ impl fmt::Debug for MailMessage {
     }
 }
 
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct MailMessageBuilder {
     message: MailMessage,
 }
 
 impl MailMessageBuilder {
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.message.id = id;
         self
     }
 
-    pub fn created_at(mut self, created_at: DateTime<Utc>) -> Self {
+    pub const fn created_at(mut self, created_at: DateTime<Utc>) -> Self {
         self.message.created_at = created_at;
         self
     }
@@ -499,7 +498,7 @@ impl MailError {
         }
     }
 
-    pub fn retry_advice(&self) -> MailRetryAdvice {
+    pub const fn retry_advice(&self) -> MailRetryAdvice {
         match self.kind {
             MailErrorKind::Throttled | MailErrorKind::Unavailable => {
                 MailRetryAdvice::SafeAfterBackoff
@@ -650,8 +649,8 @@ pub struct TracingMailObserver;
 #[async_trait]
 impl MailObserver for TracingMailObserver {
     async fn observe(&self, event: &MailSubmissionEvent) {
-        match event.kind {
-            MailSubmissionEventKind::AttemptFailed => tracing::warn!(
+        if event.kind == MailSubmissionEventKind::AttemptFailed {
+            tracing::warn!(
                 target: "minco.mail",
                 mail_event_id = %event.event_id,
                 mail_message_id = %event.message_id,
@@ -662,8 +661,9 @@ impl MailObserver for TracingMailObserver {
                 mail_failure_kind = ?event.failure_kind,
                 mail_duration_ms = event.duration_ms,
                 "mail submission event"
-            ),
-            _ => tracing::info!(
+            );
+        } else {
+            tracing::info!(
                 target: "minco.mail",
                 mail_event_id = %event.event_id,
                 mail_message_id = %event.message_id,
@@ -674,7 +674,7 @@ impl MailObserver for TracingMailObserver {
                 mail_failure_kind = ?event.failure_kind,
                 mail_duration_ms = event.duration_ms,
                 "mail submission event"
-            ),
+            );
         }
     }
 }
@@ -899,12 +899,15 @@ impl MailTransport for MemoryMailTransport {
 
     async fn send(&self, message: &MailMessage, attempt: u32) -> Result<MailReceipt, MailError> {
         message.validate()?;
-        let mut messages = self.messages.write().await;
-        messages.push(message.clone());
+        let sequence = {
+            let mut messages = self.messages.write().await;
+            messages.push(message.clone());
+            messages.len()
+        };
         Ok(MailReceipt {
             message_id: message.id,
             transport: self.name.clone(),
-            provider_message_id: format!("memory:{}:{}", message.id, messages.len()),
+            provider_message_id: format!("memory:{}:{sequence}", message.id),
             accepted_at: Utc::now(),
             attempt,
         })
@@ -932,7 +935,7 @@ impl fmt::Debug for LegacyNotificationMailTransport {
 
 #[async_trait]
 impl MailTransport for LegacyNotificationMailTransport {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "legacy-notification"
     }
 
@@ -1068,9 +1071,11 @@ impl MemoryMailDeliveryEventSink {
 impl MailDeliveryEventSink for MemoryMailDeliveryEventSink {
     async fn record(&self, event: MailDeliveryEvent) -> Result<MailDeliveryDisposition, MailError> {
         event.validate()?;
-        let mut source_ids = self.source_ids.write().await;
-        if !source_ids.insert(event.source_event_id.clone()) {
-            return Ok(MailDeliveryDisposition::Duplicate);
+        {
+            let mut source_ids = self.source_ids.write().await;
+            if !source_ids.insert(event.source_event_id.clone()) {
+                return Ok(MailDeliveryDisposition::Duplicate);
+            }
         }
         self.events.write().await.push(event);
         Ok(MailDeliveryDisposition::Recorded)
@@ -1414,7 +1419,7 @@ fn validate_email_address(value: &str) -> Result<(), MailError> {
     Ok(())
 }
 
-fn valid_local_byte(byte: u8) -> bool {
+const fn valid_local_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric()
         || matches!(
             byte,
@@ -1612,7 +1617,11 @@ mod tests {
             message: &MailMessage,
             attempt: u32,
         ) -> Result<MailReceipt, MailError> {
-            match self.outcomes.lock().await.pop_front().unwrap_or(Ok(())) {
+            let outcome = {
+                let mut outcomes = self.outcomes.lock().await;
+                outcomes.pop_front().unwrap_or(Ok(()))
+            };
+            match outcome {
                 Ok(()) => Ok(MailReceipt {
                     message_id: message.id,
                     transport: self.name.into(),
