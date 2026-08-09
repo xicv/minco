@@ -2,7 +2,7 @@ name: minco-mail
 
 services:
   mailpit:
-    image: axllent/mailpit:v1.30.0@sha256:0059ef81a81be8483c1a366a6165c48ec6cfe2803cd93eaeb9287cd3b42f8492
+    image: axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
     restart: unless-stopped
     ports:
       - "127.0.0.1:${MINCO_MAILPIT_SMTP_PORT:-1025}:1025"
