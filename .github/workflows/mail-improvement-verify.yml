@@ -1,4 +1,4 @@
-name: Mail current-main reconstruction
+name: Mail repository qualification and generation
 
 on:
   push:
@@ -9,13 +9,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: mail-current-main-reconstruction
+  group: mail-repository-qualification-generation
   cancel-in-progress: true
 
 jobs:
-  reconstruct:
+  qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,58 +24,117 @@ jobs:
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: 1.97.1
-      - name: Copy only the qualified mail delta
+          components: rustfmt,clippy
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-on-failure: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          enable-cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - name: Install deterministic repository tools
+        run: uv sync --locked --only-dev
+      - name: Validate and exercise the local Mailpit inbox
         run: |
-          git fetch origin agent/complete-mail-delivery automation/mail-improvement-verify
-          copy_from_qualified() {
-            local path="$1"
-            mkdir -p "$(dirname "$path")"
-            git show "origin/agent/complete-mail-delivery:$path" > "$path"
+          set -euo pipefail
+          cleanup() {
+            docker compose -f compose.mail.yml logs --no-color || true
+            docker compose -f compose.mail.yml down -v --remove-orphans || true
           }
-          copy_from_qualified compose.mail.yml
-          copy_from_qualified docs-site/next/guides/events-and-notifications.md
-          copy_from_qualified docs/adrs/0034-outbound-mail-delivery.md
-          copy_from_qualified extensions/minco-aws-adapters/minco-plugin.json
-          copy_from_qualified extensions/minco-aws-adapters/src/plugin.rs
-          copy_from_qualified extensions/minco-aws-adapters/src/ses.rs
-          copy_from_qualified plugins/minco-plugin-notifications/Cargo.toml
-          copy_from_qualified plugins/minco-plugin-notifications/README.md
-          copy_from_qualified plugins/minco-plugin-notifications/minco-plugin.json
-          copy_from_qualified plugins/minco-plugin-notifications/src/lib.rs
-          copy_from_qualified plugins/minco-plugin-notifications/src/mail.rs
-          copy_from_qualified plugins/minco-plugin-notifications/src/mailpit.rs
-          copy_from_qualified tasks/M14/M14-T07-rich-observable-mail-delivery.md
-      - name: Integrate with current main files
+          trap cleanup EXIT
+          docker compose -f compose.mail.yml config --quiet
+          docker compose -f compose.mail.yml up -d
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:8025/readyz >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo 'Mailpit did not become ready' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          MAIL_SUBJECT="Minco mail qualification ${GITHUB_SHA}"
+          export MAIL_SUBJECT
+          python - <<'PY'
+          import os
+          import smtplib
+          from email.message import EmailMessage
+
+          message = EmailMessage()
+          message['From'] = 'minco@localhost'
+          message['To'] = 'person@example.com'
+          message['Subject'] = os.environ['MAIL_SUBJECT']
+          message.set_content('Minco local mail qualification body')
+          with smtplib.SMTP('127.0.0.1', 1025, timeout=5) as smtp:
+              smtp.send_message(message)
+          PY
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8025/view/latest.txt > /tmp/mailpit-latest.txt \
+              && grep -F "$MAIL_SUBJECT" /tmp/mailpit-latest.txt \
+              && grep -F 'Minco local mail qualification body' /tmp/mailpit-latest.txt; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo 'Mailpit did not expose the captured message' >&2
+              cat /tmp/mailpit-latest.txt || true
+              exit 1
+            fi
+            sleep 1
+          done
+          docker compose -f compose.mail.yml ps
+      - name: Generate task, plugin reference, and source evidence
         run: |
-          git show origin/automation/mail-improvement-verify:.github/mail-rebuild/rebase_mail_to_current.py > /tmp/rebase_mail_to_current.py
-          python -m py_compile /tmp/rebase_mail_to_current.py
-          python /tmp/rebase_mail_to_current.py
-          cargo metadata --format-version 1 >/dev/null
-          git diff --check
-          test -z "$(git diff --name-only --diff-filter=U)"
-      - name: Commit one current-base mail change
+          cargo build --quiet --locked -p cargo-minco
+          export PATH="$PWD/target/debug:$PATH"
+          cargo minco task graph --output roadmap/tasks.mmd
+          scripts/docs/generate-reference.sh
+          uv run --locked python scripts/source_manifest.py
+      - name: Validate repository policy
+        run: uv run --locked python scripts/validate_static.py
+      - name: Verify modified Rust files
         run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
-            CHANGELOG.md \
-            Cargo.lock \
-            compose.mail.yml \
-            docs/DECISIONS.md \
-            docs/adrs/0034-outbound-mail-delivery.md \
-            docs-site/next/guides/events-and-notifications.md \
-            extensions/minco-aws-adapters/Cargo.toml \
-            extensions/minco-aws-adapters/README.md \
-            extensions/minco-aws-adapters/minco-plugin.json \
-            extensions/minco-aws-adapters/src/plugin.rs \
-            extensions/minco-aws-adapters/src/ses.rs \
-            plugins/minco-plugin-notifications/Cargo.toml \
-            plugins/minco-plugin-notifications/README.md \
-            plugins/minco-plugin-notifications/minco-plugin.json \
+          rustfmt --edition 2024 --check \
             plugins/minco-plugin-notifications/src/lib.rs \
             plugins/minco-plugin-notifications/src/mail.rs \
             plugins/minco-plugin-notifications/src/mailpit.rs \
-            tasks/M14/M14-T07-rich-observable-mail-delivery.md
+            extensions/minco-aws-adapters/src/plugin.rs \
+            extensions/minco-aws-adapters/src/ses.rs
+          cargo test -p minco-plugin-notifications --all-features --locked
+          cargo clippy -p minco-plugin-notifications --all-targets --all-features --locked -- -D warnings
+          cargo test -p minco-aws-adapters --features ses --locked
+          cargo clippy -p minco-aws-adapters --all-targets --features ses --locked -- -D warnings
+          RUSTDOCFLAGS='-D warnings' cargo doc -p minco-plugin-notifications --all-features --no-deps --locked
+          RUSTDOCFLAGS='-D warnings' cargo doc -p minco-aws-adapters --features ses --no-deps --locked
+      - name: Verify documentation
+        run: |
+          scripts/docs/check-snippets.sh
+          scripts/docs/build.sh
+          scripts/docs/check-links.sh
+      - name: Check exact generated and source scope
+        run: |
+          git diff --check
+          git status --short
           test -z "$(git status --short | grep '^??')"
-          git commit -m "feat(mail): add rich observable low-cost delivery"
+      - name: Commit deterministic generated evidence
+        run: |
+          if git diff --quiet; then
+            echo 'Generated evidence was already current'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/reference/generated/diagnostics.md \
+            docs/reference/generated/schemas.md \
+            roadmap/tasks.mmd \
+            verification/source-manifest.json \
+            verification/static-validation.json
+          test -z "$(git status --short | grep '^??')"
+          git commit -m "docs(mail): refresh generated repository evidence"
           git push origin HEAD:agent/complete-mail-delivery-current
