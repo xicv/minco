@@ -17,11 +17,11 @@
       "contract_schemas": 13,
       "plugins": 18,
       "milestones": 15,
-      "tasks": 84,
-      "rust_files": 172,
+      "tasks": 87,
+      "rust_files": 177,
       "python_files": 30,
       "shell_files": 77,
-      "implementation_files_scanned": 419
+      "implementation_files_scanned": 424
     },
     "findings": [],
     "limitations": [
@@ -30,10 +30,10 @@
     ]
   },
   "metrics": {
-    "rust_files": 172,
-    "rust_lines": 83517,
+    "rust_files": 177,
+    "rust_lines": 86148,
     "unsafe_tokens": 13,
-    "production_unwrap_expect": 177,
+    "production_unwrap_expect": 181,
     "sql_files": 16
   },
   "findings": [
@@ -47,7 +47,7 @@
       "severity": "warning",
       "code": "REVIEW-RUST-001",
       "path": "crates/minco-plan/src/sam.rs",
-      "message": "81 unwrap/expect calls before test code"
+      "message": "82 unwrap/expect calls before test code"
     },
     {
       "severity": "information",

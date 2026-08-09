@@ -37,7 +37,9 @@ current SAM and CloudFormation schedule schemas do not expose that Scheduler
 API property.
 `allowed_origins` and `allowed_headers` are exact configuration inputs: empty,
 wildcard, invalid, and duplicate header lists are rejected, and the normalized
-values are carried into both Plan IR and generated SAM CORS policy. A plugin
+values are carried into both Plan IR and generated SAM CORS policy. The derived
+`exposed_headers` inventory makes Minco's frontend-neutral response metadata
+visible in Plan IR and is rendered directly into the SAM CORS policy. A plugin
 that requires an additional browser request header must have that header
 explicitly represented in the selected application configuration.
 
