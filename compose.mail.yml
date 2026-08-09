@@ -1,0 +1,26 @@
+name: minco-mail
+
+services:
+  mailpit:
+    image: axllent/mailpit:v1.30.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MINCO_MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MINCO_MAILPIT_UI_PORT:-8025}:8025"
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "500"
+      MP_MAX_AGE: 7d
+      MP_MAX_MESSAGE_SIZE: "40"
+      MP_BLOCK_REMOTE_CSS_AND_FONTS: "true"
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_SMTP_STRICT_RFC_HEADERS: "true"
+      MP_SMTP_MAX_RECIPIENTS: "50"
+      MP_SMTP_DISABLE_RDNS: "true"
+    volumes:
+      - mailpit-data:/data
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  mailpit-data:
