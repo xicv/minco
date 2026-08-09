@@ -1,4 +1,4 @@
-name: Mail staged-source diagnostics
+name: Mail staged-part export
 
 on:
   push:
@@ -9,20 +9,17 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  export:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Report exact staged part identities
-        run: |
-          sha256sum .github/mail-rebuild/src/mail.rs.part*
-          wc -c .github/mail-rebuild/src/mail.rs.part*
-          printf '%s  %s\n' \
-            'f5f7c32d4d922585e1e11c1d0f71ed73d6360e4ed98004db52ac986c0a801206' .github/mail-rebuild/src/mail.rs.part00 \
-            '90f4c0c0380ae314aadb049dd51ae1bfc088aef47068cd3a070f141cbe8f6ad8' .github/mail-rebuild/src/mail.rs.part01 \
-            '2befd92fd46323b3a1570d3b0d0d4b0a17ec8963b8d8ae235b5068a8945f9622' .github/mail-rebuild/src/mail.rs.part02 \
-            'ecdade09a3ac4a20006cdfcf44dc394e2c7b2bfbed7a10841efe799387b1bb8c' .github/mail-rebuild/src/mail.rs.part03 \
-            '8720a88939e54a50943b21076384375d2e2e5471f6f1ec7cf1de43f0874473c8' .github/mail-rebuild/src/mail.rs.part04 \
-            'ddc252fb77b2704475469feb6079ccf648269d733d432b04c75624a107d7bced' .github/mail-rebuild/src/mail.rs.part05 \
-            | sha256sum --check --strict
+      - name: Export mismatched source parts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mail-mismatched-parts
+          path: |
+            .github/mail-rebuild/src/mail.rs.part00
+            .github/mail-rebuild/src/mail.rs.part01
+          if-no-files-found: error
+          retention-days: 1
