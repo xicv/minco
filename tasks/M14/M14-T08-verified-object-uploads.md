@@ -97,8 +97,8 @@ only that pre-hardening head and is not final evidence.
 
 Current local evidence on pinned Rust 1.97.1:
 
-- static validation reports zero errors and zero warnings across 86 tasks and
-  176 Rust files;
+- static validation reports zero errors and zero warnings across 87 tasks and
+  177 Rust files;
 - targeted rustfmt checks only the eight modified Rust files;
 - `minco-plugin-object-storage` compiles, passes 10 tests, and passes
   warning-denying Clippy;
@@ -129,6 +129,13 @@ Static validation, source-manifest check, both affected package check/test/
 Clippy sets, and `git diff --check` then passed on the integrated Minco 1.2.0
 tree. The disposable worktree was removed after recording its recoverable local
 merge commit.
+
+Before final handoff, current `main`
+`c88429ce6d297fc080257709a92ed0da207b22bb` (merged PR #124) was merged into
+the PR branch. Its mobile-API source merged without conflict; only the three
+generated verification reports conflicted, and those were regenerated from
+the combined 1,069-file tree. The final exact merge head is requalified locally
+and by the official essential hosted workflow before the PR is reported ready.
 
 Official essential hosted run
 [31288782105](https://github.com/xicv/minco/actions/runs/31288782105) passed in

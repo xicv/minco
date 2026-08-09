@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Plan model source SHA-256: `cadd072eb833f1c64887a586fa3c88f39abfca298464c398dae7e466db1d1567`.
+Plan model source SHA-256: `30495e198d077549f4b55a936c13d3ddbc7d92fc1884ffe52bd2a0c44a16d56f`.
 
 ## Composed configuration schema
 
@@ -102,6 +102,7 @@ Rust types are shown exactly as declared. Serde attributes may omit empty or opt
 | `uses_nat_gateway` | `bool` | yes |
 | `allowed_origins` | `Vec<String>` | yes |
 | `allowed_headers` | `Vec<String>` | yes |
+| `exposed_headers` | `Vec<String>` | yes |
 | `log_retention_days` | `u32` | yes |
 | `cost_policy` | `CostPolicy` | yes |
 | `performance_policy` | `PerformancePolicy` | yes |
@@ -175,6 +176,8 @@ Reference schema version: `1`. This inventory records the checked-in reference a
 | `database.plan` | `string` |
 | `database.storage_gb_month` | `number` |
 | `environment` | `string` |
+| `exposed_headers` | `array` |
+| `exposed_headers[]` | `string` |
 | `functions` | `array` |
 | `functions[]` | `object` |
 | `functions[].artifact_path` | `string` |
