@@ -12,6 +12,21 @@ fn command(program: &str, arguments: &[&str]) -> CommandSpec {
     }
 }
 
+fn command_with_environment(
+    program: &str,
+    arguments: &[&str],
+    environment: &[(&str, &str)],
+) -> CommandSpec {
+    CommandSpec {
+        program: program.into(),
+        arguments: arguments.iter().map(ToString::to_string).collect(),
+        environment: environment
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .collect(),
+    }
+}
+
 fn process(id: &str, default_enabled: bool) -> ProcessConfig {
     ProcessConfig {
         id: id.into(),
@@ -141,10 +156,64 @@ fn unknown_workers_and_unsupported_local_aws_services_fail_closed() {
     assert!(error.to_string().contains("missing-worker"));
 
     let mut unsupported = graph();
-    unsupported.local_aws_services.push("lambda".into());
+    unsupported.local_aws_services.push("appsync".into());
     let error =
         DevPlan::derive(&unsupported, &DevOptions::default()).expect_err("unsupported AWS seam");
-    assert!(error.to_string().contains("lambda"));
+    assert!(error.to_string().contains("appsync"));
+}
+
+#[test]
+fn all_current_rustack_services_are_accepted_and_sorted() {
+    let mut graph = graph();
+    graph.local_aws_services = [
+        "sts",
+        "ssm",
+        "sqs",
+        "sns",
+        "ses",
+        "secretsmanager",
+        "s3",
+        "logs",
+        "lambda",
+        "kms",
+        "kinesis",
+        "iam",
+        "events",
+        "dynamodbstreams",
+        "dynamodb",
+        "cloudwatch",
+        "cloudfront",
+        "apigatewayv2",
+    ]
+    .into_iter()
+    .map(ToOwned::to_owned)
+    .collect();
+
+    let plan = DevPlan::derive(&graph, &DevOptions::default()).expect("supported Rustack services");
+
+    assert_eq!(
+        plan.services[1].aws_services,
+        [
+            "apigatewayv2",
+            "cloudfront",
+            "cloudwatch",
+            "dynamodb",
+            "dynamodbstreams",
+            "events",
+            "iam",
+            "kinesis",
+            "kms",
+            "lambda",
+            "logs",
+            "s3",
+            "secretsmanager",
+            "ses",
+            "sns",
+            "sqs",
+            "ssm",
+            "sts",
+        ]
+    );
 }
 
 #[test]
@@ -153,40 +222,80 @@ fn service_activation_and_cleanup_commands_are_explicit_and_deterministic() {
 
     assert_eq!(
         plan.services[0].start,
-        Some(command(
-            "docker",
+        Some(command_with_environment(
+            "cargo-minco",
             &[
-                "compose",
-                "-f",
-                "infra/local/compose.yaml",
-                "up",
-                "-d",
-                "--wait",
+                "__local-service",
+                "start",
                 "postgres",
+                "--application",
+                "orders",
+                "--compose-file",
+                "infra/local/compose.yaml",
+                "--port",
+                "55432",
             ],
+            &[("MINCO_POSTGRES_PORT", "55432")],
         ))
     );
     assert_eq!(
         plan.services[0].stop,
         Some(command(
-            "docker",
+            "cargo-minco",
             &[
-                "compose",
-                "-f",
-                "infra/local/compose.yaml",
+                "__local-service",
                 "stop",
                 "postgres",
+                "--application",
+                "orders",
+                "--compose-file",
+                "infra/local/compose.yaml",
+                "--port",
+                "55432",
             ],
         ))
     );
-    let rustack_start = plan.services[1].start.as_ref().expect("Rustack start");
     assert_eq!(
-        rustack_start.environment.get("MINCO_RUSTACK_SERVICES"),
-        Some(&"ssm,sts".to_owned())
+        plan.services[1].start,
+        Some(command_with_environment(
+            "cargo-minco",
+            &[
+                "__local-service",
+                "start",
+                "rustack",
+                "--application",
+                "orders",
+                "--compose-file",
+                "infra/local/compose.yaml",
+                "--port",
+                "4566",
+                "--aws-services",
+                "ssm,sts",
+            ],
+            &[
+                ("MINCO_RUSTACK_PORT", "4566"),
+                ("MINCO_RUSTACK_SERVICES", "ssm,sts"),
+            ],
+        ))
     );
     assert_eq!(
-        rustack_start.environment.get("MINCO_RUSTACK_PORT"),
-        Some(&"4566".to_owned())
+        plan.services[1].stop,
+        Some(command(
+            "cargo-minco",
+            &[
+                "__local-service",
+                "stop",
+                "rustack",
+                "--application",
+                "orders",
+                "--compose-file",
+                "infra/local/compose.yaml",
+                "--port",
+                "4566",
+                "--aws-services",
+                "ssm,sts",
+            ],
+        ))
     );
 }
 

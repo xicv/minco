@@ -1,14 +1,22 @@
 services:
   postgres:
-    image: postgres:18-alpine
+    container_name: ${MINCO_POSTGRES_RESOURCE_NAME:-minco-local-postgres}
+    image: ${MINCO_POSTGRES_IMAGE:-docker.io/library/postgres:18.4-alpine3.24@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15}
+    labels:
+      dev.minco.managed: ${MINCO_POSTGRES_LABEL_MANAGED:-false}
+      dev.minco.schema: ${MINCO_POSTGRES_LABEL_SCHEMA:-unmanaged}
+      dev.minco.application: ${MINCO_POSTGRES_LABEL_APPLICATION:-unmanaged}
+      dev.minco.workspace: ${MINCO_POSTGRES_LABEL_WORKSPACE:-unmanaged}
+      dev.minco.service: ${MINCO_POSTGRES_LABEL_SERVICE:-postgres}
+      dev.minco.configuration: ${MINCO_POSTGRES_LABEL_CONFIGURATION:-unmanaged}
     environment:
-      POSTGRES_DB: minco_orders
-      POSTGRES_USER: minco
-      POSTGRES_PASSWORD: minco
+      POSTGRES_DB: ${MINCO_POSTGRES_DB:-minco_orders}
+      POSTGRES_USER: ${MINCO_POSTGRES_USER:-minco}
+      POSTGRES_PASSWORD: ${MINCO_POSTGRES_PASSWORD:-minco}
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:${MINCO_POSTGRES_PORT:-55432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U minco -d minco_orders"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -16,13 +24,29 @@ services:
       - minco-postgres:/var/lib/postgresql
 
   rustack:
-    image: ghcr.io/tyrchen/rustack@sha256:18cd91395e17453e2c34b299e45f4679dc2427473dc1db6541bbe212fd70a104
+    container_name: ${MINCO_RUSTACK_RESOURCE_NAME:-minco-local-rustack}
+    image: ${MINCO_RUSTACK_IMAGE:-ghcr.io/tyrchen/rustack:0.9.1@sha256:18cd91395e17453e2c34b299e45f4679dc2427473dc1db6541bbe212fd70a104}
+    labels:
+      dev.minco.managed: ${MINCO_RUSTACK_LABEL_MANAGED:-false}
+      dev.minco.schema: ${MINCO_RUSTACK_LABEL_SCHEMA:-unmanaged}
+      dev.minco.application: ${MINCO_RUSTACK_LABEL_APPLICATION:-unmanaged}
+      dev.minco.workspace: ${MINCO_RUSTACK_LABEL_WORKSPACE:-unmanaged}
+      dev.minco.service: ${MINCO_RUSTACK_LABEL_SERVICE:-rustack}
+      dev.minco.configuration: ${MINCO_RUSTACK_LABEL_CONFIGURATION:-unmanaged}
     environment:
       SERVICES: ${MINCO_RUSTACK_SERVICES:-ssm,sts}
-      DEFAULT_REGION: ap-southeast-2
-      LOG_LEVEL: info
+      DEFAULT_REGION: ${MINCO_RUSTACK_REGION:-${AWS_REGION:-ap-southeast-2}}
+      LOG_LEVEL: ${MINCO_RUSTACK_LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${MINCO_RUSTACK_PORT:-4566}:4566"
 
 volumes:
   minco-postgres:
+    name: ${MINCO_POSTGRES_VOLUME_NAME:-minco-local-postgres-data}
+    labels:
+      dev.minco.managed: ${MINCO_POSTGRES_LABEL_MANAGED:-false}
+      dev.minco.schema: ${MINCO_POSTGRES_LABEL_SCHEMA:-unmanaged}
+      dev.minco.application: ${MINCO_POSTGRES_LABEL_APPLICATION:-unmanaged}
+      dev.minco.workspace: ${MINCO_POSTGRES_LABEL_WORKSPACE:-unmanaged}
+      dev.minco.service: ${MINCO_POSTGRES_LABEL_SERVICE:-postgres}
+      dev.minco.configuration: ${MINCO_POSTGRES_LABEL_CONFIGURATION:-unmanaged}

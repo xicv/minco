@@ -13,6 +13,40 @@ cargo minco doctor
 cargo minco config check
 cargo minco contract sync --check
 cargo minco check --with-cargo
+cargo minco dev --dry-run --json
+cargo minco dev
+```
+
+`cargo minco dev` starts only the local services declared by the application
+graph, waits for readiness, applies the declared local migration, starts the API
+and optional processes, and coordinates shutdown on Ctrl-C. The default
+`MINCO_CONTAINER_RUNTIME=auto` uses Docker Compose when it is ready and falls
+back to Apple Container 1.2.x on Apple silicon macOS 26 after `container system
+start`.
+Select a runtime explicitly when required:
+
+```bash
+MINCO_CONTAINER_RUNTIME=docker cargo minco dev
+MINCO_CONTAINER_RUNTIME=apple cargo minco dev
+```
+
+The generated `infra/local/compose.yaml` remains application-owned and can be
+customized for Docker, following the same publish-and-edit principle as Laravel
+Sail. Apple Container runs Minco's declared PostgreSQL and Rustack services
+through native OCI commands; application-specific Compose-only services still
+require Docker or an explicit graph process. PostgreSQL data remains in a named
+volume after shutdown. Minco verifies complete ownership metadata before reuse
+or shutdown and never deletes persistent data. There is no implicit reset;
+volume removal is a separate explicit data-loss operation.
+
+The API listens at `http://127.0.0.1:3000` by default.
+
+## Review migrations explicitly
+
+Use the digest-bound lifecycle when a migration needs a separate review before
+local execution, then start development with `cargo minco dev --no-migrate`:
+
+```bash
 {{DATABASE_SETUP}}
 cargo minco db plan --set {{PACKAGE}}-{{DATABASE}} --json \
   > target/minco/migration-plan.json
@@ -24,10 +58,8 @@ cargo minco db migrate \
   --database-url-env DATABASE_MIGRATION_URL \
   --expected-plan-digest "$MINCO_REVIEWED_MIGRATION_DIGEST" \
   --receipt target/minco/migration-receipt.json
-cargo run -p {{PACKAGE}}-service --bin {{PACKAGE}}-local
+cargo minco dev --no-migrate
 ```
-
-The API listens at `http://127.0.0.1:3000` by default.
 
 ## Architecture
 

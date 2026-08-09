@@ -1,0 +1,110 @@
+name: Local development runtime
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/local-dev-runtime-validation.yml
+      - Cargo.lock
+      - Cargo.toml
+      - crates/minco-cli/**
+      - crates/minco-dev/**
+      - infra/local/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-development-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-package-generated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-targets: false
+          cache-on-failure: false
+      - name: Install pinned JJ for compatibility tests
+        run: |
+          cargo install --locked --bin jj jj-cli --version 0.43.0
+          jj --version
+      - name: Install pinned ripgrep for generated-app checks
+        run: |
+          cargo install --locked ripgrep --version 15.2.0
+          rg --version
+      - name: Check only task-owned Rust files
+        run: |
+          rustfmt --edition 2024 --check \
+            crates/minco-cli/src/main.rs \
+            crates/minco-cli/src/new_cmd.rs \
+            crates/minco-cli/src/service_runtime.rs \
+            crates/minco-dev/src/lib.rs \
+            crates/minco-dev/tests/dev_plan.rs
+      - name: Test affected packages
+        run: |
+          cargo test --locked -p minco-dev --all-targets --all-features
+          cargo test --locked -p cargo-minco --all-targets --all-features
+      - name: Lint affected packages
+        run: |
+          cargo clippy --locked -p minco-dev --all-targets --all-features -- -D warnings
+          cargo clippy --locked -p cargo-minco --all-targets --all-features -- -D warnings
+      - name: Verify package and generated applications
+        run: |
+          cargo package --locked -p cargo-minco
+          scripts/test/generated_apps.sh
+
+  docker-services:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cache-targets: false
+          cache-on-failure: false
+      - name: Build the version-coupled CLI
+        run: cargo build --locked -p cargo-minco
+      - name: Qualify owned PostgreSQL and Rustack services
+        env:
+          MINCO_CONTAINER_RUNTIME: docker
+        run: |
+          application="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          target/debug/cargo-minco __local-service start postgres \
+            --application "$application" \
+            --compose-file infra/local/compose.yaml \
+            --port 55432
+          postgres_id="$(docker ps -q --filter "label=dev.minco.application=$application" --filter label=dev.minco.service=postgres)"
+          docker exec "$postgres_id" psql -U minco -d minco_orders -v ON_ERROR_STOP=1 -c 'SELECT 1'
+          target/debug/cargo-minco __local-service stop postgres \
+            --application "$application" \
+            --compose-file infra/local/compose.yaml \
+            --port 55432
+          target/debug/cargo-minco __local-service start postgres \
+            --application "$application" \
+            --compose-file infra/local/compose.yaml \
+            --port 55432
+          target/debug/cargo-minco __local-service stop postgres \
+            --application "$application" \
+            --compose-file infra/local/compose.yaml \
+            --port 55432
+          target/debug/cargo-minco __local-service start rustack \
+            --application "$application" \
+            --compose-file infra/local/compose.yaml \
+            --port 4566 \
+            --aws-services sts
+          target/debug/cargo-minco __local-service stop rustack \
+            --application "$application" \
+            --compose-file infra/local/compose.yaml \
+            --port 4566 \
+            --aws-services sts

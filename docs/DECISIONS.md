@@ -38,3 +38,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0032](adrs/0032-access-pattern-dynamodb.md) | Keep DynamoDB access patterns application-owned and render only explicit table and IAM contracts. | Accepted |
 | [ADR-0033](adrs/0033-agent-native-development.md) | Project version-matched portable Agent Skills and bounded CLI context into Codex and Claude without granting implicit mutation authority. | Accepted |
 | [ADR-0035](adrs/0035-verified-direct-object-uploads.md) | Keep file bytes on direct private object-storage paths and verify issued uploads through typed policy, generated keys, and provider metadata. | Accepted |
+| [ADR-0036](adrs/0036-owned-local-service-runtimes.md) | Keep the application native while supervising explicitly owned Docker Compose or Apple Container dependencies through one typed local-service contract. | Accepted |

@@ -76,7 +76,7 @@ impl DatabaseChoice {
     const fn database_env(self) -> &'static str {
         match self {
             Self::Postgres => {
-                "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app\nDATABASE_MIGRATION_URL=postgresql://postgres:postgres@127.0.0.1:5432/app"
+                "DATABASE_URL=postgresql://minco:minco@127.0.0.1:55432/minco_orders\nDATABASE_MIGRATION_URL=postgresql://minco:minco@127.0.0.1:55432/minco_orders"
             }
             Self::Sqlite => "DATABASE_PATH=var/app.db\nDATABASE_MIGRATION_URL=sqlite://var/app.db",
         }
@@ -409,10 +409,7 @@ pub fn create_project(options: &NewProjectOptions) -> Result<NewProjectReport> {
                 options.name,
                 options.database.as_str()
             ),
-            format!(
-                "cargo run -p {}-service --bin {}-local",
-                options.name, options.name
-            ),
+            "cargo minco dev".into(),
         ],
     })
 }
@@ -529,6 +526,11 @@ mod tests {
         );
         assert_eq!(manifest["development"]["api"]["id"].as_str(), Some("api"));
         assert!(destination.join("infra/local/compose.yaml").is_file());
+        let environment = std::fs::read_to_string(destination.join(".env.example")).unwrap();
+        assert!(
+            environment
+                .contains("DATABASE_URL=postgresql://minco:minco@127.0.0.1:55432/minco_orders")
+        );
         let catalog = minco_db::load_catalog(&destination, &[PathBuf::from("migrations/postgres")])
             .expect("load generated lifecycle catalog");
         assert_eq!(catalog.sets[0].id, "example-api-postgres");
@@ -548,5 +550,6 @@ mod tests {
                 .next_commands
                 .contains(&"cargo minco db plan --set example-api-postgres --json".into())
         );
+        assert!(report.next_commands.contains(&"cargo minco dev".into()));
     }
 }
