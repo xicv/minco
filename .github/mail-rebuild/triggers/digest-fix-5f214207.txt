@@ -1,0 +1,1 @@
+Trigger repository qualification after correcting the Mailpit v1.30.0 index digest on agent/complete-mail-delivery-current at 5f214207f5b440f1cc2f6d3696a37d761e268c6f.
