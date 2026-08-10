@@ -3,7 +3,7 @@
     "errors": 0,
     "warnings": 2
   },
-  "effective_date": "2026-08-10",
+  "effective_date": "2026-08-11",
   "effective_date_source": "repository_truth",
   "findings": [
     {
@@ -15,17 +15,17 @@
     {
       "code": "PERF-BASELINE-007",
       "message": "exact-tree hosted Linux performance evidence is NOT RUN",
-      "path": "verification/1.2-performance-baseline.json",
+      "path": "verification/1.3-performance-baseline.json",
       "severity": "warning"
     }
   ],
   "inputs": {
-    "verification/1.2-performance-baseline.json": "5e498c4b60251e4b820ee14d4de71763cfa4fa56b99859243d01ebccf59416f2",
+    "verification/1.3-performance-baseline.json": "d782f8312ebbaa47ef423ab1963aecbb7b9f4bb7630d703fe575f2be4e366fa3",
     "verification/aws-capability-candidates.toml": "53b106b98813864dce64a3a5b18bbe7cde11b51d3a112ca47dd9c867559927a8",
-    "verification/performance-policy.toml": "fd1db4a03bc9e2d5702fb38bf3274c7a43b53baf7dba2667664a4b2167a47092",
-    "verification/provider-evidence.toml": "48f4c0151002a5850c44f928695ac33763bb04a37da903359134bab7e33534f0",
-    "verification/repository-truth.toml": "ef874768a12ad99b8a3394663183a9a3742ac7968046b1f83f708f2725337f0b",
-    "verification/source-manifest.json": "c582c64c9ed3248e25ec62b37c6c1be8e6334e584a50312313ae32654b92682e"
+    "verification/performance-policy.toml": "4e5f5a9eb72e7c2f089bb4ee840dd135ed492772439e65afc6f2ac96f6c44895",
+    "verification/provider-evidence.toml": "d501421c6bec88320a033c1b862461b0f1600fee773185c01b99b7bef285f8bf",
+    "verification/repository-truth.toml": "77ffa79af87adad29f5422319a76bd50b8bf49c0bc20569f5a4e4b60b52a4ef3",
+    "verification/source-manifest.json": "d6a0a5d708b114fd55a5e77174188b71f4f6d77c1daabe1337613c7e0e3e98ed"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -34,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "125850589b4da5419ffcaafba015b880cb8f83d493ae7911dec29de0db3f3bc5",
+  "receipt_digest": "b6c1365dd964a1a9d08dee0d75ac1459921be0bbf63b3aaf930a8bba4fea917b",
   "schema_version": 1,
-  "source_tree_sha256": "8b575da2a0d3c25078db7116f0a8471f8e27aeecc55f5bf33b65a1c5ee30cc64",
+  "source_tree_sha256": "d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1",
   "status": "PASS"
 }

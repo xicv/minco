@@ -1,0 +1,1 @@
+{"id":"delivery-offline-1","timestamp":"2026-08-09T00:00:00.000Z","eventType":"order.completed","eventId":"order-offline-1","storeId":"STO_0123456789ABCDEFGHIJKL","storeName":"Offline Test Store","mode":"test","data":{"status":"completed"}}

@@ -1,13 +1,29 @@
 # Review status
 
-The workspace is the published `1.2.2` lock-step release for Signal homepage
-presentation hardening.
+The workspace is the unpublished `1.3.0` lock-step candidate for the opt-in
+Waffo Pancake payments integration.
 
 Published baseline: `1.2.2`
 
-Current workspace version: `1.2.2`
+Current workspace version: `1.3.0`
 
-Workspace release state: `published`
+Workspace release state: `candidate`
+
+The current review covers the provider-specific payment boundary, signed
+request and redirect policy, idempotency and ephemeral-token handling, raw-body
+webhook verification, CLI automation, static plugin/catalog integration,
+34-package release truth, frozen candidate documentation and nine-skill agent
+bundle. No generic billing model, default feature, hidden worker, poller,
+schedule, AWS resource or always-on control plane is introduced.
+
+The historical PR #125 source was reconstructed onto current `main`; the
+task-specific workflow was removed and the exact three-file workflow allowlist
+now fails closed in both static and policy tests. Local exact-tree and fresh
+clean-Linux qualification remain required before merge. Live Waffo, registry,
+docs.rs, Pages, deployment and production evidence remain separate and are not
+claimed by this candidate.
+
+## Published 1.2.2 baseline
 
 The release corrects diagram text overflow and the ordered-list cascade that
 misaligned the four operating-model cards. Local, hosted, tag, registry,

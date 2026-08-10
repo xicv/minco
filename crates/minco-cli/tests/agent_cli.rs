@@ -291,7 +291,7 @@ fn agent_plan_is_deterministic_complete_and_read_only() {
     assert_eq!(plan["conflicts"], serde_json::json!([]));
     assert_eq!(
         plan["actions"].as_array().expect("planned actions").len(),
-        50
+        56
     );
     assert!(
         plan["actions"]
@@ -349,7 +349,7 @@ fn sync_requires_the_exact_current_plan_digest_and_is_repeatable() {
     ));
     assert_eq!(applied["operation"], "sync");
     assert_eq!(applied["applied"], true);
-    assert_eq!(applied["writes"], 50);
+    assert_eq!(applied["writes"], 56);
 
     let manifest: Value = serde_json::from_slice(
         &fs::read(root.path().join(".minco/agent-manifest.json"))
@@ -359,7 +359,7 @@ fn sync_requires_the_exact_current_plan_digest_and_is_repeatable() {
     assert_eq!(manifest["schema_version"], 1);
     assert_eq!(
         manifest["files"].as_array().expect("managed files").len(),
-        49
+        55
     );
 
     let unchanged = plan(root.path(), "all");
@@ -610,7 +610,7 @@ fn selecting_the_second_client_preserves_the_first_projection_and_ownership() {
             .expect("combined ownership manifest"),
     )
     .expect("valid ownership manifest");
-    assert_eq!(manifest["files"].as_array().unwrap().len(), 49);
+    assert_eq!(manifest["files"].as_array().unwrap().len(), 55);
 }
 
 #[test]
@@ -804,11 +804,11 @@ fn evaluation_requires_installed_projections_and_performs_no_side_effects() {
 
     assert_eq!(report["status"], "passed");
     assert_eq!(report["skills"]["status"], "passed");
-    assert_eq!(report["skills"]["checked"], 8);
-    assert_eq!(report["skills"]["files"], 24);
+    assert_eq!(report["skills"]["checked"], 9);
+    assert_eq!(report["skills"]["files"], 27);
     assert_eq!(report["projection"]["status"], "passed");
     assert_eq!(report["projection"]["parity"]["status"], "passed");
-    assert_eq!(report["projection"]["parity"]["compared_files"], 24);
+    assert_eq!(report["projection"]["parity"]["compared_files"], 27);
     assert_eq!(report["forward_model"]["status"], "not_run");
     assert_eq!(snapshot(root.path()), installed);
 }
@@ -830,10 +830,10 @@ fn evaluation_validates_every_trigger_and_boundary_contract() {
 
     let report = successful_json(&run(root.path(), &["eval", "--target", "all"]));
     assert_eq!(report["scenarios"]["status"], "passed");
-    assert_eq!(report["scenarios"]["total"], 16);
-    assert_eq!(report["scenarios"]["trigger"], 8);
-    assert_eq!(report["scenarios"]["boundary"], 8);
-    assert_eq!(report["scenarios"]["skills_covered"], 8);
+    assert_eq!(report["scenarios"]["total"], 18);
+    assert_eq!(report["scenarios"]["trigger"], 9);
+    assert_eq!(report["scenarios"]["boundary"], 9);
+    assert_eq!(report["scenarios"]["skills_covered"], 9);
     assert!(
         report["scenarios"]["results"]
             .as_array()
@@ -920,8 +920,8 @@ fn codex_and_claude_targets_are_symmetric_and_doctor_is_read_only() {
     let claude = project();
     let codex_plan = plan(codex.path(), "codex");
     let claude_plan = plan(claude.path(), "claude");
-    assert_eq!(codex_plan["actions"].as_array().unwrap().len(), 25);
-    assert_eq!(claude_plan["actions"].as_array().unwrap().len(), 26);
+    assert_eq!(codex_plan["actions"].as_array().unwrap().len(), 28);
+    assert_eq!(claude_plan["actions"].as_array().unwrap().len(), 29);
     assert!(
         codex_plan["actions"]
             .as_array()

@@ -46,7 +46,7 @@ reference when the next decision requires it.
   </a>
   <a class="doc-path-card" data-index="08 · COMPOSE" href="./plugins/">
     <strong>Choose built-in plugins</strong>
-    <span>Compare all 18 plugins, adapters, and runtimes by purpose, stability, and cost behavior.</span>
+    <span>Compare all 19 plugins, adapters, and runtimes by purpose, stability, and cost behavior.</span>
   </a>
   <a class="doc-path-card" data-index="09 · RECIPES" href="./cookbook/">
     <strong>Follow practical recipes</strong>

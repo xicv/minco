@@ -10,6 +10,7 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
+| 1.3.0 | Release candidate | 1.97.1 | [Open 1.3.0 candidate docs](/1.3.0/) |
 | 1.2.2 | Latest stable | 1.97.1 | [Open 1.2.2 docs](/1.2.2/) |
 | 1.2.1 | Previous stable | 1.97.1 | [Open 1.2.1 docs](/1.2.1/) |
 | 1.2.0 | Previous stable | 1.97.1 | [Open 1.2.0 docs](/1.2.0/) |
@@ -19,7 +20,8 @@ is retained as a stable reference; `next` is allowed to change.
 | 0.5.0 | Previous stable | 1.97.1 | [Open 0.5.0 docs](/0.5.0/) |
 | Next | Unreleased | Repository-pinned | [Preview next](/next/) |
 
-The 1.2.2 source, hosted qualification, immutable tag, registry publication and
+The 1.3.0 documentation describes an unpublished candidate. The 1.2.2 source,
+hosted qualification, immutable tag, registry publication and
 GitHub release are independently verified. Merged-main Pages deployment and
 all 33 exact docs.rs rustdoc routes are also independently verified. Live AWS
 application deployment remains a separate boundary.

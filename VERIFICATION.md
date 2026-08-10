@@ -1,11 +1,32 @@
 # Minco verification and release evidence
 
 Date: 2026-08-11
-Current workspace version: `1.2.2`
+Current workspace version: `1.3.0`
 Published baseline: `1.2.2`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T16 `1.3.0` Waffo payments candidate
+
+The current 34-package source candidate adds the opt-in
+`minco-plugin-payments-waffo` beta, one version-matched Waffo Agent Skill and a
+frozen 1.3.0 candidate manual. It keeps payment state application-owned and
+provides signed typed actions, hosted checkout, read-only GraphQL, raw-body
+webhook verification, a bounded JSON CLI and deterministic offline fakes.
+
+Recovery starts from current `main` `6dda1a87771d5c99a6dd4f35c27f08f4a802192c`
+rather than the conflicting historical PR #125 base. The prohibited
+task-specific workflow is absent, and both the standalone static gate and the
+hosted-policy regression enforce ADR-0038's exact three-workflow allowlist.
+The provider contract was reviewed against the official Waffo Go SDK `v0.9.0`
+at `799135cbe07c45819da0ab4bf777c64fcc956220`.
+
+Exact-tree local release qualification and clean-Linux compatibility must pass
+before merge. A merge remains distinct from tag creation, registry upload,
+docs.rs, Pages and provider proof. No live Waffo request or payment was made;
+live-provider evidence is `NOT RUN`. No AWS application resource was contacted
+or changed, and no production SLO is claimed.
 
 ## M14-T15 `1.2.2` documentation presentation release
 

@@ -909,6 +909,33 @@ class Validator:
             )
             return
 
+        bundled_waffo = (
+            self.root
+            / "crates/minco-cli/assets/agent/skills/minco-waffo-payments"
+        )
+        packaged_waffo = (
+            self.root
+            / "plugins/minco-plugin-payments-waffo/agent/skills/minco-waffo-payments"
+        )
+        for relative in [
+            "SKILL.md",
+            "agents/openai.yaml",
+            "references/workflow.md",
+        ]:
+            try:
+                copies_match = (
+                    bundled_waffo.joinpath(relative).read_bytes()
+                    == packaged_waffo.joinpath(relative).read_bytes()
+                )
+            except OSError:
+                copies_match = False
+            if not copies_match:
+                self.error(
+                    "STATIC-AGENT-RELEASE-005",
+                    f"packaged Waffo skill differs from projected bundle: {relative}",
+                    packaged_waffo / relative,
+                )
+
         feature_by_id: dict[str, dict[str, Any]] = {}
         invalid_features = False
         for feature in features:
@@ -1443,7 +1470,24 @@ class Validator:
                     path,
                 )
         workflow_root = self.root / ".github/workflows"
-        for workflow in sorted(workflow_root.glob("*.y*ml")):
+        workflows = sorted(
+            [*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml")]
+        )
+        expected_workflows = {
+            "docs-pages.yml",
+            "minco-manual.yml",
+            "publish-crates.yml",
+        }
+        observed_workflows = {workflow.name for workflow in workflows}
+        if observed_workflows != expected_workflows:
+            self.error(
+                "STATIC-QUALITY-005",
+                "GitHub workflow allowlist differs: "
+                f"expected {sorted(expected_workflows)}, "
+                f"observed {sorted(observed_workflows)}",
+                workflow_root,
+            )
+        for workflow in workflows:
             for action, reference in re.findall(
                 r"^\s*(?:-\s*)?uses:\s*([^@\s]+)@([^\s#]+)",
                 workflow.read_text(),

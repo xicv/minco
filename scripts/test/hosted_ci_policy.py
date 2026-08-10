@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +21,7 @@ WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
 PUBLISH_WORKFLOW = WORKFLOW_DIRECTORY / "publish-crates.yml"
 DOCS_PLAYWRIGHT = ROOT / "docs-site/playwright.config.mts"
 AGENT_WORKFLOWS_PATH = ROOT / "scripts/test/agent_workflows.py"
+STATIC_VALIDATOR_PATH = ROOT / "scripts/validate_static.py"
 
 
 def load_agent_workflows():
@@ -28,6 +30,18 @@ def load_agent_workflows():
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_static_validator():
+    spec = importlib.util.spec_from_file_location(
+        "hosted_policy_static_validator", STATIC_VALIDATOR_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -107,6 +121,37 @@ class HostedCiPolicyTests(unittest.TestCase):
             {path.name for path in workflow_files},
             {"docs-pages.yml", "minco-manual.yml", "publish-crates.yml"},
         )
+
+    def test_static_validator_rejects_a_task_specific_workflow(self) -> None:
+        validate_static = load_static_validator()
+        with tempfile.TemporaryDirectory(prefix="minco-workflow-policy-") as temporary:
+            root = Path(temporary)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "quality.toml").write_text(
+                "[gates.static]\ncommands = [\"uv run --locked python scripts/validate_static.py\"]\n\n"
+                "[gates.rust]\ncommands = [\"cargo check --locked\"]\n\n"
+                "[gates.security]\ncommands = [\"cargo deny check\"]\n\n"
+                "[gates.e2e]\ncommands = [\"scripts/test/e2e.sh\"]\n"
+            )
+            for name in (
+                "docs-pages.yml",
+                "minco-manual.yml",
+                "publish-crates.yml",
+                "waffo-payments.yml",
+            ):
+                (root / ".github/workflows" / name).write_text("name: fixture\n")
+
+            validator = validate_static.Validator(root)
+            validator.validate_quality_configuration()
+            workflow_allowlist_code = "STATIC-QUALITY-" + "005"
+
+            self.assertTrue(
+                any(
+                    finding.code == workflow_allowlist_code
+                    for finding in validator.findings
+                ),
+                "the standalone static gate must fail closed on workflow allowlist drift",
+            )
 
     def test_manual_workflow_is_only_a_bounded_clean_runner_check(self) -> None:
         workflow = yaml.load(WORKFLOW.read_text(), Loader=yaml.BaseLoader)

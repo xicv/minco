@@ -935,6 +935,13 @@ fn plugin_list_preserves_static_distribution_coordinates() {
         .expect("AWS Lambda runtime");
     assert_eq!(lambda["kind"], "runtime");
     assert_eq!(lambda["feature"], "aws-lambda");
+
+    let payments = plugins
+        .iter()
+        .find(|plugin| plugin["id"] == "payments-waffo")
+        .expect("Waffo payments plugin");
+    assert_eq!(payments["kind"], "plugin");
+    assert_eq!(payments["feature"], "plugin-payments-waffo");
 }
 
 #[test]
@@ -1004,7 +1011,7 @@ fn plugin_test_all_uses_the_public_offline_conformance_boundary() {
     );
     let reports: Value = serde_json::from_slice(&output.stdout).expect("conformance JSON");
     let reports = reports.as_array().expect("conformance reports");
-    assert_eq!(reports.len(), 18);
+    assert_eq!(reports.len(), 19);
     assert!(
         reports
             .iter()
@@ -1014,6 +1021,11 @@ fn plugin_test_all_uses_the_public_offline_conformance_boundary() {
         reports
             .iter()
             .any(|report| report["plugin_id"] == "realtime")
+    );
+    assert!(
+        reports
+            .iter()
+            .any(|report| report["plugin_id"] == "payments-waffo")
     );
     for report in reports {
         assert_eq!(report["status"], "passed", "{report:#}");

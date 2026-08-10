@@ -8,9 +8,13 @@ family from immutable tag `v1.2.2` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The published patch hardens the Signal homepage presentation, keeps all eight
-packaged AI skills current, and retains cumulative changelog-to-skill coverage
-plus the deterministic workflow receipt as mandatory release gates.
+The current workspace is the unpublished 34-package `1.3.0` candidate. It adds
+`minco-plugin-payments-waffo`; no 1.3.0 tag, upload, registry, docs.rs, Pages or
+live Waffo proof is represented by this source state.
+
+The candidate keeps the eight published AI skills current, adds one
+Waffo-specific skill, and retains cumulative changelog-to-skill coverage plus
+the deterministic workflow receipt as mandatory release gates.
 Publication workflow `31396167046` passed and independent registry validation
 found all 33 exact versions present and non-yanked.
 
@@ -37,7 +41,9 @@ complement. The 1.2.0 release used short-lived OIDC credentials in workflow run
 `31362919458`. The 1.2.1 and 1.2.2 patches independently re-proved OIDC
 publication in runs `31379324388` and `31396167046`; all 33 uploads and
 exact-version registry checks passed for each release.
-Repository truth keeps `new_publishable_packages` empty.
+Repository truth records only `minco-plugin-payments-waffo` as a new
+publishable candidate; this merge does not create its publisher configuration
+or upload it.
 Every later release must re-prove authentication and registry state; ownership
 alone is not authentication evidence.
 

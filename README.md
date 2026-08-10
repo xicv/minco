@@ -19,11 +19,11 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.2.2`
 >
-> Current workspace version: `1.2.2`
+> Current workspace version: `1.3.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
-> Current publishable package count: `33`
+> Current publishable package count: `34`
 
 ## Documentation
 
@@ -38,6 +38,7 @@ start directly with:
 - [Plugin conformance](https://xicv.github.io/minco/1.2.2/guides/plugin-conformance)
 - [Zero idle, precisely](https://xicv.github.io/minco/1.2.2/explanation/zero-idle)
 - [Develop with Codex and Claude](https://xicv.github.io/minco/1.2.2/guides/agent-development)
+- [Review the 1.3.0 Waffo payments candidate](https://xicv.github.io/minco/1.3.0/guides/payments-waffo)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -77,10 +78,10 @@ cargo add minco@1.2.2 --no-default-features
 
 ## Agent-native application development
 
-The published `1.2.2` release packages eight focused, version-matched workflow
-skills for Codex and Claude Code. It keeps all eight current, adds
-documentation-presentation guidance to the relevant release, review and web
-workflows, and retains the mandatory changelog-to-skill freshness gate. Minco
+The `1.3.0` candidate packages nine focused, version-matched workflow skills
+for Codex and Claude Code. It retains all eight published workflows, adds a
+provider-specific Waffo payments skill, and keeps the mandatory cumulative
+changelog-to-skill freshness gate. Minco
 plans project-local projections before writing, requires
 the exact plan digest to synchronize them, and preserves user-owned
 instructions and client configuration.
@@ -96,7 +97,7 @@ cargo minco agent eval --target all --json
 Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
-the [agent development guide](https://xicv.github.io/minco/1.2.2/guides/agent-development).
+the [candidate agent development guide](https://xicv.github.io/minco/1.3.0/guides/agent-development).
 
 Release qualification also verifies cumulative feature coverage, current
 versioned documentation, skill markers and a byte-identical deterministic

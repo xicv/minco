@@ -26,6 +26,11 @@ description: >-
    run as sufficient evidence.
 9. Report actionable findings by severity with exact file and line evidence.
 
+For the Waffo payment boundary, verify that signed requests do not redirect,
+session bearer tokens never enter generic persistence, provider checkout URLs
+are clean HTTPS URLs, webhook verification uses raw bytes, and offline tests do
+not claim live-provider readiness.
+
 Do not fix findings, merge, publish, deploy, or enable anything unless the user
 separately asks for that action.
 

@@ -22,6 +22,7 @@ SKILLS = [
     "minco-plugin",
     "minco-release",
     "minco-review",
+    "minco-waffo-payments",
     "minco-web-application",
 ]
 command_count = 0
@@ -245,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         codex_bytes = projected_skill_bytes(installed, "codex")
         claude_bytes = projected_skill_bytes(installed, "claude")
         assert codex_bytes == claude_bytes == canonical_skill_bytes()
-        assert len(codex_bytes) == 24
+        assert len(codex_bytes) == 27
 
         stale = create_project(parent, "stale")
         stale_plan = invoke_json(stale, ["plan", "--target", "codex"])
@@ -316,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
             for target, result in reports.items()
         },
         "projection": {
-            "canonical_files_per_client": 24,
+            "canonical_files_per_client": 27,
             "codex_path": ".agents/skills",
             "claude_path": ".claude/skills",
             "byte_parity": True,

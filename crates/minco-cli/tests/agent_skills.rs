@@ -145,6 +145,7 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
         "minco-plugin",
         "minco-release",
         "minco-review",
+        "minco-waffo-payments",
         "minco-web-application",
     ]
     .into_iter()
@@ -191,12 +192,14 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
                     .components()
                     .all(|component| matches!(component, Component::Normal(_)))
             );
-            let documentation = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            let documentation_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../..")
-                .join(format!("docs-site/{version}"))
-                .join(format!("{relative}.md"));
+                .join(format!("docs-site/{version}"));
             assert!(
-                documentation.is_file(),
+                regular_file_without_symlinks(
+                    &documentation_root,
+                    &PathBuf::from(format!("{relative}.md")),
+                ),
                 "missing documentation {identifier}"
             );
         }
@@ -304,6 +307,20 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
         fs::read_to_string(root.join("skills/minco-release/SKILL.md")).expect("release skill");
     assert!(release.contains("explicit user request"));
     assert!(release.contains("Stop before"));
+}
+
+#[test]
+fn packaged_waffo_skill_matches_the_projected_bundle() {
+    let bundled = asset_root().join("skills/minco-waffo-payments");
+    let packaged = repository_root()
+        .join("plugins/minco-plugin-payments-waffo/agent/skills/minco-waffo-payments");
+    for relative in ["SKILL.md", "agents/openai.yaml", "references/workflow.md"] {
+        assert_eq!(
+            fs::read(bundled.join(relative)).expect("bundled Waffo skill asset"),
+            fs::read(packaged.join(relative)).expect("package-local Waffo skill asset"),
+            "Waffo skill copies differ at {relative}"
+        );
+    }
 }
 
 #[test]

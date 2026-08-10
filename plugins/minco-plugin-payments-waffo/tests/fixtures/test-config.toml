@@ -1,0 +1,9 @@
+schema = 1
+environment_class = "test"
+
+[values.plugins.payments-waffo]
+environment = "test"
+merchant_id = "MER_0123456789ABCDEFGHIJKL"
+private_key = "env:WAFFO_PRIVATE_KEY"
+webhook_public_key = "env:WAFFO_WEBHOOK_PUBLIC_KEY"
+store_id = "STO_0123456789ABCDEFGHIJKL"

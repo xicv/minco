@@ -7,7 +7,9 @@ applications that need a narrower dependency graph.
 ## Published baseline and release inventory
 
 The published `1.2.2` release contains the complete lock-step 33-package
-inventory. A workspace version or source tag is not registry
+inventory. The current `1.3.0` candidate contains 34 packages and adds
+`minco-plugin-payments-waffo`; it is not yet registry evidence. A workspace
+version or source tag is not registry
 proof: release status must be verified independently against the exact
 crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
@@ -18,9 +20,11 @@ The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 agent-native behavior, while 1.2 adds browser/native HTTP metadata, verified
 uploads, rich mail, owned local services and delivery evidence within the same
 family. All 33
-packages have crates.io ownership, so repository truth retains no
-first-publication candidates. Source qualification or merge still must not be
-described as registry publication.
+published packages have crates.io ownership. The new Waffo crate remains a
+first-publication candidate whose crates.io publisher configuration and exact
+absence/presence must be checked only in the separately authorised publication
+lane. Source qualification or merge still must not be described as registry
+publication.
 
 The exact published source is immutable tag `v1.2.2` at
 `0496e6294b213c839af551a82858e2c1c3f7f45d`. Publication workflow run
@@ -61,6 +65,7 @@ states.
 | `minco-plugin-feedback` | Feedback capture, persistence, administration, and widget contract. |
 | `minco-plugin-static-site` | Static-site runtime integration. |
 | `minco-plugin-realtime` | Provider-neutral ephemeral publication and subscriber-only browser delivery contracts. |
+| `minco-plugin-payments-waffo` | Opt-in signed Waffo hosted checkout, read-only queries and verified webhook mechanics. |
 | `minco-sqlx-postgres` | Bounded PostgreSQL pools and migrations. |
 | `minco-sqlx-sqlite` | SQLite pools, WAL policy, and migrations. |
 | `minco-aws-adapters` | Opt-in AWS provider adapters. |
