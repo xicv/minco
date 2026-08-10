@@ -2,7 +2,7 @@
 id: M14-T15
 title: Release Minco 1.2.2 documentation presentation hardening
 milestone: M14
-status: active
+status: complete
 priority: high
 area: docs/release
 depends_on: [M14-T14]
@@ -45,6 +45,7 @@ owned_paths:
   - scripts/test/hosted_ci_policy.py
   - scripts/test/operational_evidence.py
   - scripts/test/repository_truth.py
+  - scripts/validate_operational_evidence.py
   - scripts/validate_static.py
   - tasks/M14/M14-T15-release-1-2-2-docs-polish.md
   - verification/**
@@ -118,7 +119,15 @@ run `31396167046` uploaded the complete family. Independent validation found all
 33 exact versions present and non-yanked, and the GitHub release is published
 from the same tag.
 
-Keep this task `active` until the post-publication truth change reaches `main`
-and each attainable Pages/docs.rs evidence lane is recorded. Unavailable
-live-provider and performance evidence remains explicit and does not block this
-documentation-only patch from being truthfully qualified and published.
+Post-publication truth PR #144 passed exact-head clean-Linux run `31399236714`
+at `ae084a801c89e1a5b480f3e9382e8f9698de867d` and merged as exact tree
+`92cad4c3e3cbd7912f0f711d44cfc375ddbc563e` in main commit
+`62de61f7c8e510b93933e5337289a630e391b3e9`. Merged-main Pages run
+`31399712561` built and deployed that exact source. Live checks returned HTTP
+200 for the root, frozen `/1.2.2/` manual and versions page with 1.2.2 marked
+latest stable, and all 33 exact 1.2.2 docs.rs rustdoc routes returned HTTP 200.
+
+All attainable M14-T15 evidence lanes are closed. Unavailable live-provider
+and performance evidence remains explicit and does not block this
+documentation-only release; no AWS application deployment or production SLO is
+claimed.

@@ -42,7 +42,7 @@ cleanup_state = "verified_absent"
 retained_resources = []
 max_age_days = 7
 evidence_paths = ["VERIFICATION.md"]
-evidence_sha256 = ["6e6e48c9b61dd4a322175a023ffff8f21b136896311862cf996b4da320957dae"]
+evidence_sha256 = ["4cb84713a28371e683d68780c1360d1880009d52b2d946c194b20ecdef567443"]
 qualification_receipt_path = ""
 limitations = [
   "This historical rehearsal is bound to release 0.4.0, not the current 1.2.2 release.",

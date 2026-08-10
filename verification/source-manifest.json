@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "8d49a1215e6b8c9f12ee79a536d266e3744d44ee65a04a378e6dd7528cc91a7a",
-      "size_bytes": 5055
+      "sha256": "2aab1082d20849aa2ae95b2da6027367c306f8dcb22cd512bcfbf888a5e3c2c1",
+      "size_bytes": 5386
     },
     {
       "path": "CONTRIBUTING.md",
@@ -109,8 +109,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "eac6bb2a2abb934966c4350a5cfe10de11d23f777dd3b39e80a91084121d0814",
-      "size_bytes": 16403
+      "sha256": "a86562452b585d436adaaa3c9bb1304e5fe6394ca8a911d8706ea4e704d0f264",
+      "size_bytes": 16715
     },
     {
       "path": "SECURITY.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "6e6e48c9b61dd4a322175a023ffff8f21b136896311862cf996b4da320957dae",
-      "size_bytes": 119690
+      "sha256": "4cb84713a28371e683d68780c1360d1880009d52b2d946c194b20ecdef567443",
+      "size_bytes": 120312
     },
     {
       "path": "compose.mail.yml",
@@ -3579,8 +3579,8 @@
     },
     {
       "path": "docs-site/versions.md",
-      "sha256": "d2094dc6a1246c58ec58949a8eeb3183b5fdd057851665ad30563b99ebfc9bab",
-      "size_bytes": 1254
+      "sha256": "aa19609f3710c371fd0bb0eead3ed99bc3f222e675d0e62e0ced7cb41d93326f",
+      "size_bytes": 1231
     },
     {
       "path": "examples/orders/adapters/Cargo.toml",
@@ -5519,8 +5519,8 @@
     },
     {
       "path": "scripts/validate_operational_evidence.py",
-      "sha256": "453cde69d5e4793fa86e5c1bd4083bd1608c44a01287126b5a4128cb06d66a3a",
-      "size_bytes": 45076
+      "sha256": "98c677c7a7b29959dd08717266402d185aec12a53b2ac674e233098fbf9ce6fb",
+      "size_bytes": 45091
     },
     {
       "path": "scripts/validate_publish.py",
@@ -5799,8 +5799,8 @@
     },
     {
       "path": "tasks/M14/M14-T15-release-1-2-2-docs-polish.md",
-      "sha256": "e1a5c146dfddba294c5a15d993e9743e900422e18a8fbb90fb98f55d5fc80f57",
-      "size_bytes": 5013
+      "sha256": "86c57fff518620e40aa76a94170e81375e105800634d5bbafcdcee3f3a205511",
+      "size_bytes": 5497
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -6089,7 +6089,7 @@
     },
     {
       "path": "verification/provider-evidence.toml",
-      "sha256": "e36132376af0b313eefb5fd3e9aa257849f7965636d2386d264c2cb432c4841b",
+      "sha256": "48f4c0151002a5850c44f928695ac33763bb04a37da903359134bab7e33534f0",
       "size_bytes": 1881
     },
     {
@@ -6167,7 +6167,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "e7648934d8ddb2634814c5e876fafaf3774b3977da0b10bc77deb3d59168dc72",
-  "total_size_bytes": 8966595,
+  "source_tree_sha256": "8b575da2a0d3c25078db7116f0a8471f8e27aeecc55f5bf33b65a1c5ee30cc64",
+  "total_size_bytes": 8968336,
   "version": "1.2.2"
 }

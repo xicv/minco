@@ -20,7 +20,7 @@ is retained as a stable reference; `next` is allowed to change.
 | Next | Unreleased | Repository-pinned | [Preview next](/next/) |
 
 The 1.2.2 source, hosted qualification, immutable tag, registry publication and
-GitHub release are independently verified. This stable manual and the exact
-docs.rs routes are verified after the post-publication documentation change
-reaches `main`. Live AWS application deployment remains a separate boundary.
+GitHub release are independently verified. Merged-main Pages deployment and
+all 33 exact docs.rs rustdoc routes are also independently verified. Live AWS
+application deployment remains a separate boundary.
 See the [1.2.2 GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.2).

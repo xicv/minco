@@ -1,6 +1,6 @@
 # Minco verification and release evidence
 
-Date: 2026-08-10
+Date: 2026-08-11
 Current workspace version: `1.2.2`
 Published baseline: `1.2.2`
 Workspace release state: `published`
@@ -32,11 +32,22 @@ found all 33 exact versions present and non-yanked; the machine receipt is
 [`v1.2.2` GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.2) is
 published from the same tag.
 
+Post-publication truth PR
+[`#144`](https://github.com/xicv/minco/pull/144) passed exact-head clean-Linux
+run [`31399236714`](https://github.com/xicv/minco/actions/runs/31399236714)
+at `ae084a801c89e1a5b480f3e9382e8f9698de867d`, then merged as exact tree
+`92cad4c3e3cbd7912f0f711d44cfc375ddbc563e` in merged-main commit
+`62de61f7c8e510b93933e5337289a630e391b3e9`. Merged-main Pages run
+[`31399712561`](https://github.com/xicv/minco/actions/runs/31399712561) built,
+checked and deployed the stable site. Live checks returned HTTP 200 for the
+root, frozen `/1.2.2/` manual and versions page, with `1.2.2` identified as
+latest stable. All 33 exact 1.2.2 docs.rs rustdoc routes independently returned
+HTTP 200. These checks close M14-T15.
+
 No AWS application resources were contacted, created, changed or deleted.
 Package publication does not qualify the no-contact current provider record,
 the exact-tree hosted performance record remains `NOT RUN`, and no production
-SLO or application deployment is claimed. Pages and all 33 exact 1.2.2 docs.rs
-routes remain post-publication closeout gates until independently verified.
+SLO or application deployment is claimed.
 
 ## M14-T14 `1.2.1` agent skill freshness release
 
