@@ -14,13 +14,16 @@ Confirm the explicit user request and its boundary: prepare, qualify, publish,
 deploy, or some separately authorized combination.
 
 1. Resolve the exact source revision, version, changelog batch, package order,
-   compatibility decision, migrations, target, and rollback candidate.
+   compatibility decision, migrations, target, rollback candidate and release
+   skill freshness record for every shipped feature.
 2. Run read-only preflight and the repository's specifically authorized focused
    qualification commands.
 3. Build once, seal the artifact and manifest, and verify digests independently.
-4. Keep local, hosted, registry, deployment, runtime, and review evidence
-   separate. Never rebuild during promotion.
-5. Require an exact current approval at every publish, migration, deployment,
+4. Keep release-bound evidence across source, local, hosted, registry,
+   deployment, runtime and review separate. Never rebuild during promotion.
+5. Review topology-aware cost and the local-first release boundary; a bounded
+   hosted check does not replace the authoritative local release matrix.
+6. Require an exact current approval at every publish, migration, deployment,
    promotion, rollback, cleanup, or production-enablement boundary.
 
 Stop before any action not named in the explicit user request. A green test,

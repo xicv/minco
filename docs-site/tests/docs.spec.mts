@@ -233,8 +233,10 @@ test('version navigation resolves to the frozen current stable manual', async ({
 
   await page.goto(`${candidatePath}getting-started/installation`)
   await waitForHydration(page)
+  const expectedInstallVersion =
+    release.state === 'candidate' ? release.stable : release.workspace
   await expect(
-    page.getByText(`cargo add minco@${release.workspace}`, { exact: true })
+    page.getByText(`cargo add minco@${expectedInstallVersion}`, { exact: true })
   ).toBeVisible()
 
   for (const path of [

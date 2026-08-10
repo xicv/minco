@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.2.0`
-Current workspace version: `1.2.0`
-Workspace release state: `published`
+Current workspace version: `1.2.1`
+Workspace release state: `candidate`
 Reviewed release source: `48df3cc0ebb8990061b60d9383ced63532941079`
 
 ## Product identity

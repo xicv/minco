@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.2.0`
-Current workspace version: `1.2.0`
-Workspace release state: `published`
+Current workspace version: `1.2.1`
+Workspace release state: `candidate`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -161,6 +161,11 @@ Applications moving from `1.1.0` to the published `1.2.0` family must use the
 [`1.1.0` to `1.2.0` guide](1.1.0-to-1.2.0.md). It covers release-bound feedback
 tasks, deterministic handover, explicit clarification state, earlier topology
 validation, selected-topology cost semantics and operational evidence.
+
+Applications evaluating the unpublished `1.2.1` candidate must also use the
+[`1.2.0` to `1.2.1` guide](1.2.0-to-1.2.1.md). It covers the compatible
+release-bound AI skill freshness patch and its deterministic checks. Continue
+using exact 1.2.0 registry packages until publication is independently proven.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

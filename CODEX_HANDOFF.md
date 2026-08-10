@@ -1,12 +1,13 @@
-# Minco 1.2.0 release handoff
+# Minco 1.2.1 candidate handoff
 
 Date: 2026-08-10
 Published baseline: `1.2.0`
-Current workspace version: `1.2.0`
-Workspace release state: `published`
+Current workspace version: `1.2.1`
+Workspace release state: `candidate`
 Published `1.2.0` source: `48df3cc0ebb8990061b60d9383ced63532941079`
 Published source-tree digest: `07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933`
-Release task: `M14-T13`
+Published release task: `M14-T13`
+Candidate release task: `M14-T14`
 Active evidence task: `M14-T10`
 
 ## Closed release boundary
@@ -35,7 +36,10 @@ version. It does not treat registry unavailability as a pass.
 
 ## Current product state
 
-The 33 public packages advance together in the published `1.2.0` line. It adds
+The 33 public packages remain available together in the published `1.2.0`
+line. The workspace advances them together to an unpublished compatible
+`1.2.1` candidate that refreshes all eight packaged AI skills and makes their
+release freshness fail closed. The stable 1.2 product line adds
 browser/native HTTP metadata, verified direct uploads, rich observable mail,
 owned local services, topology-aware Plan cost/validation, release-bound
 Feedback task receipts, deterministic operational evidence and the

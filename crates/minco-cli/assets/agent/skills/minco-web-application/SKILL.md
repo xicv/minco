@@ -23,12 +23,15 @@ Start from project truth and route each slice to the focused Minco skill.
 ## Build vertical slices
 
 1. Confirm the user-visible journey and operation boundaries.
-2. Use `$minco-operation` for each external API operation.
+2. Use `$minco-operation` for each external API operation and keep one
+   browser/native contract for shared business behavior.
 3. Use `$minco-plugin` only for a reusable statically linked capability.
-4. Use `$minco-lifecycle` for configuration, migrations, seeds, local services,
-   frontend startup, and verification.
+4. Use `$minco-lifecycle` for configuration, migrations, seeds, frontend startup,
+   owned local services, and verification.
 5. Re-run `cargo minco inspect --json` and exact operation explanations.
-6. Report source, local, hosted, deployment, runtime, and review evidence
+6. Route documentation journeys through the version-matched Signal
+   documentation and never infer support from an upstream service alone.
+7. Report source, local, hosted, deployment, runtime, and review evidence
    separately.
 
 Stop before commit, push, release, publication, deployment, provider access, or

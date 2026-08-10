@@ -1,14 +1,19 @@
 # Lifecycle decision table
 
+Release skill freshness is checked against the current Minco changelog and
+versioned documentation before the bundle ships.
+
 | Need | Inspect first | Possible explicit action |
 |---|---|---|
 | Effective config | `config check/explain/diff` | edit authoritative config |
 | Migration | `db plan/status` | `db migrate` with digest and environment guards |
 | Seed | seed plan/dry run | `db seed` with classification and preservation guards |
-| Local topology | `dev --dry-run` | `dev` with selected profile/processes |
+| Owned local services | `dev --dry-run` plus resource identity | `dev` with selected PostgreSQL, Rustack or Mailpit profile |
+| Rich mail | transport/capture/delivery state | explicitly authorized local or provider action |
 | Infrastructure | `deploy plan/review` | change set/apply under deployment authority |
 | Exact release | package/release verification | promote only the verified artifact |
 | Cleanup | destroy dry run | guarded exact-identity cleanup |
 
-Do not infer a live state from a plan. Do not infer deployment from hosted CI,
-or production behavior from a local process.
+Do not infer a live state from a plan or generic charges from an unselected
+topology-aware cost dimension. Do not infer deployment from hosted CI, or
+production behavior from a local process.

@@ -15,6 +15,9 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+WORKSPACE_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"][
+    "package"
+]["version"]
 
 
 def load_module(name: str, path: Path):
@@ -39,7 +42,7 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "verification").mkdir()
         (self.root / "Cargo.toml").write_text(
-            '[workspace]\nresolver = "3"\n\n[workspace.package]\nversion = "1.2.0"\n'
+            f'[workspace]\nresolver = "3"\n\n[workspace.package]\nversion = "{WORKSPACE_VERSION}"\n'
         )
         for name in (
             "repository-truth.toml",
@@ -193,7 +196,7 @@ class OperationalEvidenceTests(unittest.TestCase):
             "schema_version": 1,
             "kind": "minco.performance-baseline.v1",
             "status": "PASS",
-            "candidate_version": "1.2.0",
+            "candidate_version": WORKSPACE_VERSION,
             "source_tree_sha256": source_digest,
             "source_revision": "a" * 40,
             "production_slo": False,
@@ -309,7 +312,12 @@ class OperationalEvidenceTests(unittest.TestCase):
 
     def test_non_finite_json_and_production_slo_claim_fail_closed(self) -> None:
         path = self.root / "verification/1.2-performance-baseline.json"
-        path.write_text(path.read_text().replace('"candidate_version": "1.2.0"', '"candidate_version": NaN'))
+        path.write_text(
+            path.read_text().replace(
+                f'"candidate_version": "{WORKSPACE_VERSION}"',
+                '"candidate_version": NaN',
+            )
+        )
         report = self.report()
         self.assertIn("PERF-DATA-001", self.codes(report))
 
@@ -389,7 +397,7 @@ class OperationalEvidenceTests(unittest.TestCase):
             "schema_version": 1,
             "kind": "minco.performance-baseline.v1",
             "status": "PASS",
-            "candidate_version": "1.2.0",
+            "candidate_version": WORKSPACE_VERSION,
             "source_tree_sha256": source_digest,
             "source_revision": "a" * 40,
             "production_slo": False,

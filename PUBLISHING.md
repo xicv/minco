@@ -8,6 +8,11 @@ family from immutable tag `v1.2.0` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
+The workspace is currently preparing the unpublished lock-step `1.2.1`
+candidate. It updates all eight packaged AI skills and makes changelog-to-skill
+coverage plus the deterministic workflow receipt mandatory release gates. This
+candidate statement is not tag, registry, docs.rs or stable-site evidence.
+
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:
 

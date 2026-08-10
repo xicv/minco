@@ -2,6 +2,7 @@
 """Behavioral policy tests for Minco's bounded hosted CI surface."""
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import tempfile
@@ -18,9 +19,30 @@ WORKFLOW = ROOT / ".github/workflows/minco-manual.yml"
 WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
 PUBLISH_WORKFLOW = WORKFLOW_DIRECTORY / "publish-crates.yml"
 DOCS_PLAYWRIGHT = ROOT / "docs-site/playwright.config.mts"
+AGENT_WORKFLOWS_PATH = ROOT / "scripts/test/agent_workflows.py"
+
+
+def load_agent_workflows():
+    spec = importlib.util.spec_from_file_location(
+        "hosted_policy_agent_workflows", AGENT_WORKFLOWS_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class HostedCiPolicyTests(unittest.TestCase):
+    def test_agent_workflow_receipts_are_confined_to_verification(self) -> None:
+        agent_workflows = load_agent_workflows()
+        with self.assertRaisesRegex(ValueError, "remain under verification"):
+            agent_workflows.confined_evidence_path(Path("../outside.json"))
+        path, relative = agent_workflows.confined_evidence_path(
+            Path("verification/agent-workflows.json")
+        )
+        self.assertEqual(path, ROOT / "verification/agent-workflows.json")
+        self.assertEqual(relative, "verification/agent-workflows.json")
+
     def test_docs_browser_server_owns_a_configurable_strict_port(self) -> None:
         config = DOCS_PLAYWRIGHT.read_text()
         self.assertIn("MINCO_DOCS_PORT", config)
@@ -60,6 +82,7 @@ class HostedCiPolicyTests(unittest.TestCase):
                     "uv <run> <--locked> <python> <scripts/validate_static.py>",
                     "cargo <build> <--quiet> <--locked> <-p> <cargo-minco>",
                     "uv <run> <--locked> <python> <scripts/docs/generate_reference.py> <--check>",
+                    "uv <run> <--locked> <python> <scripts/test/agent_workflows.py> <--check-output> <verification/agent-workflows.json>",
                     "uv <run> <--locked> <python> <scripts/test/repository_truth.py>",
                     "uv <run> <--locked> <python> <scripts/validate_deployment_assurance.py>",
                     "uv <run> <--locked> <python> <scripts/test/deployment_assurance.py>",
@@ -70,6 +93,7 @@ class HostedCiPolicyTests(unittest.TestCase):
                     "uv <run> <--locked> <python> <scripts/test/examples/validate.py> <--check>",
                     "cargo <fmt> <--all> <--> <--check>",
                     "cargo <check> <--workspace> <--all-targets> <--all-features> <--locked>",
+                    "cargo <test> <-p> <cargo-minco> <--test> <agent_skills> <--locked>",
                     "uv <run> <--locked> <python> <scripts/source_manifest.py> <--check>",
                 ],
             )
@@ -206,6 +230,7 @@ class HostedCiPolicyTests(unittest.TestCase):
         required_commands = [
             "scripts/validate_static.py --output verification/static-validation.json",
             "scripts/docs/generate-reference.sh --check",
+            "scripts/test/agent_workflows.py --check-output verification/agent-workflows.json",
             "scripts/test/repository_truth.py",
             "scripts/validate_deployment_assurance.py",
             "scripts/validate_operational_evidence.py",
@@ -220,6 +245,7 @@ class HostedCiPolicyTests(unittest.TestCase):
             "scripts/test/feedback_browser.sh",
             "cargo fmt --all -- --check",
             "cargo check --workspace --all-targets --all-features --locked",
+            "cargo test -p cargo-minco --test agent_skills --locked",
             "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
             "cargo test --workspace --all-targets --all-features --locked",
             "scripts/test/generated_apps.sh",
