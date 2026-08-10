@@ -24,6 +24,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = ROOT / "target" / "minco" / "candidate-load.json"
 DEFAULT_TARGET = ROOT / "target" / "minco" / "candidate-load" / "cargo"
+WORKSPACE_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"][
+    "package"
+]["version"]
+RELEASE_SERIES = ".".join(WORKSPACE_VERSION.split(".")[:2])
+CANDIDATE_RECOVERY_RECORD = (
+    f"verification/{RELEASE_SERIES}-candidate-recovery.json"
+)
+CANDIDATE_LOAD_RECORD = f"verification/{RELEASE_SERIES}-candidate-load.json"
 MANDATORY_RELEASE_COMMANDS = (
     "uv run --locked python scripts/test/candidate_qualification.py",
     "./scripts/quality.sh",
@@ -33,8 +41,8 @@ MANDATORY_RELEASE_COMMANDS = (
     "scripts/dev/rustack-smoke.sh",
     "scripts/release/publish.sh --skip-quality",
     "scripts/release/package-list.sh",
-    "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json",
-    "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json",
+    f"scripts/release/candidate-recovery.sh --output {CANDIDATE_RECOVERY_RECORD}",
+    f"scripts/release/candidate-load.sh --output {CANDIDATE_LOAD_RECORD}",
     "uv run --locked python scripts/source_manifest.py --check",
 )
 GATE_STATUSES = frozenset({"PASS", "FAIL", "BLOCKED", "NOT RUN"})

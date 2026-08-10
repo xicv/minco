@@ -2,7 +2,7 @@
 id: M14-T02
 title: Promote published Minco 1.1.0 repository and documentation truth
 milestone: M14
-status: in_progress
+status: complete
 priority: critical
 area: release/1.1
 depends_on: [M14-T01, M14-T04, M14-T05]
@@ -89,8 +89,12 @@ built and deployed from that merge. The hosted site then passed all 19
 applicable desktop/mobile Playwright checks, with its desktop-only
 mobile-viewport case skipped by design.
 
-The five packages from the first upload have live docs.rs pages and the
-remaining 28 exact builds are visibly queued without a build failure. Complete
-docs.rs propagation remains the final external closure gate, so this task and
-M14 remain `in_progress`/`active` until all 33 exact documentation URLs are
-independently verified.
+At publication time, the five packages from the first upload had live docs.rs
+pages and the remaining 28 exact builds were visibly queued without a build
+failure. Complete docs.rs propagation was retained as the final external
+closure gate rather than inferred from the queue state.
+
+On 2026-08-10, a fresh HEAD request to every package URL derived from the
+checked 33-package publication order returned HTTP 200 for exact version
+`1.1.0`. This closes the external docs.rs propagation gate without changing the
+immutable tag, release archives, registry records or deployed documentation.

@@ -62,8 +62,8 @@ optional = true
 
 [gates.release_candidate]
 commands = [
-  "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json",
-  "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json",
+  "scripts/release/candidate-recovery.sh --output verification/1.2-candidate-recovery.json",
+  "scripts/release/candidate-load.sh --output verification/1.2-candidate-load.json",
   "scripts/release/qualify-candidate.sh",
 ]
 optional = true

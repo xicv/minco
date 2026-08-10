@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1146,
+  "file_count": 1147,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -24,8 +24,8 @@
     },
     {
       "path": ".github/workflows/publish-crates.yml",
-      "sha256": "0964d27acc71c5073252f7cf36dc35796be97d8e8c9bc7088251be21ba564847",
-      "size_bytes": 8071
+      "sha256": "2d228a59f7e886176307c6450ff23316bde953ac981d0764c8cce35106297de4",
+      "size_bytes": 8159
     },
     {
       "path": ".gitignore",
@@ -44,8 +44,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "b661e964d0c52fefa17e92970db0cbbb5f14174e35514106271c53348aa09bc3",
-      "size_bytes": 26073
+      "sha256": "e0736dfe6b19d8cbf88320612b77d0fc9ce0419c77c9ce06dc87de7d2f3354c9",
+      "size_bytes": 28330
     },
     {
       "path": "CODEX_CONTINUATION_PROMPT.md",
@@ -334,8 +334,8 @@
     },
     {
       "path": "crates/minco-cli/src/delivery_evidence.rs",
-      "sha256": "caab52c915e32aa9c715af4da6a21bc52c204b0175d02ad97976beb4b6be7c2d",
-      "size_bytes": 50825
+      "sha256": "d170650ce856a08b7353cb54bddda30e7e37fb3ce6eed4288e8b45535f25a10b",
+      "size_bytes": 51122
     },
     {
       "path": "crates/minco-cli/src/feedback_cmd.rs",
@@ -2024,8 +2024,8 @@
     },
     {
       "path": "docs/development/release-qualification.md",
-      "sha256": "fdcf742dad3e263cbd19001950ddbd9a834d917ba6ba937da169fdf4bba89c45",
-      "size_bytes": 6047
+      "sha256": "cf3f0f00bc77f350085416607f14ea07ce63f24cc77b5e40fe0b6fb8b693c257",
+      "size_bytes": 6382
     },
     {
       "path": "docs/development/testing.md",
@@ -4574,7 +4574,7 @@
     },
     {
       "path": "quality.toml",
-      "sha256": "b23598b737a3a4c6a0257f3da4b108cecf4405902a65dcc4c2253f6468615408",
+      "sha256": "9fbba1a9d64f0287f9f1a4e1c9ec2443f61cce5d69fb0ac80a8e5ec37018aaed",
       "size_bytes": 2799
     },
     {
@@ -4589,8 +4589,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "857540feddb25948616f51c22f393878d0cf9c74f78c674a3aed16a76a6386b2",
-      "size_bytes": 10081
+      "sha256": "9edf9fefb91c7209eb3547e1dc4d2d4b330280df87fc3557a659b755500c5aab",
+      "size_bytes": 10751
     },
     {
       "path": "rust-toolchain.toml",
@@ -4964,13 +4964,13 @@
     },
     {
       "path": "scripts/release/candidate_gate_runner.py",
-      "sha256": "e5f39b9396cfef080f9ffadfe4fb44d995e177fdfc4cae21da54208427934178",
-      "size_bytes": 6268
+      "sha256": "d1f43d787a0de4f5b0d2e43899e26f422d84cb963288d8aeed3cf7d215486965",
+      "size_bytes": 6318
     },
     {
       "path": "scripts/release/candidate_qualification.py",
-      "sha256": "11706318d7b5f0168d0b0bc0757d194b13f600ccff53e978af5477d066f07843",
-      "size_bytes": 27465
+      "sha256": "feeb5b8eed9c8ddcb5cfe5c9b5ad7d84dcbdfad90959c2bf9c3137ab9274a95a",
+      "size_bytes": 27781
     },
     {
       "path": "scripts/release/candidate_recovery.py",
@@ -4999,8 +4999,8 @@
     },
     {
       "path": "scripts/source_manifest.py",
-      "sha256": "5ad7a349e83e499443d8a910c12e1ca61c12299fae078b7feb448ce1245bebda",
-      "size_bytes": 5300
+      "sha256": "eacde0473edfe61cf20e02b6e2456ba6754ed0fbac90a67d9163284cf5e10981",
+      "size_bytes": 5463
     },
     {
       "path": "scripts/test/agent_workflows.py",
@@ -5019,8 +5019,8 @@
     },
     {
       "path": "scripts/test/candidate_qualification.py",
-      "sha256": "cd462638e4ab87b180ba1b95035f6a5838dc4f8c0e5a1c9be89eaccc7005215f",
-      "size_bytes": 9754
+      "sha256": "47b9aec3e5d0e28bc4ea1ada0e6a7c3a2b490b42f989350dd60ee8e24474de28",
+      "size_bytes": 11816
     },
     {
       "path": "scripts/test/current_product_truth.py",
@@ -5089,7 +5089,7 @@
     },
     {
       "path": "scripts/test/operational_evidence.py",
-      "sha256": "8e947b164b25f16147a0975f08592661120755659453bd5caabb3fcc41c8bab3",
+      "sha256": "59850a71d73b4784933c7f8f502ac44adec02c439f199d7457acd0ca2015a33b",
       "size_bytes": 24593
     },
     {
@@ -5354,8 +5354,8 @@
     },
     {
       "path": "tasks/M14/M14-T02-promote-1-1-publication.md",
-      "sha256": "18b1993ee544aeb7130c2708a3baceb227ac5bcf08e46bcc976e08fb233267bc",
-      "size_bytes": 4049
+      "sha256": "8306e9c4bd4f85ad4f06d2a1771952cf94b403406b92a3c33643a281d1d79496",
+      "size_bytes": 4305
     },
     {
       "path": "tasks/M14/M14-T03-mobile-api-readiness.md",
@@ -5406,6 +5406,11 @@
       "path": "tasks/M14/M14-T12-local-first-actions-boundary.md",
       "sha256": "b246e181ea7f1298ba86c032bbc71333d959ecd329d5afb40819ec250f4c49db",
       "size_bytes": 6112
+    },
+    {
+      "path": "tasks/M14/M14-T13-publish-1-2-release.md",
+      "sha256": "8550a1d1300a31fb7dc0eb08fef68a2720e5282b80f2ff0f018b04a890e126af",
+      "size_bytes": 4457
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5654,7 +5659,7 @@
     },
     {
       "path": "verification/deployment-assurance.toml",
-      "sha256": "2f638e9e3dd67591265082ade0acf6a02c8a7c86dfb9ed6e5b5a013a8d4fa470",
+      "sha256": "c2d16eff461fd4b8eee10e383ecb27868809ba139c8b0708ccf44b8e280c7683",
       "size_bytes": 3956
     },
     {
@@ -5694,7 +5699,7 @@
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "e8153a5caee01fbe5700d870eb6faa558565ef3cc41f50348d253dd507b4ad7b",
+      "sha256": "8b088196ba804b27c0755ef72f26f065d461d555ab2387f5183e9e32ebd66824",
       "size_bytes": 1205
     },
     {
@@ -5741,6 +5746,9 @@
     "verification/1.0-candidate-load.json",
     "verification/1.0-candidate-recovery.json",
     "verification/1.0-candidate-release-gates.json",
+    "verification/1.2-candidate-load.json",
+    "verification/1.2-candidate-recovery.json",
+    "verification/1.2-candidate-release-gates.json",
     "verification/1.2-performance-baseline.json",
     "verification/adoption-measurements.json",
     "verification/deep-review.json",
@@ -5754,7 +5762,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "ee323f4488143cc6eb500c1bd17bca3d60ae830bc66a4e84574d89c8fc5d48f3",
-  "total_size_bytes": 8464775,
+  "source_tree_sha256": "07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933",
+  "total_size_bytes": 8475726,
   "version": "1.2.0"
 }

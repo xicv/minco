@@ -1,4 +1,4 @@
-# 1.0 candidate qualification
+# Current candidate qualification
 
 This procedure qualifies one exact source tree without tagging, publishing or
 deploying it. The checked-in records contain only aggregate synthetic
@@ -38,8 +38,8 @@ inspects archive contents and sizes; neither result is registry publication:
 loopback with a temporary file-backed SQLite database and a four-connection
 pool. It sends a bounded set of unique synthetic writes through fresh TCP
 connections at controlled concurrency and records errors, throughput and
-nearest-rank minimum, p50, p95 and maximum latency. Timing is machine-specific
-smoke evidence, not a performance SLO.
+nearest-rank minimum, p50, p95, p99 and maximum latency. Timing is
+machine-specific smoke evidence, not a performance SLO.
 
 A disposable external Rust crate then invokes the public
 `minco_aws_worker::process_sqs_event` API with 100 batches of ten synthetic
@@ -102,12 +102,17 @@ provider authority into a pass.
 
 ## Evidence boundary
 
-The three generated public records are excluded from the source-tree digest to
-avoid self-reference:
+The three current release-series records are excluded from the source-tree
+digest to avoid self-reference. Their filename prefix is derived from the
+workspace major/minor version, so the 1.2.0 candidate writes:
 
-- `verification/1.0-candidate-load.json`;
-- `verification/1.0-candidate-recovery.json`;
-- `verification/1.0-candidate-release-gates.json`.
+- `verification/1.2-candidate-load.json`;
+- `verification/1.2-candidate-recovery.json`;
+- `verification/1.2-candidate-release-gates.json`.
+
+Historical 1.0 records retain their original names and exclusions. A later
+release train must advance the workspace version and its explicit exclusions
+in the same reviewed source change before generating evidence.
 
 They bind the exact digest from `verification/source-manifest.json`. The raw
 logs beneath `target/minco/candidate-*` are local diagnostic artifacts and are
