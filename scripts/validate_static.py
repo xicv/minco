@@ -255,6 +255,23 @@ class Validator:
                 f"{published_baseline}",
                 truth_path,
             )
+        docs_release_path = self.root / "docs-site/release.json"
+        try:
+            docs_release = json.loads(docs_release_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            docs_release = None
+        expected_docs_release = {
+            "stable": published_baseline,
+            "workspace": workspace_version,
+            "state": expected_release_state,
+        }
+        if docs_release != expected_docs_release:
+            self.error(
+                "STATIC-TRUTH-DOCS-002",
+                "docs-site/release.json must exactly match published baseline, "
+                "workspace version and release state",
+                docs_release_path,
+            )
         if expected_release_state == "candidate":
             version_parts = tuple(int(part) for part in workspace_version.split("."))
             baseline_parts = tuple(int(part) for part in published_baseline.split("."))

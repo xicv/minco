@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs'
 
 const release = JSON.parse(
   readFileSync(new URL('../release.json', import.meta.url), 'utf8')
-) as { stable: string }
+) as { stable: string; workspace: string }
 
 const stablePath = `./${release.stable}/`
+const workspacePath = `./${release.workspace}/`
 
 async function waitForHydration(page: Page) {
   await expect(page.locator('.VPSwitchAppearance').first()).toHaveAttribute(
@@ -43,7 +44,7 @@ test('current documentation map exposes every major documentation surface', asyn
   }
 })
 
-test('next exposes merged browser and native client guidance without rewriting stable', async ({
+test('published 1.2 and next expose browser and native client guidance', async ({
   page
 }) => {
   await page.goto('./next/reference/documentation-map')
@@ -52,11 +53,19 @@ test('next exposes merged browser and native client guidance without rewriting s
     page.getByRole('link', { name: 'Browser and native clients' }).first()
   ).toBeVisible()
 
+  await page.goto(`${workspacePath}reference/documentation-map`)
+  await waitForHydration(page)
+  await expect(
+    page
+      .locator('.VPSidebar')
+      .getByRole('link', { name: 'Browser and native clients' })
+  ).toBeVisible()
+
   await page.goto(`${stablePath}reference/documentation-map`)
   await waitForHydration(page)
   await expect(
-    page.getByRole('link', { name: 'Browser and native clients' })
-  ).toHaveCount(0)
+    page.getByRole('link', { name: 'Browser and native clients' }).first()
+  ).toBeVisible()
 
   await page.goto('./next/')
   await waitForHydration(page)

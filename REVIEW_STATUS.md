@@ -1,11 +1,21 @@
 # Review status
 
-Minco `1.1.0` is the current published baseline from exact release source
-`4d81543f7c5adb773655f23278abfe084de9f3e0`. The coordinated 33-package release, agent-native workflows,
-realtime, lifecycle, ProjectView/MCP/workbench and explicit DynamoDB boundaries
-are the current product line. Current release truth is guarded by
+Minco `1.2.0` is the current published baseline from exact release source
+`48df3cc0ebb8990061b60d9383ced63532941079` and source-tree digest
+`07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933`.
+The coordinated 33-package release adds browser/native HTTP metadata, verified
+uploads, rich observable mail, owned local services and release-bound delivery
+evidence to the existing agent-native, realtime, lifecycle,
+ProjectView/MCP/workbench and DynamoDB boundaries. Current release truth is guarded by
 `verification/repository-truth.toml`; the detailed records below are retained as
 historical release and provider evidence rather than current-version claims.
+
+Exact local release qualification and hosted run `31360400586` passed before
+tagging. OIDC publication run `31362919458` uploaded the exact tag after the
+dependency-prefetch recovery in PR #137, and registry validation found all 33
+exact versions present and non-yanked. The release does not claim current live
+AWS application evidence or a production performance SLO; M14-T10 remains
+active with those states recorded as `not_run` or stale.
 
 ## Historical release evidence
 

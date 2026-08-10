@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `1.1.0`
+Published baseline: `1.2.0`
 Current workspace version: `1.2.0`
-Workspace release state: `candidate`
-Reviewed release source: `4d81543f7c5adb773655f23278abfe084de9f3e0`
+Workspace release state: `published`
+Reviewed release source: `48df3cc0ebb8990061b60d9383ced63532941079`
 
 ## Product identity
 
@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The immutable published `1.1.0` classification is:
+The immutable published `1.2.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
@@ -26,8 +26,9 @@ The immutable published `1.1.0` classification is:
 > hosted verification and coordinated registry publication. The bounded
 > provider rehearsals retain their exact historical source scope. Version-
 > matched Codex and Claude skills add bounded project context without granting
-> mutation authority; publication does not itself prove a live application
-> deployment.
+> mutation authority. Browser/native transport metadata, verified uploads, rich
+> mail, owned local services and release-bound delivery evidence are additive;
+> publication does not itself prove a live application deployment.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,
@@ -108,26 +109,26 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `1.1.0` state | Remaining boundary |
+| Area | Current published `1.2.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |
 | OpenAPI contract | Strong constrained profile plus structural diff and operation generators | Measured adoption and compatibility freeze |
-| HTTP runtime | Strong | Adoption fixtures, not redesign |
+| HTTP runtime | Strong, with exact browser/native response metadata and ingress CORS projection | Adoption fixtures, not a second mobile API |
 | PostgreSQL and SQLite | Status, digest plan, lock, apply, verify and classified seeds | Live application evidence and operational recipes |
 | Events and SQS worker | Trigger-aware Plan IR, SAM, local projection and bounded runtime | Live multi-runtime rehearsal |
 | Provider adapters | Broad and explicit | Operational recipes and evidence |
-| Feedback | Stable vertical slice and Verified Review Loop foundation | Optional review-environment/delivery trace |
-| Local infrastructure | Graph-driven `cargo minco dev` with supervised process groups | Broader generated-app adoption |
+| Feedback | Stable vertical slice, release binding, digest-approved task conversion and deterministic handover | Optional review-environment/delivery trace and current provider evidence |
+| Local infrastructure | Graph-driven `cargo minco dev` with supervised process groups plus owned loopback PostgreSQL, Rustack and Mailpit services | Broader generated-app adoption |
 | Deployment Plan IR | Schema 2 API, workers, queues, DLQs, mappings, schedules, static sites, preview lifecycle and realtime projection | Support-profile assurance, adoption and compatibility evidence |
 | Deployment controller | Exact release, change set, apply, receipts, hosted verify, promote, rollback/canary, static-site publication and bounded disposable AWS rehearsal | Repeated live-application proof and broader operational adoption |
 | Configuration | Unified typed environment and opaque secret-reference graph | Measured application adoption |
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Versioned, searchable and browser-checked Diátaxis product with a detailed stable `1.1.0` line | Broader exercised recipe and application-adoption matrix |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with a detailed stable `1.2.0` line | Broader exercised recipe and application-adoption matrix |
 | AI support | Version-matched Codex/Claude skills, bounded context/eval, ProjectView, read-only MCP and local workbench | Measured task outcomes, application evals and guarded narrow write tools |
-| Compatibility | Published 1.x public API, CLI, schema and feature freeze with additive 1.1 release evidence | Ongoing semver regression proof and multi-application adoption |
+| Compatibility | Published 1.x public API, CLI, schema and feature freeze with additive 1.2 release evidence | Ongoing semver regression proof and multi-application adoption |
 
 ## Developer golden path
 

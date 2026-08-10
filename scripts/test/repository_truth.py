@@ -37,7 +37,7 @@ NEW_OFFICIAL_PLUGIN_PACKAGES = {
     for package in QUALIFIED_CANDIDATE_NEW_PUBLISHABLE_PACKAGES
     if CATALOG_FEATURE_BY_CRATE.get(package) in OFFICIAL_PLUGIN_FEATURES
 }
-PREVIOUS_PUBLISHED_BASELINE = "1.0.0"
+PREVIOUS_PUBLISHED_BASELINE = "1.1.0"
 DRIFTED_PUBLISHED_BASELINE = "9.9.8"
 CANDIDATE_BASELINE = (
     PUBLISHED_BASELINE if RELEASE_STATE == "candidate" else PREVIOUS_PUBLISHED_BASELINE
@@ -157,6 +157,13 @@ class RepositoryTruthTests(unittest.TestCase):
 
     def test_current_repository_truth_is_consistent(self) -> None:
         self.assertEqual(self.truth_codes(), set())
+
+    def test_documentation_release_metadata_drift_has_a_stable_code(self) -> None:
+        release = self.root / "docs-site/release.json"
+        metadata = json.loads(release.read_text())
+        metadata["stable"] = DRIFTED_PUBLISHED_BASELINE
+        release.write_text(json.dumps(metadata, indent=2) + "\n")
+        self.assertIn("STATIC-TRUTH-DOCS-002", self.truth_codes())
 
     def test_generated_reference_is_current(self) -> None:
         self.assertEqual(REFERENCE_GENERATOR.stale_outputs(ROOT), [])

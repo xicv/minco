@@ -2,9 +2,9 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 33-package lock-step `1.1.0`
-family from immutable tag `v1.1.0` at
-`4d81543f7c5adb773655f23278abfe084de9f3e0`. Source/package qualification,
+The current published boundary is the complete 33-package lock-step `1.2.0`
+family from immutable tag `v1.2.0` at
+`48df3cc0ebb8990061b60d9383ced63532941079`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
@@ -26,9 +26,10 @@ scripts/release/publish.sh --execute
 
 The first 1.0.0 publication used a short-lived manual crates.io token because
 it contained first-publication crates. The 1.1.0 release independently verified
-all trusted-publisher configurations, used short-lived OIDC credentials, and
-resumed a partial upload only after proving the exact five-present/28-absent
-registry complement. Repository truth keeps `new_publishable_packages` empty.
+all trusted-publisher configurations and recovered an exact partial registry
+complement. The 1.2.0 release used short-lived OIDC credentials in workflow run
+`31362919458`; all 33 uploads and independent exact-version registry validation
+passed. Repository truth keeps `new_publishable_packages` empty.
 Every later release must re-prove authentication and registry state; ownership
 alone is not authentication evidence.
 

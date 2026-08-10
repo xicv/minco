@@ -1,8 +1,8 @@
 schema = 1
 workspace_version = "1.2.0"
-published_baseline = "1.1.0"
-published_release_commit = "4d81543f7c5adb773655f23278abfe084de9f3e0"
-workspace_release_state = "candidate"
+published_baseline = "1.2.0"
+published_release_commit = "48df3cc0ebb8990061b60d9383ced63532941079"
+workspace_release_state = "published"
 operational_evidence_effective_date = "2026-08-10"
 published_package_count = 33
 adoption_gate_task = "M6-T07"
@@ -10,14 +10,14 @@ qualified_candidate_task = "M12-T06"
 qualified_candidate_source_tree_sha256 = "a678ebf52b4c7a9f60ae9adb43221984b5f5884d44f5d0400e14781a5bf28554"
 qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench"]
 post_candidate_tasks = ["M6-T01", "M12-T07"]
-published_release_task = "M14-T04"
-published_source_tree_sha256 = "d6624d241c0590ed680423c4e3829e6e355e831de17b00087c4aadba52624870"
+published_release_task = "M14-T13"
+published_source_tree_sha256 = "07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933"
 release_candidate_task = "M14-T13"
 
-# The published 1.1.0 baseline contains the complete 33-package family from
-# immutable tag v1.1.0. The agent-native CLI and skills advance in lock-step
-# with the existing realtime, lifecycle, ProjectView/MCP/workbench, and
-# explicit DynamoDB boundaries.
+# The published 1.2.0 baseline contains the complete 33-package family from
+# immutable tag v1.2.0. Browser/native HTTP metadata, verified uploads, rich
+# mail, owned local services, release-bound delivery evidence, the agent-native
+# CLI and skills, and every existing plugin advance in lock-step.
 publishable_package_count = 33
 new_publishable_packages = []
 

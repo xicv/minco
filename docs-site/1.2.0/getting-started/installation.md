@@ -6,31 +6,19 @@ description: Install the Minco toolchain and choose a small, explicit framework 
 # Installation
 
 Minco uses ordinary Rust packages plus the `cargo minco` control plane. The
-published baseline is 1.1.0; this manual tracks the unpublished 1.2.0 candidate
-above that boundary. Minco 1.1.0 and the current candidate require Rust 1.97.1.
-Use the exact 1.1.0 packages for applications and the repository-pinned
-workspace binary when deliberately evaluating candidate source.
-
-The candidate version selector below is recorded for release-truth validation,
-but it is intentionally unavailable from crates.io until a separately
-authorized publication:
-
-```bash
-cargo add minco@1.2.0
-```
-
-Evaluate this candidate from one exact repository revision with path or Git
-dependencies; do not mix candidate and published packages.
+published baseline is 1.2.0 and requires Rust 1.97.1. Use exact 1.2.0 packages
+for applications; use a repository-pinned workspace binary only when
+deliberately evaluating later unreleased source.
 
 ## Install the CLI
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 1.1.0 --locked
+cargo +1.97.1 install cargo-minco --version 1.2.0 --locked
 cargo minco --version
 ```
 
-The last command should print `minco 1.1.0`. Contributors reviewing unreleased
+The last command should print `minco 1.2.0`. Contributors reviewing unreleased
 source use the repository-pinned toolchain and workspace binary:
 
 ```bash
@@ -45,20 +33,20 @@ The facade's defaults are deliberately small: OpenAPI contracts, HTTP
 conventions, health, observability, and idempotency.
 
 ```bash
-cargo add minco@1.1.0
+cargo add minco@1.2.0
 ```
 
 Add only the capabilities the application needs:
 
 ```bash
 # PostgreSQL API running on native Lambda
-cargo add minco@1.1.0 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@1.2.0 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Local or single-process SQLite API
-cargo add minco@1.1.0 --features sqlx-sqlite,test
+cargo add minco@1.2.0 --features sqlx-sqlite,test
 
 # Provider-neutral kernel only
-cargo add minco@1.1.0 --no-default-features
+cargo add minco@1.2.0 --no-default-features
 ```
 
 See [Cargo feature flags](../reference/feature-flags) before enabling `full`.

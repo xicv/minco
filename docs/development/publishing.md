@@ -6,7 +6,7 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.1.0` release contains the complete lock-step 33-package
+The published `1.2.0` release contains the complete lock-step 33-package
 inventory. A workspace version or source tag is not registry
 proof: release status must be verified independently against the exact
 crates.io records. The package inventory is derived from
@@ -14,14 +14,18 @@ crates.io records. The package inventory is derived from
 workspace member by `scripts/validate_publish.py`.
 
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
-`minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release keeps
-the same family and adds agent-native behavior within existing packages. All 33
+`minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
+agent-native behavior, while 1.2 adds browser/native HTTP metadata, verified
+uploads, rich mail, owned local services and delivery evidence within the same
+family. All 33
 packages have crates.io ownership, so repository truth retains no
 first-publication candidates. Source qualification or merge still must not be
 described as registry publication.
 
-The exact published source is immutable tag `v1.1.0` at
-`4d81543f7c5adb773655f23278abfe084de9f3e0`. Later candidate qualification
+The exact published source is immutable tag `v1.2.0` at
+`48df3cc0ebb8990061b60d9383ced63532941079`. Publication workflow run
+`31362919458` and independent registry validation found every exact 1.2.0
+version present and non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
@@ -182,8 +186,9 @@ The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
 exists. The complete 33-package family has crossed that ownership boundary.
 Before 1.1.0 publication, trusted-publisher configuration was independently
-reconciled for all packages; every later OIDC upload must verify the current
-configuration again.
+reconciled for all packages. The 1.2.0 upload used a short-lived OIDC token only
+after exact-tag verification and locked dependency prefetch; every later OIDC
+upload must verify the current configuration again.
 
 ## Trusted publishing after the first release
 

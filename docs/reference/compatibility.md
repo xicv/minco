@@ -2,16 +2,23 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.1.0`
+Published release: `1.2.0`
 
-Published comparison baseline: `1.0.0`
+Published comparison baseline: `1.1.0`
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the additive `1.1.0` release. Merge, tag, registry, GitHub release and versioned
-documentation are independently verified. Deployment and proof in a consuming
-application remain separate release gates.
+the 1.1 and 1.2 release lines. Merge, tag, registry, GitHub release and
+versioned documentation are independently verified. Deployment and proof in a
+consuming application remain separate release gates.
+
+The 1.2 release adds a defaulted `FeedbackThread.clarifications` serialized
+field. Stored JSON remains data-compatible, but downstream Rust code that uses
+an exhaustive `FeedbackThread { ... }` literal must add
+`clarifications: Vec::new()` or use a public constructor. This source impact is
+documented in the 1.1-to-1.2 upgrade guide; it must not be mistaken for a fully
+source-compatible struct-shape change.
 
 ## Frozen boundary
 
