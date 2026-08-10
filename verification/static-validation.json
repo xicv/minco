@@ -7,7 +7,7 @@
   "metrics": {
     "toml_files": 95,
     "yaml_files": 36,
-    "json_files": 57,
+    "json_files": 58,
     "workspace_members": 38,
     "contract_sha256": "f0e0d1aee9858e54f814270b6f78a5c63ea6993311210f6a6f6ee7323838843f",
     "contract_operations": 7,

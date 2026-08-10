@@ -10,19 +10,16 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
-| 1.2.1 | Unpublished candidate | 1.97.1 | [Review 1.2.1 candidate docs](/1.2.1/) |
-| 1.2.0 | Latest stable | 1.97.1 | [Open 1.2.0 docs](/1.2.0/) |
+| 1.2.1 | Latest stable | 1.97.1 | [Open 1.2.1 docs](/1.2.1/) |
+| 1.2.0 | Previous stable | 1.97.1 | [Open 1.2.0 docs](/1.2.0/) |
 | 1.1.0 | Previous stable | 1.97.1 | [Open 1.1.0 docs](/1.1.0/) |
 | 1.0.0 | Previous stable | 1.97.1 | [Open 1.0.0 docs](/1.0.0/) |
 | 0.6.0 | Previous stable | 1.97.1 | [Open 0.6.0 docs](/0.6.0/) |
 | 0.5.0 | Previous stable | 1.97.1 | [Open 0.5.0 docs](/0.5.0/) |
 | Next | Unreleased | Repository-pinned | [Preview next](/next/) |
 
-The 1.2.0 source, hosted qualification, immutable tag, registry publication and
+The 1.2.1 source, hosted qualification, immutable tag, registry publication and
 GitHub release are independently verified. This stable manual and the exact
 docs.rs routes are verified after the post-publication documentation change
 reaches `main`. Live AWS application deployment remains a separate boundary.
-See the [1.2.0 GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.0).
-
-The 1.2.1 pages are a release candidate for the lock-step AI skill freshness
-patch. They are not registry, docs.rs or stable-documentation evidence.
+See the [1.2.1 GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.1).

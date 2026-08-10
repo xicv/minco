@@ -23,7 +23,7 @@ qualification_receipt_path = ""
 limitations = [
   "M14-T10 did not contact AWS or create live resources.",
   "Static Plan and SAM checks do not qualify live provider behavior.",
-  "This record cannot qualify the 1.2.1 candidate without a separately authorised exact-source rehearsal and cleanup receipt."
+  "This record cannot qualify the 1.2.1 release without a separately authorised exact-source rehearsal and cleanup receipt."
 ]
 
 [[profile]]
@@ -42,9 +42,9 @@ cleanup_state = "verified_absent"
 retained_resources = []
 max_age_days = 7
 evidence_paths = ["VERIFICATION.md"]
-evidence_sha256 = ["23042ec7e2a05546c191635444ba5d75ef48e753aa4d855b672d828b35ca450e"]
+evidence_sha256 = ["19cbbe49c2cc157b1ab1fd2586ba34752fcadd22d87c2dcb213f0d6ed6fcace0"]
 qualification_receipt_path = ""
 limitations = [
-  "This historical rehearsal is bound to release 0.4.0, not the current 1.2.1 candidate.",
+  "This historical rehearsal is bound to release 0.4.0, not the current 1.2.1 release.",
   "The checked-in evidence is a repository verification summary rather than a new provider receipt for this task."
 ]

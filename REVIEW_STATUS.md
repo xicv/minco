@@ -1,18 +1,25 @@
 # Review status
 
-The workspace is an unpublished `1.2.1` lock-step candidate for release-bound
-AI skill freshness. Its local and hosted checks remain separate from tag,
-registry, docs.rs, stable-site, provider, runtime and production evidence.
+The workspace is the published `1.2.1` lock-step release for release-bound AI
+skill freshness. Its local, hosted, tag and registry checks remain separate
+from docs.rs, stable-site, provider, runtime and production evidence.
 
-Minco `1.2.0` is the current published baseline from exact release source
-`48df3cc0ebb8990061b60d9383ced63532941079` and source-tree digest
-`07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933`.
+Minco `1.2.1` is the current published baseline from exact release source
+`5f329ebbabef2840b01f10743f8dbb25a0b0dbe4` and source-tree digest
+`4207fb168ee9c71eb7291efbf4dc03464a9009f7ae5889d34e09f030fca2caf3`.
 The coordinated 33-package release adds browser/native HTTP metadata, verified
 uploads, rich observable mail, owned local services and release-bound delivery
 evidence to the existing agent-native, realtime, lifecycle,
 ProjectView/MCP/workbench and DynamoDB boundaries. Current release truth is guarded by
 `verification/repository-truth.toml`; the detailed records below are retained as
 historical release and provider evidence rather than current-version claims.
+
+Exact 1.2.1 candidate run `31378055301` and merged-main run `31378944090`
+passed before tagging. OIDC publication run `31379324388` uploaded the exact
+`v1.2.1` tag, and independent registry validation found all 33 exact versions
+present and non-yanked. The GitHub release is published from the same tag.
+Pages and all 33 exact 1.2.1 docs.rs routes remain post-merge closeout gates;
+no live AWS application evidence or production performance SLO is claimed.
 
 Exact local release qualification and hosted run `31360400586` passed before
 tagging. OIDC publication run `31362919458` uploaded the exact tag after the

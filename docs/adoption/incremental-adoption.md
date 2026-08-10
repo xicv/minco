@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.2.0`
+Published baseline: `1.2.1`
 Current workspace version: `1.2.1`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -14,7 +14,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.2.0", default-features = false, features = ["contract"] }
+minco = { version = "1.2.1", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -162,10 +162,9 @@ Applications moving from `1.1.0` to the published `1.2.0` family must use the
 tasks, deterministic handover, explicit clarification state, earlier topology
 validation, selected-topology cost semantics and operational evidence.
 
-Applications evaluating the unpublished `1.2.1` candidate must also use the
+Applications moving to the published `1.2.1` patch must also use the
 [`1.2.0` to `1.2.1` guide](1.2.0-to-1.2.1.md). It covers the compatible
-release-bound AI skill freshness patch and its deterministic checks. Continue
-using exact 1.2.0 registry packages until publication is independently proven.
+release-bound AI skill freshness patch and its deterministic checks.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 
