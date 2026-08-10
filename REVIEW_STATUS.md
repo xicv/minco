@@ -2,7 +2,9 @@
 
 The workspace is the published `1.2.1` lock-step release for release-bound AI
 skill freshness. Its local, hosted, tag and registry checks remain separate
-from docs.rs, stable-site, provider, runtime and production evidence.
+from docs.rs, stable-site, provider, runtime and production evidence. The
+stable-site and docs.rs lanes are now independently closed; provider, runtime
+and production claims remain absent or historical.
 
 Minco `1.2.1` is the current published baseline from exact release source
 `5f329ebbabef2840b01f10743f8dbb25a0b0dbe4` and source-tree digest
@@ -18,8 +20,14 @@ Exact 1.2.1 candidate run `31378055301` and merged-main run `31378944090`
 passed before tagging. OIDC publication run `31379324388` uploaded the exact
 `v1.2.1` tag, and independent registry validation found all 33 exact versions
 present and non-yanked. The GitHub release is published from the same tag.
-Pages and all 33 exact 1.2.1 docs.rs routes remain post-merge closeout gates;
-no live AWS application evidence or production performance SLO is claimed.
+Promotion PR #141 passed exact-head clean-Linux run `31383722610` at
+`681fd11bf078fdd4c0f8eb7a26f0703ca3f7e4b4` and merged as exact tree
+`2c0cb03598f879ae80cf5f60e8d106a7a910914f` in main commit
+`140c7278c9c7f60cb7ce3be949583f17f0d71a17`. Exact merged-main Pages run
+`31384082079` passed; the root, frozen 1.2.1 manual and versions page returned
+HTTP 200 with current stable truth, and all 33 exact 1.2.1 docs.rs rustdoc
+routes returned HTTP 200. No live AWS application evidence or production
+performance SLO is claimed.
 
 Exact local release qualification and hosted run `31360400586` passed before
 tagging. OIDC publication run `31362919458` uploaded the exact tag after the

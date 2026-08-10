@@ -38,8 +38,20 @@ published from the same tag.
 
 No AWS application resources were created, changed or deleted. Package
 publication does not qualify the `NOT RUN` performance baseline, the no-contact
-current provider record, a production SLO or customer acceptance. Pages and
-all 33 exact 1.2.1 docs.rs routes remain post-merge closeout gates.
+current provider record, a production SLO or customer acceptance.
+
+Post-publication truth PR
+[`#141`](https://github.com/xicv/minco/pull/141) passed exact-head clean-Linux
+run [`31383722610`](https://github.com/xicv/minco/actions/runs/31383722610)
+at `681fd11bf078fdd4c0f8eb7a26f0703ca3f7e4b4`, then merged as exact tree
+`2c0cb03598f879ae80cf5f60e8d106a7a910914f` in merged-main commit
+`140c7278c9c7f60cb7ce3be949583f17f0d71a17`. Merged-main Pages run
+[`31384082079`](https://github.com/xicv/minco/actions/runs/31384082079) built,
+checked and deployed the stable site. Cache-busted live checks returned HTTP
+200 for the root, frozen `/1.2.1/` manual and versions page, with `1.2.1`
+identified as published and latest stable. All 33 exact 1.2.1 docs.rs rustdoc
+routes independently returned HTTP 200. These checks close M14-T14 without
+changing the provider-contact or performance-evidence classifications.
 
 ## M14-T13 `1.2.0` publication and stable documentation promotion
 

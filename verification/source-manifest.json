@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "16fb1d55b588c5406de35bb2f29da71540e8704c1d51977d8e119dff77ffbd00",
-      "size_bytes": 3719
+      "sha256": "57c830d49ba79d6429f0489ab1d35fdde872580a200dee789a457b16e93c41bd",
+      "size_bytes": 4036
     },
     {
       "path": "CONTRIBUTING.md",
@@ -109,8 +109,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "3815dd0e6eff9fa61710ada2beffdb80b79e2e4793798eda3292c6b187c53de3",
-      "size_bytes": 14656
+      "sha256": "782a1b1e019d29eeb472baf08eeba6e3a42e2821587506032771a03f7460d2bf",
+      "size_bytes": 15158
     },
     {
       "path": "SECURITY.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "19cbbe49c2cc157b1ab1fd2586ba34752fcadd22d87c2dcb213f0d6ed6fcace0",
-      "size_bytes": 117106
+      "sha256": "2c089c22c2af15c07f0697edc2c3d48676e4c3aa7407b191faa4be9810182bd2",
+      "size_bytes": 117868
     },
     {
       "path": "compose.mail.yml",
@@ -5604,8 +5604,8 @@
     },
     {
       "path": "tasks/M14/M14-T14-agent-skill-release-freshness.md",
-      "sha256": "5ac8ba5cfde03a371eab7996a82c071fb0985f362c8b4a2e2f3a051be23c01b7",
-      "size_bytes": 4315
+      "sha256": "6ae32238361c9ed4e8284dd895d573b22b72649867dd0c30659f36faec090bfc",
+      "size_bytes": 4838
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5889,7 +5889,7 @@
     },
     {
       "path": "verification/provider-evidence.toml",
-      "sha256": "86165a71e336be4a1af1b58e4e1dc0be737f60bd8c93ef56cfcb0af11652bd20",
+      "sha256": "552bcd9b25090e4cf19622dfdbb004b252d40e910391d25c177e5216fa73517e",
       "size_bytes": 1881
     },
     {
@@ -5967,7 +5967,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "17d4658d9e5679509c53a85c663d376ce120ff8679723488d0478eac42ef7b21",
-  "total_size_bytes": 8749711,
+  "source_tree_sha256": "f3300b6a78c3c75397f6d6f21405c5a79aad97deb6e0e22c53990270c849fe91",
+  "total_size_bytes": 8751815,
   "version": "1.2.1"
 }

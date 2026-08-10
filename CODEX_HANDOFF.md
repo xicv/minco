@@ -20,8 +20,12 @@ same tag. No live AWS application
 deployment was part of this crate release; the performance baseline stays
 `NOT RUN`, current-provider evidence records no contact, and historical
 provider rehearsals retain their exact source scope. Stable Pages and 1.2.1
-docs.rs reachability remain post-merge closeout gates. See `VERIFICATION.md`
-for the separate evidence lanes.
+docs.rs reachability are independently closed: promotion PR #141 passed
+exact-head clean-Linux run `31383722610` and merged as exact tree
+`2c0cb03598f879ae80cf5f60e8d106a7a910914f` in main commit
+`140c7278c9c7f60cb7ce3be949583f17f0d71a17`; merged-main Pages run
+`31384082079` passed, and all 33 exact 1.2.1 docs.rs rustdoc routes returned
+HTTP 200. See `VERIFICATION.md` for the separate evidence lanes.
 
 Post-release registry verification is:
 
@@ -41,9 +45,10 @@ release freshness fail closed. The stable 1.2 product line adds
 browser/native HTTP metadata, verified direct uploads, rich observable mail,
 owned local services, topology-aware Plan cost/validation, release-bound
 Feedback task receipts, deterministic operational evidence and the
-digest-approved handover command. The frozen 1.2.1 manual is prepared for
-stable promotion; live Pages and all exact docs.rs routes must still be checked
-independently from crates.io publication and live-provider evidence.
+digest-approved handover command. The frozen 1.2.1 manual is available for
+stable use, and every exact 1.2.1 docs.rs rustdoc route is reachable. Those
+documentation checks remain independent from crates.io publication and
+live-provider evidence.
 
 For every later release, independently verify current crates.io OIDC configuration,
 the exact merged-main qualification, immutable tag identity and exact registry
