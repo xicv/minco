@@ -13,6 +13,10 @@ For release review, include release skill freshness, release-bound evidence,
 topology/cost scope, untrusted attachment and verified direct upload paths,
 rich mail ambiguity, and the local-first release boundary.
 
+For versioned documentation presentation, review the actual cascade and
+rendered desktop/mobile geometry. Check list semantics, overflow, focus and
+responsive behavior without treating a successful static build as visual proof.
+
 State whether each check was observed, absent, blocked, or not applicable. A
 clean local diff is not hosted, deployment, runtime, or review acceptance.
 Return no finding when there is no actionable defect; still state test gaps and

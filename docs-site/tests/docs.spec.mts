@@ -42,7 +42,8 @@ test('landing page leads to stable documentation', async ({ page }) => {
 })
 
 test('landing page explains the operating model and links to a real blueprint', async ({
-  page
+  page,
+  isMobile
 }) => {
   await page.goto('./')
   await waitForHydration(page)
@@ -52,7 +53,17 @@ test('landing page explains the operating model and links to a real blueprint', 
       name: 'Keep the contract, application, infrastructure, and evidence connected.'
     })
   ).toBeVisible()
-  await expect(page.locator('.home-flow-step')).toHaveCount(4)
+  const flow = page.locator('.home-flow')
+  const flowSteps = page.locator('.home-flow-step')
+  await expect(flowSteps).toHaveCount(4)
+  await expect(flow).toHaveCSS('list-style-type', 'none')
+  await expect(flowSteps.nth(1)).toHaveCSS('margin-top', '0px')
+  if (!isMobile) {
+    const stepTops = await flowSteps.evaluateAll((steps) =>
+      steps.map((step) => Math.round(step.getBoundingClientRect().top))
+    )
+    expect(new Set(stepTops).size).toBe(1)
+  }
   await expect(page.locator('.home-zero-value')).toHaveText('0')
 
   await page.getByRole('link', { name: 'Explore the production blueprint' }).click()
@@ -178,12 +189,11 @@ test('next documents the complete built-in component catalog', async ({ page }) 
 
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   const search = page.locator('input[type="search"]')
-  await search.fill('partial batch worker')
-  const backgroundSearchSegment = release.state === 'candidate' ? release.workspace : 'next'
+  await search.fill('queues and workers')
   await expect(
     page
       .locator('.VPLocalSearchBox')
-      .locator(`a[href*="/${backgroundSearchSegment}/guides/background-work"]`)
+      .locator('a[href*="/next/guides/background-work"]')
       .first()
   ).toBeVisible()
 })

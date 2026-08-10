@@ -20,12 +20,12 @@
     }
   ],
   "inputs": {
-    "verification/1.2-performance-baseline.json": "d7dcd3b7f10adb7a1a823304eac497509d66aefef6e821c52aa6b61ba46069d7",
+    "verification/1.2-performance-baseline.json": "e57781f1b55a1d86bc5e68411802d633d9f2d1152eddb631520f1b9e1d0766b7",
     "verification/aws-capability-candidates.toml": "53b106b98813864dce64a3a5b18bbe7cde11b51d3a112ca47dd9c867559927a8",
-    "verification/performance-policy.toml": "13fdb68d6836fa54b5ada72f19f18e8c64c5d0d4fca9b99812e9bf4685925e28",
-    "verification/provider-evidence.toml": "552bcd9b25090e4cf19622dfdbb004b252d40e910391d25c177e5216fa73517e",
-    "verification/repository-truth.toml": "359ac0e4881b10742f56ab74872532a85a9c6c83e1c5aeb11d55e1b2132919af",
-    "verification/source-manifest.json": "577f692158ac8eb4e0cb27c5892d86697c18669befa0f18dd843fc09dfd6918e"
+    "verification/performance-policy.toml": "fd1db4a03bc9e2d5702fb38bf3274c7a43b53baf7dba2667664a4b2167a47092",
+    "verification/provider-evidence.toml": "377bb375a82570aedef09f7426cc8ca672e8d2df2463760fa56affdec54dfcdb",
+    "verification/repository-truth.toml": "25a9d813fd182a3a49146c43a6c6e0eb56d641711c5e4550d3a3ee6c6e009552",
+    "verification/source-manifest.json": "545cf4f955a3d598833ca535110fc5020bac8a9ba9b7760e6f4ce70233fa88a5"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -34,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "e94d92e02d86a4816159f55874615bb9a4da4114f6e88bfb1f765c7a5c02c843",
+  "receipt_digest": "5f02c9db53c6c99ff6415293f3fe8b3ee23c56e8462b196daee90913b3439dfb",
   "schema_version": 1,
-  "source_tree_sha256": "f3300b6a78c3c75397f6d6f21405c5a79aad97deb6e0e22c53990270c849fe91",
+  "source_tree_sha256": "c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6",
   "status": "PASS"
 }

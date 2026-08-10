@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.2.1`
-Current workspace version: `1.2.1`
-Workspace release state: `published`
+Current workspace version: `1.2.2`
+Workspace release state: `candidate`
 Reviewed release source: `5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`
 
 ## Product identity
@@ -29,6 +29,10 @@ The immutable published `1.2.1` classification is:
 > mutation authority. Browser/native transport metadata, verified uploads, rich
 > mail, owned local services and release-bound delivery evidence are additive;
 > publication does not itself prove a live application deployment.
+
+The unpublished `1.2.2` candidate changes presentation and verification of the
+versioned Signal documentation only; it does not expand the framework product,
+runtime, plugin, provider or deployment boundary.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,

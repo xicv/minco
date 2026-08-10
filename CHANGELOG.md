@@ -5,10 +5,43 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published 1.2.1 release. The 1.2.1 section below retains
-its exact candidate-source wording because its digest is bound into the
-published agent bundle; tag, registry and documentation evidence is retained
-in `VERIFICATION.md`.
+No changes beyond the `1.2.2` release candidate. The `1.2.0`, `1.2.1` and
+`1.2.2` sections retain exact candidate-source wording because their digests
+are bound into the candidate agent bundle; tag, registry and documentation
+evidence remains separate in `VERIFICATION.md`.
+
+## [1.2.2] - 2026-08-10
+
+This compatible lock-step patch hardens the public Signal documentation
+presentation while preserving the complete 33-package feature and API boundary.
+It remains unpublished until exact-source qualification, tagging and registry
+publication complete as separate evidence states.
+
+### Fixed
+
+- Corrected the public homepage system diagram so contract, application,
+  runtime and evidence labels remain inside their intended nodes.
+- Removed inherited ordered-list markers and sibling spacing from the operating
+  model cards, restoring one aligned desktop row while retaining intentional
+  mobile stacking.
+
+### Changed
+
+- Bound the `1.2.2` documentation presentation contract into cumulative agent
+  release coverage and added computed-style and desktop geometry regressions.
+
+### Compatibility
+
+- Kept public Rust APIs, serialized contracts, plugin capabilities, CLI
+  behavior and deployment topology unchanged; official descriptors and the
+  complete crate family advance together as the SemVer-compatible `1.2.2`
+  patch.
+
+### Safety and evidence
+
+- Added no AWS resource, production deployment, hosted agent runtime, dynamic
+  skill download or always-on control plane; browser, package, registry, docs.rs
+  and provider/runtime evidence remain independent claims.
 
 ## [1.2.1] - 2026-08-10
 

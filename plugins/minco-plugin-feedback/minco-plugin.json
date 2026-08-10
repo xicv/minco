@@ -3,7 +3,7 @@
   "id": "feedback",
   "kind": "plugin",
   "plugin_version": "0.1.0",
-  "core_compatibility": "^1.2.1",
+  "core_compatibility": "^1.2.2",
   "stability": "stable",
   "default_enabled": false,
   "feature": "plugin-feedback",

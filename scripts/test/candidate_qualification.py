@@ -172,7 +172,7 @@ class ReleaseGateRecordContractTests(unittest.TestCase):
         self.assertLess(publish, load)
 
     def test_generated_evidence_uses_the_current_release_series(self) -> None:
-        self.assertEqual(CANDIDATE_QUALIFICATION.WORKSPACE_VERSION, "1.2.1")
+        self.assertEqual(CANDIDATE_QUALIFICATION.WORKSPACE_VERSION, "1.2.2")
         self.assertEqual(CANDIDATE_QUALIFICATION.RELEASE_SERIES, "1.2")
         self.assertEqual(
             CANDIDATE_QUALIFICATION.CANDIDATE_RECOVERY_RECORD,

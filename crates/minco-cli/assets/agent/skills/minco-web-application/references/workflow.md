@@ -19,6 +19,9 @@ For a frontend plus API journey, keep browser state and product policy in the
 application. Use one browser/native contract and generated client boundary
 rather than duplicating request/response types. Start only selected owned local
 services. Route product guidance through version-matched Signal documentation.
+For versioned documentation presentation changes, test computed styles and
+desktop/mobile geometry so prose-theme defaults cannot reintroduce markers,
+spacing drift or overflow.
 Realtime subscriptions resynchronize through authoritative HTTP reads; they do
 not replace the API contract.
 

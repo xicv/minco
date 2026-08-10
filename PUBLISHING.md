@@ -13,6 +13,11 @@ changelog-to-skill coverage plus the deterministic workflow receipt mandatory
 release gates. Publication workflow `31379324388` passed and independent
 registry validation found all 33 exact versions present and non-yanked.
 
+The workspace is preparing the unpublished lock-step `1.2.2` candidate. It
+hardens the Signal homepage presentation and keeps those cumulative release
+gates current. This candidate statement is not tag, registry, docs.rs or
+stable-site evidence.
+
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:
 

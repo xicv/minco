@@ -6,12 +6,18 @@ Published release: `1.2.1`
 
 Published comparison baseline: `1.2.0`
 
+Candidate workspace: `1.2.2`
+
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
 the 1.1 and 1.2 release lines. Merge, tag, registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
+
+The `1.2.2` candidate changes versioned documentation presentation and its
+regression evidence only; the frozen Rust, CLI, schema and plugin boundary is
+unchanged.
 
 The 1.2 release adds a defaulted `FeedbackThread.clarifications` serialized
 field. Stored JSON remains data-compatible, but downstream Rust code that uses

@@ -498,10 +498,17 @@ button {
 
 .home-flow {
   display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.VPHome .vp-doc .home-flow {
   margin: 0;
   padding: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   list-style: none;
+}
+
+.VPHome .vp-doc .home-flow-step + .home-flow-step {
+  margin-top: 0;
 }
 
 .home-flow-step {

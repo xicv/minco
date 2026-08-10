@@ -1,11 +1,25 @@
 # Minco verification and release evidence
 
 Date: 2026-08-10
-Current workspace version: `1.2.1`
+Current workspace version: `1.2.2`
 Published baseline: `1.2.1`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T15 `1.2.2` documentation presentation candidate
+
+The workspace is an unpublished compatible patch over immutable `v1.2.1`.
+The candidate corrects overflowing homepage diagram labels, suppresses native
+ordered-list markers and inherited sibling spacing in the operating model,
+and retains responsive tablet/mobile grid overrides. Its cumulative agent
+coverage teaches the relevant release, review and web workflows to verify
+versioned documentation presentation as release content.
+
+Exact local release qualification, clean-Linux compatibility, merge, tag,
+GitHub release, registry, docs.rs and Pages evidence are pending. No AWS
+application resources were contacted or changed, current performance remains
+`NOT RUN`, and no production SLO is claimed.
 
 ## M14-T14 `1.2.1` agent skill freshness release
 

@@ -3,7 +3,7 @@
   "id": "observability",
   "kind": "plugin",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^1.2.1",
+  "core_compatibility": "^1.2.2",
   "stability": "stable",
   "default_enabled": true,
   "feature": "plugin-observability",

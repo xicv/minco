@@ -13,7 +13,7 @@ const BUNDLE_JSON: &[u8] = include_bytes!("../assets/agent/bundle.json");
 const SCENARIOS_JSON: &[u8] = include_bytes!("../assets/agent/evals/scenarios.json");
 const CLAUDE_BRIDGE: &[u8] = include_bytes!("../templates/app/CLAUDE.md.tmpl");
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
-const REQUIRED_RELEASE_FEATURE_COVERAGE: &[&str] = &["1.2.0", "1.2.1"];
+const REQUIRED_RELEASE_FEATURE_COVERAGE: &[&str] = &["1.2.0", "1.2.1", "1.2.2"];
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {

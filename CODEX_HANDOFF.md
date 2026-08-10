@@ -1,13 +1,23 @@
-# Minco 1.2.1 release handoff
+# Minco 1.2.2 candidate handoff
 
 Date: 2026-08-10
 Published baseline: `1.2.1`
-Current workspace version: `1.2.1`
-Workspace release state: `published`
+Current workspace version: `1.2.2`
+Workspace release state: `candidate`
 Published `1.2.1` source: `5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`
 Published source-tree digest: `4207fb168ee9c71eb7291efbf4dc03464a9009f7ae5889d34e09f030fca2caf3`
 Published release task: `M14-T14`
+Active release task: `M14-T15`
 Active evidence task: `M14-T10`
+
+## Current candidate boundary
+
+Minco `1.2.2` is an unpublished, SemVer-compatible lock-step candidate over the
+immutable `1.2.1` baseline. It fixes homepage diagram overflow and operating
+model alignment, carries those presentation checks into cumulative agent
+release coverage, and changes no public Rust API, runtime or deployment
+topology. Exact local qualification, hosted compatibility, merge, tag, upload,
+registry, docs.rs and Pages evidence are pending and must remain separate.
 
 ## Closed release boundary
 

@@ -29,6 +29,11 @@ version present and non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
+The workspace is preparing the unpublished lock-step `1.2.2` documentation
+presentation patch. It contains no first-publication crate. Exact local and
+clean-Linux qualification must pass before tagging; the tag, OIDC upload,
+registry verification, docs.rs and Pages deployment remain separate states.
+
 | Package | Role |
 |---|---|
 | `minco-config` | Typed environment graph, strict schema, secret references, provenance and deterministic digest. |

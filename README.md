@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.2.1`
 >
-> Current workspace version: `1.2.1`
+> Current workspace version: `1.2.2`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `33`
 
@@ -78,9 +78,10 @@ cargo add minco@1.2.1 --no-default-features
 ## Agent-native application development
 
 The published `1.2.1` release packages eight focused, version-matched workflow
-skills for Codex and Claude Code. It refreshes all eight for the complete 1.2
-product boundary and adds a mandatory changelog-to-skill freshness gate for
-every later release. Minco plans project-local projections before writing, requires
+skills for Codex and Claude Code. The unpublished `1.2.2` candidate keeps all
+eight current, adds documentation-presentation guidance to the relevant release,
+review and web workflows, and retains the mandatory changelog-to-skill freshness
+gate. Minco plans project-local projections before writing, requires
 the exact plan digest to synchronize them, and preserves user-owned
 instructions and client configuration.
 
