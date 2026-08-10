@@ -2,9 +2,9 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.2.0`
+Published release: `1.2.1`
 
-Published comparison baseline: `1.1.0`
+Published comparison baseline: `1.2.0`
 
 MSRV: Rust `1.97.1`
 

@@ -1,18 +1,18 @@
 ---
-title: Minco 1.2.1 candidate
-description: Candidate documentation for Minco 1.2.1 contract-to-cloud application development.
+title: Minco 1.2.1
+description: Stable documentation for Minco 1.2.1 contract-to-cloud application development.
 ---
 
-# Minco 1.2.1 candidate
+# Minco 1.2.1
 
-<p class="doc-kicker">Unpublished release candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
 <div class="version-banner">
-  <span><strong>Unpublished candidate.</strong> These pages target Minco 1.2.1 and Rust 1.97.1.</span>
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.2.1 and Rust 1.97.1.</span>
   <a href="../versions">View all versions</a>
 </div>
 
-<p class="doc-lead">Minco 1.2.1 is the unpublished candidate manual for building low-idle-cost Rust applications with one reviewed contract, browser and native clients, explicit capabilities, verified uploads and mail, owned local services, inspectable AWS plans, release-bound evidence, and release-checked AI skills. Use the frozen <a href="../1.2.0/">1.2.0 manual</a> for published packages until exact 1.2.1 registry and documentation evidence exists.</p>
+<p class="doc-lead">Minco 1.2.1 is the stable manual for building low-idle-cost Rust applications with one reviewed contract, browser and native clients, explicit capabilities, verified uploads and mail, owned local services, inspectable AWS plans, release-bound evidence, and release-checked AI skills. Use the frozen <a href="../1.2.0/">1.2.0 manual</a> only when maintaining the previous patch.</p>
 
 ## Start with the outcome
 

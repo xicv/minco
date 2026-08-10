@@ -1,11 +1,11 @@
 # 1.2 published support matrix
 
-Workspace and published install baseline: `1.2.0`
+Workspace and published install baseline: `1.2.1`
 MSRV: Rust `1.97.1`
 Compatibility state: the 1.0 framework boundary, separately qualified DynamoDB
 descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
 rich mail, owned local services and release-bound evidence are published
-together as the complete 33-package `v1.2.0` family. Registry, docs.rs, stable
+together as the complete 33-package `v1.2.1` family. Registry, docs.rs, stable
 documentation and application/live proof remain separate.
 
 This matrix combines authoritative feature/plugin metadata, exercised golden

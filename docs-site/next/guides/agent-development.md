@@ -8,7 +8,7 @@ description: Install version-matched Minco skills, inspect bounded project conte
 Minco 1.2.1 packages the same eight focused application workflows for Codex
 and Claude Code. The skills select Minco commands and source authorities; they
 do not add a hosted agent runtime or replace the application graph. The 1.2.1
-candidate refreshes all eight for the complete 1.2 product boundary without
+patch refreshes all eight for the complete 1.2 product boundary without
 changing their names, triggers, projection paths or mutation authority.
 
 ## Start with a read-only plan

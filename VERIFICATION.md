@@ -2,19 +2,20 @@
 
 Date: 2026-08-10
 Current workspace version: `1.2.1`
-Published baseline: `1.2.0`
-Workspace release state: `candidate`
+Published baseline: `1.2.1`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M14-T14 `1.2.1` agent skill freshness candidate
+## M14-T14 `1.2.1` agent skill freshness release
 
-The workspace advances the complete 33-package family together to an
-unpublished compatible 1.2.1 candidate because the published 1.2.0 crate
-archives are immutable. All eight packaged Codex and Claude skills now cover
-the complete 1.2 product boundary. Cumulative bundle metadata binds each
-top-level release note to stable features, current versioned documentation and
-the skills that teach it.
+Immutable tag `v1.2.1` resolves to exact merged release source
+`5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`, tree
+`d99337cbb2019d0e37a024398259356b705a710a` and qualified source-tree digest
+`4207fb168ee9c71eb7291efbf4dc03464a9009f7ae5889d34e09f030fca2caf3`.
+All eight packaged Codex and Claude skills cover the complete 1.2 product
+boundary. Cumulative bundle metadata binds each top-level release note to
+stable features, versioned documentation and the skills that teach it.
 
 Rust and static mutation tests reject stale changelog digests, missing skill
 markers, malformed mappings, documentation escapes and incomplete coverage.
@@ -23,9 +24,22 @@ of local and clean-Linux gates. It executes no model and contacts no provider;
 therefore it is not model-quality, AWS, deployment, runtime or production
 evidence.
 
-Exact candidate source, hosted run IDs and publication state will be recorded
-only after those boundaries run. Until then, 1.2.1 remains `unpublished` and
-the immutable 1.2.0 release evidence below remains authoritative.
+PR #140 passed exact-head clean-Linux run
+[`31378055301`](https://github.com/xicv/minco/actions/runs/31378055301), merged as
+the tree above, and exact merged-main run
+[`31378944090`](https://github.com/xicv/minco/actions/runs/31378944090) passed.
+Guarded OIDC workflow
+[`31379324388`](https://github.com/xicv/minco/actions/runs/31379324388) verified
+the exact tag and uploaded the complete family. Independent registry validation
+found all 33 exact versions present and non-yanked; the machine receipt is
+`verification/1.2.1-published-release-validation.json`. The
+[`v1.2.1` GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.1) is
+published from the same tag.
+
+No AWS application resources were created, changed or deleted. Package
+publication does not qualify the `NOT RUN` performance baseline, the no-contact
+current provider record, a production SLO or customer acceptance. Pages and
+all 33 exact 1.2.1 docs.rs routes remain post-merge closeout gates.
 
 ## M14-T13 `1.2.0` publication and stable documentation promotion
 

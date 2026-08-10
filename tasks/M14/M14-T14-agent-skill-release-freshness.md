@@ -34,10 +34,14 @@ owned_paths:
   - docs/adoption/incremental-adoption.md
   - docs/development/publishing.md
   - docs/development/using-minco-crate.md
+  - docs/reference/compatibility.md
   - docs/reference/generated/**
+  - docs/reference/supported-matrix.md
   - docs/vision/minco-framework-definition.md
   - docs-site/1.2.1/**
   - docs-site/next/**
+  - docs-site/.vitepress/config.mts
+  - docs-site/index.md
   - docs-site/release.json
   - docs-site/tests/**
   - docs-site/versions.md
@@ -85,8 +89,8 @@ skill instructions or deterministic projection receipt drift.
   stale, incomplete or misleading coverage;
 - deterministic Codex/Claude workflow qualification supports create and exact
   check modes and is an ordinary quality/release gate;
-- the complete 33-package family advances together to an unpublished 1.2.1
-  candidate before exact-source qualification, tagging and publication; and
+- the complete 33-package family advances together through exact-source
+  qualification, immutable tagging and independently verified publication; and
 - publication, Pages, docs.rs and any provider/runtime evidence remain separate
   claims.
 
@@ -101,9 +105,10 @@ skill instructions or deterministic projection receipt drift.
 
 ## Release boundary
 
-Published 1.2.0 is immutable at
-`48df3cc0ebb8990061b60d9383ced63532941079`. Packaged skill byte changes must
-therefore ship as a new lock-step patch rather than as unversioned source under
-the already-published package version. The 1.2.1 candidate remains
-`unpublished` until separately qualified and uploaded from one exact reviewed
-tree.
+Published 1.2.0 remains immutable at
+`48df3cc0ebb8990061b60d9383ced63532941079`. The packaged skill byte changes
+therefore shipped as the new lock-step `v1.2.1` patch at
+`5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`, rather than altering already
+published archives. Exact registry publication is retained separately from
+Pages, docs.rs, provider, runtime and production evidence. This task remains
+active until the stable manual and every exact 1.2.1 docs.rs route are verified.
