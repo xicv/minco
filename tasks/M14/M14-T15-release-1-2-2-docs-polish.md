@@ -85,7 +85,7 @@ release-aware without claiming new provider or production evidence.
 - the cumulative agent-release coverage records the documentation presentation
   contract and every packaged skill remains valid for the current version;
 - the frozen `1.2.2` manual, changelog, upgrade guide, generated references,
-  package archives and repository truth agree on the exact candidate;
+  package archives and repository truth agree on the exact release;
 - local release qualification and the bounded clean-Linux compatibility gate
   pass for the exact source before tagging; and
 - tag, GitHub release, crates.io publication, docs.rs, Pages and provider/runtime
@@ -111,7 +111,14 @@ checkout.
 
 ## Evidence
 
-Keep this task `active` until the exact release is published and each attainable
-post-publication evidence lane is recorded. Unavailable live-provider evidence
-remains explicit and does not block this documentation-only patch from being
-truthfully qualified and published.
+Exact source `0496e6294b213c839af551a82858e2c1c3f7f45d` passed local release
+qualification, PR-head clean-Linux run `31395154514` and merged-main run
+`31395740260`. Immutable tag `v1.2.2` points to that source and OIDC publication
+run `31396167046` uploaded the complete family. Independent validation found all
+33 exact versions present and non-yanked, and the GitHub release is published
+from the same tag.
+
+Keep this task `active` until the post-publication truth change reaches `main`
+and each attainable Pages/docs.rs evidence lane is recorded. Unavailable
+live-provider and performance evidence remains explicit and does not block this
+documentation-only patch from being truthfully qualified and published.

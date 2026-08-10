@@ -6,7 +6,7 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.2.1` release contains the complete lock-step 33-package
+The published `1.2.2` release contains the complete lock-step 33-package
 inventory. A workspace version or source tag is not registry
 proof: release status must be verified independently against the exact
 crates.io records. The package inventory is derived from
@@ -22,17 +22,17 @@ packages have crates.io ownership, so repository truth retains no
 first-publication candidates. Source qualification or merge still must not be
 described as registry publication.
 
-The exact published source is immutable tag `v1.2.1` at
-`5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`. Publication workflow run
-`31379324388` and independent registry validation found every exact 1.2.1
+The exact published source is immutable tag `v1.2.2` at
+`0496e6294b213c839af551a82858e2c1c3f7f45d`. Publication workflow run
+`31396167046` and independent registry validation found every exact 1.2.2
 version present and non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
-The workspace is preparing the unpublished lock-step `1.2.2` documentation
-presentation patch. It contains no first-publication crate. Exact local and
-clean-Linux qualification must pass before tagging; the tag, OIDC upload,
-registry verification, docs.rs and Pages deployment remain separate states.
+The published lock-step `1.2.2` documentation presentation patch contains no
+first-publication crate. Exact local and clean-Linux qualification, tag, OIDC
+upload, registry verification, docs.rs and Pages deployment remain separate
+states.
 
 | Package | Role |
 |---|---|

@@ -2,11 +2,11 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.2.1`
+Published release: `1.2.2`
 
-Published comparison baseline: `1.2.0`
+Published comparison baseline: `1.2.1`
 
-Candidate workspace: `1.2.2`
+Current workspace: `1.2.2`
 
 MSRV: Rust `1.97.1`
 
@@ -15,9 +15,9 @@ the 1.1 and 1.2 release lines. Merge, tag, registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
 
-The `1.2.2` candidate changes versioned documentation presentation and its
-regression evidence only; the frozen Rust, CLI, schema and plugin boundary is
-unchanged.
+The published `1.2.2` patch changes versioned documentation presentation and
+its regression evidence only; the frozen Rust, CLI, schema and plugin boundary
+is unchanged.
 
 The 1.2 release adds a defaulted `FeedbackThread.clarifications` serialized
 field. Stored JSON remains data-compatible, but downstream Rust code that uses

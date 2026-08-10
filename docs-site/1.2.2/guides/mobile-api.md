@@ -12,7 +12,7 @@ authentication, retry, compatibility, payload, and device-trust constraints at
 the edge; they do not require another domain model.
 
 > This behavior remains compatible with Minco 1.2.1. These pages describe the
-> unpublished 1.2.2 candidate; use the frozen 1.2.1 manual for stable guidance.
+> published 1.2.2 patch; use the frozen 1.2.1 manual for the previous patch.
 
 ## What Minco now supplies
 

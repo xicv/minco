@@ -30,7 +30,7 @@ include = ["src/**", "Cargo.toml", "minco-plugin.json"]
 plugin = "minco-plugin.json"
 ```
 
-Use exact `1.2.1` registry dependencies. Use reviewed
+Use exact `1.2.2` registry dependencies. Use reviewed
 path dependencies only while developing coordinated post-release changes from
 a Minco source checkout.
 

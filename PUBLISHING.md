@@ -2,21 +2,17 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 33-package lock-step `1.2.1`
-family from immutable tag `v1.2.1` at
-`5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`. Source/package qualification,
+The current published boundary is the complete 33-package lock-step `1.2.2`
+family from immutable tag `v1.2.2` at
+`0496e6294b213c839af551a82858e2c1c3f7f45d`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The published patch updates all eight packaged AI skills and makes cumulative
-changelog-to-skill coverage plus the deterministic workflow receipt mandatory
-release gates. Publication workflow `31379324388` passed and independent
-registry validation found all 33 exact versions present and non-yanked.
-
-The workspace is preparing the unpublished lock-step `1.2.2` candidate. It
-hardens the Signal homepage presentation and keeps those cumulative release
-gates current. This candidate statement is not tag, registry, docs.rs or
-stable-site evidence.
+The published patch hardens the Signal homepage presentation, keeps all eight
+packaged AI skills current, and retains cumulative changelog-to-skill coverage
+plus the deterministic workflow receipt as mandatory release gates.
+Publication workflow `31396167046` passed and independent registry validation
+found all 33 exact versions present and non-yanked.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:
@@ -38,8 +34,9 @@ The first 1.0.0 publication used a short-lived manual crates.io token because
 it contained first-publication crates. The 1.1.0 release independently verified
 all trusted-publisher configurations and recovered an exact partial registry
 complement. The 1.2.0 release used short-lived OIDC credentials in workflow run
-`31362919458`. The 1.2.1 patch independently re-proved OIDC publication in run
-`31379324388`; all 33 uploads and exact-version registry checks passed.
+`31362919458`. The 1.2.1 and 1.2.2 patches independently re-proved OIDC
+publication in runs `31379324388` and `31396167046`; all 33 uploads and
+exact-version registry checks passed for each release.
 Repository truth keeps `new_publishable_packages` empty.
 Every later release must re-prove authentication and registry state; ownership
 alone is not authentication evidence.

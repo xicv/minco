@@ -5,9 +5,9 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the `1.2.2` release candidate. The `1.2.0`, `1.2.1` and
+No changes beyond the published `1.2.2` release. The `1.2.0`, `1.2.1` and
 `1.2.2` sections retain exact candidate-source wording because their digests
-are bound into the candidate agent bundle; tag, registry and documentation
+are bound into the published agent bundle; tag, registry and documentation
 evidence remains separate in `VERIFICATION.md`.
 
 ## [1.2.2] - 2026-08-10
