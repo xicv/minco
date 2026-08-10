@@ -165,6 +165,27 @@ class HostedCiPolicyTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
 
+    def test_publish_workflow_prefetches_locked_dependencies_before_offline_archive_tests(
+        self,
+    ) -> None:
+        workflow = yaml.load(PUBLISH_WORKFLOW.read_text(), Loader=yaml.BaseLoader)
+        steps = workflow["jobs"]["release"]["steps"]
+        named_steps = {
+            step.get("name", step.get("uses", "")): (index, step)
+            for index, step in enumerate(steps)
+        }
+
+        fetch_index, fetch = named_steps[
+            "Fetch locked Rust dependencies for offline archive tests"
+        ]
+        verify_index, _ = named_steps["Verify release tag"]
+        token_index, _ = named_steps["Obtain short-lived crates.io token"]
+        publish_index, _ = named_steps["Publish selected crate family"]
+        self.assertEqual(fetch["run"], "cargo fetch --locked")
+        self.assertLess(verify_index, fetch_index)
+        self.assertLess(fetch_index, token_index)
+        self.assertLess(token_index, publish_index)
+
     def test_local_runtime_qualifies_owned_postgres_and_rustack(self) -> None:
         runtime = LOCAL_RUNTIME.read_text()
         for required in (

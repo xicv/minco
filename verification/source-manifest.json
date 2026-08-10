@@ -24,8 +24,8 @@
     },
     {
       "path": ".github/workflows/publish-crates.yml",
-      "sha256": "2d228a59f7e886176307c6450ff23316bde953ac981d0764c8cce35106297de4",
-      "size_bytes": 8159
+      "sha256": "5efcb07fe65f2faa0c41c6eb5a37aa9350b379f62e3a6add941363cb94ad62c6",
+      "size_bytes": 8264
     },
     {
       "path": ".gitignore",
@@ -5079,8 +5079,8 @@
     },
     {
       "path": "scripts/test/hosted_ci_policy.py",
-      "sha256": "6d38d04d7410b5c07d77371fa47c757890bccfc34711e79ed51292e788fd7939",
-      "size_bytes": 9569
+      "sha256": "a6b0b00aa382856d887cf13949ef54c9438ec16f13a69e69ce849b3b55f8be12",
+      "size_bytes": 10521
     },
     {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
@@ -5409,8 +5409,8 @@
     },
     {
       "path": "tasks/M14/M14-T13-publish-1-2-release.md",
-      "sha256": "8550a1d1300a31fb7dc0eb08fef68a2720e5282b80f2ff0f018b04a890e126af",
-      "size_bytes": 4457
+      "sha256": "41cc3155f51e89432cc684638cbc903bb383db2d335f3c12ccce159daa8315d9",
+      "size_bytes": 4494
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5762,7 +5762,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933",
-  "total_size_bytes": 8475726,
+  "source_tree_sha256": "aa5514f0039acbdc2b42088c12944ef457da66c9a51910f1e799bfea7992f401",
+  "total_size_bytes": 8476820,
   "version": "1.2.0"
 }

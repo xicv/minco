@@ -91,6 +91,8 @@ jobs:
           test "$release_tag" = "v${version}"
           tag_commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"
           test "$tag_commit" = "$(git rev-parse HEAD)"
+      - name: Fetch locked Rust dependencies for offline archive tests
+        run: cargo fetch --locked
       - name: Verify committed local release evidence
         env:
           MINCO_RESUME_PACKAGES: ${{ inputs.resume_packages }}

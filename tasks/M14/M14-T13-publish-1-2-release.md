@@ -26,6 +26,7 @@ owned_paths:
   - scripts/release/candidate_qualification.py
   - scripts/source_manifest.py
   - scripts/test/candidate_qualification.py
+  - scripts/test/hosted_ci_policy.py
   - scripts/test/operational_evidence.py
   - scripts/test/repository_truth.py
   - tasks/M14/M14-T02-promote-1-1-publication.md
