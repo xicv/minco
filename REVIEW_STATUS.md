@@ -13,9 +13,12 @@ historical release and provider evidence rather than current-version claims.
 Exact local release qualification and hosted run `31360400586` passed before
 tagging. OIDC publication run `31362919458` uploaded the exact tag after the
 dependency-prefetch recovery in PR #137, and registry validation found all 33
-exact versions present and non-yanked. The release does not claim current live
-AWS application evidence or a production performance SLO; M14-T10 remains
-active with those states recorded as `not_run` or stale.
+exact versions present and non-yanked. Post-publication PR #138 merged as
+`8f9ec1e566df1fa496909775c87b4ca23c07421e`; exact merged-main Pages run
+`31367645402` passed, the live stable routes returned HTTP 200 and all 33 exact
+docs.rs routes returned HTTP 200. The release does not claim current live AWS
+application evidence or a production performance SLO; M14-T10 remains active
+with those states recorded as `not_run` or stale.
 
 ## Historical release evidence
 

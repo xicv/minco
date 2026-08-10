@@ -18,8 +18,10 @@ post-upload validation found all 33 exact versions present and non-yanked.
 GitHub release `v1.2.0` is published from the same tag. No live AWS application
 deployment was part of this crate release; the performance baseline stays
 `NOT RUN`, current-provider evidence records no contact, and historical
-provider rehearsals retain their exact source scope. See `VERIFICATION.md` for
-the separate evidence lanes.
+provider rehearsals retain their exact source scope. Post-publication PR #138
+merged as `8f9ec1e566df1fa496909775c87b4ca23c07421e`; Pages run `31367645402`
+passed and all 33 exact docs.rs routes returned HTTP 200. See `VERIFICATION.md`
+for the separate evidence lanes.
 
 Post-release registry verification is:
 
@@ -37,8 +39,8 @@ The 33 public packages advance together in the published `1.2.0` line. It adds
 browser/native HTTP metadata, verified direct uploads, rich observable mail,
 owned local services, topology-aware Plan cost/validation, release-bound
 Feedback task receipts, deterministic operational evidence and the
-digest-approved handover command. The frozen stable manual is `1.2.0` once the
-post-publication Pages deployment passes; Pages and docs.rs remain independent
+digest-approved handover command. The frozen stable manual is live at `1.2.0`,
+and all exact docs.rs routes are reachable. Pages and docs.rs remain independent
 from crates.io publication and from live-provider evidence.
 
 For every later release, independently verify current crates.io OIDC configuration,
