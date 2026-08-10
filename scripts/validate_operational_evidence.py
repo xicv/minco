@@ -614,7 +614,7 @@ class Validator:
             self.add(
                 "EVIDENCE-PROVIDER-021",
                 severity,
-                "no current exact-source live-provider evidence qualifies this candidate",
+                "no current exact-source live-provider evidence qualifies the current source or release",
                 path,
             )
 

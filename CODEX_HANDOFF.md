@@ -1,13 +1,13 @@
 # Minco 1.2.2 release handoff
 
-Date: 2026-08-10
+Date: 2026-08-11
 Published baseline: `1.2.2`
 Current workspace version: `1.2.2`
 Workspace release state: `published`
 Published `1.2.2` source: `0496e6294b213c839af551a82858e2c1c3f7f45d`
 Published source-tree digest: `c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6`
 Published release task: `M14-T15`
-Active release task: `M14-T15`
+Latest release task: `M14-T15` (`complete`)
 Active evidence task: `M14-T10`
 
 ## Current release boundary
@@ -17,9 +17,8 @@ immutable `1.2.1` baseline. It fixes homepage diagram overflow and operating
 model alignment, carries those presentation checks into cumulative agent
 release coverage, and changes no public Rust API, runtime or deployment
 topology. Exact local qualification, PR-head and merged-main clean-Linux runs,
-tag identity, OIDC upload, all 33 registry versions and the GitHub release are
-verified separately. Stable Pages and docs.rs remain closeout gates until the
-post-publication truth change reaches `main`.
+tag identity, OIDC upload, all 33 registry versions, the GitHub release, stable
+Pages and docs.rs are verified separately.
 
 Exact PR-head run `31395154514`, merged-main run `31395740260` and OIDC
 publication run `31396167046` passed for source
@@ -27,6 +26,13 @@ publication run `31396167046` passed for source
 found all 33 exact 1.2.2 versions present and non-yanked. No AWS application
 resource was contacted or changed; current performance remains `NOT RUN` and no
 production SLO is claimed.
+
+Promotion PR #144 passed exact-head clean-Linux run `31399236714` and merged as
+exact tree `92cad4c3e3cbd7912f0f711d44cfc375ddbc563e` in main commit
+`62de61f7c8e510b93933e5337289a630e391b3e9`. Merged-main Pages run
+`31399712561` passed. The root, frozen 1.2.2 manual and versions page return
+HTTP 200 with 1.2.2 marked latest stable, and all 33 exact 1.2.2 docs.rs rustdoc
+routes return HTTP 200.
 
 ## Closed release boundary
 
@@ -59,13 +65,13 @@ version. It does not treat registry unavailability as a pass.
 ## Current product state
 
 The 33 public packages are available together in the published compatible
-`1.2.1` line. The patch refreshes all eight packaged AI skills and makes their
+`1.2.2` line. The release retains all eight packaged AI skills and makes their
 release freshness fail closed. The stable 1.2 product line adds
 browser/native HTTP metadata, verified direct uploads, rich observable mail,
 owned local services, topology-aware Plan cost/validation, release-bound
 Feedback task receipts, deterministic operational evidence and the
-digest-approved handover command. The frozen 1.2.1 manual is available for
-stable use, and every exact 1.2.1 docs.rs rustdoc route is reachable. Those
+digest-approved handover command. The frozen 1.2.2 manual is the current stable
+guide, and every exact 1.2.2 docs.rs rustdoc route is reachable. Those
 documentation checks remain independent from crates.io publication and
 live-provider evidence.
 

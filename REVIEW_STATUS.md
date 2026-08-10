@@ -12,9 +12,8 @@ Workspace release state: `published`
 The release corrects diagram text overflow and the ordered-list cascade that
 misaligned the four operating-model cards. Local, hosted, tag, registry,
 docs.rs, Pages, provider, runtime and production evidence remain distinct.
-Local and clean-Linux qualification, tag identity, registry publication and the
-GitHub release are independently verified; Pages and docs.rs remain closeout
-gates until the promotion change reaches `main`.
+Local and clean-Linux qualification, tag identity, registry publication, the
+GitHub release, stable Pages and docs.rs are independently verified.
 
 Minco `1.2.2` is the current published baseline from exact release source
 `0496e6294b213c839af551a82858e2c1c3f7f45d`, tree
@@ -23,8 +22,14 @@ Minco `1.2.2` is the current published baseline from exact release source
 PR-head run `31395154514` and merged-main run `31395740260` passed. OIDC
 publication run `31396167046` uploaded the exact `v1.2.2` tag, independent
 registry validation found all 33 exact versions present and non-yanked, and the
-GitHub release is published from the same tag. No live AWS application evidence
-or production performance SLO is claimed.
+GitHub release is published from the same tag. Promotion PR #144 passed
+exact-head run `31399236714` and merged as exact tree
+`92cad4c3e3cbd7912f0f711d44cfc375ddbc563e` in main commit
+`62de61f7c8e510b93933e5337289a630e391b3e9`. Pages run `31399712561`
+passed; the root, frozen 1.2.2 manual and versions page returned HTTP 200 with
+current stable truth, and all 33 exact 1.2.2 docs.rs rustdoc routes returned
+HTTP 200. No live AWS application evidence or production performance SLO is
+claimed.
 
 The workspace is the published `1.2.1` lock-step release for release-bound AI
 skill freshness. Its local, hosted, tag and registry checks remain separate
@@ -32,7 +37,7 @@ from docs.rs, stable-site, provider, runtime and production evidence. The
 stable-site and docs.rs lanes are now independently closed; provider, runtime
 and production claims remain absent or historical.
 
-Minco `1.2.1` is the current published baseline from exact release source
+Minco `1.2.1` is the previous published baseline from exact release source
 `5f329ebbabef2840b01f10743f8dbb25a0b0dbe4` and source-tree digest
 `4207fb168ee9c71eb7291efbf4dc03464a9009f7ae5889d34e09f030fca2caf3`.
 The coordinated 33-package release adds browser/native HTTP metadata, verified

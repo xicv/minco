@@ -8,7 +8,7 @@
   "findings": [
     {
       "code": "EVIDENCE-PROVIDER-021",
-      "message": "no current exact-source live-provider evidence qualifies this candidate",
+      "message": "no current exact-source live-provider evidence qualifies the current source or release",
       "path": "verification/provider-evidence.toml",
       "severity": "warning"
     },
@@ -20,12 +20,12 @@
     }
   ],
   "inputs": {
-    "verification/1.2-performance-baseline.json": "146d260f786573f3a08aabe252f592f0ffd4196f8af1be03f2beb43fa4d4ff26",
+    "verification/1.2-performance-baseline.json": "5e498c4b60251e4b820ee14d4de71763cfa4fa56b99859243d01ebccf59416f2",
     "verification/aws-capability-candidates.toml": "53b106b98813864dce64a3a5b18bbe7cde11b51d3a112ca47dd9c867559927a8",
     "verification/performance-policy.toml": "fd1db4a03bc9e2d5702fb38bf3274c7a43b53baf7dba2667664a4b2167a47092",
-    "verification/provider-evidence.toml": "e36132376af0b313eefb5fd3e9aa257849f7965636d2386d264c2cb432c4841b",
+    "verification/provider-evidence.toml": "48f4c0151002a5850c44f928695ac33763bb04a37da903359134bab7e33534f0",
     "verification/repository-truth.toml": "ef874768a12ad99b8a3394663183a9a3742ac7968046b1f83f708f2725337f0b",
-    "verification/source-manifest.json": "fc5adaf2afe1f7640b7ca064e7d00fd2ca90fd1e5560e1785b84ea5c30a71743"
+    "verification/source-manifest.json": "c582c64c9ed3248e25ec62b37c6c1be8e6334e584a50312313ae32654b92682e"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -34,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "b0cbd6ae6bd80449a9111c6e4e72dc6071fb87c97a1d9f3233e2176e8eb608b4",
+  "receipt_digest": "125850589b4da5419ffcaafba015b880cb8f83d493ae7911dec29de0db3f3bc5",
   "schema_version": 1,
-  "source_tree_sha256": "e7648934d8ddb2634814c5e876fafaf3774b3977da0b10bc77deb3d59168dc72",
+  "source_tree_sha256": "8b575da2a0d3c25078db7116f0a8471f8e27aeecc55f5bf33b65a1c5ee30cc64",
   "status": "PASS"
 }
