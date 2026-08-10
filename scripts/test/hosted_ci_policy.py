@@ -12,7 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 ESSENTIAL = ROOT / "scripts/ci/hosted-essential.sh"
+LOCAL_RELEASE = ROOT / "scripts/ci/local-release.sh"
+LOCAL_RUNTIME = ROOT / "scripts/ci/local-runtime.sh"
 WORKFLOW = ROOT / ".github/workflows/minco-manual.yml"
+WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
+PUBLISH_WORKFLOW = WORKFLOW_DIRECTORY / "publish-crates.yml"
 DOCS_PLAYWRIGHT = ROOT / "docs-site/playwright.config.mts"
 
 
@@ -65,18 +69,23 @@ class HostedCiPolicyTests(unittest.TestCase):
                 ],
             )
 
-    def test_manual_workflow_defaults_to_bounded_essential_profile(self) -> None:
+    def test_repository_has_only_platform_required_workflows(self) -> None:
+        workflow_files = [
+            *WORKFLOW_DIRECTORY.glob("*.yml"),
+            *WORKFLOW_DIRECTORY.glob("*.yaml"),
+        ]
+        self.assertEqual(
+            {path.name for path in workflow_files},
+            {"docs-pages.yml", "minco-manual.yml", "publish-crates.yml"},
+        )
+
+    def test_manual_workflow_is_only_a_bounded_clean_runner_check(self) -> None:
         workflow = yaml.load(WORKFLOW.read_text(), Loader=yaml.BaseLoader)
         self.assertEqual(set(workflow["on"]), {"workflow_dispatch"})
-
-        dispatch = workflow["on"]["workflow_dispatch"]
-        profile = dispatch["inputs"]["profile"]
-        self.assertEqual(profile["default"], "essential")
-        self.assertEqual(profile["type"], "choice")
-        self.assertEqual(profile["options"], ["essential", "release"])
+        self.assertNotIn("inputs", workflow["on"]["workflow_dispatch"] or {})
 
         self.assertEqual(workflow["permissions"], {"contents": "read"})
-        self.assertEqual(workflow["jobs"]["quality"]["timeout-minutes"], "90")
+        self.assertEqual(workflow["jobs"]["quality"]["timeout-minutes"], "20")
         self.assertEqual(
             workflow["concurrency"],
             {
@@ -91,40 +100,80 @@ class HostedCiPolicyTests(unittest.TestCase):
         }
         essential = steps["Essential clean-runner gate"]
         self.assertEqual(essential["run"], "scripts/ci/hosted-essential.sh")
-        self.assertEqual(
-            essential["if"],
-            "${{ inputs.profile == 'essential' }}",
-        )
+        self.assertNotIn("if", essential)
 
-        rust_cache = next(
-            step
-            for step in workflow["jobs"]["quality"]["steps"]
-            if step.get("uses", "").startswith("Swatinem/rust-cache@")
-        )
-        self.assertEqual(rust_cache["with"]["cache-targets"], "false")
-        self.assertEqual(rust_cache["with"]["cache-on-failure"], "false")
+        workflow_source = WORKFLOW.read_text()
+        for forbidden in (
+            "Swatinem/rust-cache",
+            "scripts/quality.sh",
+            "upload-artifact",
+            "cargo-lambda",
+            "clippy",
+            "setup-zig",
+            "rustack",
+            "scripts/test/e2e.sh",
+            "profile:",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, workflow_source)
 
-        release_only = {
-            "Set up release Node runtime",
-            "Install release qualification tools",
-            "Full release quality reproduction",
-            "Standalone AppSync proof",
-            "Upload Feedback browser evidence",
-            "Publish dry run",
-            "Install pinned Cargo Lambda",
-            "Install pinned Zig",
-            "Plan, SAM, and native ARM64 Lambda qualification",
-            "Rustack and Minco SSM adapter conformance",
-            "E2E",
-        }
-        self.assertTrue(release_only.issubset(steps))
-        for name in release_only:
-            self.assertIn("inputs.profile == 'release'", steps[name]["if"])
-
-        self.assertEqual(
-            steps["Standalone AppSync proof"]["run"],
+    def test_local_release_retains_the_removed_release_matrix(self) -> None:
+        release = LOCAL_RELEASE.read_text()
+        required_commands = [
+            "./scripts/quality.sh",
             "proofs/realtime-appsync/scripts/test-local.sh",
+            "scripts/release/candidate-recovery.sh",
+            "scripts/release/candidate-load.sh",
+            "scripts/release/publish.sh --skip-quality",
+            "scripts/aws/plan.sh",
+            "scripts/aws/validate.sh",
+            "scripts/aws/build-lambda.sh",
+            "scripts/aws/build-worker-lambda.sh",
+            "scripts/ci/local-runtime.sh",
+            "scripts/dev/rustack-smoke.sh",
+            "scripts/test/e2e.sh",
+        ]
+        positions = [release.index(command) for command in required_commands]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_publish_workflow_does_not_repeat_authoritative_local_quality(self) -> None:
+        workflow = yaml.load(PUBLISH_WORKFLOW.read_text(), Loader=yaml.BaseLoader)
+        self.assertEqual(workflow["permissions"], {"contents": "read"})
+        self.assertEqual(
+            workflow["jobs"]["release"]["permissions"],
+            {"contents": "read", "id-token": "write"},
         )
+
+        source = PUBLISH_WORKFLOW.read_text()
+        for forbidden in (
+            "Swatinem/rust-cache",
+            "jj-cli",
+            "ripgrep",
+            "cargo fmt",
+            "cargo check",
+            "cargo clippy",
+            "cargo test --workspace",
+            "scripts/test/generated_apps.sh",
+            "cargo doc",
+            "scripts/quality.sh",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+
+    def test_local_runtime_qualifies_owned_postgres_and_rustack(self) -> None:
+        runtime = LOCAL_RUNTIME.read_text()
+        for required in (
+            "trap cleanup EXIT",
+            "cargo build --locked -p cargo-minco",
+            "__local-service start postgres",
+            '__local-service stop "$service"',
+            "stop_service postgres",
+            "__local-service start rustack",
+            "stop_service rustack",
+            "--aws-services sts",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, runtime)
 
     def test_local_quality_retains_the_complete_authoritative_matrix(self) -> None:
         quality = (ROOT / "scripts/quality.sh").read_text()

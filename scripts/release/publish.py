@@ -298,7 +298,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--execute", action="store_true", help="upload instead of performing a dry run")
     parser.add_argument("--package", action="append", default=[], help="publish only one named release package; repeatable")
-    parser.add_argument("--skip-quality", action="store_true", help="skip local quality commands; intended only after the same CI job ran them")
+    parser.add_argument(
+        "--skip-quality",
+        action="store_true",
+        help="skip quality commands after the exact source completed authoritative local qualification",
+    )
     parser.add_argument("--registry", default="crates-io")
     args = parser.parse_args()
 

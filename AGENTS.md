@@ -57,6 +57,14 @@ Resolve or explicitly split conflicts before release. Use `jj op log`, `jj undo`
 `jj workspace update-stale` for recovery. Never report a task complete merely because
 source was written.
 
+## GitHub Actions boundary
+
+The workflow allowlist is exactly `docs-pages.yml`, `minco-manual.yml` and
+`publish-crates.yml`. Never create temporary, task-specific or branch-only GitHub
+workflows. Run full quality, release, local runtime, Rustack and E2E qualification
+locally with `scripts/ci/local-release.sh`; GitHub provides only Pages deployment,
+crates.io OIDC publication and the short manual clean-Linux compatibility check.
+
 ## Required workflow for a new operation
 
 1. Change OpenAPI, including examples, security, success and Problem responses.

@@ -1,26 +1,7 @@
-name: Minco hosted qualification
+name: Minco hosted compatibility
 
 on:
   workflow_dispatch:
-    inputs:
-      profile:
-        description: Select bounded clean-runner evidence or the full release matrix
-        required: true
-        default: essential
-        type: choice
-        options:
-          - essential
-          - release
-      run_e2e:
-        description: Run the HTTP end-to-end test during release qualification
-        required: false
-        default: false
-        type: boolean
-      run_rustack:
-        description: Run Rustack conformance during release qualification
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -32,7 +13,7 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -44,83 +25,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: 1.97.1
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          cache-targets: false
-          cache-on-failure: false
+          components: rustfmt
       - name: Essential clean-runner gate
-        if: ${{ inputs.profile == 'essential' }}
         run: scripts/ci/hosted-essential.sh
-      - name: Set up release Node runtime
-        if: ${{ inputs.profile == 'release' }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24.18.0"
-          package-manager-cache: false
-      - name: Install release qualification tools
-        if: ${{ inputs.profile == 'release' }}
-        run: |
-          cargo install --locked --bin jj jj-cli --version 0.43.0
-          jj --version
-          cargo install --locked ripgrep --version 15.2.0
-          rg --version
-          cargo install --locked cargo-deny --version 0.19.5
-          cargo install --locked cargo-audit --version 0.22.2
-          go install github.com/zricethezav/gitleaks/v8@v8.30.1
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Full release quality reproduction
-        if: ${{ inputs.profile == 'release' }}
-        run: ./scripts/quality.sh
-      - name: Standalone AppSync proof
-        if: ${{ inputs.profile == 'release' }}
-        run: proofs/realtime-appsync/scripts/test-local.sh
-      - name: Bounded candidate recovery and load qualification
-        if: ${{ inputs.profile == 'release' }}
-        run: |
-          scripts/release/candidate-recovery.sh
-          scripts/release/candidate-load.sh
-      - name: Upload candidate qualification evidence
-        if: ${{ inputs.profile == 'release' && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: candidate-qualification-${{ github.sha }}
-          path: |
-            target/minco/candidate-load.json
-            target/minco/candidate-recovery.json
-          if-no-files-found: error
-          retention-days: 14
-      - name: Upload Feedback browser evidence
-        if: ${{ inputs.profile == 'release' && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: feedback-browser-${{ github.sha }}
-          path: target/minco/feedback-browser/
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Publish dry run
-        if: ${{ inputs.profile == 'release' }}
-        run: scripts/release/publish.sh --skip-quality
-      - name: Install pinned Cargo Lambda
-        if: ${{ inputs.profile == 'release' }}
-        run: cargo install --locked cargo-lambda --version 1.9.1
-      - name: Install pinned Zig
-        if: ${{ inputs.profile == 'release' }}
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: "0.14.0"
-      - name: Plan, SAM, and native ARM64 Lambda qualification
-        if: ${{ inputs.profile == 'release' }}
-        run: |
-          cargo lambda --version
-          sam --version
-          scripts/aws/plan.sh
-          scripts/aws/validate.sh
-          scripts/aws/build-lambda.sh
-          scripts/aws/build-worker-lambda.sh
-      - name: Rustack and Minco SSM adapter conformance
-        if: ${{ inputs.profile == 'release' && inputs.run_rustack }}
-        run: scripts/dev/rustack-smoke.sh
-      - name: E2E
-        if: ${{ inputs.profile == 'release' && inputs.run_e2e }}
-        run: scripts/test/e2e.sh

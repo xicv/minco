@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1092,
+  "file_count": 1095,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -18,19 +18,14 @@
       "size_bytes": 1774
     },
     {
-      "path": ".github/workflows/local-dev-runtime-validation.yml",
-      "sha256": "8bc87d4b12da7d12b932dc099f34db17d3a53627c5646ebeb29bb48fe5f0cfbc",
-      "size_bytes": 4296
-    },
-    {
       "path": ".github/workflows/minco-manual.yml",
-      "sha256": "a2031a2689232442ab54d57455679261e641a9d82b24fddf473bac18c1abf8b3",
-      "size_bytes": 4820
+      "sha256": "7dd355cbd442f6dd2d9b0ef1e29643a36e1655b3cd23d395d133f6b6ab3cb25a",
+      "size_bytes": 832
     },
     {
       "path": ".github/workflows/publish-crates.yml",
-      "sha256": "c9220549da1eefd558df8fa75b03dfd9f579b5a74e7b50f936ae58f53deafd62",
-      "size_bytes": 9344
+      "sha256": "0964d27acc71c5073252f7cf36dc35796be97d8e8c9bc7088251be21ba564847",
+      "size_bytes": 8071
     },
     {
       "path": ".gitignore",
@@ -44,8 +39,8 @@
     },
     {
       "path": "AGENTS.md",
-      "sha256": "95302913311a1494710f9822f331ab37d8b838dfb81690a58236464d9b6d25bf",
-      "size_bytes": 4439
+      "sha256": "50d5e3fd8f4e045e4be56bfc38955f847e91e18272ba30f74a4d1560dbe4baa3",
+      "size_bytes": 4872
     },
     {
       "path": "CHANGELOG.md",
@@ -1604,8 +1599,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "c1977f47df189cd9c087739544c65f0cff64a158280600790f574bfdb1caaa73",
-      "size_bytes": 6464
+      "sha256": "59b75a44bbaa9c17c9cf7611e959f19530347dd15883090917fe6578f9fa2358",
+      "size_bytes": 6681
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -1724,8 +1719,8 @@
     },
     {
       "path": "docs/adrs/0013-quality-and-update.md",
-      "sha256": "99887d06549549aa30e5f29e92d3a691acfa808c760ea77f3ad4bcb368380c1a",
-      "size_bytes": 3614
+      "sha256": "7b1f1702c829b7b8cbda68a6d99a71d8f1f5d9ccb7e63f6c98a4e48dab75ae96",
+      "size_bytes": 3781
     },
     {
       "path": "docs/adrs/0014-plugin-lifecycle-and-feedback.md",
@@ -1841,6 +1836,11 @@
       "path": "docs/adrs/0036-owned-local-service-runtimes.md",
       "sha256": "a88258a9bd0d31fecc765771ba8a459568714d4b812f54991ac83042fc9e2be6",
       "size_bytes": 10976
+    },
+    {
+      "path": "docs/adrs/0038-local-first-actions-boundary.md",
+      "sha256": "a5a7c16a4caa36e231dfb0839eafb25d5743ff9a53dd367836ff406f0d44f507",
+      "size_bytes": 6226
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -2009,8 +2009,8 @@
     },
     {
       "path": "docs/development/testing.md",
-      "sha256": "c57ef3a4d5b5974ae1b894e270a7dc66f6a10b4d89b7963da8c565cff9e976b7",
-      "size_bytes": 7013
+      "sha256": "25434c1174ed802d71a2bb34bf8ec2e9154cc99df602eef6c6449a66999c0389",
+      "size_bytes": 7358
     },
     {
       "path": "docs/development/update.md",
@@ -4544,8 +4544,8 @@
     },
     {
       "path": "scripts/aws/test-multi-release-phase-result.sh",
-      "sha256": "b8a8a71e4935147e24c29d88b222aa8f1c314a43d74334ff37c55ea70cfaf163",
-      "size_bytes": 9660
+      "sha256": "5a0899ea775c2aea1293cf494c862fabea6b7ab677719e0416498e906bb40071",
+      "size_bytes": 9661
     },
     {
       "path": "scripts/aws/test-multi-release-rehearsal-authority.sh",
@@ -4601,6 +4601,16 @@
       "path": "scripts/ci/hosted-essential.sh",
       "sha256": "facbd9ecacb0d7e917765577be47a9d3ae4f38caa3af062e1cafb324178a50dc",
       "size_bytes": 578
+    },
+    {
+      "path": "scripts/ci/local-release.sh",
+      "sha256": "46864642912f750480bf5b64bdad8608b5317ba1e8db48bf62afbaeb2cabf1d8",
+      "size_bytes": 962
+    },
+    {
+      "path": "scripts/ci/local-runtime.sh",
+      "sha256": "bfcf75892e9afce373e71c1a21da7d3b5d7c9f387213b7013a8d6a42135c85bb",
+      "size_bytes": 2159
     },
     {
       "path": "scripts/deep_review.py",
@@ -4759,8 +4769,8 @@
     },
     {
       "path": "scripts/release/publish.py",
-      "sha256": "655d467cc81ea3dce6e342c6341cd0ca4fdff45ba5d9bdac1a216ccce722911d",
-      "size_bytes": 12711
+      "sha256": "8d96318bd92e650b14cfb00d3b1759442400f45d29e8a337cdbc65eb04f1ec5e",
+      "size_bytes": 12757
     },
     {
       "path": "scripts/release/publish.sh",
@@ -4844,8 +4854,8 @@
     },
     {
       "path": "scripts/test/hosted_ci_policy.py",
-      "sha256": "d193efa36224dbd8252a47027399feaf5746a597e056806135c0b9d1876e68df",
-      "size_bytes": 6858
+      "sha256": "127dceb41abaad14cdd4a643d761243e6e1c7156fae555ac7c263a63b8e34a10",
+      "size_bytes": 8767
     },
     {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
@@ -4859,8 +4869,8 @@
     },
     {
       "path": "scripts/test/repository_truth.py",
-      "sha256": "fe0ae18ce54c265704d3737ff8f95bda7404601a9eea8d79a3d2b418027254c1",
-      "size_bytes": 26890
+      "sha256": "603bf236b9a08bf4dec03e6e2c9454ff3b27c614186158edbc48bf29137f544d",
+      "size_bytes": 25069
     },
     {
       "path": "scripts/test/rust_dependency_hygiene.py",
@@ -5143,6 +5153,11 @@
       "size_bytes": 20719
     },
     {
+      "path": "tasks/M14/M14-T12-local-first-actions-boundary.md",
+      "sha256": "b246e181ea7f1298ba86c032bbc71333d959ecd329d5afb40819ec250f4c49db",
+      "size_bytes": 6112
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -5384,7 +5399,7 @@
     },
     {
       "path": "verification/deep-review.json",
-      "sha256": "01333551bcd7aa30eb7566c6fe8cf2524ecdc287e0cf2135022292e2ed352454",
+      "sha256": "4c7db7dc7af628ec9b80931950d849b4cec45d18c16577d890fda6b72152d0be",
       "size_bytes": 2022
     },
     {
@@ -5444,7 +5459,7 @@
     },
     {
       "path": "verification/static-validation.json",
-      "sha256": "8e4baf3bec5a59e7a1b00350bf97c232fd19215d06ffb0eb83861de5a4f437ea",
+      "sha256": "90db5c65c8f643328f41dc0c5391a1e547c2692fe2000f76d619cac9b996363e",
       "size_bytes": 754
     },
     {
@@ -5474,7 +5489,7 @@
     "verification/adoption-measurements.json",
     "verification/source-manifest.json"
   ],
-  "source_tree_sha256": "62d8c480f32ac811d6f4f9d182880c45f37ae062a67aed10f5b88775eba7fe6d",
-  "total_size_bytes": 7821927,
+  "source_tree_sha256": "130882411bd962ac9ad5c6f2b1715a19ccc9fe310e6bbe95ef6ca0c77b7f4250",
+  "total_size_bytes": 7829126,
   "version": "1.1.0"
 }
