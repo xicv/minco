@@ -5,7 +5,41 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes since the published 1.2.0 release.
+No changes beyond the unpublished 1.2.1 release candidate.
+
+## [1.2.1] - 2026-08-10
+
+This compatible lock-step patch keeps the complete 33-package family together
+while making packaged AI skill freshness an ordinary, fail-closed release
+contract. It remains unpublished until exact-source qualification, tagging and
+registry publication complete as separate evidence states.
+
+### Added
+
+- Added cumulative, release-bound AI skill freshness metadata that maps every
+  top-level release note to stable product features, version-matched
+  documentation and the packaged skills that must teach them.
+
+### Changed
+
+- Updated all eight packaged skills for the complete 1.2 browser/native,
+  verified-upload, rich-mail, owned-local-service, Signal documentation,
+  topology-aware cost and release-bound evidence boundary.
+- Made the deterministic Codex/Claude workflow receipt support exact check mode
+  and added its freshness, bundle coverage and mutation tests to ordinary local
+  and hosted release gates.
+
+### Compatibility
+
+- Kept skill names, trigger semantics, projection paths and mutation authority
+  unchanged; the complete public crate and plugin family advances together as
+  the SemVer-compatible `1.2.1` patch.
+
+### Safety and evidence
+
+- Added no hosted agent runtime, dynamic skill download or always-on control
+  plane. Local and clean-Linux checks remain distinct from model quality,
+  provider, deployment, runtime and production evidence.
 
 ## [1.2.0] - 2026-08-10
 

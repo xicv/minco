@@ -1,5 +1,9 @@
 # Review status
 
+The workspace is an unpublished `1.2.1` lock-step candidate for release-bound
+AI skill freshness. Its local and hosted checks remain separate from tag,
+registry, docs.rs, stable-site, provider, runtime and production evidence.
+
 Minco `1.2.0` is the current published baseline from exact release source
 `48df3cc0ebb8990061b60d9383ced63532941079` and source-tree digest
 `07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933`.

@@ -13,6 +13,7 @@ const BUNDLE_JSON: &[u8] = include_bytes!("../assets/agent/bundle.json");
 const SCENARIOS_JSON: &[u8] = include_bytes!("../assets/agent/evals/scenarios.json");
 const CLAUDE_BRIDGE: &[u8] = include_bytes!("../templates/app/CLAUDE.md.tmpl");
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
+const REQUIRED_RELEASE_FEATURE_COVERAGE: &[&str] = &["1.2.0", "1.2.1"];
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {
@@ -391,6 +392,7 @@ struct AgentBundle {
     schema_version: u32,
     minco_version: String,
     scenarios: String,
+    release_feature_coverage: ReleaseFeatureCoverage,
     skills: Vec<AgentBundleSkill>,
 }
 
@@ -400,6 +402,30 @@ struct AgentBundleSkill {
     path: String,
     mode: String,
     documentation: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseFeatureCoverage {
+    schema_version: u32,
+    releases: Vec<CoveredRelease>,
+    features: Vec<ReleaseFeature>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CoveredRelease {
+    version: String,
+    changelog_sha256: String,
+    features: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseFeature {
+    id: String,
+    release_version: String,
+    skill_marker: String,
+    skills: Vec<String>,
+    documentation: Vec<String>,
+    release_note_markers: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -693,6 +719,13 @@ fn evaluate_skills() -> Result<SkillEvaluation> {
             detail: "scenario contract must remain at evals/scenarios.json".into(),
         });
     }
+    if let Err(error) = validate_release_feature_coverage(&bundle) {
+        issues.push(EvaluationIssue {
+            path: "bundle.json".into(),
+            code: "invalid_release_feature_coverage",
+            detail: error.to_string(),
+        });
+    }
     let mut names = BTreeSet::new();
     for skill in &bundle.skills {
         if !names.insert(skill.name.as_str()) {
@@ -746,6 +779,120 @@ fn evaluate_skills() -> Result<SkillEvaluation> {
         files: ASSETS.len(),
         issues,
     })
+}
+
+fn validate_release_feature_coverage(bundle: &AgentBundle) -> Result<()> {
+    let coverage = &bundle.release_feature_coverage;
+    if coverage.schema_version != 1 {
+        bail!("release feature coverage schema must be 1");
+    }
+    let known_skills = bundle
+        .skills
+        .iter()
+        .map(|skill| skill.name.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut feature_ids = BTreeSet::new();
+    let mut features = BTreeMap::new();
+    let documentation_prefix = format!("minco-{}:", bundle.minco_version);
+    for feature in &coverage.features {
+        if !feature_ids.insert(feature.id.as_str()) {
+            bail!("duplicate release feature {}", feature.id);
+        }
+        if feature.id.is_empty()
+            || feature.release_version.is_empty()
+            || feature.skill_marker.trim().is_empty()
+            || feature.skills.is_empty()
+            || feature.documentation.is_empty()
+            || feature.release_note_markers.is_empty()
+            || feature
+                .release_note_markers
+                .iter()
+                .any(|marker| marker.trim().is_empty())
+        {
+            bail!("release feature {} has incomplete fields", feature.id);
+        }
+        if !feature.documentation.iter().all(|identifier| {
+            identifier
+                .strip_prefix(&documentation_prefix)
+                .is_some_and(|relative| {
+                    !relative.is_empty()
+                        && Path::new(relative)
+                            .components()
+                            .all(|component| matches!(component, Component::Normal(_)))
+                })
+        }) {
+            bail!(
+                "release feature {} has invalid versioned documentation",
+                feature.id
+            );
+        }
+        for skill in &feature.skills {
+            if !known_skills.contains(skill.as_str()) {
+                bail!("release feature {} names unknown skill {skill}", feature.id);
+            }
+            let instructions = std::str::from_utf8(asset_contents(&format!("{skill}/SKILL.md"))?)
+                .context("release feature skill instructions are not UTF-8")?;
+            let workflow =
+                std::str::from_utf8(asset_contents(&format!("{skill}/references/workflow.md"))?)
+                    .context("release feature workflow is not UTF-8")?;
+            let combined = format!("{instructions}\n{workflow}").to_lowercase();
+            if !combined.contains(&feature.skill_marker.to_lowercase()) {
+                bail!(
+                    "release feature {} marker is absent from skill {skill}",
+                    feature.id
+                );
+            }
+        }
+        features.insert(feature.id.as_str(), feature);
+    }
+
+    let mut releases = BTreeSet::new();
+    let mut referenced_features = BTreeSet::new();
+    let mut covered_skills = BTreeSet::new();
+    for release in &coverage.releases {
+        if !releases.insert(release.version.as_str()) {
+            bail!("duplicate release feature coverage for {}", release.version);
+        }
+        if release.version.is_empty()
+            || release.changelog_sha256.len() != 64
+            || !release
+                .changelog_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+            || release.features.is_empty()
+        {
+            bail!("release {} has invalid coverage identity", release.version);
+        }
+        for feature_id in &release.features {
+            let feature = features
+                .get(feature_id.as_str())
+                .with_context(|| format!("release names unknown feature {feature_id}"))?;
+            if feature.release_version != release.version {
+                bail!("release feature {feature_id} is bound to another version");
+            }
+            if !referenced_features.insert(feature_id.as_str()) {
+                bail!("release feature {feature_id} is referenced more than once");
+            }
+            covered_skills.extend(feature.skills.iter().map(String::as_str));
+        }
+    }
+    if !releases.contains(bundle.minco_version.as_str()) {
+        bail!("current Minco release lacks feature coverage");
+    }
+    let required_releases = REQUIRED_RELEASE_FEATURE_COVERAGE
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    if releases != required_releases {
+        bail!("release feature coverage differs from the compiled release history");
+    }
+    if referenced_features != feature_ids {
+        bail!("release feature coverage contains orphan features");
+    }
+    if covered_skills != known_skills {
+        bail!("release feature coverage does not include every packaged skill");
+    }
+    Ok(())
 }
 
 fn validate_skill(skill: &AgentBundleSkill, minco_version: &str) -> Result<()> {
@@ -2156,6 +2303,7 @@ mod secure {
 #[cfg(all(test, any(target_os = "linux", target_vendor = "apple")))]
 mod tests {
     use super::secure::{self, Expected, WriteRequest};
+    use super::{AgentBundle, BUNDLE_JSON, validate_release_feature_coverage};
     use std::{fs, path::PathBuf};
 
     fn request() -> WriteRequest {
@@ -2164,6 +2312,24 @@ mod tests {
             contents: b"managed\n".to_vec(),
             expected: Expected::Missing,
         }
+    }
+
+    #[test]
+    fn release_feature_coverage_rejects_removed_historical_release() {
+        let mut bundle: AgentBundle =
+            serde_json::from_slice(BUNDLE_JSON).expect("packaged agent bundle");
+        bundle
+            .release_feature_coverage
+            .releases
+            .retain(|release| release.version != "1.2.0");
+        bundle
+            .release_feature_coverage
+            .features
+            .retain(|feature| feature.release_version != "1.2.0");
+
+        let error = validate_release_feature_coverage(&bundle)
+            .expect_err("cumulative release deletion must fail closed");
+        assert!(error.to_string().contains("compiled release history"));
     }
 
     fn staging_files(root: &std::path::Path) -> Vec<PathBuf> {

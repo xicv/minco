@@ -1,5 +1,5 @@
 {
-  "bundle_digest": "5ce2e7cd92974007b2997fa7191dc6a21acfb0ce0c4fe01c2a152b236853c06d",
+  "bundle_digest": "65b3767035d3822f3770f71ccd8818602f198feb679ff700a74b0ed6464c4c4e",
   "evidence_lanes": {
     "deployment": "absent",
     "hosted": "absent",
@@ -20,16 +20,14 @@
     "commands_executed": 9,
     "model_invocations": 0,
     "network_requests": 0,
-    "writes_outside_temporary_roots": [
-      "verification/agent-workflows.json"
-    ]
+    "permitted_persistent_output": "verification/agent-workflows.json"
   },
   "limitations": [
     "Scenario contract validation is not a model quality score.",
     "Client discovery is proven through documented project layouts and byte parity, not interactive client UI automation.",
     "No hosted, deployment, runtime, production, or acceptance evidence was produced."
   ],
-  "minco_version": "1.2.0",
+  "minco_version": "1.2.1",
   "negative_cases": {
     "evidence_lane_upgrade_forbidden": true,
     "framework_application_mode_separated": true,
@@ -44,7 +42,7 @@
     "canonical_files_per_client": 24,
     "claude_path": ".claude/skills",
     "codex_path": ".agents/skills",
-    "initial_plan_digest": "0d76d3b04514f39c538c4d8a876c7966a09cf0823d3c3ed15c2d79a536e45025",
+    "initial_plan_digest": "3db973267db53b4bb606dcba7ce753ac0f52dac198e18c112991b2b386a39ed1",
     "read_only_eval": true
   },
   "scenario_suite_digest": "9da096fa37c896cac2292112e51f48499ac491812083c07b8d0e25418f321081",

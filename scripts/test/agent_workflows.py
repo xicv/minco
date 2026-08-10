@@ -2,10 +2,12 @@
 """Qualify deterministic Minco agent workflows without invoking a model."""
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,53 @@ SKILLS = [
     "minco-web-application",
 ]
 command_count = 0
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Qualify and record deterministic Minco agent workflows."
+    )
+    destination = parser.add_mutually_exclusive_group()
+    destination.add_argument(
+        "--output",
+        type=Path,
+        help="write the canonical receipt to this path",
+    )
+    destination.add_argument(
+        "--check-output",
+        type=Path,
+        help="fail when this existing receipt differs from current qualification",
+    )
+    return parser.parse_args(argv)
+
+
+def confined_evidence_path(path: Path) -> tuple[Path, str]:
+    """Resolve one receipt path beneath verification without following symlinks."""
+    lexical = path if path.is_absolute() else ROOT / path
+    normalized = Path(os.path.abspath(lexical))
+    verification_lexical = ROOT / "verification"
+    verification = (ROOT / "verification").resolve()
+    try:
+        relative = normalized.relative_to(verification_lexical)
+    except ValueError as error:
+        raise ValueError("agent workflow receipt must remain under verification/") from error
+    if not relative.parts:
+        raise ValueError("agent workflow receipt must name a file under verification/")
+
+    current = verification_lexical
+    if current.is_symlink() or not current.is_dir():
+        raise ValueError("verification/ must be a real directory")
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("agent workflow receipt path must not contain symlinks")
+    if current.exists() and not current.is_file():
+        raise ValueError("agent workflow receipt must be a regular file")
+    try:
+        normalized.resolve(strict=False).relative_to(verification)
+    except ValueError as error:
+        raise ValueError("agent workflow receipt must remain under verification/") from error
+    return normalized, f"verification/{relative.as_posix()}"
 
 
 def cli_binary() -> Path:
@@ -135,7 +184,15 @@ def canonical_skill_bytes() -> dict[str, bytes]:
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        receipt_path, receipt_relative = confined_evidence_path(
+            args.check_output or args.output or OUTPUT
+        )
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 2
     scenario_source = json.loads(
         (ROOT / "crates/minco-cli/assets/agent/evals/scenarios.json").read_text()
     )
@@ -287,9 +344,7 @@ def main() -> int:
             "commands_executed": command_count,
             "network_requests": 0,
             "model_invocations": 0,
-            "writes_outside_temporary_roots": [
-                "verification/agent-workflows.json"
-            ],
+            "permitted_persistent_output": receipt_relative,
         },
         "forward_model": {
             "status": "not_run",
@@ -311,8 +366,24 @@ def main() -> int:
         ],
     }
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(rendered)
+    if args.check_output is not None:
+        try:
+            current = receipt_path.read_text()
+        except OSError as error:
+            print(
+                f"agent workflow receipt is unavailable: {receipt_relative}: {error}",
+                file=sys.stderr,
+            )
+            return 1
+        if current != rendered:
+            print(
+                f"agent workflow receipt is stale: {receipt_relative}",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(rendered)
     print(rendered, end="")
     return 0
 

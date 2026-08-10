@@ -1,11 +1,18 @@
 # Operation layer ownership
 
+Release skill freshness is checked against the current Minco changelog and
+versioned documentation before the bundle ships.
+
 - OpenAPI owns the external HTTP contract.
 - Domain owns pure invariants and transitions.
 - Application owns authorization, validation, orchestration, and use-case ports.
 - Adapters implement application-owned ports.
 - HTTP handlers extract/map, call one use case, and map one response.
 - The composition root selects concrete adapters and runtime plugins.
+- Browser/native contract metadata remains frontend-neutral and shares one
+  authoritative business API.
+- Verified direct upload completion validates provider metadata before durable
+  state; rich mail separates provider acceptance from mailbox delivery.
 
 Prefer tests that observe public behavior:
 

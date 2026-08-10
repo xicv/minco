@@ -3,7 +3,7 @@
   "id": "realtime",
   "kind": "plugin",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^1.2.0",
+  "core_compatibility": "^1.2.1",
   "stability": "beta",
   "default_enabled": false,
   "feature": "plugin-realtime",

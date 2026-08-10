@@ -13,8 +13,10 @@ Required before handoff:
 - focused task checks pass;
 - no conflict touches the task change;
 - evidence names the exact revision and lane;
+- generated references, Signal documentation and release skill freshness are
+  current when the task changes a shipped feature or release;
 - unavailable or broader user-disallowed gates are recorded literally; and
 - the pushed bookmark contains no unrelated workspace changes.
 
-A task implementation, push, PR, hosted check, merge, release, publication,
-deployment, and runtime proof are separate states.
+A task implementation, push, PR, local-first release boundary, hosted check,
+merge, release, publication, deployment, and runtime proof are separate states.

@@ -19,11 +19,14 @@ First prove this is the Minco framework repository, not a generated application.
    the repository's declared task-start workflow.
 4. Work only within owned paths. Use one failing observable test followed by
    the minimum implementation for each vertical slice.
-5. Update coupled generated evidence owned by the task; never edit
-   `// @generated` files directly.
+5. Update coupled generated evidence and Signal documentation owned by the
+   task; never edit `// @generated` files directly.
 6. Run the task's focused checks, inspect `@ & conflicts()`, and record exact
    limitations without converting unavailable tools into passes.
-7. Use the declared task-finish/push workflow only when its checks stay within
+7. For release work, prove release skill freshness against the current
+   changelog and preserve the local-first release boundary between full local
+   qualification and bounded hosted compatibility.
+8. Use the declared task-finish/push workflow only when its checks stay within
    the user's authorized validation boundary.
 
 Stop before merge, release, publication, deployment, provider access, or

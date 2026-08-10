@@ -95,6 +95,11 @@ class RepositoryTruthTests(unittest.TestCase):
         validator.validate_repository_truth()
         return {finding.code for finding in validator.findings}
 
+    def agent_codes(self) -> set[str]:
+        validator = Validator(self.root)
+        validator.validate_agent_release_features()
+        return {finding.code for finding in validator.findings}
+
     def make_unpublished_candidate(self) -> None:
         if RELEASE_STATE == "candidate":
             return
@@ -157,6 +162,91 @@ class RepositoryTruthTests(unittest.TestCase):
 
     def test_current_repository_truth_is_consistent(self) -> None:
         self.assertEqual(self.truth_codes(), set())
+
+    def test_current_agent_release_coverage_is_consistent(self) -> None:
+        self.assertEqual(self.agent_codes(), set())
+
+    def test_agent_release_changelog_drift_has_a_stable_code(self) -> None:
+        changelog = self.root / "CHANGELOG.md"
+        changelog.write_text(
+            changelog.read_text().replace(
+                "Added frontend-neutral browser",
+                "Added frontend-neutral web browser",
+                1,
+            )
+        )
+        self.assertIn("STATIC-AGENT-RELEASE-001", self.agent_codes())
+
+    def test_agent_release_uncovered_note_has_a_stable_code(self) -> None:
+        bundle = self.root / "crates/minco-cli/assets/agent/bundle.json"
+        data = json.loads(bundle.read_text())
+        data["release_feature_coverage"]["features"][0]["release_note_markers"].pop()
+        bundle.write_text(json.dumps(data, indent=2) + "\n")
+        self.assertIn("STATIC-AGENT-RELEASE-003", self.agent_codes())
+
+    def test_agent_release_cumulative_baseline_deletion_has_a_stable_code(self) -> None:
+        bundle = self.root / "crates/minco-cli/assets/agent/bundle.json"
+        data = json.loads(bundle.read_text())
+        data["release_feature_coverage"]["releases"] = [
+            release
+            for release in data["release_feature_coverage"]["releases"]
+            if release["version"] != "1.2.0"
+        ]
+        data["release_feature_coverage"]["features"] = [
+            feature
+            for feature in data["release_feature_coverage"]["features"]
+            if feature["release_version"] != "1.2.0"
+        ]
+        bundle.write_text(json.dumps(data, indent=2) + "\n")
+        self.assertIn("STATIC-AGENT-RELEASE-001", self.agent_codes())
+
+    def test_agent_release_whitespace_marker_has_a_stable_code(self) -> None:
+        bundle = self.root / "crates/minco-cli/assets/agent/bundle.json"
+        data = json.loads(bundle.read_text())
+        data["release_feature_coverage"]["features"][0]["release_note_markers"] = [
+            " "
+        ]
+        bundle.write_text(json.dumps(data, indent=2) + "\n")
+        self.assertIn("STATIC-AGENT-RELEASE-002", self.agent_codes())
+
+    def test_agent_release_skill_marker_drift_has_a_stable_code(self) -> None:
+        skill_root = self.root / "crates/minco-cli/assets/agent/skills/minco-operation"
+        for relative in ["SKILL.md", "references/workflow.md"]:
+            skill = skill_root / relative
+            skill.write_text(
+                skill.read_text()
+                .replace("browser/native contract", "client contract")
+                .replace("Browser/native contract", "Client contract")
+            )
+        self.assertIn("STATIC-AGENT-RELEASE-004", self.agent_codes())
+
+    def test_agent_release_documentation_escape_has_a_stable_code(self) -> None:
+        bundle = self.root / "crates/minco-cli/assets/agent/bundle.json"
+        data = json.loads(bundle.read_text())
+        data["release_feature_coverage"]["features"][0]["documentation"] = [
+            f"minco-{WORKSPACE_VERSION}:/../escape"
+        ]
+        bundle.write_text(json.dumps(data, indent=2) + "\n")
+        self.assertIn("STATIC-AGENT-RELEASE-002", self.agent_codes())
+
+    def test_agent_release_symlinked_documentation_has_a_stable_code(self) -> None:
+        documentation = (
+            self.root
+            / "docs-site"
+            / WORKSPACE_VERSION
+            / "guides"
+            / "mobile-api.md"
+        )
+        documentation.unlink()
+        documentation.symlink_to("resource-api.md")
+        self.assertIn("STATIC-AGENT-RELEASE-002", self.agent_codes())
+
+    def test_agent_release_duplicate_skill_has_a_stable_code(self) -> None:
+        bundle = self.root / "crates/minco-cli/assets/agent/bundle.json"
+        data = json.loads(bundle.read_text())
+        data["skills"].append(data["skills"][0])
+        bundle.write_text(json.dumps(data, indent=2) + "\n")
+        self.assertIn("STATIC-AGENT-RELEASE-002", self.agent_codes())
 
     def test_documentation_release_metadata_drift_has_a_stable_code(self) -> None:
         release = self.root / "docs-site/release.json"

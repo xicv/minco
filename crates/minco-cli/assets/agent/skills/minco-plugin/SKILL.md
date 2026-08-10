@@ -14,12 +14,16 @@ description: >-
 3. Define a real descriptor with typed services, explicit configuration,
    capabilities, dependencies, operations, health, resources, IAM, wake sources,
    failure behavior, data classes, retention, and cost behavior.
-4. Keep selection static and explicit in the composition root. Do not add
+4. For a verified direct upload or rich mail capability, keep authorization,
+   provider metadata, content safety, acceptance, delivery observation, cleanup
+   and retry ambiguity explicit rather than hiding them behind a generic AWS
+   service abstraction.
+5. Keep selection static and explicit in the composition root. Do not add
    runtime scanning, a global locator, a facade, or dynamic-library loading.
-5. Keep provider SDKs in adapters and out of domain/application crates.
-6. Ensure `minco-plugin.json`, Cargo metadata, the linked descriptor, docs, and
+6. Keep provider SDKs in adapters and out of domain/application crates.
+7. Ensure `minco-plugin.json`, Cargo metadata, the linked descriptor, docs, and
    conformance evidence agree without containing secret values.
-7. Run `cargo minco plugin validate --json` and the focused plugin test.
+8. Run `cargo minco plugin validate --json` and the focused plugin test.
 
 If core changes exist only for this plugin, stop and justify the extension
 point. Require an ADR and at least two implementations before freezing it.

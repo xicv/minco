@@ -1,11 +1,31 @@
 # Minco verification and release evidence
 
 Date: 2026-08-10
-Current workspace version: `1.2.0`
+Current workspace version: `1.2.1`
 Published baseline: `1.2.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T14 `1.2.1` agent skill freshness candidate
+
+The workspace advances the complete 33-package family together to an
+unpublished compatible 1.2.1 candidate because the published 1.2.0 crate
+archives are immutable. All eight packaged Codex and Claude skills now cover
+the complete 1.2 product boundary. Cumulative bundle metadata binds each
+top-level release note to stable features, current versioned documentation and
+the skills that teach it.
+
+Rust and static mutation tests reject stale changelog digests, missing skill
+markers, malformed mappings, documentation escapes and incomplete coverage.
+Deterministic agent workflow qualification has an exact check mode and is part
+of local and clean-Linux gates. It executes no model and contacts no provider;
+therefore it is not model-quality, AWS, deployment, runtime or production
+evidence.
+
+Exact candidate source, hosted run IDs and publication state will be recorded
+only after those boundaries run. Until then, 1.2.1 remains `unpublished` and
+the immutable 1.2.0 release evidence below remains authoritative.
 
 ## M14-T13 `1.2.0` publication and stable documentation promotion
 

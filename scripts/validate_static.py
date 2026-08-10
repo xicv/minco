@@ -27,6 +27,7 @@ IGNORED_RELATIVE_PREFIXES = {
     Path("docs-site/.vitepress/cache"),
     Path("docs-site/.vitepress/dist"),
 }
+AGENT_RELEASE_COVERAGE_BASELINE = (1, 2, 0)
 
 
 def ignored_path(root: Path, path: Path) -> bool:
@@ -40,6 +41,21 @@ def ignored_path(root: Path, path: Path) -> bool:
 def report_root(root: Path, default_root: Path = ROOT) -> str:
     """Keep repository-root evidence stable across checkout locations."""
     return "." if root == default_root else str(root)
+
+
+def regular_file_without_symlinks(base: Path, relative: Path) -> bool:
+    """Require one existing regular file beneath real, non-symlink parents."""
+    current = base
+    try:
+        if current.is_symlink() or not current.is_dir():
+            return False
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                return False
+        return current.is_file()
+    except OSError:
+        return False
 
 
 class CloudFormationLoader(yaml.SafeLoader):
@@ -93,6 +109,7 @@ class Validator:
         self.validate_data_files()
         self.validate_workspace()
         self.validate_repository_truth()
+        self.validate_agent_release_features()
         self.validate_contract()
         self.validate_architecture()
         self.validate_plugins()
@@ -320,6 +337,7 @@ class Validator:
                     "unpublished candidate requires dated, substantive changelog notes",
                     changelog_path,
                 )
+
         worker_source_path = self.root / "extensions/minco-aws-worker/src/lib.rs"
         worker_source = worker_source_path.read_text() if worker_source_path.is_file() else ""
         worker_manifest_path = self.root / "extensions/minco-aws-worker/Cargo.toml"
@@ -832,6 +850,283 @@ class Validator:
                         f"current truth document lacks marker: {marker}",
                         document,
                     )
+
+    def validate_agent_release_features(self) -> None:
+        bundle_path = self.root / "crates/minco-cli/assets/agent/bundle.json"
+        changelog_path = self.root / "CHANGELOG.md"
+        cargo_path = self.root / "Cargo.toml"
+        try:
+            bundle = json.loads(bundle_path.read_text())
+            changelog = changelog_path.read_text()
+            workspace_version = str(
+                tomllib.loads(cargo_path.read_text())["workspace"]["package"]["version"]
+            )
+        except (OSError, json.JSONDecodeError, KeyError, tomllib.TOMLDecodeError):
+            self.error(
+                "STATIC-AGENT-RELEASE-001",
+                "agent release coverage inputs must be readable canonical data",
+                bundle_path,
+            )
+            return
+
+        coverage = bundle.get("release_feature_coverage")
+        releases = coverage.get("releases") if isinstance(coverage, dict) else None
+        features = coverage.get("features") if isinstance(coverage, dict) else None
+        if (
+            bundle.get("minco_version") != workspace_version
+            or not isinstance(coverage, dict)
+            or coverage.get("schema_version") != 1
+            or not isinstance(releases, list)
+            or not isinstance(features, list)
+        ):
+            self.error(
+                "STATIC-AGENT-RELEASE-001",
+                "agent bundle version and release coverage schema must match the workspace",
+                bundle_path,
+            )
+            return
+
+        bundle_skills = bundle.get("skills")
+        if not isinstance(bundle_skills, list) or any(
+            not isinstance(skill, dict)
+            or not isinstance(skill.get("name"), str)
+            or not isinstance(skill.get("path"), str)
+            or skill["path"] != f"skills/{skill['name']}"
+            for skill in bundle_skills
+        ):
+            self.error(
+                "STATIC-AGENT-RELEASE-002",
+                "agent bundle skills must be named canonical records",
+                bundle_path,
+            )
+            return
+        known_skills = {skill["name"]: skill for skill in bundle_skills}
+        if len(known_skills) != len(bundle_skills):
+            self.error(
+                "STATIC-AGENT-RELEASE-002",
+                "agent bundle skill names must be unique",
+                bundle_path,
+            )
+            return
+
+        feature_by_id: dict[str, dict[str, Any]] = {}
+        invalid_features = False
+        for feature in features:
+            if not isinstance(feature, dict):
+                invalid_features = True
+                continue
+            feature_id = feature.get("id")
+            release_version = feature.get("release_version")
+            skill_marker = feature.get("skill_marker")
+            skill_names = feature.get("skills")
+            documentation = feature.get("documentation")
+            note_markers = feature.get("release_note_markers")
+            valid = (
+                isinstance(feature_id, str)
+                and bool(feature_id)
+                and feature_id not in feature_by_id
+                and isinstance(release_version, str)
+                and bool(release_version)
+                and isinstance(skill_marker, str)
+                and bool(skill_marker.strip())
+                and isinstance(skill_names, list)
+                and bool(skill_names)
+                and all(
+                    isinstance(skill, str) and skill in known_skills
+                    for skill in skill_names
+                )
+                and isinstance(documentation, list)
+                and bool(documentation)
+                and isinstance(note_markers, list)
+                and bool(note_markers)
+                and all(
+                    isinstance(marker, str) and bool(marker.strip())
+                    for marker in note_markers
+                )
+            )
+            if not valid:
+                invalid_features = True
+                continue
+            documentation_prefix = f"minco-{workspace_version}:"
+            for identifier in documentation:
+                if not isinstance(identifier, str) or not identifier.startswith(
+                    documentation_prefix
+                ):
+                    invalid_features = True
+                    continue
+                relative = identifier.removeprefix(documentation_prefix)
+                relative_path = Path(relative)
+                if (
+                    not relative
+                    or relative_path.is_absolute()
+                    or any(part in {"", ".", ".."} for part in relative_path.parts)
+                    or not regular_file_without_symlinks(
+                        self.root / "docs-site" / workspace_version,
+                        Path(f"{relative}.md"),
+                    )
+                ):
+                    invalid_features = True
+            feature_by_id[feature_id] = feature
+        if invalid_features or len(feature_by_id) != len(features):
+            self.error(
+                "STATIC-AGENT-RELEASE-002",
+                "agent release features require unique IDs, known skills and current documentation",
+                bundle_path,
+            )
+
+        release_versions: set[str] = set()
+        referenced_features: set[str] = set()
+        covered_skills: set[str] = set()
+        for release in releases:
+            if not isinstance(release, dict):
+                self.error(
+                    "STATIC-AGENT-RELEASE-001",
+                    "agent release coverage contains a malformed release",
+                    bundle_path,
+                )
+                continue
+            version = release.get("version")
+            digest = release.get("changelog_sha256")
+            release_features = release.get("features")
+            if (
+                not isinstance(version, str)
+                or not version
+                or version in release_versions
+                or not isinstance(digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+                or not isinstance(release_features, list)
+                or not release_features
+            ):
+                self.error(
+                    "STATIC-AGENT-RELEASE-001",
+                    "agent release coverage has invalid identity or digest fields",
+                    bundle_path,
+                )
+                continue
+            release_versions.add(version)
+            match = re.search(
+                rf"^## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}\n"
+                r".*?(?=^## \[|\Z)",
+                changelog,
+                flags=re.MULTILINE | re.DOTALL,
+            )
+            section = match.group(0) if match else ""
+            if not section or hashlib.sha256(section.encode()).hexdigest() != digest:
+                self.error(
+                    "STATIC-AGENT-RELEASE-001",
+                    f"agent release coverage digest is stale for {version}",
+                    changelog_path,
+                )
+                continue
+            selected = []
+            for feature_id in release_features:
+                feature = feature_by_id.get(feature_id) if isinstance(feature_id, str) else None
+                if (
+                    feature is None
+                    or feature.get("release_version") != version
+                    or feature_id in referenced_features
+                ):
+                    self.error(
+                        "STATIC-AGENT-RELEASE-002",
+                        f"release {version} has an invalid feature mapping",
+                        bundle_path,
+                    )
+                    continue
+                referenced_features.add(feature_id)
+                selected.append(feature)
+                covered_skills.update(feature["skills"])
+            for bullet in (line for line in section.splitlines() if line.startswith("- ")):
+                if not any(
+                    marker in bullet
+                    for feature in selected
+                    for marker in feature["release_note_markers"]
+                ):
+                    self.error(
+                        "STATIC-AGENT-RELEASE-003",
+                        f"release note is not mapped to a packaged skill feature: {bullet}",
+                        changelog_path,
+                    )
+            for feature in selected:
+                for marker in feature["release_note_markers"]:
+                    if marker not in section:
+                        self.error(
+                            "STATIC-AGENT-RELEASE-003",
+                            f"release feature {feature['id']} marker is absent: {marker}",
+                            changelog_path,
+                        )
+                for skill_name in feature["skills"]:
+                    skill = known_skills[skill_name]
+                    skill_root = self.root / "crates/minco-cli/assets/agent" / skill["path"]
+                    try:
+                        combined = (
+                            (skill_root / "SKILL.md").read_text()
+                            + "\n"
+                            + (skill_root / "references/workflow.md").read_text()
+                        ).lower()
+                    except OSError:
+                        combined = ""
+                    if feature["skill_marker"].lower() not in combined:
+                        self.error(
+                            "STATIC-AGENT-RELEASE-004",
+                            f"skill {skill_name} lacks marker for {feature['id']}",
+                            skill_root,
+                        )
+        if workspace_version not in release_versions:
+            self.error(
+                "STATIC-AGENT-RELEASE-001",
+                "current workspace release lacks agent feature coverage",
+                bundle_path,
+            )
+        workspace_tuple = tuple(int(part) for part in workspace_version.split("."))
+        expected_releases = {
+            version
+            for version in re.findall(
+                r"^## \[(\d+\.\d+\.\d+)\] - \d{4}-\d{2}-\d{2}$",
+                changelog,
+                flags=re.MULTILINE,
+            )
+            if AGENT_RELEASE_COVERAGE_BASELINE
+            <= tuple(int(part) for part in version.split("."))
+            <= workspace_tuple
+        }
+        if release_versions != expected_releases:
+            self.error(
+                "STATIC-AGENT-RELEASE-001",
+                "agent release coverage must retain every release from the immutable baseline",
+                bundle_path,
+            )
+        agent_source_path = self.root / "crates/minco-cli/src/agent_cmd.rs"
+        agent_source = (
+            agent_source_path.read_text() if agent_source_path.is_file() else ""
+        )
+        compiled_history = re.search(
+            r"const REQUIRED_RELEASE_FEATURE_COVERAGE: &\[&str\] = &\[(?P<body>.*?)\];",
+            agent_source,
+            flags=re.DOTALL,
+        )
+        compiled_releases = (
+            set(re.findall(r'"(\d+\.\d+\.\d+)"', compiled_history.group("body")))
+            if compiled_history
+            else set()
+        )
+        if compiled_releases != expected_releases:
+            self.error(
+                "STATIC-AGENT-RELEASE-001",
+                "compiled agent release history must match cumulative changelog coverage",
+                agent_source_path,
+            )
+        if referenced_features != set(feature_by_id):
+            self.error(
+                "STATIC-AGENT-RELEASE-002",
+                "agent release coverage contains orphan or unreferenced features",
+                bundle_path,
+            )
+        if covered_skills != set(known_skills):
+            self.error(
+                "STATIC-AGENT-RELEASE-002",
+                "agent release coverage does not include every packaged skill",
+                bundle_path,
+            )
 
     def validate_contract(self) -> None:
         manifest_path = self.root / "minco.toml"

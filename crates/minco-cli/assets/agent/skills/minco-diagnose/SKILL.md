@@ -15,9 +15,15 @@ description: >-
 3. Prefer the narrowest read-only MCP tool over a complete ProjectView response.
 4. Inspect redacted config, migration/seed plans, DevPlan, Plan IR, task state,
    and exact evidence only when they own the question.
-5. Trace observed input, decision, output, and evidence without filling gaps
+5. For owned local services, distinguish the requested profile, retained
+   process/container identity, loopback port, durable data and foreign-resource
+   refusal. For Plan questions, inspect the selected topology-aware cost rather
+   than assuming Lambda plus API Gateway.
+6. For release-bound evidence, verify each source, release, deployment,
+   feedback, task, handover, provider and performance binding independently.
+7. Trace observed input, decision, output, and evidence without filling gaps
    from prose or model memory.
-6. State the smallest supported cause, remaining alternatives, and the closest
+8. State the smallest supported cause, remaining alternatives, and the closest
    regression boundary.
 
 Do not implement a fix unless requested. Never query arbitrary databases, run

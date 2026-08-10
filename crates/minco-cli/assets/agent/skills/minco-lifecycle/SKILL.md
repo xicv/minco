@@ -18,9 +18,15 @@ Choose the narrowest lifecycle command and inspect before applying.
    operations and never run at Lambda startup.
 3. Classify seeds and use their dry-run/preservation guards before application.
 4. Inspect local topology with `cargo minco dev --dry-run --json`. Start only
-   requested profiles, workers, frontend processes, or local AWS services.
-5. Run focused tests associated with the changed behavior.
-6. Keep package, hosted verification, deployment, promotion, rollback, runtime,
+   requested profiles, workers, frontend processes, or owned local services
+   such as PostgreSQL, Rustack, or Mailpit; never adopt a foreign resource.
+5. For rich mail, inspect submission, capture and delivery-observation states
+   separately; ambiguous provider acceptance never authorizes an automatic
+   retry or failover.
+6. Inspect topology-aware cost whenever runtime, ingress, queues, schedules,
+   realtime, concurrency or fixed resources change.
+7. Run focused tests associated with the changed behavior.
+8. Keep package, hosted verification, deployment, promotion, rollback, runtime,
    and review receipts separate and bound to exact artifacts.
 
 Planning never authorizes apply. Stop before any database mutation, provider

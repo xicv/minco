@@ -1,10 +1,13 @@
 use serde::Deserialize;
 use serde_yaml_ng::Value;
+use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeSet,
     fs,
     path::{Component, Path, PathBuf},
 };
+
+const RELEASE_FEATURE_COVERAGE_BASELINE: &str = "1.2.0";
 
 #[derive(Debug, Deserialize)]
 struct Bundle {
@@ -12,6 +15,8 @@ struct Bundle {
     minco_version: String,
     skills: Vec<BundleSkill>,
     scenarios: String,
+    #[serde(default)]
+    release_feature_coverage: Option<ReleaseFeatureCoverage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +25,30 @@ struct BundleSkill {
     path: String,
     mode: String,
     documentation: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseFeatureCoverage {
+    schema_version: u32,
+    releases: Vec<CoveredRelease>,
+    features: Vec<ReleaseFeature>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CoveredRelease {
+    version: String,
+    changelog_sha256: String,
+    features: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseFeature {
+    id: String,
+    release_version: String,
+    skill_marker: String,
+    skills: Vec<String>,
+    documentation: Vec<String>,
+    release_note_markers: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +69,61 @@ struct Scenario {
 
 fn asset_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/agent")
+}
+
+fn repository_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn changelog_release_section<'a>(source: &'a str, version: &str) -> &'a str {
+    let marker = format!("## [{version}] - ");
+    let start = source.find(&marker).expect("covered changelog release");
+    let remaining = &source[start..];
+    let end = remaining[marker.len()..]
+        .find("\n## [")
+        .map_or(remaining.len(), |offset| marker.len() + offset + 1);
+    &remaining[..end]
+}
+
+fn sha256(source: &str) -> String {
+    format!("{:x}", Sha256::digest(source.as_bytes()))
+}
+
+fn release_tuple(version: &str) -> (u64, u64, u64) {
+    let mut parts = version.split('.').map(|part| {
+        part.parse::<u64>()
+            .expect("covered release is exact semver")
+    });
+    let value = (
+        parts.next().expect("major version"),
+        parts.next().expect("minor version"),
+        parts.next().expect("patch version"),
+    );
+    assert!(parts.next().is_none(), "covered release is exact semver");
+    value
+}
+
+fn regular_file_without_symlinks(base: &Path, relative: &Path) -> bool {
+    let mut current = base.to_path_buf();
+    let Ok(metadata) = fs::symlink_metadata(&current) else {
+        return false;
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return false;
+    }
+    for component in relative.components() {
+        let Component::Normal(part) = component else {
+            return false;
+        };
+        current.push(part);
+        let Ok(metadata) = fs::symlink_metadata(&current) else {
+            return false;
+        };
+        if metadata.file_type().is_symlink() {
+            return false;
+        }
+    }
+    current.is_file()
 }
 
 #[test]
@@ -220,6 +304,142 @@ fn portable_skill_bundle_is_bounded_versioned_and_complete() {
         fs::read_to_string(root.join("skills/minco-release/SKILL.md")).expect("release skill");
     assert!(release.contains("explicit user request"));
     assert!(release.contains("Stop before"));
+}
+
+#[test]
+fn release_feature_coverage_matches_changelog_and_every_skill() {
+    let root = asset_root();
+    let bundle: Bundle = serde_json::from_slice(
+        &fs::read(root.join("bundle.json")).expect("versioned agent bundle"),
+    )
+    .expect("valid agent bundle JSON");
+    let coverage = bundle
+        .release_feature_coverage
+        .expect("bundle release feature coverage");
+    assert_eq!(coverage.schema_version, 1);
+
+    let known_skills = bundle
+        .skills
+        .iter()
+        .map(|skill| skill.name.as_str())
+        .collect::<BTreeSet<_>>();
+    let features = coverage
+        .features
+        .iter()
+        .map(|feature| (feature.id.as_str(), feature))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    assert_eq!(
+        features.len(),
+        coverage.features.len(),
+        "duplicate feature ID"
+    );
+
+    let changelog =
+        fs::read_to_string(repository_root().join("CHANGELOG.md")).expect("repository changelog");
+    let mut releases = BTreeSet::new();
+    let mut covered_skills = BTreeSet::new();
+    for release in &coverage.releases {
+        assert!(
+            releases.insert(release.version.as_str()),
+            "duplicate release"
+        );
+        let section = changelog_release_section(&changelog, &release.version);
+        assert_eq!(sha256(section), release.changelog_sha256);
+        assert!(!release.features.is_empty());
+
+        let release_features = release
+            .features
+            .iter()
+            .map(|id| *features.get(id.as_str()).expect("covered feature ID"))
+            .collect::<Vec<_>>();
+        assert!(
+            release_features
+                .iter()
+                .all(|feature| feature.release_version == release.version)
+        );
+        let bullets = section
+            .lines()
+            .filter(|line| line.starts_with("- "))
+            .collect::<Vec<_>>();
+        assert!(!bullets.is_empty(), "release has no top-level notes");
+        for bullet in bullets {
+            assert!(
+                release_features.iter().any(|feature| {
+                    feature
+                        .release_note_markers
+                        .iter()
+                        .any(|marker| bullet.contains(marker))
+                }),
+                "uncovered release note: {bullet}"
+            );
+        }
+        for feature in release_features {
+            assert!(!feature.skill_marker.trim().is_empty());
+            assert!(!feature.skills.is_empty());
+            assert!(!feature.documentation.is_empty());
+            assert!(!feature.release_note_markers.is_empty());
+            for marker in &feature.release_note_markers {
+                assert!(section.contains(marker), "missing release marker {marker}");
+            }
+            for identifier in &feature.documentation {
+                let prefix = format!("minco-{}:", bundle.minco_version);
+                assert!(
+                    identifier.starts_with(&prefix),
+                    "feature documentation is not version matched: {identifier}"
+                );
+                let relative = identifier
+                    .strip_prefix(&prefix)
+                    .expect("feature documentation prefix");
+                let documentation = PathBuf::from(format!("{relative}.md"));
+                assert!(
+                    regular_file_without_symlinks(
+                        &repository_root()
+                            .join("docs-site")
+                            .join(&bundle.minco_version),
+                        &documentation,
+                    ),
+                    "missing feature documentation: {identifier}"
+                );
+            }
+            for skill in &feature.skills {
+                assert!(
+                    known_skills.contains(skill.as_str()),
+                    "unknown skill {skill}"
+                );
+                covered_skills.insert(skill.as_str());
+                let skill_root = root.join("skills").join(skill);
+                let combined = format!(
+                    "{}\n{}",
+                    fs::read_to_string(skill_root.join("SKILL.md")).expect("skill source"),
+                    fs::read_to_string(skill_root.join("references/workflow.md"))
+                        .expect("skill workflow")
+                )
+                .to_lowercase();
+                assert!(
+                    combined.contains(&feature.skill_marker.to_lowercase()),
+                    "{skill} lacks feature marker {}",
+                    feature.skill_marker
+                );
+            }
+        }
+    }
+
+    let baseline = release_tuple(RELEASE_FEATURE_COVERAGE_BASELINE);
+    let current = release_tuple(env!("CARGO_PKG_VERSION"));
+    let expected_releases = changelog
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("## [")
+                .and_then(|remaining| remaining.split_once("] - "))
+                .map(|(version, _)| version)
+        })
+        .filter(|version| {
+            let value = release_tuple(version);
+            value >= baseline && value <= current
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(releases, expected_releases);
+    assert_eq!(covered_skills, known_skills);
 }
 
 #[test]

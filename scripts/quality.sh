@@ -6,6 +6,7 @@ export CARGO_PROFILE_DEV_DEBUG=0
 export CARGO_PROFILE_TEST_DEBUG=0
 uv run --locked python scripts/validate_static.py --output verification/static-validation.json
 scripts/docs/generate-reference.sh --check
+uv run --locked python scripts/test/agent_workflows.py --check-output verification/agent-workflows.json
 uv run --locked python scripts/test/repository_truth.py
 uv run --locked python scripts/validate_deployment_assurance.py
 uv run --locked python scripts/test/deployment_assurance.py
@@ -41,6 +42,7 @@ cargo check -p minco --features aws-worker --locked
 cargo check -p minco --all-features --locked
 cargo check --workspace --all-targets --all-features --locked
 cargo check -p cargo-minco --locked
+cargo test -p cargo-minco --test agent_skills --locked
 cargo test -p minco --no-default-features --locked
 cargo test -p minco --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings

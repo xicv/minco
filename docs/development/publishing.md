@@ -84,6 +84,29 @@ version requirements from crates.io.
 The complete candidate procedure, evidence statuses and bounded load/recovery
 contract are in [1.0 candidate qualification](release-qualification.md).
 
+Every release must also update the cumulative agent feature coverage in
+`crates/minco-cli/assets/agent/bundle.json`. Each top-level changelog bullet
+must map to a stable feature, current versioned documentation and every skill
+that teaches it. The ordinary quality gates reject stale section digests,
+missing markers, documentation escapes, incomplete skill coverage and a stale
+deterministic projection receipt:
+
+```bash
+cargo test -p cargo-minco --test agent_skills --locked
+uv run --locked python scripts/test/agent_workflows.py \
+  --check-output verification/agent-workflows.json
+```
+
+Refresh the receipt only after reviewing the exact bundle and scenario diff:
+
+```bash
+uv run --locked python scripts/test/agent_workflows.py \
+  --output verification/agent-workflows.json
+```
+
+These checks do not invoke a model or contact a provider. They prove release
+content and deterministic client projection, not model quality or deployment.
+
 Run from a clean JJ working copy at the release change:
 
 ```bash

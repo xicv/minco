@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.2.0`
 >
-> Current workspace version: `1.2.0`
+> Current workspace version: `1.2.1`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `33`
 
@@ -77,9 +77,11 @@ cargo add minco@1.2.0 --no-default-features
 
 ## Agent-native application development
 
-The published `1.2.0` release packages eight focused, version-matched workflow skills
-for Codex and Claude Code. Minco plans project-local projections before writing,
-requires the exact plan digest to synchronize them, and preserves user-owned
+The published `1.2.0` release packages eight focused, version-matched workflow
+skills for Codex and Claude Code. The unpublished `1.2.1` candidate refreshes
+all eight and adds a mandatory changelog-to-skill freshness gate for every
+later release. Minco plans project-local projections before writing, requires
+the exact plan digest to synchronize them, and preserves user-owned
 instructions and client configuration.
 
 ```bash
@@ -94,6 +96,11 @@ Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
 the [agent development guide](https://xicv.github.io/minco/1.2.0/guides/agent-development).
+
+Release qualification also verifies cumulative feature coverage, current
+versioned documentation, skill markers and a byte-identical deterministic
+Codex/Claude workflow receipt. That is release-content evidence, not a model
+quality score or mutation authority.
 
 ## The resource API convention
 
