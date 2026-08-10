@@ -43,9 +43,14 @@ flowchart LR
     NM14T03["M14-T03<br/>Add frontend-neutral mobile API readiness"]
     NM14T04["M14-T04<br/>Give hosted release qualification a cold-run time budget"]
     NM14T05["M14-T05<br/>Resume partial Minco 1.1.0 crate publication safely"]
+    NM14T06["M14-T06<br/>Guard minimal-cost deployment support and current product truth"]
     NM14T07["M14-T07<br/>Add rich observable low-cost outbound mail"]
     NM14T08["M14-T08<br/>Add a verified direct-object upload lifecycle"]
     NM14T09["M14-T09<br/>Add statically composed object-upload profiles"]
+    NM14T10["M14-T10<br/>Close the release-bound feedback and operational evidence loop"]
+    NM14T11["M14-T11<br/>Harden owned local service runtimes"]
+    NM14T12["M14-T12<br/>Bound GitHub Actions to platform-only work"]
+    NM14T13["M14-T13<br/>Publish and promote the Minco 1.2.0 release"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -157,9 +162,21 @@ flowchart LR
     NM14T01 --> NM14T04
     NM14T01 --> NM14T05
     NM14T04 --> NM14T05
+    NM14T01 --> NM14T06
     NM14T02 --> NM14T07
     NM14T02 --> NM14T08
     NM14T08 --> NM14T09
+    NM14T06 --> NM14T10
+    NM4T02 --> NM14T11
+    NM9T05 --> NM14T11
+    NM9T09 --> NM14T12
+    NM14T11 --> NM14T12
+    NM14T03 --> NM14T13
+    NM14T06 --> NM14T13
+    NM14T07 --> NM14T13
+    NM14T08 --> NM14T13
+    NM14T11 --> NM14T13
+    NM14T12 --> NM14T13
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01

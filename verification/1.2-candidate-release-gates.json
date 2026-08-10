@@ -1,0 +1,184 @@
+{
+  "commands": [
+    {
+      "command": "uv run --locked python scripts/test/candidate_qualification.py",
+      "duration_seconds": 0.075,
+      "exit_code": 0,
+      "log": {
+        "bytes": 116,
+        "path": "target/minco/candidate-release-gates/logs/01.log",
+        "sha256": "42e0f8db8968a646d85a7742f25969a30a439788af0b1b66c4cf035b2123532b"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "./scripts/quality.sh",
+      "duration_seconds": 265.976,
+      "exit_code": 0,
+      "log": {
+        "bytes": 403951,
+        "path": "target/minco/candidate-release-gates/logs/02.log",
+        "sha256": "e82591271b8e42bc8e0a8578c59a119f83b138be345ff9f24bdb1af09b5921cb"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "proofs/realtime-appsync/scripts/test-local.sh",
+      "duration_seconds": 7.651,
+      "exit_code": 0,
+      "log": {
+        "bytes": 2167,
+        "path": "target/minco/candidate-release-gates/logs/03.log",
+        "sha256": "f56afaab1989d1b55e2b928d39155eb59dad6662016c0a66de393e1a433d9f84"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "npm run --prefix plugins/minco-plugin-feedback test:browser",
+      "duration_seconds": 9.945,
+      "exit_code": 0,
+      "log": {
+        "bytes": 7179,
+        "path": "target/minco/candidate-release-gates/logs/04.log",
+        "sha256": "0877e0dc0d0ec180cd28280ac9273b1b56c1e34afe36ae4252bc0f1f6731224e"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/test/e2e.sh",
+      "duration_seconds": 1.754,
+      "exit_code": 0,
+      "log": {
+        "bytes": 105,
+        "path": "target/minco/candidate-release-gates/logs/05.log",
+        "sha256": "84e63ef43f2a721c82bebebfdf11431db8cbf4983c71aedddc464332d455e85c"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/dev/rustack-smoke.sh",
+      "duration_seconds": 16.824,
+      "exit_code": 0,
+      "log": {
+        "bytes": 1126,
+        "path": "target/minco/candidate-release-gates/logs/06.log",
+        "sha256": "7744885253bdbefbaf36d9c491940cc1602e79ef5c5cacfd346a3ca035b0cf87"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/release/publish.sh --skip-quality",
+      "duration_seconds": 234.639,
+      "exit_code": 0,
+      "log": {
+        "bytes": 221924,
+        "path": "target/minco/candidate-release-gates/logs/07.log",
+        "sha256": "73dab222d7908371ee560820deb58bb363498431918dc7980955c0a3403057f9"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/release/package-list.sh",
+      "duration_seconds": 2.734,
+      "exit_code": 0,
+      "log": {
+        "bytes": 12235,
+        "path": "target/minco/candidate-release-gates/logs/08.log",
+        "sha256": "3a137b3e6f48b9b2d2f5ef697ed06b6165f0ffff07790ca8da342987aa6bdab9"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/release/candidate-recovery.sh --output verification/1.2-candidate-recovery.json",
+      "duration_seconds": 55.189,
+      "exit_code": 0,
+      "log": {
+        "bytes": 122,
+        "path": "target/minco/candidate-release-gates/logs/09.log",
+        "sha256": "39ac4114fee181a9bc85878abcfdba5559df0b70494e802e0449e58e366c1528"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "scripts/release/candidate-load.sh --output verification/1.2-candidate-load.json",
+      "duration_seconds": 24.179,
+      "exit_code": 0,
+      "log": {
+        "bytes": 114,
+        "path": "target/minco/candidate-release-gates/logs/10.log",
+        "sha256": "cca16b53d0c968dea35e3682798026905f3e11aae688661466c8823081a6a134"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": "uv run --locked python scripts/source_manifest.py --check",
+      "duration_seconds": 15.39,
+      "exit_code": 0,
+      "log": {
+        "bytes": 44,
+        "path": "target/minco/candidate-release-gates/logs/11.log",
+        "sha256": "95fd2d97fba61c4cf3391f5920097a3b881e455ee63968b03a616447aa47408b"
+      },
+      "status": "PASS"
+    }
+  ],
+  "documentation_and_consumers": {
+    "covered_by_quality": [
+      "generated reference drift",
+      "documentation snippets",
+      "documentation build and links",
+      "desktop and small-screen browser journeys",
+      "generated PostgreSQL and SQLite external applications"
+    ],
+    "status": "PASS"
+  },
+  "generated_at": "2026-08-10T05:58:52.074575+00:00",
+  "kind": "minco.candidate-release-qualification.v1",
+  "limitations": [
+    "Local and emulator gates do not prove current AWS managed-service behavior.",
+    "The completed M10 provider rehearsal remains bound to its exact source revisions and does not become an exact-current redeployment claim.",
+    "Machine-specific load measurements are bounded smoke evidence, not a production SLO or current provider price quote."
+  ],
+  "provider": {
+    "bounded_rehearsal": {
+      "cleanup_boundaries_absent": 14,
+      "phases": [
+        "prior",
+        "current",
+        "prior rollback"
+      ],
+      "source_revisions": [
+        "9cbe8fdb64a6f68363fd1cac949ddfa554106667",
+        "4573239d83fff91fffd79ea9bda58afbe217ffe9"
+      ],
+      "status": "PASS",
+      "task": "M10-T08"
+    },
+    "exact_current_candidate_redeployment": {
+      "reason": "M12-T05 had no fresh exact-account/provider authority; local and historical provider evidence are kept separate.",
+      "status": "NOT RUN"
+    }
+  },
+  "publication": {
+    "reason": "Only the package/publish dry run is authorized; no tag, crate upload, docs publication, deployment or promotion occurred.",
+    "status": "NOT RUN"
+  },
+  "schema_version": 1,
+  "security": {
+    "covered_by_quality": [
+      "cargo deny advisories bans licenses sources",
+      "cargo audit",
+      "npm audit --audit-level=high",
+      "gitleaks --redact",
+      "deep review"
+    ],
+    "critical_or_high_findings": 0,
+    "status": "PASS"
+  },
+  "source": {
+    "file_count": 1147,
+    "source_tree_sha256": "07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933",
+    "version": "1.2.0"
+  },
+  "status": "PASS"
+}

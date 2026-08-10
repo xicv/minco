@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import math
 import sys
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -160,13 +161,58 @@ class ReleaseGateRecordContractTests(unittest.TestCase):
         commands = list(CANDIDATE_QUALIFICATION.MANDATORY_RELEASE_COMMANDS)
         publish = commands.index("scripts/release/publish.sh --skip-quality")
         recovery = commands.index(
-            "scripts/release/candidate-recovery.sh --output verification/1.0-candidate-recovery.json"
+            "scripts/release/candidate-recovery.sh --output "
+            + CANDIDATE_QUALIFICATION.CANDIDATE_RECOVERY_RECORD
         )
         load = commands.index(
-            "scripts/release/candidate-load.sh --output verification/1.0-candidate-load.json"
+            "scripts/release/candidate-load.sh --output "
+            + CANDIDATE_QUALIFICATION.CANDIDATE_LOAD_RECORD
         )
         self.assertLess(publish, recovery)
         self.assertLess(publish, load)
+
+    def test_generated_evidence_uses_the_current_release_series(self) -> None:
+        self.assertEqual(CANDIDATE_QUALIFICATION.WORKSPACE_VERSION, "1.2.0")
+        self.assertEqual(CANDIDATE_QUALIFICATION.RELEASE_SERIES, "1.2")
+        self.assertEqual(
+            CANDIDATE_QUALIFICATION.CANDIDATE_RECOVERY_RECORD,
+            "verification/1.2-candidate-recovery.json",
+        )
+        self.assertEqual(
+            CANDIDATE_QUALIFICATION.CANDIDATE_LOAD_RECORD,
+            "verification/1.2-candidate-load.json",
+        )
+
+    def test_every_current_command_catalog_preserves_historical_evidence(self) -> None:
+        def strings(value: object) -> list[str]:
+            if isinstance(value, str):
+                return [value]
+            if isinstance(value, list):
+                return [item for entry in value for item in strings(entry)]
+            if isinstance(value, dict):
+                return [item for entry in value.values() for item in strings(entry)]
+            return []
+
+        expected_by_runner = {
+            "candidate-load.sh": CANDIDATE_QUALIFICATION.CANDIDATE_LOAD_RECORD,
+            "candidate-recovery.sh": CANDIDATE_QUALIFICATION.CANDIDATE_RECOVERY_RECORD,
+        }
+        for relative in (
+            "quality.toml",
+            "verification/deployment-assurance.toml",
+        ):
+            catalog = tomllib.loads((ROOT / relative).read_text())
+            commands = [
+                value
+                for value in strings(catalog)
+                if " --output verification/" in value
+                and any(runner in value for runner in expected_by_runner)
+            ]
+            self.assertEqual(len(commands), 2, relative)
+            for runner, expected_path in expected_by_runner.items():
+                command = next(value for value in commands if runner in value)
+                self.assertIn(f"--output {expected_path}", command, relative)
+                self.assertNotIn("verification/1.0-candidate-", command, relative)
 
 
 class ExternalConsumerEnvironmentTests(unittest.TestCase):

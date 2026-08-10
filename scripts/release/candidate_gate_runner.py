@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run and record every mandatory Minco 1.0 candidate release gate."""
+"""Run and record every mandatory current-workspace candidate release gate."""
 
 from __future__ import annotations
 
@@ -16,13 +16,16 @@ from typing import Any
 
 from candidate_qualification import (
     MANDATORY_RELEASE_COMMANDS,
+    RELEASE_SERIES,
     ROOT,
     safe_output_path,
     validate_release_gate_record,
 )
 
 
-DEFAULT_OUTPUT = ROOT / "verification" / "1.0-candidate-release-gates.json"
+DEFAULT_OUTPUT = (
+    ROOT / "verification" / f"{RELEASE_SERIES}-candidate-release-gates.json"
+)
 
 
 def digest(path: Path) -> str:

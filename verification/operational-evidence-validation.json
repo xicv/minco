@@ -3,7 +3,7 @@
     "errors": 0,
     "warnings": 2
   },
-  "effective_date": "2026-08-07",
+  "effective_date": "2026-08-10",
   "effective_date_source": "repository_truth",
   "findings": [
     {
@@ -20,12 +20,12 @@
     }
   ],
   "inputs": {
-    "verification/1.2-performance-baseline.json": "5bb21aa8f0c85b83368c9dd48c6c6269d1915759df6804b57a757e646a822103",
+    "verification/1.2-performance-baseline.json": "2dcf118d84c2c8935568ac82e042d310edbe3597fd13ac7504283844c30c781b",
     "verification/aws-capability-candidates.toml": "53b106b98813864dce64a3a5b18bbe7cde11b51d3a112ca47dd9c867559927a8",
     "verification/performance-policy.toml": "4607529df112fc3fac5d79367251017ff3f647316ab2a52b5a08d21611fa0ad2",
     "verification/provider-evidence.toml": "e38500251756f4f39ddc6eaef19f8431102dd80d88a5fd2552aa5eec33d6aea3",
-    "verification/repository-truth.toml": "e8153a5caee01fbe5700d870eb6faa558565ef3cc41f50348d253dd507b4ad7b",
-    "verification/source-manifest.json": "607a2c42c684f2fbcad0b70b748a22add5538498635bbd936188c30f01c1f778"
+    "verification/repository-truth.toml": "8b088196ba804b27c0755ef72f26f065d461d555ab2387f5183e9e32ebd66824",
+    "verification/source-manifest.json": "11df3883960a786a6112ed165f64b57914ed0a7c172c6bb969b58ac2b9515c75"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -34,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "bff4910abf7b609e1a3c564ed4ef1870483ff73f8a455982c9d3f7c3172629cf",
+  "receipt_digest": "c4f6618fb3cea38e3d34c785ef594f31d5404a0cc29023485710cb1e78b03042",
   "schema_version": 1,
-  "source_tree_sha256": "ee323f4488143cc6eb500c1bd17bca3d60ae830bc66a4e84574d89c8fc5d48f3",
+  "source_tree_sha256": "07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933",
   "status": "PASS"
 }

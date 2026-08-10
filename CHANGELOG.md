@@ -7,7 +7,7 @@ Semantic Versioning once public releases begin.
 
 No changes beyond the current candidate.
 
-## [1.2.0] - 2026-08-07
+## [1.2.0] - 2026-08-10
 
 This is an unpublished candidate above the immutable `1.1.0` release. It does
 not imply a tag, registry publication, live AWS deployment or customer
@@ -15,6 +15,14 @@ acceptance.
 
 ### Added
 
+- Added frontend-neutral browser and native-client response metadata,
+  conditional-request CORS support, bearer challenges, bounded retry guidance,
+  lifecycle signals, and one mobile/API compatibility guide without creating a
+  second business API.
+- Added a verified direct-object-upload lifecycle with authorization-first
+  issuance, UUIDv7 object keys, bounded media/size/SHA-256 policy, expiring
+  provider capabilities, provider-metadata completion checks, exact S3 POST
+  signing, and explicit cleanup and content-safety boundaries.
 - Added exact release/deployment binding for feedback, deterministic
   `cargo minco feedback task` conversion and create-only task receipts.
 - Added deterministic `cargo minco handover` planning and digest-approved JSON
@@ -31,6 +39,15 @@ acceptance.
   bounded timeouts, fixed sender identity, raw MIME, Minco correlation tags,
   configuration-set support, and policy-gated direct/SNS/EventBridge delivery
   event normalization.
+- Added owned, loopback-only PostgreSQL and Rustack lifecycle support for
+  `cargo minco dev` through Docker Compose and qualified Apple Container 1.2.x,
+  including fail-closed identity checks, durable non-secret receipts, recovery,
+  port-conflict refusal, and persistent-data preservation.
+- Added a complete versioned 1.2.0 manual and the Signal documentation product:
+  an original connected-runtime visual system, task-first discovery,
+  architecture and troubleshooting guides, production blueprint, feature and
+  plugin catalogs, exercised examples, responsive navigation, dark mode,
+  accessible focus states, and reduced-motion support.
 
 ### Changed
 
@@ -38,6 +55,10 @@ acceptance.
   runtime/ingress topology rather than always assuming API Gateway plus Lambda.
 - Added p99 to bounded candidate load evidence and made current evidence checks
   part of both local and hosted-essential quality gates.
+- Reserved GitHub Actions for Pages, exact-tag crates.io OIDC publication, and
+  one bounded manual clean-Linux compatibility check; complete quality,
+  package, runtime, Rustack, recovery, load and E2E qualification remains local
+  and authoritative.
 - Advanced the lock-step 33-package workspace and version-matched agent bundle
   to the unpublished `1.2.0` candidate.
 
@@ -51,6 +72,10 @@ acceptance.
   Unsupported Lambda Function URL combinations now fail during Plan validation
   instead of reaching provider rendering, which aligns behavior with the
   existing declared-but-unsupported assurance status.
+- Existing object-storage and notification APIs remain available; managed
+  uploads and rich mail are additive opt-ins. Official plugin descriptor core
+  compatibility advances in lock-step to `^1.2.0` without changing descriptor
+  or capability schema versions.
 
 ### Safety and cost
 
@@ -62,6 +87,14 @@ acceptance.
   caller-supplied verifier; direct trusted normalization rejects wrappers. SES
   topics are provider-safely encoded, merged tags are capped at 50, and delivery
   deduplication is explicitly bounded and in-process.
+- Raw feedback attachments are confined to inert ignored storage; evidence
+  outputs use descriptor-relative no-follow creation, identity rechecks,
+  digest approval, conflict detection and rollback. Read-only handover planning
+  executes no repository scripts and malformed evidence fails with stable
+  machine-readable findings.
+- Local service ownership never adopts or deletes foreign resources. No new
+  production worker, poller, schedule, NAT Gateway, provisioned concurrency,
+  public bucket, CDN, or always-on Minco control plane is introduced.
 
 ## [1.1.0] - 2026-08-06
 

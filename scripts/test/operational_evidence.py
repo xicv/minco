@@ -223,7 +223,7 @@ class OperationalEvidenceTests(unittest.TestCase):
     def test_not_run_evidence_is_valid_but_never_silent(self) -> None:
         report = self.report()
         self.assertEqual(report["status"], "PASS", report)
-        self.assertEqual(report["effective_date"], "2026-08-07")
+        self.assertEqual(report["effective_date"], "2026-08-10")
         self.assertEqual(report["metrics"]["performance_status"], "NOT RUN")
         self.assertEqual(report["metrics"]["current_provider_profiles"], 0)
         self.assertIn("PERF-BASELINE-007", self.codes(report))
