@@ -5,13 +5,16 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the current candidate.
+No changes since the published 1.2.0 release.
 
 ## [1.2.0] - 2026-08-10
 
-This is an unpublished candidate above the immutable `1.1.0` release. It does
-not imply a tag, registry publication, live AWS deployment or customer
-acceptance.
+The complete 33-package family is published from immutable tag `v1.2.0` at
+`48df3cc0ebb8990061b60d9383ced63532941079`. Exact source, hosted qualification,
+tag identity, crates.io publication, the GitHub release, docs.rs, stable
+documentation and live AWS application deployment remain separate evidence
+states; this crate release did not deploy an application or establish a
+production SLO.
 
 ### Added
 
@@ -59,8 +62,8 @@ acceptance.
   one bounded manual clean-Linux compatibility check; complete quality,
   package, runtime, Rustack, recovery, load and E2E qualification remains local
   and authoritative.
-- Advanced the lock-step 33-package workspace and version-matched agent bundle
-  to the unpublished `1.2.0` candidate.
+- Published the lock-step 33-package workspace and version-matched agent bundle
+  as `1.2.0`.
 
 ### Compatibility
 
@@ -68,7 +71,7 @@ acceptance.
   `NotificationsPlugin::memory`, `SesNotificationSink`, and
   `aws.ses.email-notifications` remain available. The new `mail.send` and
   `aws.ses.mail-delivery` capabilities are additive and opt-in.
-- The candidate is additive at the CLI and feedback-model boundaries.
+- The release is additive at the CLI and feedback-model boundaries.
   Unsupported Lambda Function URL combinations now fail during Plan validation
   instead of reaching provider rendering, which aligns behavior with the
   existing declared-but-unsupported assurance status.

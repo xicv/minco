@@ -11,8 +11,8 @@ for browser, iOS, Android, desktop, automation, and server-to-server clients. A
 authentication, retry, compatibility, payload, and device-trust constraints at
 the edge; they do not require another domain model.
 
-> This page describes behavior on `main` after the 1.1.0 release. It is part of
-> **Next**, not the frozen 1.1.0 manual.
+> This behavior is part of the frozen Minco 1.2.0 manual. Later changes remain
+> visible under **Next** until separately released.
 
 ## What Minco now supplies
 

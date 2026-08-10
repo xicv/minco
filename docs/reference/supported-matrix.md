@@ -1,11 +1,12 @@
-# 1.1 published support matrix
+# 1.2 published support matrix
 
-Workspace and published install baseline: `1.1.0`
+Workspace and published install baseline: `1.2.0`
 MSRV: Rust `1.97.1`
 Compatibility state: the 1.0 framework boundary, separately qualified DynamoDB
-descendant, and additive agent-native layer are published together as the
-complete 33-package `v1.1.0` family. Registry, docs.rs, stable documentation and
-application/live proof remain separate.
+descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
+rich mail, owned local services and release-bound evidence are published
+together as the complete 33-package `v1.2.0` family. Registry, docs.rs, stable
+documentation and application/live proof remain separate.
 
 This matrix combines authoritative feature/plugin metadata, exercised golden
 path recipes and the exact CGSP/GarmentIQ adoption reconciliation. It describes
@@ -17,7 +18,7 @@ it is not a blanket production-readiness promise.
 - **catalog stable** is the repository's current plugin metadata
   classification. The frozen public boundary also follows the 1.x
   compatibility policy.
-- **published beta** is opt-in and usable with pinned exact 1.1 packages. Its
+- **published beta** is opt-in and usable with pinned exact 1.2 packages. Its
   provider and production evidence remain bounded, but its published 1.x
   API/feature/CLI/schema boundary cannot break silently.
 - **qualified descendant** identifies work, such as DynamoDB, added after the
@@ -36,18 +37,22 @@ it is not a blanket production-readiness promise.
 | Resource wire convention | 1.0 evidenced; DynamoDB published beta | memory, Axum, SQLite, compiled PostgreSQL and all-five-port DynamoDB Orders slices | CGSP 30 operations across six families | no ORM, generic repository, generated business logic or relational DynamoDB emulation |
 | Typed configuration | 1.0 evidenced | strict redacted config graph and generated applications | product configuration remains authoritative | values, secret-reference names and provider truth are not serialized into reports |
 | Database lifecycle | published beta | real SQLite and disposable PostgreSQL migration/seed/verify suites | CGSP retains its own SQLx migrations and forced RLS | no startup migration; backend semantics, backups and data policy remain explicit |
-| Axum/Tower HTTP conventions | 1.0 evidenced | in-process status/header/body/security contract tests | CGSP parity seam exists but deployed HTTP stays legacy | no application authorization or route ownership transfer |
+| Axum/Tower HTTP conventions | 1.2 evidenced | in-process status/header/body/security tests plus exact browser/native response metadata and CORS projection | CGSP parity seam exists but deployed HTTP stays legacy | no second mobile API, application authorization or route ownership transfer |
 | Native Lambda HTTP/API Gateway | published beta | Plan/SAM, package and bounded controller rehearsal | neither reviewed product adopts Minco's exact default topology | no container Lambda Function URL, Pulumi or arbitrary topology promise |
 | SQS Lambda partial-batch worker | published beta; application evidenced | runtime and Plan tests | CGSP product record has staging execution; rollback rehearsal remains incomplete | Minco creates no queue, mapping, schedule or business handler |
 | PostgreSQL adapter | published beta | provider-specific profiles, generated app, disposable integration | CGSP deliberately keeps product SQLx/RLS authority | no transparent provider equivalence or current-price guarantee |
 | SQLite adapter | published beta | persistent-file lifecycle, transactions and feature isolation | no reviewed downstream production claim | no network, multi-instance, managed-backup or PostgreSQL-locking guarantee |
 | DynamoDB Orders adapter | published beta; qualified descendant | standard SDK unit tests, explicit Plan/SAM/IAM and pinned Rustack five-port conformance with cleanup | no reviewed downstream or real-AWS claim | access-pattern-specific; GSI lists are eventually consistent; no SQL or generic repository |
-| Plan/SAM model | 1.0 evidenced | schema/policy snapshots, cost and IAM checks | CGSP consumes it only as advisory evidence | not an infrastructure apply, live price or product controller |
+| Plan/SAM model | 1.2 evidenced | schema/policy snapshots, topology-aware cost and ingress validation, IAM checks | CGSP consumes it only as advisory evidence | Function URLs remain declared but unsupported; not an infrastructure apply, live price or product controller |
 | AWS deployment controller | published beta | exact-artifact apply/verify/promote/rollback/cleanup rehearsal | product deployment controllers remain separate | requires explicit account/region/change-set approval; no hidden mutation |
 | Static-site intent/publication | published beta | local contract and exact-byte/hash receipt tests | products retain their own site controllers | DNS, certificate, CloudFront/S3 mutation and live-site proof are separate |
+| Verified direct object uploads | 1.2 published beta | authorization-first issue/complete tests, bounded policy, exact S3 POST signing and cleanup boundaries | no reviewed downstream adoption claim | content safety, lifecycle and separately authorised live S3 proof remain application/provider responsibilities |
+| Rich observable mail | 1.2 published beta | deterministic capture, loopback Mailpit, SES v2 submission and SNS/EventBridge normalization tests | no reviewed downstream mailbox-delivery claim | provider acceptance is not final mailbox delivery; no automatic retry after ambiguous submission |
+| Release-bound feedback and handover | 1.2 evidenced | exact release/deployment binding, digest-approved create-only receipts, path/rollback and malformed-evidence tests | no reviewed client handover adoption claim | feedback is untrusted input; receipts do not authorize implementation or deployment; live provider and performance proof remain absent |
 | Release/promotion/rollback receipts | 1.0 evidenced | immutable manifest/digest and exact-artifact rehearsal | product release manifests remain authoritative for product rollbacks | no rebuild during promotion; data compatibility still needs operator evidence |
+| Owned local services | 1.2 evidenced; local only | loopback PostgreSQL, Rustack and Mailpit identity, lifecycle, recovery and persistent-data-preservation tests | no reviewed downstream adoption claim | never adopts or deletes foreign resources; no production-provider claim |
 | Local project view, MCP and workbench | published beta; local only | bounded/redacted model tests, stdio MCP and desktop/mobile browser journeys | no product adoption required for the repository view | read-only, no arbitrary shell, no hosted control plane or write authority |
-| Agent-native application development | 1.1 published; local only | version-matched skills, digest-bound plan/sync, bounded context, doctor and deterministic cross-client scenario evaluation | no reviewed downstream adoption claim | no model invocation, implicit mutation authority, provider access or framework-only policy inheritance |
+| Agent-native application development | 1.1+ published; local only | version-matched skills, digest-bound plan/sync, bounded context, doctor and deterministic cross-client scenario evaluation | no reviewed downstream adoption claim | no model invocation, implicit mutation authority, provider access or framework-only policy inheritance |
 | Subscriber-only realtime | published beta | protocol, resync, Plan/SAM and failure-policy tests | no reviewed downstream live adoption | ephemeral invalidation only; not authoritative storage or guaranteed delivery |
 
 ## Official plugin and adapter metadata

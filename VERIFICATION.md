@@ -1,16 +1,54 @@
 # Minco verification and release evidence
 
-Date: 2026-08-07
+Date: 2026-08-10
 Current workspace version: `1.2.0`
-Published baseline: `1.1.0`
-Workspace release state: `candidate`
+Published baseline: `1.2.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T13 `1.2.0` publication and stable documentation promotion
+
+Immutable tag `v1.2.0` resolves to exact qualified source
+`48df3cc0ebb8990061b60d9383ced63532941079`, tree
+`4269d98bab1e5b02f531610f5b121727a5e186f7` and source-tree digest
+`07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933`.
+Candidate PR #136 passed exact-head clean-Linux run
+[`31360400586`](https://github.com/xicv/minco/actions/runs/31360400586) before
+merge and tagging. Authentication-only run
+[`31360402650`](https://github.com/xicv/minco/actions/runs/31360402650) also
+passed without publishing.
+
+The first publication dispatch
+[`31360980959`](https://github.com/xicv/minco/actions/runs/31360980959) failed
+closed before any upload because clean-runner archive tests used offline Cargo
+without prefetching the locked `tempfile 3.27.0` package. Registry verification
+then confirmed all 33 exact 1.2.0 versions remained absent. PR #137 added locked
+prefetch after exact-tag verification and before OIDC token acquisition; exact
+head run
+[`31362556803`](https://github.com/xicv/minco/actions/runs/31362556803) passed.
+
+Retry publication run
+[`31362919458`](https://github.com/xicv/minco/actions/runs/31362919458) checked
+out and verified exact tag source `48df3cc0...`, passed committed evidence,
+archive and consumer gates, acquired a short-lived OIDC credential, and
+uploaded all 33 packages. Independent registry validation passed with
+`registry_checks_succeeded: 33`; every exact 1.2.0 version was present and
+non-yanked, with the result retained in
+`verification/1.2-published-release-validation.json`, before the
+[`v1.2.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.0)
+was created. Stable Pages and all exact docs.rs routes are verified separately
+after this post-publication truth change merges.
+
+No AWS application resources were created, changed or deleted. Package
+publication does not qualify the `NOT RUN` performance baseline, the no-contact
+current provider record, a production SLO or customer acceptance.
+
 ## M14-T10 `1.2.0` delivery-evidence candidate
 
-The workspace is an unpublished `1.2.0` candidate above the immutable `1.1.0`
-published baseline. The candidate adds topology-aware Plan validation and cost
+At the M14-T10 candidate boundary, the workspace was an unpublished `1.2.0`
+candidate above the immutable `1.1.0` published baseline. It added
+topology-aware Plan validation and cost
 evidence, exact release-bound feedback-to-task receipts, p99 performance
 evidence with freshness policy, a reviewed AWS/Rust capability ledger, and a
 digest-approved client handover packet. Source, hosted qualification, live AWS
@@ -44,10 +82,12 @@ PASS sealed operational-validation receipt with two truthful warnings
 The checked-in `1.2.0` performance baseline is deliberately `NOT RUN`: no
 exact-tree hosted Linux measurements were available, and no local macOS number
 is promoted to a provider threshold or production SLO. Exact-tree hosted Linux
-qualification remains pending on the final PR head. M14-T10 did not contact AWS
+qualification was later exercised by M14-T13 without creating a performance
+measurement. M14-T10 did not contact AWS
 or create resources; the current-candidate provider record is `not_run`, while
 the older 0.4 rehearsal remains visible only as `stale` historical evidence.
-Nothing was deployed, promoted, tagged, released or published.
+At that historical candidate boundary, nothing was deployed, promoted, tagged,
+released or published; M14-T13 records the later package release separately.
 
 ## M14-T02 `1.1.0` publication and stable documentation promotion
 

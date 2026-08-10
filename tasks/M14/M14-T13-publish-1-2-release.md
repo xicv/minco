@@ -19,12 +19,15 @@ owned_paths:
   - docs/development/publishing.md
   - docs/development/release-qualification.md
   - docs/adoption/1.1.0-to-1.2.0.md
+  - docs/reference/compatibility.md
+  - docs/reference/supported-matrix.md
   - docs-site/**
   - crates/minco-cli/src/delivery_evidence.rs
   - roadmap/**
   - scripts/release/candidate_gate_runner.py
   - scripts/release/candidate_qualification.py
   - scripts/source_manifest.py
+  - scripts/validate_static.py
   - scripts/test/candidate_qualification.py
   - scripts/test/hosted_ci_policy.py
   - scripts/test/operational_evidence.py
@@ -101,3 +104,29 @@ The M14-T10 performance baseline stays `NOT RUN`, its current provider profile
 records no contact, and historical provider evidence stays stale. These are
 truthful bounded release limitations, not silently converted passes. No live
 AWS application operation is authorised by this task.
+
+## Publication evidence
+
+Release PR #136 merged exact qualified source
+`48df3cc0ebb8990061b60d9383ced63532941079`, tree
+`4269d98bab1e5b02f531610f5b121727a5e186f7`, after clean-Linux run
+`31360400586` passed. Lightweight tag `v1.2.0` resolves to that commit and the
+published source manifest records tree digest
+`07846817724cca504b7deff8c80006a00930cf4d37513cc88b8aeac285a15933`.
+
+The first publication run `31360980959` failed before upload because the clean
+runner had not prefetched the locked `tempfile 3.27.0` archive-test dependency.
+Registry verification proved all 33 exact versions remained absent. PR #137
+fixed the boundary with `cargo fetch --locked` ordered after exact-tag
+verification and before OIDC acquisition; exact-head run `31362556803` passed.
+Retry run `31362919458` then passed exact-tag, evidence, archive, consumer,
+OIDC and ordered-upload gates. Independent registry validation found all 33
+exact 1.2.0 versions present and non-yanked; the deterministic result is retained
+in `verification/1.2-published-release-validation.json`. The GitHub release was
+then created at `https://github.com/xicv/minco/releases/tag/v1.2.0`.
+
+This task remains `active` until the post-publication truth/site change is
+merged, the exact merged-main Pages deployment is green, and every exact 1.2.0
+docs.rs route is independently reachable. Those checks do not alter the
+immutable release tag and cannot qualify M14-T10's unavailable live-provider
+or hosted performance evidence.
