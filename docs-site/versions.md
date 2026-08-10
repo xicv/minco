@@ -10,6 +10,7 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
+| 1.2.2 | Unpublished candidate | 1.97.1 | [Review 1.2.2 candidate docs](/1.2.2/) |
 | 1.2.1 | Latest stable | 1.97.1 | [Open 1.2.1 docs](/1.2.1/) |
 | 1.2.0 | Previous stable | 1.97.1 | [Open 1.2.0 docs](/1.2.0/) |
 | 1.1.0 | Previous stable | 1.97.1 | [Open 1.1.0 docs](/1.1.0/) |
@@ -23,3 +24,6 @@ GitHub release are independently verified. This stable manual and the exact
 docs.rs routes are verified after the post-publication documentation change
 reaches `main`. Live AWS application deployment remains a separate boundary.
 See the [1.2.1 GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.1).
+
+The 1.2.2 pages are a release candidate for documentation presentation
+hardening. They are not registry, docs.rs or stable-documentation evidence.

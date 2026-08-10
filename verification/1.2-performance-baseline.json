@@ -1,5 +1,5 @@
 {
-  "candidate_version": "1.2.1",
+  "candidate_version": "1.2.2",
   "kind": "minco.performance-baseline.v1",
   "limitations": [
     "No exact-tree hosted Linux candidate qualification artifact was available when this task was prepared.",
@@ -9,6 +9,6 @@
   "provider_contact": false,
   "reason": "Exact-source hosted Linux performance qualification has not run.",
   "schema_version": 1,
-  "source_tree_sha256": "f3300b6a78c3c75397f6d6f21405c5a79aad97deb6e0e22c53990270c849fe91",
+  "source_tree_sha256": "c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6",
   "status": "NOT RUN"
 }

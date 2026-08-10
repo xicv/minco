@@ -1,8 +1,11 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.2.1`
-Current workspace version: `1.2.1`
-Workspace release state: `published`
+Current workspace version: `1.2.2`
+Workspace release state: `candidate`
+
+The candidate changes documentation presentation only. Continue using exact
+published `1.2.1` dependencies until `1.2.2` registry publication is verified.
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a

@@ -1,8 +1,8 @@
 schema = 1
-workspace_version = "1.2.1"
+workspace_version = "1.2.2"
 published_baseline = "1.2.1"
 published_release_commit = "5f329ebbabef2840b01f10743f8dbb25a0b0dbe4"
-workspace_release_state = "published"
+workspace_release_state = "candidate"
 operational_evidence_effective_date = "2026-08-10"
 published_package_count = 33
 adoption_gate_task = "M6-T07"
@@ -12,11 +12,11 @@ qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-
 post_candidate_tasks = ["M6-T01", "M12-T07"]
 published_release_task = "M14-T14"
 published_source_tree_sha256 = "4207fb168ee9c71eb7291efbf4dc03464a9009f7ae5889d34e09f030fca2caf3"
-release_candidate_task = "M14-T14"
+release_candidate_task = "M14-T15"
 
 # The published 1.2.1 baseline contains the complete 33-package family from
-# immutable tag v1.2.1. It retains the 1.2 product boundary and adds cumulative,
-# release-bound freshness checks for all eight packaged AI skills.
+# immutable tag v1.2.1. The 1.2.2 candidate keeps that product boundary and
+# hardens versioned documentation presentation without changing runtime APIs.
 publishable_package_count = 33
 new_publishable_packages = []
 

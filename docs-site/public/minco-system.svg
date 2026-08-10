@@ -25,23 +25,23 @@
   <g filter="url(#shadow)">
     <rect x="58" y="112" width="168" height="124" rx="18" fill="#151F29" stroke="#B8F34A" stroke-width="2"/>
     <text x="82" y="143" fill="#B8F34A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="1.7">01 · CONTRACT</text>
-    <text x="82" y="180" fill="#F4F6F1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="23" font-weight="750">OpenAPI 3.1</text>
-    <text x="82" y="207" fill="#9EACA6" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">operations · schemas · policy</text>
+    <text x="82" y="180" fill="#F4F6F1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="23" font-weight="750">OpenAPI</text>
+    <text x="82" y="207" fill="#9EACA6" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">3.1 · schemas · policy</text>
 
     <rect x="286" y="92" width="196" height="162" rx="20" fill="#F4F6F1" stroke="#F4F6F1" stroke-width="2"/>
     <text x="312" y="126" fill="#477718" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="700" letter-spacing="1.7">02 · APPLICATION GRAPH</text>
-    <text x="312" y="166" fill="#10151D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="23" font-weight="780">Domain → ports</text>
-    <text x="312" y="196" fill="#4A5862" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">handlers · adapters · plugins</text>
+    <text x="312" y="166" fill="#10151D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="780">Domain + ports</text>
+    <text x="312" y="196" fill="#4A5862" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">handlers · adapters</text>
     <rect x="312" y="215" width="113" height="20" rx="10" fill="#DDE6D8"/>
     <text x="368.5" y="229" fill="#355D10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" font-weight="700" text-anchor="middle">STATIC COMPOSITION</text>
 
     <rect x="526" y="86" width="196" height="72" rx="15" fill="#151F29" stroke="#3B4A55"/>
     <text x="548" y="113" fill="#42CFC1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" font-weight="700" letter-spacing="1.5">LOCAL</text>
-    <text x="548" y="139" fill="#F4F6F1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="720">SQLite / PostgreSQL</text>
+    <text x="548" y="139" fill="#F4F6F1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="720">SQLite + Postgres</text>
 
     <rect x="526" y="194" width="196" height="72" rx="15" fill="#151F29" stroke="#3B4A55"/>
     <text x="548" y="221" fill="#42CFC1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" font-weight="700" letter-spacing="1.5">HTTP API</text>
-    <text x="548" y="247" fill="#F4F6F1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="720">API Gateway + Lambda</text>
+    <text x="548" y="247" fill="#F4F6F1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="720">Gateway + Lambda</text>
 
     <rect x="526" y="306" width="196" height="72" rx="15" fill="#151F29" stroke="#3B4A55"/>
     <text x="548" y="333" fill="#42CFC1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" font-weight="700" letter-spacing="1.5">QUEUE WORKER</text>
@@ -59,7 +59,7 @@
     <rect x="536" y="414" width="186" height="90" rx="17" fill="#B8F34A"/>
     <text x="558" y="444" fill="#355D10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" font-weight="700" letter-spacing="1.5">04 · EVIDENCE</text>
     <text x="558" y="474" fill="#10151D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="800">Exact release</text>
-    <text x="558" y="493" fill="#355D10" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">digests · receipts · verification</text>
+    <text x="558" y="493" fill="#355D10" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">digests · receipts · proof</text>
   </g>
 
   <circle cx="226" cy="174" r="7" fill="#B8F34A"/>

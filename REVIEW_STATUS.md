@@ -1,5 +1,19 @@
 # Review status
 
+The workspace is the unpublished `1.2.2` lock-step candidate for Signal
+homepage presentation hardening.
+
+Published baseline: `1.2.1`
+
+Current workspace version: `1.2.2`
+
+Workspace release state: `candidate`
+
+The candidate corrects diagram text overflow and the ordered-list cascade that
+misaligned the four operating-model cards. Local, hosted, tag, registry,
+docs.rs, Pages, provider, runtime and production evidence remain distinct. No
+`1.2.2` publication or deployment is claimed before those gates occur.
+
 The workspace is the published `1.2.1` lock-step release for release-bound AI
 skill freshness. Its local, hosted, tag and registry checks remain separate
 from docs.rs, stable-site, provider, runtime and production evidence. The

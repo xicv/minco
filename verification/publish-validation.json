@@ -51,7 +51,7 @@
       "minco-workbench",
       "minco-aws-dynamodb"
     ],
-    "workspace_version": "1.2.1",
+    "workspace_version": "1.2.2",
     "workspace_packages": 38,
     "publishable_packages": 33,
     "private_packages": 5,

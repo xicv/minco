@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "minco_version": "1.2.1",
+  "minco_version": "1.2.2",
   "scenarios": "evals/scenarios.json",
   "release_feature_coverage": {
     "schema_version": 1,
@@ -23,6 +23,11 @@
         "version": "1.2.1",
         "changelog_sha256": "1aa54457d8071e4ed3035552791f7fc96f4ede41befd9edc43c06e10d2a84433",
         "features": ["release-skill-freshness"]
+      },
+      {
+        "version": "1.2.2",
+        "changelog_sha256": "f7387abb0d098d5bb831105fc234045cd1aaed14826b4e338e428fdaefaf7cba",
+        "features": ["documentation-presentation"]
       }
     ],
     "features": [
@@ -32,8 +37,8 @@
         "skill_marker": "browser/native contract",
         "skills": ["minco-operation", "minco-web-application"],
         "documentation": [
-          "minco-1.2.1:guides/mobile-api",
-          "minco-1.2.1:guides/resource-api"
+          "minco-1.2.2:guides/mobile-api",
+          "minco-1.2.2:guides/resource-api"
         ],
         "release_note_markers": [
           "Added frontend-neutral browser",
@@ -45,7 +50,7 @@
         "release_version": "1.2.0",
         "skill_marker": "verified direct upload",
         "skills": ["minco-operation", "minco-plugin", "minco-review"],
-        "documentation": ["minco-1.2.1:guides/files-and-static-sites"],
+        "documentation": ["minco-1.2.2:guides/files-and-static-sites"],
         "release_note_markers": [
           "Added a verified direct-object-upload",
           "Existing object-storage"
@@ -57,8 +62,8 @@
         "skill_marker": "release-bound evidence",
         "skills": ["minco-diagnose", "minco-release", "minco-review"],
         "documentation": [
-          "minco-1.2.1:guides/feedback",
-          "minco-1.2.1:reference/testing"
+          "minco-1.2.2:guides/feedback",
+          "minco-1.2.2:reference/testing"
         ],
         "release_note_markers": [
           "Added exact release/deployment binding",
@@ -73,7 +78,7 @@
         "release_version": "1.2.0",
         "skill_marker": "rich mail",
         "skills": ["minco-lifecycle", "minco-operation", "minco-plugin", "minco-review"],
-        "documentation": ["minco-1.2.1:guides/events-and-notifications"],
+        "documentation": ["minco-1.2.2:guides/events-and-notifications"],
         "release_note_markers": [
           "Added an explicit `mail.send`",
           "Added a loopback-only Mailpit",
@@ -88,7 +93,7 @@
         "release_version": "1.2.0",
         "skill_marker": "owned local services",
         "skills": ["minco-diagnose", "minco-lifecycle", "minco-review", "minco-web-application"],
-        "documentation": ["minco-1.2.1:guides/local-development"],
+        "documentation": ["minco-1.2.2:guides/local-development"],
         "release_note_markers": [
           "Added owned, loopback-only PostgreSQL",
           "Local service ownership"
@@ -100,8 +105,8 @@
         "skill_marker": "Signal documentation",
         "skills": ["minco-framework-task", "minco-web-application"],
         "documentation": [
-          "minco-1.2.1:index",
-          "minco-1.2.1:reference/documentation-map"
+          "minco-1.2.2:index",
+          "minco-1.2.2:reference/documentation-map"
         ],
         "release_note_markers": ["Added a complete versioned 1.2.0 manual"]
       },
@@ -111,8 +116,8 @@
         "skill_marker": "topology-aware cost",
         "skills": ["minco-diagnose", "minco-lifecycle", "minco-release"],
         "documentation": [
-          "minco-1.2.1:guides/deployment",
-          "minco-1.2.1:explanation/zero-idle"
+          "minco-1.2.2:guides/deployment",
+          "minco-1.2.2:explanation/zero-idle"
         ],
         "release_note_markers": ["Made deployment Plan validation"]
       },
@@ -122,8 +127,8 @@
         "skill_marker": "local-first release boundary",
         "skills": ["minco-framework-task", "minco-release", "minco-review"],
         "documentation": [
-          "minco-1.2.1:guides/deployment",
-          "minco-1.2.1:reference/testing"
+          "minco-1.2.2:guides/deployment",
+          "minco-1.2.2:reference/testing"
         ],
         "release_note_markers": [
           "Reserved GitHub Actions",
@@ -145,8 +150,8 @@
           "minco-web-application"
         ],
         "documentation": [
-          "minco-1.2.1:guides/agent-development",
-          "minco-1.2.1:reference/testing"
+          "minco-1.2.2:guides/agent-development",
+          "minco-1.2.2:reference/testing"
         ],
         "release_note_markers": [
           "release-bound AI skill freshness",
@@ -154,6 +159,23 @@
           "deterministic Codex/Claude workflow receipt",
           "Kept skill names, trigger semantics",
           "Added no hosted agent runtime"
+        ]
+      },
+      {
+        "id": "documentation-presentation",
+        "release_version": "1.2.2",
+        "skill_marker": "versioned documentation presentation",
+        "skills": ["minco-release", "minco-review", "minco-web-application"],
+        "documentation": [
+          "minco-1.2.2:index",
+          "minco-1.2.2:reference/testing"
+        ],
+        "release_note_markers": [
+          "Corrected the public homepage system diagram",
+          "Removed inherited ordered-list markers",
+          "Bound the `1.2.2` documentation presentation contract",
+          "Kept public Rust APIs",
+          "Added no AWS resource"
         ]
       }
     ]
@@ -164,8 +186,8 @@
       "path": "skills/minco-diagnose",
       "mode": "shared",
       "documentation": [
-        "minco-1.2.1:reference/cli",
-        "minco-1.2.1:guides/project-view"
+        "minco-1.2.2:reference/cli",
+        "minco-1.2.2:guides/project-view"
       ]
     },
     {
@@ -173,8 +195,8 @@
       "path": "skills/minco-framework-task",
       "mode": "framework",
       "documentation": [
-        "minco-1.2.1:reference/cli",
-        "minco-1.2.1:getting-started/project-structure"
+        "minco-1.2.2:reference/cli",
+        "minco-1.2.2:getting-started/project-structure"
       ]
     },
     {
@@ -182,8 +204,8 @@
       "path": "skills/minco-lifecycle",
       "mode": "shared",
       "documentation": [
-        "minco-1.2.1:guides/local-development",
-        "minco-1.2.1:guides/database-lifecycle"
+        "minco-1.2.2:guides/local-development",
+        "minco-1.2.2:guides/database-lifecycle"
       ]
     },
     {
@@ -191,8 +213,8 @@
       "path": "skills/minco-operation",
       "mode": "application",
       "documentation": [
-        "minco-1.2.1:guides/resource-api",
-        "minco-1.2.1:reference/resource-api"
+        "minco-1.2.2:guides/resource-api",
+        "minco-1.2.2:reference/resource-api"
       ]
     },
     {
@@ -200,8 +222,8 @@
       "path": "skills/minco-plugin",
       "mode": "application",
       "documentation": [
-        "minco-1.2.1:plugins/using-plugins",
-        "minco-1.2.1:guides/plugin-conformance"
+        "minco-1.2.2:plugins/using-plugins",
+        "minco-1.2.2:guides/plugin-conformance"
       ]
     },
     {
@@ -209,8 +231,8 @@
       "path": "skills/minco-release",
       "mode": "shared",
       "documentation": [
-        "minco-1.2.1:guides/deployment",
-        "minco-1.2.1:reference/cli"
+        "minco-1.2.2:guides/deployment",
+        "minco-1.2.2:reference/cli"
       ]
     },
     {
@@ -218,8 +240,8 @@
       "path": "skills/minco-review",
       "mode": "shared",
       "documentation": [
-        "minco-1.2.1:guides/feedback",
-        "minco-1.2.1:guides/project-view"
+        "minco-1.2.2:guides/feedback",
+        "minco-1.2.2:guides/project-view"
       ]
     },
     {
@@ -227,8 +249,8 @@
       "path": "skills/minco-web-application",
       "mode": "application",
       "documentation": [
-        "minco-1.2.1:getting-started/first-application",
-        "minco-1.2.1:getting-started/framework-tour"
+        "minco-1.2.2:getting-started/first-application",
+        "minco-1.2.2:getting-started/framework-tour"
       ]
     }
   ]
