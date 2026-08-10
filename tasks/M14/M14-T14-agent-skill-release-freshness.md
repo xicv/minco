@@ -2,7 +2,7 @@
 id: M14-T14
 title: Automate release-bound AI skill freshness
 milestone: M14
-status: active
+status: complete
 priority: high
 area: agent/release
 depends_on: [M14-T13]
@@ -110,5 +110,13 @@ Published 1.2.0 remains immutable at
 therefore shipped as the new lock-step `v1.2.1` patch at
 `5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`, rather than altering already
 published archives. Exact registry publication is retained separately from
-Pages, docs.rs, provider, runtime and production evidence. This task remains
-active until the stable manual and every exact 1.2.1 docs.rs route are verified.
+Pages, docs.rs, provider, runtime and production evidence. This task is
+complete after promotion PR #141 passed exact-head clean-Linux run `31383722610`
+at `681fd11bf078fdd4c0f8eb7a26f0703ca3f7e4b4`, merged as exact tree
+`2c0cb03598f879ae80cf5f60e8d106a7a910914f` in main commit
+`140c7278c9c7f60cb7ce3be949583f17f0d71a17`, and merged-main Pages run
+`31384082079` passed. Cache-busted live checks returned HTTP 200 for the root,
+frozen `/1.2.1/` manual and versions page, and every one of the 33 exact 1.2.1
+docs.rs rustdoc routes returned HTTP 200. No live AWS application resource was
+created, changed or deleted, and performance remains `NOT RUN` rather than a
+production SLO.
