@@ -1,16 +1,15 @@
 # 1.2 published support matrix
 
-Published install baseline: `1.2.1`
-Candidate workspace: `1.2.2`
+Workspace and published install baseline: `1.2.2`
 MSRV: Rust `1.97.1`
 Compatibility state: the 1.0 framework boundary, separately qualified DynamoDB
 descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
 rich mail, owned local services and release-bound evidence are published
-together as the complete 33-package `v1.2.1` family. Registry, docs.rs, stable
+together as the complete 33-package `v1.2.2` family. Registry, docs.rs, stable
 documentation and application/live proof remain separate.
 
-The `1.2.2` candidate does not add a support claim. It hardens presentation of
-this already published matrix and keeps browser evidence explicit.
+The `1.2.2` patch does not add a support claim. It hardens presentation of this
+published matrix and keeps browser evidence explicit.
 
 This matrix combines authoritative feature/plugin metadata, exercised golden
 path recipes and the exact CGSP/GarmentIQ adoption reconciliation. It describes

@@ -2,24 +2,41 @@
 
 Date: 2026-08-10
 Current workspace version: `1.2.2`
-Published baseline: `1.2.1`
-Workspace release state: `candidate`
+Published baseline: `1.2.2`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M14-T15 `1.2.2` documentation presentation candidate
+## M14-T15 `1.2.2` documentation presentation release
 
-The workspace is an unpublished compatible patch over immutable `v1.2.1`.
-The candidate corrects overflowing homepage diagram labels, suppresses native
+Immutable tag `v1.2.2` resolves to exact merged release source
+`0496e6294b213c839af551a82858e2c1c3f7f45d`, tree
+`577caf88f99746b2ac62b50ad90f3e5ea1f66b4e` and qualified source-tree digest
+`c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6`.
+The patch corrects overflowing homepage diagram labels, suppresses native
 ordered-list markers and inherited sibling spacing in the operating model,
 and retains responsive tablet/mobile grid overrides. Its cumulative agent
 coverage teaches the relevant release, review and web workflows to verify
 versioned documentation presentation as release content.
 
-Exact local release qualification, clean-Linux compatibility, merge, tag,
-GitHub release, registry, docs.rs and Pages evidence are pending. No AWS
-application resources were contacted or changed, current performance remains
-`NOT RUN`, and no production SLO is claimed.
+Canonical macOS `scripts/ci/local-release.sh` qualification passed from the
+exact source tree. PR #143 passed exact-head clean-Linux run
+[`31395154514`](https://github.com/xicv/minco/actions/runs/31395154514), merged
+with the same exact tree, and merged-main run
+[`31395740260`](https://github.com/xicv/minco/actions/runs/31395740260) passed.
+Guarded OIDC workflow
+[`31396167046`](https://github.com/xicv/minco/actions/runs/31396167046) verified
+the exact tag and uploaded the complete family. Independent registry validation
+found all 33 exact versions present and non-yanked; the machine receipt is
+`verification/1.2.2-published-release-validation.json`. The
+[`v1.2.2` GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.2) is
+published from the same tag.
+
+No AWS application resources were contacted, created, changed or deleted.
+Package publication does not qualify the no-contact current provider record,
+the exact-tree hosted performance record remains `NOT RUN`, and no production
+SLO or application deployment is claimed. Pages and all 33 exact 1.2.2 docs.rs
+routes remain post-publication closeout gates until independently verified.
 
 ## M14-T14 `1.2.1` agent skill freshness release
 

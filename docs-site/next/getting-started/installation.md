@@ -6,19 +6,19 @@ description: Install the Minco toolchain and choose a small, explicit framework 
 # Installation
 
 Minco uses ordinary Rust packages plus the `cargo minco` control plane. The
-published baseline is 1.2.1. Minco 1.2.1 and current development require Rust
-1.97.1. Use exact 1.2.1 packages for applications and the repository-pinned
+published baseline is 1.2.2. Minco 1.2.2 and current development require Rust
+1.97.1. Use exact 1.2.2 packages for applications and the repository-pinned
 workspace binary only when deliberately evaluating unreleased source.
 
 ## Install the CLI
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 1.2.1 --locked
+cargo +1.97.1 install cargo-minco --version 1.2.2 --locked
 cargo minco --version
 ```
 
-The last command should print `minco 1.2.1`. Contributors reviewing unreleased
+The last command should print `minco 1.2.2`. Contributors reviewing unreleased
 source use the repository-pinned toolchain and workspace binary:
 
 ```bash
@@ -33,20 +33,20 @@ The facade's defaults are deliberately small: OpenAPI contracts, HTTP
 conventions, health, observability, and idempotency.
 
 ```bash
-cargo add minco@1.2.1
+cargo add minco@1.2.2
 ```
 
 Add only the capabilities the application needs:
 
 ```bash
 # PostgreSQL API running on native Lambda
-cargo add minco@1.2.1 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@1.2.2 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Local or single-process SQLite API
-cargo add minco@1.2.1 --features sqlx-sqlite,test
+cargo add minco@1.2.2 --features sqlx-sqlite,test
 
 # Provider-neutral kernel only
-cargo add minco@1.2.1 --no-default-features
+cargo add minco@1.2.2 --no-default-features
 ```
 
 See [Cargo feature flags](../reference/feature-flags) before enabling `full`.

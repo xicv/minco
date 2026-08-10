@@ -37,7 +37,7 @@ NEW_OFFICIAL_PLUGIN_PACKAGES = {
     for package in QUALIFIED_CANDIDATE_NEW_PUBLISHABLE_PACKAGES
     if CATALOG_FEATURE_BY_CRATE.get(package) in OFFICIAL_PLUGIN_FEATURES
 }
-PREVIOUS_PUBLISHED_BASELINE = "1.2.0"
+PREVIOUS_PUBLISHED_BASELINE = "1.2.1"
 DRIFTED_PUBLISHED_BASELINE = "9.9.8"
 CANDIDATE_BASELINE = (
     PUBLISHED_BASELINE if RELEASE_STATE == "candidate" else PREVIOUS_PUBLISHED_BASELINE
@@ -123,11 +123,11 @@ class RepositoryTruthTests(unittest.TestCase):
         guide.write_text(
             guide.read_text()
             .replace(
-                f"Previous published baseline: `{PREVIOUS_PUBLISHED_BASELINE}`",
+                f"Published baseline: `{WORKSPACE_VERSION}`",
                 f"Published baseline: `{PREVIOUS_PUBLISHED_BASELINE}`",
             )
             .replace(
-                f"Target version: `{WORKSPACE_VERSION}`",
+                f"Current workspace version: `{WORKSPACE_VERSION}`",
                 f"Candidate workspace version: `{WORKSPACE_VERSION}`",
             )
             .replace(

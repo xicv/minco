@@ -1,23 +1,32 @@
-# Minco 1.2.2 candidate handoff
+# Minco 1.2.2 release handoff
 
 Date: 2026-08-10
-Published baseline: `1.2.1`
+Published baseline: `1.2.2`
 Current workspace version: `1.2.2`
-Workspace release state: `candidate`
-Published `1.2.1` source: `5f329ebbabef2840b01f10743f8dbb25a0b0dbe4`
-Published source-tree digest: `4207fb168ee9c71eb7291efbf4dc03464a9009f7ae5889d34e09f030fca2caf3`
-Published release task: `M14-T14`
+Workspace release state: `published`
+Published `1.2.2` source: `0496e6294b213c839af551a82858e2c1c3f7f45d`
+Published source-tree digest: `c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6`
+Published release task: `M14-T15`
 Active release task: `M14-T15`
 Active evidence task: `M14-T10`
 
-## Current candidate boundary
+## Current release boundary
 
-Minco `1.2.2` is an unpublished, SemVer-compatible lock-step candidate over the
+Minco `1.2.2` is a published, SemVer-compatible lock-step patch over the
 immutable `1.2.1` baseline. It fixes homepage diagram overflow and operating
 model alignment, carries those presentation checks into cumulative agent
 release coverage, and changes no public Rust API, runtime or deployment
-topology. Exact local qualification, hosted compatibility, merge, tag, upload,
-registry, docs.rs and Pages evidence are pending and must remain separate.
+topology. Exact local qualification, PR-head and merged-main clean-Linux runs,
+tag identity, OIDC upload, all 33 registry versions and the GitHub release are
+verified separately. Stable Pages and docs.rs remain closeout gates until the
+post-publication truth change reaches `main`.
+
+Exact PR-head run `31395154514`, merged-main run `31395740260` and OIDC
+publication run `31396167046` passed for source
+`0496e6294b213c839af551a82858e2c1c3f7f45d`. Independent registry validation
+found all 33 exact 1.2.2 versions present and non-yanked. No AWS application
+resource was contacted or changed; current performance remains `NOT RUN` and no
+production SLO is claimed.
 
 ## Closed release boundary
 

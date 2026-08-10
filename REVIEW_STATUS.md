@@ -1,18 +1,30 @@
 # Review status
 
-The workspace is the unpublished `1.2.2` lock-step candidate for Signal
-homepage presentation hardening.
+The workspace is the published `1.2.2` lock-step release for Signal homepage
+presentation hardening.
 
-Published baseline: `1.2.1`
+Published baseline: `1.2.2`
 
 Current workspace version: `1.2.2`
 
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-The candidate corrects diagram text overflow and the ordered-list cascade that
+The release corrects diagram text overflow and the ordered-list cascade that
 misaligned the four operating-model cards. Local, hosted, tag, registry,
-docs.rs, Pages, provider, runtime and production evidence remain distinct. No
-`1.2.2` publication or deployment is claimed before those gates occur.
+docs.rs, Pages, provider, runtime and production evidence remain distinct.
+Local and clean-Linux qualification, tag identity, registry publication and the
+GitHub release are independently verified; Pages and docs.rs remain closeout
+gates until the promotion change reaches `main`.
+
+Minco `1.2.2` is the current published baseline from exact release source
+`0496e6294b213c839af551a82858e2c1c3f7f45d`, tree
+`577caf88f99746b2ac62b50ad90f3e5ea1f66b4e` and source-tree digest
+`c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6`.
+PR-head run `31395154514` and merged-main run `31395740260` passed. OIDC
+publication run `31396167046` uploaded the exact `v1.2.2` tag, independent
+registry validation found all 33 exact versions present and non-yanked, and the
+GitHub release is published from the same tag. No live AWS application evidence
+or production performance SLO is claimed.
 
 The workspace is the published `1.2.1` lock-step release for release-bound AI
 skill freshness. Its local, hosted, tag and registry checks remain separate

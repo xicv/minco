@@ -1,13 +1,13 @@
 # Using Minco in an application
 
-Published baseline: `1.2.1`
+Published baseline: `1.2.2`
 
 Current workspace version: `1.2.2`
 
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use published `1.2.1` dependencies until exact `1.2.2` registry publication
-is independently confirmed.
+Use published `1.2.2` dependencies. Use a source checkout only for coordinated
+review of unreleased changes.
 
 The `minco` facade is the normal dependency for an application. It keeps the
 provider-neutral kernel always available and exposes contract, HTTP, plugins,
@@ -201,12 +201,11 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 
 ## API stability
 
-Published baseline: `1.2.1`
+Published baseline: `1.2.2`
 Current workspace version: `1.2.2`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Pin the published `1.2.1` line in production applications until exact `1.2.2`
-registry publication is independently verified, then follow
+Pin the published `1.2.2` line in production applications, then follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before
 upgrading. The framework follows lock-step versions across the publishable
 crate family during the initial stabilization period. Registry availability

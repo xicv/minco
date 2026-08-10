@@ -1,11 +1,11 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.2.1`
+Published baseline: `1.2.2`
 Current workspace version: `1.2.2`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-The candidate changes documentation presentation only. Continue using exact
-published `1.2.1` dependencies until `1.2.2` registry publication is verified.
+The 1.2.2 patch changes documentation presentation only. Use exact published
+`1.2.2` dependencies for new application updates.
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -17,7 +17,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.2.1", default-features = false, features = ["contract"] }
+minco = { version = "1.2.2", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -168,6 +168,10 @@ validation, selected-topology cost semantics and operational evidence.
 Applications moving to the published `1.2.1` patch must also use the
 [`1.2.0` to `1.2.1` guide](1.2.0-to-1.2.1.md). It covers the compatible
 release-bound AI skill freshness patch and its deterministic checks.
+
+Applications moving to the published `1.2.2` patch must also use the
+[`1.2.1` to `1.2.2` guide](1.2.1-to-1.2.2.md). It covers the compatible Signal
+documentation presentation hardening and unchanged runtime boundary.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 
