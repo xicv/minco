@@ -535,75 +535,22 @@ class RepositoryTruthTests(unittest.TestCase):
         )
         self.assertIn("STATIC-BUDGET-007", self.truth_codes())
 
-    def test_manual_workflow_qualifies_plan_sam_and_both_lambda_artifacts(self) -> None:
-        workflow = yaml.safe_load(
-            (self.root / ".github/workflows/minco-manual.yml").read_text()
-        )
-        steps = workflow["jobs"]["quality"]["steps"]
-        steps_by_name = {
-            step["name"]: step
-            for step in steps
-            if "name" in step
-        }
-        commands = {
-            name: step.get("run", "")
-            for name, step in steps_by_name.items()
-        }
-        release_tools = commands["Install release qualification tools"]
-        self.assertIn(
-            "cargo install --locked --bin jj jj-cli --version 0.43.0",
-            release_tools,
-        )
-        self.assertIn("jj --version", release_tools)
-        self.assertIn(
-            "cargo install --locked ripgrep --version 15.2.0",
-            release_tools,
-        )
-        self.assertIn("rg --version", release_tools)
-        self.assertEqual(
-            steps_by_name["Install release qualification tools"]["if"],
-            "${{ inputs.profile == 'release' }}",
-        )
-        self.assertEqual(
-            commands["Install pinned Cargo Lambda"],
-            "cargo install --locked cargo-lambda --version 1.9.1",
-        )
-        self.assertEqual(
-            steps_by_name["Install pinned Cargo Lambda"]["if"],
-            "${{ inputs.profile == 'release' }}",
-        )
-        zig_steps = [
-            step
-            for step in steps
-            if step.get("uses", "").startswith("mlugg/setup-zig@")
-        ]
-        self.assertEqual(
-            zig_steps,
-            [
-                {
-                    "name": "Install pinned Zig",
-                    "if": "${{ inputs.profile == 'release' }}",
-                    "uses": "mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29",
-                    "with": {"version": "0.14.0"},
-                }
-            ],
-        )
-        qualification = commands[
-            "Plan, SAM, and native ARM64 Lambda qualification"
-        ]
-        self.assertEqual(
-            steps_by_name["Plan, SAM, and native ARM64 Lambda qualification"]["if"],
-            "${{ inputs.profile == 'release' }}",
-        )
-        for required in [
-            "cargo lambda --version",
-            "sam --version",
+    def test_local_release_qualifies_plan_sam_and_both_lambda_artifacts(self) -> None:
+        local_release = (self.root / "scripts/ci/local-release.sh").read_text()
+        required_commands = [
             "scripts/aws/plan.sh",
             "scripts/aws/validate.sh",
             "scripts/aws/build-lambda.sh",
             "scripts/aws/build-worker-lambda.sh",
-        ]:
-            self.assertIn(required, qualification)
+        ]
+        positions = [local_release.index(command) for command in required_commands]
+        self.assertEqual(positions, sorted(positions))
+
+        workflow = (
+            self.root / ".github/workflows/minco-manual.yml"
+        ).read_text()
+        for command in required_commands:
+            self.assertNotIn(command, workflow)
 
     def test_security_requirement_shape_matches_rust_policy_fixtures(self) -> None:
         fixture = yaml.safe_load(

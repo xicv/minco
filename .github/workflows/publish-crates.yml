@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
       publish:
-        description: Upload to crates.io after every gate succeeds
+        description: Upload an exact locally qualified release tag to crates.io
         required: true
         default: false
         type: boolean
@@ -27,6 +27,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: crates-io-publication
+  cancel-in-progress: false
+
 jobs:
   authentication:
     if: ${{ inputs.authenticate && !inputs.publish }}
@@ -39,8 +43,9 @@ jobs:
         uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
 
   release:
-    if: ${{ !inputs.authenticate || inputs.publish }}
+    if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: crates-io
     permissions:
       contents: read
@@ -59,17 +64,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: 1.97.1
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - name: Install pinned JJ for compatibility tests
-        run: |
-          cargo install --locked --bin jj jj-cli --version 0.43.0
-          jj --version
-      - name: Install pinned ripgrep for release scripts
-        run: |
-          cargo install --locked ripgrep --version 15.2.0
-          rg --version
       - name: Verify release tag
+        id: release-ref
         shell: bash
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -85,6 +81,7 @@ jobs:
                 ;;
             esac
           fi
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
           version="$(uv run --locked python - <<'PY'
           import tomllib
           from pathlib import Path
@@ -94,7 +91,7 @@ jobs:
           test "$release_tag" = "v${version}"
           tag_commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"
           test "$tag_commit" = "$(git rev-parse HEAD)"
-      - name: Static and packaging validation
+      - name: Verify committed local release evidence
         env:
           MINCO_RESUME_PACKAGES: ${{ inputs.resume_packages }}
         run: |
@@ -104,29 +101,7 @@ jobs:
           else
             uv run --locked python scripts/validate_publish.py --check-registry
           fi
-          uv run --locked python scripts/deep_review.py
-          uv run --locked python scripts/test/feedback_contract.py
-          node --check plugins/minco-plugin-feedback/assets/widget.js
-      - name: Format
-        run: cargo fmt --all -- --check
-      - name: Facade feature matrix
-        run: |
-          cargo check -p minco --no-default-features --locked
-          cargo check -p minco --locked
-          cargo check -p minco --all-features --locked
-          cargo check -p cargo-minco --locked
-          cargo test -p minco --no-default-features --locked
-          cargo test -p minco --locked
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - name: Tests
-        run: cargo test --workspace --all-targets --all-features --locked
-      - name: Generated application smoke matrix
-        run: scripts/test/generated_apps.sh
-      - name: Documentation
-        run: cargo doc --workspace --all-features --no-deps --locked
-      - name: Publish dry run
-        run: scripts/release/publish.sh --skip-quality
+          uv run --locked python scripts/source_manifest.py --check
       - name: Refuse OIDC first publication
         if: ${{ inputs.publish }}
         run: |
@@ -222,7 +197,7 @@ jobs:
         if: ${{ inputs.publish }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-          MINCO_RELEASE_TAG: ${{ inputs.release_tag }}
+          MINCO_RELEASE_TAG: ${{ steps.release-ref.outputs.tag }}
           MINCO_RESUME_PACKAGES: ${{ inputs.resume_packages }}
         run: |
           set -euo pipefail

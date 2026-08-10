@@ -1,6 +1,6 @@
 # ADR-0013: Keep local quality and update workflows authoritative
 
-- Status: Accepted
+- Status: Superseded by ADR-0038
 - Date: 2026-07-23
 - Last reviewed: 2026-08-03
 
@@ -67,6 +67,9 @@ Local, essential hosted, release hosted, real-AWS and production evidence remain
 separate claims. Evidence, not automation venue, determines release readiness.
 
 Changes that invalidate this decision require a superseding ADR and migration/compatibility plan.
+
+ADR-0038 retains the authoritative local quality decision and replaces this
+ADR's optional hosted `release` profile with a local-only release boundary.
 
 [billing]: https://docs.github.com/en/actions/how-tos/monitor-workflows/view-job-execution-time
 [concurrency]: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency

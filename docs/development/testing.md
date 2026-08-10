@@ -68,57 +68,69 @@ A release additionally requires database-backed conformance, native Lambda build
 SAM validation, and a bounded real-AWS smoke deployment. Static or unit checks do
 not substitute for those gates.
 
-## Optional GitHub Actions
+## Local release qualification
 
-`.github/workflows/minco-manual.yml` is deliberately `workflow_dispatch` only.
-It does not run until a maintainer explicitly invokes it and defaults to the
-`essential` profile:
+The complete release-oriented matrix runs locally:
+
+```bash
+scripts/ci/local-release.sh
+```
+
+This first runs `scripts/quality.sh`, then AppSync proof, candidate
+recovery/load, package dry-run, Plan/SAM and both native Lambda builds, the
+owned Docker PostgreSQL/Rustack lifecycle, full Rustack adapter conformance and
+Orders E2E. It preflights the required pinned tools before starting. The owned
+runtime subset is also directly available as:
+
+```bash
+scripts/ci/local-runtime.sh
+```
+
+Both commands bind services to loopback and use the pinned Rustack image. They
+make no public-AWS, publication, deployment or promotion claim. The local
+release result, an optional hosted compatibility result, a crates.io upload and
+real-provider evidence remain separate.
+
+## Minimal GitHub Actions
+
+The workflow allowlist is exactly:
+
+- `docs-pages.yml` for path-filtered GitHub Pages deployment;
+- `publish-crates.yml` for exact-tag crates.io OIDC publication; and
+- `minco-manual.yml` for an optional clean-Linux compatibility check.
+
+Do not create temporary or task-specific workflows. Run the compatibility
+check only when its distinct Linux evidence is useful:
 
 ```bash
 EXACT_REF=task/your-task
-gh workflow run minco-manual.yml --ref "$EXACT_REF" -f profile=essential
+gh workflow run minco-manual.yml --ref "$EXACT_REF"
 ```
 
-That profile installs the pinned uv and Rust toolchains, restores only Cargo
-registry state, and runs `scripts/ci/hosted-essential.sh`. The script verifies
-static/repository truth, generated-reference freshness, the CI policy itself,
+It installs pinned uv and Rust toolchains without a persistent cache and runs
+only `scripts/ci/hosted-essential.sh` under a 20-minute timeout. The script
+verifies static/repository truth, generated-reference freshness, the CI policy,
 formatting, a clean Linux all-workspace/all-target/all-feature compiler check,
-and the exact source manifest. The reference check builds only the locked
-control-plane binary and performs no provider contact. It deliberately omits
-browser tests, the full workspace test suite,
-generated applications, dependency/security scanners, documentation, package
-dry-run, native builds, Rustack and E2E because those already belong to the
-authoritative local gate. Same-ref replacement runs cancel stale work.
+and the exact source manifest. It does not run the full workspace test suite,
+browser tests, generated applications, dependency/security scanners,
+documentation, package dry-run, native builds, Rustack or E2E. Same-ref
+replacement runs cancel stale work.
 
-Use the explicit `release` profile only for a release candidate or when Linux
-reproduction of the complete matrix is materially useful:
-
-```bash
-gh workflow run minco-manual.yml \
-  --ref "$EXACT_REF" \
-  -f profile=release \
-  -f run_rustack=true \
-  -f run_e2e=true
-```
-
-The release profile pins Node 24.18.0 and Playwright 1.62.0, runs the complete
-`scripts/quality.sh` matrix, retains Feedback browser evidence for 14 days,
-performs the coordinated publish dry-run, builds both native ARM64 Lambda ZIPs,
-and runs deterministic Plan/SAM validation without AWS credentials or provider
-calls. Browser binaries are not cached: the release path is deliberately rare,
-and persistent browser caches would trade runner time for repository cache
-storage. This hosted profile does not replace the separately authorised bounded
-real-AWS smoke gate.
+The crates.io workflow likewise does not reproduce local quality. It checks the
+exact tag and committed evidence, obtains a short-lived token, verifies the
+registry complement for a resumed release, and executes the package driver's
+own pre-upload dry-run/archive/consumer checks before upload.
 
 The Lambda build helpers normalize the Cargo Lambda ZIP timestamp, permissions
 and entry order and reject unexpected entries so exact-artifact digests are
 reproducible when the compiled binaries are byte-identical.
 
-On 2026-07-31, the prior twenty full hosted jobs totalled 320.5 runner
-wall-minutes with a 16.2-minute median. Standard runner minutes are currently
-unbilled because Minco is public. The split still reduces queue time, cache
-pressure and artifact churn, and keeps the workflow economical if repository
-visibility changes.
+On 2026-08-10, 116 hosted qualification runs since August 1 totalled about
+1,503 runner wall-minutes. Thirteen nonessential workflow registrations were
+disabled and 4,479,098,973 bytes of non-`main` caches were removed. Standard
+runner minutes are currently free because Minco is public; the smaller boundary
+still reduces queue time, cache pressure and failure noise and remains bounded
+if repository visibility changes.
 
 ## Evidence
 

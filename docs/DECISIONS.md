@@ -16,7 +16,7 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0010](adrs/0010-ai-native.md) | Make AI support depend on transparent structure and JSON introspection. | Accepted |
 | [ADR-0011](adrs/0011-jj-first.md) | Use Jujutsu as the default VCS interface with colocated Git for GitHub compatibility. | Accepted |
 | [ADR-0012](adrs/0012-database-portfolio.md) | Treat Neon, self-hosted PostgreSQL, RDS, Aurora, DynamoDB and SQLite as explicit correctness/cost profiles. | Accepted |
-| [ADR-0013](adrs/0013-quality-and-update.md) | Keep local quality gates authoritative and make updates explicit, reviewable and non-self-replacing. | Accepted |
+| [ADR-0013](adrs/0013-quality-and-update.md) | Keep local quality gates authoritative and make updates explicit, reviewable and non-self-replacing. | Superseded by ADR-0038 |
 | [ADR-0014](adrs/0014-plugin-lifecycle-and-feedback.md) | Use typed multi-contributions and deterministic plugin finalization; ship Feedback as an explicit AI-ready review loop. | Accepted |
 | [ADR-0015](adrs/0015-exact-http-policy-and-explicit-workers.md) | Merge exact application/plugin HTTP policy and keep SQS workers opt-in, bounded and unscheduled. | Accepted |
 | [ADR-0016](adrs/0016-explicit-openapi-policy-exceptions.md) | Keep OpenAPI exceptions explicit and validate effective idempotency and security semantics. | Accepted |
@@ -40,3 +40,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0034](adrs/0034-outbound-mail-delivery.md) | Keep rich outbound mail provider-neutral, ambiguity-safe, privacy-bounded, and direct-SES by default. | Accepted |
 | [ADR-0035](adrs/0035-verified-direct-object-uploads.md) | Keep file bytes on direct private object-storage paths and verify issued uploads through typed policy, generated keys, and provider metadata. | Accepted |
 | [ADR-0036](adrs/0036-owned-local-service-runtimes.md) | Keep the application native while supervising explicitly owned Docker Compose or Apple Container dependencies through one typed local-service contract. | Accepted |
+| [ADR-0038](adrs/0038-local-first-actions-boundary.md) | Keep substantive qualification local and reserve GitHub Actions for platform-required compatibility, Pages and crates.io OIDC work. | Accepted |
