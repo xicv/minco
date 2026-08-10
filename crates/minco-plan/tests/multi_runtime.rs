@@ -1,6 +1,6 @@
 use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
 use minco_plan::{
-    CostClass, DeploymentConfig, DeploymentPlan, IamResource, PreviewCleanupSchedule,
+    CostClass, DeploymentConfig, DeploymentPlan, IamResource, IngressPlan, PreviewCleanupSchedule,
     PreviewLifecyclePlan, PreviewResource, PreviewResourceRetention, QueuePlan, RealtimeDeployment,
     RuntimePlan, ScheduleCleanupPlan, ScheduleCompletionAction, Severity, StaticSiteDeployment,
     TriggerPlan, estimate_runtime_cost, render_sam, render_sam_with_code_uris,
@@ -636,6 +636,146 @@ fn schedules_accept_only_eventbridge_expression_forms() {
 }
 
 #[test]
+fn function_url_is_declared_but_rejected_before_provider_rendering() {
+    let mut plan = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
+    plan.ingress = IngressPlan::LambdaFunctionUrl;
+
+    assert!(plan.validate().iter().any(|diagnostic| {
+        diagnostic.code == "MINCO-PLAN-INGRESS-001" && diagnostic.severity == Severity::Error
+    }));
+    let cost = estimate_runtime_cost(&plan);
+    assert!(
+        cost.request_based_resources
+            .contains(&"lambda_function_url".to_owned())
+    );
+    assert!(
+        cost.missing_rates
+            .iter()
+            .all(|rate| !rate.contains("api_gateway"))
+    );
+}
+
+#[test]
+fn runtime_and_ingress_topology_fails_closed_before_rendering() {
+    let mut plan = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
+    plan.runtime = RuntimePlan::LocalNative;
+
+    assert!(plan.validate().iter().any(|diagnostic| {
+        diagnostic.code == "MINCO-PLAN-INGRESS-002" && diagnostic.severity == Severity::Error
+    }));
+}
+
+#[test]
+fn every_runtime_and_ingress_pair_has_a_stable_validation_result() {
+    let cases = [
+        (
+            RuntimePlan::LambdaZipArm64,
+            IngressPlan::ApiGatewayHttpApi,
+            None,
+        ),
+        (
+            RuntimePlan::LambdaZipArm64,
+            IngressPlan::LambdaFunctionUrl,
+            Some("MINCO-PLAN-INGRESS-001"),
+        ),
+        (
+            RuntimePlan::LambdaZipArm64,
+            IngressPlan::LocalTcp,
+            Some("MINCO-PLAN-INGRESS-002"),
+        ),
+        (
+            RuntimePlan::LocalNative,
+            IngressPlan::ApiGatewayHttpApi,
+            Some("MINCO-PLAN-INGRESS-002"),
+        ),
+        (
+            RuntimePlan::LocalNative,
+            IngressPlan::LambdaFunctionUrl,
+            Some("MINCO-PLAN-INGRESS-002"),
+        ),
+        (RuntimePlan::LocalNative, IngressPlan::LocalTcp, None),
+    ];
+
+    for (runtime, ingress, expected_code) in cases {
+        let mut plan = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
+        plan.runtime = runtime;
+        plan.ingress = ingress;
+        let ingress_errors = plan
+            .validate()
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code.starts_with("MINCO-PLAN-INGRESS-"))
+            .collect::<Vec<_>>();
+
+        match expected_code {
+            Some(code) => {
+                assert_eq!(ingress_errors.len(), 1, "{ingress_errors:#?}");
+                assert_eq!(ingress_errors[0].code, code);
+                assert_eq!(ingress_errors[0].severity, Severity::Error);
+            }
+            None => assert!(ingress_errors.is_empty(), "{ingress_errors:#?}"),
+        }
+    }
+}
+
+#[test]
+fn local_native_cost_projection_has_no_aws_runtime_rates() {
+    let mut plan = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
+    plan.runtime = RuntimePlan::LocalNative;
+    plan.ingress = IngressPlan::LocalTcp;
+
+    let cost = estimate_runtime_cost(&plan);
+
+    assert!(cost.complete);
+    assert!(cost.request_based_resources.is_empty());
+    assert!(cost.missing_rates.is_empty());
+    assert!(cost.evidence.is_empty());
+}
+
+#[test]
+fn local_native_cost_projection_keeps_shape_without_aws_provider_charges() {
+    let mut plan = standard_worker_plan();
+    plan.runtime = RuntimePlan::LocalNative;
+    plan.ingress = IngressPlan::LocalTcp;
+    plan.functions[0].provisioned_concurrency = 2;
+    plan.cost_policy.deny_scheduled_wakeups = false;
+    plan.triggers.push(TriggerPlan::Schedule {
+        id: "local-reconciliation".into(),
+        function_id: "orders-worker".into(),
+        expression: "rate(1 hour)".into(),
+        enabled: true,
+        purpose: "local parity only".into(),
+        cleanup: None,
+    });
+    plan.realtime = Some(RealtimeDeployment {
+        namespace: "orders".into(),
+        max_event_bytes: 5 * 1024,
+        subscriber_claim: "sub".into(),
+    });
+
+    let cost = estimate_runtime_cost(&plan);
+
+    assert!(cost.complete);
+    assert!(!cost.workers.is_empty());
+    assert!(!cost.queues.is_empty());
+    assert!(!cost.schedules.is_empty());
+    assert!(
+        cost.queues
+            .iter()
+            .all(|queue| !queue.regional_request_rate_required)
+    );
+    assert!(cost.realtime.is_none());
+    assert!(cost.fixed_cost_resources.is_empty());
+    assert!(cost.request_based_resources.is_empty());
+    assert!(cost.missing_rates.is_empty());
+    assert!(cost.evidence.is_empty());
+    assert!(
+        cost.schedules
+            .iter()
+            .all(|schedule| !schedule.can_wake_scale_to_zero_database)
+    );
+}
+
+#[test]
 fn generic_api_only_v1_fixture_remains_supported() {
     let plan = plan_from_config(include_str!("fixtures/api_only_v1.toml"));
 
@@ -907,6 +1047,7 @@ fn local_native_topology_has_no_aws_database_parameter_iam() {
         toml::from_str(include_str!("fixtures/api_worker_standard_v2.toml"))
             .expect("deployment config");
     config.runtime = RuntimePlan::LocalNative;
+    config.ingress = minco_plan::IngressPlan::LocalTcp;
     let contract = ContractDocument {
         source: "inline".into(),
         openapi_version: "3.1.0".into(),

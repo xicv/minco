@@ -40,4 +40,5 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0034](adrs/0034-outbound-mail-delivery.md) | Keep rich outbound mail provider-neutral, ambiguity-safe, privacy-bounded, and direct-SES by default. | Accepted |
 | [ADR-0035](adrs/0035-verified-direct-object-uploads.md) | Keep file bytes on direct private object-storage paths and verify issued uploads through typed policy, generated keys, and provider metadata. | Accepted |
 | [ADR-0036](adrs/0036-owned-local-service-runtimes.md) | Keep the application native while supervising explicitly owned Docker Compose or Apple Container dependencies through one typed local-service contract. | Accepted |
+| [ADR-0037](adrs/0037-release-bound-delivery-evidence.md) | Bind feedback, operational evidence and client handover to exact release/deployment identities behind digest-approved, create-only workflows. | Accepted |
 | [ADR-0038](adrs/0038-local-first-actions-boundary.md) | Keep substantive qualification local and reserve GitHub Actions for platform-required compatibility, Pages and crates.io OIDC work. | Accepted |

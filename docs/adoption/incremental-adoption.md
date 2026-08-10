@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.1.0`
-Current workspace version: `1.1.0`
-Workspace release state: `published`
+Current workspace version: `1.2.0`
+Workspace release state: `candidate`
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -156,6 +156,11 @@ Applications moving from `1.0.0` to the published `1.1.0` family must use the
 [`1.0.0` to `1.1.0` guide](1.0.0-to-1.1.0.md). It covers the opt-in agent
 skills and guarded CLI projection layer; application runtime and data contracts
 remain compatible.
+
+Applications evaluating the unpublished `1.2.0` candidate must use the
+[`1.1.0` to `1.2.0` guide](1.1.0-to-1.2.0.md). It covers release-bound feedback
+tasks, deterministic handover, explicit clarification state, earlier topology
+validation, selected-topology cost semantics and operational evidence.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

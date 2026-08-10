@@ -96,6 +96,14 @@ async fn verify_store(store: &impl FeedbackStore) -> Vec<FeedbackId> {
         FeedbackMessage::developer(Some("developer".into()), "Private triage note", false)
             .expect("the internal-note fixture must be valid"),
     );
+    updated.append_message(
+        FeedbackMessage::developer(
+            Some("developer".into()),
+            "Please provide the affected order identifier.",
+            true,
+        )
+        .expect("the clarification fixture must be valid"),
+    );
     updated.add_attachment(FeedbackAttachment {
         id: Uuid::now_v7(),
         kind: FeedbackAttachmentKind::Screenshot,
@@ -123,12 +131,13 @@ async fn verify_store(store: &impl FeedbackStore) -> Vec<FeedbackId> {
     assert_eq!(persisted.status, FeedbackStatus::NeedsClarification);
     assert_eq!(persisted.attachments.len(), 1);
     assert_eq!(persisted.attachments[0].content_type, "image/png");
-    assert_eq!(persisted.client_view().messages.len(), 1);
-    assert_eq!(persisted.messages.len(), 2);
+    assert_eq!(persisted.client_view().messages.len(), 2);
+    assert_eq!(persisted.messages.len(), 3);
 
     let ai_context = FeedbackAiContext::from_thread(persisted.clone());
     assert_eq!(ai_context, FeedbackAiContext::from_thread(persisted));
     assert!(ai_context.to_markdown().contains("Private triage note"));
+    assert_eq!(ai_context.unresolved_questions.len(), 1);
 
     let actual_revision = updated.revision;
     assert!(matches!(

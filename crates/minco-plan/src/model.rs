@@ -437,6 +437,7 @@ impl DeploymentPlan {
                 "unsupported deployment plan schema version",
             ));
         }
+        validate_runtime_ingress(self, &mut diagnostics);
         let expected_local_services = local_aws_services(
             &self.runtime,
             &self.database,
@@ -835,6 +836,25 @@ impl DeploymentPlan {
             }
         }
         diagnostics
+    }
+}
+
+fn validate_runtime_ingress(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiagnostic>) {
+    match (&plan.runtime, &plan.ingress) {
+        (RuntimePlan::LambdaZipArm64, IngressPlan::ApiGatewayHttpApi)
+        | (RuntimePlan::LocalNative, IngressPlan::LocalTcp) => {}
+        (RuntimePlan::LambdaZipArm64, IngressPlan::LambdaFunctionUrl) => diagnostics.push(error(
+            "MINCO-PLAN-INGRESS-001",
+            "lambda_function_url is declared for explicit research and compatibility tracking but is not a supported deployment ingress",
+        )),
+        (runtime, ingress) => diagnostics.push(error(
+            "MINCO-PLAN-INGRESS-002",
+            &format!(
+                "runtime {} cannot use ingress {}",
+                runtime.kind_name(),
+                ingress.kind_name()
+            ),
+        )),
     }
 }
 
@@ -1500,12 +1520,33 @@ pub enum RuntimePlan {
     LocalNative,
 }
 
+impl RuntimePlan {
+    #[must_use]
+    pub const fn kind_name(&self) -> &'static str {
+        match self {
+            Self::LambdaZipArm64 => "lambda_zip_arm64",
+            Self::LocalNative => "local_native",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IngressPlan {
     ApiGatewayHttpApi,
     LambdaFunctionUrl,
     LocalTcp,
+}
+
+impl IngressPlan {
+    #[must_use]
+    pub const fn kind_name(&self) -> &'static str {
+        match self {
+            Self::ApiGatewayHttpApi => "api_gateway_http_api",
+            Self::LambdaFunctionUrl => "lambda_function_url",
+            Self::LocalTcp => "local_tcp",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2386,6 +2427,62 @@ mod tests {
             plan.validate()
                 .iter()
                 .any(|diagnostic| diagnostic.code == "MINCO-PLAN-003")
+        );
+    }
+
+    #[test]
+    fn function_url_is_declared_but_rejected_before_rendering() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let mut deployment = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        });
+        deployment.ingress = IngressPlan::LambdaFunctionUrl;
+        let plan = deployment.into_plan(&contract);
+
+        assert!(
+            plan.validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-PLAN-INGRESS-001")
+        );
+    }
+
+    #[test]
+    fn runtime_and_ingress_must_form_a_supported_topology() {
+        let contract = ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "test".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let mut deployment = config(DatabaseDeployment::NeonPostgres {
+            plan: NeonPlan::Free,
+            compute_unit_hours: 1.0,
+            storage_gb_month: 0.1,
+            history_storage_gb_month: 0.0,
+        });
+        deployment.runtime = RuntimePlan::LocalNative;
+        let plan = deployment.into_plan(&contract);
+
+        assert!(
+            plan.validate()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "MINCO-PLAN-INGRESS-002")
         );
     }
 

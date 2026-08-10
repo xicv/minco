@@ -55,20 +55,14 @@ assert 'release_tag="$RELEASE_TAG"' in verify_tag["run"]
 assert 'test "$release_tag" = "v${version}"' in verify_tag["run"]
 assert 'tag_commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"' in verify_tag["run"]
 assert 'test "$tag_commit" = "$(git rev-parse HEAD)"' in verify_tag["run"]
-install_jj = next(
-    step
+assert not any(
+    step.get("name")
+    in {
+        "Install pinned JJ for compatibility tests",
+        "Install pinned ripgrep for release scripts",
+    }
     for step in release_steps
-    if step.get("name") == "Install pinned JJ for compatibility tests"
 )
-assert "jj-cli --version 0.43.0" in install_jj["run"]
-assert "jj --version" in install_jj["run"]
-install_ripgrep = next(
-    step
-    for step in release_steps
-    if step.get("name") == "Install pinned ripgrep for release scripts"
-)
-assert "ripgrep --version 15.2.0" in install_ripgrep["run"]
-assert "rg --version" in install_ripgrep["run"]
 publish_step = next(
     step
     for step in release_steps
@@ -77,7 +71,7 @@ publish_step = next(
 static_validation = next(
     step
     for step in release_steps
-    if step.get("name") == "Static and packaging validation"
+    if step.get("name") == "Verify committed local release evidence"
 )
 trusted_preflight = next(
     step
@@ -91,7 +85,9 @@ resume_preflight = next(
 )
 assert static_validation["env"]["MINCO_RESUME_PACKAGES"] == "${{ inputs.resume_packages }}"
 assert 'if [[ -n "$MINCO_RESUME_PACKAGES" ]]' in static_validation["run"]
+assert "scripts/validate_static.py" in static_validation["run"]
 assert "scripts/validate_publish.py --check-registry" in static_validation["run"]
+assert "scripts/source_manifest.py --check" in static_validation["run"]
 assert trusted_preflight["if"] == "${{ inputs.publish }}"
 assert 'new_publishable_packages' in trusted_preflight["run"]
 assert "manual authenticated publication" in trusted_preflight["run"]
@@ -102,7 +98,7 @@ assert "${{ inputs.resume_packages }}" not in resume_preflight["run"]
 assert 'if set(selected) != set(absent):' in resume_preflight["run"]
 assert 'if set(present) != expected_present:' in resume_preflight["run"]
 assert release_steps.index(resume_preflight) < release_steps.index(publish_step)
-assert publish_step["env"]["MINCO_RELEASE_TAG"] == "${{ inputs.release_tag }}"
+assert publish_step["env"]["MINCO_RELEASE_TAG"] == "${{ steps.release-ref.outputs.tag }}"
 assert publish_step["env"]["MINCO_RESUME_PACKAGES"] == "${{ inputs.resume_packages }}"
 assert "${{ inputs.release_tag }}" not in publish_step["run"]
 assert "${{ inputs.resume_packages }}" not in publish_step["run"]
@@ -112,7 +108,7 @@ assert 'done <<< "$MINCO_RESUME_PACKAGES"' in publish_step["run"]
 assert 'GITHUB_REF="refs/tags/${MINCO_RELEASE_TAG}"' in publish_step["run"]
 assert 'scripts/release/publish.sh --execute --skip-quality "${package_args[@]}"' in publish_step["run"]
 
-print("Publish workflow tagged-checkout and pinned prerequisites passed.")
+print("Publish workflow tagged-checkout and committed-evidence boundary passed.")
 
 
 def validate(package: dict[str, object]) -> list[tuple[str, str]]:

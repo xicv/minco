@@ -235,6 +235,15 @@ class Validator:
                 truth_path,
             )
         published_baseline = str(truth.get("published_baseline", ""))
+        published_release_commit = truth.get("published_release_commit")
+        if not isinstance(published_release_commit, str) or not re.fullmatch(
+            r"[0-9a-f]{40}", published_release_commit
+        ):
+            self.error(
+                "STATIC-TRUTH-RELEASE-005",
+                "published_release_commit must be one exact lowercase commit SHA",
+                truth_path,
+            )
         expected_release_state = (
             "published" if published_baseline == workspace_version else "candidate"
         )
@@ -768,6 +777,10 @@ class Validator:
                 f"Current workspace version: `{workspace_version}`",
                 f"Workspace release state: `{truth['workspace_release_state']}`",
             ],
+            self.root / "REVIEW_STATUS.md": [
+                f"Minco `{truth['published_baseline']}` is the current published baseline",
+                f"`{truth['published_release_commit']}`",
+            ],
             self.root / "docs/adoption/incremental-adoption.md": [
                 f"Published baseline: `{truth['published_baseline']}`",
                 f"Current workspace version: `{workspace_version}`",
@@ -785,6 +798,8 @@ class Validator:
                 f"Published baseline: `{truth['published_baseline']}`",
                 f"Current workspace version: `{workspace_version}`",
                 f"Workspace release state: `{truth['workspace_release_state']}`",
+                f"Reviewed release source: `{truth['published_release_commit']}`",
+                f"| Area | Current published `{truth['published_baseline']}` state | Remaining boundary |",
             ],
             self.root / "docs/reference/cli.md": [
                 "cargo minco deploy verify",

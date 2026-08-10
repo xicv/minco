@@ -113,6 +113,41 @@ limits. Set `max_attachments` to zero for a text-only profile: the bundled widge
 hides screenshot, file, and voice controls, and the server rejects multipart
 attachment fields.
 
+## Bind review feedback to an exact deployment
+
+Do not trust `data-release`, route names, request IDs, or other browser-supplied
+labels as deployment evidence. A review composition can stamp one
+server-authoritative binding derived from the verified release manifest and the
+successful deployment receipt:
+
+```rust,ignore
+use minco_plugin_feedback::{FeedbackPlugin, FeedbackReleaseBinding};
+
+let release_digest = verified_release.release_digest.clone();
+let feedback = FeedbackPlugin::memory().with_release_binding(
+    FeedbackReleaseBinding {
+        release_id: format!("minco.{}", &release_digest[..24]),
+        release_digest,
+        environment: verified_release.environment.environment.clone(),
+        deployment_attempt_id: successful_deployment.attempt_id.clone(),
+        deployment_receipt_digest: successful_deployment.receipt_digest.clone(),
+        ui_build_id: None,
+        ui_build_digest: None,
+    },
+)?;
+# let _ = feedback;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+The service overwrites client-provided release/environment labels and stores the
+complete binding as one non-client-visible system message. The public
+`FeedbackContext` shape remains compatible. Missing, malformed, duplicate, or
+inconsistent binding markers fail closed in exact task and handover workflows.
+
+The optional UI build fields must be supplied together and use an exact SHA-256
+digest. They are useful when a separately built static frontend must be traced
+to the same review deployment.
+
 Production applications should replace memory implementations with durable
 adapters. `developer_token` is an operator fallback for local or narrowly
 controlled environments and must come from a secret provider. A normal production
@@ -162,9 +197,21 @@ cargo minco feedback show <id>
 cargo minco feedback reply <id> --body "Could you clarify the expected result?"
 cargo minco feedback status <id> needs_clarification
 cargo minco feedback pull <id> --output tasks/feedback/<id>.md
-cargo minco feedback attachment <feedback-id> <attachment-id> --output screenshot.png
+cargo minco feedback task <id> \
+  --task-id M15-T01 \
+  --milestone M15 \
+  --release-manifest target/minco/release.json \
+  --deployment-receipt target/minco/deployment-receipt.json
+cargo minco feedback attachment <feedback-id> <attachment-id> --output evidence/screenshot.png
 ```
 
 `feedback pull` produces deterministic, repository-friendly context for a coding
 agent. Status transitions keep the clarification loop explicit rather than
 turning every raw comment immediately into implementation work.
+
+`feedback task` is read-only by default. It requires a development-ready thread,
+no unresolved questions, an exact valid release manifest, a successful matching
+deployment receipt, and the server binding above. Review the printed plan digest,
+then repeat the command with `--approve-plan-digest` to create one planned task
+and one immutable receipt. Client text is emitted as indented untrusted evidence,
+not as an instruction channel.

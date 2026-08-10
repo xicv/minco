@@ -450,10 +450,10 @@ def render_schemas(root: Path) -> str:
 
 DIAGNOSTIC_PATTERN = re.compile(
     r'"('
-    r'(?:MINCO|STATIC|PUBLISH|DEEP|CONFORMANCE)-[A-Z0-9](?:[A-Z0-9.-]*[A-Z0-9])?'
+    r'(?:MINCO|STATIC|ASSURANCE|EVIDENCE|PERF|PUBLISH|DEEP|CONFORMANCE)-[A-Z0-9](?:[A-Z0-9.-]*[A-Z0-9])?'
     r'|config\.[a-z0-9_.-]+'
     r'|(?:operation|schema|request|resource|conformance|documentation|package|plugin)\.[a-z0-9_.-]+'
-    r')"'
+    r')(?="|:)'
 )
 
 
@@ -476,6 +476,12 @@ def diagnostic_family(code: str) -> str:
         return "configuration"
     if code.startswith("STATIC-"):
         return "repository truth"
+    if code.startswith("ASSURANCE-"):
+        return "deployment assurance"
+    if code.startswith("EVIDENCE-"):
+        return "operational evidence"
+    if code.startswith("PERF-"):
+        return "performance evidence"
     if code.startswith("PUBLISH-"):
         return "publication"
     if code.startswith("DEEP-"):

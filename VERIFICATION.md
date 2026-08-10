@@ -1,11 +1,53 @@
 # Minco verification and release evidence
 
-Date: 2026-08-06
-Current workspace version: `1.1.0`
+Date: 2026-08-07
+Current workspace version: `1.2.0`
 Published baseline: `1.1.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T10 `1.2.0` delivery-evidence candidate
+
+The workspace is an unpublished `1.2.0` candidate above the immutable `1.1.0`
+published baseline. The candidate adds topology-aware Plan validation and cost
+evidence, exact release-bound feedback-to-task receipts, p99 performance
+evidence with freshness policy, a reviewed AWS/Rust capability ledger, and a
+digest-approved client handover packet. Source, hosted qualification, live AWS
+provider proof, publication and customer acceptance remain separate evidence
+lanes.
+
+Local macOS verification on the repository-pinned Rust `1.97.1` toolchain
+passed the task-bounded gates on 2026-08-07:
+
+```text
+PASS python3 -m py_compile (nine modified/created Python files)
+PASS candidate qualification tests (15)
+PASS deployment assurance validator and tests (8)
+PASS current product truth tests (5)
+PASS operational evidence mutation tests (16)
+PASS hosted policy tests (4)
+PASS repository truth tests (43)
+PASS static validation (zero findings)
+PASS minco-plan tests (22 unit + 53 integration)
+PASS minco-plugin-feedback tests (52 unit + 2 SQLite persistence)
+PASS cargo-minco feedback command tests (9)
+PASS cargo-minco handover command tests (11)
+PASS cargo-minco plugin CLI integration tests (21)
+PASS targeted Clippy with -D warnings
+PASS rustfmt check over the 13 modified Rust files only
+PASS deterministic reference generation/check (7 outputs)
+PASS Python/Rust canonical source-authority parity
+PASS sealed operational-validation receipt with two truthful warnings
+```
+
+The checked-in `1.2.0` performance baseline is deliberately `NOT RUN`: no
+exact-tree hosted Linux measurements were available, and no local macOS number
+is promoted to a provider threshold or production SLO. Exact-tree hosted Linux
+qualification remains pending on the final PR head. M14-T10 did not contact AWS
+or create resources; the current-candidate provider record is `not_run`, while
+the older 0.4 rehearsal remains visible only as `stale` historical evidence.
+Nothing was deployed, promoted, tagged, released or published.
 
 ## M14-T02 `1.1.0` publication and stable documentation promotion
 
