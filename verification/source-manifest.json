@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "bc124440bdf1910c8fb945817055155deff5a3193b3ec47f86ac0820f215b6bd",
-      "size_bytes": 3448
+      "sha256": "1195ec161f735f242dd3aefee9e4182347d58167a7439a81a3ade39aeda1062c",
+      "size_bytes": 3611
     },
     {
       "path": "CONTRIBUTING.md",
@@ -109,8 +109,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "6501568d2b711d65a62450c641aad2f16ad5cb3fe8e42d2f4619973af332ddfb",
-      "size_bytes": 13752
+      "sha256": "8a7e0cf39abbb47da861c4422586b6246e71fb8926cc8edb314338134ffe149d",
+      "size_bytes": 13973
     },
     {
       "path": "SECURITY.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "888f5275a59bcee76bfcc056f3e0d88629903efafc7347b607e1f1f4c842ac91",
-      "size_bytes": 114640
+      "sha256": "08ac40c48f5a334af516d9e5592b769867be7fd47d0bc4dfc49875dc151b9ea4",
+      "size_bytes": 115213
     },
     {
       "path": "compose.mail.yml",
@@ -5409,8 +5409,8 @@
     },
     {
       "path": "tasks/M14/M14-T13-publish-1-2-release.md",
-      "sha256": "8549079900b04cfb01a31bfc094ba3c057204712f283cfee9c75f6edff744c59",
-      "size_bytes": 6085
+      "sha256": "b78508ebd4984b300df9481f983857d200e7d2f12fdc8388f8559f61f7438a2f",
+      "size_bytes": 6417
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -5689,7 +5689,7 @@
     },
     {
       "path": "verification/provider-evidence.toml",
-      "sha256": "f8f6e640ab59f40a1fdbe3e8723462dfa1cead31168dcc8388aa63beeb4c84d1",
+      "sha256": "14ce11ad48e4fbf060d850b8d6ce5d121d7affe9bf483fa1add82a11529f0f42",
       "size_bytes": 1891
     },
     {
@@ -5767,7 +5767,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "3b2e30719904bc781296aa49db8752a723d964bed809b5d3f4b09ea82151df86",
-  "total_size_bytes": 8488674,
+  "source_tree_sha256": "3a0956d0b28b4e93824b23b98f0801104f64d214b73becc5f547666f6eb4801d",
+  "total_size_bytes": 8489963,
   "version": "1.2.0"
 }

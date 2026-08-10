@@ -37,8 +37,18 @@ uploaded all 33 packages. Independent registry validation passed with
 non-yanked, with the result retained in
 `verification/1.2-published-release-validation.json`, before the
 [`v1.2.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.2.0)
-was created. Stable Pages and all exact docs.rs routes are verified separately
-after this post-publication truth change merges.
+was created.
+
+Post-publication truth PR #138 passed exact-head clean-Linux run
+[`31367376724`](https://github.com/xicv/minco/actions/runs/31367376724) at
+`1593b5d5d1cda3e112e240c531f082d848951d6a`, then merged as exact tree
+`898423e3f0b80ec876a5affd856b0c6f2325101f` in merged-main commit
+`8f9ec1e566df1fa496909775c87b4ca23c07421e`. Merged-main Pages run
+[`31367645402`](https://github.com/xicv/minco/actions/runs/31367645402) built,
+checked and deployed the site successfully. Cache-busted live checks returned
+HTTP 200 for the root, frozen `/1.2.0/` manual and versions page, with the live
+navigation identifying `1.2.0` as stable. All 33 exact 1.2.0 docs.rs routes
+independently returned HTTP 200.
 
 No AWS application resources were created, changed or deleted. Package
 publication does not qualify the `NOT RUN` performance baseline, the no-contact

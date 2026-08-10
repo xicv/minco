@@ -2,7 +2,7 @@
 id: M14-T13
 title: Publish and promote the Minco 1.2.0 release
 milestone: M14
-status: active
+status: complete
 priority: critical
 area: release/1.2
 depends_on: [M14-T03, M14-T06, M14-T07, M14-T08, M14-T11, M14-T12]
@@ -125,8 +125,14 @@ exact 1.2.0 versions present and non-yanked; the deterministic result is retaine
 in `verification/1.2-published-release-validation.json`. The GitHub release was
 then created at `https://github.com/xicv/minco/releases/tag/v1.2.0`.
 
-This task remains `active` until the post-publication truth/site change is
-merged, the exact merged-main Pages deployment is green, and every exact 1.2.0
-docs.rs route is independently reachable. Those checks do not alter the
-immutable release tag and cannot qualify M14-T10's unavailable live-provider
-or hosted performance evidence.
+Post-publication truth PR #138 merged as
+`8f9ec1e566df1fa496909775c87b4ca23c07421e`, preserving reviewed tree
+`898423e3f0b80ec876a5affd856b0c6f2325101f`, after exact-head clean-Linux run
+`31367376724` passed. Merged-main Pages run `31367645402` built, checked and
+deployed that tree successfully. Cache-busted live checks returned HTTP 200 for
+the site root, frozen `/1.2.0/` manual and versions page with 1.2.0 marked
+stable; all 33 exact 1.2.0 docs.rs routes independently returned HTTP 200.
+
+M14-T13 is therefore complete. These checks do not alter the immutable release
+tag and do not qualify M14-T10's unavailable live-provider or hosted performance
+evidence.
