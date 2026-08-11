@@ -9,7 +9,7 @@ registry, documentation and live-deployment proof.
 
 ## M14-T17 homepage architecture diagram correction
 
-The active post-release docs task replaces the distorted, cramped homepage SVG
+The completed post-release docs task replaces the distorted, cramped homepage SVG
 with an intrinsically sized 860 by 540 composition. The application eyebrow and
 runtime connector now have a measured gutter, runtime cards share one geometry,
 and the lower Plan IR/evidence row is balanced at the reported 804 by 615
@@ -18,8 +18,15 @@ viewport.
 The focused geometry regression passed, followed by the complete browser suite
 with 38 passed and 2 project-specific skips. `bash scripts/docs/build.sh` and
 `scripts/docs/check-links.sh` passed; the latter checked 1,137 internal links,
-14 external links and 291 canonical pages. Hosted clean-Linux and merged-main
-Pages evidence are pending, so M14-T17 remains `active`. This changes no crate,
+14 external links and 291 canonical pages. Exact-head clean-Linux run
+[`31460666529`](https://github.com/xicv/minco/actions/runs/31460666529)
+passed `982ae8705cf47a88a21606c7777f705ccf8eb722`; PR
+[#148](https://github.com/xicv/minco/pull/148) merged that reviewed tree as
+`21b70f1157f792ca20d70c724bf61974fa736695`. Merged-main Pages run
+[`31460937727`](https://github.com/xicv/minco/actions/runs/31460937727)
+deployed successfully. The live SVG returned HTTP 200 with SHA-256
+`e78294ce451525a5af8a966fb41021ca5b5eecb2756a23220df5b0f3ad9e1a8b`,
+identical to the reviewed source. M14-T17 is complete. This changes no crate,
 public API, runtime topology, provider evidence or immutable `v1.3.0` release.
 
 ## M14-T16 `1.3.0` Waffo payments release

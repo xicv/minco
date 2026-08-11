@@ -2,7 +2,7 @@
 id: M14-T17
 title: Rebalance the homepage architecture diagram
 milestone: M14
-status: active
+status: complete
 priority: high
 area: docs/presentation
 depends_on: [M14-T16]
@@ -62,7 +62,17 @@ desktop-only/mobile-only cases skipped as designed. `bash scripts/docs/build.sh`
 and `scripts/docs/check-links.sh` passed; the link checker covered 1,137
 internal links, 14 external links and 291 canonical pages.
 
-The task remains active until the exact PR head passes the bounded clean-Linux
-gate, merges without tree drift, Pages deploys that merged source and the live
-root serves the corrected SVG. No crate, tag, release or provider action is
-part of this docs-only correction.
+PR [#148](https://github.com/xicv/minco/pull/148) retained exact head
+`982ae8705cf47a88a21606c7777f705ccf8eb722`. Clean-Linux run
+[`31460666529`](https://github.com/xicv/minco/actions/runs/31460666529)
+passed that SHA before merge. The PR merged as
+`21b70f1157f792ca20d70c724bf61974fa736695` with reviewed tree
+`a54b9b6cd6e0efdca9c3ffc7c47d152d198d6c86`, and merged-main Pages run
+[`31460937727`](https://github.com/xicv/minco/actions/runs/31460937727)
+built and deployed successfully.
+
+The live root and SVG return HTTP 200. The live SVG SHA-256 is
+`e78294ce451525a5af8a966fb41021ca5b5eecb2756a23220df5b0f3ad9e1a8b`,
+byte-identical to the reviewed source, and the final 804 by 615 render preserves
+the measured spacing and containment. M14-T17 is complete. No crate, tag,
+release or provider action was part of this docs-only correction.
