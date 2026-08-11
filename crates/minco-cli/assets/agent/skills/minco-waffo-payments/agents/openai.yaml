@@ -1,0 +1,4 @@
+interface:
+  display_name: "Minco Waffo Payments"
+  short_description: "Build safe Waffo payment integrations"
+  default_prompt: "Use $minco-waffo-payments to implement or review this Waffo payment flow."

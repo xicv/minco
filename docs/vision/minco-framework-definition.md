@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.2.2`
-Current workspace version: `1.2.2`
-Workspace release state: `published`
+Current workspace version: `1.3.0`
+Workspace release state: `candidate`
 Reviewed release source: `0496e6294b213c839af551a82858e2c1c3f7f45d`
 
 ## Product identity
@@ -30,9 +30,9 @@ The immutable published `1.2.2` classification is:
 > mail, owned local services and release-bound delivery evidence are additive;
 > publication does not itself prove a live application deployment.
 
-The published `1.2.2` patch changes presentation and verification of the
-versioned Signal documentation only; it does not expand the framework product,
-runtime, plugin, provider or deployment boundary.
+The unpublished `1.3.0` candidate adds one explicit, provider-specific Waffo
+checkout/webhook plugin without making payment state framework-owned. It adds
+no default runtime, generic billing model, hidden worker or AWS resource.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,

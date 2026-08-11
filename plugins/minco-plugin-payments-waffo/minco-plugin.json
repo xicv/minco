@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "id": "payments-waffo",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^1.3.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "plugin-payments-waffo",
+  "runtimes": ["native"],
+  "plugin_dependencies": ["idempotency"],
+  "requires": [
+    { "name": "idempotency.claim", "version": "^1.0.0" }
+  ],
+  "provides": [
+    { "name": "payments.checkout", "version": "1.0.0" },
+    { "name": "payments.query", "version": "1.0.0" },
+    { "name": "payments.webhook.verify", "version": "1.0.0" },
+    { "name": "payments.provider.waffo", "version": "1.0.0" }
+  ],
+  "resources": [
+    {
+      "id": "waffo-pancake-api",
+      "kind": { "custom": "waffo_pancake_api" },
+      "idle_cost": "provider_managed",
+      "wake_sources": ["http_request"]
+    }
+  ],
+  "configuration": [
+    { "key": "environment", "kind": "string", "required": false, "secret": false, "description": "Waffo API-key environment: test or production", "default": "test" },
+    { "key": "merchant_id", "kind": "string", "required": true, "secret": false, "description": "Waffo merchant short ID" },
+    { "key": "private_key", "kind": "string", "required": true, "secret": true, "description": "Opaque env: or ssm: reference to the unencrypted RSA private key" },
+    { "key": "webhook_public_key", "kind": "string", "required": false, "secret": true, "description": "Opaque env: or ssm: reference to Waffo's environment-specific webhook public key" },
+    { "key": "store_id", "kind": "string", "required": false, "secret": false, "description": "Store short ID used by webhook automation" },
+    { "key": "api_base_url", "kind": "string", "required": false, "secret": false, "description": "HTTPS Waffo API origin; override only for an explicitly trusted compatible endpoint", "default": "https://api.waffo.ai" },
+    { "key": "allow_custom_api_base_url", "kind": "boolean", "required": false, "secret": false, "description": "Permit an explicitly configured compatible HTTPS endpoint for test credentials only", "default": false },
+    { "key": "request_timeout_seconds", "kind": "integer", "required": false, "secret": false, "description": "Bounded timeout for one provider request", "default": 30 },
+    { "key": "request_max_bytes", "kind": "integer", "required": false, "secret": false, "description": "Maximum provider request body retained in memory", "default": 1048576 },
+    { "key": "response_max_bytes", "kind": "integer", "required": false, "secret": false, "description": "Maximum provider response body retained in memory", "default": 2097152 },
+    { "key": "webhook_past_tolerance_seconds", "kind": "integer", "required": false, "secret": false, "description": "Maximum accepted age for a signed webhook delivery", "default": 2700 },
+    { "key": "webhook_future_tolerance_seconds", "kind": "integer", "required": false, "secret": false, "description": "Maximum accepted future clock skew for a signed webhook delivery", "default": 60 },
+    { "key": "webhook_max_bytes", "kind": "integer", "required": false, "secret": false, "description": "Maximum raw webhook body accepted for verification", "default": 1048576 },
+    { "key": "allow_production_writes", "kind": "boolean", "required": false, "secret": false, "description": "Explicit persisted guard required before production actions can mutate Waffo", "default": false },
+    { "key": "webhook_url", "kind": "string", "required": false, "secret": false, "description": "HTTPS endpoint registered by the webhook-add CLI command" },
+    { "key": "webhook_events", "kind": "string_list", "required": false, "secret": false, "description": "Waffo event types registered by the webhook-add CLI command", "default": [] }
+  ],
+  "data_classes": ["customer_provided", "personal", "confidential", "secret"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Invalid configuration, signatures, environments, idempotency state, and provider responses reject the operation; the plugin performs no hidden retries."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-payments-waffo" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": [
+      "cargo test -p minco-plugin-payments-waffo --all-features --locked",
+      "cargo clippy -p minco-plugin-payments-waffo --all-targets --all-features --locked -- -D warnings"
+    ]
+  }
+}

@@ -49,7 +49,7 @@ class OperationalEvidenceTests(unittest.TestCase):
             "performance-policy.toml",
             "provider-evidence.toml",
             "aws-capability-candidates.toml",
-            "1.2-performance-baseline.json",
+            "1.3-performance-baseline.json",
         ):
             shutil.copy2(ROOT / "verification" / name, self.root / "verification" / name)
         (self.root / "VERIFICATION.md").write_text("bounded historical provider evidence\n")
@@ -75,7 +75,7 @@ class OperationalEvidenceTests(unittest.TestCase):
     def refresh_manifest_and_baseline(self) -> None:
         report = SOURCE_MANIFEST.build_report(self.root)
         (self.root / "verification/source-manifest.json").write_text(SOURCE_MANIFEST.render(report))
-        baseline_path = self.root / "verification/1.2-performance-baseline.json"
+        baseline_path = self.root / "verification/1.3-performance-baseline.json"
         baseline = json.loads(baseline_path.read_text())
         baseline["source_tree_sha256"] = report["source_tree_sha256"]
         baseline_path.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n")
@@ -226,7 +226,7 @@ class OperationalEvidenceTests(unittest.TestCase):
     def test_not_run_evidence_is_valid_but_never_silent(self) -> None:
         report = self.report()
         self.assertEqual(report["status"], "PASS", report)
-        self.assertEqual(report["effective_date"], "2026-08-10")
+        self.assertEqual(report["effective_date"], "2026-08-11")
         self.assertEqual(report["metrics"]["performance_status"], "NOT RUN")
         self.assertEqual(report["metrics"]["current_provider_profiles"], 0)
         self.assertIn("PERF-BASELINE-007", self.codes(report))
@@ -303,7 +303,7 @@ class OperationalEvidenceTests(unittest.TestCase):
 
         (self.root / "included-source.txt").unlink()
         self.refresh_manifest_and_baseline()
-        baseline_path = self.root / "verification/1.2-performance-baseline.json"
+        baseline_path = self.root / "verification/1.3-performance-baseline.json"
         baseline = json.loads(baseline_path.read_text())
         baseline["source_tree_sha256"] = "f" * 64
         baseline_path.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n")
@@ -311,7 +311,7 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertIn("PERF-BASELINE-003", self.codes(report))
 
     def test_non_finite_json_and_production_slo_claim_fail_closed(self) -> None:
-        path = self.root / "verification/1.2-performance-baseline.json"
+        path = self.root / "verification/1.3-performance-baseline.json"
         path.write_text(
             path.read_text().replace(
                 f'"candidate_version": "{WORKSPACE_VERSION}"',
@@ -321,7 +321,7 @@ class OperationalEvidenceTests(unittest.TestCase):
         report = self.report()
         self.assertIn("PERF-DATA-001", self.codes(report))
 
-        shutil.copy2(ROOT / "verification/1.2-performance-baseline.json", path)
+        shutil.copy2(ROOT / "verification/1.3-performance-baseline.json", path)
         self.refresh_manifest_and_baseline()
         policy = self.root / "verification/performance-policy.toml"
         policy.write_text(policy.read_text().replace("production_slo = false", "production_slo = true"))
@@ -391,7 +391,7 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertIn("EVIDENCE-PROVIDER-011", self.codes(self.report()))
 
     def test_pass_baseline_requires_closed_hosted_provenance(self) -> None:
-        path = self.root / "verification/1.2-performance-baseline.json"
+        path = self.root / "verification/1.3-performance-baseline.json"
         source_digest = json.loads((self.root / "verification/source-manifest.json").read_text())["source_tree_sha256"]
         path.write_text(json.dumps({
             "schema_version": 1,
@@ -414,7 +414,7 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertTrue({"PERF-BASELINE-011", "PERF-BASELINE-012", "PERF-BASELINE-014"}.issubset(self.codes(report)))
 
     def test_pass_baseline_binds_runner_to_the_verified_source_tree(self) -> None:
-        path = self.root / "verification/1.2-performance-baseline.json"
+        path = self.root / "verification/1.3-performance-baseline.json"
         baseline = self.passing_baseline()
         path.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n")
         self.assertEqual(self.report()["status"], "PASS")
@@ -424,7 +424,7 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertIn("PERF-BASELINE-016", self.codes(self.report()))
 
     def test_worker_failure_count_and_error_rate_must_agree(self) -> None:
-        path = self.root / "verification/1.2-performance-baseline.json"
+        path = self.root / "verification/1.3-performance-baseline.json"
         baseline = self.passing_baseline()
         baseline["candidate"]["worker"]["failures"] = 1001
         path.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n")
@@ -437,7 +437,7 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertIn("PERF-MEASURE-012", self.codes(self.report()))
 
     def test_malformed_record_types_return_stable_fail_findings(self) -> None:
-        baseline_path = self.root / "verification/1.2-performance-baseline.json"
+        baseline_path = self.root / "verification/1.3-performance-baseline.json"
         baseline = self.passing_baseline()
         baseline["candidate"]["api"]["requests"] = 0
         baseline["candidate"]["api"]["failures"] = 0
@@ -509,7 +509,7 @@ class OperationalEvidenceTests(unittest.TestCase):
             path = ROOT / relative
             self.assertTrue(SOURCE_MANIFEST.included(ROOT, path), relative)
         for relative in (
-            "verification/1.2-performance-baseline.json",
+            "verification/1.3-performance-baseline.json",
             "verification/handover.json",
             "verification/handover.md",
             "verification/handover/client.json",

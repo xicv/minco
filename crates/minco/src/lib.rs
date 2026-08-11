@@ -59,6 +59,10 @@ pub use minco_plugin_observability as plugin_observability;
 /// Official idempotency primitives and plugin.
 pub use minco_plugin_idempotency as plugin_idempotency;
 
+#[cfg(feature = "plugin-payments-waffo")]
+/// Official Waffo Pancake checkout, signed API, and webhook plugin.
+pub use minco_plugin_payments_waffo as plugin_payments_waffo;
+
 #[cfg(feature = "plugin-sessions")]
 /// Official provider-neutral session issuance and revocation plugin.
 pub use minco_plugin_sessions as plugin_sessions;
@@ -167,6 +171,9 @@ fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), cor
 
     #[cfg(feature = "plugin-idempotency")]
     manager.register(plugin_idempotency::IdempotencyPlugin::memory())?;
+
+    #[cfg(feature = "plugin-payments-waffo")]
+    manager.register(plugin_payments_waffo::WaffoPlugin)?;
 
     #[cfg(feature = "plugin-sessions")]
     manager.register(plugin_sessions::SessionsPlugin::memory())?;

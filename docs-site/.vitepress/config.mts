@@ -52,6 +52,7 @@ function workspaceSidebar(root: string) {
         { text: 'Events and notifications', link: link('guides/events-and-notifications') },
         { text: 'Realtime subscriptions', link: link('guides/realtime') },
         { text: 'Client feedback loop', link: link('guides/feedback') },
+        { text: 'Waffo hosted payments', link: link('guides/payments-waffo') },
         { text: 'Resource API conventions', link: link('reference/resource-api') }
       ]
     },

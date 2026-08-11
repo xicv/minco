@@ -25,6 +25,11 @@ description: >-
    conformance evidence agree without containing secret values.
 8. Run `cargo minco plugin validate --json` and the focused plugin test.
 
+For the Waffo payment boundary, keep signed actions, hosted checkout,
+short-lived customer tokens and verified webhooks provider-specific. Do not
+generalize application-owned orders, entitlements or payment state from one
+provider integration.
+
 If core changes exist only for this plugin, stop and justify the extension
 point. Require an ADR and at least two implementations before freezing it.
 

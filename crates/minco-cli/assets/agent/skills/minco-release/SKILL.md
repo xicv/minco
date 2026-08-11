@@ -26,6 +26,10 @@ deploy, or some separately authorized combination.
 6. Require an exact current approval at every publish, migration, deployment,
    promotion, rollback, cleanup, or production-enablement boundary.
 
+When a release contains the Waffo payment boundary, record local conformance,
+registry publication and live Waffo evidence as separate states. Never turn an
+offline checkout or webhook fixture into a provider-readiness claim.
+
 Stop before any action not named in the explicit user request. A green test,
 ready task, merged PR, built artifact, dry run, empty check list, or earlier
 approval does not authorize the next boundary.

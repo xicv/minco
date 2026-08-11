@@ -170,10 +170,11 @@ test('next documents the complete built-in component catalog', async ({ page }) 
   await expect(
     page.getByRole('heading', { level: 1, name: 'Built-in Plugins and Adapters' })
   ).toBeVisible()
-  await expect(page.getByText('18 built-in components')).toBeVisible()
+  await expect(page.getByText('19 built-in components')).toBeVisible()
   for (const name of [
     'Health',
     'Idempotency',
+    'Waffo Payments',
     'Identity',
     'Sessions',
     'Feedback',
@@ -196,6 +197,18 @@ test('next documents the complete built-in component catalog', async ({ page }) 
       .locator('a[href*="/next/guides/background-work"]')
       .first()
   ).toBeVisible()
+})
+
+test('candidate manual documents the Waffo authority boundary', async ({ page }) => {
+  test.skip(release.state !== 'candidate', 'only applies to a candidate manual')
+  await page.goto(`./${release.workspace}/guides/payments-waffo`)
+  await waitForHydration(page)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Waffo Hosted Payments' })
+  ).toBeVisible()
+  await expect(page.getByText('It does not add a generic billing model')).toBeVisible()
+  await expect(page.getByText('A checkout return URL is navigation, not payment proof.')).toBeVisible()
+  await expect(page.getByText('provider_live = not_run')).toBeVisible()
 })
 
 test('version navigation resolves to the frozen current stable manual', async ({

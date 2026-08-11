@@ -5,10 +5,43 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.2.2` release. The `1.2.0`, `1.2.1` and
-`1.2.2` sections retain exact candidate-source wording because their digests
-are bound into the published agent bundle; tag, registry and documentation
-evidence remains separate in `VERIFICATION.md`.
+No changes beyond the `1.3.0` candidate. The `1.2.0`, `1.2.1` and `1.2.2`
+sections retain exact candidate-source wording because their digests are bound
+into the published agent bundle; tag, registry and documentation evidence
+remains separate in `VERIFICATION.md`.
+
+## [1.3.0] - 2026-08-11
+
+This additive lock-step minor candidate introduces one provider-specific Waffo
+Pancake payment integration and advances the complete family to 34 packages. It
+remains unpublished until exact-source qualification, merge, tagging and
+registry publication complete as separate evidence states.
+
+### Added
+
+- Added the opt-in `minco-plugin-payments-waffo` beta with signed typed actions,
+  hosted guest and authenticated checkout, read-only GraphQL, raw-body webhook
+  verification, deterministic offline fakes and stable JSON CLI automation.
+- Added a version-matched `minco-waffo-payments` skill to the packaged Codex and
+  Claude bundle, with cumulative release-feature validation and a byte-identical
+  package-local copy.
+
+### Changed
+
+- Advanced all 34 publishable packages and official plugin compatibility
+  descriptors in lock-step to the additive `1.3.0` minor line; the payment
+  plugin is statically selected, opt-in and absent from default features.
+
+### Safety, cost and evidence
+
+- Kept the Waffo payment boundary provider-specific and application-owned:
+  signed requests do not redirect, session bearer tokens avoid generic
+  persistence, checkout destinations require clean HTTPS URLs, production
+  custom origins fail closed, and provider hints remain untrusted data.
+- Added no polling, schedule, queue, database, fixed compute, AWS resource or
+  always-on control plane. Offline conformance, registry publication, Waffo
+  sandbox behavior, deployment and production readiness remain separate;
+  live-provider evidence is `NOT RUN` for this candidate.
 
 ## [1.2.2] - 2026-08-10
 

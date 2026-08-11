@@ -1,11 +1,12 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.2.2`
-Current workspace version: `1.2.2`
-Workspace release state: `published`
+Current workspace version: `1.3.0`
+Workspace release state: `candidate`
 
-The 1.2.2 patch changes documentation presentation only. Use exact published
-`1.2.2` dependencies for new application updates.
+The 1.3.0 candidate adds one opt-in Waffo provider integration. Use exact
+published `1.2.2` dependencies for applications until 1.3.0 registry
+publication is independently verified.
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a

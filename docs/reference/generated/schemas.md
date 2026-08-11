@@ -60,6 +60,22 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | `plugins.observability.default_filter` | `string` | no | no | info,tower_http=info | Fallback tracing filter when RUST_LOG is unset |
 | `plugins.observability.json` | `boolean` | no | no | yes | Emit structured JSON suitable for CloudWatch Logs |
 | `plugins.observability.service_name` | `string` | no | no | minco-app | Stable service name included in operational telemetry |
+| `plugins.payments-waffo.allow_custom_api_base_url` | `boolean` | no | no | no | Permit an explicitly configured compatible HTTPS endpoint for test credentials only |
+| `plugins.payments-waffo.allow_production_writes` | `boolean` | no | no | no | Explicit persisted guard required before production actions can mutate Waffo |
+| `plugins.payments-waffo.api_base_url` | `string` | no | no | https://api.waffo.ai | HTTPS Waffo API origin; override only for an explicitly trusted compatible endpoint |
+| `plugins.payments-waffo.environment` | `string` | no | no | test | Waffo API-key environment: test or production |
+| `plugins.payments-waffo.merchant_id` | `string` | yes | no | — | Waffo merchant short ID |
+| `plugins.payments-waffo.private_key` | `string` | yes | yes | — | Opaque env: or ssm: reference to the unencrypted RSA private key |
+| `plugins.payments-waffo.request_max_bytes` | `integer` | no | no | 1048576 | Maximum provider request body retained in memory |
+| `plugins.payments-waffo.request_timeout_seconds` | `integer` | no | no | 30 | Bounded timeout for one provider request |
+| `plugins.payments-waffo.response_max_bytes` | `integer` | no | no | 2097152 | Maximum provider response body retained in memory |
+| `plugins.payments-waffo.store_id` | `string` | no | no | — | Store short ID used by webhook automation |
+| `plugins.payments-waffo.webhook_events` | `string_list` | no | no | [] | Waffo event types registered by the webhook-add CLI command |
+| `plugins.payments-waffo.webhook_future_tolerance_seconds` | `integer` | no | no | 60 | Maximum accepted future clock skew for a signed webhook delivery |
+| `plugins.payments-waffo.webhook_max_bytes` | `integer` | no | no | 1048576 | Maximum raw webhook body accepted for verification |
+| `plugins.payments-waffo.webhook_past_tolerance_seconds` | `integer` | no | no | 2700 | Maximum accepted age for a signed webhook delivery |
+| `plugins.payments-waffo.webhook_public_key` | `string` | no | yes | — | Opaque env: or ssm: reference to Waffo's environment-specific webhook public key |
+| `plugins.payments-waffo.webhook_url` | `string` | no | no | — | HTTPS endpoint registered by the webhook-add CLI command |
 | `plugins.realtime.max_event_bytes` | `integer` | no | no | 5120 | Maximum encoded envelope size; 5120 bytes keeps one billing unit |
 | `plugins.realtime.namespace` | `string` | no | no | minco | Portable namespace prepended to subscriber channels |
 | `plugins.realtime.subscriber_claim` | `string` | no | no | sub | OIDC claim that must equal the first channel segment after the namespace |

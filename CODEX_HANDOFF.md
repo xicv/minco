@@ -1,16 +1,33 @@
-# Minco 1.2.2 release handoff
+# Minco 1.3.0 candidate handoff
 
 Date: 2026-08-11
 Published baseline: `1.2.2`
-Current workspace version: `1.2.2`
-Workspace release state: `published`
+Current workspace version: `1.3.0`
+Workspace release state: `candidate`
 Published `1.2.2` source: `0496e6294b213c839af551a82858e2c1c3f7f45d`
 Published source-tree digest: `c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6`
 Published release task: `M14-T15`
-Latest release task: `M14-T15` (`complete`)
+Latest release task: `M14-T16` (`active`)
 Active evidence task: `M14-T10`
 
-## Current release boundary
+## Current candidate boundary
+
+Minco `1.3.0` is an unpublished additive minor candidate over the immutable
+1.2.2 baseline. It grows the lock-step family to 34 packages with one opt-in
+Waffo Pancake beta plugin and grows the version-matched Codex/Claude bundle to
+nine skills. Applications continue to own orders, subscriptions, entitlements
+and payment projections; the plugin supplies only provider-specific checkout,
+query and verified-webhook mechanics.
+
+PR #125 is being recovered from its conflicting historical base onto current
+`main` `6dda1a87771d5c99a6dd4f35c27f08f4a802192c`. The branch-specific workflow
+is deliberately excluded and ADR-0038's three-file allowlist is executable in
+both static and policy gates. Exact local qualification and a fresh clean-Linux
+run are required before merge. No tag, crates.io upload, GitHub release, Pages
+promotion, live Waffo call, payment, AWS deployment or production proof is
+authorised by this handoff.
+
+## Published 1.2.2 release boundary
 
 Minco `1.2.2` is a published, SemVer-compatible lock-step patch over the
 immutable `1.2.1` baseline. It fixes homepage diagram overflow and operating
@@ -64,9 +81,10 @@ version. It does not treat registry unavailability as a pass.
 
 ## Current product state
 
-The 33 public packages are available together in the published compatible
-`1.2.2` line. The release retains all eight packaged AI skills and makes their
-release freshness fail closed. The stable 1.2 product line adds
+The 33 public packages remain available together in the published compatible
+`1.2.2` line. The 34-package `1.3.0` source candidate adds the Waffo plugin and
+a ninth packaged AI skill while keeping cumulative release freshness fail
+closed. The stable 1.2 product line adds
 browser/native HTTP metadata, verified direct uploads, rich observable mail,
 owned local services, topology-aware Plan cost/validation, release-bound
 Feedback task receipts, deterministic operational evidence and the
