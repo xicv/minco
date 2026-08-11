@@ -39,9 +39,15 @@ Independent validation found all 34 exact versions present and non-yanked;
 receipt. The [v1.4.0 GitHub release](https://github.com/xicv/minco/releases/tag/v1.4.0)
 is published from the same tag.
 
-All 34 exact 1.4.0 docs.rs rustdoc routes subsequently returned HTTP 200. Keep
-M14-T19 active until the post-publication truth change reaches `main` and its
-stable Pages deployment passes. Performance remains `NOT RUN`; current
+All 34 exact 1.4.0 docs.rs rustdoc routes subsequently returned HTTP 200.
+Post-publication truth PR [#152](https://github.com/xicv/minco/pull/152)
+passed exact-head clean-Linux run
+[`31482873533`](https://github.com/xicv/minco/actions/runs/31482873533),
+merged as `9afd71cfa79362b98d9ff7497fc96e6235e1ce66`, and exact merged-main
+Pages run [`31483298491`](https://github.com/xicv/minco/actions/runs/31483298491)
+built, checked and deployed the stable site. Live ego-browser checks verified
+the root, frozen 1.4.0 manual, installation, plugins, Waffo, agent and version
+routes with expected published content. Performance remains `NOT RUN`; current
 live-provider evidence is absent, and no AWS or Waffo operation is part of this
 crate release.
 

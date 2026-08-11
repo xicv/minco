@@ -18,9 +18,11 @@ schedule, AWS resource or always-on control plane is introduced.
 
 Exact local release qualification, candidate and merged-main clean-Linux runs,
 immutable tag, all 34 crates.io records and the GitHub release are independently
-verified. All 34 exact docs.rs routes return HTTP 200. Post-publication stable
-Pages remains open at this snapshot; live-provider and production evidence
-remain separately unproven.
+verified. All 34 exact docs.rs routes return HTTP 200. Post-publication PR #152
+passed exact-head clean-Linux run `31482873533`, merged as
+`9afd71cfa79362b98d9ff7497fc96e6235e1ce66`, and exact merged-main Pages
+run `31483298491` deployed the stable site. Live-provider and production
+evidence remain separately unproven.
 
 The historical PR #125 source was reconstructed onto current `main`; the
 task-specific workflow was removed and the exact three-file workflow allowlist
