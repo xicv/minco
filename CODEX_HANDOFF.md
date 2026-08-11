@@ -1,6 +1,6 @@
-# Minco 1.4.0 published-release handoff
+# Minco 1.4.0 published-release and P0 assurance handoff
 
-Date: 2026-08-11
+Date: 2026-08-12
 Published baseline: `1.4.0`
 Current workspace version: `1.4.0`
 Workspace release state: `published`
@@ -8,7 +8,30 @@ Published `1.4.0` source: `2b02bf956eed3ef2a17bae6d10970dff1408e231`
 Published source-tree digest: `21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`
 Published release task: `M14-T19`
 Latest release task: `M14-T19` (`complete`)
-Active evidence task: `M14-T10`
+Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active P0 assurance boundary
+
+M14-T20 is isolated from exact merged `main`
+`f48ead125b09699f1d7e8ab8bf02deeeb9dc6fb4`. It introduces a pinned local
+assurance profile, deterministic release-identity projection, bounded
+Plan/release mutation regressions and a private CLI command-schema module.
+The exact base has 122 executable tests plus one doctest; four focused P0
+regressions raise the final inventory to 126 plus one doctest. Base coverage
+is 84.91%/80.98%; current coverage is 85.65% line/82.01% function. The 46 mutants have 43 caught, zero missed,
+zero timeout and three unviable. Exact CLI help bytes are unchanged.
+
+The P0 security review closed 23/23 diff worklist rows and found one Low/P3
+evidence-integrity blocker. Its remediation authenticates every digest-addressed
+private QA artifact using confined no-follow descriptors and makes the clean
+release lane regenerate and verify ignored ephemeral assurance evidence instead
+of trusting a frozen receipt without its private files.
+
+Do not promote this local evidence into hosted Linux, AWS, Waffo, deployment,
+production or SLO proof. Exact-tree hosted performance remains `NOT RUN` and
+current live-provider evidence remains absent; M14-T20 stays active. This task
+changes no workspace version, public API, Plan serialization, plugin
+compatibility or supported provider set.
 
 ## Current 1.4.0 published boundary
 

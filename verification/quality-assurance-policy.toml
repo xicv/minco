@@ -1,0 +1,57 @@
+schema = 1
+kind = "minco.quality-assurance-policy.v1"
+production_slo = false
+provider_contact = false
+
+[tools]
+cargo-nextest = "0.9.143"
+cargo-llvm-cov = "0.8.7"
+cargo-mutants = "27.1.0"
+cargo-semver-checks = "0.50.0"
+
+[tool_minimum_rust]
+cargo-nextest = "1.91"
+cargo-llvm-cov = "1.87"
+cargo-mutants = "1.88"
+cargo-semver-checks = "1.93"
+
+[nextest]
+packages = ["minco-core", "minco-plan", "minco-release"]
+baseline_revision = "f48ead125b09699f1d7e8ab8bf02deeeb9dc6fb4"
+baseline_executable_test_count = 122
+executable_test_count = 126
+doctest_count = 1
+
+[coverage]
+packages = ["minco-core", "minco-plan", "minco-release"]
+baseline_revision = "f48ead125b09699f1d7e8ab8bf02deeeb9dc6fb4"
+baseline_source_tree_sha256 = "ffc5329cf15d5efa9eb0ae03caf63b7a5ca447ab9afe615cb969cda7f8bf3eb7"
+baseline_line_percent = 84.91
+minimum_line_percent = 82.91
+line_tolerance_percentage_points = 2.0
+baseline_function_percent = 80.98
+minimum_function_percent = 78.98
+function_tolerance_percentage_points = 2.0
+
+[mutation]
+files = [
+  "crates/minco-plan/src/cost.rs",
+  "crates/minco-release/src/lib.rs",
+]
+plan_function_regex = "estimate_runtime_cost|with_optional_rates|complete"
+release_function_regex = "FileDigest::verify$|ReleaseManifest::verify_structure|ReleaseManifest::calculate_release_digest|is_normalized_relative_path|validate_sha256"
+total_mutants = 46
+minimum_caught = 43
+maximum_missed = 0
+maximum_timeouts = 0
+maximum_unviable = 3
+
+[semver]
+baseline_tag = "v1.4.0"
+baseline_commit = "2b02bf956eed3ef2a17bae6d10970dff1408e231"
+packages = "publishable_workspace"
+package_count = 34
+
+[performance]
+local_receipt = "verification/1.4-candidate-load.json"
+hosted_baseline = "verification/1.4-performance-baseline.json"

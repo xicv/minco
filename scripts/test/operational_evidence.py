@@ -226,7 +226,13 @@ class OperationalEvidenceTests(unittest.TestCase):
     def test_not_run_evidence_is_valid_but_never_silent(self) -> None:
         report = self.report()
         self.assertEqual(report["status"], "PASS", report)
-        self.assertEqual(report["effective_date"], "2026-08-11")
+        repository_truth = tomllib.loads(
+            (self.root / "verification/repository-truth.toml").read_text()
+        )
+        self.assertEqual(
+            report["effective_date"],
+            repository_truth["operational_evidence_effective_date"],
+        )
         self.assertEqual(report["metrics"]["performance_status"], "NOT RUN")
         self.assertEqual(report["metrics"]["current_provider_profiles"], 0)
         self.assertIn("PERF-BASELINE-007", self.codes(report))

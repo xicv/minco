@@ -8,6 +8,10 @@ required_commands=(
   cargo-audit
   cargo-deny
   cargo-lambda
+  cargo-llvm-cov
+  cargo-mutants
+  cargo-nextest
+  cargo-semver-checks
   curl
   docker
   gitleaks
@@ -30,6 +34,7 @@ if ((${#missing_commands[@]})); then
 fi
 
 ./scripts/quality.sh
+scripts/ci/local-assurance.sh --ephemeral
 proofs/realtime-appsync/scripts/test-local.sh
 scripts/release/candidate-recovery.sh
 scripts/release/candidate-load.sh

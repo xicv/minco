@@ -1,5 +1,35 @@
 # Review status
 
+## Active M14-T20 measured framework assurance
+
+The current isolated change is based on exact published `main`
+`f48ead125b09699f1d7e8ab8bf02deeeb9dc6fb4`. It adds pinned, measured
+nextest/coverage/mutation/SemVer assurance, a deterministic release-identity
+projection, focused Plan/release invariants and one behavior-preserving private
+CLI schema extraction. The CLI help output remains byte-identical with SHA-256
+`ce7f5203366875eeb62daf3f1584eba5eb7f2b91b7930f8b59b1de0dfdf5d2f7`.
+
+The exact base contained 122 executable tests plus one doctest for the selected
+core packages. Four focused P0 regressions raise the final inventory to 126
+plus one doctest. The base measured 84.91% line/80.98% function coverage;
+the focused regressions raise current coverage to 85.65%/82.01%. There are 46 bounded mutants:
+43 caught, zero missed/timeouts and three unviable. The four quality tools are
+exactly pinned and the immutable `v1.4.0` SemVer baseline resolves to
+`2b02bf956eed3ef2a17bae6d10970dff1408e231`.
+
+The completed exact-head security scan covered 23/23 source-like rows with zero
+deferred work. Its only finding was a Low/P3 frozen-receipt authentication gap.
+The current remediation verifies every private evidence file by exact bytes and
+SHA-256 through retained no-follow descriptors, rejects symlink or replacement
+paths, and regenerates release assurance under ignored `target/minco` paths.
+The canonical receipt remains checkable only in the workspace that retains its
+matching private artifacts.
+
+M14-T20 remains active because exact-tree hosted Linux performance and current
+live-provider evidence are unavailable. Local macOS performance is diagnostic,
+provider-free and never a production SLO. No public API, serialized Plan IR,
+plugin compatibility, version, provider support or deployment topology changes.
+
 The workspace is the published `1.4.0` maintenance-minor release.
 
 Published baseline: `1.4.0`

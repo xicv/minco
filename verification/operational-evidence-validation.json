@@ -3,7 +3,7 @@
     "errors": 0,
     "warnings": 2
   },
-  "effective_date": "2026-08-11",
+  "effective_date": "2026-08-12",
   "effective_date_source": "repository_truth",
   "findings": [
     {
@@ -20,12 +20,12 @@
     }
   ],
   "inputs": {
-    "verification/1.4-performance-baseline.json": "93210ef07cbe332d3369260a8407e536bc437621542dea63b952b0b51286e617",
-    "verification/aws-capability-candidates.toml": "53b106b98813864dce64a3a5b18bbe7cde11b51d3a112ca47dd9c867559927a8",
+    "verification/1.4-performance-baseline.json": "fce2c3204f09ea09fab5a0bddda3aeb6c4914959ebb899753da2777b8940e42c",
+    "verification/aws-capability-candidates.toml": "204c3573941ddd62f6764777ccc8667b523eba53d442be6ed6c72e4a3c5fae64",
     "verification/performance-policy.toml": "9e5a4a30069e83253defcead87d6d088e0aeeda182a56f13fb7dfec3c2990f34",
-    "verification/provider-evidence.toml": "5a149edd149669b52d5c644f66ae23082929e4fa80baf36164f29e18d2435270",
-    "verification/repository-truth.toml": "548894dbc73fb5f1a1de031b8d045e2d7691458f6c4f5da4e1a4586bf6ee19b8",
-    "verification/source-manifest.json": "97408975c78dd726799f20d2cc9bb5119b3affd89afe3b7e2a81a0214b3064a7"
+    "verification/provider-evidence.toml": "e39a2c409f455df0eaee2c19a417115b20ad2b90475d05755e7b19f936571d45",
+    "verification/repository-truth.toml": "372f7761962338f1d0eee70c863fea906605f8851c57d175608d9d9879fd3008",
+    "verification/source-manifest.json": "d34bd4f802d4827452cb8c5637b6732f51a96e13f3cd832b08e32943f95266d7"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -34,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "4f7b9508446226c4545d6da904ec0db795e5826ae402ac1d71cf5f048c464083",
+  "receipt_digest": "5099ed7ddbd57cac9f6ee24960901d4c935c18ca50f183158152f67239378ef1",
   "schema_version": 1,
-  "source_tree_sha256": "ffc5329cf15d5efa9eb0ae03caf63b7a5ca447ab9afe615cb969cda7f8bf3eb7",
+  "source_tree_sha256": "5140adf721aca7408f4094e74b065dc482905d3579221a1f0bd3e3e54814be86",
   "status": "PASS"
 }

@@ -1,0 +1,479 @@
+{
+  "commands": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--package",
+        "minco-core",
+        "--package",
+        "minco-plan",
+        "--package",
+        "minco-release",
+        "--all-features",
+        "--locked",
+        "--",
+        "--list"
+      ],
+      "duration_seconds": 2.016,
+      "exit_code": 0,
+      "id": "cargo-test-inventory",
+      "log": {
+        "bytes": 9486,
+        "path": "target/minco/quality-assurance/logs/01-cargo-test-inventory.log",
+        "sha256": "adf1b32ed3b2e84a3a73332f8b07bdde5f0d294337fc8781f60e6a88f77591a3"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "cargo",
+        "nextest",
+        "list",
+        "--package",
+        "minco-core",
+        "--package",
+        "minco-plan",
+        "--package",
+        "minco-release",
+        "--all-features",
+        "--locked",
+        "--message-format",
+        "json"
+      ],
+      "duration_seconds": 0.532,
+      "exit_code": 0,
+      "id": "nextest-inventory",
+      "log": {
+        "bytes": 19209,
+        "path": "target/minco/quality-assurance/logs/02-nextest-inventory.log",
+        "sha256": "32ef6289f19242146d0eb5f0cb6e9c80ce2bc0ee0a9c27d95b82ba65c12ed5a9"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "cargo",
+        "nextest",
+        "run",
+        "--package",
+        "minco-core",
+        "--package",
+        "minco-plan",
+        "--package",
+        "minco-release",
+        "--all-features",
+        "--locked"
+      ],
+      "duration_seconds": 0.559,
+      "exit_code": 0,
+      "id": "nextest-run",
+      "log": {
+        "bytes": 14952,
+        "path": "target/minco/quality-assurance/logs/03-nextest-run.log",
+        "sha256": "2c6efa91f5fcf17a1d148d8c252caa62ed3c60278d6290f51e8fce0329fdb108"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--package",
+        "minco-core",
+        "--package",
+        "minco-plan",
+        "--package",
+        "minco-release",
+        "--all-features",
+        "--locked",
+        "--doc"
+      ],
+      "duration_seconds": 0.616,
+      "exit_code": 0,
+      "id": "cargo-doctest-run",
+      "log": {
+        "bytes": 591,
+        "path": "target/minco/quality-assurance/logs/04-cargo-doctest-run.log",
+        "sha256": "dd8c6f63dc72acff12d6b71b0b0a5c9fcae08c3df9f6ea46a210dc597075e237"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "cargo",
+        "llvm-cov",
+        "--package",
+        "minco-core",
+        "--package",
+        "minco-plan",
+        "--package",
+        "minco-release",
+        "--all-features",
+        "--locked",
+        "--json",
+        "--summary-only",
+        "--output-path",
+        "target/minco/quality-assurance/coverage.json"
+      ],
+      "duration_seconds": 7.595,
+      "exit_code": 0,
+      "id": "coverage",
+      "log": {
+        "bytes": 10876,
+        "path": "target/minco/quality-assurance/logs/05-coverage.log",
+        "sha256": "a64e52356eedd39725e2f8edf874319c3457b7f1598434e1ea54f5bace5c818a"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "cargo",
+        "mutants",
+        "--no-config",
+        "--no-times",
+        "--colors",
+        "never",
+        "--annotations",
+        "none",
+        "--baseline",
+        "run",
+        "--build-timeout",
+        "180",
+        "--minimum-test-timeout",
+        "20",
+        "-j",
+        "4",
+        "--package",
+        "minco-plan",
+        "--file",
+        "crates/minco-plan/src/cost.rs",
+        "--re",
+        "estimate_runtime_cost|with_optional_rates|complete",
+        "--output",
+        "target/minco/quality-assurance/mutants-plan"
+      ],
+      "duration_seconds": 74.541,
+      "exit_code": 0,
+      "id": "mutation-plan-cost",
+      "log": {
+        "bytes": 94,
+        "path": "target/minco/quality-assurance/logs/06-mutation-plan-cost.log",
+        "sha256": "2ace4c608cf9c09127dcc8ff55dbc102aeb48e4b9ae846c9ef65fe80d9e734fa"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "cargo",
+        "mutants",
+        "--no-config",
+        "--no-times",
+        "--colors",
+        "never",
+        "--annotations",
+        "none",
+        "--baseline",
+        "run",
+        "--build-timeout",
+        "180",
+        "--minimum-test-timeout",
+        "20",
+        "-j",
+        "4",
+        "--package",
+        "minco-release",
+        "--file",
+        "crates/minco-release/src/lib.rs",
+        "--re",
+        "FileDigest::verify$|ReleaseManifest::verify_structure|ReleaseManifest::calculate_release_digest|is_normalized_relative_path|validate_sha256",
+        "--output",
+        "target/minco/quality-assurance/mutants-release"
+      ],
+      "duration_seconds": 41.061,
+      "exit_code": 0,
+      "id": "mutation-release-authority",
+      "log": {
+        "bytes": 82,
+        "path": "target/minco/quality-assurance/logs/07-mutation-release-authority.log",
+        "sha256": "13e362859d6e023a1ac599db1d2363621a61ebf1c2e6a99cd92ba8d39f24668f"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "cargo",
+        "semver-checks",
+        "--package",
+        "cargo-minco",
+        "--package",
+        "minco",
+        "--package",
+        "minco-aws-adapters",
+        "--package",
+        "minco-aws-dynamodb",
+        "--package",
+        "minco-aws-lambda",
+        "--package",
+        "minco-aws-worker",
+        "--package",
+        "minco-config",
+        "--package",
+        "minco-contract",
+        "--package",
+        "minco-core",
+        "--package",
+        "minco-db",
+        "--package",
+        "minco-deploy-aws",
+        "--package",
+        "minco-dev",
+        "--package",
+        "minco-http",
+        "--package",
+        "minco-mcp",
+        "--package",
+        "minco-plan",
+        "--package",
+        "minco-plugin-audit",
+        "--package",
+        "minco-plugin-events",
+        "--package",
+        "minco-plugin-feedback",
+        "--package",
+        "minco-plugin-health",
+        "--package",
+        "minco-plugin-idempotency",
+        "--package",
+        "minco-plugin-identity",
+        "--package",
+        "minco-plugin-notifications",
+        "--package",
+        "minco-plugin-object-storage",
+        "--package",
+        "minco-plugin-observability",
+        "--package",
+        "minco-plugin-payments-waffo",
+        "--package",
+        "minco-plugin-realtime",
+        "--package",
+        "minco-plugin-sessions",
+        "--package",
+        "minco-plugin-static-site",
+        "--package",
+        "minco-project-view",
+        "--package",
+        "minco-release",
+        "--package",
+        "minco-sqlx-postgres",
+        "--package",
+        "minco-sqlx-sqlite",
+        "--package",
+        "minco-test",
+        "--package",
+        "minco-workbench",
+        "--baseline-rev",
+        "v1.4.0",
+        "--all-features",
+        "--color",
+        "never"
+      ],
+      "duration_seconds": 118.393,
+      "exit_code": 0,
+      "id": "semver",
+      "log": {
+        "bytes": 18558,
+        "path": "target/minco/quality-assurance/logs/08-semver.log",
+        "sha256": "3e8c1516155446a0d067226001c678571d392cc3ef56400d25d82605a5077546"
+      },
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "scripts/release/candidate-load.sh",
+        "--output",
+        "verification/1.4-candidate-load.json"
+      ],
+      "duration_seconds": 40.057,
+      "exit_code": 0,
+      "id": "local-performance",
+      "log": {
+        "bytes": 104,
+        "path": "target/minco/quality-assurance/logs/09-local-performance.log",
+        "sha256": "c50e0cbc6add422c6b0572cf5b332d8d2466a8ab6130809bca27d3aa102ae714"
+      },
+      "status": "PASS"
+    }
+  ],
+  "effective_date": "2026-08-12",
+  "gates": {
+    "coverage": {
+      "function_percent": 82.01,
+      "line_percent": 85.65,
+      "packages": [
+        "minco-core",
+        "minco-plan",
+        "minco-release"
+      ],
+      "region_percent": 86.93,
+      "report": {
+        "bytes": 6449,
+        "path": "target/minco/quality-assurance/coverage.json",
+        "sha256": "0e99a925c539d78214539f399f7b744cc34679f312c5af5133a09ca4052ebb7d"
+      },
+      "status": "PASS"
+    },
+    "local_performance": {
+      "api_p95_ms": 4.14,
+      "api_p99_ms": 43.394,
+      "api_requests": 80,
+      "api_throughput_requests_per_second": 1821.53,
+      "hosted_baseline_status": "NOT RUN",
+      "production_slo": false,
+      "provider_contact": false,
+      "receipt": {
+        "bytes": 3260,
+        "path": "verification/1.4-candidate-load.json",
+        "sha256": "29867112d8fad0588937105125414202b9b90aa24f2eec21b9a28b21b358373a"
+      },
+      "runner_scope": "local",
+      "status": "PASS",
+      "worker_messages": 1000,
+      "worker_throughput_messages_per_second": 1463.182
+    },
+    "mutation": {
+      "caught": 43,
+      "missed": 0,
+      "scopes": {
+        "plan_cost": {
+          "caught": 24,
+          "missed": 0,
+          "report": {
+            "bytes": 50148,
+            "path": "target/minco/quality-assurance/mutants-plan/mutants.out/outcomes.json",
+            "sha256": "8c4836d9853ae389a7dac24661d952839cd5c824051552115bd5a162873846dd"
+          },
+          "timeout": 0,
+          "total_mutants": 27,
+          "unviable": 3
+        },
+        "release_authority": {
+          "caught": 19,
+          "missed": 0,
+          "report": {
+            "bytes": 36763,
+            "path": "target/minco/quality-assurance/mutants-release/mutants.out/outcomes.json",
+            "sha256": "bc6e7e196a2695cabf81de0c95de8776211581d4e80c0ad74cb9dc084eee58ff"
+          },
+          "timeout": 0,
+          "total_mutants": 19,
+          "unviable": 0
+        }
+      },
+      "status": "PASS",
+      "timeouts": 0,
+      "total_mutants": 46,
+      "unviable": 3
+    },
+    "nextest_parity": {
+      "cargo_test_count": 127,
+      "doctest_count": 1,
+      "nextest_test_count": 126,
+      "packages": [
+        "minco-core",
+        "minco-plan",
+        "minco-release"
+      ],
+      "status": "PASS"
+    },
+    "semver": {
+      "baseline_commit": "2b02bf956eed3ef2a17bae6d10970dff1408e231",
+      "baseline_tag": "v1.4.0",
+      "package_count": 34,
+      "packages": [
+        "cargo-minco",
+        "minco",
+        "minco-aws-adapters",
+        "minco-aws-dynamodb",
+        "minco-aws-lambda",
+        "minco-aws-worker",
+        "minco-config",
+        "minco-contract",
+        "minco-core",
+        "minco-db",
+        "minco-deploy-aws",
+        "minco-dev",
+        "minco-http",
+        "minco-mcp",
+        "minco-plan",
+        "minco-plugin-audit",
+        "minco-plugin-events",
+        "minco-plugin-feedback",
+        "minco-plugin-health",
+        "minco-plugin-idempotency",
+        "minco-plugin-identity",
+        "minco-plugin-notifications",
+        "minco-plugin-object-storage",
+        "minco-plugin-observability",
+        "minco-plugin-payments-waffo",
+        "minco-plugin-realtime",
+        "minco-plugin-sessions",
+        "minco-plugin-static-site",
+        "minco-project-view",
+        "minco-release",
+        "minco-sqlx-postgres",
+        "minco-sqlx-sqlite",
+        "minco-test",
+        "minco-workbench"
+      ],
+      "status": "PASS"
+    }
+  },
+  "kind": "minco.quality-assurance.v1",
+  "limitations": [
+    "Coverage and mutation baselines cover only the reviewed core, Plan and release scopes.",
+    "Nextest does not execute doctests; the separate Cargo doctest command preserves that lane.",
+    "Local macOS performance is machine-specific diagnostic evidence, not hosted Linux, AWS, production or SLO proof.",
+    "SemVer checks are an additional compatibility signal and do not prove serialized schema or behavioral compatibility."
+  ],
+  "policy": {
+    "path": "verification/quality-assurance-policy.toml",
+    "sha256": "e23d5ef43d7f5a34b9f8dd8ae4e6741235200c7c724f4cdf83039d46e7be2441"
+  },
+  "production_slo": false,
+  "provider_contact": false,
+  "runner": {
+    "dimensions": {
+      "architecture": "arm64",
+      "os": "darwin",
+      "os_release": "25.5.0",
+      "python": "3.13.7"
+    },
+    "fingerprint_sha256": "281427d7caaeae258478f4153252a7d88cd34e391be70f4efc9ec8ccd2964842",
+    "scope": "local"
+  },
+  "schema_version": 1,
+  "source": {
+    "source_tree_sha256": "5140adf721aca7408f4094e74b065dc482905d3579221a1f0bd3e3e54814be86",
+    "version": "1.4.0"
+  },
+  "status": "PASS",
+  "tools": {
+    "cargo-llvm-cov": {
+      "status": "PASS",
+      "version": "0.8.7"
+    },
+    "cargo-mutants": {
+      "status": "PASS",
+      "version": "27.1.0"
+    },
+    "cargo-nextest": {
+      "status": "PASS",
+      "version": "0.9.143"
+    },
+    "cargo-semver-checks": {
+      "status": "PASS",
+      "version": "0.50.0"
+    }
+  }
+}

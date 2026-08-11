@@ -1,5 +1,14 @@
 schema = 1
 
+[gates.assurance]
+commands = [
+  "uv run --locked python scripts/test/quality_assurance.py",
+  "uv run --locked python scripts/test/release_identity.py",
+  "uv run --locked python scripts/release/release_identity.py --check",
+  "scripts/ci/local-assurance.sh",
+]
+optional = true
+
 [gates.static]
 commands = [
   "uv run --locked python scripts/validate_static.py --output verification/static-validation.json",

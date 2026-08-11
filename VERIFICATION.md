@@ -1,11 +1,51 @@
 # Minco verification and release evidence
 
-Date: 2026-08-11
+Date: 2026-08-12
 Current workspace version: `1.4.0`
 Published baseline: `1.4.0`
 Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T20 measured framework assurance
+
+The P0 assurance change starts from exact `main`
+`f48ead125b09699f1d7e8ab8bf02deeeb9dc6fb4`. Its reviewed policy pins
+`cargo-nextest` 0.9.143, `cargo-llvm-cov` 0.8.7, `cargo-mutants` 27.1.0 and
+`cargo-semver-checks` 0.50.0 against Rust 1.97.1. The measured selected-package
+base contains 122 nextest-executable tests plus one separately executed Cargo
+doctest. Four focused P0 regressions raise the exact current inventory to 126
+plus one doctest. Base coverage is 84.91% lines/80.98% functions and the
+focused regressions raise current coverage to 85.65%/82.01%; the guarded floor
+is two percentage points below each measured value.
+
+The initial mutation run exposed 19 viable gaps across Plan cost selection and
+release authority. Public-interface regressions now catch all 43 viable
+mutants; three transformations are unviable, with zero missed and zero timeout.
+The CLI command schema moved from the 8,471-line dispatch concentration point
+to a private module while preserving exact help bytes at SHA-256
+`ce7f5203366875eeb62daf3f1584eba5eb7f2b91b7930f8b59b1de0dfdf5d2f7`.
+
+`verification/release-identity.json` deterministically indexes 34 publishable
+packages, 19 official plugin descriptors, versioned documentation, changelog
+and repository truth without granting release authority. The 2026-08-12
+AWS/Rust refresh changes no Minco support state. The final measured receipt is
+generated only by `scripts/ci/local-assurance.sh` against current source.
+
+The exact-head security diff scan closed all 23 source-like worklist rows and
+reported one Low/P3 evidence-integrity blocker: the frozen PASS checker did not
+open most referenced private artifacts. The remediation adds 19 focused Python
+contract tests in total, authenticates every command log, coverage report,
+mutation report and performance receipt through confined no-follow descriptors,
+and makes clean release qualification execute the same measured lane into
+ignored ephemeral outputs. A frozen canonical receipt now verifies only while
+its exact private evidence remains present; absence, substitution and symlinks
+fail closed.
+
+Hosted Linux performance is `NOT RUN`; current exact-source live-provider
+evidence is absent. Local macOS measurements cannot qualify AWS, Waffo,
+deployment, production or an SLO. M14-T20 therefore remains active even when
+all attainable local gates pass.
 
 ## M14-T19 `1.4.0` maintenance release
 

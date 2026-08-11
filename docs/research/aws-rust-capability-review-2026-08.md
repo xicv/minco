@@ -1,14 +1,39 @@
 # AWS and Rust capability review — August 2026
 
-- Reviewed: 2026-08-07
-- Dependency context: workspace/lockfile AWS SDK versions; `lambda_http` and
-  `lambda_runtime` 1.3; `aws_lambda_events` 1.2
+- Reviewed: 2026-08-12
+- Dependency context: Rust 1.97.1; locked `aws-config` 1.10.1,
+  `lambda_http` and `lambda_runtime` 1.3.0, and `aws_lambda_events` 1.2.0
 - Authority: AWS primary documentation and official project repositories
 - Rule: upstream availability is not Minco support
 
 This review adds no AWS resource, renderer, runtime scanner, generic service
 facade or always-on control plane. Full machine fields are in
 `verification/aws-capability-candidates.toml`. No candidate is `supported`.
+
+## 12 August refresh outcome
+
+The official sources were rechecked after the 1.4.0 release. Rust 1.97.1 is
+the current repository pin and contains the LLVM miscompilation correction
+from the Rust release team. The measured quality tools compatible with that
+pin are `cargo-nextest` 0.9.143, `cargo-llvm-cov` 0.8.7, `cargo-mutants`
+27.1.0 and `cargo-semver-checks` 0.50.0. Minco adopts them only as pinned,
+local, source-bound gates; nextest retains a separate doctest lane, coverage
+uses a measured tolerance, mutation scope stays bounded, and SemVer checks do
+not replace serialized or behavioral compatibility review.
+
+AWS documentation still supports the existing conclusions: Aurora can pause
+eligible Serverless v2 engines at zero ACUs but retains storage and can take
+30 seconds or more to resume after deep sleep; DSQL remains a bounded
+PostgreSQL-compatible system with IAM-token connection semantics; and Lambda
+Durable Functions' managed runtime list still omits Rust. Upstream capability
+movement therefore changes no Minco support state. Exact provider, security,
+cost, performance, promotion and recovery proof remains the adoption gate.
+
+Sources: [Rust 1.97.1](https://blog.rust-lang.org/2026/07/16/Rust-1.97.1/),
+[Aurora automatic pause](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html),
+[DSQL compatibility](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with.html),
+[DSQL access](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/accessing.html),
+[Durable Functions runtimes](https://docs.aws.amazon.com/lambda/latest/dg/durable-supported-runtimes.html).
 
 ## AWS candidates
 

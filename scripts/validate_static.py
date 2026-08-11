@@ -154,6 +154,9 @@ class Validator:
             "verification/adoption-measurements.json",
             "verification/adoption-baseline.json",
             "verification/source-manifest.json",
+            "verification/quality-assurance-policy.toml",
+            "verification/quality-assurance.json",
+            "verification/release-identity.json",
         ]
         for item in required:
             path = self.root / item
@@ -1456,7 +1459,7 @@ class Validator:
             return
         quality = tomllib.loads(path.read_text())
         gates = quality.get("gates", {})
-        for required in ["static", "rust", "security", "e2e"]:
+        for required in ["assurance", "static", "rust", "security", "e2e"]:
             commands = gates.get(required, {}).get("commands", [])
             if not commands:
                 self.error("STATIC-QUALITY-001", f"quality gate {required} has no commands", path)
