@@ -43,6 +43,7 @@ owned_paths:
   - docs/adoption/incremental-adoption.md
   - docs/development/publishing.md
   - docs/development/using-minco-crate.md
+  - docs/reference/compatibility.md
   - docs/reference/generated/**
   - docs/reference/supported-matrix.md
   - docs/vision/minco-framework-definition.md
@@ -139,7 +140,25 @@ then current release, documentation and evidence truth are regenerated.
 
 ## Evidence
 
-Keep this section current. Provider review used the official Waffo Pancake Go
-SDK `v0.9.0` at exact revision
-`799135cbe07c45819da0ab4bf777c64fcc956220`. No live Waffo request or payment is
-part of local qualification; any unavailable sandbox evidence remains `NOT RUN`.
+Provider review used the official Waffo Pancake Go SDK `v0.9.0` at exact
+revision `799135cbe07c45819da0ab4bf777c64fcc956220`. Exact merged release source
+`e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`, tree
+`cddd64160b6d3aeff80dd11af18e2f11541a36aa` and source-tree digest
+`d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
+passed the complete local macOS release gate and exact-main clean-Linux run
+[`31451883403`](https://github.com/xicv/minco/actions/runs/31451883403).
+
+Immutable tag `v1.3.0` resolves to that exact source. The authenticated local
+publisher uploaded the dependency-ordered family; crates.io rate-limited the
+final two packages after 32 accepted uploads until its explicit retry time, so
+recovery republished only the missing `minco` and `cargo-minco` complement.
+Independent validation then found all 34 exact versions present and non-yanked.
+The [`v1.3.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.3.0)
+is published from the same tag. All 34 exact 1.3.0 docs.rs rustdoc routes
+subsequently returned HTTP 200.
+
+Keep this task `active` until the post-publication truth change reaches `main`
+and the attainable Pages lane is independently verified. No live
+Waffo request or payment is part of this release; unavailable sandbox evidence
+remains `NOT RUN` and no AWS application deployment or production SLO is
+claimed.

@@ -34,6 +34,7 @@ test('current documentation map exposes every major documentation surface', asyn
     'Local development',
     'Troubleshooting',
     'Codex and Claude Code',
+    'Waffo hosted payments',
     'Built-in plugins and adapters',
     'Plan an AWS deployment',
     'Production blueprint',
@@ -44,7 +45,7 @@ test('current documentation map exposes every major documentation surface', asyn
   }
 })
 
-test('published 1.2 and next expose browser and native client guidance', async ({
+test('published stable and next expose browser and native client guidance', async ({
   page
 }) => {
   await page.goto('./next/reference/documentation-map')

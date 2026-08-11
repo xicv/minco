@@ -94,9 +94,9 @@ cargo minco agent eval --target all --json
 
 Doctor reports discovery, exact version, ownership, drift, projection parity,
 and manual MCP configuration state without modifying the project. Eval checks
-portable skill format, exact installed bytes, Codex/Claude parity, and 16
-positive/negative workflow contracts. It performs no writes, commands, network
-requests, or model invocations.
+portable skill format, exact installed bytes, Codex/Claude parity, and 18
+deterministic trigger and boundary workflow contracts. It performs no writes,
+commands, network requests, or model invocations.
 
 A passing evaluation is local projection evidence. It is not model quality,
 hosted CI, review, deployment, runtime, or production proof.

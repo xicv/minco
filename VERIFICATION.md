@@ -2,31 +2,42 @@
 
 Date: 2026-08-11
 Current workspace version: `1.3.0`
-Published baseline: `1.2.2`
-Workspace release state: `candidate`
+Published baseline: `1.3.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M14-T16 `1.3.0` Waffo payments candidate
+## M14-T16 `1.3.0` Waffo payments release
 
-The current 34-package source candidate adds the opt-in
+The published 34-package release adds the opt-in
 `minco-plugin-payments-waffo` beta, one version-matched Waffo Agent Skill and a
-frozen 1.3.0 candidate manual. It keeps payment state application-owned and
+frozen 1.3.0 manual. It keeps payment state application-owned and
 provides signed typed actions, hosted checkout, read-only GraphQL, raw-body
 webhook verification, a bounded JSON CLI and deterministic offline fakes.
 
-Recovery starts from current `main` `6dda1a87771d5c99a6dd4f35c27f08f4a802192c`
-rather than the conflicting historical PR #125 base. The prohibited
-task-specific workflow is absent, and both the standalone static gate and the
-hosted-policy regression enforce ADR-0038's exact three-workflow allowlist.
-The provider contract was reviewed against the official Waffo Go SDK `v0.9.0`
-at `799135cbe07c45819da0ab4bf777c64fcc956220`.
+Exact merged release source `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`,
+tree `cddd64160b6d3aeff80dd11af18e2f11541a36aa` and source-tree digest
+`d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
+passed the complete local macOS release gate. Exact-main clean-Linux run
+[`31451883403`](https://github.com/xicv/minco/actions/runs/31451883403) also
+passed. The prohibited task-specific workflow is absent and ADR-0038's exact
+three-workflow allowlist fails closed in static and policy tests.
 
-Exact-tree local release qualification and clean-Linux compatibility must pass
-before merge. A merge remains distinct from tag creation, registry upload,
-docs.rs, Pages and provider proof. No live Waffo request or payment was made;
-live-provider evidence is `NOT RUN`. No AWS application resource was contacted
-or changed, and no production SLO is claimed.
+Immutable tag `v1.3.0` resolves to that exact source. The authenticated local
+publisher uploaded the dependency-ordered family; after crates.io rate-limited
+the final two packages until its explicit retry time, recovery uploaded only
+the missing `minco` and `cargo-minco` complement. Independent registry
+validation found all 34 exact versions present and non-yanked; the machine
+receipt is `verification/1.3-published-release-validation.json`. The
+[`v1.3.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.3.0) is
+published from the same tag.
+
+The provider contract was reviewed against the official Waffo Go SDK `v0.9.0`
+at `799135cbe07c45819da0ab4bf777c64fcc956220`. All 34 exact 1.3.0 docs.rs
+rustdoc routes returned HTTP 200. Stable Pages remains an independent
+post-publication lane. No live Waffo request or
+payment was made; live-provider evidence is `NOT RUN`. No AWS application
+resource was contacted or changed, and no production SLO is claimed.
 
 ## M14-T15 `1.2.2` documentation presentation release
 

@@ -1,29 +1,36 @@
 # Review status
 
-The workspace is the unpublished `1.3.0` lock-step candidate for the opt-in
-Waffo Pancake payments integration.
+The workspace is the published `1.3.0` lock-step release with the opt-in Waffo
+Pancake payments integration.
 
-Published baseline: `1.2.2`
+Published baseline: `1.3.0`
 
 Current workspace version: `1.3.0`
 
-Workspace release state: `candidate`
+Workspace release state: `published`
 
 The current review covers the provider-specific payment boundary, signed
 request and redirect policy, idempotency and ephemeral-token handling, raw-body
 webhook verification, CLI automation, static plugin/catalog integration,
-34-package release truth, frozen candidate documentation and nine-skill agent
+34-package release truth, frozen stable documentation and nine-skill agent
 bundle. No generic billing model, default feature, hidden worker, poller,
 schedule, AWS resource or always-on control plane is introduced.
 
 The historical PR #125 source was reconstructed onto current `main`; the
 task-specific workflow was removed and the exact three-file workflow allowlist
-now fails closed in both static and policy tests. Local exact-tree and fresh
-clean-Linux qualification remain required before merge. Live Waffo, registry,
-docs.rs, Pages, deployment and production evidence remain separate and are not
-claimed by this candidate.
+fails closed in both static and policy tests. Exact release source passed the
+complete local gate and clean-Linux run `31451883403`. Immutable tag `v1.3.0`,
+all 34 crates.io versions and the GitHub release are verified independently.
+All 34 exact docs.rs routes return HTTP 200. Live Waffo, Pages, deployment and
+production evidence remain separate; no provider or deployment claim is
+inferred from publication.
 
-## Published 1.2.2 baseline
+Minco `1.3.0` is the current published baseline from exact release source
+`e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`, tree
+`cddd64160b6d3aeff80dd11af18e2f11541a36aa` and source-tree digest
+`d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`.
+
+## Previous published 1.2.2 baseline
 
 The release corrects diagram text overflow and the ordered-list cascade that
 misaligned the four operating-model cards. Local, hosted, tag, registry,
@@ -31,7 +38,7 @@ docs.rs, Pages, provider, runtime and production evidence remain distinct.
 Local and clean-Linux qualification, tag identity, registry publication, the
 GitHub release, stable Pages and docs.rs are independently verified.
 
-Minco `1.2.2` is the current published baseline from exact release source
+Minco `1.2.2` is the previous published baseline from exact release source
 `0496e6294b213c839af551a82858e2c1c3f7f45d`, tree
 `577caf88f99746b2ac62b50ad90f3e5ea1f66b4e` and source-tree digest
 `c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6`.

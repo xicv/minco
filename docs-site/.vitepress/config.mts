@@ -285,8 +285,10 @@ export default defineConfig({
             path.startsWith('0.5.0/') ||
             path.startsWith('0.6.0/') ||
             path.startsWith('1.0.0/')
+          const isPublishedNextDuplicate =
+            release.state === 'published' && path.startsWith('next/')
 
-          return isHistoricalManual ? '' : html
+          return isHistoricalManual || isPublishedNextDuplicate ? '' : html
         },
         miniSearch: {
           searchOptions: {

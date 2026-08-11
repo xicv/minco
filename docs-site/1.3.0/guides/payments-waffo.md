@@ -25,8 +25,7 @@ minco = { version = "1.3.0", features = ["plugin-payments-waffo"] }
 minco-plugin-payments-waffo = "1.3.0"
 ```
 
-During candidate review, use the exact repository source rather than assuming
-these versions already exist on crates.io. The feature also enables Minco's
+Use the exact published 1.3.0 versions shown above. The feature also enables Minco's
 idempotency plugin because typed provider actions require an explicit claim.
 
 ## Configure without embedding secrets

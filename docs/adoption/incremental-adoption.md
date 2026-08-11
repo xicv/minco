@@ -1,12 +1,12 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.2.2`
+Published baseline: `1.3.0`
 Current workspace version: `1.3.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-The 1.3.0 candidate adds one opt-in Waffo provider integration. Use exact
-published `1.2.2` dependencies for applications until 1.3.0 registry
-publication is independently verified.
+The published 1.3.0 release adds one opt-in Waffo provider integration. Use
+exact published `1.3.0` dependencies and select the payment feature only when
+the application owns the corresponding provider and payment-state boundary.
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -18,7 +18,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.2.2", default-features = false, features = ["contract"] }
+minco = { version = "1.3.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -173,6 +173,11 @@ release-bound AI skill freshness patch and its deterministic checks.
 Applications moving to the published `1.2.2` patch must also use the
 [`1.2.1` to `1.2.2` guide](1.2.1-to-1.2.2.md). It covers the compatible Signal
 documentation presentation hardening and unchanged runtime boundary.
+
+Applications moving to the published `1.3.0` minor must use the
+[`1.2.2` to `1.3.0` guide](1.2.2-to-1.3.0.md). It covers the opt-in Waffo
+provider boundary, nine-skill bundle, compatibility, rollback and independent
+live-provider evidence requirement.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 
