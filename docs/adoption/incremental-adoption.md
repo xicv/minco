@@ -1,15 +1,14 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.3.0`
+Published baseline: `1.4.0`
 Current workspace version: `1.4.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-The published 1.3.0 release adds one opt-in Waffo provider integration. Use
-exact published `1.3.0` dependencies and select the payment feature only when
-the application owns the corresponding provider and payment-state boundary.
-The 1.4.0 workspace is an unpublished maintenance candidate. Continue using
-exact 1.3.0 registry dependencies until publication; reviewers can use the
-exact source with the [1.3.0-to-1.4.0 guide](1.3.0-to-1.4.0.md).
+The published 1.4.0 release retains the opt-in Waffo provider integration and
+adds documentation and reproducible ecosystem maintenance. Use exact published
+`1.4.0` dependencies and select the payment feature only when the application
+owns the corresponding provider and payment-state boundary. Follow the
+[1.3.0-to-1.4.0 guide](1.3.0-to-1.4.0.md) for the coordinated update.
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -21,7 +20,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.3.0", default-features = false, features = ["contract"] }
+minco = { version = "1.4.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -181,6 +180,11 @@ Applications moving to the published `1.3.0` minor must use the
 [`1.2.2` to `1.3.0` guide](1.2.2-to-1.3.0.md). It covers the opt-in Waffo
 provider boundary, nine-skill bundle, compatibility, rollback and independent
 live-provider evidence requirement.
+
+Applications moving from `1.3.0` to the published `1.4.0` maintenance minor
+must use the [`1.3.0` to `1.4.0` guide](1.3.0-to-1.4.0.md). It covers the
+toolchain/dependency refresh, website presentation, official descriptor and
+AI-skill coordination without claiming a new runtime or provider capability.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

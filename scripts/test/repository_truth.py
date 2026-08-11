@@ -37,7 +37,20 @@ NEW_OFFICIAL_PLUGIN_PACKAGES = {
     for package in QUALIFIED_CANDIDATE_NEW_PUBLISHABLE_PACKAGES
     if CATALOG_FEATURE_BY_CRATE.get(package) in OFFICIAL_PLUGIN_FEATURES
 }
-PREVIOUS_PUBLISHED_BASELINE = "1.2.2"
+CURRENT_UPGRADE_SUFFIX = f"-to-{WORKSPACE_VERSION}.md"
+CURRENT_UPGRADE_GUIDES = sorted(
+    path
+    for path in (ROOT / "docs" / "adoption").glob(f"*{CURRENT_UPGRADE_SUFFIX}")
+    if path.name.endswith(CURRENT_UPGRADE_SUFFIX)
+)
+if len(CURRENT_UPGRADE_GUIDES) != 1:
+    raise RuntimeError(
+        "expected exactly one upgrade guide into the current workspace version; "
+        f"found {[path.name for path in CURRENT_UPGRADE_GUIDES]}"
+    )
+PREVIOUS_PUBLISHED_BASELINE = CURRENT_UPGRADE_GUIDES[0].name[
+    : -len(CURRENT_UPGRADE_SUFFIX)
+]
 DRIFTED_PUBLISHED_BASELINE = "9.9.8"
 CANDIDATE_BASELINE = (
     PUBLISHED_BASELINE if RELEASE_STATE == "candidate" else PREVIOUS_PUBLISHED_BASELINE

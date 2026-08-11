@@ -1,29 +1,30 @@
-# Minco 1.4.0 candidate handoff
+# Minco 1.4.0 published-release handoff
 
 Date: 2026-08-11
-Published baseline: `1.3.0`
+Published baseline: `1.4.0`
 Current workspace version: `1.4.0`
-Workspace release state: `candidate`
-Published `1.3.0` source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
-Published source-tree digest: `d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
-Published release task: `M14-T16`
+Workspace release state: `published`
+Published `1.4.0` source: `2b02bf956eed3ef2a17bae6d10970dff1408e231`
+Published source-tree digest: `21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`
+Published release task: `M14-T19`
 Latest release task: `M14-T19` (`active`)
 Active evidence task: `M14-T10`
 
-## Current 1.4.0 candidate boundary
+## Current 1.4.0 published boundary
 
-Minco `1.4.0` is an unpublished maintenance minor over the immutable 1.3.0
-baseline. It releases the reviewed homepage presentation and reproducible
+Minco `1.4.0` is a published maintenance minor over the immutable 1.3.0
+baseline. It contains the reviewed homepage presentation and reproducible
 language/package refresh without changing the public Rust API, serialized
 contracts, CLI, package inventory, static plugin selection or provider topology.
 All 34 packages and official descriptors advance together; all nine packaged
 Codex/Claude skills point to the frozen 1.4.0 manual and carry cumulative
 maintenance-release coverage.
 
-Exact local qualification and fresh clean-Linux compatibility must pass before
-merge, tag or publication. A merge remains distinct from an immutable tag,
-crates.io records, docs.rs, GitHub release and Pages. Performance remains `NOT
-RUN`; no live Waffo call, AWS application mutation or production SLO is implied.
+Exact local qualification, candidate and merged-main clean-Linux runs, immutable
+tag, all 34 crates.io records, the GitHub release and all 34 exact docs.rs routes
+are independently verified. The post-publication stable Pages deployment remains
+open at this snapshot. Performance remains `NOT RUN`; no live Waffo call, AWS
+application mutation or production SLO is implied.
 
 ## Completed ecosystem refresh
 

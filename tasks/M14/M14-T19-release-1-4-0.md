@@ -122,7 +122,34 @@ operational validators, 38 browser scenarios with two desktop-inapplicable
 skips, and all 34 exact-version registry-absence checks. The canonical source
 manifest and operational receipt bind the final candidate tree.
 
-The authoritative local release gate, clean-Linux compatibility, publication,
-registry/docs.rs verification and Pages publication remain in progress at this
-candidate stage. Performance remains `NOT RUN`; current live-provider evidence
-is absent and must not be inferred from release gates.
+At the candidate stage the authoritative local release gate, clean-Linux
+compatibility, publication, registry/docs.rs verification and Pages publication
+remained in progress. Performance was `NOT RUN`; current live-provider evidence
+was absent and must not be inferred from release gates.
+
+Exact candidate commit `bcd3cb674834b0e8d25210061b6c37c39b408bde`, tree
+`e9e5138eed39d48d0d58cb7440310f198695f47b` and source-tree digest
+`21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`
+passed the authoritative local macOS release gate and clean-Linux run
+[`31475310242`](https://github.com/xicv/minco/actions/runs/31475310242). PR
+[#151](https://github.com/xicv/minco/pull/151) merged the exact tree as
+`2b02bf956eed3ef2a17bae6d10970dff1408e231`; merged-main run
+[`31475705506`](https://github.com/xicv/minco/actions/runs/31475705506) and
+candidate-state Pages run
+[`31475674880`](https://github.com/xicv/minco/actions/runs/31475674880) passed.
+
+Immutable tag `v1.4.0` resolves to that exact source. OIDC run
+[`31476217865`](https://github.com/xicv/minco/actions/runs/31476217865)
+accepted 23 packages before the missing Waffo trusted publisher failed closed.
+The exact `xicv/minco`, `publish-crates.yml`, `crates-io` publisher was added;
+guarded recovery run
+[`31479118464`](https://github.com/xicv/minco/actions/runs/31479118464)
+verified and uploaded only the 11 absent packages. Independent registry
+validation found all 34 exact versions present and non-yanked, the
+[`v1.4.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.4.0)
+is published, and all 34 exact docs.rs rustdoc routes return HTTP 200.
+
+Keep this task `active` until this post-publication truth change reaches `main`
+and stable Pages is independently verified. No live Waffo or AWS operation was
+performed; current provider evidence remains absent and performance remains
+`NOT RUN`.

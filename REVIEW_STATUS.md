@@ -1,13 +1,12 @@
 # Review status
 
-The workspace is the unpublished `1.4.0` maintenance-minor candidate over the
-published 1.3.0 Waffo release.
+The workspace is the published `1.4.0` maintenance-minor release.
 
-Published baseline: `1.3.0`
+Published baseline: `1.4.0`
 
 Current workspace version: `1.4.0`
 
-Workspace release state: `candidate`
+Workspace release state: `published`
 
 The current review covers lock-step version and descriptor consistency, the
 frozen 1.4.0 manual, homepage desktop/mobile presentation regressions, the
@@ -17,10 +16,11 @@ serialized contracts, CLI behavior, provider selection and deployment topology
 are unchanged. No new package, provider capability, hidden worker, poller,
 schedule, AWS resource or always-on control plane is introduced.
 
-Exact local release qualification and fresh clean-Linux compatibility remain
-required before merge. Tag, registry, docs.rs, GitHub release, Pages, live
-provider and production evidence are separate and are not claimed by this
-candidate.
+Exact local release qualification, candidate and merged-main clean-Linux runs,
+immutable tag, all 34 crates.io records and the GitHub release are independently
+verified. All 34 exact docs.rs routes return HTTP 200. Post-publication stable
+Pages remains open at this snapshot; live-provider and production evidence
+remain separately unproven.
 
 The historical PR #125 source was reconstructed onto current `main`; the
 task-specific workflow was removed and the exact three-file workflow allowlist
@@ -37,12 +37,18 @@ AI-agent routes return HTTP 200 with expected content. Live Waffo, deployment
 and production evidence remain separate; no provider or deployment claim is
 inferred from publication.
 
-## Published 1.3.0 baseline
+## Published 1.4.0 baseline
 
-Minco `1.3.0` is the current published baseline from exact release source
-`e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`, tree
-`cddd64160b6d3aeff80dd11af18e2f11541a36aa` and source-tree digest
-`d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`.
+Minco `1.4.0` is the current published baseline from exact release source
+`2b02bf956eed3ef2a17bae6d10970dff1408e231`, tree
+`e9e5138eed39d48d0d58cb7440310f198695f47b` and source-tree digest
+`21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`.
+
+Candidate run `31475310242` and merged-main run `31475705506` passed. OIDC
+publication run `31476217865` accepted 23 packages before the missing Waffo
+trusted-publisher entry failed closed; guarded recovery run `31479118464`
+verified the exact complement and published only the 11 absent packages. The
+GitHub release is published from immutable tag `v1.4.0`.
 
 ## Previous published 1.2.2 baseline
 

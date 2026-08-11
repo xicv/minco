@@ -5,7 +5,7 @@ description: Install version-matched Minco skills, inspect bounded project conte
 
 # Develop with Codex and Claude Code
 
-Minco 1.3.0 packages nine focused application workflows for Codex and Claude
+Minco 1.4.0 packages nine focused application workflows for Codex and Claude
 Code. The eight established skills remain intact and the new
 `minco-waffo-payments` skill teaches the provider-specific checkout, token,
 webhook and evidence boundary. The skills select Minco commands and source

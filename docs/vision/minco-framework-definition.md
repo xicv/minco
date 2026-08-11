@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `1.3.0`
+Published baseline: `1.4.0`
 Current workspace version: `1.4.0`
-Workspace release state: `candidate`
-Reviewed release source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
+Workspace release state: `published`
+Reviewed release source: `2b02bf956eed3ef2a17bae6d10970dff1408e231`
 
 ## Product identity
 
@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The immutable published `1.3.0` classification is:
+The immutable published `1.4.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
@@ -31,10 +31,12 @@ The immutable published `1.3.0` classification is:
 > The 1.3 release adds one explicit, provider-specific Waffo checkout/webhook
 > plugin without making payment state framework-owned or adding a default
 > runtime, generic billing model, hidden worker or AWS resource. Publication
-> does not itself prove a live application deployment or Waffo behavior.
+> does not itself prove a live application deployment or Waffo behavior. The
+> 1.4 release adds presentation and reproducibility maintenance without
+> widening the provider or runtime boundary.
 
-The unpublished 1.4.0 maintenance candidate preserves that classification. It
-releases presentation and reproducibility improvements, not a new application,
+The published 1.4.0 maintenance release preserves that classification. It
+contains presentation and reproducibility improvements, not a new application,
 provider or control-plane capability.
 
 The post-1.0 program now prioritises measured application adoption,
@@ -116,7 +118,7 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `1.3.0` state | Remaining boundary |
+| Area | Current published `1.4.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |
@@ -133,7 +135,7 @@ The framework-completion program preserves the accepted ADRs and
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Versioned, searchable and browser-checked Diátaxis product with a detailed stable `1.3.0` line | Broader exercised recipe and application-adoption matrix |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with a detailed stable `1.4.0` line | Broader exercised recipe and application-adoption matrix |
 | AI support | Version-matched Codex/Claude skills, bounded context/eval, ProjectView, read-only MCP and local workbench | Measured task outcomes, application evals and guarded narrow write tools |
 | Compatibility | Published 1.x public API, CLI, schema and feature freeze with additive 1.2 release evidence | Ongoing semver regression proof and multi-application adoption |
 
