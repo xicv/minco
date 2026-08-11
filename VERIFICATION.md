@@ -2,27 +2,48 @@
 
 Date: 2026-08-11
 Current workspace version: `1.4.0`
-Published baseline: `1.3.0`
-Workspace release state: `candidate`
+Published baseline: `1.4.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M14-T19 `1.4.0` maintenance candidate
+## M14-T19 `1.4.0` maintenance release
 
-The current 34-package candidate releases the post-1.3 homepage presentation
+The published 34-package release contains the post-1.3 homepage presentation
 and reproducible language/package refresh. It advances official descriptors and
 all nine packaged AI skills in lock-step, freezes a complete 1.4.0 manual and
 adds a 1.3.0-to-1.4.0 guide. Public Rust APIs, serialized contracts, CLI,
 package inventory, static plugin selection and provider topology are unchanged.
 
-The candidate starts from exact merged main
-`8ff0be93c11f6a36040aa7671ccb22c6ae731227` in dedicated JJ workspace
-`/Users/xicao/Projects/minco-task-m14-t19`. All 34 exact 1.3.0 registry versions
-were confirmed present and non-yanked before the bump; 1.4.0 had no tag or
-publication. Exact local qualification and fresh clean-Linux compatibility must
-pass before merge, tag or upload. Performance remains `NOT RUN`; current live
-provider evidence is absent, and no AWS or Waffo operation is part of this crate
-release.
+Exact candidate commit `bcd3cb674834b0e8d25210061b6c37c39b408bde`,
+tree `e9e5138eed39d48d0d58cb7440310f198695f47b` and source-tree digest
+`21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`
+passed the authoritative local macOS release gate. Candidate clean-Linux run
+[`31475310242`](https://github.com/xicv/minco/actions/runs/31475310242) passed;
+PR [#151](https://github.com/xicv/minco/pull/151) merged the exact reviewed tree
+as `2b02bf956eed3ef2a17bae6d10970dff1408e231`, and merged-main run
+[`31475705506`](https://github.com/xicv/minco/actions/runs/31475705506) passed.
+Merged-main Pages run
+[`31475674880`](https://github.com/xicv/minco/actions/runs/31475674880) built,
+checked and deployed the candidate-state site.
+
+Immutable tag `v1.4.0` resolves to the merged release source. OIDC publication
+run [`31476217865`](https://github.com/xicv/minco/actions/runs/31476217865)
+accepted 23 packages before exposing the missing Waffo trusted-publisher entry.
+After configuring exact publisher `xicv/minco`, workflow `publish-crates.yml`
+and environment `crates-io`, guarded recovery run
+[`31479118464`](https://github.com/xicv/minco/actions/runs/31479118464)
+verified the live 23/11 complement and published only the absent packages.
+Independent validation found all 34 exact versions present and non-yanked;
+`verification/1.4-published-release-validation.json` retains the machine
+receipt. The [v1.4.0 GitHub release](https://github.com/xicv/minco/releases/tag/v1.4.0)
+is published from the same tag.
+
+All 34 exact 1.4.0 docs.rs rustdoc routes subsequently returned HTTP 200. Keep
+M14-T19 active until the post-publication truth change reaches `main` and its
+stable Pages deployment passes. Performance remains `NOT RUN`; current
+live-provider evidence is absent, and no AWS or Waffo operation is part of this
+crate release.
 
 ## M14-T18 language and package ecosystem refresh
 

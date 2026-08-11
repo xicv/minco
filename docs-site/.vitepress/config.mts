@@ -281,21 +281,14 @@ export default defineConfig({
           if (env.frontmatter?.search === false) return ''
 
           const path = env.relativePath.replaceAll('\\', '/')
-          const isHistoricalManual =
-            path.startsWith('0.5.0/') ||
-            path.startsWith('0.6.0/') ||
-            path.startsWith('1.0.0/')
+          const isVersionedManual = /^\d+\.\d+\.\d+\//.test(path)
+          const isInactiveVersionedManual =
+            isVersionedManual &&
+            (release.state === 'candidate' || !path.startsWith(`${release.stable}/`))
           const isPublishedNextDuplicate =
             release.state === 'published' && path.startsWith('next/')
-          const isFrozenCandidateDuplicate =
-            release.state === 'candidate' && path.startsWith(`${release.workspace}/`)
-          const isCandidateStableDuplicate =
-            release.state === 'candidate' && path.startsWith(`${release.stable}/`)
 
-          return isHistoricalManual ||
-            isPublishedNextDuplicate ||
-            isFrozenCandidateDuplicate ||
-            isCandidateStableDuplicate
+          return isInactiveVersionedManual || isPublishedNextDuplicate
             ? ''
             : html
         },

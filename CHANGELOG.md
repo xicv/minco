@@ -5,7 +5,7 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the `1.4.0` candidate. Release sections from `1.2.0` onward
+No changes beyond the published `1.4.0` release. Release sections from `1.2.0` onward
 retain exact candidate-source wording because their digests are bound into the
 portable agent bundle; tag, registry, documentation and provider evidence stay
 separate in `VERIFICATION.md`.

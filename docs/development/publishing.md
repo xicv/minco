@@ -6,18 +6,18 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.3.0` release contains the complete lock-step 34-package
-inventory and adds `minco-plugin-payments-waffo`. A workspace version or source
+The published `1.4.0` release contains the complete lock-step 34-package
+inventory and retains `minco-plugin-payments-waffo`. A workspace version or source
 tag is not registry proof: release status is verified independently against the
 exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The workspace is the unpublished `1.4.0` maintenance candidate with the same
-34-package inventory. It releases documentation presentation and reproducible
+The workspace is the published `1.4.0` maintenance release with the same
+34-package inventory. It contains documentation presentation and reproducible
 ecosystem maintenance; it does not add a package, provider capability or
 first-publication ownership boundary. Exact 1.4.0 local, hosted, tag, OIDC,
-registry, docs.rs and Pages evidence must be obtained independently.
+registry, docs.rs and Pages evidence are obtained independently.
 
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
@@ -27,17 +27,20 @@ family. The 1.3 release adds the opt-in Waffo payment boundary and all 34
 published packages now have crates.io ownership. Source qualification or merge
 still must not be described as registry publication.
 
-The exact published source is immutable tag `v1.3.0` at
-`e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`. Exact-main clean-Linux run
-`31451883403` passed before the authenticated local wrapper uploaded the
-dependency-ordered family. Independent registry validation found every exact
-1.3.0 version present and non-yanked. Later candidate qualification
+The exact published source is immutable tag `v1.4.0` at
+`2b02bf956eed3ef2a17bae6d10970dff1408e231`. Candidate clean-Linux run
+`31475310242` and exact-main run `31475705506` passed before guarded OIDC
+publication. Run `31476217865` accepted 23 packages before the missing Waffo
+trusted-publisher entry failed closed. Recovery run `31479118464` verified and
+uploaded only the 11 absent packages. Independent registry validation found
+every exact 1.4.0 version present and non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
-The 1.3.0 first publication crossed the Waffo crate's ownership boundary.
-Exact local and clean-Linux qualification, tag, authenticated upload, registry
-verification, docs.rs and Pages deployment remain separate states.
+The 1.3.0 first publication crossed the Waffo crate's ownership boundary. The
+1.4.0 recovery configured its exact trusted publisher without changing crate
+ownership. Exact local and clean-Linux qualification, tag, authenticated upload,
+registry verification, docs.rs and Pages deployment remain separate states.
 
 | Package | Role |
 |---|---|

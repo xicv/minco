@@ -7,7 +7,7 @@ description: Unreleased Minco documentation for contract-to-cloud Rust applicati
 
 <p class="doc-kicker">Current development manual</p>
 
-<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.3.0/">1.3.0 manual</a>, while making unreleased behavior visibly separate from stable guidance.</p>
+<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.4.0/">1.4.0 manual</a>, while making unreleased behavior visibly separate from stable guidance.</p>
 
 ## Start with the outcome
 

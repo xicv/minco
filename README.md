@@ -17,11 +17,11 @@ contains no NAT Gateway, provisioned concurrency, scheduled poller, or
 always-on application compute. Storage, retained logs, DNS, secrets, database
 storage, schedules, requests, and other residual dimensions remain explicit.
 
-> Published baseline: `1.3.0`
+> Published baseline: `1.4.0`
 >
 > Current workspace version: `1.4.0`
 >
-> Workspace release state: `candidate`
+> Workspace release state: `published`
 >
 > Current publishable package count: `34`
 
@@ -30,16 +30,15 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 Read the [versioned Minco documentation](https://xicv.github.io/minco/), or
 start directly with:
 
-- [Build your first API](https://xicv.github.io/minco/1.3.0/getting-started/first-application)
-- [Build a resource API](https://xicv.github.io/minco/1.3.0/guides/resource-api)
-- [Deploy to AWS](https://xicv.github.io/minco/1.3.0/guides/deployment)
-- [CLI reference](https://xicv.github.io/minco/1.3.0/reference/cli)
+- [Build your first API](https://xicv.github.io/minco/1.4.0/getting-started/first-application)
+- [Build a resource API](https://xicv.github.io/minco/1.4.0/guides/resource-api)
+- [Deploy to AWS](https://xicv.github.io/minco/1.4.0/guides/deployment)
+- [CLI reference](https://xicv.github.io/minco/1.4.0/reference/cli)
 - [Generated package, feature, plugin, CLI, schema, and diagnostic reference](docs/reference/generated/index.md)
-- [Plugin conformance](https://xicv.github.io/minco/1.3.0/guides/plugin-conformance)
-- [Zero idle, precisely](https://xicv.github.io/minco/1.3.0/explanation/zero-idle)
-- [Develop with Codex and Claude](https://xicv.github.io/minco/1.3.0/guides/agent-development)
-- [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.3.0/guides/payments-waffo)
-- [Review the 1.4.0 maintenance candidate](https://xicv.github.io/minco/1.4.0/)
+- [Plugin conformance](https://xicv.github.io/minco/1.4.0/guides/plugin-conformance)
+- [Zero idle, precisely](https://xicv.github.io/minco/1.4.0/explanation/zero-idle)
+- [Develop with Codex and Claude](https://xicv.github.io/minco/1.4.0/guides/agent-development)
+- [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.4.0/guides/payments-waffo)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -51,7 +50,7 @@ Install the exact stable control plane:
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 1.3.0 --locked
+cargo +1.97.1 install cargo-minco --version 1.4.0 --locked
 ```
 
 Generate and inspect a layered SQLite application:
@@ -68,18 +67,18 @@ cargo minco check --with-cargo
 Applications normally depend on the feature-gated facade:
 
 ```bash
-cargo add minco@1.3.0
+cargo add minco@1.4.0
 
 # PostgreSQL API on native Lambda
-cargo add minco@1.3.0 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@1.4.0 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Provider-neutral core only
-cargo add minco@1.3.0 --no-default-features
+cargo add minco@1.4.0 --no-default-features
 ```
 
 ## Agent-native application development
 
-The `1.4.0` candidate packages nine focused, version-matched workflow skills for
+The `1.4.0` release packages nine focused, version-matched workflow skills for
 Codex and Claude Code. It keeps the provider-specific Waffo workflow, updates
 every skill for the maintenance-release boundary, and retains the mandatory
 cumulative changelog-to-skill freshness gate. Minco
@@ -98,7 +97,7 @@ cargo minco agent eval --target all --json
 Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
-the [candidate agent development guide](https://xicv.github.io/minco/1.4.0/guides/agent-development).
+the [agent development guide](https://xicv.github.io/minco/1.4.0/guides/agent-development).
 
 Release qualification also verifies cumulative feature coverage, current
 versioned documentation, skill markers and a byte-identical deterministic
@@ -107,7 +106,7 @@ quality score or mutation authority.
 
 ## The resource API convention
 
-Minco 1.3.0 retains the opt-in, OpenAPI-first CRUD convention without adding
+Minco 1.4.0 retains the opt-in, OpenAPI-first CRUD convention without adding
 an ORM or generic repository:
 
 | Action | Success | Control |
@@ -124,7 +123,7 @@ policy, and transaction boundaries remain in application use cases.
 
 ## Static plugin distribution and conformance
 
-The published `1.3.0` release includes strict, archive-visible plugin distribution
+The published `1.4.0` release includes strict, archive-visible plugin distribution
 records and one public offline conformance kit. Metadata can be inspected without
 loading plugin code; it never enables a crate or replaces explicit Cargo
 dependencies and typed constructor registration.
@@ -138,7 +137,7 @@ cargo minco plugin test --all --json
 Passing conformance proves the declared package and, when supplied, concrete
 composition behavior. Application, provider/live, deployment and production
 readiness remain distinct evidence states. See the
-[`1.3.0` plugin guide](https://xicv.github.io/minco/1.3.0/guides/plugin-conformance).
+[`1.4.0` plugin guide](https://xicv.github.io/minco/1.4.0/guides/plugin-conformance).
 
 ## Core guarantees
 
@@ -194,9 +193,9 @@ deployment, promotion, and production runtime are separate evidence states.
 
 ## Release
 
-The coordinated 34-crate `1.3.0` family is published from immutable tag
-[`v1.3.0`](https://github.com/xicv/minco/releases/tag/v1.3.0) at exact qualified
-commit `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`. Independent registry validation
+The coordinated 34-crate `1.4.0` family is published from immutable tag
+[`v1.4.0`](https://github.com/xicv/minco/releases/tag/v1.4.0) at exact qualified
+commit `2b02bf956eed3ef2a17bae6d10970dff1408e231`. Independent registry validation
 found all 34 exact versions present and non-yanked after the guarded
 dependency-ordered upload. Source, hosted qualification, tag, GitHub release,
 registry, docs.rs, stable documentation, AWS deployment and production runtime
