@@ -350,10 +350,9 @@ impl LocalServiceSpec {
     fn compute_configuration_digest(&self) -> Result<String> {
         let mut digestible = self.clone();
         digestible.ownership.clear();
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&digestible)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(
+            &digestible,
+        )?)))
     }
 
     fn configuration_digest(&self) -> &str {
@@ -402,7 +401,7 @@ fn region_from(environment: &BTreeMap<String, String>) -> String {
 }
 
 fn digest_prefix(value: &[u8], length: usize) -> String {
-    let digest = format!("{:x}", Sha256::digest(value));
+    let digest = hex::encode(Sha256::digest(value));
     digest[..length.min(digest.len())].to_owned()
 }
 

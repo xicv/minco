@@ -20,6 +20,7 @@ plugin = "minco-plugin.json"
 
 [dependencies]
 async-trait.workspace = true
+hex.workspace = true
 minco-core.workspace = true
 semver.workspace = true
 serde.workspace = true

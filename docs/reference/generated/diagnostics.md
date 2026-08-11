@@ -198,7 +198,7 @@ Declared codes: `510`.
 | `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:594` | 1 |
 | `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:746` | 0 |
 | `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:757` | 0 |
-| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6224` | 0 |
+| `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:6221` | 0 |
 | `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:710` | 0 |
 | `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:436` | 0 |
 | `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:554` | 0 |

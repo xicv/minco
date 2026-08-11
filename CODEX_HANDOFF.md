@@ -7,8 +7,23 @@ Workspace release state: `published`
 Published `1.3.0` source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
 Published source-tree digest: `d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
 Published release task: `M14-T16`
-Latest task: `M14-T17` (`complete`)
+Latest task: `M14-T18` (`complete`)
 Active evidence task: `M14-T10`
+
+## Completed ecosystem refresh
+
+M14-T18 updates the direct Rust, uv, Node LTS, Playwright and immutable action
+pins reviewed on 2026-08-11 without changing the published `1.3.0` API or
+provider boundary. The complete macOS quality matrix and clean-JJ
+`scripts/ci/local-release.sh` qualification pass, including package dry-runs,
+archive consumers, SAM/Lambda builds, local Rustack and Orders E2E. The
+repository retains VitePress `1.6.4` with tested Vite `6.4.3`; Vite 8 remains a
+separate compatibility migration. Exact details and primary sources are in
+`docs/research/language-package-ecosystem-review-2026-08.md`.
+
+This maintenance qualification created no release, tag, upload, provider
+contact or deployment. Hosted Linux performance remains `NOT RUN`, and current
+live-provider evidence remains absent.
 
 ## Completed documentation correction
 

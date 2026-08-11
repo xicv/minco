@@ -17,6 +17,7 @@ include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICE
 
 [dependencies]
 minco-plugin-static-site.workspace = true
+hex.workspace = true
 minco-release.workspace = true
 serde.workspace = true
 serde_json.workspace = true

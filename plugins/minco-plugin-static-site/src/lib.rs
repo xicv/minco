@@ -353,7 +353,7 @@ impl StaticSiteReleaseManifest {
                 "static-site release manifest cannot be encoded: {error}"
             ))
         })?;
-        Ok(format!("{:x}", Sha256::digest(encoded)))
+        Ok(hex::encode(Sha256::digest(encoded)))
     }
 }
 
@@ -431,7 +431,7 @@ fn release_asset(
         cache_control: asset_cache_control(plan, &relative),
         path: relative,
         bytes,
-        sha256: format!("{:x}", hasher.finalize()),
+        sha256: hex::encode(hasher.finalize()),
     })
 }
 

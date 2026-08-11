@@ -11,7 +11,7 @@ use aws_sdk_s3::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use minco_plugin_object_storage::{
     ObjectAccessSigner, ObjectKey, ObjectMetadata, ObjectStore, ObjectStoreError,
     ObjectUploadError, ObjectUploadSigner, PresignGetObject, PresignPutObject, PresignedMethod,

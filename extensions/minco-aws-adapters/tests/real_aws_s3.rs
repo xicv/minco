@@ -343,7 +343,7 @@ async fn put_fixture(
 }
 
 fn sha256(body: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(body))
+    hex::encode(Sha256::digest(body))
 }
 
 fn required(name: &str) -> String {

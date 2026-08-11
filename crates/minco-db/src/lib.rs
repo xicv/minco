@@ -657,11 +657,11 @@ fn read_to_string(path: &Path) -> Result<String, DbLifecycleError> {
 }
 
 pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn sha384_hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha384::digest(bytes))
+    hex::encode(Sha384::digest(bytes))
 }
 
 #[cfg(test)]

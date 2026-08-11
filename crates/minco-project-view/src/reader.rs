@@ -1182,7 +1182,7 @@ fn edge(from: &str, to: &str, kind: EdgeKind, source: impl AsRef<Path>) -> Proje
 }
 
 fn sha256(source: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(source))
+    hex::encode(Sha256::digest(source))
 }
 
 fn aggregate_source_digest(provenance: &[SourceProvenance]) -> String {

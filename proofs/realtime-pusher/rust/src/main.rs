@@ -16,7 +16,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::{any, get, post},
 };
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::Sha256;

@@ -17,6 +17,7 @@ include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICE
 
 [dependencies]
 minco-contract.workspace = true
+hex.workspace = true
 minco-db.workspace = true
 minco-plan.workspace = true
 serde.workspace = true

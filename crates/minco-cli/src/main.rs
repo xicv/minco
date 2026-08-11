@@ -1686,10 +1686,7 @@ fn database_plan_bindings_digest(
         })
         .collect::<Vec<_>>();
     bindings.sort_unstable();
-    Ok(format!(
-        "{:x}",
-        Sha256::digest(serde_json::to_vec(&bindings)?)
-    ))
+    Ok(hex::encode(Sha256::digest(serde_json::to_vec(&bindings)?)))
 }
 
 fn target_release_path(root: &Path, promotion: &PromotionReceipt) -> Result<PathBuf> {
@@ -2378,7 +2375,7 @@ fn create_canary_change_set(
         .map(AwsChangeSetParameter::previous)
         .collect::<Vec<_>>();
     let parameters = aws_change_set_parameters(&parameters)?;
-    let plan_digest = format!("{:x}", Sha256::digest(serde_json::to_vec(plan)?));
+    let plan_digest = hex::encode(Sha256::digest(serde_json::to_vec(plan)?));
     let (phase, template_path) = if enable {
         (
             "start",
@@ -4204,7 +4201,7 @@ async fn collect_static_site_verification(
             .context("CloudFront static asset returned non-ASCII cache metadata")?
             .to_owned();
         let bytes = response.bytes().await?;
-        let cloudfront_sha256 = format!("{:x}", Sha256::digest(&bytes));
+        let cloudfront_sha256 = hex::encode(Sha256::digest(&bytes));
         objects.push(StaticSiteObjectObservation {
             path: asset.path.clone(),
             s3_bytes: u64::try_from(head.content_length)

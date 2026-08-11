@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::Utc;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use minco_plugin_notifications::{
     Notification, NotificationChannel, NotificationError, NotificationSink,
 };

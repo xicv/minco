@@ -35,7 +35,7 @@ impl FileDigest {
         }
         Ok(Self {
             path: path.display().to_string(),
-            sha256: format!("{:x}", hasher.finalize()),
+            sha256: hex::encode(hasher.finalize()),
             bytes,
         })
     }
@@ -258,10 +258,7 @@ impl ReleaseManifest {
             deployment_template: &self.deployment_template,
             attestations: &self.attestations,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 
     pub fn write_json(&self, path: impl AsRef<Path>) -> Result<(), ReleaseError> {
@@ -675,10 +672,7 @@ impl DeploymentReceipt {
             failure_code: &self.failure_code,
             verification: &self.verification,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 }
 

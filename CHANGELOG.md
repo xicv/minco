@@ -5,10 +5,19 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.3.0` release. The `1.2.0`, `1.2.1`, `1.2.2`
-and `1.3.0` sections retain exact candidate-source wording because their
-digests are bound into the published agent bundle; tag, registry and
-documentation evidence remains separate in `VERIFICATION.md`.
+### Changed
+
+- Refreshed the reproducible development and proof ecosystem against the
+  2026-08-11 stable package set: Rust remains current at 1.97.1, while uv,
+  Node LTS, Playwright, Cargo dependencies and immutable action pins advance.
+- Migrated Minco-owned digest, HMAC and Base64 dependencies to `sha2` 0.11,
+  `hmac` 0.13 and `base64` 0.23 without changing their external byte contracts.
+
+### Compatibility and evidence
+
+- Kept the published `1.3.0` API, serialized contracts, plugin selection and
+  provider topology unchanged. This source refresh does not create a new
+  release, tag, registry upload, deployment or provider-evidence claim.
 
 ## [1.3.0] - 2026-08-11
 

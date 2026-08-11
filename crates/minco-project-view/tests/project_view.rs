@@ -214,7 +214,7 @@ fn source_digest_and_source_lane_cover_every_file_that_was_read() {
         )
         .expect("writing to a String is infallible");
     }
-    let expected_digest = format!("{:x}", Sha256::digest(canonical_provenance));
+    let expected_digest = hex::encode(Sha256::digest(canonical_provenance));
 
     assert_eq!(view.project.source_digest, expected_digest);
     assert_eq!(

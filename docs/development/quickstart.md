@@ -3,7 +3,7 @@
 ## 1. Install required tools
 
 Install Rust through Rustup; `rust-toolchain.toml` pins 1.97.1 with Rustfmt and
-Clippy. Install uv 0.11.32, Jujutsu, and Git. Docker is optional for SQLite-only
+Clippy. Install uv 0.12.3, Jujutsu, and Git. Docker is optional for SQLite-only
 development and required for the local PostgreSQL/Rustack topology.
 
 ```bash

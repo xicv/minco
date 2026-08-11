@@ -57,11 +57,11 @@ jobs:
           ref: ${{ inputs.release_tag || github.ref }}
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          version: "0.11.32"
+          version: "0.12.3"
           enable-cache: false
       - name: Sync locked Python validation dependencies
         run: uv sync --locked --only-dev
-      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
           toolchain: 1.97.1
       - name: Verify release tag

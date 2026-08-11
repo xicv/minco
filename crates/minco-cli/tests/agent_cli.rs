@@ -268,7 +268,7 @@ fn context_selection_is_mutually_exclusive_and_bounded() {
 }
 
 fn digest(contents: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(contents))
+    hex::encode(Sha256::digest(contents))
 }
 
 #[test]

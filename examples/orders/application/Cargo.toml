@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
+hex.workspace = true
 orders-domain.workspace = true
 serde.workspace = true
 serde_json.workspace = true

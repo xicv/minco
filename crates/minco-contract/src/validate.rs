@@ -53,7 +53,7 @@ pub fn load_contract_source(
     let yaml: serde_yaml_ng::Value = serde_yaml_ng::from_str(source)?;
     let raw = serde_json::to_value(yaml)?;
     let canonical = serde_json::to_vec(&canonicalize(&raw))?;
-    let sha256 = format!("{:x}", Sha256::digest(canonical));
+    let sha256 = hex::encode(Sha256::digest(canonical));
     let openapi_version = string_at(&raw, &["openapi"]).unwrap_or_default();
     let title = string_at(&raw, &["info", "title"]).unwrap_or_default();
     let version = string_at(&raw, &["info", "version"]).unwrap_or_default();

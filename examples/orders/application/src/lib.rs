@@ -402,7 +402,7 @@ fn request_fingerprint(
         .map_err(|_| ApplicationError::Internal)?;
     let mut hasher = Sha256::new();
     hasher.update(canonical);
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
