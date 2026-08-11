@@ -7,8 +7,15 @@ Workspace release state: `published`
 Published `1.3.0` source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
 Published source-tree digest: `d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
 Published release task: `M14-T16`
-Latest release task: `M14-T16` (`complete`)
+Latest task: `M14-T17` (`active`)
 Active evidence task: `M14-T10`
+
+## Active documentation correction
+
+M14-T17 rebalances the homepage contract-to-cloud SVG without changing the
+published crate family. Local browser, build and link checks pass; clean-Linux,
+merge and Pages verification remain open. The task must stay active until the
+live root serves the exact corrected SVG.
 
 ## Current release boundary
 

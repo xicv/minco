@@ -41,6 +41,67 @@ test('landing page leads to stable documentation', async ({ page }) => {
   await expect(page.getByText('Latest stable release.')).toBeVisible()
 })
 
+test('homepage architecture diagram keeps labels clear of connectors', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 804, height: 615 })
+  await page.goto('./minco-system.svg')
+
+  const svg = page.locator('svg')
+  const applicationLabel = page.getByText('02 · APPLICATION GRAPH', {
+    exact: true
+  })
+  const runtimeConnector = page.locator('path[stroke="#42CFC1"]')
+  const applicationCard = page.locator(
+    'g[data-node="application"] > rect:first-child'
+  )
+  const runtimeCards = page.locator('g[data-node^="runtime-"]')
+
+  await expect(svg).toBeVisible()
+  await expect(applicationLabel).toBeVisible()
+  await expect(applicationCard).toHaveCount(1)
+  await expect(runtimeCards).toHaveCount(3)
+
+  const [svgBox, labelBox, connectorBox, cardBox] = await Promise.all([
+    svg.boundingBox(),
+    applicationLabel.boundingBox(),
+    runtimeConnector.boundingBox(),
+    applicationCard.boundingBox()
+  ])
+  expect(svgBox).not.toBeNull()
+  expect(labelBox).not.toBeNull()
+  expect(connectorBox).not.toBeNull()
+  expect(cardBox).not.toBeNull()
+
+  expect(svgBox!.width / svgBox!.height).toBeGreaterThanOrEqual(1.5)
+  expect(labelBox!.x + labelBox!.width + 12).toBeLessThanOrEqual(
+    connectorBox!.x
+  )
+  expect(labelBox!.x).toBeGreaterThanOrEqual(cardBox!.x + 20)
+  expect(labelBox!.x + labelBox!.width).toBeLessThanOrEqual(
+    cardBox!.x + cardBox!.width - 20
+  )
+
+  const runtimeContainment = await runtimeCards.evaluateAll(cards =>
+    cards.map(card => {
+      const frame = card.querySelector('rect')
+      if (!frame) return false
+      const bounds = frame.getBoundingClientRect()
+      const labels = [...card.querySelectorAll('text')]
+      return labels.every(label => {
+        const labelBounds = label.getBoundingClientRect()
+        return (
+          labelBounds.left >= bounds.left + 18 &&
+          labelBounds.right <= bounds.right - 18 &&
+          labelBounds.top >= bounds.top + 12 &&
+          labelBounds.bottom <= bounds.bottom - 12
+        )
+      })
+    })
+  )
+  expect(runtimeContainment).toEqual([true, true, true])
+})
+
 test('landing page explains the operating model and links to a real blueprint', async ({
   page,
   isMobile
