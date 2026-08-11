@@ -2,7 +2,7 @@
 id: M14-T16
 title: Release the Waffo Pancake payments integration
 milestone: M14
-status: active
+status: complete
 priority: critical
 area: plugins/payments/release
 depends_on: [M14-T15]
@@ -157,8 +157,18 @@ The [`v1.3.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.3.0)
 is published from the same tag. All 34 exact 1.3.0 docs.rs rustdoc routes
 subsequently returned HTTP 200.
 
-Keep this task `active` until the post-publication truth change reaches `main`
-and the attainable Pages lane is independently verified. No live
-Waffo request or payment is part of this release; unavailable sandbox evidence
-remains `NOT RUN` and no AWS application deployment or production SLO is
-claimed.
+Post-publication truth PR
+[`#146`](https://github.com/xicv/minco/pull/146) passed exact-head clean-Linux
+run [`31457619990`](https://github.com/xicv/minco/actions/runs/31457619990)
+at `88f57393691297397a4673a0974c82387d0523e9`, then merged with exact reviewed
+tree `3de7375ec5fdc5ec16ea240a4a142c33ff0a6c17` in merged-main commit
+`f46304d4c59061a1d4c118681eac45de748aadd4`. Merged-main Pages run
+[`31457889688`](https://github.com/xicv/minco/actions/runs/31457889688) built,
+checked and deployed the stable site. Live checks returned HTTP 200 with the
+expected content for the root, frozen `/1.3.0/` manual, versions, Waffo
+payments, local development, files/static sites, events/notifications/mail,
+plugins and AI-agent guide routes. These attainable lanes close M14-T16.
+
+No live Waffo request or payment is part of this release; unavailable sandbox
+evidence remains `NOT RUN` and no AWS application deployment or production SLO
+is claimed.
