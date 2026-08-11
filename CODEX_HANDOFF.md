@@ -7,7 +7,7 @@ Workspace release state: `published`
 Published `1.3.0` source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
 Published source-tree digest: `d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
 Published release task: `M14-T16`
-Latest release task: `M14-T16` (`active`)
+Latest release task: `M14-T16` (`complete`)
 Active evidence task: `M14-T10`
 
 ## Current release boundary
@@ -23,8 +23,12 @@ Exact source `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5` passed the complete
 local macOS release gate and exact-main clean-Linux run `31451883403`.
 Immutable tag `v1.3.0`, all 34 exact crates.io versions and the GitHub release
 are independently verified, and all 34 exact docs.rs rustdoc routes return HTTP
-200. Stable Pages promotion remains a separate evidence lane until closed. No
-live Waffo call, payment, AWS
+200. Promotion PR #146 passed exact-head clean-Linux run `31457619990`, merged
+as exact reviewed tree `3de7375ec5fdc5ec16ea240a4a142c33ff0a6c17` in main
+commit `f46304d4c59061a1d4c118681eac45de748aadd4`, and merged-main Pages run
+`31457889688` passed. The stable root, 1.3.0 manual, versions, Waffo payments,
+local-development, files/static-sites, events/notifications/mail, plugins and
+AI-agent routes return HTTP 200 with expected content. No live Waffo call, payment, AWS
 deployment or production proof is authorised or implied by this handoff.
 
 ## Previous 1.2.2 release boundary
@@ -88,8 +92,8 @@ line added
 browser/native HTTP metadata, verified direct uploads, rich observable mail,
 owned local services, topology-aware Plan cost/validation, release-bound
 Feedback task receipts, deterministic operational evidence and the
-digest-approved handover command. The frozen 1.3.0 manual becomes the current
-stable guide when its post-publication Pages change reaches main. Documentation
+digest-approved handover command. The frozen 1.3.0 manual is the current stable
+guide after its post-publication Pages change reached main. Documentation
 checks remain independent from crates.io publication and live-provider
 evidence.
 

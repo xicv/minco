@@ -34,10 +34,23 @@ published from the same tag.
 
 The provider contract was reviewed against the official Waffo Go SDK `v0.9.0`
 at `799135cbe07c45819da0ab4bf777c64fcc956220`. All 34 exact 1.3.0 docs.rs
-rustdoc routes returned HTTP 200. Stable Pages remains an independent
-post-publication lane. No live Waffo request or
-payment was made; live-provider evidence is `NOT RUN`. No AWS application
-resource was contacted or changed, and no production SLO is claimed.
+rustdoc routes returned HTTP 200.
+
+Post-publication truth PR
+[`#146`](https://github.com/xicv/minco/pull/146) passed exact-head clean-Linux
+run [`31457619990`](https://github.com/xicv/minco/actions/runs/31457619990)
+at `88f57393691297397a4673a0974c82387d0523e9`, then merged with exact reviewed
+tree `3de7375ec5fdc5ec16ea240a4a142c33ff0a6c17` in merged-main commit
+`f46304d4c59061a1d4c118681eac45de748aadd4`. Merged-main Pages run
+[`31457889688`](https://github.com/xicv/minco/actions/runs/31457889688) built,
+checked and deployed the stable site. Live checks returned HTTP 200 with the
+expected content for the root, frozen `/1.3.0/` manual, versions, Waffo
+payments, local development, files/static sites, events/notifications/mail,
+plugins and AI-agent guide routes. These checks close M14-T16.
+
+No live Waffo request or payment was made; live-provider evidence is `NOT RUN`.
+No AWS application resource was contacted or changed, and no production SLO is
+claimed.
 
 ## M14-T15 `1.2.2` documentation presentation release
 

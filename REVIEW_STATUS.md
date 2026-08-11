@@ -21,8 +21,14 @@ task-specific workflow was removed and the exact three-file workflow allowlist
 fails closed in both static and policy tests. Exact release source passed the
 complete local gate and clean-Linux run `31451883403`. Immutable tag `v1.3.0`,
 all 34 crates.io versions and the GitHub release are verified independently.
-All 34 exact docs.rs routes return HTTP 200. Live Waffo, Pages, deployment and
-production evidence remain separate; no provider or deployment claim is
+All 34 exact docs.rs routes return HTTP 200. Promotion PR #146 passed exact-head
+clean-Linux run `31457619990`, merged as exact reviewed tree
+`3de7375ec5fdc5ec16ea240a4a142c33ff0a6c17` in main commit
+`f46304d4c59061a1d4c118681eac45de748aadd4`, and merged-main Pages run
+`31457889688` passed. The stable root, 1.3.0 manual, versions, Waffo payments,
+local-development, files/static-sites, events/notifications/mail, plugins and
+AI-agent routes return HTTP 200 with expected content. Live Waffo, deployment
+and production evidence remain separate; no provider or deployment claim is
 inferred from publication.
 
 Minco `1.3.0` is the current published baseline from exact release source
