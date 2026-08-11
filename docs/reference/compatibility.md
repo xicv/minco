@@ -6,18 +6,26 @@ Published release: `1.3.0`
 
 Published comparison baseline: `1.2.2`
 
-Current workspace: `1.3.0`
+Current workspace: `1.4.0`
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1, 1.2 and 1.3 release lines. Merge, tag, registry, GitHub release and
+the 1.1, 1.2 and 1.3 release lines and the unpublished 1.4.0 maintenance
+candidate. Merge, tag, registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
 
 The published `1.3.0` minor adds the opt-in Waffo crate, facade feature, typed
 service/client/transport surfaces, CLI group and Agent Skill. Existing APIs and
 defaults remain compatible; the provider integration is disabled by default.
+
+The 1.4.0 candidate changes release/package/documentation identities and
+dependency implementations only. It does not change a public signature,
+serialized contract, CLI command, diagnostic identity, feature meaning,
+provider selection or deployment topology. Official descriptors advance to
+`^1.4.0`; third-party `^1.3.0` descriptors remain SemVer-compatible unless they
+deliberately require a later API.
 
 The 1.2 release adds a defaulted `FeedbackThread.clarifications` serialized
 field. Stored JSON remains data-compatible, but downstream Rust code that uses

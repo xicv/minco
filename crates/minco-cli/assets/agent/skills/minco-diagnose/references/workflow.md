@@ -17,3 +17,6 @@ versioned documentation before the bundle ships.
 
 An explicit absent evidence record means the snapshot did not provide proof; it
 is neither a pass nor a failure. Preserve freshness and exact revision limits.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

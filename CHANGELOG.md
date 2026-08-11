@@ -5,6 +5,24 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+No changes beyond the `1.4.0` candidate. Release sections from `1.2.0` onward
+retain exact candidate-source wording because their digests are bound into the
+portable agent bundle; tag, registry, documentation and provider evidence stay
+separate in `VERIFICATION.md`.
+
+## [1.4.0] - 2026-08-11
+
+This additive lock-step maintenance minor releases the documentation and
+ecosystem work completed after 1.3.0. It remains unpublished until exact-source
+qualification, merge, tagging and registry publication complete as separate
+evidence states.
+
+### Fixed
+
+- Released the rebalanced public homepage system diagram with contained labels,
+  aligned operating-model cards and browser geometry regressions for desktop and
+  mobile layouts.
+
 ### Changed
 
 - Refreshed the reproducible development and proof ecosystem against the
@@ -12,12 +30,16 @@ Semantic Versioning once public releases begin.
   Node LTS, Playwright, Cargo dependencies and immutable action pins advance.
 - Migrated Minco-owned digest, HMAC and Base64 dependencies to `sha2` 0.11,
   `hmac` 0.13 and `base64` 0.23 without changing their external byte contracts.
+- Advanced all 34 publishable packages, official plugin descriptors, frozen
+  documentation and nine packaged Codex/Claude skills to the `1.4.0` line.
 
 ### Compatibility and evidence
 
-- Kept the published `1.3.0` API, serialized contracts, plugin selection and
-  provider topology unchanged. This source refresh does not create a new
-  release, tag, registry upload, deployment or provider-evidence claim.
+- Kept the published `1.3.0` public Rust API, serialized contracts, CLI,
+  compile-time plugin selection and provider topology compatible and unchanged.
+- Added no AWS resource, live provider contact, deployment, poller, schedule,
+  fixed compute or always-on control plane. Performance remains `NOT RUN`; local
+  and hosted checks do not become production-SLO or provider evidence.
 
 ## [1.3.0] - 2026-08-11
 

@@ -24,3 +24,6 @@ Prefer tests that observe public behavior:
 
 Record the exact failed test before implementation and the focused passing
 command afterward. Do not turn an unrun provider or hosted check into a pass.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

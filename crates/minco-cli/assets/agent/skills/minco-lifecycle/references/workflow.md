@@ -17,3 +17,6 @@ versioned documentation before the bundle ships.
 Do not infer a live state from a plan or generic charges from an unselected
 topology-aware cost dimension. Do not infer deployment from hosted CI, or
 production behavior from a local process.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

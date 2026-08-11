@@ -1,14 +1,29 @@
-# Minco 1.3.0 release handoff
+# Minco 1.4.0 candidate handoff
 
 Date: 2026-08-11
 Published baseline: `1.3.0`
-Current workspace version: `1.3.0`
-Workspace release state: `published`
+Current workspace version: `1.4.0`
+Workspace release state: `candidate`
 Published `1.3.0` source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
 Published source-tree digest: `d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
 Published release task: `M14-T16`
-Latest task: `M14-T18` (`complete`)
+Latest release task: `M14-T19` (`active`)
 Active evidence task: `M14-T10`
+
+## Current 1.4.0 candidate boundary
+
+Minco `1.4.0` is an unpublished maintenance minor over the immutable 1.3.0
+baseline. It releases the reviewed homepage presentation and reproducible
+language/package refresh without changing the public Rust API, serialized
+contracts, CLI, package inventory, static plugin selection or provider topology.
+All 34 packages and official descriptors advance together; all nine packaged
+Codex/Claude skills point to the frozen 1.4.0 manual and carry cumulative
+maintenance-release coverage.
+
+Exact local qualification and fresh clean-Linux compatibility must pass before
+merge, tag or publication. A merge remains distinct from an immutable tag,
+crates.io records, docs.rs, GitHub release and Pages. Performance remains `NOT
+RUN`; no live Waffo call, AWS application mutation or production SLO is implied.
 
 ## Completed ecosystem refresh
 
@@ -35,7 +50,7 @@ clean-Linux run `31460666529` passed, PR #148 merged as
 source and its 804 by 615 render retains the measured card and connector
 spacing.
 
-## Current release boundary
+## Published 1.3.0 release boundary
 
 Minco `1.3.0` is a published additive minor over the immutable 1.2.2 baseline.
 It grows the lock-step family to 34 packages with one opt-in

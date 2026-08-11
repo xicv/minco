@@ -1,11 +1,28 @@
 # Minco verification and release evidence
 
 Date: 2026-08-11
-Current workspace version: `1.3.0`
+Current workspace version: `1.4.0`
 Published baseline: `1.3.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T19 `1.4.0` maintenance candidate
+
+The current 34-package candidate releases the post-1.3 homepage presentation
+and reproducible language/package refresh. It advances official descriptors and
+all nine packaged AI skills in lock-step, freezes a complete 1.4.0 manual and
+adds a 1.3.0-to-1.4.0 guide. Public Rust APIs, serialized contracts, CLI,
+package inventory, static plugin selection and provider topology are unchanged.
+
+The candidate starts from exact merged main
+`8ff0be93c11f6a36040aa7671ccb22c6ae731227` in dedicated JJ workspace
+`/Users/xicao/Projects/minco-task-m14-t19`. All 34 exact 1.3.0 registry versions
+were confirmed present and non-yanked before the bump; 1.4.0 had no tag or
+publication. Exact local qualification and fresh clean-Linux compatibility must
+pass before merge, tag or upload. Performance remains `NOT RUN`; current live
+provider evidence is absent, and no AWS or Waffo operation is part of this crate
+release.
 
 ## M14-T18 language and package ecosystem refresh
 

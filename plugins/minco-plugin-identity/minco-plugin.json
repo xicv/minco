@@ -3,7 +3,7 @@
   "id": "identity",
   "kind": "plugin",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^1.3.0",
+  "core_compatibility": "^1.4.0",
   "stability": "beta",
   "default_enabled": false,
   "feature": "plugin-identity",

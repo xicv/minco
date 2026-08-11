@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.3.0`
-Current workspace version: `1.3.0`
-Workspace release state: `published`
+Current workspace version: `1.4.0`
+Workspace release state: `candidate`
 Reviewed release source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
 
 ## Product identity
@@ -32,6 +32,10 @@ The immutable published `1.3.0` classification is:
 > plugin without making payment state framework-owned or adding a default
 > runtime, generic billing model, hidden worker or AWS resource. Publication
 > does not itself prove a live application deployment or Waffo behavior.
+
+The unpublished 1.4.0 maintenance candidate preserves that classification. It
+releases presentation and reproducibility improvements, not a new application,
+provider or control-plane capability.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,

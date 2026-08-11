@@ -1,8 +1,8 @@
 schema = 1
 kind = "minco.performance-policy.v1"
-candidate_version = "1.3.0"
+candidate_version = "1.4.0"
 candidate_release_state = "candidate"
-baseline_path = "verification/1.3-performance-baseline.json"
+baseline_path = "verification/1.4-performance-baseline.json"
 source_manifest_path = "verification/source-manifest.json"
 production_slo = false
 runtime = "local_native"

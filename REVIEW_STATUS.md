@@ -1,20 +1,26 @@
 # Review status
 
-The workspace is the published `1.3.0` lock-step release with the opt-in Waffo
-Pancake payments integration.
+The workspace is the unpublished `1.4.0` maintenance-minor candidate over the
+published 1.3.0 Waffo release.
 
 Published baseline: `1.3.0`
 
-Current workspace version: `1.3.0`
+Current workspace version: `1.4.0`
 
-Workspace release state: `published`
+Workspace release state: `candidate`
 
-The current review covers the provider-specific payment boundary, signed
-request and redirect policy, idempotency and ephemeral-token handling, raw-body
-webhook verification, CLI automation, static plugin/catalog integration,
-34-package release truth, frozen stable documentation and nine-skill agent
-bundle. No generic billing model, default feature, hidden worker, poller,
+The current review covers lock-step version and descriptor consistency, the
+frozen 1.4.0 manual, homepage desktop/mobile presentation regressions, the
+reproducible dependency/toolchain refresh, cumulative nine-skill release
+coverage, package archives and exact evidence truth. Public Rust APIs,
+serialized contracts, CLI behavior, provider selection and deployment topology
+are unchanged. No new package, provider capability, hidden worker, poller,
 schedule, AWS resource or always-on control plane is introduced.
+
+Exact local release qualification and fresh clean-Linux compatibility remain
+required before merge. Tag, registry, docs.rs, GitHub release, Pages, live
+provider and production evidence are separate and are not claimed by this
+candidate.
 
 The historical PR #125 source was reconstructed onto current `main`; the
 task-specific workflow was removed and the exact three-file workflow allowlist
@@ -30,6 +36,8 @@ local-development, files/static-sites, events/notifications/mail, plugins and
 AI-agent routes return HTTP 200 with expected content. Live Waffo, deployment
 and production evidence remain separate; no provider or deployment claim is
 inferred from publication.
+
+## Published 1.3.0 baseline
 
 Minco `1.3.0` is the current published baseline from exact release source
 `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`, tree

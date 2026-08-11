@@ -1,12 +1,15 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.3.0`
-Current workspace version: `1.3.0`
-Workspace release state: `published`
+Current workspace version: `1.4.0`
+Workspace release state: `candidate`
 
 The published 1.3.0 release adds one opt-in Waffo provider integration. Use
 exact published `1.3.0` dependencies and select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
+The 1.4.0 workspace is an unpublished maintenance candidate. Continue using
+exact 1.3.0 registry dependencies until publication; reviewers can use the
+exact source with the [1.3.0-to-1.4.0 guide](1.3.0-to-1.4.0.md).
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a

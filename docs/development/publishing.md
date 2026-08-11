@@ -13,6 +13,12 @@ exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
+The workspace is the unpublished `1.4.0` maintenance candidate with the same
+34-package inventory. It releases documentation presentation and reproducible
+ecosystem maintenance; it does not add a package, provider capability or
+first-publication ownership boundary. Exact 1.4.0 local, hosted, tag, OIDC,
+registry, docs.rs and Pages evidence must be obtained independently.
+
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
 agent-native behavior, while 1.2 adds browser/native HTTP metadata, verified
