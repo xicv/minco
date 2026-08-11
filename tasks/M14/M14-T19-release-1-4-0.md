@@ -2,7 +2,7 @@
 id: M14-T19
 title: Release Minco 1.4.0 maintenance minor
 milestone: M14
-status: active
+status: complete
 priority: high
 area: release/docs/agent
 depends_on: [M14-T18]
@@ -149,7 +149,16 @@ validation found all 34 exact versions present and non-yanked, the
 [`v1.4.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.4.0)
 is published, and all 34 exact docs.rs rustdoc routes return HTTP 200.
 
-Keep this task `active` until this post-publication truth change reaches `main`
-and stable Pages is independently verified. No live Waffo or AWS operation was
-performed; current provider evidence remains absent and performance remains
-`NOT RUN`.
+Post-publication truth PR
+[#152](https://github.com/xicv/minco/pull/152) passed exact-head clean-Linux
+run [`31482873533`](https://github.com/xicv/minco/actions/runs/31482873533)
+at reviewed commit `326794e381acd9bfd036f8b5a0af1578a69385c6`, tree
+`84133494901345e31f093b8c26871aa77a9aecdc`, and merged as
+`9afd71cfa79362b98d9ff7497fc96e6235e1ce66`. Exact merged-main Pages run
+[`31483298491`](https://github.com/xicv/minco/actions/runs/31483298491)
+built, checked and deployed the stable site. Live ego-browser acceptance
+verified the root, frozen 1.4.0 manual, exact installation commands, complete
+plugin catalog, Waffo guide, nine-skill agent guide and version index.
+
+No live Waffo or AWS operation was performed; current provider evidence remains
+absent and performance remains `NOT RUN`.

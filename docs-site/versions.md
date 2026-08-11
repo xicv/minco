@@ -23,7 +23,7 @@ is retained as a stable reference; `next` is allowed to change.
 
 The 1.4.0 source, local and hosted qualification, immutable tag, 34-package
 registry publication, GitHub release and all 34 exact docs.rs routes are
-independently verified. The stable manual and post-publication merged-main Pages
-deployment remain a separate evidence lane until this truth change merges. No
-live Waffo or AWS application proof is implied.
+independently verified. Post-publication PR #152 passed exact-head clean-Linux
+qualification and merged-main Pages run `31483298491` deployed the stable
+manual. No live Waffo or AWS application proof is implied.
 See the [1.4.0 GitHub release](https://github.com/xicv/minco/releases/tag/v1.4.0).

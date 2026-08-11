@@ -7,7 +7,7 @@ Workspace release state: `published`
 Published `1.4.0` source: `2b02bf956eed3ef2a17bae6d10970dff1408e231`
 Published source-tree digest: `21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`
 Published release task: `M14-T19`
-Latest release task: `M14-T19` (`active`)
+Latest release task: `M14-T19` (`complete`)
 Active evidence task: `M14-T10`
 
 ## Current 1.4.0 published boundary
@@ -22,9 +22,13 @@ maintenance-release coverage.
 
 Exact local qualification, candidate and merged-main clean-Linux runs, immutable
 tag, all 34 crates.io records, the GitHub release and all 34 exact docs.rs routes
-are independently verified. The post-publication stable Pages deployment remains
-open at this snapshot. Performance remains `NOT RUN`; no live Waffo call, AWS
-application mutation or production SLO is implied.
+are independently verified. Post-publication PR #152 passed exact-head
+clean-Linux run `31482873533`, merged as
+`9afd71cfa79362b98d9ff7497fc96e6235e1ce66`, and exact merged-main Pages
+run `31483298491` deployed the stable site. Live browser acceptance covered the
+root, 1.4.0, installation, plugins, Waffo, agent and versions routes.
+Performance remains `NOT RUN`; no live Waffo call, AWS application mutation or
+production SLO is implied.
 
 ## Completed ecosystem refresh
 
