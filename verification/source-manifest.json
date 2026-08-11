@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1299,
+  "file_count": 1300,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "61baedda9c5b51d58fe6ba401ae866ac111e3595a45da11f082738720aac97a5",
-      "size_bytes": 6705
+      "sha256": "131f0373a5ba7a56e28a84ed2b7b03da645c21c233551930cf3d8342554aa406",
+      "size_bytes": 7007
     },
     {
       "path": "CONTRIBUTING.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "60694d77ded61842a88d2d00d487047c1f2d784bcde003754a62fa03f81b9058",
-      "size_bytes": 122884
+      "sha256": "964147b0a3ef2d1a57b070557da07c3b87f6dacd02fd9034fd57dd1efb929e7c",
+      "size_bytes": 123735
     },
     {
       "path": "compose.mail.yml",
@@ -3779,8 +3779,8 @@
     },
     {
       "path": "docs-site/public/minco-system.svg",
-      "sha256": "71c48fb268bce61979109cb61fc64a104796e48664c86c17a0e0359613269dba",
-      "size_bytes": 6354
+      "sha256": "e78294ce451525a5af8a966fb41021ca5b5eecb2756a23220df5b0f3ad9e1a8b",
+      "size_bytes": 6886
     },
     {
       "path": "docs-site/release.json",
@@ -3794,8 +3794,8 @@
     },
     {
       "path": "docs-site/tests/docs.spec.mts",
-      "sha256": "b525adc95f4e74018884e59fa0717e56fc3c1894bfa3f4165522740171637578",
-      "size_bytes": 15060
+      "sha256": "34d5c34878c86f3f1e67a73d374e3fc2b215d876e969987d8bce1cbeb50a11b9",
+      "size_bytes": 17130
     },
     {
       "path": "docs-site/versions.md",
@@ -6153,6 +6153,11 @@
       "size_bytes": 7913
     },
     {
+      "path": "tasks/M14/M14-T17-homepage-diagram-composition.md",
+      "sha256": "5186352231031c30b5eb51d9bb446d23402f37b54eb36bf8736ec9992b7e7a22",
+      "size_bytes": 2754
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -6444,7 +6449,7 @@
     },
     {
       "path": "verification/provider-evidence.toml",
-      "sha256": "cbc2d410312ad488351ec56fe8425dd5c15794630299e9c3dcb90e7bf8966efc",
+      "sha256": "e628dd7a7775dacf82d40258ed5ce591e3ba00970a55d917a5b8465864893aee",
       "size_bytes": 1909
     },
     {
@@ -6526,7 +6531,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "91b0565c1ac6c4f911791fb7f8e85b6d746070e7c3b15a529f85884a9772dc84",
-  "total_size_bytes": 9427684,
+  "source_tree_sha256": "8beeb382c0733d113c5dc726785fae4c027f9d47092bbbdab17dc1e29ea9365d",
+  "total_size_bytes": 9434193,
   "version": "1.3.0"
 }

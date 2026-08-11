@@ -7,6 +7,21 @@ Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T17 homepage architecture diagram correction
+
+The active post-release docs task replaces the distorted, cramped homepage SVG
+with an intrinsically sized 860 by 540 composition. The application eyebrow and
+runtime connector now have a measured gutter, runtime cards share one geometry,
+and the lower Plan IR/evidence row is balanced at the reported 804 by 615
+viewport.
+
+The focused geometry regression passed, followed by the complete browser suite
+with 38 passed and 2 project-specific skips. `bash scripts/docs/build.sh` and
+`scripts/docs/check-links.sh` passed; the latter checked 1,137 internal links,
+14 external links and 291 canonical pages. Hosted clean-Linux and merged-main
+Pages evidence are pending, so M14-T17 remains `active`. This changes no crate,
+public API, runtime topology, provider evidence or immutable `v1.3.0` release.
+
 ## M14-T16 `1.3.0` Waffo payments release
 
 The published 34-package release adds the opt-in
