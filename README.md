@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.3.0`
 >
-> Current workspace version: `1.3.0`
+> Current workspace version: `1.4.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `34`
 
@@ -39,6 +39,7 @@ start directly with:
 - [Zero idle, precisely](https://xicv.github.io/minco/1.3.0/explanation/zero-idle)
 - [Develop with Codex and Claude](https://xicv.github.io/minco/1.3.0/guides/agent-development)
 - [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.3.0/guides/payments-waffo)
+- [Review the 1.4.0 maintenance candidate](https://xicv.github.io/minco/1.4.0/)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -78,10 +79,10 @@ cargo add minco@1.3.0 --no-default-features
 
 ## Agent-native application development
 
-The published `1.3.0` release packages nine focused, version-matched workflow
-skills for Codex and Claude Code. It retains all eight established workflows,
-adds a provider-specific Waffo payments skill, and keeps the mandatory cumulative
-changelog-to-skill freshness gate. Minco
+The `1.4.0` candidate packages nine focused, version-matched workflow skills for
+Codex and Claude Code. It keeps the provider-specific Waffo workflow, updates
+every skill for the maintenance-release boundary, and retains the mandatory
+cumulative changelog-to-skill freshness gate. Minco
 plans project-local projections before writing, requires
 the exact plan digest to synchronize them, and preserves user-owned
 instructions and client configuration.
@@ -97,7 +98,7 @@ cargo minco agent eval --target all --json
 Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
-the [agent development guide](https://xicv.github.io/minco/1.3.0/guides/agent-development).
+the [candidate agent development guide](https://xicv.github.io/minco/1.4.0/guides/agent-development).
 
 Release qualification also verifies cumulative feature coverage, current
 versioned documentation, skill markers and a byte-identical deterministic
@@ -211,6 +212,7 @@ See [`CHANGELOG.md`](CHANGELOG.md),
 [`docs/adoption/1.2.0-to-1.2.1.md`](docs/adoption/1.2.0-to-1.2.1.md), and
 [`docs/adoption/1.2.1-to-1.2.2.md`](docs/adoption/1.2.1-to-1.2.2.md), and
 [`docs/adoption/1.2.2-to-1.3.0.md`](docs/adoption/1.2.2-to-1.3.0.md), and
+[`docs/adoption/1.3.0-to-1.4.0.md`](docs/adoption/1.3.0-to-1.4.0.md), and
 [`docs/development/publishing.md`](docs/development/publishing.md).
 
 ## License

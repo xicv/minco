@@ -27,3 +27,6 @@ not replace the API contract.
 
 Always identify the current evidence lane. A local browser journey is not
 hosted, deployed, production-runtime, or product-review proof.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

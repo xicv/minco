@@ -1,7 +1,7 @@
 # 1.3 support matrix
 
 Published install baseline: `1.3.0`
-Current workspace version: `1.3.0`
+Current workspace version: `1.4.0`
 MSRV: Rust `1.97.1`
 Compatibility state: the published 1.3.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
@@ -10,6 +10,10 @@ rich mail, owned local services and release-bound evidence are published
 together with the opt-in Waffo boundary as the complete 34-package `v1.3.0`
 family. Registry, docs.rs, stable documentation and application/live proof
 remain separate.
+
+The unpublished 1.4.0 candidate preserves this support classification. Its
+homepage, dependency and AI-skill maintenance does not promote a deferred
+service, provider profile or current live-evidence claim.
 
 The Waffo plugin is published beta, not a live-provider support claim. Offline
 tests and exact SDK review do not prove an account, payment, settlement,

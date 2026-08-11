@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 
 const release = JSON.parse(
   readFileSync(new URL('../release.json', import.meta.url), 'utf8')
-) as { stable: string; workspace: string }
+) as { stable: string; workspace: string; state: 'candidate' | 'published' }
 
 const stablePath = `./${release.stable}/`
 const workspacePath = `./${release.workspace}/`
@@ -91,27 +91,32 @@ test('search includes current troubleshooting language and excludes frozen manua
   await search.fill('stale ETag')
 
   const results = page.locator('.VPLocalSearchBox')
+  const currentSearchSegment = release.state === 'candidate' ? 'next' : release.stable
   await expect(
-    results.locator(`a[href*="/${release.stable}/guides/troubleshooting"]`).first()
+    results.locator(`a[href*="/${currentSearchSegment}/guides/troubleshooting"]`).first()
   ).toBeVisible()
 
   await search.fill('login')
   await expect(
     results
-      .locator(`a[href*="/${release.stable}/guides/identity-and-sessions"]`)
+      .locator(`a[href*="/${currentSearchSegment}/guides/identity-and-sessions"]`)
       .first()
   ).toBeVisible()
 
   await search.fill('direct upload')
   await expect(
     results
-      .locator(`a[href*="/${release.stable}/guides/files-and-static-sites"]`)
+      .locator(`a[href*="/${currentSearchSegment}/guides/files-and-static-sites"]`)
       .first()
   ).toBeVisible()
 
   await expect(results.locator('a[href*="/0.5.0/"]')).toHaveCount(0)
   await expect(results.locator('a[href*="/0.6.0/"]')).toHaveCount(0)
   await expect(results.locator('a[href*="/1.0.0/"]')).toHaveCount(0)
+  if (release.state === 'candidate') {
+    await expect(results.locator(`a[href*="/${release.workspace}/"]`)).toHaveCount(0)
+    await expect(results.locator(`a[href*="/${release.stable}/"]`)).toHaveCount(0)
+  }
 })
 
 test('stable overview presents all five framework planes', async ({ page }) => {

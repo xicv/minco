@@ -2,12 +2,14 @@
 
 Published baseline: `1.3.0`
 
-Current workspace version: `1.3.0`
+Current workspace version: `1.4.0`
 
-Workspace release state: `published`
+Workspace release state: `candidate`
 
 Use published `1.3.0` dependencies. Use the exact source checkout only for
-coordinated review of later unreleased changes.
+coordinated review of the unpublished 1.4.0 maintenance candidate. Follow the
+[1.3.0-to-1.4.0 guide](../adoption/1.3.0-to-1.4.0.md) before changing a
+consumer's exact package set.
 
 The `minco` facade is the normal dependency for an application. It keeps the
 provider-neutral kernel always available and exposes contract, HTTP, plugins,
@@ -202,8 +204,8 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 ## API stability
 
 Published baseline: `1.3.0`
-Current workspace version: `1.3.0`
-Workspace release state: `published`
+Current workspace version: `1.4.0`
+Workspace release state: `candidate`
 
 Pin the published `1.3.0` line in production applications, then follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before

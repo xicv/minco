@@ -287,8 +287,17 @@ export default defineConfig({
             path.startsWith('1.0.0/')
           const isPublishedNextDuplicate =
             release.state === 'published' && path.startsWith('next/')
+          const isFrozenCandidateDuplicate =
+            release.state === 'candidate' && path.startsWith(`${release.workspace}/`)
+          const isCandidateStableDuplicate =
+            release.state === 'candidate' && path.startsWith(`${release.stable}/`)
 
-          return isHistoricalManual || isPublishedNextDuplicate ? '' : html
+          return isHistoricalManual ||
+            isPublishedNextDuplicate ||
+            isFrozenCandidateDuplicate ||
+            isCandidateStableDuplicate
+            ? ''
+            : html
         },
         miniSearch: {
           searchOptions: {

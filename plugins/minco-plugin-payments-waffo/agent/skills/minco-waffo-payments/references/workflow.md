@@ -33,3 +33,6 @@ ephemeral token handling, malformed responses and size limits.
 Custom API origins are an explicit trusted-operator test seam. They require an
 opt-in flag and cannot be combined with production mode. Local conformance does
 not prove a Waffo sandbox, production account, delivery, cleanup or SLO.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

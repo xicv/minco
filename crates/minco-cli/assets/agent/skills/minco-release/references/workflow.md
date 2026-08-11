@@ -24,3 +24,6 @@ rendered-page evidence separate from source or package qualification.
 Publication is non-atomic. If transport becomes ambiguous, query authoritative
 state before retrying. Never place credentials, endpoints, account identifiers,
 customer data, or secret values in committed receipts.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

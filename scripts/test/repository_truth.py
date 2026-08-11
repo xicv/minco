@@ -609,6 +609,7 @@ class RepositoryTruthTests(unittest.TestCase):
     def test_source_manifest_excludes_release_bound_generated_evidence(self) -> None:
         generated = [
             self.root / "verification/1.3-performance-baseline.json",
+            self.root / "verification/1.4-performance-baseline.json",
             self.root / "verification/static-validation.json",
             self.root / "verification/deep-review.json",
             self.root / "verification/publish-validation.json",

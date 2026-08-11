@@ -20,3 +20,6 @@ Required before handoff:
 
 A task implementation, push, PR, local-first release boundary, hosted check,
 merge, release, publication, deployment, and runtime proof are separate states.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

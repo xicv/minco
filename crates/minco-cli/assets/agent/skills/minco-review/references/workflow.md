@@ -21,3 +21,6 @@ State whether each check was observed, absent, blocked, or not applicable. A
 clean local diff is not hosted, deployment, runtime, or review acceptance.
 Return no finding when there is no actionable defect; still state test gaps and
 unverified external boundaries.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

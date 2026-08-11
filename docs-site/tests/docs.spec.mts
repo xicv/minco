@@ -141,21 +141,22 @@ test('landing page explains the operating model and links to a real blueprint', 
   ).toBeVisible()
 })
 
-test('local search finds the resource API reference', async ({ page }) => {
+test('local search finds the current resource API reference', async ({ page }) => {
   await page.goto(stablePath)
   await waitForHydration(page)
   await page.getByRole('button', { name: 'Search Minco documentation' }).click()
   const search = page.locator('input[type="search"]')
   await search.fill('Resource API')
+  const currentSearchSegment = release.state === 'candidate' ? 'next' : release.stable
   const result = page
     .locator('.VPLocalSearchBox')
-    .locator(`a[href*="/${release.stable}/reference/resource-api"]`)
+    .locator(`a[href*="/${currentSearchSegment}/reference/resource-api"]`)
     .first()
   await expect(result).toBeVisible()
   await result.click()
   await expect(page).toHaveURL(
     new RegExp(
-      `/${release.stable.replaceAll('.', '\\.')}\\/reference\\/resource-api(?:#resource-api)?$`
+      `/${currentSearchSegment.replaceAll('.', '\\.')}\\/reference\\/resource-api(?:#resource-api)?$`
     )
   )
 })

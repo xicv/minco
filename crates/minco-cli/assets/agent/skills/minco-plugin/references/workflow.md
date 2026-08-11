@@ -21,3 +21,6 @@ Confirm all applicable contracts:
 
 DynamoDB ports remain access-pattern-specific. Do not make a plugin emulate
 relational SQL semantics through a generic repository.
+
+At a maintenance release boundary, re-check version-matched documentation,
+exact package/tool pins, public-contract compatibility and lane-specific evidence.

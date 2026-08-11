@@ -8,13 +8,20 @@ family from immutable tag `v1.3.0` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The release keeps the eight established AI skills current, adds one
-Waffo-specific skill, and retains cumulative changelog-to-skill coverage plus
-the deterministic workflow receipt as mandatory release gates. Exact release
-source passed clean-Linux run `31451883403`; the authenticated local release
-wrapper uploaded the complete family and independent validation found all 34
-exact versions present and non-yanked. Publication is not live Waffo, AWS,
-deployment or production evidence.
+The workspace is the unpublished `1.4.0` maintenance candidate. It retains the
+same 34-package inventory and requires a new exact-source local gate,
+clean-Linux compatibility run, immutable tag and guarded OIDC publication.
+Historical 1.3.0 publication is not authentication or registry proof for 1.4.0.
+
+The candidate keeps all nine AI skills current and retains cumulative
+changelog-to-skill coverage plus the deterministic workflow receipt as
+mandatory release gates.
+
+For the published 1.3.0 baseline, exact release source passed clean-Linux run
+`31451883403`; the authenticated local release wrapper uploaded the complete
+family and independent validation found all 34 exact versions present and
+non-yanked. That historical publication is not live Waffo, AWS, deployment or
+production evidence.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:
