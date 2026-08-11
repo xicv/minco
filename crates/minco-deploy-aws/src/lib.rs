@@ -575,10 +575,7 @@ impl ChangeSetReceipt {
             drift: &self.drift,
             change_set: &self.change_set,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 }
 
@@ -1043,10 +1040,7 @@ impl ReviewManifest {
             feedback: &self.feedback,
             delivery_trace: &self.delivery_trace,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 }
 
@@ -1517,10 +1511,7 @@ impl CleanupReceipt {
             failure_code: &self.failure_code,
             absence_verified_at: &self.absence_verified_at,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 }
 
@@ -2339,10 +2330,7 @@ impl StaticSitePublicationReceipt {
             distribution_domain: &self.distribution_domain,
             publication: &self.publication,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 }
 
@@ -3182,10 +3170,7 @@ impl PromotionReceipt {
             outcome: self.outcome,
             failure_code: &self.failure_code,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 }
 
@@ -4149,10 +4134,7 @@ impl CanaryExecutionReceipt {
             outcome: self.outcome,
             failure_code: &self.failure_code,
         };
-        Ok(format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&payload)?)
-        ))
+        Ok(hex::encode(Sha256::digest(serde_json::to_vec(&payload)?)))
     }
 }
 

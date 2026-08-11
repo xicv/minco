@@ -86,7 +86,7 @@ fn changelog_release_section<'a>(source: &'a str, version: &str) -> &'a str {
 }
 
 fn sha256(source: &str) -> String {
-    format!("{:x}", Sha256::digest(source.as_bytes()))
+    hex::encode(Sha256::digest(source.as_bytes()))
 }
 
 fn release_tuple(version: &str) -> (u64, u64, u64) {

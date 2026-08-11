@@ -97,7 +97,7 @@ async fn s3_and_sqs_adapters_use_standard_sdk_endpoints() {
     );
 
     let managed_body = b"rustack-managed-upload";
-    let managed_sha256 = format!("{:x}", Sha256::digest(managed_body));
+    let managed_sha256 = hex::encode(Sha256::digest(managed_body));
     let policy =
         ObjectUploadPolicy::new(ObjectKey::parse("managed").unwrap(), 1024, ["text/plain"])
             .unwrap();

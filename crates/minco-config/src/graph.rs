@@ -545,7 +545,7 @@ fn effective_digest(
         environment,
         values,
     })?;
-    Ok(format!("{:x}", Sha256::digest(bytes)))
+    Ok(hex::encode(Sha256::digest(bytes)))
 }
 
 fn deserialize_typed<T: DeserializeOwned>(

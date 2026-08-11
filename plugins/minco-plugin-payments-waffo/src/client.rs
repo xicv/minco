@@ -111,10 +111,9 @@ impl WaffoClient {
         self.ensure_write_allowed()?;
         validate_request_body_size(body, self.configuration.request_max_bytes())?;
 
-        let body_fingerprint = format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(body).map_err(WaffoError::RequestEncoding)?)
-        );
+        let body_fingerprint = hex::encode(Sha256::digest(
+            serde_json::to_vec(body).map_err(WaffoError::RequestEncoding)?,
+        ));
         let scope = json!({
             "provider": "waffo",
             "providerEnvironment": self.configuration.environment().as_str(),
@@ -467,7 +466,7 @@ fn canonical_api_origin(url: &url::Url) -> String {
 
 fn local_idempotency_key(scope: &Value) -> Result<IdempotencyKey, WaffoError> {
     let bytes = serde_json::to_vec(scope).map_err(WaffoError::RequestEncoding)?;
-    IdempotencyKey::parse(format!("waffo-{:x}", Sha256::digest(bytes)))
+    IdempotencyKey::parse(format!("waffo-{}", hex::encode(Sha256::digest(bytes))))
         .map_err(WaffoError::Idempotency)
 }
 
@@ -780,7 +779,7 @@ mod tests {
             .unwrap();
         assert_eq!(response.data.expose_sensitive(), "must-not-be-stored");
 
-        let body_fingerprint = format!("{:x}", Sha256::digest(serde_json::to_vec(&body).unwrap()));
+        let body_fingerprint = hex::encode(Sha256::digest(serde_json::to_vec(&body).unwrap()));
         let scope = json!({
             "provider": "waffo",
             "providerEnvironment": client.configuration.environment().as_str(),
@@ -852,7 +851,7 @@ mod tests {
         let request =
             crate::IssueSessionTokenRequest::for_product("PROD_0123456789ABCDEFGHIJKL", "buyer-42");
         let body = serde_json::to_value(&request).unwrap();
-        let body_fingerprint = format!("{:x}", Sha256::digest(serde_json::to_vec(&body).unwrap()));
+        let body_fingerprint = hex::encode(Sha256::digest(serde_json::to_vec(&body).unwrap()));
         let scope = json!({
             "provider": "waffo",
             "providerEnvironment": client.configuration.environment().as_str(),

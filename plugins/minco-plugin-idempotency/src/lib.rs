@@ -39,7 +39,7 @@ pub struct RequestFingerprint(String);
 impl RequestFingerprint {
     pub fn from_serializable<T: Serialize>(value: &T) -> Result<Self, IdempotencyError> {
         let bytes = serde_json::to_vec(value).map_err(IdempotencyError::Serialization)?;
-        Ok(Self(format!("{:x}", Sha256::digest(bytes))))
+        Ok(Self(hex::encode(Sha256::digest(bytes))))
     }
 
     pub fn as_str(&self) -> &str {

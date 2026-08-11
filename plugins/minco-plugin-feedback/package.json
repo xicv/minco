@@ -6,6 +6,6 @@
     "test:browser:repeat": "playwright test --config playwright.config.cjs --repeat-each=3"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.0"
+    "@playwright/test": "1.62.1"
   }
 }

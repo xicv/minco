@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fmt::Write as _};
 
 pub fn generated_contract_digest(source: &str) -> String {
-    format!("{:x}", Sha256::digest(source.as_bytes()))
+    hex::encode(Sha256::digest(source.as_bytes()))
 }
 
 pub fn generate_rust(document: &ContractDocument) -> String {

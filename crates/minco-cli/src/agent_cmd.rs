@@ -1513,7 +1513,7 @@ fn plan_digest(plan: &AgentPlan) -> Result<String> {
 }
 
 fn digest(contents: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(contents))
+    hex::encode(Sha256::digest(contents))
 }
 
 fn bundle_digest() -> String {
@@ -1530,7 +1530,7 @@ fn bundle_digest() -> String {
     hasher.update(b"CLAUDE.md");
     hasher.update((CLAUDE_BRIDGE.len() as u64).to_be_bytes());
     hasher.update(CLAUDE_BRIDGE);
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 fn sync(root: &Path, target: AgentTarget, expected_digest: &str, as_json: bool) -> Result<()> {

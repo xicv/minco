@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -22,6 +24,12 @@ PUBLISH_WORKFLOW = WORKFLOW_DIRECTORY / "publish-crates.yml"
 DOCS_PLAYWRIGHT = ROOT / "docs-site/playwright.config.mts"
 AGENT_WORKFLOWS_PATH = ROOT / "scripts/test/agent_workflows.py"
 STATIC_VALIDATOR_PATH = ROOT / "scripts/validate_static.py"
+RUST_TOOLCHAIN = ROOT / "rust-toolchain.toml"
+PYPROJECT = ROOT / "pyproject.toml"
+DOCS_WORKFLOW = WORKFLOW_DIRECTORY / "docs-pages.yml"
+EXPECTED_RUST_TOOLCHAIN_ACTION = "6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772"
+PACKAGE_MANIFEST = "package" + ".json"
+PACKAGE_LOCK = "package-lock" + ".json"
 
 
 def load_agent_workflows():
@@ -47,6 +55,78 @@ def load_static_validator():
 
 
 class HostedCiPolicyTests(unittest.TestCase):
+    def test_language_and_package_pins_stay_synchronized(self) -> None:
+        toolchain = tomllib.loads(RUST_TOOLCHAIN.read_text())["toolchain"]
+        pyproject = tomllib.loads(PYPROJECT.read_text())
+        workspace = tomllib.loads((ROOT / "Cargo.toml").read_text())
+
+        self.assertEqual(toolchain["channel"], "1.97.1")
+        self.assertEqual(workspace["workspace"]["package"]["rust-version"], "1.97.1")
+        self.assertEqual(pyproject["tool"]["uv"]["required-version"], "==0.12.3")
+
+        dependencies = workspace["workspace"]["dependencies"]
+        expected_cargo_versions = {
+            "aws-config": "1.10",
+            "aws-lc-rs": "1.18.0",
+            "aws-sdk-s3": "1.141.0",
+            "base64": "0.23",
+            "clap": "4.6",
+            "hex": "0.4.3",
+            "hmac": "0.13",
+            "http": "1.5",
+            "rmcp": "3.1.2",
+            "sha2": "0.11",
+            "tokio": "1.53",
+            "zeroize": "1.9",
+        }
+        for name, expected in expected_cargo_versions.items():
+            specification = dependencies[name]
+            observed = specification["version"] if isinstance(specification, dict) else specification
+            self.assertEqual(observed, expected, name)
+
+        docs_workflow = yaml.load(DOCS_WORKFLOW.read_text(), Loader=yaml.BaseLoader)
+        docs_steps = docs_workflow["jobs"]["build"]["steps"]
+        setup_node = next(step for step in docs_steps if "actions/setup-node" in step.get("uses", ""))
+        setup_uv = next(step for step in docs_steps if "astral-sh/setup-uv" in step.get("uses", ""))
+        self.assertEqual(setup_node["with"]["node-version"], "24.19.0")
+        self.assertEqual(setup_uv["with"]["version"], "0.12.3")
+
+        for path, job in ((WORKFLOW, "quality"), (PUBLISH_WORKFLOW, "release")):
+            workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+            steps = workflow["jobs"][job]["steps"]
+            uv_step = next(step for step in steps if "astral-sh/setup-uv" in step.get("uses", ""))
+            rust_step = next(step for step in steps if "dtolnay/rust-toolchain" in step.get("uses", ""))
+            self.assertEqual(uv_step["with"]["version"], "0.12.3")
+            self.assertEqual(rust_step["with"]["toolchain"], "1.97.1")
+            self.assertEqual(
+                rust_step["uses"],
+                f"dtolnay/rust-toolchain@{EXPECTED_RUST_TOOLCHAIN_ACTION}",
+            )
+
+        package_roots = (
+            ROOT / "docs-site",
+            ROOT / "plugins/minco-plugin-feedback",
+            ROOT / "proofs/realtime-appsync/browser",
+            ROOT / "proofs/realtime-pusher/browser",
+        )
+        for package_root in package_roots:
+            manifest = json.loads((package_root / PACKAGE_MANIFEST).read_text())
+            lock = json.loads((package_root / PACKAGE_LOCK).read_text())
+            self.assertEqual(manifest["devDependencies"]["@playwright/test"], "1.62.1")
+            self.assertEqual(
+                lock["packages"][""]["devDependencies"]["@playwright/test"],
+                "1.62.1",
+            )
+            self.assertEqual(lock["packages"]["node_modules/@playwright/test"]["version"], "1.62.1")
+
+        docs_package = json.loads((ROOT / "docs-site" / PACKAGE_MANIFEST).read_text())
+        docs_lock = json.loads((ROOT / "docs-site" / PACKAGE_LOCK).read_text())
+        self.assertEqual(docs_package["devDependencies"]["vitepress"], "1.6.4")
+        self.assertEqual(docs_package["overrides"], {"nanoid": "3.3.18", "vite": "6.4.3"})
+        self.assertEqual(docs_lock["packages"]["node_modules/vitepress"]["version"], "1.6.4")
+        self.assertEqual(docs_lock["packages"]["node_modules/nanoid"]["version"], "3.3.18")
+        self.assertEqual(docs_lock["packages"]["node_modules/vite"]["version"], "6.4.3")
+
     def test_agent_workflow_receipts_are_confined_to_verification(self) -> None:
         agent_workflows = load_agent_workflows()
         with self.assertRaisesRegex(ValueError, "remain under verification"):

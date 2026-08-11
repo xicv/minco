@@ -33,7 +33,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-mail-parser = "0.11.5"
+mail-parser = "0.11.6"
 
 [package.metadata.docs.rs]
 all-features = true

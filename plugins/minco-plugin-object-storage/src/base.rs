@@ -244,7 +244,7 @@ impl ObjectStore for MemoryObjectStore {
             content_type: object.content_type,
             size_bytes: u64::try_from(object.bytes.len())
                 .map_err(|_| ObjectStoreError::ObjectTooLarge)?,
-            sha256: format!("{:x}", Sha256::digest(&object.bytes)),
+            sha256: hex::encode(Sha256::digest(&object.bytes)),
             created_at: Utc::now(),
             attributes: object.attributes,
         };

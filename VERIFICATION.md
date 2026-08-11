@@ -7,6 +7,37 @@ Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T18 language and package ecosystem refresh
+
+The completed maintenance task keeps the published `1.3.0` API and architecture
+while refreshing every repository-owned dependency surface reviewed on
+2026-08-11. Rust remains on current stable `1.97.1`; uv advances to `0.12.3`,
+the documentation workflow uses Node `24.19.0` LTS, and all four browser trees
+use Playwright `1.62.1`. Direct Cargo migrations include `base64` `0.23`,
+`hmac` `0.13`, `sha2` `0.11`, `clap` `4.6`, `http` `1.5`, `tokio` `1.53`,
+`zeroize` `1.9`, `aws-config` `1.10`, `aws-lc-rs` `1.18`, and the reviewed AWS
+SDK patch releases. Exact hexadecimal and HMAC behavior is retained by focused
+tests and explicit encoding at public boundaries.
+
+`./scripts/quality.sh` passed the complete workspace test, Clippy, docs,
+browser, generated-application, package-policy, RustSec and secret-scan matrix.
+The first `scripts/ci/local-release.sh` attempt correctly stopped at the clean
+JJ release boundary after candidate recovery and load passed. The command was
+then rerun from an empty JJ child of the dedicated source change and passed
+with exit status zero, including publication dry-runs, unpacked archive
+consumers, SAM and native Lambda builds, local Rustack, and Orders E2E.
+
+All four npm audits report zero vulnerabilities. VitePress remains at `1.6.4`
+with the repository's tested Vite `6.4.3` override because VitePress declares a
+Vite 5-compatible dependency range; Vite 8 is an isolated future migration,
+not a safe transitive refresh. The only Cargo versions still reported as
+available are upstream-constrained transitive copies. The operational receipt
+continues to state truthfully that exact-tree hosted Linux performance is
+`NOT RUN` and no current live-provider evidence qualifies this source.
+
+No crate was published, no tag or release was created, no provider was
+contacted, and no application was deployed.
+
 ## M14-T17 homepage architecture diagram correction
 
 The completed post-release docs task replaces the distorted, cramped homepage SVG

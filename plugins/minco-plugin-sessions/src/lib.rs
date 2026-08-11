@@ -3,7 +3,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, TimeDelta, Utc};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use minco_core::{
     CapabilityProvision, DataClass, Plugin, PluginContext, PluginDescriptor, PluginError, PluginId,
     PluginStability,

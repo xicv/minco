@@ -205,7 +205,7 @@ impl FeedbackStore for MemoryFeedbackStore {
 }
 
 pub fn hash_access_token(token: &FeedbackAccessToken) -> String {
-    format!("{:x}", Sha256::digest(token.expose().as_bytes()))
+    hex::encode(Sha256::digest(token.expose().as_bytes()))
 }
 
 fn constant_time_equals(left: &str, right: &str) -> bool {
