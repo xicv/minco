@@ -5,10 +5,10 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the `1.3.0` candidate. The `1.2.0`, `1.2.1` and `1.2.2`
-sections retain exact candidate-source wording because their digests are bound
-into the published agent bundle; tag, registry and documentation evidence
-remains separate in `VERIFICATION.md`.
+No changes beyond the published `1.3.0` release. The `1.2.0`, `1.2.1`, `1.2.2`
+and `1.3.0` sections retain exact candidate-source wording because their
+digests are bound into the published agent bundle; tag, registry and
+documentation evidence remains separate in `VERIFICATION.md`.
 
 ## [1.3.0] - 2026-08-11
 

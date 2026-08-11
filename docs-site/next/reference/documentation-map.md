@@ -38,6 +38,7 @@ than by crate layout.
 | Background execution | [Queues and workers](../guides/background-work) | SQS, worker, partial batch, FIFO, DLQ |
 | Realtime refresh signals | [Realtime subscriptions](../guides/realtime) | AppSync, subscription, invalidation, resync |
 | Client/developer review loop | [Client feedback loop](../guides/feedback) | feedback, attachment, transcription, AI context |
+| Waffo hosted checkout and webhooks | [Waffo hosted payments](../guides/payments-waffo) | payment, checkout, GraphQL, webhook, signature, idempotency |
 
 ## Local development and AI-native inspection
 

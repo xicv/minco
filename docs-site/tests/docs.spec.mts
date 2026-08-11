@@ -194,13 +194,12 @@ test('next documents the complete built-in component catalog', async ({ page }) 
   await expect(
     page
       .locator('.VPLocalSearchBox')
-      .locator('a[href*="/next/guides/background-work"]')
+      .locator(`a[href*="/${workspaceSegment}/guides/background-work"]`)
       .first()
   ).toBeVisible()
 })
 
-test('candidate manual documents the Waffo authority boundary', async ({ page }) => {
-  test.skip(release.state !== 'candidate', 'only applies to a candidate manual')
+test('current manual documents the Waffo authority boundary', async ({ page }) => {
   await page.goto(`./${release.workspace}/guides/payments-waffo`)
   await waitForHydration(page)
   await expect(

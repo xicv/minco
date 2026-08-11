@@ -1,13 +1,18 @@
 ---
 title: Minco 1.3.0
-description: Release candidate documentation for Minco 1.3.0 contract-to-cloud Rust application development.
+description: Stable documentation for Minco 1.3.0 contract-to-cloud Rust application development.
 ---
 
 # Minco 1.3.0
 
-<p class="doc-kicker">Release candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
-<p class="doc-lead">This frozen manual describes the unpublished <code>1.3.0</code> candidate. It extends the stable <a href="../1.2.2/">1.2.2 manual</a> with an opt-in Waffo Pancake integration while keeping source qualification, publication and live-provider proof visibly separate.</p>
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.3.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
+
+<p class="doc-lead">This frozen manual describes the published <code>1.3.0</code> release. It extends the previous <a href="../1.2.2/">1.2.2 manual</a> with an opt-in Waffo Pancake integration while keeping source qualification, publication and live-provider proof visibly separate.</p>
 
 ## Start with the outcome
 

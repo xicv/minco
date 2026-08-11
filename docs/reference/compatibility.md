@@ -2,22 +2,22 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.2.2`
+Published release: `1.3.0`
 
-Published comparison baseline: `1.2.1`
+Published comparison baseline: `1.2.2`
 
-Current workspace: `1.2.2`
+Current workspace: `1.3.0`
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1 and 1.2 release lines. Merge, tag, registry, GitHub release and
+the 1.1, 1.2 and 1.3 release lines. Merge, tag, registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
 
-The published `1.2.2` patch changes versioned documentation presentation and
-its regression evidence only; the frozen Rust, CLI, schema and plugin boundary
-is unchanged.
+The published `1.3.0` minor adds the opt-in Waffo crate, facade feature, typed
+service/client/transport surfaces, CLI group and Agent Skill. Existing APIs and
+defaults remain compatible; the provider integration is disabled by default.
 
 The 1.2 release adds a defaulted `FeedbackThread.clarifications` serialized
 field. Stored JSON remains data-compatible, but downstream Rust code that uses
@@ -30,7 +30,7 @@ source-compatible struct-shape change.
 
 The generated references are the exhaustive inventory authorities. The freeze
 applies to every rustdoc-visible public item in the
-[33 publishable packages](generated/packages.md), all named package features,
+[34 publishable packages](generated/packages.md), all named package features,
 the complete [CLI](generated/cli.md), the generated configuration and Plan
 [schemas](generated/schemas.md), the plugin [distribution contract](generated/plugins.md),
 and the generated [diagnostic codes](generated/diagnostics.md).

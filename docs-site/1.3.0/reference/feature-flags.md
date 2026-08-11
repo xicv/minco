@@ -13,7 +13,7 @@ resources.
 
 ```toml
 [dependencies]
-minco = "1.2.2"
+minco = "1.3.0"
 ```
 
 The default enables `contract`, `http`, and `default-plugins`. The default
@@ -47,6 +47,7 @@ plugin bundle contains health, observability, and idempotency.
 | `plugin-feedback` | client review loop and AI handoff | no |
 | `plugin-static-site` | private assets and CDN deployment intent | no |
 | `plugin-realtime` | ephemeral backend publication and subscriber-only browser invalidation | no |
+| `plugin-payments-waffo` | Waffo hosted checkout, read-only queries, and verified webhooks | no |
 
 `plugin-feedback` also enables the plugin capabilities it composes: health,
 identity, object storage, events, notifications, audit, and HTTP.
@@ -72,7 +73,7 @@ the smaller explicit set they operate.
 
 ```toml
 [dependencies]
-minco = { version = "1.2.2", features = [
+minco = { version = "1.3.0", features = [
   "config",
   "plan",
   "release",

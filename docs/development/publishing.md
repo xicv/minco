@@ -6,12 +6,10 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.2.2` release contains the complete lock-step 33-package
-inventory. The current `1.3.0` candidate contains 34 packages and adds
-`minco-plugin-payments-waffo`; it is not yet registry evidence. A workspace
-version or source tag is not registry
-proof: release status must be verified independently against the exact
-crates.io records. The package inventory is derived from
+The published `1.3.0` release contains the complete lock-step 34-package
+inventory and adds `minco-plugin-payments-waffo`. A workspace version or source
+tag is not registry proof: release status is verified independently against the
+exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
@@ -19,24 +17,21 @@ The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
 agent-native behavior, while 1.2 adds browser/native HTTP metadata, verified
 uploads, rich mail, owned local services and delivery evidence within the same
-family. All 33
-published packages have crates.io ownership. The new Waffo crate remains a
-first-publication candidate whose crates.io publisher configuration and exact
-absence/presence must be checked only in the separately authorised publication
-lane. Source qualification or merge still must not be described as registry
-publication.
+family. The 1.3 release adds the opt-in Waffo payment boundary and all 34
+published packages now have crates.io ownership. Source qualification or merge
+still must not be described as registry publication.
 
-The exact published source is immutable tag `v1.2.2` at
-`0496e6294b213c839af551a82858e2c1c3f7f45d`. Publication workflow run
-`31396167046` and independent registry validation found every exact 1.2.2
-version present and non-yanked. Later candidate qualification
+The exact published source is immutable tag `v1.3.0` at
+`e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`. Exact-main clean-Linux run
+`31451883403` passed before the authenticated local wrapper uploaded the
+dependency-ordered family. Independent registry validation found every exact
+1.3.0 version present and non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
-The published lock-step `1.2.2` documentation presentation patch contains no
-first-publication crate. Exact local and clean-Linux qualification, tag, OIDC
-upload, registry verification, docs.rs and Pages deployment remain separate
-states.
+The 1.3.0 first publication crossed the Waffo crate's ownership boundary.
+Exact local and clean-Linux qualification, tag, authenticated upload, registry
+verification, docs.rs and Pages deployment remain separate states.
 
 | Package | Role |
 |---|---|
@@ -217,11 +212,12 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The complete 33-package family has crossed that ownership boundary.
+exists. The complete 34-package family has crossed that ownership boundary.
 Before 1.1.0 publication, trusted-publisher configuration was independently
 reconciled for all packages. The 1.2.0 upload used a short-lived OIDC token only
 after exact-tag verification and locked dependency prefetch; every later OIDC
-upload must verify the current configuration again.
+upload must verify the current configuration again. Configure and verify the
+new Waffo crate's trusted publisher before relying on OIDC for a later family.
 
 ## Trusted publishing after the first release
 

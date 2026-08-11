@@ -1,6 +1,6 @@
 ---
 title: Current CLI
-description: Minco 1.3.0 candidate command groups, JSON interfaces, dry-run behavior, and mutation boundaries.
+description: Minco 1.3.0 command groups, JSON interfaces, dry-run behavior, and mutation boundaries.
 ---
 
 # Current CLI

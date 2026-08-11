@@ -5,7 +5,7 @@ description: Package a static plugin and run the same offline conformance bounda
 
 # Test a Plugin
 
-The Minco 1.3.0 candidate publishes one `minco-test` builder for official and
+Minco 1.3.0 publishes one `minco-test` builder for official and
 third-party-style plugins. It checks package metadata, distribution intent,
 descriptor overlap, and—when supplied—deterministic plugin composition.
 
@@ -30,7 +30,7 @@ include = ["src/**", "Cargo.toml", "minco-plugin.json"]
 plugin = "minco-plugin.json"
 ```
 
-Use exact `1.2.2` registry dependencies. Use reviewed
+Use exact `1.3.0` registry dependencies. Use reviewed
 path dependencies only while developing coordinated post-release changes from
 a Minco source checkout.
 
@@ -46,7 +46,7 @@ cost intent only when the plugin really supports them.
   "id": "example",
   "kind": "plugin",
   "plugin_version": "0.1.0",
-  "core_compatibility": "^1.2.0",
+  "core_compatibility": "^1.3.0",
   "stability": "experimental",
   "default_enabled": false,
   "feature": "plugin-example",

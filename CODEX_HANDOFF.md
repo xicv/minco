@@ -1,33 +1,33 @@
-# Minco 1.3.0 candidate handoff
+# Minco 1.3.0 release handoff
 
 Date: 2026-08-11
-Published baseline: `1.2.2`
+Published baseline: `1.3.0`
 Current workspace version: `1.3.0`
-Workspace release state: `candidate`
-Published `1.2.2` source: `0496e6294b213c839af551a82858e2c1c3f7f45d`
-Published source-tree digest: `c548cdb7c2aa967b2dcc1aa441d8a07861caecff46d33970b5b0bf80f73bf2a6`
-Published release task: `M14-T15`
+Workspace release state: `published`
+Published `1.3.0` source: `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5`
+Published source-tree digest: `d92a7b8e625aebdecb7ef155db97ed613d210c62a2c10e467ad8f9056d67d0a1`
+Published release task: `M14-T16`
 Latest release task: `M14-T16` (`active`)
 Active evidence task: `M14-T10`
 
-## Current candidate boundary
+## Current release boundary
 
-Minco `1.3.0` is an unpublished additive minor candidate over the immutable
-1.2.2 baseline. It grows the lock-step family to 34 packages with one opt-in
+Minco `1.3.0` is a published additive minor over the immutable 1.2.2 baseline.
+It grows the lock-step family to 34 packages with one opt-in
 Waffo Pancake beta plugin and grows the version-matched Codex/Claude bundle to
 nine skills. Applications continue to own orders, subscriptions, entitlements
 and payment projections; the plugin supplies only provider-specific checkout,
 query and verified-webhook mechanics.
 
-PR #125 is being recovered from its conflicting historical base onto current
-`main` `6dda1a87771d5c99a6dd4f35c27f08f4a802192c`. The branch-specific workflow
-is deliberately excluded and ADR-0038's three-file allowlist is executable in
-both static and policy gates. Exact local qualification and a fresh clean-Linux
-run are required before merge. No tag, crates.io upload, GitHub release, Pages
-promotion, live Waffo call, payment, AWS deployment or production proof is
-authorised by this handoff.
+Exact source `e1fbb066e9332a2b6355b11a6f4b1c28806cc3e5` passed the complete
+local macOS release gate and exact-main clean-Linux run `31451883403`.
+Immutable tag `v1.3.0`, all 34 exact crates.io versions and the GitHub release
+are independently verified, and all 34 exact docs.rs rustdoc routes return HTTP
+200. Stable Pages promotion remains a separate evidence lane until closed. No
+live Waffo call, payment, AWS
+deployment or production proof is authorised or implied by this handoff.
 
-## Published 1.2.2 release boundary
+## Previous 1.2.2 release boundary
 
 Minco `1.2.2` is a published, SemVer-compatible lock-step patch over the
 immutable `1.2.1` baseline. It fixes homepage diagram overflow and operating
@@ -81,17 +81,17 @@ version. It does not treat registry unavailability as a pass.
 
 ## Current product state
 
-The 33 public packages remain available together in the published compatible
-`1.2.2` line. The 34-package `1.3.0` source candidate adds the Waffo plugin and
-a ninth packaged AI skill while keeping cumulative release freshness fail
-closed. The stable 1.2 product line adds
+The 34 public packages are available together in the published compatible
+`1.3.0` line. The release adds the Waffo plugin and a ninth packaged AI skill
+while keeping cumulative release freshness fail closed. The stable 1.2 product
+line added
 browser/native HTTP metadata, verified direct uploads, rich observable mail,
 owned local services, topology-aware Plan cost/validation, release-bound
 Feedback task receipts, deterministic operational evidence and the
-digest-approved handover command. The frozen 1.2.2 manual is the current stable
-guide, and every exact 1.2.2 docs.rs rustdoc route is reachable. Those
-documentation checks remain independent from crates.io publication and
-live-provider evidence.
+digest-approved handover command. The frozen 1.3.0 manual becomes the current
+stable guide when its post-publication Pages change reaches main. Documentation
+checks remain independent from crates.io publication and live-provider
+evidence.
 
 For every later release, independently verify current crates.io OIDC configuration,
 the exact merged-main qualification, immutable tag identity and exact registry
