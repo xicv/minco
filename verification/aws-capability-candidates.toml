@@ -1,6 +1,6 @@
 schema = 1
 kind = "minco.aws-capability-candidates.v1"
-reviewed_on = "2026-08-07"
+reviewed_on = "2026-08-12"
 
 [[candidate]]
 id = "lambda-function-urls"
@@ -15,7 +15,7 @@ tests_evidence = ["crates/minco-plan/tests/multi_runtime.rs"]
 blockers = ["declared ingress is intentionally rejected before provider rendering"]
 adoption_trigger = "Complete the full rendering, security, cost, performance, promotion and recovery boundary with live proof."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html", "https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html", "https://docs.aws.amazon.com/lambda/latest/dg/furls-http-invoke-decision.html"]
 
 [[candidate]]
@@ -31,7 +31,7 @@ tests_evidence = []
 blockers = ["version and Region eligibility", "resume can exceed 30 seconds after deep sleep", "storage remains billable"]
 adoption_trigger = "A database profile proves eligibility, resume behavior, recovery, security, pricing and exact-source provider evidence."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html", "https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.requirements.html"]
 
 [[candidate]]
@@ -47,7 +47,7 @@ tests_evidence = []
 blockers = ["not PostgreSQL-semantic equivalence", "no Minco adapter or migration contract"]
 adoption_trigger = "A domain-specific port and adapter prove compatibility, recovery, latency, cost and live provider behavior."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html", "https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with.html", "https://docs.aws.amazon.com/aurora-dsql/latest/userguide/authentication-authorization.html"]
 
 [[candidate]]
@@ -63,7 +63,7 @@ tests_evidence = []
 blockers = ["Lambda extension polls by default", "experimentation and receipt requests are billable"]
 adoption_trigger = "A customer requirement justifies an explicit plugin with bounded polling, security, rollback and cost evidence."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html", "https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-agent.html", "https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-integration-lambda-extensions-config.html"]
 
 [[candidate]]
@@ -79,7 +79,7 @@ tests_evidence = ["crates/minco-plan/tests/multi_runtime.rs"]
 blockers = ["provider rendering and guarded apply are intentionally incomplete"]
 adoption_trigger = "A schedule slice proves exact target IAM, cleanup, wake cost, retry behavior and live evidence."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/scheduler/latest/UserGuide/what-is-scheduler.html", "https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html", "https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-schedule.html"]
 
 [[candidate]]
@@ -95,7 +95,7 @@ tests_evidence = []
 blockers = ["a generic event facade would erase source-specific semantics"]
 adoption_trigger = "A concrete source-to-target use case proves filtering, IAM, ordering, failure and cost behavior."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/eventbridge/latest/userguide/pipes-concepts.html", "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-pipes-event-filtering.html"]
 
 [[candidate]]
@@ -111,7 +111,7 @@ tests_evidence = []
 blockers = ["Express lacks callback task-token and .sync patterns", "no generic orchestration abstraction is justified"]
 adoption_trigger = "A bounded orchestration use case proves delivery semantics, logs, recovery, security and cost."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html", "https://aws.amazon.com/step-functions/pricing/"]
 
 [[candidate]]
@@ -127,7 +127,7 @@ tests_evidence = ["crates/minco-plan/tests/multi_runtime.rs", "proofs/realtime-a
 blockers = ["provider rendering, authorization and live evidence are incomplete"]
 adoption_trigger = "The realtime plugin proves exact auth, limits, cost, promotion, recovery and provider behavior."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-welcome.html", "https://aws.amazon.com/appsync/pricing/"]
 
 [[candidate]]
@@ -143,7 +143,7 @@ tests_evidence = []
 blockers = ["official AWS Powertools documentation does not list Rust"]
 adoption_trigger = "Official Rust support and a bounded plugin prove redaction, overhead and compatibility."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/powertools-for-lambda.html", "https://docs.aws.amazon.com/lambda/latest/dg/lambda-rust.html"]
 
 [[candidate]]
@@ -159,7 +159,7 @@ tests_evidence = []
 blockers = ["upstream framework support is not Minco support"]
 adoption_trigger = "A second runtime implementation proves a necessary static extension point and complete delivery boundary."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://github.com/aws/aws-lambda-web-adapter"]
 
 [[candidate]]
@@ -175,7 +175,7 @@ tests_evidence = []
 blockers = ["JavaScript-only edge runtime", "not a Minco Rust application runtime"]
 adoption_trigger = "A CDN-specific plugin proves origin security, publication, rollback, limits and cost."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html", "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/kvs-with-functions.html"]
 
 [[candidate]]
@@ -191,7 +191,7 @@ tests_evidence = []
 blockers = ["normally retains multi-AZ instances", "does not scale to zero", "conflicts with the minimal profile"]
 adoption_trigger = "Only a separately approved fixed-capacity profile may reconsider this service."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/lambda-managed-instances.html", "https://docs.aws.amazon.com/lambda/latest/dg/lambda-managed-instances-runtimes.html"]
 
 [[candidate]]
@@ -207,7 +207,7 @@ tests_evidence = []
 blockers = ["current supported-runtime documentation does not list Rust"]
 adoption_trigger = "AWS supports Rust and a dedicated orchestration design proves replay, migration, security, recovery and cost."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://docs.aws.amazon.com/lambda/latest/dg/durable-step-functions.html", "https://docs.aws.amazon.com/lambda/latest/dg/durable-supported-runtimes.html"]
 
 [[candidate]]
@@ -223,7 +223,7 @@ tests_evidence = []
 blockers = ["new compute primitive has no Minco topology, cost or recovery contract"]
 adoption_trigger = "A sandbox product requirement and complete threat, lifecycle, cleanup, pricing and evidence design exist."
 decision_date = "2026-08-07"
-review_date = "2026-08-07"
+review_date = "2026-08-12"
 upstream_sources = ["https://aws.amazon.com/blogs/compute/announcing-lambda-microvms-serverless-compute-environments-with-vm-level-isolation-and-near-instant-startup/"]
 
 [[lesson]]

@@ -979,6 +979,93 @@ mod tests {
     }
 
     #[test]
+    fn lambda_cost_projection_retains_each_selected_resource_dimension_exactly() {
+        let mut plan = minimal_plan(RuntimePlan::LambdaZipArm64, IngressPlan::ApiGatewayHttpApi);
+        plan.functions[0].provisioned_concurrency = 1;
+        plan.queues.push(crate::QueuePlan {
+            id: "orders".into(),
+            fifo: false,
+            visibility_timeout_seconds: 180,
+            retention_seconds: 1_209_600,
+            dead_letter_queue_id: None,
+            max_receive_count: None,
+        });
+        plan.triggers.push(TriggerPlan::Sqs {
+            id: "orders-worker".into(),
+            function_id: "api".into(),
+            queue_id: "orders".into(),
+            batch_size: 10,
+            batching_window_seconds: 0,
+            report_batch_item_failures: true,
+            maximum_concurrency: 1,
+        });
+        plan.triggers.push(TriggerPlan::Schedule {
+            id: "cleanup".into(),
+            function_id: "api".into(),
+            expression: "rate(1 day)".into(),
+            enabled: true,
+            purpose: "bounded fixture".into(),
+            cleanup: None,
+        });
+
+        let estimate = estimate_runtime_cost(&plan);
+
+        assert!(!estimate.complete);
+        assert_eq!(
+            estimate.fixed_cost_resources,
+            ["provisioned_concurrency:api"]
+        );
+        assert_eq!(
+            estimate.request_based_resources,
+            ["http_api", "lambda:api", "sqs:orders", "schedule:cleanup"]
+        );
+        assert_eq!(
+            estimate.missing_rates,
+            [
+                "regional_api_gateway_request_rate",
+                "regional_lambda_request_and_duration_rates",
+                "regional_sqs_request_rate",
+                "regional_scheduler_invocation_rate",
+                "regional_lambda_provisioned_concurrency_rate",
+            ]
+        );
+        assert_eq!(
+            estimate
+                .evidence
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "http_api",
+                "lambda_compute",
+                "sqs:orders",
+                "schedule:cleanup",
+                "provisioned_concurrency:api",
+            ]
+        );
+        assert!(estimate.queues[0].regional_request_rate_required);
+        assert_eq!(
+            estimate.schedules[0].estimated_monthly_invocations,
+            Some(31)
+        );
+
+        plan.functions[0].provisioned_concurrency = 0;
+        let without_provisioned = estimate_runtime_cost(&plan);
+        assert!(without_provisioned.fixed_cost_resources.is_empty());
+        assert!(
+            !without_provisioned
+                .missing_rates
+                .contains(&"regional_lambda_provisioned_concurrency_rate".to_owned())
+        );
+        assert!(
+            without_provisioned
+                .evidence
+                .iter()
+                .all(|item| item.name != "provisioned_concurrency:api")
+        );
+    }
+
+    #[test]
     fn neon_launch_is_usage_based() {
         let estimate = estimate_database_cost(&DatabaseDeployment::NeonPostgres {
             plan: NeonPlan::Launch,
@@ -1048,6 +1135,34 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn complete_regional_rates_multiply_each_usage_dimension() {
+        let estimate = estimate_database_cost(&DatabaseDeployment::DynamoDbOnDemand {
+            read_request_units_million: 2.0,
+            read_million_rate_usd: Some(0.3),
+            write_request_units_million: 3.0,
+            write_million_rate_usd: Some(0.7),
+            storage_gb_month: 4.0,
+            storage_rate_usd: Some(1.1),
+            table: None,
+        });
+
+        assert!(estimate.complete);
+        assert!(estimate.missing_rates.is_empty());
+        assert_eq!(
+            estimate
+                .components
+                .iter()
+                .map(|component| component.name.as_str())
+                .collect::<Vec<_>>(),
+            ["reads", "writes", "storage"]
+        );
+        for (component, expected) in estimate.components.iter().zip([0.6, 2.1, 4.4]) {
+            assert!((component.monthly_usd - expected).abs() < f64::EPSILON * 8.0);
+        }
+        assert!((estimate.monthly_usd.expect("complete total") - 7.1).abs() < f64::EPSILON * 8.0);
     }
 
     #[test]

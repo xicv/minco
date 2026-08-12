@@ -1313,6 +1313,63 @@ mod tests {
     }
 
     #[test]
+    fn file_digest_rejects_independent_hash_and_size_mismatches() {
+        let directory =
+            std::env::temp_dir().join(format!("minco-release-digest-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("artifact");
+        std::fs::write(&path, b"one").unwrap();
+        let digest = FileDigest::from_path(&path).unwrap();
+
+        let mut wrong_hash = digest.clone();
+        wrong_hash.sha256 = "a".repeat(64);
+        assert!(matches!(
+            wrong_hash.verify(),
+            Err(ReleaseError::DigestMismatch { .. })
+        ));
+
+        let mut wrong_size = digest;
+        wrong_size.bytes += 1;
+        assert!(matches!(
+            wrong_size.verify(),
+            Err(ReleaseError::DigestMismatch { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn deployment_start_rejects_every_non_lowercase_sha256_shape() {
+        let valid = DeploymentReceiptInput {
+            attempt_id: "attempt-digest".into(),
+            release_manifest: FileDigest {
+                path: "target/minco/release.json".into(),
+                sha256: "a".repeat(64),
+                bytes: 512,
+            },
+            release_id: format!("minco.{}", "b".repeat(24)),
+            release_digest: "b".repeat(64),
+            environment: ReleaseEnvironment {
+                application: "orders".into(),
+                environment: "staging".into(),
+                region: "ap-southeast-2".into(),
+            },
+            configuration_digest: "c".repeat(64),
+            database_plans: Vec::new(),
+            attestations: Vec::new(),
+        };
+
+        for invalid in ["c".repeat(63), "g".repeat(64), "C".repeat(64)] {
+            let mut input = valid.clone();
+            input.configuration_digest = invalid;
+            assert!(matches!(
+                DeploymentReceipt::start(input),
+                Err(ReleaseError::InvalidRelease(_))
+            ));
+        }
+    }
+
+    #[test]
     fn rooted_digests_are_portable_and_verify_from_the_repository_root() {
         let directory =
             std::env::temp_dir().join(format!("minco-release-root-{}", uuid::Uuid::new_v4()));

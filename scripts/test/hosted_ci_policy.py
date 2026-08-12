@@ -275,6 +275,7 @@ class HostedCiPolicyTests(unittest.TestCase):
         release = LOCAL_RELEASE.read_text()
         required_commands = [
             "./scripts/quality.sh",
+            "scripts/ci/local-assurance.sh --ephemeral",
             "proofs/realtime-appsync/scripts/test-local.sh",
             "scripts/release/candidate-recovery.sh",
             "scripts/release/candidate-load.sh",
@@ -360,6 +361,10 @@ class HostedCiPolicyTests(unittest.TestCase):
             "scripts/validate_deployment_assurance.py",
             "scripts/validate_operational_evidence.py",
             "scripts/test/operational_evidence.py",
+            "scripts/test/quality_assurance.py",
+            "scripts/quality_assurance.py",
+            "scripts/test/release_identity.py",
+            "scripts/release/release_identity.py --check",
             "scripts/test/deployment_assurance.py",
             "scripts/test/current_product_truth.py",
             "scripts/test/hosted_ci_policy.py",
@@ -384,6 +389,76 @@ class HostedCiPolicyTests(unittest.TestCase):
         for command in required_commands:
             with self.subTest(command=command):
                 self.assertIn(command, quality)
+
+    def test_measured_assurance_remains_local_only(self) -> None:
+        local_release = LOCAL_RELEASE.read_text()
+        self.assertIn("scripts/ci/local-assurance.sh --ephemeral", local_release)
+        self.assertIn("cargo-nextest", local_release)
+        self.assertIn("cargo-llvm-cov", local_release)
+        self.assertIn("cargo-mutants", local_release)
+        self.assertIn("cargo-semver-checks", local_release)
+        for workflow in WORKFLOW_DIRECTORY.glob("*.yml"):
+            with self.subTest(workflow=workflow.name):
+                self.assertNotIn("local-assurance", workflow.read_text())
+
+    def test_canonical_assurance_check_remains_available(self) -> None:
+        assurance = (ROOT / "scripts/ci/local-assurance.sh").read_text()
+
+        self.assertIn('mode="${1:-execute}"', assurance)
+        self.assertIn('if [[ "$mode" == "--check" ]]', assurance)
+        self.assertIn("--check-output verification/quality-assurance.json", assurance)
+
+    def test_local_release_executes_ephemeral_assurance_without_tracked_outputs(self) -> None:
+        local_release = LOCAL_RELEASE.read_text()
+        assurance_path = ROOT / "scripts/ci/local-assurance.sh"
+
+        self.assertIn("scripts/ci/local-assurance.sh --ephemeral", local_release)
+        with tempfile.TemporaryDirectory(prefix="minco-assurance-wrapper-") as temporary:
+            root = Path(temporary)
+            binary_dir = root / "bin"
+            tool_root = root / "tools"
+            (tool_root / "bin").mkdir(parents=True)
+            binary_dir.mkdir()
+            command_log = root / "commands.log"
+            (binary_dir / "uv").write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "printf 'uv' >> \"$MINCO_ASSURANCE_COMMAND_LOG\"\n"
+                "printf ' <%s>' \"$@\" >> \"$MINCO_ASSURANCE_COMMAND_LOG\"\n"
+                "printf '\\n' >> \"$MINCO_ASSURANCE_COMMAND_LOG\"\n"
+            )
+            (binary_dir / "rustup").write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "printf 'llvm-tools-aarch64-apple-darwin (installed)\\n'\n"
+            )
+            for path in binary_dir.iterdir():
+                path.chmod(0o755)
+            environment = os.environ.copy()
+            environment["PATH"] = f"{binary_dir}:{environment['PATH']}"
+            environment["MINCO_QUALITY_TOOL_ROOT"] = str(tool_root)
+            environment["MINCO_ASSURANCE_COMMAND_LOG"] = str(command_log)
+
+            subprocess.run(
+                ["bash", str(assurance_path), "--ephemeral"],
+                cwd=ROOT,
+                env=environment,
+                check=True,
+            )
+
+            self.assertEqual(
+                command_log.read_text().splitlines(),
+                [
+                    "uv <run> <--locked> <python> <scripts/quality_assurance.py> "
+                    f"<--execute> <--tool-root> <{tool_root}> "
+                    "<--output> <target/minco/quality-assurance/release-receipt.json> "
+                    "<--performance-output> "
+                    "<target/minco/quality-assurance/release-candidate-load.json>",
+                    "uv <run> <--locked> <python> <scripts/quality_assurance.py> "
+                    f"<--tool-root> <{tool_root}> <--check-output> "
+                    "<target/minco/quality-assurance/release-receipt.json>",
+                ],
+            )
 
 
 if __name__ == "__main__":

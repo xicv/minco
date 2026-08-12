@@ -42,6 +42,7 @@ EXCLUDED_RELATIVE = {
     Path("verification/static-validation.json"),
     Path("verification/deep-review.json"),
     Path("verification/publish-validation.json"),
+    Path("verification/quality-assurance.json"),
     # Handover packets bind source/project digests and are generated evidence.
     Path("verification/handover.json"),
     Path("verification/handover.md"),

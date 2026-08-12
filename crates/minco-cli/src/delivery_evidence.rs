@@ -54,6 +54,7 @@ const EXCLUDED_EXACT: &[&str] = &[
     "verification/static-validation.json",
     "verification/deep-review.json",
     "verification/publish-validation.json",
+    "verification/quality-assurance.json",
     "verification/handover.json",
     "verification/handover.md",
 ];
@@ -1158,7 +1159,7 @@ mod tests {
 
     #[test]
     fn source_exclusions_match_the_canonical_policy() {
-        assert_eq!(source_exclusions().len(), 29);
+        assert_eq!(source_exclusions().len(), 30);
         assert!(!source_path_included(
             Path::new("verification/1.3-candidate-release-gates.json"),
             &BTreeSet::new()
@@ -1173,6 +1174,10 @@ mod tests {
         ));
         assert!(!source_path_included(
             Path::new("verification/static-validation.json"),
+            &BTreeSet::new()
+        ));
+        assert!(!source_path_included(
+            Path::new("verification/quality-assurance.json"),
             &BTreeSet::new()
         ));
         assert!(source_path_included(
