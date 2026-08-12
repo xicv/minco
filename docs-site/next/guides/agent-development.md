@@ -104,7 +104,7 @@ A passing evaluation is local projection evidence. It is not model quality,
 hosted CI, review, deployment, runtime, or production proof.
 
 Application-specific model evaluation and measured human-review effort remain
-`NOT RUN` for this candidate. Completing that outcome requires an explicit
+`NOT RUN` for this release. Completing that outcome requires an explicit
 Codex or Claude application run against an exact versioned scenario, followed
 by a human review that records completion, escaped defects, review edits,
 commands, elapsed time and evidence quality. Schema or prompt checks alone do

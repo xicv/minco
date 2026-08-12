@@ -2,31 +2,30 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 34-package lock-step `1.4.0`
-family from immutable tag `v1.4.0` at
-`2b02bf956eed3ef2a17bae6d10970dff1408e231`. Source/package qualification,
+The current published boundary is the complete 34-package lock-step `1.5.0`
+family from immutable tag `v1.5.0` at
+`c3706559357510d33d046fa461f8550fbbd4c04c`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is the unpublished `1.5.0` candidate with the same 34-package
+The workspace is the published `1.5.0` release with the same 34-package
 inventory. It packages additive typed test fakes and provider-free measured
-assurance/cost evidence; it has no candidate tag, registry record, GitHub
-release, docs.rs result or stable-site claim. Historical 1.4.0 publication is
-not authentication or registry proof for this later release.
+assurance/cost evidence. Its exact source, tag, GitHub release, OIDC publication
+and registry family are recorded independently; docs.rs and stable Pages remain
+separate evidence gates.
 
-The candidate keeps all nine AI skills current and retains cumulative
+The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
 mandatory release gates. Those checks do not invoke a model or measure human
 review effort.
 
-For the published 1.4.0 baseline, exact release source passed candidate
-clean-Linux run `31475310242` and merged-main run `31475705506`. Guarded OIDC
-publication accepted 23 packages in run `31476217865` before the missing Waffo
-trusted-publisher entry failed closed. After the exact publisher was configured,
-recovery run `31479118464` verified the live registry complement and uploaded
-only the 11 absent packages. Independent validation found all 34 exact versions
-present and non-yanked. That publication is not live Waffo, AWS, application
-deployment or production evidence.
+For the published 1.5.0 baseline, exact release source passed PR-head
+clean-Linux run `31588777070` and merged-main run `31593051123`. Authentication
+run `31593053757` proved the exact OIDC boundary without upload. Publication run
+`31593507996` passed archive and consumer checks before dependency-ordered
+upload, and independent validation found all 34 exact versions present and
+non-yanked. That publication is not live Waffo, AWS, application deployment or
+production evidence.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:
@@ -57,7 +56,10 @@ short-window rate limit; recovery waited for the explicit retry time and
 uploaded only the missing `minco` and `cargo-minco` complement. Repository
 truth keeps `new_publishable_packages` empty after independent 34-package
 registry verification. The 1.4.0 release used short-lived OIDC credentials;
-its exact 23/11 partial-publication recovery is recorded above.
+its exact 23/11 partial-publication recovery remains recorded in versioned
+release evidence.
+The 1.5.0 release used short-lived OIDC credentials and completed all 34
+dependency-ordered uploads in one guarded run.
 Every later release must re-prove authentication and registry state; ownership
 alone is not authentication evidence.
 

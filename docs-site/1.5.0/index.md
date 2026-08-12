@@ -1,13 +1,18 @@
 ---
 title: Minco 1.5.0
-description: Release candidate documentation for Minco 1.5.0 contract-to-cloud Rust application development.
+description: Stable documentation for Minco 1.5.0 contract-to-cloud Rust application development.
 ---
 
 # Minco 1.5.0
 
-<p class="doc-kicker">Release candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
-<p class="doc-lead">This frozen manual describes the unpublished <code>1.5.0</code> candidate. It extends the stable <a href="../1.4.0/">1.4.0 manual</a> with measured local assurance, golden-topology cost regression and official typed side-effect fakes while preserving provider and deployment boundaries.</p>
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.5.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
+
+<p class="doc-lead">This frozen manual describes the published <code>1.5.0</code> release. It extends the <a href="../1.4.0/">1.4.0 manual</a> with measured local assurance, golden-topology cost regression and official typed side-effect fakes while preserving provider and deployment boundaries.</p>
 
 ## Start with the outcome
 

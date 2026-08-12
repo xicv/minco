@@ -1,14 +1,14 @@
 {
   "authority": "projection_only",
   "changelog": {
-    "section_sha256": "b841bdd8cb07d8712979da74a132333e212e1b2e7b9ba4c990cf41af92a5d83d",
-    "version": "1.4.0"
+    "section_sha256": "cb448c915d22016bd3b6dc09de103c88e1fe6696feaab5aa281bd313899b326d",
+    "version": "1.5.0"
   },
   "documentation": {
     "next_route": true,
-    "release_file_sha256": "dd270833a97ecd73a4850a72b1906443d1f16c675a35d37b11269b0a15408e1b",
-    "stable": "1.4.0",
-    "state": "candidate",
+    "release_file_sha256": "9589b9f7a82ba26d16c11205ea0e367f0315a0f7e62055025c0ad401c4d8a587",
+    "stable": "1.5.0",
+    "state": "published",
     "versioned_routes": [
       "0.5.0",
       "0.6.0",
@@ -21,7 +21,7 @@
       "1.4.0",
       "1.5.0"
     ],
-    "versions_page_sha256": "cb5e9c6d564a73183bc7131876ae8a5a6083e00f5e742ccb178386b2fffb7c85",
+    "versions_page_sha256": "5b7b72285de73003f428876ece1a15e67ca3d1f828d573a110aa415894f56542",
     "workspace": "1.5.0"
   },
   "inputs": [
@@ -31,15 +31,15 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "01e85df1479aeef20ffd18ed916baa31f3440ffb07382862ac2c567ce6a2f6db"
+      "sha256": "1f82971851c4b16ee51484013e8924e53ded5cb917f2ee10589805514e32cda3"
     },
     {
       "path": "docs-site/release.json",
-      "sha256": "dd270833a97ecd73a4850a72b1906443d1f16c675a35d37b11269b0a15408e1b"
+      "sha256": "9589b9f7a82ba26d16c11205ea0e367f0315a0f7e62055025c0ad401c4d8a587"
     },
     {
       "path": "docs-site/versions.md",
-      "sha256": "cb5e9c6d564a73183bc7131876ae8a5a6083e00f5e742ccb178386b2fffb7c85"
+      "sha256": "5b7b72285de73003f428876ece1a15e67ca3d1f828d573a110aa415894f56542"
     },
     {
       "path": "plugins/catalog.toml",
@@ -47,7 +47,7 @@
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "5141c0ce9851a089386b1f1f7871d778b8699e2ff4fb97978e7300e6019a373d"
+      "sha256": "0d6df5b3ed8dc55d35116217120619c46086170f72912b03fc277ffcdaa7b2b2"
     }
   ],
   "kind": "minco.release-identity.v1",
@@ -521,16 +521,16 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "94d2eaf6f0d75dafdd7a454bada50eb37b8ab394c465ce420ca5e5e85c633603",
+  "projection_sha256": "702f8a1b862822d74a0dee775b99abe5ef3957ecfc3314dbd6236ea7027b7c99",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
-    "sha256": "5141c0ce9851a089386b1f1f7871d778b8699e2ff4fb97978e7300e6019a373d"
+    "sha256": "0d6df5b3ed8dc55d35116217120619c46086170f72912b03fc277ffcdaa7b2b2"
   },
   "schema_version": 1,
   "workspace": {
-    "published_baseline": "1.4.0",
-    "published_release_commit": "2b02bf956eed3ef2a17bae6d10970dff1408e231",
-    "release_state": "candidate",
+    "published_baseline": "1.5.0",
+    "published_release_commit": "c3706559357510d33d046fa461f8550fbbd4c04c",
+    "release_state": "published",
     "rust_version": "1.97.1",
     "version": "1.5.0"
   }

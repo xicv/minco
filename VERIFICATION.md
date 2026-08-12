@@ -2,10 +2,31 @@
 
 Date: 2026-08-12
 Current workspace version: `1.5.0`
-Published baseline: `1.4.0`
-Workspace release state: `candidate`
+Published baseline: `1.5.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T24 `1.5.0` published release closure
+
+PR #157 reviewed exact head `0e6f02296ef69a84274eb74daed1dfaaccb50243`
+and tree `6d7bd41cb1af0d83eb2e16324906a67b17643e0b`, with zero review
+threads and passing clean-Linux run `31588777070`. The guarded squash merge
+created `c3706559357510d33d046fa461f8550fbbd4c04c` with that exact tree.
+Merged-main clean-Linux run `31593051123` and authentication-only OIDC run
+`31593053757` passed for the same source.
+
+Immutable tag `v1.5.0` resolves to the merge commit. Publication run
+`31593507996` passed package archive, selected package, external-consumer and
+dependency-ordered upload gates. Independent registry validation found all 34
+exact `1.5.0` packages present and non-yanked. The GitHub release is published
+at <https://github.com/xicv/minco/releases/tag/v1.5.0>.
+
+This post-publication change promotes repository and documentation truth only.
+Stable Pages and all exact docs.rs routes remain separate gates until verified.
+No AWS/Waffo application operation or production mutation occurred. Hosted
+performance, current live-provider evidence, model-driven application
+evaluation and human-review measurement remain `NOT RUN` or absent.
 
 ## M14-T23 `1.5.0` candidate preparation
 

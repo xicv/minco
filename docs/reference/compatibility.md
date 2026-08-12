@@ -2,18 +2,16 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.4.0`
+Published release: `1.5.0`
 
-Published comparison baseline: `1.3.0`
+Published comparison baseline: `1.4.0`
 
 Current workspace: `1.5.0`
-
-Candidate comparison baseline: `1.4.0`
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1, 1.2, 1.3, published 1.4.0 and candidate 1.5.0 release lines. Merge, tag,
+the 1.1, 1.2, 1.3, 1.4 and published 1.5.0 release lines. Merge, tag,
 registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
@@ -29,7 +27,7 @@ provider selection or deployment topology. Official descriptors advance to
 `^1.4.0`; third-party `^1.3.0` descriptors remain SemVer-compatible unless they
 deliberately require a later API.
 
-The 1.5.0 candidate adds public, test-only fake types to five existing
+The 1.5.0 release adds public, test-only fake types to five existing
 packages and packages measured local assurance plus topology-cost regression.
 Existing runtime interfaces, serialized data, CLI commands, diagnostics,
 features, provider selection and deployment topology remain compatible.

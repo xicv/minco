@@ -1,14 +1,14 @@
 # Using Minco in an application
 
-Published baseline: `1.4.0`
+Published baseline: `1.5.0`
 
 Current workspace version: `1.5.0`
 
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use published `1.4.0` dependencies. Use the exact source checkout only for
-coordinated review of the unreleased candidate. Follow the
-[1.4.0-to-1.5.0 guide](../adoption/1.4.0-to-1.5.0.md) when evaluating its
+Use published `1.5.0` dependencies. Use the exact source checkout only for
+coordinated review of later unreleased work. Follow the
+[1.4.0-to-1.5.0 guide](../adoption/1.4.0-to-1.5.0.md) when adopting its
 additive test and assurance interfaces.
 
 The `minco` facade is the normal dependency for an application. It keeps the
@@ -203,12 +203,11 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 
 ## API stability
 
-Published baseline: `1.4.0`
+Published baseline: `1.5.0`
 Current workspace version: `1.5.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Pin the published `1.4.0` line in production applications. Evaluate the 1.5.0
-candidate only from an exact reviewed source checkout, then follow
+Pin the published `1.5.0` line in production applications, then follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before
 upgrading. The framework follows lock-step versions across the publishable
 crate family during the initial stabilization period. Registry availability

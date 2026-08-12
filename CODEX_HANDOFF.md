@@ -1,14 +1,30 @@
-# Minco 1.5.0 candidate-preparation handoff
+# Minco 1.5.0 release-closure handoff
 
 Date: 2026-08-12
-Published baseline: `1.4.0`
+Published baseline: `1.5.0`
 Current workspace version: `1.5.0`
-Workspace release state: `candidate`
-Published `1.4.0` source: `2b02bf956eed3ef2a17bae6d10970dff1408e231`
-Published source-tree digest: `21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`
-Published release task: `M14-T19`
-Latest release task: `M14-T23` (`complete`)
+Workspace release state: `published`
+Published `1.5.0` source: `c3706559357510d33d046fa461f8550fbbd4c04c`
+Published source-tree digest: `d7354699f7b1169b6aa02c79ef3b1a89a88dc8653bf621f92ccb1a885a38f4b1`
+Published release task: `M14-T24`
+Latest release task: `M14-T24` (`active`)
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active 1.5.0 release closure
+
+PR #157 reviewed exact head `0e6f02296ef69a84274eb74daed1dfaaccb50243`
+and tree `6d7bd41cb1af0d83eb2e16324906a67b17643e0b`, with zero review
+threads and passing clean-Linux run `31588777070`. It merged by guarded squash
+as the same tree in commit `c3706559357510d33d046fa461f8550fbbd4c04c`.
+Merged-main clean-Linux run `31593051123`, authentication-only OIDC run
+`31593053757` and publication run `31593507996` passed. Immutable tag
+`v1.5.0`, all 34 exact non-yanked registry versions and the GitHub release are
+verified independently.
+
+The closure changes release and documentation truth only. Stable Pages and all
+exact docs.rs routes remain separate until verified. No AWS/Waffo application
+operation or production mutation occurred; provider/performance and
+model/human outcome lanes remain absent or `NOT RUN`.
 
 ## Completed 1.5.0 candidate preparation
 
