@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1408,
+  "file_count": 1412,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1629,8 +1629,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "98f65b53b26d6af4977c954ef8bf80034b0280316e878f834288d38132faf7b1",
-      "size_bytes": 7573
+      "sha256": "4c7842fe5520dabb6762b0ece27f8bac04f988e4374f0cacbf6998e708a8ff00",
+      "size_bytes": 7755
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -1926,6 +1926,11 @@
       "path": "docs/adrs/0042-typed-side-effect-fakes.md",
       "sha256": "591dd9694455fd7bcc66f61f7a105ddb9e171a44b74bb6a186a246e395e12a1c",
       "size_bytes": 3167
+    },
+    {
+      "path": "docs/adrs/0043-durable-audit-ledger.md",
+      "sha256": "57a01e84184e5bbbfa4542320281a0880d158a247aefec9a7987b11ffb51c130",
+      "size_bytes": 7582
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -2229,7 +2234,7 @@
     },
     {
       "path": "docs/reference/generated/plugins.md",
-      "sha256": "2a495f1dd9f78fe00cbd466bfd70d6bb0c06ceb69d19081376d6bd09442e7b91",
+      "sha256": "566c0813576f98283164034c792207e7d0d4a9ae6d122fea6adce3d82d602a53",
       "size_bytes": 6731
     },
     {
@@ -2251,6 +2256,11 @@
       "path": "docs/reference/supported-matrix.md",
       "sha256": "2848a38dbd9b7413976e5a02c20a2d0cebcb3d6b54c1c904249f618cc6f971bc",
       "size_bytes": 13175
+    },
+    {
+      "path": "docs/research/audit-ledger-costs-2026-08.md",
+      "sha256": "9fa28c9e959e503d7e88ff3927715c4773ae77daea227785da0e65b27c5bea88",
+      "size_bytes": 4304
     },
     {
       "path": "docs/research/aws-plugin-adapters-2026-07.md",
@@ -4879,18 +4889,23 @@
     },
     {
       "path": "plugins/minco-plugin-audit/README.md",
-      "sha256": "b2d766481192b09fe758e33398295958545a0dd7916554faa2ef33e2d90d964c",
-      "size_bytes": 270
+      "sha256": "7c65cfbfcdd18c82737b6d9c6395524d2f5044c9c7df14ac82c966462727d0ef",
+      "size_bytes": 1282
     },
     {
       "path": "plugins/minco-plugin-audit/minco-plugin.json",
-      "sha256": "42b2e5ed8536540f1f16140e1804b9f4cca99a9147bb6e8b4ef4335a5a0edd24",
-      "size_bytes": 771
+      "sha256": "a83c233c043d38853b4b1dcfe6eedffff66d238c1b8cf476118219359c0c1355",
+      "size_bytes": 940
     },
     {
       "path": "plugins/minco-plugin-audit/src/lib.rs",
-      "sha256": "692db05ee33f6bb690bbc5228a66a438b0234c4add851a623e6b54db9d5c4588",
-      "size_bytes": 4990
+      "sha256": "0a51e680475741da38340fc12194da9610d30bb9bd73d51525f17d754baa0630",
+      "size_bytes": 6816
+    },
+    {
+      "path": "plugins/minco-plugin-audit/src/v2.rs",
+      "sha256": "73e407ea84359b0f7da4c0c9c3aeff7c8e4f8008889eb62667fbe9876b2a86c9",
+      "size_bytes": 51772
     },
     {
       "path": "plugins/minco-plugin-events/Cargo.toml",
@@ -5759,8 +5774,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "3d16ff1a2732149dc57981ec9147b5c08c660cd71428e9a7d15a68f9cd90b30c",
-      "size_bytes": 11828
+      "sha256": "3d7ac309dfd719194eeec3b07e82aa196bb42ace77db1494c9922fbe820b0328",
+      "size_bytes": 11922
     },
     {
       "path": "rust-toolchain.toml",
@@ -6673,6 +6688,11 @@
       "size_bytes": 4736
     },
     {
+      "path": "tasks/M14/M14-T25-durable-audit-ledger-foundation.md",
+      "sha256": "308c9be78237e6e7e385d5d9cf694d203556913250463b89fefb742b99fef1a0",
+      "size_bytes": 5224
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -7080,7 +7100,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "3559004dcf760d2c4d4573dfdc9faaec06db2c18b291a38cdb0547cc50a5847f",
-  "total_size_bytes": 10160410,
+  "source_tree_sha256": "09474791057e5bfb10136bcce0a209c2dea3938010bcfc86f4e0ddab8893b773",
+  "total_size_bytes": 10232575,
   "version": "1.5.0"
 }

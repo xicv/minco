@@ -1,6 +1,10 @@
 //! Append-only audit events and a deterministic memory reference sink.
 #![forbid(unsafe_code)]
 
+mod v2;
+
+pub use v2::*;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use minco_core::{
@@ -96,18 +100,40 @@ impl AuditSink for MemoryAuditSink {
 #[derive(Debug, Clone)]
 pub struct AuditPlugin {
     service: AuditService,
+    ledger: Option<AuditLedgerServices>,
 }
 
 impl AuditPlugin {
     pub fn new(sink: Arc<dyn AuditSink>) -> Self {
         Self {
             service: AuditService::new(sink),
+            ledger: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_ledger<L>(mut self, ledger: Arc<L>) -> Self
+    where
+        L: AuditLedgerWriter + AuditReader + AuditStorageInspector + 'static,
+    {
+        self.ledger = Some(AuditLedgerServices::new(ledger));
+        self
     }
 
     pub fn memory() -> (Self, Arc<MemoryAuditSink>) {
         let sink = Arc::new(MemoryAuditSink::default());
-        (Self::new(sink.clone()), sink)
+        let ledger = Arc::new(MemoryAuditLedger::default());
+        (Self::new(sink.clone()).with_ledger(ledger), sink)
+    }
+
+    pub fn memory_v2() -> (Self, Arc<MemoryAuditSink>, Arc<MemoryAuditLedger>) {
+        let sink = Arc::new(MemoryAuditSink::default());
+        let ledger = Arc::new(MemoryAuditLedger::default());
+        (
+            Self::new(sink.clone()).with_ledger(ledger.clone()),
+            sink,
+            ledger,
+        )
     }
 }
 
@@ -131,11 +157,30 @@ impl Plugin for AuditPlugin {
             name: "audit.append".into(),
             version: Version::new(1, 0, 0),
         });
+        if self.ledger.is_some() {
+            descriptor.provides.extend([
+                CapabilityProvision {
+                    name: "audit.ledger".into(),
+                    version: Version::new(2, 0, 0),
+                },
+                CapabilityProvision {
+                    name: "audit.query".into(),
+                    version: Version::new(2, 0, 0),
+                },
+                CapabilityProvision {
+                    name: "audit.health".into(),
+                    version: Version::new(1, 0, 0),
+                },
+            ]);
+        }
         descriptor
     }
 
     fn install(&self, context: &mut PluginContext<'_>) -> Result<(), PluginError> {
         context.services().insert(Arc::new(self.service.clone()))?;
+        if let Some(ledger) = &self.ledger {
+            context.services().insert(Arc::new(ledger.clone()))?;
+        }
         Ok(())
     }
 }
@@ -166,6 +211,18 @@ mod tests {
                 .map(|event| event.action.as_str())
                 .collect::<Vec<_>>(),
             ["feedback.created", "feedback.replied"]
+        );
+    }
+
+    #[test]
+    fn memory_plugin_advertises_additive_v2_capabilities() {
+        let descriptor = AuditPlugin::memory().0.descriptor();
+        assert_eq!(descriptor.version, Version::new(1, 0, 0));
+        assert!(
+            descriptor
+                .provides
+                .iter()
+                .any(|capability| capability.name == "audit.ledger")
         );
     }
 }

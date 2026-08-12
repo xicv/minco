@@ -17,7 +17,7 @@ This is pre-link distribution metadata. Enabling remains an explicit Cargo featu
 
 | ID | Crate | Kind | Facade feature | Default | Stability | Description | Runtimes | Databases | Idle cost | Wake sources | Metadata digests |
 |---|---|---|---|:---:|---|---|---|---|---|---|---|
-| `audit` | `minco-plugin-audit` | `plugin` | `plugin-audit` | no | `beta` | Append-only audit history independent of operational logs. | ["native"] | [] | [] | [] | `de0cbc853d02` / `cf1b98391428` |
+| `audit` | `minco-plugin-audit` | `plugin` | `plugin-audit` | no | `beta` | Append-only audit history independent of operational logs. | ["native"] | [] | [] | [] | `de0cbc853d02` / `cb98d0a13716` |
 | `aws-adapters` | `minco-aws-adapters` | `adapter` | `aws-adapters` | no | `beta` | Explicit opt-in AWS service adapters; the facade full feature is never enabled by default. | ["native","aws-lambda"] | [] | ["provider_managed","storage_only"] | [] | `13121203d5dc` / `1f247d4cfe0c` |
 | `aws-dynamodb` | `minco-aws-dynamodb` | `adapter` | `aws-dynamodb` | no | `beta` | Validated DynamoDB provider primitives for explicit application-owned access models. | ["native","aws-lambda"] | [] | ["storage_only"] | [] | `b0beff773317` / `d3505a5681af` |
 | `aws-lambda` | `minco-aws-lambda` | `runtime` | `aws-lambda` | no | `beta` | Native Lambda HTTP runtime and SSM configuration loading. | ["aws-lambda"] | [] | ["zero_compute"] | ["http_request"] | `bb131ca819f0` / `12890bb749d7` |
