@@ -15,7 +15,7 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `544`.
+Declared codes: `554`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
@@ -102,6 +102,15 @@ Declared codes: `544`.
 | `ASSURANCE-TRUTH-001` | deployment assurance | `scripts/validate_deployment_assurance.py:140` | 0 |
 | `ASSURANCE-TRUTH-002` | deployment assurance | `scripts/validate_deployment_assurance.py:150` | 0 |
 | `ASSURANCE-TRUTH-003` | deployment assurance | `scripts/validate_deployment_assurance.py:156` | 0 |
+| `COST-REGRESSION-001` | cost evidence | `scripts/cost_regression.py:245` | 7 |
+| `COST-REGRESSION-002` | cost evidence | `scripts/cost_regression.py:101` | 4 |
+| `COST-REGRESSION-003` | cost evidence | `scripts/cost_regression.py:248` | 10 |
+| `COST-REGRESSION-004` | cost evidence | `scripts/cost_regression.py:307` | 2 |
+| `COST-REGRESSION-005` | cost evidence | `scripts/cost_regression.py:109` | 7 |
+| `COST-REGRESSION-006` | cost evidence | `scripts/cost_regression.py:146` | 0 |
+| `COST-REGRESSION-007` | cost evidence | `scripts/cost_regression.py:165` | 4 |
+| `COST-REGRESSION-008` | cost evidence | `scripts/cost_regression.py:402` | 2 |
+| `COST-REGRESSION-009` | cost evidence | `scripts/cost_regression.py:316` | 4 |
 | `EVIDENCE-CAPABILITY-001` | operational evidence | `scripts/validate_operational_evidence.py:672` | 0 |
 | `EVIDENCE-CAPABILITY-002` | operational evidence | `scripts/validate_operational_evidence.py:674` | 0 |
 | `EVIDENCE-CAPABILITY-003` | operational evidence | `scripts/validate_operational_evidence.py:677` | 0 |
@@ -524,6 +533,7 @@ Declared codes: `544`.
 | `config.schema.secret_default` | configuration | `crates/minco-config/src/schema.rs:121` | 1 |
 | `config.schema.secret_reference_kind` | configuration | `crates/minco-config/src/schema.rs:111` | 1 |
 | `config.secret_reference_required` | configuration | `crates/minco-config/src/graph.rs:159` | 0 |
+| `config.toml` | configuration | `scripts/test/cost_regression.py:204` | 1 |
 | `config.type_mismatch` | configuration | `crates/minco-config/src/graph.rs:189` | 0 |
 | `config.typed_deserialization` | configuration | `crates/minco-config/src/graph.rs:563` | 1 |
 | `config.unknown_field` | configuration | `crates/minco-config/src/graph.rs:147` | 1 |
