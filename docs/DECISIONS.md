@@ -45,3 +45,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0039](adrs/0039-waffo-payment-boundary.md) | Keep Waffo checkout and webhook mechanics provider-specific while applications own payment state and live evidence. | Accepted |
 | [ADR-0040](adrs/0040-measured-framework-assurance.md) | Bind pinned measured quality and release identity projections to exact source without broadening runtime authority. | Accepted |
 | [ADR-0041](adrs/0041-topology-cost-regression-baseline.md) | Guard reviewed golden-topology cost projections without inventing provider prices. | Accepted |
+| [ADR-0042](adrs/0042-typed-side-effect-fakes.md) | Keep application-test fakes port-specific, failure-scriptable and privacy-bounded. | Accepted |

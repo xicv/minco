@@ -16,6 +16,7 @@ publish = ["crates-io"]
 include = [
   "src/**",
   "examples/**",
+  "tests/**",
   "Cargo.toml",
   "minco-plugin.json",
   "README.md",
@@ -38,10 +39,8 @@ futures.workspace = true
 lambda_runtime.workspace = true
 minco-plugin-events = { workspace = true, optional = true }
 thiserror.workspace = true
-tracing.workspace = true
-
-[dev-dependencies]
 tokio.workspace = true
+tracing.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

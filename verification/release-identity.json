@@ -30,7 +30,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "1ee75ea9526954b2b2b894d6a9c3652cf9381f5f1d5852922d407ca34d9d1dfc"
+      "sha256": "e57476abcf488ed5054d106eea78400483cbe9a886be0718084c1e63ac59df69"
     },
     {
       "path": "docs-site/release.json",
@@ -97,7 +97,7 @@
     },
     {
       "manifest_path": "extensions/minco-aws-worker/Cargo.toml",
-      "manifest_sha256": "52e5283e5be798e4320f99f2752e363fc4951edb78232faf60e905237e93e395",
+      "manifest_sha256": "09362884e42bda10f7154f75d204ba5bed31dd07b457b66f86dec1d7ff312923",
       "name": "minco-aws-worker",
       "version": {
         "workspace": true
@@ -185,7 +185,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-events/Cargo.toml",
-      "manifest_sha256": "f54322836d7d545fed0a72066393002df7a53f2483d0e4317bc4a9c5a1c98c47",
+      "manifest_sha256": "c5710b5c4ad594e341c82f18948ce882df8ae7f91568abebab5a78740f58016e",
       "name": "minco-plugin-events",
       "version": {
         "workspace": true
@@ -193,7 +193,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-feedback/Cargo.toml",
-      "manifest_sha256": "29d1041125ccc364952faaa8561acdf06cde6cd21943ed8a66c1f9c690889047",
+      "manifest_sha256": "af3e80bedb21ce53730d9ef21ad7f41295efebbb667f6b2f7b2e1e546e70a305",
       "name": "minco-plugin-feedback",
       "version": {
         "workspace": true
@@ -225,7 +225,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-notifications/Cargo.toml",
-      "manifest_sha256": "8ce4f15eeecc35a308f4655f1fc3e8c34998d3977b553b73c815418fb8a0cbc3",
+      "manifest_sha256": "bf3dc116e15a6fc93258c5bd41e0d0aa3ba9868e6fd268041d2a8e6af7de48a2",
       "name": "minco-plugin-notifications",
       "version": {
         "workspace": true
@@ -233,7 +233,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-object-storage/Cargo.toml",
-      "manifest_sha256": "5b62b9eefee7450149e508bcba9c5eb08d6c69b4e7b94a51a1bcb863f9efcaf0",
+      "manifest_sha256": "bfd4e64309171cbf502ac5db53355fce91465fe7c80280c23f62c439be8e2cf7",
       "name": "minco-plugin-object-storage",
       "version": {
         "workspace": true
@@ -520,7 +520,7 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "868ec16f4fae2e2ca4a450e8583ddda8e912b238736d9f874861501191b16de6",
+  "projection_sha256": "886368144ef106b342fd88d63b6de5f979e2b5054ba42c37db846a48a7e08329",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "372f7761962338f1d0eee70c863fea906605f8851c57d175608d9d9879fd3008"

@@ -1,9 +1,13 @@
 use crate::{FeedbackAccessToken, FeedbackId, FeedbackListFilter, FeedbackSummary, FeedbackThread};
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt,
+    sync::Arc,
+};
 use subtle::ConstantTimeEq;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 #[async_trait]
 pub trait FeedbackStore: Send + Sync + std::fmt::Debug {
@@ -101,6 +105,166 @@ struct MemoryFeedbackEntry {
 #[derive(Debug, Default)]
 pub struct MemoryFeedbackStore {
     entries: RwLock<BTreeMap<FeedbackId, MemoryFeedbackEntry>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FeedbackStoreOperation {
+    Create,
+    Get,
+    GetForClient,
+    List,
+    Save,
+    Ready,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FeedbackStoreAttempt {
+    Create {
+        id: FeedbackId,
+    },
+    Get {
+        id: FeedbackId,
+    },
+    GetForClient {
+        id: FeedbackId,
+    },
+    List,
+    Save {
+        id: FeedbackId,
+        expected_revision: u64,
+    },
+    Ready,
+}
+
+/// Deterministic feedback-store fake with privacy-bounded attempt evidence.
+///
+/// The fake delegates successful behavior to [`MemoryFeedbackStore`]. Recorded
+/// attempts deliberately omit feedback bodies and client-token hashes.
+#[derive(Default)]
+pub struct FakeFeedbackStore {
+    inner: MemoryFeedbackStore,
+    attempts: RwLock<Vec<FeedbackStoreAttempt>>,
+    failures: Mutex<BTreeMap<FeedbackStoreOperation, VecDeque<String>>>,
+}
+
+impl FakeFeedbackStore {
+    pub async fn fail_next(&self, operation: FeedbackStoreOperation, message: impl Into<String>) {
+        self.failures
+            .lock()
+            .await
+            .entry(operation)
+            .or_default()
+            .push_back(message.into());
+    }
+
+    pub async fn attempts(&self) -> Vec<FeedbackStoreAttempt> {
+        self.attempts.read().await.clone()
+    }
+
+    async fn take_failure(&self, operation: FeedbackStoreOperation) -> Option<String> {
+        let mut failures = self.failures.lock().await;
+        let failure = failures.get_mut(&operation).and_then(VecDeque::pop_front);
+        if failures.get(&operation).is_some_and(VecDeque::is_empty) {
+            failures.remove(&operation);
+        }
+        drop(failures);
+        failure
+    }
+}
+
+impl fmt::Debug for FakeFeedbackStore {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FakeFeedbackStore")
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl FeedbackStore for FakeFeedbackStore {
+    async fn create(
+        &self,
+        thread: FeedbackThread,
+        client_token_hash: String,
+    ) -> Result<(), FeedbackStoreError> {
+        self.attempts
+            .write()
+            .await
+            .push(FeedbackStoreAttempt::Create { id: thread.id });
+        if let Some(message) = self.take_failure(FeedbackStoreOperation::Create).await {
+            return Err(FeedbackStoreError::Infrastructure(message));
+        }
+        self.inner.create(thread, client_token_hash).await
+    }
+
+    async fn get(&self, id: FeedbackId) -> Result<Option<FeedbackThread>, FeedbackStoreError> {
+        self.attempts
+            .write()
+            .await
+            .push(FeedbackStoreAttempt::Get { id });
+        if let Some(message) = self.take_failure(FeedbackStoreOperation::Get).await {
+            return Err(FeedbackStoreError::Infrastructure(message));
+        }
+        self.inner.get(id).await
+    }
+
+    async fn get_for_client(
+        &self,
+        id: FeedbackId,
+        client_token_hash: &str,
+    ) -> Result<Option<FeedbackThread>, FeedbackStoreError> {
+        self.attempts
+            .write()
+            .await
+            .push(FeedbackStoreAttempt::GetForClient { id });
+        if let Some(message) = self
+            .take_failure(FeedbackStoreOperation::GetForClient)
+            .await
+        {
+            return Err(FeedbackStoreError::Infrastructure(message));
+        }
+        self.inner.get_for_client(id, client_token_hash).await
+    }
+
+    async fn list(
+        &self,
+        filter: FeedbackListFilter,
+    ) -> Result<Vec<FeedbackSummary>, FeedbackStoreError> {
+        self.attempts.write().await.push(FeedbackStoreAttempt::List);
+        if let Some(message) = self.take_failure(FeedbackStoreOperation::List).await {
+            return Err(FeedbackStoreError::Infrastructure(message));
+        }
+        self.inner.list(filter).await
+    }
+
+    async fn save(
+        &self,
+        thread: FeedbackThread,
+        expected_revision: u64,
+    ) -> Result<(), FeedbackStoreError> {
+        self.attempts
+            .write()
+            .await
+            .push(FeedbackStoreAttempt::Save {
+                id: thread.id,
+                expected_revision,
+            });
+        if let Some(message) = self.take_failure(FeedbackStoreOperation::Save).await {
+            return Err(FeedbackStoreError::Infrastructure(message));
+        }
+        self.inner.save(thread, expected_revision).await
+    }
+
+    async fn ready(&self) -> Result<(), FeedbackStoreError> {
+        self.attempts
+            .write()
+            .await
+            .push(FeedbackStoreAttempt::Ready);
+        if let Some(message) = self.take_failure(FeedbackStoreOperation::Ready).await {
+            return Err(FeedbackStoreError::Infrastructure(message));
+        }
+        self.inner.ready().await
+    }
 }
 
 #[async_trait]

@@ -64,6 +64,29 @@ The framework's own tests cover:
 - isolated Rustack S3, SQS, SSM and STS compatibility, including the Minco SSM
   SDK adapter.
 
+## Typed side-effect fakes
+
+Application tests should inject the fake owned by the real boundary port:
+
+| Boundary | Fake | Observable behavior |
+|---|---|---|
+| SQS message handling | `minco_aws_worker::FakeMessageHandler` | ordered attempts, message-ID-scoped one-shot failures, real partial-batch responses |
+| Domain events | `minco_plugin_events::FakeEventPublisher` | exact valid event attempts and one-shot infrastructure failures |
+| Object storage | `minco_plugin_object_storage::FakeObjectStore` | typed put/get/delete attempts, failed mutations do not persist |
+| Feedback persistence | `minco_plugin_feedback::FakeFeedbackStore` | privacy-bounded operation attempts, optimistic memory semantics and failed writes do not persist |
+| Rich mail | `minco_plugin_notifications::FakeMailTransport` | exact mail attempts, typed failure classes and real fallback policy |
+
+Queue failures are attached to one message ID; the other fakes consume failures
+in configured FIFO order for the selected operation or transport. Default
+behavior is successful and provider-free. Prefer assertions on the use-case
+result and durable state, using attempt snapshots only to prove the external
+intent. Fake `Debug` is redacted, but snapshots contain synthetic test values;
+never use customer data, credentials or production tokens as fixtures.
+
+These fakes prove application behavior only. Run adapter conformance against the
+real engine and retain hosted/live evidence separately when a provider claim is
+required.
+
 A release additionally requires database-backed conformance, native Lambda build,
 SAM validation, and a bounded real-AWS smoke deployment. Static or unit checks do
 not substitute for those gates.

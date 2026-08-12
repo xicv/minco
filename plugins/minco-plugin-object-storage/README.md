@@ -34,3 +34,8 @@ to decode, serve inline, or execute.
 See `docs/how-to/object-uploads.md` in the Minco repository for the complete S3
 composition, browser hashing/request, verification, CORS, lifecycle, and
 security checklist.
+
+For failure-policy tests, `FakeObjectStore` records typed put/get/delete
+attempts and consumes operation-scoped failures once. Successful behavior uses
+the same `MemoryObjectStore` semantics; a failed put never mutates retained
+state. `Debug` reports structure without object bytes or attribute values.

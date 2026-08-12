@@ -10,7 +10,11 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::{sync::RwLock, task::JoinSet, time::timeout};
+use tokio::{
+    sync::{Mutex, RwLock},
+    task::JoinSet,
+    time::timeout,
+};
 use uuid::Uuid;
 
 const MAX_RECIPIENTS: usize = 50;
@@ -882,6 +886,110 @@ impl fmt::Debug for MailService {
                     .collect::<Vec<_>>(),
             )
             .finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct MailAttempt {
+    pub message: MailMessage,
+    pub attempt: u32,
+}
+
+impl fmt::Debug for MailAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MailAttempt")
+            .field("message_id", &self.message.id)
+            .field("topic", &self.message.topic)
+            .field("attempt", &self.attempt)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct FakeMailFailure {
+    kind: MailErrorKind,
+    message: String,
+}
+
+/// Deterministic mail transport fake for retry and fallback tests.
+pub struct FakeMailTransport {
+    name: String,
+    attempts: RwLock<Vec<MailAttempt>>,
+    failures: Mutex<VecDeque<FakeMailFailure>>,
+}
+
+impl FakeMailTransport {
+    pub fn named(name: impl Into<String>) -> Result<Self, MailError> {
+        let name = name.into();
+        if !valid_transport_name(&name) {
+            return Err(MailError::new(
+                MailErrorKind::Configuration,
+                "fake",
+                "fake mail transport name is invalid",
+            ));
+        }
+        Ok(Self {
+            name,
+            attempts: RwLock::new(Vec::new()),
+            failures: Mutex::new(VecDeque::new()),
+        })
+    }
+
+    pub async fn fail_next(&self, kind: MailErrorKind, message: impl Into<String>) {
+        self.failures.lock().await.push_back(FakeMailFailure {
+            kind,
+            message: message.into(),
+        });
+    }
+
+    pub async fn attempts(&self) -> Vec<MailAttempt> {
+        self.attempts.read().await.clone()
+    }
+}
+
+impl Default for FakeMailTransport {
+    fn default() -> Self {
+        Self::named("fake").expect("static fake transport name")
+    }
+}
+
+impl fmt::Debug for FakeMailTransport {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FakeMailTransport")
+            .field("name", &self.name)
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl MailTransport for FakeMailTransport {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    async fn send(&self, message: &MailMessage, attempt: u32) -> Result<MailReceipt, MailError> {
+        message.validate()?;
+        let sequence = {
+            let mut attempts = self.attempts.write().await;
+            attempts.push(MailAttempt {
+                message: message.clone(),
+                attempt,
+            });
+            attempts.len()
+        };
+        let failure = self.failures.lock().await.pop_front();
+        if let Some(failure) = failure {
+            return Err(MailError::new(failure.kind, &self.name, failure.message));
+        }
+        Ok(MailReceipt {
+            message_id: message.id,
+            transport: self.name.clone(),
+            provider_message_id: format!("fake:{}:{sequence}", message.id),
+            accepted_at: DateTime::<Utc>::UNIX_EPOCH,
+            attempt,
+        })
     }
 }
 

@@ -22,6 +22,14 @@ Prefer tests that observe public behavior:
 - Axum `oneshot` tests for the external contract; and
 - plan/configuration tests for declared infrastructure consequences.
 
+For side effects, prefer the official port-specific test doubles:
+`FakeMessageHandler`, `FakeEventPublisher`, `FakeObjectStore`,
+`FakeFeedbackStore`, and `FakeMailTransport`. Script only the failure needed by
+the scenario, assert the public use-case outcome, and keep provider or mailbox
+evidence in its separate lane. Do not introduce a generic mocking facade or put
+customer data, credentials, tokens, object bytes, feedback text, or mail content
+in committed fixtures.
+
 Record the exact failed test before implementation and the focused passing
 command afterward. Do not turn an unrun provider or hosted check into a pass.
 

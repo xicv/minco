@@ -170,6 +170,12 @@ an independently configured outbox transaction atomic. Applications requiring
 that guarantee must provide a transaction-integrated feedback store/outbox adapter.
 Minco does not hide a scheduled polling worker.
 
+Application tests that must prove persistence failure behavior can inject
+`FakeFeedbackStore`. It delegates successful operations to
+`MemoryFeedbackStore`, records privacy-bounded operation identities and consumes
+operation-scoped failures once. Recorded diagnostics omit feedback text and
+client-token hashes; tests should still use synthetic data only.
+
 ## Transcription
 
 Two official adapters are feature-gated:

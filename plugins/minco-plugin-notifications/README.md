@@ -113,6 +113,12 @@ assert_eq!(observer.events().await.len(), 3);
 `MemoryMailTransport` captures the complete message without network access,
 credentials, sleeps, or provider state.
 
+Use `FakeMailTransport` when the test must select a failure class. It records
+typed attempts, consumes queued failures once and drives the real
+`MailService` retry/fallback rules. Its `Debug` output omits recipients,
+subjects, bodies, attachments and metadata values. A fake acceptance remains
+submission-policy evidence, not proof of mailbox delivery.
+
 The package distribution describes the plain notifications constructor and
 therefore advertises only `notifications.send`. A runtime
 `NotificationsPlugin` descriptor adds `mail.send` only when constructed with an
