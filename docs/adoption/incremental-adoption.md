@@ -1,12 +1,11 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.4.0`
+Published baseline: `1.5.0`
 Current workspace version: `1.5.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use exact published `1.4.0` dependencies for applications. The unpublished
-`1.5.0` candidate adds provider-free testing and assurance interfaces; evaluate
-it only from exact reviewed source and follow the
+Use exact published `1.5.0` dependencies for applications. The release adds
+provider-free testing and assurance interfaces; follow the
 [1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md). Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 
@@ -20,7 +19,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.4.0", default-features = false, features = ["contract"] }
+minco = { version = "1.5.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -186,7 +185,7 @@ must use the [`1.3.0` to `1.4.0` guide](1.3.0-to-1.4.0.md). It covers the
 toolchain/dependency refresh, website presentation, official descriptor and
 AI-skill coordination without claiming a new runtime or provider capability.
 
-Applications evaluating the unpublished `1.5.0` candidate from `1.4.0` must
+Applications moving from `1.4.0` to the published `1.5.0` release must
 use the [`1.4.0` to `1.5.0` guide](1.4.0-to-1.5.0.md). It covers the additive
 typed fakes, measured assurance, topology-cost regression, compatible runtime
 boundary and explicit `NOT RUN` model/provider evidence.

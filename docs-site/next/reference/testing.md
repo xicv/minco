@@ -49,7 +49,7 @@ The first command binds release notes, versioned documentation and all nine
 packaged skills. The second reproduces Codex/Claude projection and scenario
 evidence byte-for-byte without invoking a model or contacting a provider.
 
-The 1.5 candidate also exposes official provider-free fakes for SQS handling,
+The 1.5 release also exposes official provider-free fakes for SQS handling,
 domain-event publication, object storage, feedback persistence and rich mail.
 Use them only through their owning public ports. Their ordered, redacted
 attempt records and one-shot failure scripts prove application behavior; they
@@ -60,7 +60,7 @@ cargo-semver-checks, and the golden-topology cost baseline covers seven
 reviewed Orders configurations. Both are exact-source local evidence.
 Application-specific model evaluation, measured human-review effort, hosted
 performance and current live-provider proof remain `NOT RUN` or absent for the
-1.5 candidate.
+1.5 release.
 
 ## Hosted Profiles
 

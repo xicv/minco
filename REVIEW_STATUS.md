@@ -1,5 +1,19 @@
 # Review status
 
+## Active M14-T24 Minco 1.5.0 published release closure
+
+Minco `1.5.0` is the current published baseline from exact release source
+`c3706559357510d33d046fa461f8550fbbd4c04c`. PR #157 reviewed tree
+`6d7bd41cb1af0d83eb2e16324906a67b17643e0b` with zero review threads,
+passed exact-head clean Linux, and merged as the same tree. Immutable tag
+`v1.5.0`, publication run `31593507996`, all 34 exact non-yanked crates.io
+records and the GitHub release are independently verified.
+
+This truth-only closure changes no Rust API, Plan IR, plugin capability,
+provider topology or runtime selection. Stable Pages and exact docs.rs routes
+remain independent gates. Live AWS/Waffo, production, hosted performance,
+model outcome and measured human-review evidence remain unproven or `NOT RUN`.
+
 ## Completed M14-T23 Minco 1.5.0 candidate preparation
 
 The release workspace starts from exact merged `main`
@@ -108,7 +122,8 @@ live-provider evidence are unavailable. Local macOS performance is diagnostic,
 provider-free and never a production SLO. No public API, serialized Plan IR,
 plugin compatibility, version, provider support or deployment topology changes.
 
-The workspace is the published `1.4.0` maintenance-minor release.
+The following retained section records the published `1.4.0` maintenance-minor
+release at the time it was current.
 
 Published baseline: `1.4.0`
 
@@ -147,9 +162,9 @@ AI-agent routes return HTTP 200 with expected content. Live Waffo, deployment
 and production evidence remain separate; no provider or deployment claim is
 inferred from publication.
 
-## Published 1.4.0 baseline
+## Previous published 1.4.0 baseline
 
-Minco `1.4.0` is the current published baseline from exact release source
+Minco `1.4.0` was the previous published baseline from exact release source
 `2b02bf956eed3ef2a17bae6d10970dff1408e231`, tree
 `e9e5138eed39d48d0d58cb7440310f198695f47b` and source-tree digest
 `21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`.
