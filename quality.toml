@@ -41,6 +41,8 @@ commands = [
   "cargo check --workspace --all-targets --all-features --locked",
   "cargo check -p cargo-minco --locked",
   "cargo build -p cargo-minco --locked",
+  "uv run --locked python scripts/test/cost_regression.py",
+  "uv run --locked python scripts/cost_regression.py --check",
   "cargo test -p cargo-minco --test agent_skills --locked",
   "uv run --locked python scripts/test/agent_workflows.py --check-output verification/agent-workflows.json",
   "cargo test -p minco --no-default-features --locked",

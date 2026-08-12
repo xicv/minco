@@ -1,5 +1,29 @@
 # Review status
 
+## M14-T21 golden-topology cost regression
+
+The isolated P1 change starts from exact merged `main`
+`b9e2cf3b0621cfe67487142e609a6c26cf7391ee`. It adds a deterministic,
+provider-free regression gate over seven reviewed Orders configurations:
+local SQLite, Neon Free, Neon Launch, Aurora Serverless v2, provisioned RDS,
+self-hosted PostgreSQL and DynamoDB on-demand.
+
+Each baseline record binds exact configuration bytes, a readable canonical
+`cargo minco cost --json` projection and its SHA-256. Normal local and bounded
+clean-Linux quality lanes check the baseline without regenerating it. Nine
+focused tests cover semantic drift, duplicate records and paths, non-canonical
+or non-finite JSON, missing files, critical zero-idle invariants, symlinks,
+bounded CLI execution, secret-free failure output and exact reproduction.
+
+The final local quality matrix and the bounded hosted-essential script pass on
+the source recorded by this change. Exact-head clean-Linux execution remains a
+separate pre-merge gate and is not inferred from the local macOS result.
+
+The baseline does not fetch provider prices, define a production budget or
+qualify AWS behavior. It changes no Plan IR schema, public Rust API, CLI output,
+plugin compatibility, provider selection or deployment topology, and adds no
+runtime resource, schedule, poller or control plane.
+
 ## Active M14-T20 measured framework assurance
 
 The current isolated change is based on exact published `main`

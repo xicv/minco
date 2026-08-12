@@ -44,3 +44,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0038](adrs/0038-local-first-actions-boundary.md) | Keep substantive qualification local and reserve GitHub Actions for platform-required compatibility, Pages and crates.io OIDC work. | Accepted |
 | [ADR-0039](adrs/0039-waffo-payment-boundary.md) | Keep Waffo checkout and webhook mechanics provider-specific while applications own payment state and live evidence. | Accepted |
 | [ADR-0040](adrs/0040-measured-framework-assurance.md) | Bind pinned measured quality and release identity projections to exact source without broadening runtime authority. | Accepted |
+| [ADR-0041](adrs/0041-topology-cost-regression-baseline.md) | Guard reviewed golden-topology cost projections without inventing provider prices. | Accepted |

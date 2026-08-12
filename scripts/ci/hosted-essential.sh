@@ -8,6 +8,8 @@ export CARGO_PROFILE_TEST_DEBUG=0
 
 uv run --locked python scripts/validate_static.py
 scripts/docs/generate-reference.sh --check
+uv run --locked python scripts/test/cost_regression.py
+uv run --locked python scripts/cost_regression.py --check
 uv run --locked python scripts/test/agent_workflows.py --check-output verification/agent-workflows.json
 uv run --locked python scripts/test/repository_truth.py
 uv run --locked python scripts/validate_deployment_assurance.py

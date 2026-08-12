@@ -1,0 +1,525 @@
+{
+  "kind": "minco.topology-cost-regression.v1",
+  "limitations": [
+    "The baseline detects repository cost-model drift; it does not fetch current provider prices.",
+    "Incomplete regional rates, account eligibility and live-provider behavior remain explicit operational gates.",
+    "Local structural evidence is not a production budget, invoice forecast or AWS qualification."
+  ],
+  "production_budget": false,
+  "profiles": [
+    {
+      "config": "examples/orders/config/minco.local-sqlite.toml",
+      "config_sha256": "b34cb2fa8ae952d62f3f50644cc3aec9d1a0231be0983d145eaafc9aedf27c63",
+      "id": "orders-local-sqlite",
+      "projection": {
+        "database": {
+          "complete": true,
+          "components": [
+            {
+              "formula": "persistent single-process host",
+              "monthly_usd": 0.0,
+              "name": "host"
+            },
+            {
+              "formula": "backup storage and transfer",
+              "monthly_usd": 0.0,
+              "name": "backup"
+            }
+          ],
+          "evidence": [
+            {
+              "cost_class": "fixed_monthly",
+              "name": "host",
+              "pricing_confidence": "priced"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "backup",
+              "pricing_confidence": "priced"
+            }
+          ],
+          "missing_rates": [],
+          "monthly_usd": 0.0,
+          "notes": [
+            "Suitable only where a single-writer deployment and persistent filesystem meet the application's concurrency and availability needs."
+          ],
+          "provider": "sqlite_persistent_host"
+        },
+        "database_profile": "sqlite_persistent_host",
+        "overall_estimate_complete": true,
+        "runtime": {
+          "complete": true,
+          "evidence": [],
+          "fixed_cost_resources": [
+            "database:sqlite_persistent_host"
+          ],
+          "missing_rates": [],
+          "queues": [],
+          "request_based_resources": [],
+          "schedules": [],
+          "workers": []
+        },
+        "structural_diagnostics": []
+      },
+      "projection_sha256": "13ba0256a754cbb03df6a3323ae1a677653e2868b2f1f88e7ae98cf8458cf159"
+    },
+    {
+      "config": "examples/orders/config/minco.dev.toml",
+      "config_sha256": "3bd438be3925657f7ef5f66af15d875109c6834ee8856e6a572785ef2a382fff",
+      "id": "orders-neon-free",
+      "projection": {
+        "database": {
+          "complete": false,
+          "components": [],
+          "evidence": [
+            {
+              "cost_class": "zero_compute",
+              "name": "compute_allowance",
+              "pricing_confidence": "free_tier_dependent"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "storage_allowance",
+              "pricing_confidence": "free_tier_dependent"
+            }
+          ],
+          "missing_rates": [
+            "current Neon Free plan eligibility and per-project allowance"
+          ],
+          "monthly_usd": null,
+          "notes": [
+            "Usage fits the dated published allowance, but Minco does not treat provider eligibility or a future allowance as a complete zero-cost estimate.",
+            "Neon rates captured on 2026-07-31 from https://neon.com/pricing; refresh the dated catalog before financial approval."
+          ],
+          "provider": "neon_free"
+        },
+        "database_profile": "neon_postgres",
+        "overall_estimate_complete": false,
+        "runtime": {
+          "complete": false,
+          "evidence": [
+            {
+              "cost_class": "request_only",
+              "name": "http_api",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "zero_compute",
+              "name": "lambda_compute",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "fixed_cost_resources": [],
+          "missing_rates": [
+            "regional_api_gateway_request_rate",
+            "regional_lambda_request_and_duration_rates"
+          ],
+          "queues": [],
+          "request_based_resources": [
+            "http_api",
+            "lambda:api"
+          ],
+          "schedules": [],
+          "workers": []
+        },
+        "structural_diagnostics": []
+      },
+      "projection_sha256": "871bc0ff8feecdca0b9bfe861a17e64956a30b835ae01c324a7ef285d42bed83"
+    },
+    {
+      "config": "examples/orders/config/minco.neon-launch.toml",
+      "config_sha256": "01d8ce2b894fd94b906a7a039a6fa25d214bd3994284dd2ca51fcadaaea6baaa",
+      "id": "orders-neon-launch",
+      "projection": {
+        "database": {
+          "complete": true,
+          "components": [
+            {
+              "formula": "60 CU-hours \u00d7 $0.106",
+              "monthly_usd": 6.359999999999999,
+              "name": "compute"
+            },
+            {
+              "formula": "2 GB-month \u00d7 $0.35",
+              "monthly_usd": 0.7,
+              "name": "storage"
+            },
+            {
+              "formula": "1 GB-month \u00d7 $0.2",
+              "monthly_usd": 0.2,
+              "name": "history_storage"
+            }
+          ],
+          "evidence": [
+            {
+              "cost_class": "zero_compute",
+              "name": "compute",
+              "pricing_confidence": "priced"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "storage",
+              "pricing_confidence": "priced"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "history_storage",
+              "pricing_confidence": "priced"
+            }
+          ],
+          "missing_rates": [],
+          "monthly_usd": 7.26,
+          "notes": [
+            "Neon rates captured on 2026-07-31 from https://neon.com/pricing; refresh the dated catalog before financial approval."
+          ],
+          "provider": "neon_launch"
+        },
+        "database_profile": "neon_postgres",
+        "overall_estimate_complete": false,
+        "runtime": {
+          "complete": false,
+          "evidence": [
+            {
+              "cost_class": "request_only",
+              "name": "http_api",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "zero_compute",
+              "name": "lambda_compute",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "fixed_cost_resources": [],
+          "missing_rates": [
+            "regional_api_gateway_request_rate",
+            "regional_lambda_request_and_duration_rates"
+          ],
+          "queues": [],
+          "request_based_resources": [
+            "http_api",
+            "lambda:api"
+          ],
+          "schedules": [],
+          "workers": []
+        },
+        "structural_diagnostics": []
+      },
+      "projection_sha256": "906a89fa55116b8fa6cbcc86c1347531032369bff4eeb90b36da27a2ac16995f"
+    },
+    {
+      "config": "examples/orders/config/minco.aurora-serverless-v2.toml",
+      "config_sha256": "636ef06fb442b92c59f6497bdb5dfe886c327f027410d2a5e51ad90179e39194",
+      "id": "orders-aurora-serverless-v2",
+      "projection": {
+        "database": {
+          "complete": false,
+          "components": [],
+          "evidence": [
+            {
+              "cost_class": "zero_compute",
+              "name": "compute",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "storage",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "request_only",
+              "name": "io",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "missing_rates": [
+            "compute_rate_usd",
+            "storage_rate_usd",
+            "io_rate_usd"
+          ],
+          "monthly_usd": null,
+          "notes": [
+            "Auto-pause eligibility and minimum ACU settings must be verified for the selected Aurora engine version and region."
+          ],
+          "provider": "aws_aurora_serverless_v2"
+        },
+        "database_profile": "aurora_serverless_v2",
+        "overall_estimate_complete": false,
+        "runtime": {
+          "complete": false,
+          "evidence": [
+            {
+              "cost_class": "request_only",
+              "name": "http_api",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "zero_compute",
+              "name": "lambda_compute",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "fixed_cost_resources": [],
+          "missing_rates": [
+            "regional_api_gateway_request_rate",
+            "regional_lambda_request_and_duration_rates"
+          ],
+          "queues": [],
+          "request_based_resources": [
+            "http_api",
+            "lambda:api"
+          ],
+          "schedules": [],
+          "workers": []
+        },
+        "structural_diagnostics": []
+      },
+      "projection_sha256": "fdd64ff25efdd0706d336c4a395142027d919b107f9626afdaf6e5837a78a0ef"
+    },
+    {
+      "config": "examples/orders/config/minco.rds-postgres.toml",
+      "config_sha256": "09098f026f8eaeee9f5692b4c8ac6e72c16e848598d1d8bf23c427c977c6e7cd",
+      "id": "orders-rds-postgres",
+      "projection": {
+        "database": {
+          "complete": false,
+          "components": [],
+          "evidence": [
+            {
+              "cost_class": "fixed_monthly",
+              "name": "instance",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "storage",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "backup",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "missing_rates": [
+            "instance_rate_usd",
+            "storage_rate_usd",
+            "backup_rate_usd"
+          ],
+          "monthly_usd": null,
+          "notes": [
+            "AWS rates are intentionally supplied per region and instance class rather than embedded as globally stable constants."
+          ],
+          "provider": "aws_rds_postgres"
+        },
+        "database_profile": "rds_postgres",
+        "overall_estimate_complete": false,
+        "runtime": {
+          "complete": false,
+          "evidence": [
+            {
+              "cost_class": "request_only",
+              "name": "http_api",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "zero_compute",
+              "name": "lambda_compute",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "fixed_cost_resources": [
+            "database:rds_postgres"
+          ],
+          "missing_rates": [
+            "regional_api_gateway_request_rate",
+            "regional_lambda_request_and_duration_rates"
+          ],
+          "queues": [],
+          "request_based_resources": [
+            "http_api",
+            "lambda:api"
+          ],
+          "schedules": [],
+          "workers": []
+        },
+        "structural_diagnostics": []
+      },
+      "projection_sha256": "abbe2ffe172e556dc7ce19ab2320be9b2fddfc1f9face3137099017eae06771f"
+    },
+    {
+      "config": "examples/orders/config/minco.self-hosted-postgres.toml",
+      "config_sha256": "7fc2102888aabb9a3265c000dd0bbc31f1068c449e557f8cd74bfb98128eda43",
+      "id": "orders-self-hosted-postgres",
+      "projection": {
+        "database": {
+          "complete": true,
+          "components": [
+            {
+              "formula": "fixed host monthly price",
+              "monthly_usd": 12.0,
+              "name": "host"
+            },
+            {
+              "formula": "20 GB-month \u00d7 $0.08",
+              "monthly_usd": 1.6,
+              "name": "storage"
+            },
+            {
+              "formula": "20 GB-month \u00d7 $0.05",
+              "monthly_usd": 1.0,
+              "name": "backup"
+            },
+            {
+              "formula": "explicit operational ownership allowance",
+              "monthly_usd": 50.0,
+              "name": "operations_allowance"
+            }
+          ],
+          "evidence": [
+            {
+              "cost_class": "fixed_monthly",
+              "name": "host",
+              "pricing_confidence": "priced"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "storage",
+              "pricing_confidence": "priced"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "backup",
+              "pricing_confidence": "priced"
+            },
+            {
+              "cost_class": "fixed_monthly",
+              "name": "operations_allowance",
+              "pricing_confidence": "priced"
+            }
+          ],
+          "missing_rates": [],
+          "monthly_usd": 64.6,
+          "notes": [
+            "Includes an explicit operations allowance because self-hosting transfers patching, backup, restore and incident responsibility to the owner."
+          ],
+          "provider": "self_hosted_postgres"
+        },
+        "database_profile": "self_hosted_postgres",
+        "overall_estimate_complete": false,
+        "runtime": {
+          "complete": false,
+          "evidence": [
+            {
+              "cost_class": "request_only",
+              "name": "http_api",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "zero_compute",
+              "name": "lambda_compute",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "fixed_cost_resources": [
+            "database:self_hosted_postgres"
+          ],
+          "missing_rates": [
+            "regional_api_gateway_request_rate",
+            "regional_lambda_request_and_duration_rates"
+          ],
+          "queues": [],
+          "request_based_resources": [
+            "http_api",
+            "lambda:api"
+          ],
+          "schedules": [],
+          "workers": []
+        },
+        "structural_diagnostics": []
+      },
+      "projection_sha256": "c55ba6be709122b6f5b6d5711adbcb6e3a3d8a2a19e9d0f5f18bc506b2f6575c"
+    },
+    {
+      "config": "examples/orders/config/minco.dynamodb.toml",
+      "config_sha256": "d8f23549916e051912d005bc7d93f00ff09cc9962f0d7effefde8d07ac7380c3",
+      "id": "orders-dynamodb-on-demand",
+      "projection": {
+        "database": {
+          "complete": false,
+          "components": [],
+          "evidence": [
+            {
+              "cost_class": "request_only",
+              "name": "reads",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "request_only",
+              "name": "writes",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "storage_only",
+              "name": "storage",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "missing_rates": [
+            "reads_rate_usd",
+            "writes_rate_usd",
+            "storage_rate_usd"
+          ],
+          "monthly_usd": null,
+          "notes": [
+            "Model access patterns, item sizes, indexes, streams, backups and transactional multipliers before selecting DynamoDB.",
+            "The explicit table has 3 global secondary indexes; include each index's projected storage and write amplification in the usage inputs.",
+            "Order creation uses two-item transactional writes; usage inputs must include DynamoDB transactional write multipliers.",
+            "The table enables point-in-time recovery; backup storage and restore pricing remain unpriced here.",
+            "The deployment retains table replacements and deletions; retained table storage remains billable until explicitly removed."
+          ],
+          "provider": "aws_dynamodb_on_demand"
+        },
+        "database_profile": "dynamodb_on_demand",
+        "overall_estimate_complete": false,
+        "runtime": {
+          "complete": false,
+          "evidence": [
+            {
+              "cost_class": "request_only",
+              "name": "http_api",
+              "pricing_confidence": "region_dependent"
+            },
+            {
+              "cost_class": "zero_compute",
+              "name": "lambda_compute",
+              "pricing_confidence": "region_dependent"
+            }
+          ],
+          "fixed_cost_resources": [],
+          "missing_rates": [
+            "regional_api_gateway_request_rate",
+            "regional_lambda_request_and_duration_rates"
+          ],
+          "queues": [],
+          "request_based_resources": [
+            "http_api",
+            "lambda:api"
+          ],
+          "schedules": [],
+          "workers": []
+        },
+        "structural_diagnostics": [
+          {
+            "code": "MINCO-DB-002",
+            "message": "DynamoDB is an alternate persistence model, not a transparent replacement for relational PostgreSQL adapters",
+            "severity": "information"
+          }
+        ]
+      },
+      "projection_sha256": "54153e3f5868dad6170036602d4cc80049fa4cc23400e2638881d7de566a2396"
+    }
+  ],
+  "provider_contact": false,
+  "schema_version": 1
+}

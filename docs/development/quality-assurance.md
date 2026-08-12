@@ -51,6 +51,24 @@ Local evidence is not hosted Linux, AWS, Waffo, deployment, production or SLO
 evidence. `PASS` therefore retains `provider_contact = false`,
 `production_slo = false`, and a truthful hosted-baseline `NOT RUN` state.
 
+## Golden-topology cost regression
+
+The normal local and bounded clean-Linux gates also verify the readable cost
+baseline at `verification/cost-regression-baseline.json`:
+
+```bash
+uv run --locked python scripts/test/cost_regression.py
+uv run --locked python scripts/cost_regression.py --check
+```
+
+The check runs the existing `cargo minco cost --json` projection for seven
+reviewed Orders configurations. It binds exact configuration bytes and catches
+changes to fixed/request resources, missing regional rates, cost classes,
+pricing confidence, schedules, queues, worker pressure, diagnostics and
+explicit prices. It never fetches provider rates or treats a locally complete
+profile as a production budget. Regenerate the canonical file only alongside
+an intentional, reviewed cost-model change.
+
 `verification/release-identity.json` is generated independently with:
 
 ```bash

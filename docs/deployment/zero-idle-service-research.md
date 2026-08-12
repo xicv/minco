@@ -38,6 +38,15 @@ The cost extension is proven against materially different profiles:
 - provisioned RDS remains `fixed_monthly`;
 - Neon Free is `free_tier_dependent`, while dated paid Neon rates are `priced`.
 
+These profiles are now also evaluated together by
+`scripts/cost_regression.py`. The canonical
+`verification/cost-regression-baseline.json` binds the exact configuration
+bytes and full machine-relevant `cargo minco cost --json` projection for the
+Orders portfolio. Normal quality checks fail on drift and never refresh the
+baseline automatically. This remains provider-free structural evidence: it
+does not fetch current regional prices, infer account eligibility, qualify AWS
+behavior or define a production budget.
+
 ## Database comparison
 
 | Profile | Correctness and transactions | Wake and connections | Current limits and eligibility | Cost dimensions | Decision |

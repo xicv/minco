@@ -176,6 +176,8 @@ class HostedCiPolicyTests(unittest.TestCase):
                     "uv <run> <--locked> <python> <scripts/validate_static.py>",
                     "cargo <build> <--quiet> <--locked> <-p> <cargo-minco>",
                     "uv <run> <--locked> <python> <scripts/docs/generate_reference.py> <--check>",
+                    "uv <run> <--locked> <python> <scripts/test/cost_regression.py>",
+                    "uv <run> <--locked> <python> <scripts/cost_regression.py> <--check>",
                     "uv <run> <--locked> <python> <scripts/test/agent_workflows.py> <--check-output> <verification/agent-workflows.json>",
                     "uv <run> <--locked> <python> <scripts/test/repository_truth.py>",
                     "uv <run> <--locked> <python> <scripts/validate_deployment_assurance.py>",
@@ -356,6 +358,8 @@ class HostedCiPolicyTests(unittest.TestCase):
         required_commands = [
             "scripts/validate_static.py --output verification/static-validation.json",
             "scripts/docs/generate-reference.sh --check",
+            "scripts/test/cost_regression.py",
+            "scripts/cost_regression.py --check",
             "scripts/test/agent_workflows.py --check-output verification/agent-workflows.json",
             "scripts/test/repository_truth.py",
             "scripts/validate_deployment_assurance.py",

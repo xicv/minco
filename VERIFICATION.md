@@ -7,6 +7,25 @@ Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T21 golden-topology cost regression
+
+The P1 cost gate starts from merged main
+`b9e2cf3b0621cfe67487142e609a6c26cf7391ee`. The canonical
+`verification/cost-regression-baseline.json` covers seven materially different
+Orders topologies and records exact configuration/projection digests. Its
+projection retains database components and limitations, runtime fixed/request
+resources, schedules, queues, workers, realtime dimensions, missing rates,
+cost classes, pricing confidence and structural diagnostics. Only the CLI's
+top-level explanatory note is excluded.
+
+Focused local checks passed: Python compilation; nine validator contract tests;
+exact baseline regeneration/check; generated diagnostics regeneration/check;
+all 15 hosted-policy regressions; the bounded hosted-essential script; the
+53-test Plan integration suite; and the complete local quality matrix. The
+clean-Linux result remains an exact-head external pre-merge gate rather than a
+claim embedded before that run. No provider was contacted and no production
+budget, AWS qualification, deployment, tag, publication or release is claimed.
+
 ## M14-T20 measured framework assurance
 
 The P0 assurance change starts from exact `main`
