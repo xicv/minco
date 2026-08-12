@@ -20,3 +20,7 @@ production behavior from a local process.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, use the reviewed topology-cost baseline
+as provider-free regression evidence only; it is not a provider price,
+deployment result or production budget.

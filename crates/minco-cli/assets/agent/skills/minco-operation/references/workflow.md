@@ -35,3 +35,7 @@ command afterward. Do not turn an unrun provider or hosted check into a pass.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, prefer the official fake owned by the
+operation's side-effect port, exercise it through that public interface and
+retain adapter/provider qualification as a separate lane.

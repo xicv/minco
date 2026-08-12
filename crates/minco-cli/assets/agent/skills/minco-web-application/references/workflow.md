@@ -30,3 +30,7 @@ hosted, deployed, production-runtime, or product-review proof.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, use official typed fakes through their
+owning ports for application behavior and keep provider, model-driven and human
+review outcomes explicit rather than inferred.

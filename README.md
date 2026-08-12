@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.4.0`
 >
-> Current workspace version: `1.4.0`
+> Current workspace version: `1.5.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `34`
 
@@ -39,6 +39,7 @@ start directly with:
 - [Zero idle, precisely](https://xicv.github.io/minco/1.4.0/explanation/zero-idle)
 - [Develop with Codex and Claude](https://xicv.github.io/minco/1.4.0/guides/agent-development)
 - [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.4.0/guides/payments-waffo)
+- [Review the 1.5.0 candidate](https://xicv.github.io/minco/1.5.0/)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -78,10 +79,10 @@ cargo add minco@1.4.0 --no-default-features
 
 ## Agent-native application development
 
-The `1.4.0` release packages nine focused, version-matched workflow skills for
-Codex and Claude Code. It keeps the provider-specific Waffo workflow, updates
-every skill for the maintenance-release boundary, and retains the mandatory
-cumulative changelog-to-skill freshness gate. Minco
+The `1.5.0` candidate packages nine focused, version-matched workflow skills
+for Codex and Claude Code. It keeps the provider-specific Waffo workflow,
+updates every skill for the assurance release boundary, and retains the
+mandatory cumulative changelog-to-skill freshness gate. Minco
 plans project-local projections before writing, requires
 the exact plan digest to synchronize them, and preserves user-owned
 instructions and client configuration.
@@ -97,12 +98,13 @@ cargo minco agent eval --target all --json
 Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
-the [agent development guide](https://xicv.github.io/minco/1.4.0/guides/agent-development).
+the [1.5.0 candidate agent development guide](https://xicv.github.io/minco/1.5.0/guides/agent-development).
 
 Release qualification also verifies cumulative feature coverage, current
 versioned documentation, skill markers and a byte-identical deterministic
 Codex/Claude workflow receipt. That is release-content evidence, not a model
-quality score or mutation authority.
+quality score or mutation authority. Application-specific model evaluation and
+measured human-review effort remain `NOT RUN` for the candidate.
 
 ## The resource API convention
 

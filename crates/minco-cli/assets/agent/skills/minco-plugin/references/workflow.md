@@ -24,3 +24,7 @@ relational SQL semantics through a generic repository.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, use only a plugin's own typed fake for
+application tests; do not introduce a generic mock facade or select the fake in
+production composition.

@@ -5,12 +5,47 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.5.0] - 2026-08-12
+
+This additive lock-step minor packages the measured-assurance,
+golden-topology cost-regression and typed side-effect-fake improvements already
+merged after 1.4.0. It remains unpublished until exact-source qualification,
+merge, tagging and registry publication complete as separate evidence states.
+
 ### Added
 
 - Added provider-free, failure-scriptable typed fakes for SQS message handling,
   domain-event publication, object storage, feedback persistence and rich-mail
   submission. The fakes implement their owning public ports, capture ordered
   attempts and keep private payloads out of diagnostics.
+- Added a deterministic golden-topology cost-regression baseline over seven
+  reviewed Orders configurations without inventing provider prices or a
+  production budget.
+- Added pinned, measured local assurance for selected-crate coverage, bounded
+  mutation resistance, nextest/Cargo parity and public Rust SemVer comparison
+  against immutable `v1.4.0`.
+
+### Changed
+
+- Advanced all 34 publishable packages and official plugin descriptors in
+  lock-step to the additive `1.5.0` candidate line with no new package or
+  first-publication boundary, while Cargo refreshed only compatible transitive
+  patch locks for `futures`, `num-integer`, `rustls-webpki` and `whoami`.
+- Updated all nine packaged Codex/Claude skills and the frozen 1.5.0 manual to
+  teach the typed-fake, cost and measured-assurance evidence boundaries.
+
+### Compatibility and evidence
+
+- Kept model-driven application evaluation and human-review effort explicitly
+  `NOT RUN`; deterministic skill projection is not an agent outcome score.
+- Kept Plan IR, CLI names, production adapter selection, provider topology and
+  existing behavior compatible; the new fake types are additive public Rust
+  interfaces selected only by tests.
+- Added no live provider contact, deployment, poller, schedule, fixed compute,
+  tag, publication or always-on control plane. Hosted performance and current
+  live-provider evidence remain unavailable.
 
 Release sections from `1.2.0` onward retain exact candidate-source wording
 because their digests are bound into the portable agent bundle; tag, registry,

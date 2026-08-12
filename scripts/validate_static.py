@@ -1130,7 +1130,7 @@ class Validator:
             agent_source_path.read_text() if agent_source_path.is_file() else ""
         )
         compiled_history = re.search(
-            r"const REQUIRED_RELEASE_FEATURE_COVERAGE: &\[&str\] = &\[(?P<body>.*?)\];",
+            r"const REQUIRED_RELEASE_FEATURE_COVERAGE: &\[&str\]\s*=\s*&\[(?P<body>.*?)\];",
             agent_source,
             flags=re.DOTALL,
         )

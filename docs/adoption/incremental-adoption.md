@@ -1,14 +1,14 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.4.0`
-Current workspace version: `1.4.0`
-Workspace release state: `published`
+Current workspace version: `1.5.0`
+Workspace release state: `candidate`
 
-The published 1.4.0 release retains the opt-in Waffo provider integration and
-adds documentation and reproducible ecosystem maintenance. Use exact published
-`1.4.0` dependencies and select the payment feature only when the application
-owns the corresponding provider and payment-state boundary. Follow the
-[1.3.0-to-1.4.0 guide](1.3.0-to-1.4.0.md) for the coordinated update.
+Use exact published `1.4.0` dependencies for applications. The unpublished
+`1.5.0` candidate adds provider-free testing and assurance interfaces; evaluate
+it only from exact reviewed source and follow the
+[1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md). Select the payment feature only when
+the application owns the corresponding provider and payment-state boundary.
 
 Minco is designed so an application can adopt one boundary at a time. Do not
 start with `features = ["full"]`; select the smallest capability that closes a
@@ -185,6 +185,11 @@ Applications moving from `1.3.0` to the published `1.4.0` maintenance minor
 must use the [`1.3.0` to `1.4.0` guide](1.3.0-to-1.4.0.md). It covers the
 toolchain/dependency refresh, website presentation, official descriptor and
 AI-skill coordination without claiming a new runtime or provider capability.
+
+Applications evaluating the unpublished `1.5.0` candidate from `1.4.0` must
+use the [`1.4.0` to `1.5.0` guide](1.4.0-to-1.5.0.md). It covers the additive
+typed fakes, measured assurance, topology-cost regression, compatible runtime
+boundary and explicit `NOT RUN` model/provider evidence.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

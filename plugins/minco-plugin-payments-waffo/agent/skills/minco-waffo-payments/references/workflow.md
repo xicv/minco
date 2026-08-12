@@ -36,3 +36,7 @@ not prove a Waffo sandbox, production account, delivery, cleanup or SLO.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, keep Waffo offline fakes and measured
+local gates separate from a live Waffo account, payment, webhook delivery,
+cleanup or production outcome.

@@ -51,6 +51,16 @@ flowchart LR
     NM14T11["M14-T11<br/>Harden owned local service runtimes"]
     NM14T12["M14-T12<br/>Bound GitHub Actions to platform-only work"]
     NM14T13["M14-T13<br/>Publish and promote the Minco 1.2.0 release"]
+    NM14T14["M14-T14<br/>Automate release-bound AI skill freshness"]
+    NM14T15["M14-T15<br/>Release Minco 1.2.2 documentation presentation hardening"]
+    NM14T16["M14-T16<br/>Release the Waffo Pancake payments integration"]
+    NM14T17["M14-T17<br/>Rebalance the homepage architecture diagram"]
+    NM14T18["M14-T18<br/>Refresh the language and package ecosystem"]
+    NM14T19["M14-T19<br/>Release Minco 1.4.0 maintenance minor"]
+    NM14T20["M14-T20<br/>Establish measured framework assurance and maintainability baselines"]
+    NM14T21["M14-T21<br/>Guard golden-topology cost regressions"]
+    NM14T22["M14-T22<br/>Provide typed side-effect fakes for application tests"]
+    NM14T23["M14-T23<br/>Prepare the Minco 1.5.0 candidate"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -177,6 +187,16 @@ flowchart LR
     NM14T08 --> NM14T13
     NM14T11 --> NM14T13
     NM14T12 --> NM14T13
+    NM14T13 --> NM14T14
+    NM14T14 --> NM14T15
+    NM14T15 --> NM14T16
+    NM14T16 --> NM14T17
+    NM14T17 --> NM14T18
+    NM14T18 --> NM14T19
+    NM14T19 --> NM14T20
+    NM14T20 --> NM14T21
+    NM14T21 --> NM14T22
+    NM14T22 --> NM14T23
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01

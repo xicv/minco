@@ -24,3 +24,7 @@ unverified external boundaries.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, review fake redaction and one-shot
+failure semantics, cost-baseline truth and measured-gate provenance; never
+upgrade deterministic skill checks into model or human-review evidence.

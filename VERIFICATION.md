@@ -1,11 +1,46 @@
 # Minco verification and release evidence
 
 Date: 2026-08-12
-Current workspace version: `1.4.0`
+Current workspace version: `1.5.0`
 Published baseline: `1.4.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T23 `1.5.0` candidate preparation
+
+Release preparation starts from exact merged `main`
+`ef7c3e30bebcae162d0c145ed4d9b6ba94cfc2f9`. The architecture review confirmed
+that application-specific agent outcomes and measured human review cannot be
+claimed without a real model run and reviewer; both remain `NOT RUN`. No
+validator-only substitute was added.
+
+The candidate coordinates the already merged measured-assurance,
+golden-topology cost-regression and typed side-effect-fake improvements across
+the 34-package version, official descriptors, cumulative nine-skill bundle,
+upgrade guidance and frozen 1.5 manual. Local qualification, exact-head hosted
+Linux, tag, GitHub release, registry, docs.rs, Pages, live-provider, deployment,
+runtime and production are separate gates.
+
+The exact source passed `./scripts/quality.sh` and the authoritative
+`./scripts/ci/local-release.sh` from an empty JJ child of the source change.
+The canonical assurance receipt records the pinned toolchain, 126 nextest
+tests plus one doctest, 85.65% line and 82.01% function coverage, 43 caught
+viable mutants with zero misses/timeouts, and all 34 SemVer comparisons against
+immutable `v1.4.0`. The local candidate-load receipt records 80/80 successful
+loopback API requests and 1,000/1,000 successful synthetic worker messages;
+`production_slo` and `provider_contact` are both false.
+
+The clean release gate additionally passed all 34 package archive dry-runs,
+selected unpacked-archive consumers, SAM validation, native Lambda and worker
+builds, owned PostgreSQL and Rustack runtime qualification, AppSync local proof
+and Orders E2E. The architecture audit found no further safe module that passed
+the deletion test; a validator-only application-eval seam would add complexity
+without producing model or human-review evidence. M14-T23 is complete for its
+bounded candidate-preparation scope and the workspace remains unpublished.
+Exact-head hosted Linux remains a separate PR gate. No tag, GitHub release,
+registry upload, Pages deployment, live AWS/Waffo contact or production
+mutation occurred.
 
 ## M14-T22 typed side-effect fakes
 

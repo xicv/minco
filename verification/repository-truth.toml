@@ -1,8 +1,8 @@
 schema = 1
-workspace_version = "1.4.0"
+workspace_version = "1.5.0"
 published_baseline = "1.4.0"
 published_release_commit = "2b02bf956eed3ef2a17bae6d10970dff1408e231"
-workspace_release_state = "published"
+workspace_release_state = "candidate"
 operational_evidence_effective_date = "2026-08-12"
 published_package_count = 34
 adoption_gate_task = "M6-T07"
@@ -12,12 +12,12 @@ qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-
 post_candidate_tasks = ["M6-T01", "M12-T07"]
 published_release_task = "M14-T19"
 published_source_tree_sha256 = "21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2"
-release_candidate_task = "M14-T19"
+release_candidate_task = "M14-T23"
 
 # The published 1.4.0 baseline is the complete 34-package family from immutable
-# tag v1.4.0. It contains documentation and reproducible ecosystem maintenance
-# without changing the public API, provider topology, package inventory or
-# live-provider evidence.
+# tag v1.4.0. The unpublished 1.5.0 candidate packages additive test fakes and
+# provider-free assurance/cost evidence without changing provider topology,
+# package inventory or live-provider evidence.
 publishable_package_count = 34
 new_publishable_packages = []
 

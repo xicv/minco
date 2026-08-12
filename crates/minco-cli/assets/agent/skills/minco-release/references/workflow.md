@@ -27,3 +27,7 @@ customer data, or secret values in committed receipts.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, bind additive typed fakes and measured
+provider-free gates to exact candidate source while leaving model, human-review,
+hosted-performance and live-provider evidence at their recorded states.

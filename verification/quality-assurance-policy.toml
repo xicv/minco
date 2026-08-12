@@ -53,5 +53,5 @@ packages = "publishable_workspace"
 package_count = 34
 
 [performance]
-local_receipt = "verification/1.4-candidate-load.json"
-hosted_baseline = "verification/1.4-performance-baseline.json"
+local_receipt = "verification/1.5-candidate-load.json"
+hosted_baseline = "verification/1.5-performance-baseline.json"

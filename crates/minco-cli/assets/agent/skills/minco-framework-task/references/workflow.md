@@ -23,3 +23,7 @@ merge, release, publication, deployment, and runtime proof are separate states.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, keep typed fakes, cost regression and
+measured local assurance inside their owning task and leave model/human outcome
+evidence `NOT RUN` until actually exercised.

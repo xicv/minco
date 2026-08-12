@@ -488,6 +488,10 @@ M14-T20 completed the pinned SemVer, measured selected-crate coverage and
 bounded mutation pilots. M14-T22 completes the typed-fake pilot with five
 port-owned, failure-scriptable implementations; application-specific agent
 evals and measured human review effort remain the next unfulfilled P2 item.
+The M14-T23 release audit applied the deletion test and rejected a
+validator-only substitute as shallow: without an actual model-driven
+application run and human reviewer, those outcome lanes remain `NOT RUN` and
+are not treated as a reason to delay packaging the already completed work.
 
 Primary Rust tool references:
 

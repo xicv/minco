@@ -20,3 +20,7 @@ is neither a pass nor a failure. Preserve freshness and exact revision limits.
 
 At a maintenance release boundary, re-check version-matched documentation,
 exact package/tool pins, public-contract compatibility and lane-specific evidence.
+
+At the 1.5 assurance release boundary, distinguish typed-fake behavior,
+provider-free cost/quality evidence, model evaluation and human review; an
+unrun lane remains `NOT RUN`.

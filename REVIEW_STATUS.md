@@ -1,5 +1,25 @@
 # Review status
 
+## Completed M14-T23 Minco 1.5.0 candidate preparation
+
+The release workspace starts from exact merged `main`
+`ef7c3e30bebcae162d0c145ed4d9b6ba94cfc2f9`. An architecture audit found no
+additional safe implementation that passed the deletion test: the sole
+remaining P2 item requires an actual model-driven application run and measured
+human review. The candidate therefore packages only already merged work and
+retains those outcome lanes as `NOT RUN`.
+
+The intended 1.5 boundary is additive: five official typed side-effect fakes,
+the golden-topology cost regression and pinned measured local assurance. It
+changes no production adapter selection, Plan IR, CLI name, provider topology,
+package inventory, schedule, poller, fixed compute or control plane. All 34
+packages, 19 official descriptors, nine AI skills and the frozen manual move
+together. The exact source passes the complete macOS quality and local-release
+gates, including pinned assurance, all 34 archive dry-runs, SAM/Lambda builds,
+owned PostgreSQL/Rustack checks and Orders E2E. Tag, registry, docs.rs, Pages,
+hosted Linux and live-provider states remain independent; no publication,
+provider contact or deployment occurred during preparation.
+
 ## Completed M14-T22 typed side-effect fakes
 
 The P2 task starts from exact merged `main`
