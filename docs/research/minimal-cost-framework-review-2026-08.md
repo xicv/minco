@@ -484,6 +484,11 @@ markers and default-cost invariants are checked together.
   side effects;
 - add application-specific agent evals and report human review effort.
 
+M14-T20 completed the pinned SemVer, measured selected-crate coverage and
+bounded mutation pilots. M14-T22 completes the typed-fake pilot with five
+port-owned, failure-scriptable implementations; application-specific agent
+evals and measured human review effort remain the next unfulfilled P2 item.
+
 Primary Rust tool references:
 
 - [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks)

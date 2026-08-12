@@ -7,6 +7,52 @@ Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T22 typed side-effect fakes
+
+The P2 implementation starts from exact merged `main`
+`958e6ebf40db1f63614cf9a3da0e0af65188eafe`. Five public-interface tracer
+tests failed first because `FakeMessageHandler`, `FakeEventPublisher`,
+`FakeObjectStore`, `FakeFeedbackStore` and `FakeMailTransport` did not exist.
+Their minimum implementations now capture ordered typed attempts and consume
+explicit one-shot failures while delegating success behavior to the real port
+contract or existing memory adapter.
+
+Focused verification passes:
+
+- `cargo test -p minco-aws-worker -p minco-plugin-events -p
+  minco-plugin-object-storage -p minco-plugin-feedback -p
+  minco-plugin-notifications --all-features --locked` — 95 tests passed;
+- targeted five-package Clippy with all targets/features and `-D warnings`;
+- generated reference generation and exact check;
+- all 53 repository-truth mutation tests; and
+- deterministic agent workflow generation/check for all nine packaged skills
+  across Codex and Claude, with zero model or network calls.
+
+The initial targeted Clippy run exposed a significant lock-drop lifetime in the
+mail fake and then the queue fake; both locks are now released immediately after
+the scripted outcome is selected. Fake and attempt diagnostics omit message
+bodies, object bytes/attribute values, feedback content/token hashes, recipients,
+subjects, mail bodies, attachments and metadata values.
+
+The first publication-policy run failed closed with five `PUBLISH-021`
+findings because each affected crate's explicit `package.include` omitted its
+new integration test. The corrected manifests retain those test sources and
+the validator passes for all 34 publishable packages.
+
+The complete `./scripts/quality.sh` gate passes on local macOS. That includes
+workspace formatting assertion, Clippy and tests; generated PostgreSQL and
+SQLite applications; 40/40 feedback browser tests; 38 passed documentation
+browser tests with two intentional viewport skips; 344 documentation snippets;
+1,310 internal links; rustdoc and workspace docs; Cargo deny/audit; npm audit;
+gitleaks; and final source-manifest verification. Live AWS, Rustack and
+database tests that require separately authorised external environments remain
+ignored by their declared guards.
+
+These tests contact no provider and do not prove AWS, mailbox delivery,
+durable object storage, latency, cleanup, deployment, publication or production
+behavior. Exact-tree hosted Linux performance remains `NOT RUN` and current
+live-provider evidence remains absent.
+
 ## M14-T21 golden-topology cost regression
 
 The P1 cost gate starts from merged main

@@ -1,5 +1,5 @@
 {
-  "bundle_digest": "b2be4062fcb16da198b2024a3dbf2c8be7a3259d90e1a1efe0f6eb77862fb7ad",
+  "bundle_digest": "33af1b8dc009c272f65164e0ba681e56e8d12ccf6a559f8c9b27ffff29062289",
   "evidence_lanes": {
     "deployment": "absent",
     "hosted": "absent",
@@ -42,7 +42,7 @@
     "canonical_files_per_client": 27,
     "claude_path": ".claude/skills",
     "codex_path": ".agents/skills",
-    "initial_plan_digest": "079c4d1819b37f0526cc637903959221f8a95f43388bef8d389bc68b46802ed7",
+    "initial_plan_digest": "1ac09ba827a1674b671e5a5c76769e563663ac21ff5fde69d1647572ace36d54",
     "read_only_eval": true
   },
   "scenario_suite_digest": "1e4325d9aedb3ca621fa808e0dea368ac4d4f846c6607da8be0d2f8d967b2091",

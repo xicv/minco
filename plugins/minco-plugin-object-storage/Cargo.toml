@@ -13,7 +13,7 @@ readme = "README.md"
 keywords = ["minco", "storage", "s3", "uploads"]
 categories = ["web-programming", "filesystem"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "tests/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [package.metadata.minco]
 plugin = "minco-plugin.json"

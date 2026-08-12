@@ -10,8 +10,12 @@ use minco_core::{
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, sync::Arc};
-use tokio::sync::RwLock;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt,
+    sync::Arc,
+};
+use tokio::sync::{Mutex, RwLock};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -234,12 +238,121 @@ impl MemoryObjectStore {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ObjectStoreOperation {
+    Put,
+    Get,
+    Delete,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum ObjectStoreAttempt {
+    Put(PutObject),
+    Get(ObjectKey),
+    Delete(ObjectKey),
+}
+
+impl fmt::Debug for ObjectStoreAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Put(object) => formatter
+                .debug_struct("Put")
+                .field("key", &object.key)
+                .field("byte_count", &object.bytes.len())
+                .field("content_type", &object.content_type)
+                .field(
+                    "attribute_names",
+                    &object.attributes.keys().collect::<Vec<_>>(),
+                )
+                .finish(),
+            Self::Get(key) => formatter.debug_tuple("Get").field(key).finish(),
+            Self::Delete(key) => formatter.debug_tuple("Delete").field(key).finish(),
+        }
+    }
+}
+
+/// Deterministic object-store fake with exact attempt capture and one-shot failures.
+#[derive(Default)]
+pub struct FakeObjectStore {
+    inner: MemoryObjectStore,
+    attempts: RwLock<Vec<ObjectStoreAttempt>>,
+    failures: Mutex<BTreeMap<ObjectStoreOperation, VecDeque<String>>>,
+}
+
+impl FakeObjectStore {
+    pub async fn fail_next(&self, operation: ObjectStoreOperation, message: impl Into<String>) {
+        self.failures
+            .lock()
+            .await
+            .entry(operation)
+            .or_default()
+            .push_back(message.into());
+    }
+
+    pub async fn attempts(&self) -> Vec<ObjectStoreAttempt> {
+        self.attempts.read().await.clone()
+    }
+
+    async fn take_failure(&self, operation: ObjectStoreOperation) -> Option<String> {
+        let mut failures = self.failures.lock().await;
+        let failure = failures.get_mut(&operation).and_then(VecDeque::pop_front);
+        if failures.get(&operation).is_some_and(VecDeque::is_empty) {
+            failures.remove(&operation);
+        }
+        drop(failures);
+        failure
+    }
+}
+
+impl fmt::Debug for FakeObjectStore {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FakeObjectStore")
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl ObjectStore for FakeObjectStore {
+    async fn put(&self, object: PutObject) -> Result<ObjectMetadata, ObjectStoreError> {
+        validate_put_object(&object)?;
+        self.attempts
+            .write()
+            .await
+            .push(ObjectStoreAttempt::Put(object.clone()));
+        if let Some(message) = self.take_failure(ObjectStoreOperation::Put).await {
+            return Err(ObjectStoreError::Store(message));
+        }
+        self.inner.put(object).await
+    }
+
+    async fn get(&self, key: &ObjectKey) -> Result<Option<StoredObject>, ObjectStoreError> {
+        self.attempts
+            .write()
+            .await
+            .push(ObjectStoreAttempt::Get(key.clone()));
+        if let Some(message) = self.take_failure(ObjectStoreOperation::Get).await {
+            return Err(ObjectStoreError::Store(message));
+        }
+        self.inner.get(key).await
+    }
+
+    async fn delete(&self, key: &ObjectKey) -> Result<bool, ObjectStoreError> {
+        self.attempts
+            .write()
+            .await
+            .push(ObjectStoreAttempt::Delete(key.clone()));
+        if let Some(message) = self.take_failure(ObjectStoreOperation::Delete).await {
+            return Err(ObjectStoreError::Store(message));
+        }
+        self.inner.delete(key).await
+    }
+}
+
 #[async_trait]
 impl ObjectStore for MemoryObjectStore {
     async fn put(&self, object: PutObject) -> Result<ObjectMetadata, ObjectStoreError> {
-        if object.content_type.trim().is_empty() {
-            return Err(ObjectStoreError::InvalidContentType);
-        }
+        validate_put_object(&object)?;
         let metadata = ObjectMetadata {
             content_type: object.content_type,
             size_bytes: u64::try_from(object.bytes.len())
@@ -265,6 +378,14 @@ impl ObjectStore for MemoryObjectStore {
 
     async fn delete(&self, key: &ObjectKey) -> Result<bool, ObjectStoreError> {
         Ok(self.objects.write().await.remove(key).is_some())
+    }
+}
+
+fn validate_put_object(object: &PutObject) -> Result<(), ObjectStoreError> {
+    if object.content_type.trim().is_empty() {
+        Err(ObjectStoreError::InvalidContentType)
+    } else {
+        Ok(())
     }
 }
 

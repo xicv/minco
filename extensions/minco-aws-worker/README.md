@@ -36,3 +36,8 @@ The Lambda SQS event-source mapping must enable
 `FunctionResponseTypes: [ReportBatchItemFailures]`. Applications using the
 official events plugin may enable this crate's `events` feature and invoke
 `dispatch_outbox_once`; Minco never schedules that recovery pass.
+
+Application tests can inject `FakeMessageHandler`, queue a one-shot failure for
+one message ID, and pass it through `process_sqs_event`. The fake records typed
+attempts in order and exposes no message body or attribute values through
+`Debug`; it performs no AWS contact or background work.

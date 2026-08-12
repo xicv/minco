@@ -6,11 +6,12 @@ use aws_lambda_events::event::sqs::{BatchItemFailure, SqsBatchResponse, SqsEvent
 use futures::{StreamExt, stream};
 use lambda_runtime::{Error as LambdaError, service_fn};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     fmt,
     sync::Arc,
 };
 use thiserror::Error;
+use tokio::sync::Mutex;
 
 const MAX_BATCH_SIZE: usize = 10_000;
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
@@ -108,6 +109,60 @@ impl WorkerFailure {
 #[async_trait]
 pub trait MessageHandler: Send + Sync + 'static {
     async fn handle(&self, message: WorkerMessage) -> Result<(), WorkerFailure>;
+}
+
+/// Deterministic SQS handler fake for application and worker contract tests.
+///
+/// Attempts are retained in call order. Failures are scoped to one message ID
+/// and consumed once, so a test can prove retry behavior without sleeps,
+/// provider state, or a generic mocking framework.
+#[derive(Default)]
+pub struct FakeMessageHandler {
+    attempts: Mutex<Vec<WorkerMessage>>,
+    failures: Mutex<BTreeMap<String, VecDeque<WorkerFailure>>>,
+}
+
+impl FakeMessageHandler {
+    pub async fn fail_next(&self, message_id: impl Into<String>, failure: WorkerFailure) {
+        self.failures
+            .lock()
+            .await
+            .entry(message_id.into())
+            .or_default()
+            .push_back(failure);
+    }
+
+    pub async fn attempts(&self) -> Vec<WorkerMessage> {
+        self.attempts.lock().await.clone()
+    }
+
+    pub async fn clear(&self) {
+        self.attempts.lock().await.clear();
+        self.failures.lock().await.clear();
+    }
+}
+
+impl fmt::Debug for FakeMessageHandler {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FakeMessageHandler")
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl MessageHandler for FakeMessageHandler {
+    async fn handle(&self, message: WorkerMessage) -> Result<(), WorkerFailure> {
+        let message_id = message.message_id.clone();
+        self.attempts.lock().await.push(message);
+        let mut failures = self.failures.lock().await;
+        let failure = failures.get_mut(&message_id).and_then(VecDeque::pop_front);
+        if failures.get(&message_id).is_some_and(VecDeque::is_empty) {
+            failures.remove(&message_id);
+        }
+        drop(failures);
+        failure.map_or(Ok(()), Err)
+    }
 }
 
 /// Runs the Lambda Runtime API until the environment shuts down.

@@ -5,10 +5,16 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.4.0` release. Release sections from `1.2.0` onward
-retain exact candidate-source wording because their digests are bound into the
-portable agent bundle; tag, registry, documentation and provider evidence stay
-separate in `VERIFICATION.md`.
+### Added
+
+- Added provider-free, failure-scriptable typed fakes for SQS message handling,
+  domain-event publication, object storage, feedback persistence and rich-mail
+  submission. The fakes implement their owning public ports, capture ordered
+  attempts and keep private payloads out of diagnostics.
+
+Release sections from `1.2.0` onward retain exact candidate-source wording
+because their digests are bound into the portable agent bundle; tag, registry,
+documentation and provider evidence stay separate in `VERIFICATION.md`.
 
 ## [1.4.0] - 2026-08-11
 

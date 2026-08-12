@@ -19,6 +19,7 @@ include = [
   "/migrations/**",
   "/openapi/**",
   "/tests/persistence.rs",
+  "/tests/typed_fake.rs",
   "/Cargo.toml",
   "/minco-plugin.json",
   "/README.md",

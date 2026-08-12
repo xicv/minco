@@ -9,8 +9,12 @@ use minco_core::{
 };
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
-use tokio::sync::RwLock;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt,
+    sync::Arc,
+};
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,6 +54,75 @@ impl DomainEvent {
 #[async_trait]
 pub trait EventPublisher: Send + Sync + std::fmt::Debug {
     async fn publish(&self, event: &DomainEvent) -> Result<(), EventError>;
+}
+
+/// Deterministic event-publisher fake for application tests.
+///
+/// Every valid publication attempt is captured before a configured one-shot
+/// infrastructure failure is returned. The fake performs no provider contact
+/// and its debug representation excludes event payloads and metadata values.
+#[derive(Default)]
+pub struct FakeEventPublisher {
+    attempts: RwLock<Vec<EventPublishAttempt>>,
+    failures: Mutex<VecDeque<String>>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct EventPublishAttempt {
+    pub event: DomainEvent,
+}
+
+impl fmt::Debug for EventPublishAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EventPublishAttempt")
+            .field("event_id", &self.event.id)
+            .field("event_type", &self.event.event_type)
+            .field("aggregate_type", &self.event.aggregate_type)
+            .field(
+                "metadata_names",
+                &self.event.metadata.keys().collect::<Vec<_>>(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+impl FakeEventPublisher {
+    pub async fn fail_next(&self, message: impl Into<String>) {
+        self.failures.lock().await.push_back(message.into());
+    }
+
+    pub async fn attempts(&self) -> Vec<EventPublishAttempt> {
+        self.attempts.read().await.clone()
+    }
+
+    pub async fn clear(&self) {
+        self.attempts.write().await.clear();
+        self.failures.lock().await.clear();
+    }
+}
+
+impl fmt::Debug for FakeEventPublisher {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FakeEventPublisher")
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl EventPublisher for FakeEventPublisher {
+    async fn publish(&self, event: &DomainEvent) -> Result<(), EventError> {
+        validate_event(event)?;
+        self.attempts.write().await.push(EventPublishAttempt {
+            event: event.clone(),
+        });
+        self.failures
+            .lock()
+            .await
+            .pop_front()
+            .map_or(Ok(()), |message| Err(EventError::Infrastructure(message)))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,5 +1,39 @@
 # Review status
 
+## Completed M14-T22 typed side-effect fakes
+
+The P2 task starts from exact merged `main`
+`958e6ebf40db1f63614cf9a3da0e0af65188eafe` in the isolated
+`/private/tmp/minco-task-m14-t22` JJ workspace. M14-T20 already completed the
+SemVer, selected-crate coverage and bounded mutation pilots; this change owns
+the next missing controlled pilot.
+
+Five additive public fakes implement their owning ports: SQS message handling,
+domain-event publication, object storage, feedback persistence and rich mail.
+They retain typed ordered attempts, consume explicit failures once, exercise
+the real partial-batch/fallback paths and keep private payloads out of `Debug`.
+They add no generic mocking facade, provider dependency, production selection,
+schedule, poller, fixed compute or control plane.
+
+Each tracer test first failed on the absent public fake and then passed after
+the minimum implementation. The combined all-feature focused package run
+passes 95 unit, integration and adapter tests, including real SQS partial-batch
+and mail fallback behavior. Targeted Clippy passes with warnings denied. The
+complete `./scripts/quality.sh` matrix passes, including generated references,
+53 repository-truth mutations, deterministic Codex/Claude workflow
+qualification, both browser suites, workspace Clippy/tests, generated
+PostgreSQL and SQLite applications, documentation, package policy, dependency
+audits, gitleaks and final source-manifest verification.
+
+Publication validation initially failed closed because five explicit
+`package.include` lists omitted the new integration tests. Every affected
+manifest now includes its test sources and all 34 publishable packages
+validate. Exact-head clean-Linux review remains a separate pre-merge gate and
+is not inferred from the passing local macOS matrix.
+
+No AWS, mailbox, object provider, deployment, publication or production
+evidence is inferred from these provider-free application fakes.
+
 ## M14-T21 golden-topology cost regression
 
 The isolated P1 change starts from exact merged `main`
