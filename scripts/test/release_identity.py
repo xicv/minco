@@ -32,12 +32,12 @@ class ReleaseIdentityTests(unittest.TestCase):
         second = identity.build_projection(ROOT)
 
         self.assertEqual(first, second)
-        self.assertEqual(first["workspace"]["version"], "1.4.0")
-        self.assertEqual(first["workspace"]["release_state"], "published")
+        self.assertEqual(first["workspace"]["version"], "1.5.0")
+        self.assertEqual(first["workspace"]["release_state"], "candidate")
         self.assertEqual(len(first["packages"]), 34)
         self.assertEqual(len(first["plugins"]), 19)
         self.assertEqual(first["documentation"]["stable"], "1.4.0")
-        self.assertEqual(first["documentation"]["state"], "published")
+        self.assertEqual(first["documentation"]["state"], "candidate")
 
     def test_descriptor_drift_changes_the_projection(self) -> None:
         identity = load_module()

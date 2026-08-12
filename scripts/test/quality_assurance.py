@@ -36,7 +36,7 @@ class QualityAssuranceTests(unittest.TestCase):
             "production_slo": False,
             "provider_contact": False,
             "effective_date": "2026-08-12",
-            "source": {"version": "1.4.0", "source_tree_sha256": "a" * 64},
+            "source": {"version": "1.5.0", "source_tree_sha256": "a" * 64},
             "policy": {"sha256": "b" * 64},
             "runner": {
                 "scope": "local",

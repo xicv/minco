@@ -423,6 +423,17 @@ def benchmark_api(target_dir: Path, log_dir: Path, requests: int, concurrency: i
 def worker_benchmark_sources(project: Path) -> None:
     """Create a disposable external consumer that drives the public worker API."""
 
+    lock = tomllib.loads((ROOT / "Cargo.lock").read_text())
+    tokio_versions = {
+        package["version"]
+        for package in lock["package"]
+        if package["name"] == "tokio"
+    }
+    if len(tokio_versions) != 1:
+        raise RuntimeError(
+            "candidate worker requires exactly one workspace-locked tokio version"
+        )
+    tokio_requirement = json.dumps(f"={tokio_versions.pop()}")
     manifest = f'''[package]
 name = "minco-candidate-worker-load"
 version = "0.0.0"
@@ -435,7 +446,7 @@ publish = false
 async-trait = "=0.1.91"
 aws_lambda_events = {{ version = "=1.2.0", default-features = false, features = ["sqs"] }}
 minco-aws-worker = {{ path = {json.dumps(str(ROOT / "extensions" / "minco-aws-worker"))} }}
-tokio = {{ version = "=1.52.0", features = ["macros", "rt-multi-thread", "sync", "time"] }}
+tokio = {{ version = {tokio_requirement}, features = ["macros", "rt-multi-thread", "sync", "time"] }}
 '''
     source = r'''use async_trait::async_trait;
 use aws_lambda_events::event::sqs::{SqsEvent, SqsMessage};

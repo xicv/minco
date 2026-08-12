@@ -10,6 +10,7 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
+| 1.5.0 | Release candidate | 1.97.1 | [Open 1.5.0 candidate docs](/1.5.0/) |
 | 1.4.0 | Latest stable | 1.97.1 | [Open 1.4.0 docs](/1.4.0/) |
 | 1.3.0 | Previous stable | 1.97.1 | [Open 1.3.0 docs](/1.3.0/) |
 | 1.2.2 | Previous stable | 1.97.1 | [Open 1.2.2 docs](/1.2.2/) |
@@ -21,7 +22,8 @@ is retained as a stable reference; `next` is allowed to change.
 | 0.5.0 | Previous stable | 1.97.1 | [Open 0.5.0 docs](/0.5.0/) |
 | Next | Unreleased | Repository-pinned | [Preview next](/next/) |
 
-The 1.4.0 source, local and hosted qualification, immutable tag, 34-package
+The 1.5.0 documentation describes an unpublished candidate. The 1.4.0 source,
+local and hosted qualification, immutable tag, 34-package
 registry publication, GitHub release and all 34 exact docs.rs routes are
 independently verified. Post-publication PR #152 passed exact-head clean-Linux
 qualification and merged-main Pages run `31483298491` deployed the stable

@@ -1,7 +1,7 @@
 # 1.4 support matrix
 
 Published install baseline: `1.4.0`
-Current workspace version: `1.4.0`
+Current workspace version: `1.5.0`
 MSRV: Rust `1.97.1`
 Compatibility state: the published 1.4.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
@@ -11,9 +11,9 @@ together with the opt-in Waffo boundary as the complete 34-package `v1.4.0`
 family. Registry, docs.rs, stable documentation and application/live proof
 remain separate.
 
-The published 1.4.0 maintenance release preserves this support classification. Its
-homepage, dependency and AI-skill maintenance does not promote a deferred
-service, provider profile or current live-evidence claim.
+The unpublished 1.5.0 candidate preserves this support classification. Its
+typed application-test fakes and provider-free assurance/cost evidence do not
+promote a deferred service, provider profile or current live-evidence claim.
 
 The Waffo plugin is published beta, not a live-provider support claim. Offline
 tests and exact SDK review do not prove an account, payment, settlement,
@@ -50,21 +50,21 @@ it is not a blanket production-readiness promise.
 | Database lifecycle | published beta | real SQLite and disposable PostgreSQL migration/seed/verify suites | CGSP retains its own SQLx migrations and forced RLS | no startup migration; backend semantics, backups and data policy remain explicit |
 | Axum/Tower HTTP conventions | 1.2 evidenced | in-process status/header/body/security tests plus exact browser/native response metadata and CORS projection | CGSP parity seam exists but deployed HTTP stays legacy | no second mobile API, application authorization or route ownership transfer |
 | Native Lambda HTTP/API Gateway | published beta | Plan/SAM, package and bounded controller rehearsal | neither reviewed product adopts Minco's exact default topology | no container Lambda Function URL, Pulumi or arbitrary topology promise |
-| SQS Lambda partial-batch worker | published beta; application evidenced | runtime and Plan tests | CGSP product record has staging execution; rollback rehearsal remains incomplete | Minco creates no queue, mapping, schedule or business handler |
+| SQS Lambda partial-batch worker | published beta; application evidenced | runtime and Plan tests plus a failure-scriptable public fake | CGSP product record has staging execution; rollback rehearsal remains incomplete | Minco creates no queue, mapping, schedule or business handler |
 | PostgreSQL adapter | published beta | provider-specific profiles, generated app, disposable integration | CGSP deliberately keeps product SQLx/RLS authority | no transparent provider equivalence or current-price guarantee |
 | SQLite adapter | published beta | persistent-file lifecycle, transactions and feature isolation | no reviewed downstream production claim | no network, multi-instance, managed-backup or PostgreSQL-locking guarantee |
 | DynamoDB Orders adapter | published beta; qualified descendant | standard SDK unit tests, explicit Plan/SAM/IAM and pinned Rustack five-port conformance with cleanup | no reviewed downstream or real-AWS claim | access-pattern-specific; GSI lists are eventually consistent; no SQL or generic repository |
 | Plan/SAM model | 1.2 evidenced | schema/policy snapshots, topology-aware cost and ingress validation, IAM checks | CGSP consumes it only as advisory evidence | Function URLs remain declared but unsupported; not an infrastructure apply, live price or product controller |
 | AWS deployment controller | published beta | exact-artifact apply/verify/promote/rollback/cleanup rehearsal | product deployment controllers remain separate | requires explicit account/region/change-set approval; no hidden mutation |
 | Static-site intent/publication | published beta | local contract and exact-byte/hash receipt tests | products retain their own site controllers | DNS, certificate, CloudFront/S3 mutation and live-site proof are separate |
-| Verified direct object uploads | 1.2 published beta | authorization-first issue/complete tests, bounded policy, exact S3 POST signing and cleanup boundaries | no reviewed downstream adoption claim | content safety, lifecycle and separately authorised live S3 proof remain application/provider responsibilities |
-| Rich observable mail | 1.2 published beta | deterministic capture, loopback Mailpit, SES v2 submission and SNS/EventBridge normalization tests | no reviewed downstream mailbox-delivery claim | provider acceptance is not final mailbox delivery; no automatic retry after ambiguous submission |
-| Release-bound feedback and handover | 1.2 evidenced | exact release/deployment binding, digest-approved create-only receipts, path/rollback and malformed-evidence tests | no reviewed client handover adoption claim | feedback is untrusted input; receipts do not authorize implementation or deployment; live provider and performance proof remain absent |
+| Verified direct object uploads | 1.2 published beta | authorization-first issue/complete tests, bounded policy, exact S3 POST signing, cleanup boundaries and a failure-scriptable public fake | no reviewed downstream adoption claim | content safety, lifecycle and separately authorised live S3 proof remain application/provider responsibilities |
+| Rich observable mail | 1.2 published beta | deterministic capture, a failure-scriptable public fake, loopback Mailpit, SES v2 submission and SNS/EventBridge normalization tests | no reviewed downstream mailbox-delivery claim | provider acceptance is not final mailbox delivery; no automatic retry after ambiguous submission |
+| Release-bound feedback and handover | 1.2 evidenced | exact release/deployment binding, a failure-scriptable feedback-store fake, digest-approved create-only receipts, path/rollback and malformed-evidence tests | no reviewed client handover adoption claim | feedback is untrusted input; receipts do not authorize implementation or deployment; live provider and performance proof remain absent |
 | Waffo Pancake payments | 1.3 published beta; opt-in | exact signed-request, hosted-checkout, idempotency, redirect-refusal, verified-webhook, CLI and deterministic-fake tests | no reviewed downstream or live Waffo claim | application owns payment state; no generic billing model, hidden retry, token persistence or checkout-return authority |
 | Release/promotion/rollback receipts | 1.0 evidenced | immutable manifest/digest and exact-artifact rehearsal | product release manifests remain authoritative for product rollbacks | no rebuild during promotion; data compatibility still needs operator evidence |
 | Owned local services | 1.2 evidenced; local only | loopback PostgreSQL, Rustack and Mailpit identity, lifecycle, recovery and persistent-data-preservation tests | no reviewed downstream adoption claim | never adopts or deletes foreign resources; no production-provider claim |
 | Local project view, MCP and workbench | published beta; local only | bounded/redacted model tests, stdio MCP and desktop/mobile browser journeys | no product adoption required for the repository view | read-only, no arbitrary shell, no hosted control plane or write authority |
-| Agent-native application development | 1.1+ published; local only | version-matched skills, digest-bound plan/sync, bounded context, doctor and deterministic cross-client scenario evaluation | no reviewed downstream adoption claim | no model invocation, implicit mutation authority, provider access or framework-only policy inheritance |
+| Agent-native application development | 1.1+ published; local only | version-matched skills, digest-bound plan/sync, bounded context, doctor and deterministic cross-client scenario evaluation | no reviewed downstream adoption claim | model-driven application evaluation and measured human-review effort remain `NOT RUN`; no implicit mutation or provider authority |
 | Subscriber-only realtime | published beta | protocol, resync, Plan/SAM and failure-policy tests | no reviewed downstream live adoption | ephemeral invalidation only; not authoritative storage or guaranteed delivery |
 
 ## Official plugin and adapter metadata
@@ -76,7 +76,7 @@ capabilities, resources and metadata digests.
 | --- | --- | --- |
 | catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; the reviewed 1.x Rust/CLI/serialized boundary follows SemVer |
 | published beta plugins | `audit`, `events`, `identity`, `notifications`, `object-storage`, `sessions`, `static-site`, `realtime` | explicit opt-in with provider/failure/retention policy required |
-| published beta plugin | `payments-waffo` | opt-in provider-specific integration in the 1.4.0 family; offline qualified with live-provider evidence still absent |
+| published beta plugin | `payments-waffo` | opt-in provider-specific integration in the 1.4.0 baseline and 1.5.0 candidate; offline qualified with live-provider evidence still absent |
 | published beta adapters/runtimes | `aws-adapters`, `aws-dynamodb`, `aws-lambda`, `aws-worker`, `sqlx-postgres`, `sqlx-sqlite` | explicit provider/runtime selection; no default activation; DynamoDB remains application access-pattern-specific |
 
 Memory/reference implementations are for tests and local development unless a
@@ -96,7 +96,7 @@ provider.
 | Native AWS HTTP | `aws-lambda`, `plan`, selected adapters | local package/Plan/SAM plus bounded controller rehearsal | approved target and exact live verification |
 | AWS SQS worker | `aws-worker`, `plan` | local runtime/Plan and CGSP staging evidence | application queue/mapping/IAM and rollback proof |
 | Local AI/developer view | `minco-project-view`, optionally `minco-mcp` or `minco-workbench` | redaction, containment, protocol and browser evidence | remain local and read-only |
-| Waffo hosted checkout | `plugin-payments-waffo` | signed typed actions, bounded checkout, raw-body webhook verification, no-network fakes and exact 1.4.0 publication | separately authorised live Waffo sandbox evidence |
+| Waffo hosted checkout | `plugin-payments-waffo` | signed typed actions, bounded checkout, raw-body webhook verification, no-network fakes and exact 1.4.0 publication | separately authorised live Waffo sandbox evidence; 1.5 publication remains pending |
 
 Prefer the smallest profile that closes one application boundary. Do not start
 with `features = ["full"]` in a product unless its complete dependency/provider

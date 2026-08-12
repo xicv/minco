@@ -1,14 +1,34 @@
-# Minco 1.4.0 published-release and P0 assurance handoff
+# Minco 1.5.0 candidate-preparation handoff
 
 Date: 2026-08-12
 Published baseline: `1.4.0`
-Current workspace version: `1.4.0`
-Workspace release state: `published`
+Current workspace version: `1.5.0`
+Workspace release state: `candidate`
 Published `1.4.0` source: `2b02bf956eed3ef2a17bae6d10970dff1408e231`
 Published source-tree digest: `21ff73906bdfa441dcb44d5c8e9700332757b348b7f7e310c4e2cbddf51255f2`
 Published release task: `M14-T19`
-Latest release task: `M14-T19` (`complete`)
+Latest release task: `M14-T23` (`complete`)
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Completed 1.5.0 candidate preparation
+
+M14-T23 starts from exact merged `main`
+`ef7c3e30bebcae162d0c145ed4d9b6ba94cfc2f9` in the isolated
+`/private/tmp/minco-task-m14-t23` JJ workspace. It packages only already merged
+P0-P2 improvements: pinned measured local assurance, golden-topology cost
+regression and five official typed side-effect fakes. It advances all 34
+packages, official descriptors, nine AI skills and the frozen documentation in
+lock-step without adding a provider capability or runtime resource.
+
+The remaining application-specific agent-evaluation item is not silently
+closed. No model was invoked and no human review effort was measured, so those
+lanes remain `NOT RUN`. The exact source passed the complete macOS quality and
+local-release gates from a clean JJ qualification child: pinned assurance, all
+34 package archive dry-runs, SAM/Lambda builds, owned PostgreSQL/Rustack checks
+and Orders E2E. Candidate preparation grants no authority to merge, tag,
+publish, create a GitHub release, deploy, contact AWS/Waffo or mutate
+production. Obtain clean-Linux, tag, registry, docs.rs and Pages evidence as
+separate later gates.
 
 ## Active P0 assurance boundary
 

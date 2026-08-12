@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import math
 import sys
+import tempfile
 import tomllib
 import unittest
 from pathlib import Path
@@ -172,15 +173,15 @@ class ReleaseGateRecordContractTests(unittest.TestCase):
         self.assertLess(publish, load)
 
     def test_generated_evidence_uses_the_current_release_series(self) -> None:
-        self.assertEqual(CANDIDATE_QUALIFICATION.WORKSPACE_VERSION, "1.4.0")
-        self.assertEqual(CANDIDATE_QUALIFICATION.RELEASE_SERIES, "1.4")
+        self.assertEqual(CANDIDATE_QUALIFICATION.WORKSPACE_VERSION, "1.5.0")
+        self.assertEqual(CANDIDATE_QUALIFICATION.RELEASE_SERIES, "1.5")
         self.assertEqual(
             CANDIDATE_QUALIFICATION.CANDIDATE_RECOVERY_RECORD,
-            "verification/1.4-candidate-recovery.json",
+            "verification/1.5-candidate-recovery.json",
         )
         self.assertEqual(
             CANDIDATE_QUALIFICATION.CANDIDATE_LOAD_RECORD,
-            "verification/1.4-candidate-load.json",
+            "verification/1.5-candidate-load.json",
         )
 
     def test_every_current_command_catalog_preserves_historical_evidence(self) -> None:
@@ -219,6 +220,25 @@ class ExternalConsumerEnvironmentTests(unittest.TestCase):
     def test_worker_consumer_uses_manifest_pinned_rust(self) -> None:
         environment = CANDIDATE_QUALIFICATION.external_cargo_environment(Path("target/test"))
         self.assertEqual(environment["RUSTUP_TOOLCHAIN"], "1.97.1")
+
+    def test_worker_consumer_uses_the_workspace_locked_tokio(self) -> None:
+        lock = tomllib.loads((ROOT / "Cargo.lock").read_text())
+        locked_versions = {
+            package["version"]
+            for package in lock["package"]
+            if package["name"] == "tokio"
+        }
+        self.assertEqual(len(locked_versions), 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            CANDIDATE_QUALIFICATION.worker_benchmark_sources(project)
+            manifest = tomllib.loads((project / "Cargo.toml").read_text())
+
+        self.assertEqual(
+            manifest["dependencies"]["tokio"]["version"],
+            f"={locked_versions.pop()}",
+        )
 
     def test_generated_evidence_cannot_escape_project_boundaries(self) -> None:
         allowed = CANDIDATE_QUALIFICATION.safe_output_path(

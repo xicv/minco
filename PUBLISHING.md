@@ -8,15 +8,16 @@ family from immutable tag `v1.4.0` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is the published `1.4.0` maintenance release. It retains the same
-34-package inventory, and its exact-source local gate, clean-Linux compatibility,
-immutable tag, GitHub release and guarded OIDC publication are independently
-recorded. Historical publication is not authentication or registry proof for a
-later release.
+The workspace is the unpublished `1.5.0` candidate with the same 34-package
+inventory. It packages additive typed test fakes and provider-free measured
+assurance/cost evidence; it has no candidate tag, registry record, GitHub
+release, docs.rs result or stable-site claim. Historical 1.4.0 publication is
+not authentication or registry proof for this later release.
 
-The release keeps all nine AI skills current and retains cumulative
+The candidate keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
-mandatory release gates.
+mandatory release gates. Those checks do not invoke a model or measure human
+review effort.
 
 For the published 1.4.0 baseline, exact release source passed candidate
 clean-Linux run `31475310242` and merged-main run `31475705506`. Guarded OIDC
