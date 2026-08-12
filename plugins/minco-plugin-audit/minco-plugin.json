@@ -8,12 +8,17 @@
   "default_enabled": false,
   "feature": "plugin-audit",
   "runtimes": ["native"],
-  "provides": [{ "name": "audit.append", "version": "1.0.0" }],
+  "provides": [
+    { "name": "audit.append", "version": "1.0.0" },
+    { "name": "audit.ledger", "version": "2.0.0" },
+    { "name": "audit.query", "version": "2.0.0" },
+    { "name": "audit.health", "version": "1.0.0" }
+  ],
   "data_classes": ["internal", "personal", "confidential"],
-  "retention": "application_defined",
+  "retention": "persistent",
   "failure_policy": {
     "mode": "fail_closed",
-    "description": "Audit append failures are returned to the calling application; records are never silently discarded."
+    "description": "Audit validation, append, ID conflicts and hard lifecycle limits fail closed; records are never silently discarded."
   },
   "documentation": { "reference": "https://docs.rs/minco-plugin-audit" },
   "conformance": {

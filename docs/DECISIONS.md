@@ -43,3 +43,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0037](adrs/0037-release-bound-delivery-evidence.md) | Bind feedback, operational evidence and client handover to exact release/deployment identities behind digest-approved, create-only workflows. | Accepted |
 | [ADR-0038](adrs/0038-local-first-actions-boundary.md) | Keep substantive qualification local and reserve GitHub Actions for platform-required compatibility, Pages and crates.io OIDC work. | Accepted |
 | [ADR-0039](adrs/0039-waffo-payment-boundary.md) | Keep Waffo checkout and webhook mechanics provider-specific while applications own payment state and live evidence. | Accepted |
+| [ADR-0040](adrs/0040-durable-audit-ledger.md) | Record semantic actions through a separate durable audit ledger with provider-specific atomicity and lifecycle policy. | Accepted |
