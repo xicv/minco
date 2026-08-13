@@ -15,7 +15,7 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `554`.
+Declared codes: `559`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
@@ -171,8 +171,8 @@ Declared codes: `554`.
 | `MINCO-ARCH-002` | arch | `crates/minco-cli/src/architecture.rs:133` | 0 |
 | `MINCO-ARCH-003` | arch | `crates/minco-cli/src/architecture.rs:134` | 0 |
 | `MINCO-AUTH-001` | auth | `crates/minco-plan/src/model.rs:549` | 0 |
-| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1318` | 1 |
-| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1334` | 1 |
+| `MINCO-AWS-001` | aws | `crates/minco-plan/src/model.rs:1324` | 1 |
+| `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1340` | 1 |
 | `MINCO-CONTRACT-001` | contract | `crates/minco-contract/src/validate.rs:64` | 0 |
 | `MINCO-CONTRACT-002` | contract | `crates/minco-contract/src/validate.rs:72` | 0 |
 | `MINCO-CONTRACT-003` | contract | `crates/minco-contract/src/validate.rs:84` | 0 |
@@ -207,23 +207,28 @@ Declared codes: `554`.
 | `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:735` | 0 |
 | `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:780` | 1 |
 | `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:643` | 0 |
-| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2514` | 1 |
-| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2543` | 1 |
+| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2619` | 1 |
+| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2648` | 1 |
 | `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:684` | 2 |
 | `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:719` | 0 |
 | `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:792` | 0 |
 | `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:798` | 0 |
 | `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:817` | 0 |
-| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2586` | 2 |
+| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2691` | 2 |
 | `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:833` | 0 |
-| `MINCO-DYNAMODB-001` | dynamodb | `crates/minco-plan/src/model.rs:1373` | 0 |
-| `MINCO-DYNAMODB-002` | dynamodb | `crates/minco-plan/src/model.rs:1379` | 1 |
-| `MINCO-DYNAMODB-003` | dynamodb | `crates/minco-plan/src/model.rs:1389` | 1 |
-| `MINCO-DYNAMODB-004` | dynamodb | `crates/minco-plan/src/model.rs:1395` | 0 |
-| `MINCO-DYNAMODB-005` | dynamodb | `crates/minco-plan/src/model.rs:1444` | 0 |
-| `MINCO-DYNAMODB-006` | dynamodb | `crates/minco-plan/src/model.rs:1453` | 0 |
-| `MINCO-DYNAMODB-007` | dynamodb | `crates/minco-plan/src/model.rs:1405` | 1 |
-| `MINCO-DYNAMODB-008` | dynamodb | `crates/minco-plan/src/model.rs:1416` | 1 |
+| `MINCO-DYNAMODB-001` | dynamodb | `crates/minco-plan/src/model.rs:1431` | 0 |
+| `MINCO-DYNAMODB-002` | dynamodb | `crates/minco-plan/src/model.rs:1437` | 1 |
+| `MINCO-DYNAMODB-003` | dynamodb | `crates/minco-plan/src/model.rs:1447` | 1 |
+| `MINCO-DYNAMODB-004` | dynamodb | `crates/minco-plan/src/model.rs:1453` | 0 |
+| `MINCO-DYNAMODB-005` | dynamodb | `crates/minco-plan/src/model.rs:1502` | 0 |
+| `MINCO-DYNAMODB-006` | dynamodb | `crates/minco-plan/src/model.rs:1511` | 0 |
+| `MINCO-DYNAMODB-007` | dynamodb | `crates/minco-plan/src/model.rs:1463` | 1 |
+| `MINCO-DYNAMODB-008` | dynamodb | `crates/minco-plan/src/model.rs:1474` | 1 |
+| `MINCO-DYNAMODB-009` | dynamodb | `crates/minco-plan/src/model.rs:1390` | 1 |
+| `MINCO-DYNAMODB-010` | dynamodb | `crates/minco-plan/src/model.rs:1396` | 0 |
+| `MINCO-DYNAMODB-011` | dynamodb | `crates/minco-plan/src/model.rs:1409` | 1 |
+| `MINCO-DYNAMODB-012` | dynamodb | `crates/minco-plan/src/model.rs:1418` | 1 |
+| `MINCO-DYNAMODB-013` | dynamodb | `crates/minco-plan/src/model.rs:1377` | 0 |
 | `MINCO-HANDOVER-001` | handover | `crates/minco-cli/src/handover_cmd.rs:256` | 14 |
 | `MINCO-HANDOVER-002` | handover | `crates/minco-cli/src/handover_cmd.rs:296` | 3 |
 | `MINCO-HANDOVER-003` | handover | `crates/minco-cli/src/handover_cmd.rs:334` | 37 |
@@ -245,7 +250,7 @@ Declared codes: `554`.
 | `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:710` | 0 |
 | `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:436` | 0 |
 | `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:554` | 0 |
-| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2429` | 1 |
+| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2534` | 1 |
 | `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:561` | 0 |
 | `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:571` | 1 |
 | `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:873` | 2 |
@@ -257,8 +262,8 @@ Declared codes: `554`.
 | `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:1010` | 2 |
 | `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1222` | 0 |
 | `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1237` | 4 |
-| `MINCO-PLAN-INGRESS-001` | plan | `crates/minco-plan/src/model.rs:2457` | 3 |
-| `MINCO-PLAN-INGRESS-002` | plan | `crates/minco-plan/src/model.rs:2485` | 5 |
+| `MINCO-PLAN-INGRESS-001` | plan | `crates/minco-plan/src/model.rs:2562` | 3 |
+| `MINCO-PLAN-INGRESS-002` | plan | `crates/minco-plan/src/model.rs:2590` | 5 |
 | `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/src/model.rs:394` | 1 |
 | `MINCO-PLAN-MIGRATE-002` | plan | `crates/minco-plan/src/model.rs:401` | 2 |
 | `MINCO-PLAN-MIGRATE-003` | plan | `crates/minco-plan/src/model.rs:426` | 0 |

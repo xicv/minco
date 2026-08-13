@@ -582,33 +582,52 @@ pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEsti
             write_million_rate_usd,
             storage_gb_month,
             storage_rate_usd,
+            point_in_time_recovery_gb_month,
+            point_in_time_recovery_rate_usd,
             table,
+            audit_table,
         } => {
+            let mut inputs = vec![
+                (
+                    "reads",
+                    *read_million_rate_usd,
+                    *read_request_units_million,
+                    format!("{read_request_units_million} million read request units"),
+                    CostClass::RequestOnly,
+                ),
+                (
+                    "writes",
+                    *write_million_rate_usd,
+                    *write_request_units_million,
+                    format!("{write_request_units_million} million write request units"),
+                    CostClass::RequestOnly,
+                ),
+                (
+                    "storage",
+                    *storage_rate_usd,
+                    *storage_gb_month,
+                    format!("{storage_gb_month} GB-month"),
+                    CostClass::StorageOnly,
+                ),
+            ];
+            if table
+                .as_ref()
+                .is_some_and(|table| table.point_in_time_recovery)
+                || audit_table
+                    .as_ref()
+                    .is_some_and(|table| table.point_in_time_recovery)
+            {
+                inputs.push((
+                    "point_in_time_recovery",
+                    *point_in_time_recovery_rate_usd,
+                    *point_in_time_recovery_gb_month,
+                    format!("{point_in_time_recovery_gb_month} GB-month"),
+                    CostClass::StorageOnly,
+                ));
+            }
             let mut estimate = with_optional_rates(
                 "aws_dynamodb_on_demand",
-                vec![
-                    (
-                        "reads",
-                        *read_million_rate_usd,
-                        *read_request_units_million,
-                        format!("{read_request_units_million} million read request units"),
-                        CostClass::RequestOnly,
-                    ),
-                    (
-                        "writes",
-                        *write_million_rate_usd,
-                        *write_request_units_million,
-                        format!("{write_request_units_million} million write request units"),
-                        CostClass::RequestOnly,
-                    ),
-                    (
-                        "storage",
-                        *storage_rate_usd,
-                        *storage_gb_month,
-                        format!("{storage_gb_month} GB-month"),
-                        CostClass::StorageOnly,
-                    ),
-                ],
+                inputs,
                 vec![
                     "Model access patterns, item sizes, indexes, streams, backups and \
                      transactional multipliers before selecting DynamoDB."
@@ -627,7 +646,7 @@ pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEsti
                 );
                 if table.point_in_time_recovery {
                     estimate.notes.push(
-                        "The table enables point-in-time recovery; backup storage and restore pricing remain unpriced here."
+                        "The table enables point-in-time recovery; PITR storage is modeled separately and restores remain unpriced here."
                             .into(),
                     );
                 }
@@ -637,6 +656,22 @@ pub fn estimate_database_cost(database: &DatabaseDeployment) -> DatabaseCostEsti
                             .into(),
                     );
                 }
+            }
+            if let Some(audit_table) = audit_table {
+                estimate.notes.push(
+                    "The separate audit table writes one canonical item plus one projection per unique direct or related resource; transactional write and storage inputs must include that fan-out."
+                        .into(),
+                );
+                if audit_table.point_in_time_recovery {
+                    estimate.notes.push(
+                        "The audit table enables point-in-time recovery; PITR storage is modeled separately and restores remain separately billable."
+                            .into(),
+                    );
+                }
+                estimate.notes.push(
+                    "DynamoDB is elastic but not infinite: retained audit items, query reads and backups continue accruing cost until an explicit archive or retention operation runs."
+                        .into(),
+                );
             }
             estimate
         }
@@ -1111,7 +1146,10 @@ mod tests {
             write_million_rate_usd: None,
             storage_gb_month: 1.0,
             storage_rate_usd: None,
+            point_in_time_recovery_gb_month: 0.0,
+            point_in_time_recovery_rate_usd: None,
             table: None,
+            audit_table: None,
         });
         assert!(!estimate.complete);
         assert_eq!(estimate.missing_rates.len(), 3);
@@ -1174,6 +1212,8 @@ mod tests {
             write_million_rate_usd: None,
             storage_gb_month: 1.0,
             storage_rate_usd: None,
+            point_in_time_recovery_gb_month: 1.0,
+            point_in_time_recovery_rate_usd: None,
             table: Some(crate::DynamoDbTablePlan {
                 logical_id: "OrdersTable".into(),
                 function_id: "api".into(),
@@ -1192,8 +1232,25 @@ mod tests {
                     projection: crate::DynamoDbProjection::All,
                 }],
                 point_in_time_recovery: true,
+                deletion_protection: false,
                 deletion_policy: crate::DynamoDbDeletionPolicy::Retain,
             }),
+            audit_table: Some(Box::new(crate::DynamoDbTablePlan {
+                logical_id: "AuditTable".into(),
+                function_id: "api".into(),
+                partition_key: crate::DynamoDbKeyAttribute {
+                    name: "pk".into(),
+                    scalar_type: crate::DynamoDbScalarType::String,
+                },
+                sort_key: Some(crate::DynamoDbKeyAttribute {
+                    name: "sk".into(),
+                    scalar_type: crate::DynamoDbScalarType::String,
+                }),
+                global_secondary_indexes: Vec::new(),
+                point_in_time_recovery: true,
+                deletion_protection: true,
+                deletion_policy: crate::DynamoDbDeletionPolicy::Retain,
+            })),
         });
         let notes = estimate.notes.join(" ");
         for visible in [
@@ -1201,6 +1258,8 @@ mod tests {
             "transactional writes",
             "point-in-time recovery",
             "retained table storage",
+            "canonical item plus one projection",
+            "not infinite",
         ] {
             assert!(notes.contains(visible), "missing {visible:?} in {notes}");
         }

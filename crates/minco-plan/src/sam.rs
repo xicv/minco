@@ -106,6 +106,9 @@ pub fn render_sam_with_code_uris(
     if let Some(table) = plan.database.dynamodb_table() {
         render_dynamodb_table(&mut output, table);
     }
+    if let Some(table) = plan.database.dynamodb_audit_table() {
+        render_dynamodb_table(&mut output, table);
+    }
     if let Some(static_site) = &plan.static_site {
         render_static_site_resources(&mut output, static_site);
     }
@@ -205,6 +208,11 @@ pub fn render_sam_with_code_uris(
     {
         render_dynamodb_environment(&mut output, table);
     }
+    if let Some(table) = plan.database.dynamodb_audit_table()
+        && table.function_id == function.name
+    {
+        render_dynamodb_audit_environment(&mut output, table);
+    }
     writeln!(
         output,
         "          ALLOWED_ORIGINS: {}",
@@ -224,7 +232,11 @@ pub fn render_sam_with_code_uris(
     let uses_dynamodb = plan
         .database
         .dynamodb_table()
-        .is_some_and(|table| table.function_id == function.name);
+        .is_some_and(|table| table.function_id == function.name)
+        || plan
+            .database
+            .dynamodb_audit_table()
+            .is_some_and(|table| table.function_id == function.name);
     if function.database_connections_per_instance > 0 || uses_dynamodb || plan.realtime.is_some() {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
@@ -235,6 +247,11 @@ pub fn render_sam_with_code_uris(
             && table.function_id == function.name
         {
             render_dynamodb_policy_statement(&mut output, table);
+        }
+        if let Some(table) = plan.database.dynamodb_audit_table()
+            && table.function_id == function.name
+        {
+            render_dynamodb_audit_policy_statement(&mut output, table);
         }
         if let Some(realtime) = &plan.realtime {
             render_realtime_policy_statement(&mut output, realtime);
@@ -717,6 +734,12 @@ fn render_dynamodb_table(output: &mut String, table: &DynamoDbTablePlan) {
         .expect("writing to String cannot fail");
     output.push_str("    Properties:\n");
     output.push_str("      BillingMode: PAY_PER_REQUEST\n");
+    writeln!(
+        output,
+        "      DeletionProtectionEnabled: {}",
+        table.deletion_protection
+    )
+    .expect("writing to String cannot fail");
     output.push_str("      AttributeDefinitions:\n");
     let mut attributes = BTreeMap::new();
     attributes.insert(
@@ -815,6 +838,15 @@ fn render_dynamodb_environment(output: &mut String, table: &DynamoDbTablePlan) {
     .expect("writing to String cannot fail");
 }
 
+fn render_dynamodb_audit_environment(output: &mut String, table: &DynamoDbTablePlan) {
+    writeln!(
+        output,
+        "          AUDIT_DYNAMODB_TABLE_NAME: !Ref {}",
+        table.logical_id
+    )
+    .expect("writing to String cannot fail");
+}
+
 fn render_dynamodb_policy_statement(output: &mut String, table: &DynamoDbTablePlan) {
     output.push_str("            - Effect: Allow\n");
     output.push_str("              Action:\n");
@@ -852,6 +884,25 @@ fn render_dynamodb_policy_statement(output: &mut String, table: &DynamoDbTablePl
             .expect("writing to String cannot fail");
         }
     }
+}
+
+fn render_dynamodb_audit_policy_statement(output: &mut String, table: &DynamoDbTablePlan) {
+    output.push_str("            - Effect: Allow\n");
+    output.push_str("              Action:\n");
+    for action in [
+        "dynamodb:BatchGetItem",
+        "dynamodb:DescribeTable",
+        "dynamodb:Query",
+        "dynamodb:TransactWriteItems",
+    ] {
+        writeln!(output, "                - {action}").expect("writing to String cannot fail");
+    }
+    writeln!(
+        output,
+        "              Resource: !GetAtt {}.Arn",
+        table.logical_id
+    )
+    .expect("writing to String cannot fail");
 }
 
 fn render_database_environment(output: &mut String, function: &FunctionPlan) {
@@ -999,6 +1050,11 @@ fn render_worker_function(
     {
         render_dynamodb_environment(output, table);
     }
+    if let Some(table) = plan.database.dynamodb_audit_table()
+        && table.function_id == function.name
+    {
+        render_dynamodb_audit_environment(output, table);
+    }
     let has_sqs_trigger = plan.triggers.iter().any(|trigger| {
         matches!(
             trigger,
@@ -1008,7 +1064,11 @@ fn render_worker_function(
     let uses_dynamodb = plan
         .database
         .dynamodb_table()
-        .is_some_and(|table| table.function_id == function.name);
+        .is_some_and(|table| table.function_id == function.name)
+        || plan
+            .database
+            .dynamodb_audit_table()
+            .is_some_and(|table| table.function_id == function.name);
     if function.database_connections_per_instance > 0 || uses_dynamodb || has_sqs_trigger {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
@@ -1019,6 +1079,11 @@ fn render_worker_function(
             && table.function_id == function.name
         {
             render_dynamodb_policy_statement(output, table);
+        }
+        if let Some(table) = plan.database.dynamodb_audit_table()
+            && table.function_id == function.name
+        {
+            render_dynamodb_audit_policy_statement(output, table);
         }
     }
     for trigger in &plan.triggers {

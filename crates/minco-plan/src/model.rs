@@ -1247,6 +1247,12 @@ fn validate_sam_resource_identifiers(plan: &DeploymentPlan, diagnostics: &mut Ve
             "DynamoDB table contract".to_owned(),
         );
     }
+    if let Some(table) = plan.database.dynamodb_audit_table() {
+        insert_resource(
+            table.logical_id.clone(),
+            "DynamoDB audit table contract".to_owned(),
+        );
+    }
     for function in plan
         .functions
         .iter()
@@ -1366,8 +1372,60 @@ fn valid_sqs_queue_name(value: &str, fifo: bool) -> bool {
 
 fn validate_dynamodb_table(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiagnostic>) {
     let Some(table) = plan.database.dynamodb_table() else {
+        if plan.database.dynamodb_audit_table().is_some() {
+            diagnostics.push(error(
+                "MINCO-DYNAMODB-013",
+                "DynamoDB audit table requires an explicit operational table for atomic writes",
+            ));
+        }
         return;
     };
+    validate_one_dynamodb_table(plan, table, diagnostics);
+    let Some(audit) = plan.database.dynamodb_audit_table() else {
+        return;
+    };
+    validate_one_dynamodb_table(plan, audit, diagnostics);
+    if table.logical_id == audit.logical_id {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-009",
+            "DynamoDB operational and audit tables require distinct logical IDs",
+        ));
+    }
+    if table.function_id != audit.function_id {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-010",
+            "DynamoDB operational and audit tables must be owned by one function for atomic writes",
+        ));
+    }
+    let valid_audit_schema = audit.partition_key.name == "pk"
+        && audit.partition_key.scalar_type == DynamoDbScalarType::String
+        && audit
+            .sort_key
+            .as_ref()
+            .is_some_and(|key| key.name == "sk" && key.scalar_type == DynamoDbScalarType::String)
+        && audit.global_secondary_indexes.is_empty();
+    if !valid_audit_schema {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-011",
+            "DynamoDB audit table requires string pk/sk keys and no global secondary indexes",
+        ));
+    }
+    if !audit.point_in_time_recovery
+        || !audit.deletion_protection
+        || audit.deletion_policy != DynamoDbDeletionPolicy::Retain
+    {
+        diagnostics.push(error(
+            "MINCO-DYNAMODB-012",
+            "DynamoDB audit table requires point-in-time recovery, deletion protection and retain deletion policy",
+        ));
+    }
+}
+
+fn validate_one_dynamodb_table(
+    plan: &DeploymentPlan,
+    table: &DynamoDbTablePlan,
+    diagnostics: &mut Vec<PlanDiagnostic>,
+) {
     if plan.schema_version != 2 {
         diagnostics.push(error(
             "MINCO-DYNAMODB-001",
@@ -1611,6 +1669,8 @@ pub struct DynamoDbTablePlan {
     pub global_secondary_indexes: Vec<DynamoDbGlobalSecondaryIndex>,
     #[serde(default)]
     pub point_in_time_recovery: bool,
+    #[serde(default)]
+    pub deletion_protection: bool,
     pub deletion_policy: DynamoDbDeletionPolicy,
 }
 
@@ -1657,8 +1717,14 @@ pub enum DatabaseDeployment {
         write_million_rate_usd: Option<f64>,
         storage_gb_month: f64,
         storage_rate_usd: Option<f64>,
+        #[serde(default)]
+        point_in_time_recovery_gb_month: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        point_in_time_recovery_rate_usd: Option<f64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         table: Option<DynamoDbTablePlan>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        audit_table: Option<Box<DynamoDbTablePlan>>,
     },
     SqlitePersistentHost {
         host_monthly_usd: f64,
@@ -1674,6 +1740,14 @@ impl DatabaseDeployment {
     pub const fn dynamodb_table(&self) -> Option<&DynamoDbTablePlan> {
         match self {
             Self::DynamoDbOnDemand { table, .. } => table.as_ref(),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn dynamodb_audit_table(&self) -> Option<&DynamoDbTablePlan> {
+        match self {
+            Self::DynamoDbOnDemand { audit_table, .. } => audit_table.as_deref(),
             _ => None,
         }
     }
@@ -1813,6 +1887,8 @@ impl DatabaseDeployment {
                 write_million_rate_usd,
                 storage_gb_month,
                 storage_rate_usd,
+                point_in_time_recovery_gb_month,
+                point_in_time_recovery_rate_usd,
                 ..
             } => {
                 check_non_negative(
@@ -1837,6 +1913,16 @@ impl DatabaseDeployment {
                 );
                 check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
                 check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
+                check_non_negative(
+                    &mut invalid,
+                    "point_in_time_recovery_gb_month",
+                    *point_in_time_recovery_gb_month,
+                );
+                check_optional_non_negative(
+                    &mut invalid,
+                    "point_in_time_recovery_rate_usd",
+                    *point_in_time_recovery_rate_usd,
+                );
             }
             Self::SqlitePersistentHost {
                 host_monthly_usd,
@@ -1999,6 +2085,25 @@ fn derive_iam_intents(
                 "dynamodb:Query",
                 "dynamodb:TransactWriteItems",
                 "dynamodb:UpdateItem",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            resource: IamResource::DynamoDbTable {
+                logical_id: table.logical_id.clone(),
+            },
+        });
+    }
+    if matches!(runtime, RuntimePlan::LambdaZipArm64)
+        && let Some(table) = database.dynamodb_audit_table()
+    {
+        intents.push(IamIntent {
+            function_id: table.function_id.clone(),
+            actions: [
+                "dynamodb:BatchGetItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:Query",
+                "dynamodb:TransactWriteItems",
             ]
             .into_iter()
             .map(str::to_owned)

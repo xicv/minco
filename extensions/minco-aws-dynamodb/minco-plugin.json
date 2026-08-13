@@ -18,6 +18,7 @@
       "kind": "dynamo_db",
       "idle_cost": "storage_only",
       "iam_actions": [
+        "dynamodb:BatchGetItem",
         "dynamodb:DescribeTable",
         "dynamodb:GetItem",
         "dynamodb:Query",
