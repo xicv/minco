@@ -57,6 +57,7 @@ flowchart LR
     NM14T17["M14-T17<br/>Rebalance the homepage architecture diagram"]
     NM14T18["M14-T18<br/>Define the durable audit ledger foundation"]
     NM14T19["M14-T19<br/>Add transactional SQL audit journals and separate ledgers"]
+    NM14T20["M14-T20<br/>Add the AWS-default DynamoDB audit ledger"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -189,6 +190,7 @@ flowchart LR
     NM14T16 --> NM14T17
     NM14T17 --> NM14T18
     NM14T18 --> NM14T19
+    NM14T19 --> NM14T20
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01

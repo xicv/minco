@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1314,
+  "file_count": 1317,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "e125f280e767def346e6be15762c00bcfc5820fb70d934d682bde33542d7970f",
-      "size_bytes": 117411
+      "sha256": "53bf7cb273ff1dacbf34a3dd0a334197ce6e6943a6e8e5936e1c09e894f08b2c",
+      "size_bytes": 117501
     },
     {
       "path": "Cargo.toml",
@@ -1319,8 +1319,8 @@
     },
     {
       "path": "crates/minco-plan/src/cost.rs",
-      "sha256": "3e52b054cdcddafbbe224a79cb605036bd6eece721122913916c4780ec787b23",
-      "size_bytes": 41350
+      "sha256": "6447579c877f5c9a3a0f1c0a3daecd0350c2c6fafca61614b2f274493a1789a0",
+      "size_bytes": 44096
     },
     {
       "path": "crates/minco-plan/src/lib.rs",
@@ -1329,18 +1329,18 @@
     },
     {
       "path": "crates/minco-plan/src/model.rs",
-      "sha256": "f7e63e4136df7b07897f5d7d5e5cb3280bf47b2a1674e688ad2030b81abe479b",
-      "size_bytes": 92690
+      "sha256": "807e00d17f1d8198b4d4f0a6dbc72e3e6a13f0649f7727ed1a40ae5247357830",
+      "size_bytes": 96572
     },
     {
       "path": "crates/minco-plan/src/sam.rs",
-      "sha256": "eb46de6601218b3cc8695243d2181de46ecabb044e36e35fed3d1b2a7dcefd94",
-      "size_bytes": 59857
+      "sha256": "7c037bfa8bbfee1c00b4ee6fb698e34473c47bd322105ca03bcea9e5db8e5938",
+      "size_bytes": 62068
     },
     {
       "path": "crates/minco-plan/tests/fixtures/api_dynamodb_explicit_v2.toml",
-      "sha256": "26f3ef213d0cb8e4fbf9b7d0dc143626f6d83b6e55ccc1c9a5243ffc0c1334c2",
-      "size_bytes": 1961
+      "sha256": "61c32b8ae7736c499d398f011a15908af00dda136b9c7e3ecb7f01fe5a7eec56",
+      "size_bytes": 2228
     },
     {
       "path": "crates/minco-plan/tests/fixtures/api_only_v1.toml",
@@ -1374,8 +1374,8 @@
     },
     {
       "path": "crates/minco-plan/tests/multi_runtime.rs",
-      "sha256": "4328ed0d572be048abd820d636026fa16757e7afaff94217201bb0cad60fac1b",
-      "size_bytes": 40003
+      "sha256": "ae1c6439eb2e040f0133c1c25335fac13512b02fb1b44329b1ae98dc10b4fd84",
+      "size_bytes": 41084
     },
     {
       "path": "crates/minco-project-view/Cargo.toml",
@@ -2179,8 +2179,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "bf1da3149c54a2b532dac532630ba9b079c0635e37940d07b51cf572c602d463",
-      "size_bytes": 45974
+      "sha256": "222ab220cb85c78490dcf384a65c2791bf9749ff76d0d6c06c85b9cf7705a6a3",
+      "size_bytes": 46374
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -2199,12 +2199,12 @@
     },
     {
       "path": "docs/reference/generated/plugins.md",
-      "sha256": "248d90aa63162acdaecd7488b340de144ffe4d000029f98f75b6f90fd51437eb",
+      "sha256": "97e73aa7fbb544a18ec8a503543f5cd94c34f39bef45eb4fb5af2e00774c86b1",
       "size_bytes": 6731
     },
     {
       "path": "docs/reference/generated/schemas.md",
-      "sha256": "bc2794eb0199aed6e5c23dabfc72fdd6549c77bb9dea395c01219c7a4988cef3",
+      "sha256": "8f0044ef7140d3beac8a34fef61b136ae3ee608516ab1c002b26b79f9b0208ea",
       "size_bytes": 15546
     },
     {
@@ -2224,8 +2224,8 @@
     },
     {
       "path": "docs/research/audit-ledger-costs-2026-08.md",
-      "sha256": "104641262b90a2d28b89948b7aebb201d3769545f18a1085728a7a03e07302b7",
-      "size_bytes": 4304
+      "sha256": "82a8602f9a4bdf7d4a597452ac9ce12f1dd2358a588bf1cc7f9d2282b9c47281",
+      "size_bytes": 5785
     },
     {
       "path": "docs/research/aws-plugin-adapters-2026-07.md",
@@ -4204,8 +4204,8 @@
     },
     {
       "path": "extensions/minco-aws-dynamodb/Cargo.toml",
-      "sha256": "b6d21214fc0f9f9ea83dcb2bed2db7ec02fd6a6089f2d1ba710513554ebbec3c",
-      "size_bytes": 944
+      "sha256": "e528973ec31568bf69bb20ceb9f0cfb9b6e7a222cd00e57cce67cf4641f87746",
+      "size_bytes": 1128
     },
     {
       "path": "extensions/minco-aws-dynamodb/LICENSE-APACHE",
@@ -4219,18 +4219,28 @@
     },
     {
       "path": "extensions/minco-aws-dynamodb/README.md",
-      "sha256": "d123175015828e3418b5c84e1321873d9dd9f97a1a84961cb8b845d5c8519e23",
-      "size_bytes": 240
+      "sha256": "744f1f68c436bd50492b41900671dff11f30faaa0699a2fbb59ce86c3ce41943",
+      "size_bytes": 1711
     },
     {
       "path": "extensions/minco-aws-dynamodb/minco-plugin.json",
-      "sha256": "0c0991db4211bbecbf4a5fd3c7d04641a76bd3723fbdfc5f043151f0d8a869a3",
-      "size_bytes": 1122
+      "sha256": "e44a8fc26428b450534f1135a6c57e90500725495887fb89fe23fd187b57ed36",
+      "size_bytes": 1155
+    },
+    {
+      "path": "extensions/minco-aws-dynamodb/src/audit_v2.rs",
+      "sha256": "44f4e2d5819078eedc6745b82d23df5c2c7bd38210ba0ad39a2cc159ed79603d",
+      "size_bytes": 26105
     },
     {
       "path": "extensions/minco-aws-dynamodb/src/lib.rs",
-      "sha256": "9bbd695f554ce18c76e22bf65a0a95301ae9b9f50e04c8f14a467d600659db65",
-      "size_bytes": 6958
+      "sha256": "a760e981277a808afbf56dde916758739adb102e90fa940b1b408b27c07968c4",
+      "size_bytes": 6977
+    },
+    {
+      "path": "extensions/minco-aws-dynamodb/tests/audit_v2.rs",
+      "sha256": "9d72508ecadb16ed8639314d95950912d472414f94f6c3ab19acb35d7cbe8fe2",
+      "size_bytes": 4102
     },
     {
       "path": "extensions/minco-aws-dynamodb/tests/config.rs",
@@ -5374,8 +5384,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "e5e79e18391d3e15d8cd935f9b9d994f9111b27e5cf2fa9cd4ab2ec87cf0fe1d",
-      "size_bytes": 11348
+      "sha256": "c79aec310987b4f9d0b324be1e6179e3396218c18cbb14e236fdb8ba40e1bdb7",
+      "size_bytes": 11441
     },
     {
       "path": "rust-toolchain.toml",
@@ -6228,6 +6238,11 @@
       "size_bytes": 5244
     },
     {
+      "path": "tasks/M14/M14-T20-dynamodb-audit-ledger.md",
+      "sha256": "b78eb8381740c742f7527c02bb6e9f39fffc45fd4364f4cee611317a5a07dd4d",
+      "size_bytes": 4634
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -6601,7 +6616,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "da4aa2ebd62d6a064ae1833c16bfd43e9c6390ffa2be6d7e40e043733aa24e9c",
-  "total_size_bytes": 9605148,
+  "source_tree_sha256": "f0854fc8f47b48743c31f713cca85585785f214a3c784d65c6db4e5dcc12c822",
+  "total_size_bytes": 9653947,
   "version": "1.3.0"
 }
