@@ -7,11 +7,11 @@ description: Unreleased Minco documentation for contract-to-cloud Rust applicati
 
 <p class="doc-kicker">Current development manual</p>
 
-<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.6.0/">1.6.0 manual</a>, while making unreleased behavior visibly separate from stable guidance.</p>
+<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.7.0/">1.7.0 candidate manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
 
-The 1.6 release adds [durable action auditing](./guides/auditing): semantic
-application actions, physically separate ledgers, atomic SQL-journal or
-DynamoDB transactions, bounded history, and explicit retained-growth policy.
+The 1.7 candidate makes [Apple Container the fresh local-service default](./guides/local-development)
+on qualified Apple silicon hosts while retaining lifecycle receipts, exact
+owned-resource recovery, explicit runtime selection and Docker fallback.
 
 ## Start with the outcome
 

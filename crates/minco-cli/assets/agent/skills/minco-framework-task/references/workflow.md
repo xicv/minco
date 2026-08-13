@@ -31,3 +31,8 @@ evidence `NOT RUN` until actually exercised.
 At the 1.6 durable audit ledger boundary, keep application semantics, SQL
 journal/ledger adapters, DynamoDB transaction shape, documentation, cost and
 retention evidence in explicit owned paths and tasks.
+
+At the 1.7 Apple Container default boundary, own runtime-selection code,
+receipts, exact-resource tests, migration guidance and fallback documentation
+together. Preserve Docker support and keep automatic data migration or resource
+deletion outside the task unless separately authorised.

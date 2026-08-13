@@ -1,7 +1,7 @@
-# 1.6 support matrix
+# 1.7 candidate support matrix
 
 Published install baseline: `1.6.0`
-Current workspace version: `1.6.0`
+Current workspace version: `1.7.0`
 MSRV: Rust `1.97.1`
 Compatibility state: the published 1.6.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
@@ -16,6 +16,11 @@ durable audit behavior without promoting a provider or changing
 the global database default. Its
 typed application-test fakes and provider-free assurance/cost evidence do not
 promote a deferred service, provider profile or current live-evidence claim.
+
+The unpublished 1.7.0 candidate changes only the fresh automatic local-service
+preference on qualified Apple hosts. Existing receipts and exact resources
+remain authoritative; Docker remains the explicit and non-Apple fallback. It
+does not change production topology, Plan IR, AWS behavior or provider support.
 
 The Waffo plugin is published beta, not a live-provider support claim. Offline
 tests and exact SDK review do not prove an account, payment, settlement,

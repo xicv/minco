@@ -53,7 +53,7 @@
       "minco-aws-dynamodb",
       "minco-plugin-payments-waffo"
     ],
-    "workspace_version": "1.6.0",
+    "workspace_version": "1.7.0",
     "workspace_packages": 39,
     "publishable_packages": 34,
     "private_packages": 5,

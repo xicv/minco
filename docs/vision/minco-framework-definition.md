@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.6.0`
-Current workspace version: `1.6.0`
-Workspace release state: `published`
+Current workspace version: `1.7.0`
+Workspace release state: `candidate`
 Reviewed release source: `9abae9128dddc9bc32d099732e1421a0332e4785`
 
 ## Product identity
@@ -48,6 +48,11 @@ The published 1.6.0 release adds durable, schema-agnostic action auditing with s
 SQL ledgers, an access-pattern-specific DynamoDB transaction and bounded Orders
 history. It does not add an ORM, global database default, automatic archive or
 provider/deployment claim.
+
+The unpublished 1.7.0 candidate makes Apple Container the first fresh automatic
+local-service choice on a qualified Apple host. Receipts and exact owned
+resources still outrank that default, Docker remains supported, and no
+production, Plan IR, AWS or provider boundary changes.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,

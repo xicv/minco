@@ -47,11 +47,11 @@ maximum_timeouts = 0
 maximum_unviable = 3
 
 [semver]
-baseline_tag = "v1.5.0"
-baseline_commit = "c3706559357510d33d046fa461f8550fbbd4c04c"
+baseline_tag = "v1.6.0"
+baseline_commit = "9abae9128dddc9bc32d099732e1421a0332e4785"
 packages = "publishable_workspace"
 package_count = 34
 
 [performance]
-local_receipt = "verification/1.6-candidate-load.json"
-hosted_baseline = "verification/1.6-performance-baseline.json"
+local_receipt = "verification/1.7-candidate-load.json"
+hosted_baseline = "verification/1.7-performance-baseline.json"

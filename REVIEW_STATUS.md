@@ -1,5 +1,27 @@
 # Review status
 
+## Completed M14-T32 Minco 1.7.0 candidate preparation
+
+The exact published `1.6.0` baseline comes from release source
+`9abae9128dddc9bc32d099732e1421a0332e4785`. The workspace is an unpublished
+`1.7.0` candidate that coordinates the existing 34-package family, 19 official
+descriptors, nine skills, frozen documentation and Apple-first fresh automatic
+local-service selection.
+
+Review must prove additive SemVer against immutable `v1.6.0`, exact receipt and
+resource precedence, Apple selection, Docker fallback and the absence of
+implicit data migration or deletion. Qualification, hosted Linux, merge, tag,
+registry, docs.rs, Pages, provider, deployment and production remain separate.
+
+The exact sealed source passes the complete macOS quality and local-release
+matrix from a clean JJ child. Pinned assurance proves 127 nextest tests plus one
+doctest, 85.80% line and 81.97% function coverage, 43 caught viable mutants
+with zero misses/timeouts, and additive compatibility for all 34 packages
+against `v1.6.0`. Candidate load/recovery, package archives, Plan/SAM, native
+Lambda builds, AppSync proof, owned PostgreSQL/Rustack runtime and Orders E2E
+also pass locally; hosted, registry, provider and production states remain
+independent.
+
 ## Active M14-T30 Minco 1.6.0 published release closure
 
 Minco `1.6.0` is the current published baseline from exact release source

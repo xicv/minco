@@ -6,12 +6,13 @@ Published release: `1.6.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.6.0`
+Current workspace: `1.7.0` candidate
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1, 1.2, 1.3, 1.4, 1.5 and published 1.6.0 release lines. Merge, tag,
+the 1.1, 1.2, 1.3, 1.4, 1.5 and published 1.6.0 release lines plus the
+unpublished 1.7.0 candidate. Merge, tag,
 registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
@@ -41,6 +42,13 @@ exhaustively constructible public types. Existing audit interfaces, CLI names,
 serialized Plan inputs, defaults and provider selection remain compatible.
 Official descriptors advance in lock-step to `^1.6.0`; older compatible
 third-party descriptors remain valid unless they require the V2 surface.
+
+The 1.7.0 candidate changes fresh `auto` local-service selection to prefer a
+ready Apple Container runtime. It preserves explicit runtime selection,
+receipt and exact-resource precedence, Docker fallback, public APIs, Plan IR,
+production topology and provider semantics. Official descriptors advance in
+lock-step to `^1.7.0`; see the
+[1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md).
 
 The 1.2 release adds a defaulted `FeedbackThread.clarifications` serialized
 field. Stored JSON remains data-compatible, but downstream Rust code that uses

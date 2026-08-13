@@ -5,10 +5,40 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.6.0` release. Release sections from `1.2.0`
+No changes beyond the unpublished `1.7.0` candidate. Release sections from `1.2.0`
 onward retain exact candidate-source wording because their digests are bound
 into the portable agent bundle; tag, registry, documentation and provider
 evidence stay separate in `VERIFICATION.md`.
+
+## [1.7.0] - 2026-08-13
+
+This additive lock-step minor releases Apple Container as the preferred fresh
+local-service runtime on qualified Apple silicon hosts. It remains unpublished
+until exact-source qualification, merge, tagging and registry publication
+complete as separate evidence states.
+
+### Changed
+
+- Changed fresh `MINCO_CONTAINER_RUNTIME=auto` selection to prefer a ready,
+  qualified Apple Container `1.2.x` runtime before a ready Docker Compose
+  runtime for Minco-owned PostgreSQL and Rustack services.
+- Advanced all 34 publishable packages and official plugin descriptors in
+  lock-step to the additive `1.7.0` candidate line with no new package or
+  first-publication boundary.
+- Updated the frozen 1.7.0 manual, adoption guidance and all nine packaged
+  Codex/Claude skills for the Apple-first local-development boundary.
+
+### Compatibility and evidence
+
+- Existing lifecycle receipts and exact owned resources still select their
+  recorded runtime; the new preference applies only when no receipt or resource
+  exists, so the release does not silently migrate persistent data.
+- Explicit `docker` and `apple` selections remain authoritative and fail
+  closed. Docker and the project-owned Compose customization boundary remain
+  supported when Apple Container is unavailable or unsuitable.
+- Production runtime, Plan IR, AWS behavior and cloud cost are unchanged. The
+  release adds no deployment, provider contact, scheduler, fixed compute
+  resource or automatic volume migration/deletion.
 
 ## [1.6.0] - 2026-08-13
 

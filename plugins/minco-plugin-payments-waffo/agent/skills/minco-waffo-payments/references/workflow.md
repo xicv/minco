@@ -44,3 +44,7 @@ cleanup or production outcome.
 At the 1.6 durable audit ledger boundary, treat checkout and webhook audit
 actions as application-owned semantic projections; never persist bearer tokens,
 raw provider bodies or an unverified checkout return as audit truth.
+
+At the 1.7 Apple Container default boundary, keep Waffo provider semantics,
+credentials and webhook evidence independent from the selected local dependency
+runtime. Apple selection or Docker fallback proves no payment-provider outcome.
