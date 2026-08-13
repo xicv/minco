@@ -1,15 +1,20 @@
 ---
 title: Minco 1.7.0
-description: Release candidate documentation for Apple-first local services and contract-to-cloud Rust application development.
+description: Stable documentation for Apple-first local services and contract-to-cloud Rust application development.
 ---
 
 # Minco 1.7.0
 
-<p class="doc-kicker">Frozen 1.7.0 candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
-<p class="doc-lead">This manual describes the 1.7.0 candidate source. It develops the same contract-to-cloud model as the frozen <a href="../1.6.0/">1.6.0 manual</a>, while making unreleased behavior visibly separate from stable guidance.</p>
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.7.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
 
-The 1.7 candidate makes [Apple Container the fresh local-service default](./guides/local-development)
+<p class="doc-lead">This manual describes the published 1.7.0 source. It develops the same contract-to-cloud model as the frozen <a href="../1.6.0/">1.6.0 manual</a>, while keeping later unreleased behavior visibly separate in <a href="../next/">Next</a>.</p>
+
+The 1.7 release makes [Apple Container the fresh local-service default](./guides/local-development)
 on qualified Apple silicon hosts while retaining lifecycle receipts, exact
 owned-resource recovery, explicit runtime selection and Docker fallback.
 

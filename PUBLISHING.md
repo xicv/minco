@@ -2,27 +2,27 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 34-package lock-step `1.6.0`
-family from immutable tag `v1.6.0` at
-`9abae9128dddc9bc32d099732e1421a0332e4785`. Source/package qualification,
+The current published boundary is the complete 34-package lock-step `1.7.0`
+family from immutable tag `v1.7.0` at
+`7773892792696ccf061ddbb49fa284e5ba7f6747`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is an unpublished `1.7.0` candidate with the same 34-package
+The workspace is the published `1.7.0` release with the same 34-package
 inventory. It packages the Apple-first fresh local-service preference while
-retaining exact-resource recovery and Docker fallback. Candidate source, merge,
-tag, GitHub release, OIDC publication, registry, docs.rs and stable Pages remain
-separate evidence gates; the published baseline is still `1.6.0`.
+retaining exact-resource recovery and Docker fallback. Its exact source, merge,
+tag, GitHub release, OIDC publication and registry family are recorded
+independently; docs.rs and stable Pages remain separate evidence gates.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
 mandatory release gates. Those checks do not invoke a model or measure human
 review effort.
 
-For the published 1.6.0 baseline, exact release source passed PR-head
-clean-Linux run `31689050949` and merged-main run `31689854658`. Authentication
-run `31689854606` proved the exact OIDC boundary without upload. Publication run
-`31690283715` passed archive and consumer checks before dependency-ordered
+For the published 1.7.0 baseline, exact release source passed PR-head
+clean-Linux run `31712458388` and merged-main run `31712808528`. Authentication
+run `31713263154` proved the exact OIDC boundary without upload. Publication run
+`31713475849` passed archive and consumer checks before dependency-ordered
 upload, and independent validation found all 34 exact versions present and
 non-yanked. That publication is not live Waffo, AWS, application deployment or
 production evidence.
@@ -62,6 +62,8 @@ The 1.5.0 release used short-lived OIDC credentials and completed all 34
 dependency-ordered uploads in one guarded run.
 The 1.6.0 release repeated that exact tagged-family boundary and independently
 verified all 34 non-yanked registry records after upload.
+The 1.7.0 release repeated the complete exact-tag OIDC boundary and published
+all 34 packages in one guarded run before independent registry verification.
 Every later release must re-prove authentication and registry state; ownership
 alone is not authentication evidence.
 
