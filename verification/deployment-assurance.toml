@@ -54,8 +54,8 @@ documentation_paths = [
 ]
 test_commands = [
   "cargo test -p minco-plan --locked",
-  "scripts/release/candidate-load.sh --output verification/1.5-candidate-load.json",
-  "scripts/release/candidate-recovery.sh --output verification/1.5-candidate-recovery.json",
+  "scripts/release/candidate-load.sh --output verification/1.6-candidate-load.json",
+  "scripts/release/candidate-recovery.sh --output verification/1.6-candidate-recovery.json",
 ]
 decision = "The default AWS web profile remains API Gateway HTTP API plus native ARM64 Lambda because it preserves zero provisioned compute while retaining JWT authorizers, exact CORS, candidate-stage verification, and guarded alias promotion."
 blockers = []

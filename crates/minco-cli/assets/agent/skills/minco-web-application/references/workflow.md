@@ -34,3 +34,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, use official typed fakes through their
 owning ports for application behavior and keep provider, model-driven and human
 review outcomes explicit rather than inferred.
+
+At the 1.6 durable audit ledger boundary, expose only permission-gated bounded
+resource history, keep audit storage independent of operational schemas, and
+make retention, archive and provider-cost limits visible to operators.

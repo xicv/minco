@@ -39,3 +39,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, prefer the official fake owned by the
 operation's side-effect port, exercise it through that public interface and
 retain adapter/provider qualification as a separate lane.
+
+At the 1.6 durable audit ledger boundary, construct one privacy-aware semantic
+audit action in the use case and prove that the adapter accepts it atomically
+with the domain mutation, including duplicate and concurrent-write behavior.

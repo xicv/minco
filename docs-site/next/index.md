@@ -9,6 +9,10 @@ description: Unreleased Minco documentation for contract-to-cloud Rust applicati
 
 <p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.5.0/">1.5.0 manual</a>, while making unreleased behavior visibly separate from stable guidance.</p>
 
+The 1.6 candidate adds [durable action auditing](./guides/auditing): semantic
+application actions, physically separate ledgers, atomic SQL-journal or
+DynamoDB transactions, bounded history, and explicit retained-growth policy.
+
 ## Start with the outcome
 
 The documentation is organized progressively. Begin with one working application,

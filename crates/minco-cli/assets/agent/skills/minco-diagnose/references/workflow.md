@@ -24,3 +24,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, distinguish typed-fake behavior,
 provider-free cost/quality evidence, model evaluation and human review; an
 unrun lane remains `NOT RUN`.
+
+At the 1.6 durable audit ledger boundary, trace the source transaction, journal
+or cross-table write, idempotency identity, bounded query and explicit storage
+lifecycle before diagnosing a missing or duplicated action.

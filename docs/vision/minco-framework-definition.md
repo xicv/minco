@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.5.0`
-Current workspace version: `1.5.0`
-Workspace release state: `published`
+Current workspace version: `1.6.0`
+Workspace release state: `candidate`
 Reviewed release source: `c3706559357510d33d046fa461f8550fbbd4c04c`
 
 ## Product identity
@@ -40,6 +40,11 @@ The immutable published `1.5.0` classification is:
 The published 1.5.0 release preserves that classification. It packages
 additive application-test fakes plus provider-free measured assurance and cost
 regression without adding a provider, deployment topology or control plane.
+
+The 1.6.0 candidate adds durable, schema-agnostic action auditing with separate
+SQL ledgers, an access-pattern-specific DynamoDB transaction and bounded Orders
+history. It does not add an ORM, global database default, automatic archive or
+provider/deployment claim.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,

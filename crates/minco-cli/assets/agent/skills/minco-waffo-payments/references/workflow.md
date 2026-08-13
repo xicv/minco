@@ -40,3 +40,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, keep Waffo offline fakes and measured
 local gates separate from a live Waffo account, payment, webhook delivery,
 cleanup or production outcome.
+
+At the 1.6 durable audit ledger boundary, treat checkout and webhook audit
+actions as application-owned semantic projections; never persist bearer tokens,
+raw provider bodies or an unverified checkout return as audit truth.
