@@ -47,3 +47,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0041](adrs/0041-topology-cost-regression-baseline.md) | Guard reviewed golden-topology cost projections without inventing provider prices. | Accepted |
 | [ADR-0042](adrs/0042-typed-side-effect-fakes.md) | Keep application-test fakes port-specific, failure-scriptable and privacy-bounded. | Accepted |
 | [ADR-0043](adrs/0043-durable-audit-ledger.md) | Record semantic actions through a separate durable audit ledger with provider-specific atomicity and lifecycle policy. | Accepted |
+| [ADR-0044](adrs/0044-apple-container-default.md) | Prefer a ready qualified Apple Container for fresh local services while retaining Docker fallback and exact-resource recovery. | Accepted |

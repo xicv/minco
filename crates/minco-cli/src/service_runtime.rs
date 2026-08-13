@@ -844,10 +844,10 @@ fn resolve_runtime_with(
             ensure!(apple.ready, "{}", apple.diagnostic);
             Ok(Runtime::Apple)
         }
-        RuntimePreference::Auto if docker.ready => Ok(Runtime::Docker),
         RuntimePreference::Auto if apple.ready => Ok(Runtime::Apple),
-        RuntimePreference::Auto if docker.installed => bail!("{}", docker.diagnostic),
+        RuntimePreference::Auto if docker.ready => Ok(Runtime::Docker),
         RuntimePreference::Auto if apple.installed => bail!("{}", apple.diagnostic),
+        RuntimePreference::Auto if docker.installed => bail!("{}", docker.diagnostic),
         RuntimePreference::Auto => bail!(
             "no supported container runtime is ready; install/start Docker, or on Apple silicon macOS 26 install Apple Container 1.2.x and run `container system start`"
         ),
@@ -1566,8 +1566,8 @@ fn startup_runtimes(runner: &impl CommandRunner) -> Result<Vec<Runtime>> {
     let docker = docker_availability(runner);
     let apple = apple_availability(runner);
     let runtimes = [
-        (Runtime::Docker, docker.ready),
         (Runtime::Apple, apple.ready),
+        (Runtime::Docker, docker.ready),
     ]
     .into_iter()
     .filter_map(|(runtime, ready)| ready.then_some(runtime))
@@ -2835,7 +2835,7 @@ mod tests {
 
     #[test]
     fn runtime_selection_is_deterministic_and_versions_fail_closed() {
-        let docker = ProbeRunner::default()
+        let both_ready = ProbeRunner::default()
             .with("docker", &["--version"], success("Docker version 29.7.1"))
             .with(
                 "docker",
@@ -2850,8 +2850,8 @@ mod tests {
             )
             .with("container", &["system", "status"], success("running"));
         assert_eq!(
-            resolve_runtime_with(&docker, RuntimePreference::Auto).expect("Docker auto"),
-            Runtime::Docker
+            resolve_runtime_with(&both_ready, RuntimePreference::Auto).expect("Apple auto"),
+            Runtime::Apple
         );
 
         let explicit_docker = ProbeRunner::default()
@@ -2998,6 +2998,32 @@ mod tests {
         assert_eq!(
             select_start_runtime(&apple_only, &arguments, None, &spec, &expected_environment,)
                 .expect("Apple fallback while Docker daemon is stopped"),
+            Runtime::Apple
+        );
+
+        let both_ready = ProbeRunner::default()
+            .with("docker", &["--version"], success("Docker version 29.7.1"))
+            .with(
+                "docker",
+                &["compose", "version", "--short"],
+                success("5.3.1\n"),
+            )
+            .with("docker", &["info"], success("ready"))
+            .with(
+                "container",
+                &["--version"],
+                success("container CLI version 1.2.0 (build: release, commit: exact)"),
+            )
+            .with("container", &["system", "status"], success("running"))
+            .with(
+                "container",
+                &["inspect", &resource],
+                CommandOutput::failure(),
+            )
+            .with("docker", &["inspect", &resource], CommandOutput::failure());
+        assert_eq!(
+            select_start_runtime(&both_ready, &arguments, None, &spec, &expected_environment,)
+                .expect("Apple first when both runtimes are ready"),
             Runtime::Apple
         );
     }
