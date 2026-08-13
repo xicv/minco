@@ -2,14 +2,18 @@
 
 Published baseline: `1.5.0`
 
-Current workspace version: `1.5.0`
+Current workspace version: `1.6.0`
 
-Workspace release state: `published`
+Workspace release state: `candidate`
 
 Use published `1.5.0` dependencies. Use the exact source checkout only for
 coordinated review of later unreleased work. Follow the
 [1.4.0-to-1.5.0 guide](../adoption/1.4.0-to-1.5.0.md) when adopting its
 additive test and assurance interfaces.
+
+Review the [1.5.0-to-1.6.0 guide](../adoption/1.5.0-to-1.6.0.md) before
+evaluating the unpublished durable-audit interfaces. Production applications
+remain pinned to the published baseline until registry verification completes.
 
 The `minco` facade is the normal dependency for an application. It keeps the
 provider-neutral kernel always available and exposes contract, HTTP, plugins,
@@ -204,8 +208,8 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 ## API stability
 
 Published baseline: `1.5.0`
-Current workspace version: `1.5.0`
-Workspace release state: `published`
+Current workspace version: `1.6.0`
+Workspace release state: `candidate`
 
 Pin the published `1.5.0` line in production applications, then follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before

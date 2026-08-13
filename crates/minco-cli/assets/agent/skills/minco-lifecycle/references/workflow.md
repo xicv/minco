@@ -24,3 +24,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, use the reviewed topology-cost baseline
 as provider-free regression evidence only; it is not a provider price,
 deployment result or production budget.
+
+At the 1.6 durable audit ledger boundary, monitor retained bytes and journal
+lag, and require an explicit verified archive/legal-hold decision before TTL,
+partition pruning or sealed-segment deletion.

@@ -15,17 +15,17 @@
     {
       "code": "PERF-BASELINE-007",
       "message": "exact-tree hosted Linux performance evidence is NOT RUN",
-      "path": "verification/1.5-performance-baseline.json",
+      "path": "verification/1.6-performance-baseline.json",
       "severity": "warning"
     }
   ],
   "inputs": {
-    "verification/1.5-performance-baseline.json": "3e3411fdd4d0c7a85fecb3a997cc14deaeb41ca406adad7beb245e9d0e17fec8",
+    "verification/1.6-performance-baseline.json": "7f11567fa4ac14fb1666dd25c6018110730ee7a9453e5e82ebdc9845ebf57ce6",
     "verification/aws-capability-candidates.toml": "204c3573941ddd62f6764777ccc8667b523eba53d442be6ed6c72e4a3c5fae64",
-    "verification/performance-policy.toml": "f0b92eea02d3585ef1d8de0d7d12e512e94f252606ea3e202948179552b54775",
-    "verification/provider-evidence.toml": "b27a819b93a1e97d692c3ecdd3973b9c6a9e6d448f3dbc04607809b2c1b06a3b",
-    "verification/repository-truth.toml": "0d6df5b3ed8dc55d35116217120619c46086170f72912b03fc277ffcdaa7b2b2",
-    "verification/source-manifest.json": "c25390edc975b2cc087ae15757807fc5a41351d0b25b4b3c8380c4d3eacf08c7"
+    "verification/performance-policy.toml": "0bd202f38840414f555337aecacb2310f00458c8970a5939aee67df82918bf37",
+    "verification/provider-evidence.toml": "3f2ffa4b8d424d34f02e4301c641b32f36bd14ad35ec993fb7ef082ff3c587bf",
+    "verification/repository-truth.toml": "ea7fb8d8778650e9847b6af076d887f96864a36a7ea692a37a64342e57e3cca8",
+    "verification/source-manifest.json": "d8532cae1ba5fab65ff799bc6b4a2a4ffbf33319894b022ea83d8fa675ecbbea"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -34,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "245ff26af9d7e3edcf2d80c254ab6fd1ad0b0a8ee3e7a16cb7a0a42e6bfccfc0",
+  "receipt_digest": "819146cc28a9b830e3682ef25c2ee68b4cc0b5803ba26f9ee75f6cb3ce86f41d",
   "schema_version": 1,
-  "source_tree_sha256": "d52944385dfa1d62bf7c2d0ba990ed475fc60b00a2c9667a48dfa652dea5f310",
+  "source_tree_sha256": "af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418",
   "status": "PASS"
 }

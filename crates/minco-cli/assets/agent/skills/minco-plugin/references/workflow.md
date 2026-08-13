@@ -28,3 +28,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, use only a plugin's own typed fake for
 application tests; do not introduce a generic mock facade or select the fake in
 production composition.
+
+At the 1.6 durable audit ledger boundary, keep the V2 record schema-agnostic,
+relationship projections bounded, the ledger physically separate, and archive
+or retention scheduling outside implicit plugin behavior.

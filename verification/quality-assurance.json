@@ -15,13 +15,13 @@
         "--",
         "--list"
       ],
-      "duration_seconds": 1.814,
+      "duration_seconds": 1.035,
       "exit_code": 0,
       "id": "cargo-test-inventory",
       "log": {
-        "bytes": 9486,
+        "bytes": 9572,
         "path": "target/minco/quality-assurance/logs/01-cargo-test-inventory.log",
-        "sha256": "5b3bb28b6b41e9c56674134cf643f6eb0ebc3dcd0b19a31225d762eb877a30ce"
+        "sha256": "d4076a670ce102a34843f6796f7ff902fd87209d4aec23c706ed1a0fd1a75012"
       },
       "status": "PASS"
     },
@@ -41,13 +41,13 @@
         "--message-format",
         "json"
       ],
-      "duration_seconds": 0.48,
+      "duration_seconds": 0.469,
       "exit_code": 0,
       "id": "nextest-inventory",
       "log": {
-        "bytes": 19209,
+        "bytes": 19485,
         "path": "target/minco/quality-assurance/logs/02-nextest-inventory.log",
-        "sha256": "0fb4845783e58d3673933b26aef264ea24bce5f1bf56d4e952dd2bf6c7c3835c"
+        "sha256": "77ca86583deee9575b1ea53972ba2afa60f37dbc381975d9ea03532078255654"
       },
       "status": "PASS"
     },
@@ -65,13 +65,13 @@
         "--all-features",
         "--locked"
       ],
-      "duration_seconds": 0.537,
+      "duration_seconds": 0.559,
       "exit_code": 0,
       "id": "nextest-run",
       "log": {
-        "bytes": 14952,
+        "bytes": 15078,
         "path": "target/minco/quality-assurance/logs/03-nextest-run.log",
-        "sha256": "125cd7b42e413449eff222a9989b4e28bb5e53b07bfec653d1d6b8c430ca446d"
+        "sha256": "e285f6486812a0bd8472c33f76c239d85164a5487563fe39f9e6e8fa1dee4f74"
       },
       "status": "PASS"
     },
@@ -89,13 +89,13 @@
         "--locked",
         "--doc"
       ],
-      "duration_seconds": 0.556,
+      "duration_seconds": 0.468,
       "exit_code": 0,
       "id": "cargo-doctest-run",
       "log": {
         "bytes": 591,
         "path": "target/minco/quality-assurance/logs/04-cargo-doctest-run.log",
-        "sha256": "afe55d5018756419a2500949d27dcf07cb1b70140671ec37b3d788c815a7602e"
+        "sha256": "7a9f23bc8df98816082bb595d2ba9065783e003b776ebb1c4ddcaa793762b3af"
       },
       "status": "PASS"
     },
@@ -116,13 +116,13 @@
         "--output-path",
         "target/minco/quality-assurance/coverage.json"
       ],
-      "duration_seconds": 5.165,
+      "duration_seconds": 5.2,
       "exit_code": 0,
       "id": "coverage",
       "log": {
-        "bytes": 10876,
+        "bytes": 10995,
         "path": "target/minco/quality-assurance/logs/05-coverage.log",
-        "sha256": "3bce7c548da5e428c9b49aab2236cd0b279b248324a033edc222d34804da8cf9"
+        "sha256": "7d32d81798ae6acd3594ab6cc003202bd1ea4a26a3a428184334acb739aa8f0a"
       },
       "status": "PASS"
     },
@@ -153,7 +153,7 @@
         "--output",
         "target/minco/quality-assurance/mutants-plan"
       ],
-      "duration_seconds": 38.367,
+      "duration_seconds": 38.601,
       "exit_code": 0,
       "id": "mutation-plan-cost",
       "log": {
@@ -190,7 +190,7 @@
         "--output",
         "target/minco/quality-assurance/mutants-release"
       ],
-      "duration_seconds": 26.784,
+      "duration_seconds": 29.678,
       "exit_code": 0,
       "id": "mutation-release-authority",
       "log": {
@@ -273,18 +273,18 @@
         "--package",
         "minco-workbench",
         "--baseline-rev",
-        "v1.4.0",
+        "v1.5.0",
         "--all-features",
         "--color",
         "never"
       ],
-      "duration_seconds": 80.486,
+      "duration_seconds": 138.604,
       "exit_code": 0,
       "id": "semver",
       "log": {
         "bytes": 18184,
         "path": "target/minco/quality-assurance/logs/08-semver.log",
-        "sha256": "6c2dba71b663e2403550472e45a15dce949dd275cbe6bfd95d2525a73df82ab2"
+        "sha256": "9669cda18c7e431e28b6f91b95d033d10dbf2897443a24ceff0b99987fa61594"
       },
       "status": "PASS"
     },
@@ -292,15 +292,15 @@
       "command": [
         "scripts/release/candidate-load.sh",
         "--output",
-        "verification/1.5-candidate-load.json"
+        "verification/1.6-candidate-load.json"
       ],
-      "duration_seconds": 24.273,
+      "duration_seconds": 22.704,
       "exit_code": 0,
       "id": "local-performance",
       "log": {
-        "bytes": 104,
+        "bytes": 113,
         "path": "target/minco/quality-assurance/logs/09-local-performance.log",
-        "sha256": "52e6f3ffd5d2382859ce944d3d992f01ad22dbf9c519cc71bf7052db2fc38d7e"
+        "sha256": "4a37d68ce94dae0a9c134f3a1bb3e1de08d3959e3168390ea4f565e4862b1cfd"
       },
       "status": "PASS"
     }
@@ -308,38 +308,38 @@
   "effective_date": "2026-08-12",
   "gates": {
     "coverage": {
-      "function_percent": 82.01,
-      "line_percent": 85.65,
+      "function_percent": 81.97,
+      "line_percent": 85.8,
       "packages": [
         "minco-core",
         "minco-plan",
         "minco-release"
       ],
-      "region_percent": 86.93,
+      "region_percent": 87.07,
       "report": {
-        "bytes": 6449,
+        "bytes": 6567,
         "path": "target/minco/quality-assurance/coverage.json",
-        "sha256": "61091e73e0c3ca3f09185a29f5b94bce1c156819a4539bfecc58c332ddf7ae63"
+        "sha256": "94dc3f5aa458e4b671c06f034a32bf0499a401b1c0437d10faa1aca73d6edfe5"
       },
       "status": "PASS"
     },
     "local_performance": {
-      "api_p95_ms": 2.529,
-      "api_p99_ms": 44.248,
+      "api_p95_ms": 3.104,
+      "api_p99_ms": 50.708,
       "api_requests": 80,
-      "api_throughput_requests_per_second": 1766.04,
+      "api_throughput_requests_per_second": 1545.851,
       "hosted_baseline_status": "NOT RUN",
       "production_slo": false,
       "provider_contact": false,
       "receipt": {
-        "bytes": 3260,
-        "path": "verification/1.5-candidate-load.json",
-        "sha256": "92d55ef4bad10d41482a91675d085dd53539dba0b7f78f83c3529b854098dd63"
+        "bytes": 3262,
+        "path": "verification/1.6-candidate-load.json",
+        "sha256": "e11c5e8b63c1346de0be4b25ea005cd30a831d280edeef8f519bcecef62b58d8"
       },
       "runner_scope": "local",
       "status": "PASS",
       "worker_messages": 1000,
-      "worker_throughput_messages_per_second": 1454.941
+      "worker_throughput_messages_per_second": 1312.479
     },
     "mutation": {
       "caught": 43,
@@ -349,9 +349,9 @@
           "caught": 24,
           "missed": 0,
           "report": {
-            "bytes": 50126,
+            "bytes": 50113,
             "path": "target/minco/quality-assurance/mutants-plan/mutants.out/outcomes.json",
-            "sha256": "83fcaea039ed716a39e4180b35f3c55daf2c74d6261ff0b8cf0837edefe4d9ec"
+            "sha256": "bc3bd710ffa208a6cc5180edcbaad15ca5b5c576cbd5683c0d20a806c28aac24"
           },
           "timeout": 0,
           "total_mutants": 27,
@@ -361,9 +361,9 @@
           "caught": 19,
           "missed": 0,
           "report": {
-            "bytes": 36751,
+            "bytes": 36773,
             "path": "target/minco/quality-assurance/mutants-release/mutants.out/outcomes.json",
-            "sha256": "95c1475df7411cafab7fe8d09614df5f41d1147b89c82d17273aac8e90116648"
+            "sha256": "fc32b33a517849ec4bf5509eb4334f7d637dc6e8185b8a4dbbfecffb3995eed8"
           },
           "timeout": 0,
           "total_mutants": 19,
@@ -376,9 +376,9 @@
       "unviable": 3
     },
     "nextest_parity": {
-      "cargo_test_count": 127,
+      "cargo_test_count": 128,
       "doctest_count": 1,
-      "nextest_test_count": 126,
+      "nextest_test_count": 127,
       "packages": [
         "minco-core",
         "minco-plan",
@@ -387,8 +387,8 @@
       "status": "PASS"
     },
     "semver": {
-      "baseline_commit": "2b02bf956eed3ef2a17bae6d10970dff1408e231",
-      "baseline_tag": "v1.4.0",
+      "baseline_commit": "c3706559357510d33d046fa461f8550fbbd4c04c",
+      "baseline_tag": "v1.5.0",
       "package_count": 34,
       "packages": [
         "cargo-minco",
@@ -438,7 +438,7 @@
   ],
   "policy": {
     "path": "verification/quality-assurance-policy.toml",
-    "sha256": "8f06ec80dbb7ad52db69aaf0150ca40e076bd5c70405c1ee6a53f46dd7efd3fb"
+    "sha256": "7687d15d39e7a8eef37b549c843160142a34e0f7c18805c6fc1c72df4ac0d0d6"
   },
   "production_slo": false,
   "provider_contact": false,
@@ -454,8 +454,8 @@
   },
   "schema_version": 1,
   "source": {
-    "source_tree_sha256": "d7354699f7b1169b6aa02c79ef3b1a89a88dc8653bf621f92ccb1a885a38f4b1",
-    "version": "1.5.0"
+    "source_tree_sha256": "af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418",
+    "version": "1.6.0"
   },
   "status": "PASS",
   "tools": {

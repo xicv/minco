@@ -28,3 +28,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, review fake redaction and one-shot
 failure semantics, cost-baseline truth and measured-gate provenance; never
 upgrade deterministic skill checks into model or human-review evidence.
+
+At the 1.6 durable audit ledger boundary, review atomicity, actor/action truth,
+privacy-safe changes, relay races, cursor stability, bounded fanout and explicit
+retention/archive authority before accepting an audit implementation.

@@ -10,6 +10,7 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
+| 1.6.0 | Release candidate | 1.97.1 | [Review 1.6.0 candidate](/1.6.0/) |
 | 1.5.0 | Latest stable | 1.97.1 | [Open 1.5.0 docs](/1.5.0/) |
 | 1.4.0 | Previous stable | 1.97.1 | [Open 1.4.0 docs](/1.4.0/) |
 | 1.3.0 | Previous stable | 1.97.1 | [Open 1.3.0 docs](/1.3.0/) |
@@ -21,6 +22,9 @@ is retained as a stable reference; `next` is allowed to change.
 | 0.6.0 | Previous stable | 1.97.1 | [Open 0.6.0 docs](/0.6.0/) |
 | 0.5.0 | Previous stable | 1.97.1 | [Open 0.5.0 docs](/0.5.0/) |
 | Next | Unreleased | Repository-pinned | [Preview next](/next/) |
+
+The 1.6.0 manual describes an unpublished candidate. It does not imply a tag,
+registry upload, Pages deployment, provider contact or production readiness.
 
 The 1.5.0 source, local and hosted qualification, immutable tag, 34-package
 registry publication and GitHub release are independently verified. Stable

@@ -1,14 +1,28 @@
-# Minco 1.5.0 release-closure handoff
+# Minco 1.6.0 candidate handoff
 
-Date: 2026-08-12
+Date: 2026-08-13
 Published baseline: `1.5.0`
-Current workspace version: `1.5.0`
-Workspace release state: `published`
+Current workspace version: `1.6.0`
+Workspace release state: `candidate`
 Published `1.5.0` source: `c3706559357510d33d046fa461f8550fbbd4c04c`
 Published source-tree digest: `d7354699f7b1169b6aa02c79ef3b1a89a88dc8653bf621f92ccb1a885a38f4b1`
 Published release task: `M14-T24`
-Latest release task: `M14-T24` (`active`)
+Latest release task: `M14-T29` (`active`)
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active 1.6.0 candidate preparation
+
+M14-T29 starts from merged audit source
+`4bba904f498289bf2bfe6a4fa09a165e84e9d2e2`. It coordinates the additive
+durable audit ledger, Orders golden slice, all 34 package versions, 19 official
+descriptors, nine agent skills, upgrade guide and frozen 1.6 manual. The global
+database default remains unchanged; the Orders DynamoDB profile is one
+low-idle audit choice, not a universal default.
+
+Candidate qualification, exact-head clean Linux, merge, immutable tag,
+registry upload, docs.rs, Pages, provider, deployment and production proof are
+separate. This task authorizes candidate preparation and guarded source merge,
+not tagging, publication or deployment.
 
 ## Active 1.5.0 release closure
 

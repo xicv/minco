@@ -27,3 +27,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, keep typed fakes, cost regression and
 measured local assurance inside their owning task and leave model/human outcome
 evidence `NOT RUN` until actually exercised.
+
+At the 1.6 durable audit ledger boundary, keep application semantics, SQL
+journal/ledger adapters, DynamoDB transaction shape, documentation, cost and
+retention evidence in explicit owned paths and tasks.

@@ -1,12 +1,14 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.5.0`
-Current workspace version: `1.5.0`
-Workspace release state: `published`
+Current workspace version: `1.6.0`
+Workspace release state: `candidate`
 
 Use exact published `1.5.0` dependencies for applications. The release adds
 provider-free testing and assurance interfaces; follow the
-[1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md). Select the payment feature only when
+[1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md). Review the unpublished
+[1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before evaluating durable auditing.
+Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 
 Minco is designed so an application can adopt one boundary at a time. Do not
@@ -189,6 +191,11 @@ Applications moving from `1.4.0` to the published `1.5.0` release must
 use the [`1.4.0` to `1.5.0` guide](1.4.0-to-1.5.0.md). It covers the additive
 typed fakes, measured assurance, topology-cost regression, compatible runtime
 boundary and explicit `NOT RUN` model/provider evidence.
+
+Applications evaluating the unpublished `1.6.0` candidate must use the
+[`1.5.0` to `1.6.0` guide](1.5.0-to-1.6.0.md). It covers semantic audit intent,
+separate SQL ledgers, DynamoDB cross-table transactions, bounded history,
+privacy, indefinite growth and archive authority.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

@@ -13,10 +13,10 @@ exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The workspace is the published `1.5.0` release with the same 34-package
-inventory. It packages additive typed test fakes and provider-free measured
-assurance/cost evidence; it does not add a package, provider capability or
-first-publication ownership boundary. Source qualification, hosted
+The workspace is an unpublished `1.6.0` candidate with the same 34-package
+inventory. It packages the additive durable-audit ledger and Orders golden
+slice; it does not add a package or first-publication ownership boundary.
+Source qualification, hosted
 compatibility, tag, OIDC, registry, docs.rs and Pages evidence are obtained
 independently.
 
@@ -24,7 +24,8 @@ The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
 agent-native behavior, while 1.2 adds browser/native HTTP metadata, verified
 uploads, rich mail, owned local services and delivery evidence within the same
-family. The 1.3 release adds the opt-in Waffo payment boundary and all 34
+family. The 1.3 release adds the opt-in Waffo payment boundary; the 1.6
+candidate adds durable action auditing without changing package ownership. All 34
 published packages now have crates.io ownership. Source qualification or merge
 still must not be described as registry publication.
 

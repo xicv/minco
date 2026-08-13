@@ -1,11 +1,41 @@
 # Minco verification and release evidence
 
-Date: 2026-08-12
-Current workspace version: `1.5.0`
+Date: 2026-08-13
+Current workspace version: `1.6.0`
 Published baseline: `1.5.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T29 `1.6.0` candidate preparation
+
+Release preparation starts from exact merged audit `main`
+`4bba904f498289bf2bfe6a4fa09a165e84e9d2e2`. It coordinates the already merged
+durable ledger across all 34 package identities, 19 descriptors, nine agent
+skills, adoption guidance and the frozen 1.6 manual. The published baseline
+remains immutable `v1.5.0`; no tag, upload, provider call or deployment is
+implied.
+
+The candidate retains explicit storage truth: SQL audit data is physically
+separate; DynamoDB retained bytes and PITR are billable; relationship fanout is
+bounded; and no automatic TTL, rotation or archive schedule is installed.
+
+The exact source passed `./scripts/quality.sh` and, from an empty JJ child of
+the source change, the authoritative `./scripts/ci/local-release.sh`. The
+canonical assurance receipt records 127 nextest tests plus one doctest, 85.80%
+line and 81.97% function coverage, 43 caught viable mutants with zero misses or
+timeouts, and all 34 SemVer comparisons against immutable `v1.5.0`. Candidate
+load passed 80/80 loopback API requests and 1,000/1,000 synthetic worker
+messages. Candidate recovery passed migration, backup, restore,
+application-read and rollback-contract checks. These are bounded local results,
+not a production SLO or provider claim.
+
+The clean release matrix also passed all 34 package archive dry-runs, selected
+unpacked-archive consumers, SAM validation, native Lambda and worker builds,
+owned PostgreSQL and Rustack runtime qualification, AppSync local proof and
+Orders E2E. Exact-head hosted Linux remains a separate PR review gate. No tag,
+GitHub release, registry upload, Pages deployment, live provider contact,
+production mutation or deployment occurred.
 
 ## M14-T24 `1.5.0` published release closure
 

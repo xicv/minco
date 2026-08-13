@@ -5,10 +5,53 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.5.0` release. Release sections from `1.2.0`
-onward retain exact candidate-source wording because their digests are bound
-into the portable agent bundle; tag, registry, documentation and provider
-evidence stay separate in `VERIFICATION.md`.
+No changes yet.
+
+## [1.6.0] - 2026-08-13
+
+This additive lock-step minor packages durable, schema-agnostic action auditing
+across the reference Orders application and its SQLite, PostgreSQL and DynamoDB
+profiles. It remains unpublished until exact-source qualification, merge,
+tagging and registry publication complete as separate evidence states.
+
+### Added
+
+- Added bounded append-only V2 audit records with semantic action, actor,
+  resource, correlation, operation and revision identity; privacy-aware field
+  changes; opaque cursors; and explicit related-resource projections.
+- Added physically separate PostgreSQL and SQLite ledgers with a transactional
+  source journal plus a bounded, lease-safe, idempotent relay. Storage health,
+  segment state and archive progress are explicit rather than hidden rotation.
+- Added an Orders DynamoDB audit table committed with the operational mutation
+  through one conditional `TransactWriteItems` call, including deterministic
+  idempotency, race-safe revisions, hashed resource keys, bounded relationship
+  fanout, encryption, point-in-time recovery and retained deletion policy.
+- Added semantic `order.created`, `order.updated` and `order.deleted` actions
+  plus permission-gated, cursor-bounded order history that remains queryable
+  after a soft delete.
+
+### Changed
+
+- Advanced all 34 publishable packages and official plugin descriptors in
+  lock-step to the additive `1.6.0` candidate line with no new package or
+  first-publication boundary.
+- Updated all nine packaged Codex/Claude skills, the candidate manual and
+  adoption guidance for audit transaction, privacy, query and lifecycle
+  boundaries.
+
+### Compatibility and evidence
+
+- Kept existing public Rust interfaces and Plan constructors compatible; the
+  V2 audit model and derived DynamoDB audit plan are additive after repairing
+  the candidate's initial exhaustive-public-structure SemVer blocker.
+- Added no global DynamoDB default, automatic deletion, implicit archive job,
+  provider contact, deployment, tag or publication. SQL profiles still require
+  a distinct audit database or file, while the Orders DynamoDB profile is the
+  low-idle AWS audit option.
+- Kept retained growth and incomplete pricing visible: DynamoDB request,
+  storage and point-in-time-recovery cost depend on Region and workload;
+  PostgreSQL normally partitions by time; SQLite may explicitly seal bounded
+  segments; stable logical cursors span those physical lifecycle choices.
 
 ## [1.5.0] - 2026-08-12
 

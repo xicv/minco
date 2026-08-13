@@ -1,0 +1,53 @@
+{
+  "backup": {
+    "integrity_check": "ok",
+    "migrations": 2,
+    "rows": 1
+  },
+  "data_boundary": "temporary synthetic SQLite only; directory removed by the runner",
+  "generated_at": "2026-08-13T09:21:42.738104+00:00",
+  "kind": "minco.candidate-recovery-qualification.v1",
+  "limitations": [
+    "The restore gate proves a repeatable application-level SQLite path, not managed PostgreSQL point-in-time recovery or a product RPO/RTO.",
+    "The provider rehearsal is retained historical evidence bound to its two exact revisions; this gate made no AWS call and did not redeploy the current documentation/local-tooling candidate.",
+    "Database rollback still means forward-compatible application release recovery; Minco does not reverse SQL or repair application data automatically."
+  ],
+  "migration": {
+    "first_apply": true,
+    "migration_count": 2,
+    "repeat_apply": true,
+    "verify": true
+  },
+  "recovery_time_seconds": 12.237,
+  "restore": {
+    "application_read": true,
+    "integrity_check": "ok",
+    "migrations": 2,
+    "rows": 1
+  },
+  "rollback": {
+    "bounded_provider_precedent": {
+      "cleanup_boundaries_absent": 14,
+      "current_revision": "4573239d83fff91fffd79ea9bda58afbe217ffe9",
+      "hosted_runs": [
+        "https://github.com/xicv/minco/actions/runs/30928588074",
+        "https://github.com/xicv/minco/actions/runs/30931041323"
+      ],
+      "prior_revision": "9cbe8fdb64a6f68363fd1cac949ddfa554106667",
+      "scope": "M10-T08 exact prior/current/prior deployment and cleanup rehearsal; not rerun by M12-T05",
+      "status": "PASS"
+    },
+    "local_contracts": [
+      "cargo test -p minco-deploy-aws --test rollback --locked",
+      "bash scripts/aws/test-multi-release-rehearsal-plan.sh"
+    ],
+    "reverse_sql": false,
+    "tests_passed": true
+  },
+  "schema_version": 1,
+  "source": {
+    "source_tree_sha256": "af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418",
+    "version": "1.6.0"
+  },
+  "status": "PASS"
+}

@@ -31,3 +31,7 @@ exact package/tool pins, public-contract compatibility and lane-specific evidenc
 At the 1.5 assurance release boundary, bind additive typed fakes and measured
 provider-free gates to exact candidate source while leaving model, human-review,
 hosted-performance and live-provider evidence at their recorded states.
+
+At the 1.6 durable audit ledger boundary, verify SemVer against the immutable
+1.5 baseline, exact transaction/cursor tests, retained-growth and incomplete-
+price truth, and separate tag, publication, provider and deployment authority.

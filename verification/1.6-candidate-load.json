@@ -1,0 +1,99 @@
+{
+  "api": {
+    "artifact_path": "target/minco/candidate-load/cargo/release/orders-local",
+    "concurrency": 8,
+    "database_max_connections": 4,
+    "failures": 0,
+    "fresh_tcp_connections": 80,
+    "latency": {
+      "maximum_ms": 50.708,
+      "minimum_ms": 0.901,
+      "p50_ms": 1.068,
+      "p95_ms": 3.104,
+      "p99_ms": 50.708
+    },
+    "requests": 80,
+    "scope": "loopback Axum with file-backed SQLite and synthetic orders",
+    "throughput_requests_per_second": 1545.851,
+    "wall_seconds": 0.052
+  },
+  "artifacts": {
+    "orders_local_bytes": 5137552,
+    "source_manifest_bytes": 268203,
+    "worker_crate_bytes": 351752
+  },
+  "classification": {
+    "cold_start_measured": false,
+    "warm": true
+  },
+  "cost": {
+    "maximum_database_connections": 6,
+    "modeled_lambda_invocations": 100,
+    "note": "Counts expose billable dimensions; current provider prices and a dollar estimate are intentionally not inferred from local execution.",
+    "pricing_claim": "none",
+    "synthetic_api_requests": 80,
+    "synthetic_worker_messages": 1000
+  },
+  "environment": {
+    "dimensions": {
+      "architecture": "arm64",
+      "github_actions": false,
+      "os": "darwin",
+      "os_release": "25.5.0",
+      "python": "3.13.7"
+    },
+    "fingerprint_sha256": "25840947e53b67ccabedbfe8f69ccd14e993764bb201f6f00e4c1ef78169028d"
+  },
+  "generated_at": "2026-08-13T09:20:19.828987+00:00",
+  "kind": "minco.candidate-load-qualification.v2",
+  "limitations": [
+    "Loopback timings are machine-specific measurements, not an AWS or production performance SLO.",
+    "The worker gate invokes the real public batch processor but does not emulate Lambda poller scaling, SQS retries, throttling or network latency.",
+    "The reviewed queue limits model connection and cost pressure; no provider request or charge occurred."
+  ],
+  "production_slo": false,
+  "provider_contact": false,
+  "queue": {
+    "batch_size": 10,
+    "batching_window_seconds": 0,
+    "database_connections_per_instance": 1,
+    "fixture": "crates/minco-plan/tests/fixtures/api_worker_standard_v2.toml",
+    "function_timeout_seconds": 30,
+    "maximum_concurrency": 2,
+    "report_batch_item_failures": true,
+    "reserved_concurrency": 2,
+    "retention_seconds": 345600,
+    "visibility_timeout_seconds": 180,
+    "visibility_to_function_timeout_ratio": 6.0
+  },
+  "runner": {
+    "scope": "local",
+    "source_tree_sha256": "af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418"
+  },
+  "schema_version": 2,
+  "scope": "bounded local synthetic load; no AWS contact and no production SLO claim",
+  "source": {
+    "source_tree_sha256": "af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418",
+    "version": "1.6.0"
+  },
+  "status": "PASS",
+  "tools": {
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "python": "3.13.7"
+  },
+  "topology": {
+    "ingress": "local_tcp",
+    "runtime": "local_native"
+  },
+  "worker": {
+    "batch_size": 10,
+    "batches": 100,
+    "configured_max_concurrency": 4,
+    "failures": 0,
+    "messages": 1000,
+    "observed_max_concurrency": 4,
+    "scope": "public process_sqs_event API with synthetic standard-queue batches",
+    "throughput_messages_per_second": 1312.479,
+    "wall_seconds": 0.761917
+  }
+}
