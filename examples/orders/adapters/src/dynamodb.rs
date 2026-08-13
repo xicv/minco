@@ -1,12 +1,14 @@
 use async_trait::async_trait;
-use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem};
+use aws_sdk_dynamodb::operation::transact_write_items::TransactWriteItemsError;
+use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem, Update as DynamoUpdate};
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::{StreamExt as _, TryStreamExt as _, stream};
-use minco_aws_dynamodb::DynamoDbProvider;
+use minco_aws_dynamodb::{DynamoDbProvider, audit_v2::DynamoDbAuditLedger};
 use orders_application::{
-    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery, OrderCursor,
-    OrderPage, OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderResult,
-    PlaceOrderTransaction, SortDirection, StoreError, UpdateOrderPort,
+    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery,
+    OrderAuditIntent, OrderCursor, OrderPage, OrderReadiness, OrderSortField, OrderSortTerm,
+    PlaceOrderPort, PlaceOrderResult, PlaceOrderTransaction, SortDirection, StoreError,
+    UpdateOrderPort,
 };
 use orders_domain::{CustomerReference, Order, OrderId, Sku};
 use sha2::{Digest, Sha256};
@@ -38,6 +40,7 @@ const MAX_CONCURRENT_SHARD_QUERIES: usize = 8;
 #[derive(Clone)]
 pub struct DynamoDbOrderStore {
     provider: DynamoDbProvider,
+    audit: Option<DynamoDbAuditLedger>,
 }
 
 impl std::fmt::Debug for DynamoDbOrderStore {
@@ -52,7 +55,21 @@ impl std::fmt::Debug for DynamoDbOrderStore {
 impl DynamoDbOrderStore {
     #[must_use]
     pub const fn new(provider: DynamoDbProvider) -> Self {
-        Self { provider }
+        Self {
+            provider,
+            audit: None,
+        }
+    }
+
+    pub fn with_audit(
+        provider: DynamoDbProvider,
+        audit_table_name: impl Into<String>,
+    ) -> Result<Self, minco_plugin_audit::AuditLedgerError> {
+        let audit = DynamoDbAuditLedger::from_provider(&provider, audit_table_name)?;
+        Ok(Self {
+            provider,
+            audit: Some(audit),
+        })
     }
 
     const fn client(&self) -> &aws_sdk_dynamodb::Client {
@@ -61,6 +78,20 @@ impl DynamoDbOrderStore {
 
     fn table_name(&self) -> &str {
         self.provider.table_name()
+    }
+
+    pub fn audit_reader(&self) -> Option<DynamoDbAuditLedger> {
+        self.audit.clone()
+    }
+
+    fn audit_items(&self, audit: &OrderAuditIntent) -> Result<Vec<TransactWriteItem>, StoreError> {
+        let ledger = self.audit.as_ref().ok_or_else(|| {
+            StoreError::Internal("the DynamoDB audit table is not configured".into())
+        })?;
+        let record = crate::audit::audit_record(audit)?;
+        ledger
+            .transact_items(&record)
+            .map_err(crate::audit::audit_error)
     }
 
     async fn replay(
@@ -197,10 +228,13 @@ impl PlaceOrderPort for DynamoDbOrderStore {
             .expression_attribute_names("#pk", PARTITION_KEY)
             .build()
             .map_err(|_| StoreError::Internal("invalid DynamoDB idempotency transaction".into()))?;
-        let items = vec![
+        let mut items = vec![
             TransactWriteItem::builder().put(order_put).build(),
             TransactWriteItem::builder().put(idempotency_put).build(),
         ];
+        if let Some(audit) = &transaction.audit {
+            items.extend(self.audit_items(audit)?);
+        }
         let token = transaction_token(
             &transaction.idempotency_key,
             &transaction.request_fingerprint,
@@ -362,6 +396,79 @@ impl UpdateOrderPort for DynamoDbOrderStore {
             Err(_) => Err(unavailable("DynamoDB UpdateItem failed")),
         }
     }
+
+    async fn save_order_with_audit(
+        &self,
+        order: Order,
+        expected_revision: u64,
+        audit: OrderAuditIntent,
+    ) -> Result<ConditionalResult<Order>, StoreError> {
+        validate_order(&order)?;
+        if order.revision != expected_revision.checked_add(1).unwrap_or(0) {
+            return Err(StoreError::Internal(
+                "DynamoDB update revision transition is invalid".into(),
+            ));
+        }
+        let payload = serialize_order(&order)?;
+        let indexes = index_attributes(&order);
+        let update = DynamoUpdate::builder()
+            .table_name(self.table_name())
+            .set_key(Some(order_key(order.id)))
+            .update_expression(
+                "SET #payload = :payload, #revision = :next, #updated = :updated, #status = :status, #g1pk = :g1pk, #g1sk = :g1sk, #g2pk = :g2pk, #g2sk = :g2sk, #g3pk = :g3pk, #g3sk = :g3sk",
+            )
+            .condition_expression(
+                "attribute_exists(#pk) AND attribute_not_exists(#deleted) AND #revision = :expected",
+            )
+            .expression_attribute_names("#pk", PARTITION_KEY)
+            .expression_attribute_names("#payload", PAYLOAD)
+            .expression_attribute_names("#revision", REVISION)
+            .expression_attribute_names("#updated", UPDATED_AT)
+            .expression_attribute_names("#status", STATUS)
+            .expression_attribute_names("#deleted", DELETED_AT)
+            .expression_attribute_names("#g1pk", GSI1_PK)
+            .expression_attribute_names("#g1sk", GSI1_SK)
+            .expression_attribute_names("#g2pk", GSI2_PK)
+            .expression_attribute_names("#g2sk", GSI2_SK)
+            .expression_attribute_names("#g3pk", GSI3_PK)
+            .expression_attribute_names("#g3sk", GSI3_SK)
+            .expression_attribute_values(":payload", AttributeValue::S(payload))
+            .expression_attribute_values(":expected", number(expected_revision))
+            .expression_attribute_values(":next", number(order.revision))
+            .expression_attribute_values(":updated", timestamp(order.updated_at))
+            .expression_attribute_values(
+                ":status",
+                AttributeValue::S(status_name(order.status).into()),
+            )
+            .expression_attribute_values(":g1pk", indexes[GSI1_PK].clone())
+            .expression_attribute_values(":g1sk", indexes[GSI1_SK].clone())
+            .expression_attribute_values(":g2pk", indexes[GSI2_PK].clone())
+            .expression_attribute_values(":g2sk", indexes[GSI2_SK].clone())
+            .expression_attribute_values(":g3pk", indexes[GSI3_PK].clone())
+            .expression_attribute_values(":g3sk", indexes[GSI3_SK].clone())
+            .build()
+            .map_err(|_| StoreError::Internal("invalid DynamoDB update transaction".into()))?;
+        let mut items = vec![TransactWriteItem::builder().update(update).build()];
+        items.extend(self.audit_items(&audit)?);
+        let result = self
+            .client()
+            .transact_write_items()
+            .set_transact_items(Some(items))
+            .client_request_token(audit.event_id.to_string())
+            .send()
+            .await;
+        match result {
+            Ok(_) => Ok(ConditionalResult::Applied(order)),
+            Err(error)
+                if error
+                    .as_service_error()
+                    .is_some_and(source_condition_failed) =>
+            {
+                self.classify_condition(order.id).await
+            }
+            Err(_) => Err(unavailable("DynamoDB audited transaction failed")),
+        }
+    }
 }
 
 #[async_trait]
@@ -416,6 +523,65 @@ impl DeleteOrderPort for DynamoDbOrderStore {
                 self.classify_condition(id).await
             }
             Err(_) => Err(unavailable("DynamoDB UpdateItem failed")),
+        }
+    }
+
+    async fn delete_order_with_audit(
+        &self,
+        id: OrderId,
+        expected_revision: u64,
+        deleted_at: DateTime<Utc>,
+        audit: OrderAuditIntent,
+    ) -> Result<ConditionalResult<()>, StoreError> {
+        let Some(next_revision) = expected_revision.checked_add(1) else {
+            return Err(StoreError::Internal(
+                "DynamoDB delete revision transition is invalid".into(),
+            ));
+        };
+        let update = DynamoUpdate::builder()
+            .table_name(self.table_name())
+            .set_key(Some(order_key(id)))
+            .update_expression(
+                "SET #deleted = :deleted, #updated = :updated, #revision = :next REMOVE #g1pk, #g1sk, #g2pk, #g2sk, #g3pk, #g3sk",
+            )
+            .condition_expression(
+                "attribute_exists(#pk) AND attribute_not_exists(#deleted) AND #revision = :expected",
+            )
+            .expression_attribute_names("#pk", PARTITION_KEY)
+            .expression_attribute_names("#deleted", DELETED_AT)
+            .expression_attribute_names("#updated", UPDATED_AT)
+            .expression_attribute_names("#revision", REVISION)
+            .expression_attribute_names("#g1pk", GSI1_PK)
+            .expression_attribute_names("#g1sk", GSI1_SK)
+            .expression_attribute_names("#g2pk", GSI2_PK)
+            .expression_attribute_names("#g2sk", GSI2_SK)
+            .expression_attribute_names("#g3pk", GSI3_PK)
+            .expression_attribute_names("#g3sk", GSI3_SK)
+            .expression_attribute_values(":deleted", timestamp(deleted_at))
+            .expression_attribute_values(":updated", timestamp(deleted_at))
+            .expression_attribute_values(":expected", number(expected_revision))
+            .expression_attribute_values(":next", number(next_revision))
+            .build()
+            .map_err(|_| StoreError::Internal("invalid DynamoDB delete transaction".into()))?;
+        let mut items = vec![TransactWriteItem::builder().update(update).build()];
+        items.extend(self.audit_items(&audit)?);
+        let result = self
+            .client()
+            .transact_write_items()
+            .set_transact_items(Some(items))
+            .client_request_token(audit.event_id.to_string())
+            .send()
+            .await;
+        match result {
+            Ok(_) => Ok(ConditionalResult::Applied(())),
+            Err(error)
+                if error
+                    .as_service_error()
+                    .is_some_and(source_condition_failed) =>
+            {
+                self.classify_condition(id).await
+            }
+            Err(_) => Err(unavailable("DynamoDB audited transaction failed")),
         }
     }
 }
@@ -718,6 +884,19 @@ fn unavailable(message: &'static str) -> StoreError {
     StoreError::Unavailable(message.into())
 }
 
+fn source_condition_failed(error: &TransactWriteItemsError) -> bool {
+    match error {
+        TransactWriteItemsError::TransactionCanceledException(canceled) => {
+            canceled
+                .cancellation_reasons()
+                .first()
+                .and_then(aws_sdk_dynamodb::types::CancellationReason::code)
+                == Some("ConditionalCheckFailed")
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -776,5 +955,46 @@ mod tests {
         let plan = DynamoSortPlan::new(&query).unwrap();
         assert_eq!(plan.index_name, GSI_CREATED_AT_INVERTED_ID);
         assert!(plan.scan_forward);
+    }
+
+    #[test]
+    fn only_the_source_item_condition_is_classified_as_a_revision_race() {
+        let source_race = TransactWriteItemsError::TransactionCanceledException(
+            aws_sdk_dynamodb::types::error::TransactionCanceledException::builder()
+                .cancellation_reasons(
+                    aws_sdk_dynamodb::types::CancellationReason::builder()
+                        .code("ConditionalCheckFailed")
+                        .build(),
+                )
+                .build(),
+        );
+        assert!(source_condition_failed(&source_race));
+
+        let audit_conflict = TransactWriteItemsError::TransactionCanceledException(
+            aws_sdk_dynamodb::types::error::TransactionCanceledException::builder()
+                .cancellation_reasons(
+                    aws_sdk_dynamodb::types::CancellationReason::builder()
+                        .code("None")
+                        .build(),
+                )
+                .cancellation_reasons(
+                    aws_sdk_dynamodb::types::CancellationReason::builder()
+                        .code("ConditionalCheckFailed")
+                        .build(),
+                )
+                .build(),
+        );
+        assert!(!source_condition_failed(&audit_conflict));
+
+        let capacity = TransactWriteItemsError::TransactionCanceledException(
+            aws_sdk_dynamodb::types::error::TransactionCanceledException::builder()
+                .cancellation_reasons(
+                    aws_sdk_dynamodb::types::CancellationReason::builder()
+                        .code("ThrottlingError")
+                        .build(),
+                )
+                .build(),
+        );
+        assert!(!source_condition_failed(&capacity));
     }
 }

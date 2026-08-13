@@ -27,17 +27,26 @@ def load_module():
 class ReleaseIdentityTests(unittest.TestCase):
     def test_current_projection_is_deterministic_and_complete(self) -> None:
         identity = load_module()
+        workspace = tomllib.loads((ROOT / "Cargo.toml").read_text())
+        truth = tomllib.loads(
+            (ROOT / "verification/repository-truth.toml").read_text()
+        )
+        release = json.loads((ROOT / "docs-site/release.json").read_text())
 
         first = identity.build_projection(ROOT)
         second = identity.build_projection(ROOT)
 
         self.assertEqual(first, second)
-        self.assertEqual(first["workspace"]["version"], "1.5.0")
-        self.assertEqual(first["workspace"]["release_state"], "candidate")
+        self.assertEqual(
+            first["workspace"]["version"], workspace["workspace"]["package"]["version"]
+        )
+        self.assertEqual(
+            first["workspace"]["release_state"], truth["workspace_release_state"]
+        )
         self.assertEqual(len(first["packages"]), 34)
         self.assertEqual(len(first["plugins"]), 19)
-        self.assertEqual(first["documentation"]["stable"], "1.4.0")
-        self.assertEqual(first["documentation"]["state"], "candidate")
+        self.assertEqual(first["documentation"]["stable"], release["stable"])
+        self.assertEqual(first["documentation"]["state"], release["state"])
 
     def test_descriptor_drift_changes_the_projection(self) -> None:
         identity = load_module()

@@ -62,6 +62,10 @@ flowchart LR
     NM14T22["M14-T22<br/>Provide typed side-effect fakes for application tests"]
     NM14T23["M14-T23<br/>Prepare the Minco 1.5.0 candidate"]
     NM14T24["M14-T24<br/>Close the Minco 1.5.0 published release boundary"]
+    NM14T25["M14-T25<br/>Define the durable audit ledger foundation"]
+    NM14T26["M14-T26<br/>Add transactional SQL audit journals and separate ledgers"]
+    NM14T27["M14-T27<br/>Add the AWS-default DynamoDB audit ledger"]
+    NM14T28["M14-T28<br/>Prove semantic auditing in the Orders golden project"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -199,6 +203,10 @@ flowchart LR
     NM14T21 --> NM14T22
     NM14T22 --> NM14T23
     NM14T23 --> NM14T24
+    NM14T24 --> NM14T25
+    NM14T25 --> NM14T26
+    NM14T26 --> NM14T27
+    NM14T27 --> NM14T28
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01

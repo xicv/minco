@@ -442,41 +442,58 @@
     },
     {
       "config": "examples/orders/config/minco.dynamodb.toml",
-      "config_sha256": "d8f23549916e051912d005bc7d93f00ff09cc9962f0d7effefde8d07ac7380c3",
+      "config_sha256": "3413719dbd94320c9007ba33d78f2242b86f0379fcd38f919680593e74676432",
       "id": "orders-dynamodb-on-demand",
       "projection": {
         "database": {
           "complete": false,
-          "components": [],
+          "components": [
+            {
+              "formula": "1 million read request units \u00d7 $0.1425",
+              "monthly_usd": 0.1425,
+              "name": "reads"
+            },
+            {
+              "formula": "0.25 million write request units \u00d7 $0.71",
+              "monthly_usd": 0.1775,
+              "name": "writes"
+            },
+            {
+              "formula": "1 GB-month \u00d7 $0.285",
+              "monthly_usd": 0.285,
+              "name": "storage"
+            }
+          ],
           "evidence": [
             {
               "cost_class": "request_only",
               "name": "reads",
-              "pricing_confidence": "region_dependent"
+              "pricing_confidence": "priced"
             },
             {
               "cost_class": "request_only",
               "name": "writes",
-              "pricing_confidence": "region_dependent"
+              "pricing_confidence": "priced"
             },
             {
               "cost_class": "storage_only",
               "name": "storage",
-              "pricing_confidence": "region_dependent"
+              "pricing_confidence": "priced"
             }
           ],
           "missing_rates": [
-            "reads_rate_usd",
-            "writes_rate_usd",
-            "storage_rate_usd"
+            "regional_dynamodb_point_in_time_recovery_storage_rate"
           ],
           "monthly_usd": null,
           "notes": [
             "Model access patterns, item sizes, indexes, streams, backups and transactional multipliers before selecting DynamoDB.",
             "The explicit table has 3 global secondary indexes; include each index's projected storage and write amplification in the usage inputs.",
             "Order creation uses two-item transactional writes; usage inputs must include DynamoDB transactional write multipliers.",
-            "The table enables point-in-time recovery; backup storage and restore pricing remain unpriced here.",
-            "The deployment retains table replacements and deletions; retained table storage remains billable until explicitly removed."
+            "The table enables point-in-time recovery; backup storage and restores remain unpriced here.",
+            "The deployment retains table replacements and deletions; retained table storage remains billable until explicitly removed.",
+            "The separate audit table writes one canonical item plus one projection per unique direct or related resource; DynamoDB request and storage inputs must include transactional fan-out across both tables.",
+            "The audit table enables point-in-time recovery and deletion protection; backup storage and restores remain separately billable and unpriced here.",
+            "DynamoDB is elastic but not infinite: retained audit items, query reads and backups continue accruing cost until an explicit archive or retention operation runs."
           ],
           "provider": "aws_dynamodb_on_demand"
         },
@@ -517,7 +534,7 @@
           }
         ]
       },
-      "projection_sha256": "54153e3f5868dad6170036602d4cc80049fa4cc23400e2638881d7de566a2396"
+      "projection_sha256": "2397e1bfa15102a1e9cc3a4753e44f5e836218d88c7117240ce93ea5f98f3219"
     }
   ],
   "provider_contact": false,

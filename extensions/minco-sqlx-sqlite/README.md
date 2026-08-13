@@ -63,3 +63,23 @@ Validated `minco_db::SeedPlan` values retain SQLite-specific SQL. A required
 plan uses one transaction and source digests are rechecked before mutation.
 `verify_seed_plan` uses a connection-local SQLite read-only guard and closes
 that guarded connection instead of returning its state to the pool.
+
+## Durable audit ledger
+
+`audit_v2::SqliteAuditJournal::enqueue_in` writes a bounded audit intent in the
+same immediate transaction as a domain mutation. `AuditRelay` later copies
+claimed batches to an idempotent `SqliteAuditLedger` and deletes source journal
+rows only after the ledger transaction commits. The permanent ledger must use
+a distinct file-backed pool; `validate_separate_audit_pools` rejects the source
+database and in-memory databases.
+
+Run `plugin_adapters::migrate_plugin_storage` against the operational database
+and `audit_v2::migrate_audit_ledger` against the audit database. The reader uses
+opaque `(occurred_at, event_id)` cursors and the related-resource projection, so
+it never joins back to operational tables.
+
+`SqliteAuditStorageInspector` reports the real SQLite page footprint, available
+filesystem bytes, journal backlog and quarantined records against an explicit
+lifecycle policy. A 100 MiB policy is a portable safety default, not a claim
+that physical file rotation is automatic; rotation/archive execution must be
+configured explicitly before the hard threshold is reached.

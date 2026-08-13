@@ -2,13 +2,16 @@
 
 use chrono::{Duration, TimeZone, Utc};
 use minco_aws_dynamodb::DynamoDbConfig;
+use minco_plugin_audit::{AuditQuery, AuditReader, AuditResourceRef};
 use orders_adapters::DynamoDbOrderStore;
 use orders_application::{
-    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery,
-    OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderTransaction,
-    SortDirection, StoreError, UpdateOrderPort,
+    Actor, ApplicationError, ConditionalResult, DeleteOrder, DeleteOrderPort, GetOrderPort,
+    ListOrdersPort, ListOrdersQuery, OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrder,
+    PlaceOrderCommand, PlaceOrderLine, PlaceOrderPort, PlaceOrderTransaction, SortDirection,
+    StoreError, SystemClock, UpdateOrder, UpdateOrderCommand, UpdateOrderPort,
 };
 use orders_domain::{CustomerReference, Order, OrderLine, OrderStatus, Quantity, Sku};
+use std::sync::Arc;
 use uuid::Uuid;
 
 async fn store() -> DynamoDbOrderStore {
@@ -42,6 +45,7 @@ fn transaction(key: &str, fingerprint: &str, index: i64) -> PlaceOrderTransactio
         order,
         idempotency_key: key.into(),
         request_fingerprint: fingerprint.into(),
+        audit: None,
     }
 }
 
@@ -201,6 +205,123 @@ async fn all_orders_ports_preserve_idempotency_sort_cursor_revision_and_soft_del
             .await,
         Ok(ConditionalResult::NotFound)
     );
+}
+
+#[tokio::test]
+#[ignore = "requires disposable Rustack Orders and audit DynamoDB tables"]
+async fn audited_orders_actions_are_atomic_queryable_and_race_safe() {
+    let table = std::env::var("MINCO_ORDERS_TEST_DYNAMODB_TABLE")
+        .expect("MINCO_ORDERS_TEST_DYNAMODB_TABLE must name a disposable Rustack table");
+    let audit_table = std::env::var("MINCO_ORDERS_TEST_DYNAMODB_AUDIT_TABLE")
+        .expect("MINCO_ORDERS_TEST_DYNAMODB_AUDIT_TABLE must name a disposable audit table");
+    let endpoint = std::env::var("MINCO_ORDERS_TEST_DYNAMODB_ENDPOINT")
+        .expect("MINCO_ORDERS_TEST_DYNAMODB_ENDPOINT must name the loopback Rustack endpoint");
+    let provider = DynamoDbConfig::new(table, "ap-southeast-2", Some(endpoint))
+        .build()
+        .await
+        .expect("build DynamoDB provider");
+    let store = Arc::new(
+        DynamoDbOrderStore::with_audit(provider, audit_table).expect("configure audit table"),
+    );
+    let actor = Actor::service(
+        "rustack-user",
+        [
+            "orders.create".to_owned(),
+            "orders.update".to_owned(),
+            "orders.delete".to_owned(),
+        ],
+    );
+    let command = PlaceOrderCommand {
+        customer_reference: format!("PO-AUDIT-{}", Uuid::new_v4()),
+        lines: vec![PlaceOrderLine {
+            sku: "SKU-AUDIT".into(),
+            quantity: 1,
+        }],
+    };
+    let correlation_id = Uuid::now_v7();
+    let key = format!("rustack-audited-{}", Uuid::new_v4());
+    let placed = PlaceOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(&actor, command.clone(), &key, correlation_id)
+        .await
+        .expect("audited DynamoDB create");
+    let ledger = store.audit_reader().expect("audit reader");
+    let mut query = AuditQuery::for_resource(
+        orders_application::ORDERS_AUDIT_TENANT_SCOPE,
+        AuditResourceRef::new("order", placed.order.id.into_uuid().to_string()),
+    );
+    query.limit = 100;
+    assert_eq!(
+        ledger
+            .list_resource_history(&query)
+            .await
+            .expect("create history")
+            .records
+            .len(),
+        1
+    );
+
+    let replay = PlaceOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(&actor, command, &key, correlation_id)
+        .await
+        .expect("audited replay");
+    assert!(replay.replayed);
+    assert_eq!(
+        ledger
+            .list_resource_history(&query)
+            .await
+            .expect("history after replay")
+            .records
+            .len(),
+        1
+    );
+
+    let updated = UpdateOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(
+            &actor,
+            placed.order.id,
+            placed.order.revision,
+            UpdateOrderCommand {
+                customer_reference: Some(format!("PO-AUDIT-UPDATED-{}", Uuid::new_v4())),
+                lines: None,
+            },
+            Uuid::now_v7(),
+        )
+        .await
+        .expect("audited update");
+    assert_eq!(
+        UpdateOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+            .execute_correlated(
+                &actor,
+                updated.id,
+                placed.order.revision,
+                UpdateOrderCommand {
+                    customer_reference: Some("PO-STALE".into()),
+                    lines: None,
+                },
+                Uuid::now_v7(),
+            )
+            .await,
+        Err(ApplicationError::PreconditionFailed)
+    );
+    assert_eq!(
+        ledger
+            .list_resource_history(&query)
+            .await
+            .expect("history after stale race")
+            .records
+            .len(),
+        2
+    );
+    DeleteOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(&actor, updated.id, updated.revision, Uuid::now_v7())
+        .await
+        .expect("audited delete");
+    let history = ledger
+        .list_resource_history(&query)
+        .await
+        .expect("history after delete");
+    assert_eq!(history.records.len(), 3);
+    assert_eq!(history.records[0].action, "order.deleted");
 }
 
 fn compare(left: &Order, right: &Order, sort: &[OrderSortTerm]) -> std::cmp::Ordering {

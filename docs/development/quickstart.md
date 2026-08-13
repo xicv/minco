@@ -47,9 +47,29 @@ cargo minco check --with-cargo
 ```bash
 DATABASE_KIND=sqlite \
 SQLITE_PATH=target/minco/orders.db \
+AUDIT_SQLITE_PATH=target/minco/orders-audit.db \
 ALLOW_DEVELOPMENT_HEADERS=true \
 cargo run -p orders-service --bin orders-local --features sqlite
 ```
+
+Orders mutations commit audit intents to the source journal. Deliver them in
+bounded explicit batches to the separate ledger; Minco creates no hidden
+schedule or worker:
+
+```bash
+DATABASE_KIND=sqlite \
+SQLITE_PATH=target/minco/orders.db \
+AUDIT_SQLITE_PATH=target/minco/orders-audit.db \
+cargo run -p orders-service --bin orders-audit-relay --features sqlite
+```
+
+The readiness endpoint exposes an `audit-ledger` dependency, including a
+non-failing warning as the finite-disk ledger approaches a lifecycle threshold;
+it becomes critical if the hard threshold is crossed or size/free-space
+inspection is unavailable. The initial SQLite policy warns at 80 MiB, requests
+rotation at 100 MiB, becomes critical at 125 MiB, and preserves a 512 MiB
+minimum free-space reserve. Physical segment rotation and archive execution
+remain explicit lifecycle operations rather than request-path side effects.
 
 ## 6. Run the graph-selected environment
 

@@ -54,9 +54,9 @@ class QualityAssuranceTests(unittest.TestCase):
             "gates": {
                 "nextest_parity": {
                     "status": "PASS",
-                    "nextest_test_count": 126,
+                    "nextest_test_count": 127,
                     "doctest_count": 1,
-                    "cargo_test_count": 127,
+                    "cargo_test_count": 128,
                 },
                 "coverage": {
                     "status": "PASS",
@@ -171,7 +171,7 @@ class QualityAssuranceTests(unittest.TestCase):
         )
         self.assertEqual(policy["semver"]["baseline_tag"], "v1.4.0")
         self.assertEqual(policy["nextest"]["baseline_executable_test_count"], 122)
-        self.assertEqual(policy["nextest"]["executable_test_count"], 126)
+        self.assertEqual(policy["nextest"]["executable_test_count"], 127)
         self.assertFalse(policy["production_slo"])
         self.assertFalse(policy["provider_contact"])
 

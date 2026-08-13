@@ -14,6 +14,7 @@ use std::{
 };
 use thiserror::Error;
 
+pub mod audit_v2;
 pub mod plugin_adapters;
 
 const MINCO_PLAN_LOCK_ID: i64 = 0x4d49_4e43_4f5f_504c;

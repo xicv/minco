@@ -91,6 +91,7 @@ impl OutboxStore for PostgresOutboxStore {
         claim_expires_at: DateTime<Utc>,
     ) -> Result<Vec<OutboxRecord>, EventError> {
         validate_claim(worker_id, claim_expires_at)?;
+        let now = Utc::now();
         let limit = i64::try_from(limit).map_err(|_| EventError::InvalidClaim)?;
         if limit == 0 {
             return Err(EventError::InvalidClaim);
@@ -99,20 +100,21 @@ impl OutboxStore for PostgresOutboxStore {
             "WITH candidates AS (
                  SELECT event_id
                  FROM minco_outbox
-                 WHERE status IN ('pending', 'failed') AND available_at <= NOW()
+                 WHERE status IN ('pending', 'failed') AND available_at <= $1
                  ORDER BY available_at, occurred_at, event_id
                  FOR UPDATE SKIP LOCKED
-                 LIMIT $1
+                 LIMIT $2
              )
              UPDATE minco_outbox AS outbox
              SET status = 'claimed',
-                 claimed_by = $2,
-                 claim_expires_at = $3,
+                 claimed_by = $3,
+                 claim_expires_at = $4,
                  attempt_count = outbox.attempt_count + 1
              FROM candidates
              WHERE outbox.event_id = candidates.event_id
              RETURNING outbox.*",
         )
+        .bind(now)
         .bind(limit)
         .bind(worker_id)
         .bind(claim_expires_at)
@@ -129,18 +131,20 @@ impl OutboxStore for PostgresOutboxStore {
         claim_expires_at: DateTime<Utc>,
     ) -> Result<Option<OutboxRecord>, EventError> {
         validate_claim(worker_id, claim_expires_at)?;
+        let now = Utc::now();
         let row = sqlx::query(
             "UPDATE minco_outbox
              SET status = 'claimed', claimed_by = $2, claim_expires_at = $3,
                  attempt_count = attempt_count + 1
              WHERE event_id = $1
                AND status IN ('pending', 'failed')
-               AND available_at <= NOW()
+               AND available_at <= $4
              RETURNING *",
         )
         .bind(event_id)
         .bind(worker_id)
         .bind(claim_expires_at)
+        .bind(now)
         .fetch_optional(&self.pool)
         .await
         .map_err(event_infrastructure_error)?;
@@ -686,7 +690,7 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(migration_count, 1);
+        assert_eq!(migration_count, 2);
 
         let outbox = PostgresOutboxStore::new(pool.clone());
         let event = DomainEvent::new(

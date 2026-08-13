@@ -70,7 +70,7 @@ use minco_plan::{
     CostClass, DatabaseCostEstimate, DatabaseDeployment, DeploymentConfig, DeploymentPlan,
     FunctionRole, PreviewCleanupSchedule, PreviewLifecyclePlan, PreviewResource,
     PreviewResourceRetention, RealtimeDeployment, ScheduleCompletionAction,
-    Severity as PlanSeverity, StaticSiteDeployment, TriggerPlan, estimate_database_cost,
+    Severity as PlanSeverity, StaticSiteDeployment, TriggerPlan, estimate_deployment_database_cost,
     estimate_runtime_cost, render_sam_with_code_uris,
 };
 use minco_release::{
@@ -5517,7 +5517,7 @@ fn template_relative_path(root: &Path, template: &Path, artifact: &str) -> Resul
 
 fn cost(root: &Path, manifest: &MincoManifest, input: PlanInput, as_json: bool) -> Result<()> {
     let plan = load_plan(root, manifest, input.config)?;
-    let estimate = estimate_database_cost(&plan.database);
+    let estimate = estimate_deployment_database_cost(&plan);
     let runtime = estimate_runtime_cost(&plan);
     print_value(
         &json!({
@@ -7702,7 +7702,7 @@ Resources:
             .map(|plugin| plugin.id.as_str())
             .collect::<Vec<_>>();
 
-        assert_eq!(ids, ["health", "idempotency", "observability"]);
+        assert_eq!(ids, ["audit", "health", "idempotency", "observability"]);
         assert_eq!(plan.local_aws_services, ["ssm", "sts"]);
     }
 
@@ -7782,7 +7782,7 @@ Resources:
                 .iter()
                 .map(|service| service["owner"]["plugin_id"].as_str().unwrap())
                 .collect::<Vec<_>>(),
-            ["health", "idempotency", "observability"]
+            ["audit", "audit", "health", "idempotency", "observability"]
         );
         assert!(services.iter().all(|service| {
             service

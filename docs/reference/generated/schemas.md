@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Plan model source SHA-256: `f7e63e4136df7b07897f5d7d5e5cb3280bf47b2a1674e688ad2030b81abe479b`.
+Plan model source SHA-256: `1bc21a1b919a94af16ee6fae154cbe2779aadbc1826f2db0b8b5adb8eacf1add`.
 
 ## Composed configuration schema
 
@@ -22,6 +22,7 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | Path | Kind | Required | Secret | Default | Description |
 |---|---|:---:|:---:|---|---|
 | `application.name` | `string` | yes | no | minco-framework | Stable application service name |
+| `audit.database_url` | `string` | no | yes | — | Opaque connection secret reference for the physically separate audit ledger |
 | `database.url` | `string` | yes | yes | — | Opaque database connection secret reference |
 | `plugins.feedback.allow_anonymous` | `boolean` | no | no | no | Explicitly allow unauthenticated feedback when neither identity nor a project key is available |
 | `plugins.feedback.auto_transcribe_audio` | `boolean` | no | no | no | Transcribe uploaded voice recordings automatically |
@@ -136,6 +137,10 @@ Reference schema version: `1`. This inventory records the checked-in reference a
 | `application` | `string` |
 | `application_graph` | `object` |
 | `application_graph.capabilities` | `object` |
+| `application_graph.capabilities.audit.append` | `string` |
+| `application_graph.capabilities.audit.health` | `string` |
+| `application_graph.capabilities.audit.ledger` | `string` |
+| `application_graph.capabilities.audit.query` | `string` |
 | `application_graph.capabilities.health.registry` | `string` |
 | `application_graph.capabilities.http.idempotency` | `string` |
 | `application_graph.capabilities.idempotency.claim` | `string` |
@@ -153,13 +158,11 @@ Reference schema version: `1`. This inventory records the checked-in reference a
 | `application_graph.plugins[].configuration_namespace` | `string` |
 | `application_graph.plugins[].core_compatibility` | `string` |
 | `application_graph.plugins[].data_classes` | `array` |
+| `application_graph.plugins[].data_classes[]` | `string` |
 | `application_graph.plugins[].default_enabled` | `boolean` |
 | `application_graph.plugins[].description` | `string` |
 | `application_graph.plugins[].documentation` | `string` |
 | `application_graph.plugins[].health_checks` | `array` |
-| `application_graph.plugins[].health_checks[]` | `object` |
-| `application_graph.plugins[].health_checks[].critical` | `boolean` |
-| `application_graph.plugins[].health_checks[].id` | `string` |
 | `application_graph.plugins[].id` | `string` |
 | `application_graph.plugins[].migrations` | `array` |
 | `application_graph.plugins[].operations` | `array` |

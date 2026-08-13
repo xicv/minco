@@ -7,6 +7,8 @@ use minco_core::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod audit_v2;
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DynamoDbConfig {

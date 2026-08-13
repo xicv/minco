@@ -19,12 +19,15 @@ use minco_http::{
 use minco_plugin_health::HealthRegistry;
 use orders_application::{
     Actor, ApplicationError, Clock, DeleteOrder, DeleteOrderPort, GetOrder, GetOrderPort,
-    ListOrders, ListOrdersPort, ListOrdersQuery, OrderCursor, OrderSortField, OrderSortTerm,
+    ListOrderAuditHistory, ListOrderAuditHistoryPort, ListOrderAuditHistoryQuery, ListOrders,
+    ListOrdersPort, ListOrdersQuery, OrderAuditActorKind, OrderAuditCursor,
+    OrderAuditSortDirection, OrderAuditValue, OrderCursor, OrderSortField, OrderSortTerm,
     PlaceOrder, PlaceOrderCommand, PlaceOrderLine, PlaceOrderPort, SortDirection, UpdateOrder,
     UpdateOrderCommand, UpdateOrderPort,
 };
 use orders_domain::{Order, OrderId, OrderStatus};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest as _, Sha256};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -35,6 +38,7 @@ pub struct ApiState {
     list_orders: Arc<dyn ListOrdersPort>,
     update_orders: Arc<dyn UpdateOrderPort>,
     delete_orders: Arc<dyn DeleteOrderPort>,
+    audit_history: Arc<dyn ListOrderAuditHistoryPort>,
     clock: Arc<dyn Clock>,
     health: Arc<HealthRegistry>,
     allow_development_headers: bool,
@@ -63,12 +67,14 @@ impl ApiState {
             + ListOrdersPort
             + UpdateOrderPort
             + DeleteOrderPort
+            + ListOrderAuditHistoryPort
             + 'static,
     {
         let place_orders: Arc<dyn PlaceOrderPort> = store.clone();
         let get_orders: Arc<dyn GetOrderPort> = store.clone();
         let list_orders: Arc<dyn ListOrdersPort> = store.clone();
         let update_orders: Arc<dyn UpdateOrderPort> = store.clone();
+        let audit_history: Arc<dyn ListOrderAuditHistoryPort> = store.clone();
         let delete_orders: Arc<dyn DeleteOrderPort> = store;
         Self::from_ports(
             place_orders,
@@ -76,6 +82,7 @@ impl ApiState {
             list_orders,
             update_orders,
             delete_orders,
+            audit_history,
             clock,
             health,
             allow_development_headers,
@@ -90,6 +97,7 @@ impl ApiState {
         list_orders: Arc<dyn ListOrdersPort>,
         update_orders: Arc<dyn UpdateOrderPort>,
         delete_orders: Arc<dyn DeleteOrderPort>,
+        audit_history: Arc<dyn ListOrderAuditHistoryPort>,
         clock: Arc<dyn Clock>,
         health: Arc<HealthRegistry>,
         allow_development_headers: bool,
@@ -100,6 +108,7 @@ impl ApiState {
             list_orders,
             update_orders,
             delete_orders,
+            audit_history,
             clock,
             health,
             allow_development_headers,
@@ -115,6 +124,7 @@ pub static BOUND_OPERATIONS: &[ContractOperation] = &[
     generated::GET_ORDER,
     generated::UPDATE_ORDER,
     generated::DELETE_ORDER,
+    generated::LIST_ORDER_AUDIT_HISTORY,
 ];
 
 pub fn build_router(state: ApiState) -> Router {
@@ -128,6 +138,10 @@ pub fn build_router(state: ApiState) -> Router {
         .route(
             generated::GET_ORDER.path,
             get(get_order).patch(update_order).delete(delete_order),
+        )
+        .route(
+            generated::LIST_ORDER_AUDIT_HISTORY.path,
+            get(list_order_audit_history),
         )
         .with_state(state)
 }
@@ -198,7 +212,12 @@ async fn place_order(
             .collect(),
     };
     let result = PlaceOrder::new(Arc::clone(&state.place_orders), Arc::clone(&state.clock))
-        .execute(&actor, command, idempotency_key)
+        .execute_correlated(
+            &actor,
+            command,
+            idempotency_key,
+            audit_correlation_id(&metadata.request_id),
+        )
         .await
         .map_err(|error| map_application_error(error, &metadata.request_id))?;
     let status = if result.replayed {
@@ -322,11 +341,12 @@ async fn update_order(
         }),
     };
     let order = UpdateOrder::new(Arc::clone(&state.update_orders), Arc::clone(&state.clock))
-        .execute(
+        .execute_correlated(
             &actor,
             OrderId::from_uuid(order_id),
             expected_revision,
             command,
+            audit_correlation_id(&metadata.request_id),
         )
         .await
         .map_err(|error| map_application_error(error, &metadata.request_id))?;
@@ -343,10 +363,105 @@ async fn delete_order(
         actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
     let expected_revision = expected_revision(&headers, order_id, &metadata.request_id)?;
     DeleteOrder::new(Arc::clone(&state.delete_orders), Arc::clone(&state.clock))
-        .execute(&actor, OrderId::from_uuid(order_id), expected_revision)
+        .execute_correlated(
+            &actor,
+            OrderId::from_uuid(order_id),
+            expected_revision,
+            audit_correlation_id(&metadata.request_id),
+        )
         .await
         .map_err(|error| map_application_error(error, &metadata.request_id))?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn list_order_audit_history(
+    State(state): State<ApiState>,
+    principal: Option<Extension<Principal>>,
+    headers: HeaderMap,
+    Path(order_id): Path<Uuid>,
+    RawQuery(raw_query): RawQuery,
+) -> Result<Json<generated::OrderAuditCollection>, ApiFailure> {
+    let (metadata, actor) =
+        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
+    let policy = ResourceListPolicy::new(
+        50,
+        100,
+        ["-occurredAt", "-eventId"],
+        ["occurredAt", "eventId"],
+        std::iter::empty::<&str>(),
+    )
+    .map_err(|_| ApiFailure::internal(&metadata.request_id))?;
+    let parsed = parse_resource_list_query(raw_query.as_deref(), &policy).map_err(|_| {
+        ApiFailure::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_resource_query",
+            "Invalid resource query",
+            "Audit pagination or sort parameters are invalid or unsupported.",
+            &metadata.request_id,
+        )
+    })?;
+    let (direction, sort_signature) = audit_sort(parsed.sort(), &metadata.request_id)?;
+    let after = parsed
+        .after()
+        .map(|cursor| decode_audit_cursor(cursor.as_str(), &sort_signature))
+        .transpose()
+        .map_err(|()| invalid_cursor(&metadata.request_id))?;
+    let page = ListOrderAuditHistory::new(Arc::clone(&state.audit_history))
+        .execute(
+            &actor,
+            ListOrderAuditHistoryQuery {
+                order_id: OrderId::from_uuid(order_id),
+                limit: parsed.limit(),
+                after,
+                direction,
+            },
+        )
+        .await
+        .map_err(|error| map_application_error(error, &metadata.request_id))?;
+    let next_cursor = page
+        .next_cursor
+        .map(|cursor| encode_audit_cursor(cursor, &sort_signature))
+        .transpose()
+        .map_err(|_| ApiFailure::internal(&metadata.request_id))?;
+    let data = page
+        .events
+        .into_iter()
+        .map(|event| {
+            Ok(generated::OrderAuditEvent {
+                action: event.action,
+                actor: generated::OrderAuditActor {
+                    kind: audit_actor_kind(event.actor_kind).into(),
+                    subject: event.actor_subject,
+                },
+                changes: event
+                    .changes
+                    .into_iter()
+                    .map(|(field, change)| generated::OrderAuditChange {
+                        after: change.after.map(public_audit_value),
+                        before: change.before.map(public_audit_value),
+                        field,
+                    })
+                    .collect(),
+                correlation_id: event.correlation_id,
+                event_id: event.event_id,
+                occurred_at: event.occurred_at,
+                operation_id: event.operation_id,
+                recorded_at: event.recorded_at,
+                resource_revision: event
+                    .resource_revision
+                    .map(i64::try_from)
+                    .transpose()
+                    .map_err(|_| ApiFailure::internal(&metadata.request_id))?,
+            })
+        })
+        .collect::<Result<Vec<_>, ApiFailure>>()?;
+    Ok(Json(generated::OrderAuditCollection {
+        data,
+        page: generated::CursorPageInfo {
+            has_more: next_cursor.is_some(),
+            next_cursor,
+        },
+    }))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -357,6 +472,99 @@ struct OrderCursorPayload {
     id: Uuid,
     sort: String,
     status: Option<OrderStatus>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OrderAuditCursorPayload {
+    version: u8,
+    occurred_at: chrono::DateTime<chrono::Utc>,
+    event_id: Uuid,
+    sort: String,
+}
+
+fn audit_sort(
+    terms: &[minco_http::SortTerm],
+    request_id: &str,
+) -> Result<(OrderAuditSortDirection, String), ApiFailure> {
+    let signature = terms
+        .iter()
+        .map(|term| {
+            let prefix = match term.direction() {
+                minco_http::SortDirection::Ascending => "",
+                minco_http::SortDirection::Descending => "-",
+            };
+            format!("{prefix}{}", term.field())
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    match signature.as_str() {
+        "occurredAt,eventId" => Ok((OrderAuditSortDirection::OldestFirst, signature)),
+        "-occurredAt,-eventId" => Ok((OrderAuditSortDirection::NewestFirst, signature)),
+        _ => Err(ApiFailure::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_resource_query",
+            "Invalid resource query",
+            "Audit history requires occurredAt and eventId in the same direction.",
+            request_id,
+        )),
+    }
+}
+
+fn encode_audit_cursor(cursor: OrderAuditCursor, sort: &str) -> Result<String, serde_json::Error> {
+    serde_json::to_vec(&OrderAuditCursorPayload {
+        version: 1,
+        occurred_at: cursor.occurred_at,
+        event_id: cursor.event_id,
+        sort: sort.to_owned(),
+    })
+    .map(|payload| URL_SAFE_NO_PAD.encode(payload))
+}
+
+fn decode_audit_cursor(encoded: &str, sort: &str) -> Result<OrderAuditCursor, ()> {
+    let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(|_| ())?;
+    let payload: OrderAuditCursorPayload = serde_json::from_slice(&bytes).map_err(|_| ())?;
+    if payload.version != 1 || payload.sort != sort {
+        return Err(());
+    }
+    Ok(OrderAuditCursor {
+        occurred_at: payload.occurred_at,
+        event_id: payload.event_id,
+    })
+}
+
+const fn audit_actor_kind(kind: OrderAuditActorKind) -> &'static str {
+    match kind {
+        OrderAuditActorKind::Human => "human",
+        OrderAuditActorKind::Service => "service",
+        OrderAuditActorKind::System => "system",
+        OrderAuditActorKind::Migration => "migration",
+        OrderAuditActorKind::DatabasePrincipal => "database_principal",
+        OrderAuditActorKind::Unknown => "unknown",
+    }
+}
+
+fn public_audit_value(value: OrderAuditValue) -> String {
+    match value {
+        OrderAuditValue::Literal(value) => value,
+        OrderAuditValue::Digest(value) => format!("sha256:{value}"),
+        OrderAuditValue::Redacted => "[redacted]".into(),
+        OrderAuditValue::Omitted => "[omitted]".into(),
+    }
+}
+
+fn audit_correlation_id(request_id: &str) -> Uuid {
+    if let Ok(id) = Uuid::parse_str(request_id) {
+        return id;
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(request_id.as_bytes());
+    let digest = hasher.finalize();
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x50;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
 }
 
 fn order_sort(
@@ -754,6 +962,54 @@ mod tests {
         )
         .expect("replayed document");
         assert_eq!(replayed, created);
+
+        let forbidden_history = app
+            .clone()
+            .oneshot(
+                http::Request::get(format!("/orders/{}/audit", created.data.id))
+                    .header("x-minco-subject", "test-user")
+                    .header("x-minco-permissions", "orders.read")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(forbidden_history.status(), StatusCode::FORBIDDEN);
+
+        let history = app
+            .clone()
+            .oneshot(
+                http::Request::get(format!("/orders/{}/audit", created.data.id))
+                    .header("x-minco-subject", "auditor")
+                    .header("x-minco-permissions", "orders.audit.read")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(history.status(), StatusCode::OK);
+        let history: generated::OrderAuditCollection = serde_json::from_slice(
+            &history
+                .into_body()
+                .collect()
+                .await
+                .expect("body")
+                .to_bytes(),
+        )
+        .expect("audit history");
+        assert_eq!(history.data.len(), 3);
+        assert_eq!(history.data[0].action, "order.deleted");
+        assert_eq!(history.data[1].action, "order.updated");
+        assert_eq!(history.data[2].action, "order.created");
+        assert_eq!(history.data[0].actor.subject.as_deref(), Some("test-user"));
+        let customer_reference = history.data[2]
+            .changes
+            .iter()
+            .find(|change| change.field == "customer_reference")
+            .and_then(|change| change.after.as_deref())
+            .expect("digested customer reference");
+        assert!(customer_reference.starts_with("sha256:"));
+        assert!(!serde_json::to_string(&history).unwrap().contains("PO-42"));
 
         let gone = app
             .oneshot(
