@@ -1165,6 +1165,40 @@ pub enum AuditLedgerError {
     Encoding,
     #[error("audit ledger operation failed")]
     Infrastructure,
+    #[error("invalid audit journal entry")]
+    InvalidJournalEntry,
+    #[error("invalid audit journal claim")]
+    InvalidJournalClaim,
+    #[error("audit journal claim was lost")]
+    JournalClaimLost,
+}
+
+impl AuditLedgerError {
+    #[must_use]
+    pub const fn is_permanent(&self) -> bool {
+        !matches!(self, Self::Infrastructure)
+    }
+
+    #[must_use]
+    pub const fn stable_code(&self) -> &'static str {
+        match self {
+            Self::InvalidRecord(_) => "AUDIT-INVALID-RECORD",
+            Self::RecordTooLarge { .. } => "AUDIT-RECORD-TOO-LARGE",
+            Self::InvalidBatch(_) => "AUDIT-INVALID-BATCH",
+            Self::BatchTooLarge { .. } => "AUDIT-BATCH-TOO-LARGE",
+            Self::EventConflict(_) => "AUDIT-EVENT-CONFLICT",
+            Self::InvalidQuery(_) => "AUDIT-INVALID-QUERY",
+            Self::InvalidLifecycle(_) => "AUDIT-INVALID-LIFECYCLE",
+            Self::StorageLimitExceeded { .. } => "AUDIT-STORAGE-LIMIT",
+            Self::MissingSegment(_) => "AUDIT-MISSING-SEGMENT",
+            Self::InvalidSegmentState(_) => "AUDIT-INVALID-SEGMENT",
+            Self::Encoding => "AUDIT-ENCODING",
+            Self::Infrastructure => "AUDIT-INFRASTRUCTURE",
+            Self::InvalidJournalEntry => "AUDIT-INVALID-JOURNAL",
+            Self::InvalidJournalClaim => "AUDIT-INVALID-CLAIM",
+            Self::JournalClaimLost => "AUDIT-CLAIM-LOST",
+        }
+    }
 }
 
 #[cfg(test)]

@@ -16,6 +16,7 @@ publish = ["crates-io"]
 include = [
   "src/**",
   "migrations/plugins/**",
+  "migrations/audit-ledger/**",
   "tests/**",
   "Cargo.toml",
   "minco-plugin.json",
@@ -29,6 +30,7 @@ plugin = "minco-plugin.json"
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
+fs2 = "0.4.3"
 minco-db.workspace = true
 minco-plugin-audit.workspace = true
 minco-plugin-idempotency.workspace = true

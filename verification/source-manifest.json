@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1412,
+  "file_count": 1422,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "8415549ed0e0ca6bd4f44bf3d57fa3b43628f8995d654f5c1f7e2498a6ae5d60",
-      "size_bytes": 116588
+      "sha256": "6c1113044c0bcb3c670c7482dbee05c79b883e345a4b2b0dffe6305ed42f6dae",
+      "size_bytes": 117517
     },
     {
       "path": "Cargo.toml",
@@ -4734,8 +4734,8 @@
     },
     {
       "path": "extensions/minco-sqlx-postgres/Cargo.toml",
-      "sha256": "9fd1c1070c170a717125948ee5e41108489a927a971438efb19f2d2f7890ae8c",
-      "size_bytes": 1288
+      "sha256": "80f801d0e8fc87356e9de79d2f782704e723ae3a73e891541620a976a0fce0da",
+      "size_bytes": 1320
     },
     {
       "path": "extensions/minco-sqlx-postgres/LICENSE-APACHE",
@@ -4749,13 +4749,23 @@
     },
     {
       "path": "extensions/minco-sqlx-postgres/README.md",
-      "sha256": "f78cf321212633a6bafcaa6bec44d6185932d8e3c70ff90357716a515b339c3d",
-      "size_bytes": 2296
+      "sha256": "30d7cec8559584be77ba4ba43b7592c5504cb045f9156bffae3e5134ea0b7fb8",
+      "size_bytes": 3316
+    },
+    {
+      "path": "extensions/minco-sqlx-postgres/migrations/audit-ledger/.minco-migrations.toml",
+      "sha256": "521cbfdcb7af01ee2b70a579efc78d1696fec578940af6250f9306d531a5fd06",
+      "size_bytes": 286
+    },
+    {
+      "path": "extensions/minco-sqlx-postgres/migrations/audit-ledger/0001_audit_ledger.sql",
+      "sha256": "18141091c3f7b12952fd3f3e7669fee39be9728bc8de6077d23f649d627f0852",
+      "size_bytes": 1027
     },
     {
       "path": "extensions/minco-sqlx-postgres/migrations/plugins/.minco-migrations.toml",
-      "sha256": "9460aa17a2c005453a523ac66c83d769729ad908f92c50dc0ab54be9a5d575d7",
-      "size_bytes": 317
+      "sha256": "c69587d9153f57f77cae7278dea8976d69b7cb51227d048d9e094327d609ac1b",
+      "size_bytes": 404
     },
     {
       "path": "extensions/minco-sqlx-postgres/migrations/plugins/0001_plugin_storage.sql",
@@ -4763,18 +4773,28 @@
       "size_bytes": 1861
     },
     {
+      "path": "extensions/minco-sqlx-postgres/migrations/plugins/0002_audit_journal.sql",
+      "sha256": "a6580444a220540a23750ee9ab7a5772384bcaa7bd0513d62c3ea8da768bc8d4",
+      "size_bytes": 622
+    },
+    {
       "path": "extensions/minco-sqlx-postgres/minco-plugin.json",
       "sha256": "ff67f35b30aa405d318f1140e02fbac65f64b02d69f88d45b3a1cecdfce95a47",
       "size_bytes": 1974
     },
     {
+      "path": "extensions/minco-sqlx-postgres/src/audit_v2.rs",
+      "sha256": "24df6146f5de1c3efc8a4592723025ef6c93cbe17d4a01e44285a9a624b81440",
+      "size_bytes": 33992
+    },
+    {
       "path": "extensions/minco-sqlx-postgres/src/lib.rs",
-      "sha256": "71aa5e0e2aa9a2a1ae21711ec038ddb28afc99f278aa07ee1cc2812fae3c43f3",
-      "size_bytes": 19416
+      "sha256": "d96d16d27738cdee3c45e733db456d69062352bdcac3151c1c423b5a06978fc9",
+      "size_bytes": 19434
     },
     {
       "path": "extensions/minco-sqlx-postgres/src/plugin_adapters.rs",
-      "sha256": "21b82d153b8669dbfc3b28825bdb2cb96b4f7d71e4f7aabe4b8a8124fc6a654d",
+      "sha256": "49d801af0d06855ea213f249cfa3bc70d50fdeacbd03316dcaa0d666f86f1d92",
       "size_bytes": 30408
     },
     {
@@ -4784,8 +4804,8 @@
     },
     {
       "path": "extensions/minco-sqlx-sqlite/Cargo.toml",
-      "sha256": "1f43f189197f61e7d5412a1ad07eab72aaa638f56a9e8f752483fbe6c495f762",
-      "size_bytes": 1217
+      "sha256": "db95d781cc540f18682659bf194c37679e45962bd06d6b906e00610003e5ee05",
+      "size_bytes": 1263
     },
     {
       "path": "extensions/minco-sqlx-sqlite/LICENSE-APACHE",
@@ -4799,13 +4819,23 @@
     },
     {
       "path": "extensions/minco-sqlx-sqlite/README.md",
-      "sha256": "7fd44f845544e8d15953822b46ca3899075176eefa515ba24a15b3ed717b2331",
-      "size_bytes": 2323
+      "sha256": "42fd35ab5f66f6f5a32b459084315e391900c5f27f31ed57cdf5a47b157e3121",
+      "size_bytes": 3434
+    },
+    {
+      "path": "extensions/minco-sqlx-sqlite/migrations/audit-ledger/.minco-migrations.toml",
+      "sha256": "a18ff178f94c776b57f757d161531477c0040ce74d7a6c29e3eb831f4f5bde6d",
+      "size_bytes": 282
+    },
+    {
+      "path": "extensions/minco-sqlx-sqlite/migrations/audit-ledger/0001_audit_ledger.sql",
+      "sha256": "a0a8c8cad6848b3e1cf3cc19ff2fce846ad125ba12244aedbd92e91cd22f5227",
+      "size_bytes": 1014
     },
     {
       "path": "extensions/minco-sqlx-sqlite/migrations/plugins/.minco-migrations.toml",
-      "sha256": "7f7aeae863d2d021f3cd619df83f5d143701242531bb23c1eae4d59295e04182",
-      "size_bytes": 297
+      "sha256": "ef997a9ee87b8603ec2ce1e099c64094666bcd2b9b5d07f01e79654178d59c15",
+      "size_bytes": 384
     },
     {
       "path": "extensions/minco-sqlx-sqlite/migrations/plugins/0001_plugin_storage.sql",
@@ -4813,18 +4843,28 @@
       "size_bytes": 1137
     },
     {
+      "path": "extensions/minco-sqlx-sqlite/migrations/plugins/0002_audit_journal.sql",
+      "sha256": "480595f59fcc23ac008183f033084f1d1cd07b49e5705c587d8da181fcfcad53",
+      "size_bytes": 609
+    },
+    {
       "path": "extensions/minco-sqlx-sqlite/minco-plugin.json",
       "sha256": "ca1d761385c6e4d57b5c8b51a5f25986709742f1576cb8f874ae661dda08e73c",
       "size_bytes": 1771
     },
     {
+      "path": "extensions/minco-sqlx-sqlite/src/audit_v2.rs",
+      "sha256": "0e077a7454946cc043fcd278e50373736b1c3bed2532ce68d06e1b2b11627923",
+      "size_bytes": 35430
+    },
+    {
       "path": "extensions/minco-sqlx-sqlite/src/lib.rs",
-      "sha256": "a6b21f4b9cb9b16ef677debe4b04fea6c253d67215c5853ce9cef0897925af08",
-      "size_bytes": 19785
+      "sha256": "3e4bafa2ced5d87ecb653d97550e49bbedd969d8b1e855157dc93e281d94885e",
+      "size_bytes": 19803
     },
     {
       "path": "extensions/minco-sqlx-sqlite/src/plugin_adapters.rs",
-      "sha256": "907a995e1ade597032849c1e19186f62836e730301bcea9b057ec0f999dde94a",
+      "sha256": "6e0af8e1133c085f0541ed8d4c04b7763e11c9d9fb89115039e7a77b07ac167d",
       "size_bytes": 17429
     },
     {
@@ -4898,14 +4938,19 @@
       "size_bytes": 940
     },
     {
+      "path": "plugins/minco-plugin-audit/src/journal.rs",
+      "sha256": "4d8cb725f5403d569bb6a0bc8a56c7a7d6a1159def65756747f48eb70a0d1584",
+      "size_bytes": 13783
+    },
+    {
       "path": "plugins/minco-plugin-audit/src/lib.rs",
-      "sha256": "0a51e680475741da38340fc12194da9610d30bb9bd73d51525f17d754baa0630",
-      "size_bytes": 6816
+      "sha256": "a0c6591a1696bca4a10993040ff46d51e2db4e6fae3e8fba018dd2bccf1a4a88",
+      "size_bytes": 6849
     },
     {
       "path": "plugins/minco-plugin-audit/src/v2.rs",
-      "sha256": "73e407ea84359b0f7da4c0c9c3aeff7c8e4f8008889eb62667fbe9876b2a86c9",
-      "size_bytes": 51772
+      "sha256": "9772fdee9515e91aeffd5a790171754f178867bc20d49481a1982fb10f5d3a07",
+      "size_bytes": 53176
     },
     {
       "path": "plugins/minco-plugin-events/Cargo.toml",
@@ -5774,8 +5819,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "3d7ac309dfd719194eeec3b07e82aa196bb42ace77db1494c9922fbe820b0328",
-      "size_bytes": 11922
+      "sha256": "122e6932c1e043786e1e5d24ebe56251181ab7287d920901aacbdacd60ebde71",
+      "size_bytes": 12031
     },
     {
       "path": "rust-toolchain.toml",
@@ -6693,6 +6738,11 @@
       "size_bytes": 5224
     },
     {
+      "path": "tasks/M14/M14-T26-sql-audit-ledgers.md",
+      "sha256": "74383d284bfc322e99981b3990e8ee75ec0c4bb422f2fa498cfa3843f0e1cbc0",
+      "size_bytes": 5244
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -7100,7 +7150,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "09474791057e5bfb10136bcce0a209c2dea3938010bcfc86f4e0ddab8893b773",
-  "total_size_bytes": 10232575,
+  "source_tree_sha256": "e5ebda9eeb8163ed56c2195948638555ca199baacaad712a856be4badcbe33a4",
+  "total_size_bytes": 10329758,
   "version": "1.5.0"
 }

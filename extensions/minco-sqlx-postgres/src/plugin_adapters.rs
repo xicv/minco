@@ -686,7 +686,7 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(migration_count, 1);
+        assert_eq!(migration_count, 2);
 
         let outbox = PostgresOutboxStore::new(pool.clone());
         let event = DomainEvent::new(
