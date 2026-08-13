@@ -1,0 +1,12 @@
+schema = 1
+id = "audit-ledger-sqlite"
+owner = "plugin:audit"
+backend = "sqlite"
+history_table = "_minco_audit_ledger_migrations"
+depends_on = []
+verify_tables = ["minco_audit_records", "minco_audit_related_resources"]
+
+[[migration]]
+version = 1
+risk = "additive"
+reversible = false

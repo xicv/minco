@@ -62,3 +62,22 @@ Validated `minco_db::SeedPlan` values execute with backend-specific SQL. A
 required plan uses one transaction; source digests are rechecked before that
 transaction starts. `verify_seed_plan` runs every declared boolean check in a
 read-only PostgreSQL transaction.
+
+## Durable audit ledger
+
+`audit_v2::PostgresAuditJournal::enqueue_in` writes a bounded audit intent in
+the caller's domain transaction. Concurrent relays claim disjoint batches with
+`FOR UPDATE SKIP LOCKED`; source rows are acknowledged only after an idempotent
+ledger transaction commits. Same-ID/same-content races are duplicates, while a
+same-ID/different-content race rolls back the whole batch.
+
+Run `plugin_adapters::migrate_plugin_storage` against the operational database
+and `audit_v2::migrate_audit_ledger` against a distinct audit database.
+`validate_separate_audit_pools` fails closed when both pools resolve to the same
+database identity. Resource-history queries use only the permanent ledger and
+its bounded related-resource projection.
+
+`PostgresAuditStorageInspector` reports relation/index bytes, source backlog and
+quarantined records. PostgreSQL retention or partition/archive jobs remain
+explicit deployment operations; this adapter does not add a hidden scheduler or
+delete history automatically.

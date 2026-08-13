@@ -1,8 +1,10 @@
 //! Append-only audit events and a deterministic memory reference sink.
 #![forbid(unsafe_code)]
 
+mod journal;
 mod v2;
 
+pub use journal::*;
 pub use v2::*;
 
 use async_trait::async_trait;

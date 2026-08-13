@@ -16,6 +16,7 @@ publish = ["crates-io"]
 include = [
   "src/**",
   "migrations/plugins/**",
+  "migrations/audit-ledger/**",
   "tests/**",
   "Cargo.toml",
   "minco-plugin.json",

@@ -5,7 +5,7 @@
   "errors": 0,
   "warnings": 0,
   "metrics": {
-    "toml_files": 97,
+    "toml_files": 99,
     "yaml_files": 38,
     "json_files": 63,
     "workspace_members": 39,
@@ -14,11 +14,11 @@
     "contract_schemas": 13,
     "plugins": 19,
     "milestones": 15,
-    "tasks": 98,
-    "rust_files": 199,
+    "tasks": 99,
+    "rust_files": 202,
     "python_files": 35,
     "shell_files": 81,
-    "implementation_files_scanned": 464
+    "implementation_files_scanned": 473
   },
   "findings": [],
   "limitations": [
