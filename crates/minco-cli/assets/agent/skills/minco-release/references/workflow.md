@@ -35,3 +35,8 @@ hosted-performance and live-provider evidence at their recorded states.
 At the 1.6 durable audit ledger boundary, verify SemVer against the immutable
 1.5 baseline, exact transaction/cursor tests, retained-growth and incomplete-
 price truth, and separate tag, publication, provider and deployment authority.
+
+At the 1.7 Apple Container default boundary, verify additive SemVer against the
+immutable 1.6 baseline and qualify Apple selection, receipt precedence, exact
+resource ownership and Docker fallback. Candidate, merge, tag, publication and
+runtime proof remain separate release states.

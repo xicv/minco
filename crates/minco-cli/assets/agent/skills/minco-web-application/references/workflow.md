@@ -38,3 +38,8 @@ review outcomes explicit rather than inferred.
 At the 1.6 durable audit ledger boundary, expose only permission-gated bounded
 resource history, keep audit storage independent of operational schemas, and
 make retention, archive and provider-cost limits visible to operators.
+
+At the 1.7 Apple Container default boundary, keep the native application
+process outside the dependency container. Apple selection or Docker fallback
+changes local dependency lifecycle only, not application, API or production
+semantics.

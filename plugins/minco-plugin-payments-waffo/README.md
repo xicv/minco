@@ -1,6 +1,6 @@
 # Minco Waffo Pancake payments plugin
 
-`minco-plugin-payments-waffo` is an opt-in Minco integration for Waffo Pancake hosted checkout, signed server actions, read-only GraphQL queries, and standard HTTP webhooks. It has been published since Minco `1.3.0`; the `1.6.0` candidate preserves the same provider-specific API and authority boundary while adding durable-audit guidance without treating payment-provider data as verified application truth.
+`minco-plugin-payments-waffo` is an opt-in Minco integration for Waffo Pancake hosted checkout, signed server actions, read-only GraphQL queries, and standard HTTP webhooks. It has been published since Minco `1.3.0`; the `1.7.0` candidate preserves the same provider-specific API and authority boundary. Apple-first fresh local-service selection does not change or prove payment-provider behavior.
 
 The provider contract in this source tree was reviewed against the official Waffo Go SDK at `799135cbe07c45819da0ab4bf777c64fcc956220`. Provider review, source qualification, sandbox evidence, publication, deployment, and production readiness remain separate states.
 

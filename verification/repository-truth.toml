@@ -1,8 +1,8 @@
 schema = 1
-workspace_version = "1.6.0"
+workspace_version = "1.7.0"
 published_baseline = "1.6.0"
 published_release_commit = "9abae9128dddc9bc32d099732e1421a0332e4785"
-workspace_release_state = "published"
+workspace_release_state = "candidate"
 operational_evidence_effective_date = "2026-08-12"
 published_package_count = 34
 adoption_gate_task = "M6-T07"
@@ -12,11 +12,12 @@ qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-
 post_candidate_tasks = ["M6-T01", "M12-T07"]
 published_release_task = "M14-T30"
 published_source_tree_sha256 = "af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418"
-release_candidate_task = "M14-T29"
+release_candidate_task = "M14-T32"
 
 # The published 1.6.0 baseline is the complete 34-package family from immutable
-# tag v1.6.0. It packages the additive durable audit ledger and Orders semantic-
-# history slice without changing package inventory or live-provider evidence.
+# tag v1.6.0. The unpublished 1.7.0 candidate changes only fresh automatic local
+# service selection to prefer Apple Container while retaining Docker fallback,
+# package inventory and live-provider evidence.
 publishable_package_count = 34
 new_publishable_packages = []
 

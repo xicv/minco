@@ -1,12 +1,14 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.6.0`
-Current workspace version: `1.6.0`
-Workspace release state: `published`
+Current workspace version: `1.7.0`
+Workspace release state: `candidate`
 
 Use exact published `1.6.0` dependencies for applications. Follow the
 [1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md), then review the
 [1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing.
+Use the [1.6.0-to-1.7.0 guide](1.6.0-to-1.7.0.md) when evaluating the
+unpublished Apple-first local-runtime candidate from source.
 Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 

@@ -2,14 +2,15 @@
 
 Published baseline: `1.6.0`
 
-Current workspace version: `1.6.0`
+Current workspace version: `1.7.0`
 
-Workspace release state: `published`
+Workspace release state: `candidate`
 
 Use published `1.6.0` dependencies. Use the exact source checkout only for
-coordinated review of later unreleased work. Follow the
+coordinated review of the unpublished 1.7.0 candidate. Follow the
 [1.5.0-to-1.6.0 guide](../adoption/1.5.0-to-1.6.0.md) when adopting durable
-auditing.
+auditing, then the [1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md) when
+evaluating Apple-first fresh local-service selection.
 
 The `minco` facade is the normal dependency for an application. It keeps the
 provider-neutral kernel always available and exposes contract, HTTP, plugins,
@@ -204,10 +205,11 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 ## API stability
 
 Published baseline: `1.6.0`
-Current workspace version: `1.6.0`
-Workspace release state: `published`
+Current workspace version: `1.7.0`
+Workspace release state: `candidate`
 
-Pin the published `1.6.0` line in production applications, then follow
+Pin the published `1.6.0` line in production applications until every exact
+`1.7.0` package is independently verified on crates.io, then follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before
 upgrading. The framework follows lock-step versions across the publishable
 crate family during the initial stabilization period. Registry availability

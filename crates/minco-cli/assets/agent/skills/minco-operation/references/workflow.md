@@ -43,3 +43,8 @@ retain adapter/provider qualification as a separate lane.
 At the 1.6 durable audit ledger boundary, construct one privacy-aware semantic
 audit action in the use case and prove that the adapter accepts it atomically
 with the domain mutation, including duplicate and concurrent-write behavior.
+
+At the 1.7 Apple Container default boundary, keep local dependency-runtime
+selection outside domain and external API semantics. An operation may require
+ready dependencies, but it must not silently migrate, replace or delete their
+runtime resources.

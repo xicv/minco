@@ -1,11 +1,41 @@
 # Minco verification and release evidence
 
 Date: 2026-08-13
-Current workspace version: `1.6.0`
+Current workspace version: `1.7.0`
 Published baseline: `1.6.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T32 `1.7.0` candidate preparation
+
+The candidate starts from merged Apple-first source
+`a17c5d3d82b1f934ff4d82d16094e963c07d511f` and advances the existing
+34-package family, 19 official descriptors, nine agent skills and frozen manual
+together. The exact published baseline remains immutable `v1.6.0`; no tag,
+upload, GitHub release, provider call, deployment or production mutation is
+implied.
+
+The runtime change is bounded to fresh automatic local-service selection on a
+qualified Apple host. Existing receipts and exact owned resources retain
+precedence, Docker remains supported, and migration or deletion of persistent
+data requires separate explicit authority.
+
+The exact sealed source passes `scripts/quality.sh` and the authoritative
+`MINCO_QUALITY_TOOL_ROOT=/Users/xicao/.cargo scripts/ci/local-release.sh` from
+an empty JJ child. Its pinned assurance receipt records 127 nextest tests plus
+one doctest, 85.80% line and 81.97% function coverage, 43 caught viable mutants
+with zero misses/timeouts, and all 34 additive SemVer comparisons against
+immutable `v1.6.0`. Candidate load passes 80/80 loopback API requests and
+1,000/1,000 synthetic worker messages; candidate recovery passes migration,
+backup, restore, application-read and rollback-contract checks.
+
+The clean matrix additionally passes all 34 package archive dry-runs, selected
+unpacked-archive consumers, Plan/SAM validation, native Lambda and worker
+builds, owned PostgreSQL and Rustack runtime qualification, AppSync local proof
+and Orders E2E. These are local release results, not hosted Linux, live-provider,
+deployment, production or SLO proof. No tag, upload, GitHub release, provider
+call, deployment or production mutation occurred during candidate preparation.
 
 ## M14-T30 `1.6.0` published release closure
 

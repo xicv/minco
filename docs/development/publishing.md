@@ -13,10 +13,11 @@ exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The workspace is the published `1.6.0` release with the same 34-package
-inventory. It packages the additive durable-audit ledger and Orders golden
-slice; it does not add a package or first-publication ownership boundary.
-Source qualification, hosted
+The workspace is an unpublished `1.7.0` candidate with the same 34-package
+inventory. It adds Apple-first automatic selection for fresh local services
+while retaining receipt precedence, exact-resource recovery and Docker
+fallback; it does not add a package or first-publication ownership boundary.
+The published install baseline remains `1.6.0`. Source qualification, hosted
 compatibility, tag, OIDC, registry, docs.rs and Pages evidence are obtained
 independently.
 
@@ -25,7 +26,8 @@ The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 agent-native behavior, while 1.2 adds browser/native HTTP metadata, verified
 uploads, rich mail, owned local services and delivery evidence within the same
 family. The 1.3 release adds the opt-in Waffo payment boundary; the 1.6 release
-adds durable action auditing without changing package ownership. All 34
+adds durable action auditing without changing package ownership; and the 1.7
+candidate changes only fresh automatic local dependency-runtime selection. All 34
 published packages now have crates.io ownership. Source qualification or merge
 still must not be described as registry publication.
 

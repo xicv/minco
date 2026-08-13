@@ -28,3 +28,8 @@ unrun lane remains `NOT RUN`.
 At the 1.6 durable audit ledger boundary, trace the source transaction, journal
 or cross-table write, idempotency identity, bounded query and explicit storage
 lifecycle before diagnosing a missing or duplicated action.
+
+At the 1.7 Apple Container default boundary, inspect the recorded runtime
+selection, exact owned resources and readiness receipt before treating the
+fresh-install default as the cause. Never migrate or delete an existing Docker
+or Apple resource implicitly while diagnosing it.

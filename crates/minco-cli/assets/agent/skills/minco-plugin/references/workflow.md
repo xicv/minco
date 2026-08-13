@@ -32,3 +32,7 @@ production composition.
 At the 1.6 durable audit ledger boundary, keep the V2 record schema-agnostic,
 relationship projections bounded, the ledger physically separate, and archive
 or retention scheduling outside implicit plugin behavior.
+
+At the 1.7 Apple Container default boundary, declare the local dependency
+runtime explicitly. Keep Compose-only plugins on the Docker fallback instead
+of inferring that arbitrary Compose behavior can run through Apple Container.

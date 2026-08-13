@@ -28,3 +28,8 @@ deployment result or production budget.
 At the 1.6 durable audit ledger boundary, monitor retained bytes and journal
 lag, and require an explicit verified archive/legal-hold decision before TTL,
 partition pruning or sealed-segment deletion.
+
+At the 1.7 Apple Container default boundary, treat an existing receipt and its
+exact owned resources as stronger evidence than the fresh-install default.
+Require explicit runtime selection, a verified data backup or export and exact
+ownership before migration or deletion.

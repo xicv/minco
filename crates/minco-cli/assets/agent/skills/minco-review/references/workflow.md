@@ -32,3 +32,8 @@ upgrade deterministic skill checks into model or human-review evidence.
 At the 1.6 durable audit ledger boundary, review atomicity, actor/action truth,
 privacy-safe changes, relay races, cursor stability, bounded fanout and explicit
 retention/archive authority before accepting an audit implementation.
+
+At the 1.7 Apple Container default boundary, review selection races, receipt
+precedence, ambiguous ownership, port collisions and exact-resource cleanup.
+Reject automatic migration or deletion without explicit authority and verified
+resource identity.

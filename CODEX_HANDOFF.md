@@ -1,14 +1,31 @@
-# Minco 1.6.0 release-closure handoff
+# Minco 1.7.0 candidate handoff
 
 Date: 2026-08-13
 Published baseline: `1.6.0`
-Current workspace version: `1.6.0`
-Workspace release state: `published`
+Current workspace version: `1.7.0`
+Workspace release state: `candidate`
 Published `1.6.0` source: `9abae9128dddc9bc32d099732e1421a0332e4785`
 Published source-tree digest: `af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418`
 Published release task: `M14-T30`
-Latest release task: `M14-T30` (`active`)
+Latest release task: `M14-T32` (`completed`)
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Completed 1.7.0 candidate preparation
+
+M14-T32 advances the existing 34-package family and 19 official descriptors to
+`1.7.0`, freezes the candidate manual and carries the already merged Apple-first
+fresh local-service behavior into versioned release evidence. The immutable
+published baseline remains `v1.6.0` at the source and digest recorded above.
+
+Existing receipts and exact owned resources remain authoritative. Docker is
+still supported, and no automatic persistent-data migration or resource
+deletion is part of the candidate. Local qualification, hosted clean Linux,
+merge, tag, OIDC, registry, docs.rs, Pages, deployment and production proof are
+separate states. The exact sealed source passes the complete macOS quality and
+local-release gates from a clean JJ child: pinned measured assurance, additive
+SemVer for all 34 packages, candidate load/recovery, package dry-runs,
+Plan/SAM and Lambda builds, AppSync proof, owned PostgreSQL/Rustack runtime and
+Orders E2E. No provider, registry, deployment or production claim is inferred.
 
 ## Active 1.6.0 release closure
 

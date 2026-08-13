@@ -8,11 +8,11 @@ family from immutable tag `v1.6.0` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is the published `1.6.0` release with the same 34-package
-inventory. It packages the additive durable-audit ledger and Orders golden
-slice. Its exact source, merge, tag, GitHub release, OIDC publication and
-registry family are recorded independently; docs.rs and stable Pages remain
-separate evidence gates.
+The workspace is an unpublished `1.7.0` candidate with the same 34-package
+inventory. It packages the Apple-first fresh local-service preference while
+retaining exact-resource recovery and Docker fallback. Candidate source, merge,
+tag, GitHub release, OIDC publication, registry, docs.rs and stable Pages remain
+separate evidence gates; the published baseline is still `1.6.0`.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
