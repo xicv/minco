@@ -6,7 +6,7 @@ use crate::model::{
     SourceKind, SourceProvenance, StatusMapping, TaskReadiness, ViewLimits,
 };
 use minco_contract::load_contract_source;
-use minco_plan::{DeploymentConfig, estimate_database_cost, estimate_runtime_cost};
+use minco_plan::{DeploymentConfig, estimate_deployment_database_cost, estimate_runtime_cost};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -432,7 +432,7 @@ pub fn load_project_view_with_limits(
     let deployment_plan = deployment_config.into_plan(&contract.document);
     let deployment_diagnostics = deployment_plan.validate();
     let costs = CostProjection {
-        database: estimate_database_cost(&deployment_plan.database),
+        database: estimate_deployment_database_cost(&deployment_plan),
         runtime: estimate_runtime_cost(&deployment_plan),
     };
 

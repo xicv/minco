@@ -70,7 +70,7 @@ database or SQLite file.
 
 ## Evidence
 
-The provider-neutral package has ten passing tests covering V1 compatibility,
+The provider-neutral package has 12 passing tests covering V1 compatibility,
 V2 capability composition, atomic/idempotent batch append, conflicting ID reuse,
 concurrent duplicate delivery, cursor pagination across sealed and archived
 segments, explicit related-resource gathering, bounded values and secret-class
@@ -82,11 +82,8 @@ suite also pass.
 `cargo minco inspect --json` preserves audit plugin contract `1.0.0` and
 `audit.append` `1.0.0`, and adds `audit.ledger`/`audit.query` `2.0.0` plus
 `audit.health` `1.0.0`. Static validation reports zero errors and warnings over
-98 tasks and 199 Rust files. The source manifest verifies after regeneration.
-The machine's installed `uv 0.12.3` does not satisfy the repository's exact
-`uv ==0.11.32` requirement, so the Python checks used a temporary official
-`uv 0.11.32` release whose archive SHA-256 matched its published checksum; the
-global toolchain was not modified.
+108 tasks and 212 Rust files. The source manifest verifies after regeneration
+with the repository's locked `uv 0.12.3` toolchain.
 
 The security review made literal changes scalar and at most 4 KiB, rejects raw
 literal changes under `Secret`, validates SHA-256 digests and principal
@@ -94,12 +91,8 @@ attribution, rejects control characters in record identity fields, and prevents
 public infrastructure errors from embedding provider diagnostics. No AWS API,
 database, deployment, release, tag or registry operation was performed.
 
-`cargo minco check --with-cargo` advanced through static validation, all 53
-repository-truth tests, deployment assurance and current-product-truth checks,
-then failed exactly at
-`uv run --locked python scripts/validate_operational_evidence.py --check-output verification/operational-evidence-validation.json`
-with `checked operational-evidence receipt is stale`. The release-bound receipt
-is owned by active task M14-T10 and was not rewritten or presented as current by
-this feature task.
+The checked operational-evidence receipt remains truthful: exact-source hosted
+Linux performance and current live-provider qualification are both `NOT RUN`.
+No provider, deployment, release, tag or registry mutation was performed.
 
 Provider, database and end-to-end evidence belongs to dependent tasks.

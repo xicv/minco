@@ -290,7 +290,6 @@ impl AuditReader for DynamoDbAuditLedger {
                     "#pk = :pk"
                 })
                 .expression_attribute_names("#pk", PARTITION_KEY)
-                .expression_attribute_names("#sk", SORT_KEY)
                 .expression_attribute_values(":pk", AttributeValue::S(partition.clone()))
                 .scan_index_forward(matches!(
                     query.direction,
@@ -300,10 +299,12 @@ impl AuditReader for DynamoDbAuditLedger {
                 .limit(QUERY_PAGE_SIZE)
                 .set_exclusive_start_key(exclusive_start_key);
             if let Some(after) = query.after {
-                request = request.expression_attribute_values(
-                    ":after",
-                    AttributeValue::S(cursor_sort_key(after)?),
-                );
+                request = request
+                    .expression_attribute_names("#sk", SORT_KEY)
+                    .expression_attribute_values(
+                        ":after",
+                        AttributeValue::S(cursor_sort_key(after)?),
+                    );
             }
             let output = request.send().await.map_err(infrastructure)?;
             for item in output.items() {
@@ -524,7 +525,7 @@ fn resource_partition(tenant_scope: &str, resource: &AuditResourceRef) -> String
     hash_component(&mut hasher, tenant_scope.as_bytes());
     hash_component(&mut hasher, resource.resource_type.as_bytes());
     hash_component(&mut hasher, resource.resource_id.as_bytes());
-    format!("RESOURCE#{:x}", hasher.finalize())
+    format!("RESOURCE#{}", hex::encode(hasher.finalize()))
 }
 
 fn hash_component(hasher: &mut Sha256, value: &[u8]) {
@@ -620,7 +621,7 @@ fn transaction_token(records: &[(AuditRecordV2, String)]) -> String {
         hasher.update(record.event_id.as_bytes());
         hash_component(&mut hasher, encoded.as_bytes());
     }
-    format!("{:x}", hasher.finalize())[..36].to_owned()
+    hex::encode(hasher.finalize())[..36].to_owned()
 }
 
 fn infrastructure(_: impl std::fmt::Display) -> AuditLedgerError {

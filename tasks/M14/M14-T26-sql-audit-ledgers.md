@@ -43,7 +43,7 @@ checks:
 
 ## Goal
 
-Implement the SQL profile of ADR-0040: domain adapters can place a bounded V2
+Implement the SQL profile of ADR-0043: domain adapters can place a bounded V2
 audit intent in the operational transaction, an explicit relay can claim and
 deliver batches safely, and permanent queryable history lives in a distinct
 PostgreSQL database or SQLite file.
@@ -90,9 +90,13 @@ file-backed source and ledger databases.
 - `cargo test -p minco-plugin-audit --all-features --locked`: 12 passed.
 - `cargo test -p minco-sqlx-sqlite --all-features --locked`: 15 unit and 4
   integration tests passed against distinct temporary source/ledger files.
-- `cargo test -p minco-sqlx-postgres --all-features --locked`: 11 unit and 2
-  integration tests passed; the new two-database behavioral cases compiled and
-  explicitly skipped because both PostgreSQL test URLs were unset.
+- `cargo test -p minco-sqlx-postgres --all-features --locked --
+  --test-threads=1`: 11 unit and 2 integration tests passed against distinct
+  disposable PostgreSQL 18 source and audit databases.
+- The PostgreSQL outbox claimant now compares application-owned scheduling
+  timestamps with one bound claimant timestamp rather than database `NOW()`;
+  three parallel provider regression runs passed and the isolated container,
+  network and volume were absence-verified as removed.
 - Strict all-target/all-feature Clippy passed for all three crates with
   `-D warnings`.
 - `uv run --locked python scripts/validate_static.py`: status `ok`, zero errors
@@ -101,8 +105,5 @@ file-backed source and ledger databases.
 - Security review: SQL values are bound, source/ledger identities fail closed,
   provider errors and database URLs are redacted, records are validated before
   persistence, and public worker/failure identifiers are bounded.
-- `cargo minco check --with-cargo` passed static validation, 53 repository-truth
-  tests, deployment assurance, eight deployment tests and five product-truth
-  tests, then stopped at the pre-existing exact boundary `checked
-  operational-evidence receipt is stale`. That receipt belongs to the active
-  M14-T10 evidence task and was not rewritten here.
+- Operational evidence remains fail-closed and truthful: hosted performance
+  and current live-provider evidence are still reported as `NOT RUN`.

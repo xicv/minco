@@ -1,9 +1,11 @@
 use async_trait::async_trait;
-use minco_sqlx_postgres::{PostgresError, PostgresPoolConfig};
+use minco_plugin_audit::AuditJournalEntry;
+use minco_sqlx_postgres::{PostgresError, PostgresPoolConfig, audit_v2::PostgresAuditJournal};
 use orders_application::{
-    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery, OrderCursor,
-    OrderPage, OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderResult,
-    PlaceOrderTransaction, SortDirection, StoreError, UpdateOrderPort,
+    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery,
+    OrderAuditIntent, OrderCursor, OrderPage, OrderReadiness, OrderSortField, OrderSortTerm,
+    PlaceOrderPort, PlaceOrderResult, PlaceOrderTransaction, SortDirection, StoreError,
+    UpdateOrderPort,
 };
 use orders_domain::{CustomerReference, Order, OrderId, OrderLine, OrderStatus};
 use sqlx::{PgPool, Postgres, QueryBuilder, Row};
@@ -13,12 +15,16 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct PostgresOrderStore {
     pool: PgPool,
+    audit_journal: PostgresAuditJournal,
 }
 
 impl PostgresOrderStore {
     #[must_use]
-    pub const fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: PgPool) -> Self {
+        Self {
+            audit_journal: PostgresAuditJournal::new(pool.clone()),
+            pool,
+        }
     }
 
     pub async fn connect(config: &PostgresPoolConfig) -> Result<Self, PostgresError> {
@@ -83,6 +89,14 @@ impl PlaceOrderPort for PostgresOrderStore {
         &self,
         transaction: PlaceOrderTransaction,
     ) -> Result<PlaceOrderResult, StoreError> {
+        let audit = transaction
+            .audit
+            .as_ref()
+            .map(crate::audit::audit_record)
+            .transpose()?
+            .map(AuditJournalEntry::pending)
+            .transpose()
+            .map_err(crate::audit::audit_error)?;
         let mut db = self
             .pool
             .begin()
@@ -117,6 +131,12 @@ impl PlaceOrderPort for PostgresOrderStore {
         .map_err(|error| database_error(&error))?
         .rows_affected();
         if inserted == 1 {
+            if let Some(audit) = audit {
+                self.audit_journal
+                    .enqueue_in(&mut db, audit)
+                    .await
+                    .map_err(crate::audit::audit_error)?;
+            }
             db.commit().await.map_err(|error| database_error(&error))?;
             return Ok(PlaceOrderResult {
                 order: transaction.order,
@@ -221,6 +241,51 @@ impl UpdateOrderPort for PostgresOrderStore {
             self.fetch_order(order.id).await?.is_some(),
         ))
     }
+
+    async fn save_order_with_audit(
+        &self,
+        order: Order,
+        expected_revision: u64,
+        audit: OrderAuditIntent,
+    ) -> Result<ConditionalResult<Order>, StoreError> {
+        let audit = AuditJournalEntry::pending(crate::audit::audit_record(&audit)?)
+            .map_err(crate::audit::audit_error)?;
+        let lines = serde_json::to_value(&order.lines)
+            .map_err(|error| StoreError::Internal(format!("encode order lines: {error}")))?;
+        let mut db = self
+            .pool
+            .begin()
+            .await
+            .map_err(|error| database_error(&error))?;
+        let rows = sqlx::query(
+            "UPDATE orders SET customer_reference = $1, lines = $2, status = $3, updated_at = $4, revision = $5 WHERE id = $6 AND revision = $7 AND deleted_at IS NULL",
+        )
+        .bind(order.customer_reference.as_str())
+        .bind(lines)
+        .bind("accepted")
+        .bind(order.updated_at)
+        .bind(to_postgres_revision(order.revision)?)
+        .bind(order.id.into_uuid())
+        .bind(to_postgres_revision(expected_revision)?)
+        .execute(&mut *db)
+        .await
+        .map_err(|error| database_error(&error))?
+        .rows_affected();
+        if rows == 1 {
+            self.audit_journal
+                .enqueue_in(&mut db, audit)
+                .await
+                .map_err(crate::audit::audit_error)?;
+            db.commit().await.map_err(|error| database_error(&error))?;
+            return Ok(ConditionalResult::Applied(order));
+        }
+        db.rollback()
+            .await
+            .map_err(|error| database_error(&error))?;
+        Ok(conditional_miss(
+            self.fetch_order(order.id).await?.is_some(),
+        ))
+    }
 }
 
 #[async_trait]
@@ -244,6 +309,44 @@ impl DeleteOrderPort for PostgresOrderStore {
         if rows == 1 {
             return Ok(ConditionalResult::Applied(()));
         }
+        Ok(conditional_miss(self.fetch_order(id).await?.is_some()))
+    }
+
+    async fn delete_order_with_audit(
+        &self,
+        id: OrderId,
+        expected_revision: u64,
+        deleted_at: chrono::DateTime<chrono::Utc>,
+        audit: OrderAuditIntent,
+    ) -> Result<ConditionalResult<()>, StoreError> {
+        let audit = AuditJournalEntry::pending(crate::audit::audit_record(&audit)?)
+            .map_err(crate::audit::audit_error)?;
+        let mut db = self
+            .pool
+            .begin()
+            .await
+            .map_err(|error| database_error(&error))?;
+        let rows = sqlx::query(
+            "UPDATE orders SET deleted_at = $1, updated_at = $1, revision = revision + 1 WHERE id = $2 AND revision = $3 AND deleted_at IS NULL",
+        )
+        .bind(deleted_at)
+        .bind(id.into_uuid())
+        .bind(to_postgres_revision(expected_revision)?)
+        .execute(&mut *db)
+        .await
+        .map_err(|error| database_error(&error))?
+        .rows_affected();
+        if rows == 1 {
+            self.audit_journal
+                .enqueue_in(&mut db, audit)
+                .await
+                .map_err(crate::audit::audit_error)?;
+            db.commit().await.map_err(|error| database_error(&error))?;
+            return Ok(ConditionalResult::Applied(()));
+        }
+        db.rollback()
+            .await
+            .map_err(|error| database_error(&error))?;
         Ok(conditional_miss(self.fetch_order(id).await?.is_some()))
     }
 }

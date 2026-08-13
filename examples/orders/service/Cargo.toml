@@ -31,15 +31,21 @@ required-features = ["lambda"]
 name = "orders-migrate"
 path = "src/bin/migrate.rs"
 
+[[bin]]
+name = "orders-audit-relay"
+path = "src/bin/audit_relay.rs"
+
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+chrono.workspace = true
 minco-aws-lambda = { workspace = true, optional = true }
 minco-aws-dynamodb = { workspace = true, optional = true }
 minco-core.workspace = true
 minco-http.workspace = true
 minco-plugin-health.workspace = true
+minco-plugin-audit.workspace = true
 minco-plugin-idempotency.workspace = true
 minco-plugin-observability.workspace = true
 minco-sqlx-postgres = { workspace = true, optional = true }

@@ -20,6 +20,8 @@ aws-sdk-dynamodb = { workspace = true, optional = true }
 chrono.workspace = true
 futures.workspace = true
 minco-aws-dynamodb = { workspace = true, optional = true }
+minco-core.workspace = true
+minco-plugin-audit.workspace = true
 minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
 orders-application.workspace = true

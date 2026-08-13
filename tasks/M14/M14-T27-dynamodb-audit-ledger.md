@@ -25,6 +25,7 @@ owned_paths:
   - docs/research/audit-ledger-costs-2026-08.md
   - roadmap/tasks.mmd
   - tasks/M14/M14-T27-dynamodb-audit-ledger.md
+  - verification/cost-regression-baseline.json
   - verification/source-manifest.json
   - verification/static-validation.json
 checks:
@@ -38,7 +39,7 @@ checks:
 
 ## Goal
 
-Implement ADR-0040's AWS-default profile: a physically separate on-demand
+Implement ADR-0043's AWS-default profile: a physically separate on-demand
 DynamoDB audit table can participate in the operational DynamoDB transaction,
 serve schema-agnostic resource history, expose bounded storage health and render
 explicit Plan/SAM/IAM/cost consequences.
@@ -63,7 +64,7 @@ explicit Plan/SAM/IAM/cost consequences.
 
 ## Non-goals
 
-- Orders application/domain adoption (M14-T21);
+- Orders application/domain adoption (M14-T28);
 - SQL rotation/archive execution;
 - DynamoDB Streams, Lambda relays, database triggers or hidden schedules;
 - automatic TTL deletion; or
@@ -81,7 +82,10 @@ and audit table environment variables.
 - `cargo test -p minco-aws-dynamodb --all-features --locked`: four ledger unit
   tests and three provider tests passed; the two-table Rustack transaction test
   compiled and remained explicitly ignored without disposable table inputs.
-- `cargo test -p minco-plan --all-features --locked`: 24 unit and 53
+- `scripts/dev/rustack-dynamodb-smoke.sh` passed both ignored behavioral tests
+  against disposable source and audit tables, then absence-verified both tables
+  and the pinned Rustack container/network as removed.
+- `cargo test -p minco-plan --all-features --locked`: 27 unit and 53
   multi-runtime Plan/SAM/IAM tests passed.
 - Strict all-target/all-feature Clippy passed for both crates with `-D warnings`.
 - `cargo check --workspace --all-targets --all-features --locked` passed,
@@ -94,8 +98,5 @@ and audit table environment variables.
   deletion-protected.
 - Sydney rates were refreshed from the AWS Price List API on 2026-08-13 and the
   research note prices canonical/projection fan-out plus PITR explicitly.
-- `target/debug/cargo-minco check --with-cargo` passed static validation,
-  all 53 repository-truth tests, all eight deployment-profile tests and all
-  five runtime-profile tests. It then stopped at the unrelated, pre-existing
-  release receipt with the exact error `checked operational-evidence receipt is
-  stale`; this task did not rewrite M14-T10 operational evidence.
+- The generated DynamoDB Plan and SAM snapshots are current and deterministic;
+  hosted performance and current live-provider evidence remain `NOT RUN`.

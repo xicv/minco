@@ -45,15 +45,6 @@ partition_key = { name = "gsi3pk", scalar_type = "string" }
 sort_key = { name = "gsi3sk", scalar_type = "string" }
 projection = "all"
 
-[database.audit_table]
-logical_id = "AuditLedgerTable"
-function_id = "api"
-partition_key = { name = "pk", scalar_type = "string" }
-sort_key = { name = "sk", scalar_type = "string" }
-point_in_time_recovery = true
-deletion_protection = true
-deletion_policy = "retain"
-
 [[functions]]
 name = "api"
 role = "http_api"

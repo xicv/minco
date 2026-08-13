@@ -69,7 +69,8 @@ pub(crate) fn sam_logical_id(value: &str) -> String {
 pub use cost::{
     CostClass, CostComponent, CostEvidence, DatabaseCostEstimate, PricingConfidence,
     QueueCostDimension, RealtimeCostDimension, RuntimeCostEstimate, ScheduleCostDimension,
-    SqsMappingCostDimension, WorkerCostDimension, estimate_database_cost, estimate_runtime_cost,
+    SqsMappingCostDimension, WorkerCostDimension, estimate_database_cost,
+    estimate_deployment_database_cost, estimate_runtime_cost,
 };
 pub use model::{
     AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, DeploymentPlan,

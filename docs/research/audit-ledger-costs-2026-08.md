@@ -36,8 +36,11 @@ transaction APIs](https://docs.aws.amazon.com/amazondynamodb/latest/developergui
 
 At 100 billable GB-month, Standard table storage is **$28.50/month** and PITR is
 **$22.80/month**, or **$51.30/month** before any applicable Standard-storage free
-tier, requests, exports or restores. The Plan therefore prices PITR as a
-separate regional input rather than hiding it in general table storage.
+tier, requests, exports or restores. The compatibility-safe 1.x Plan keeps the
+PITR dimension explicitly unpriced and marks the audit-aware total incomplete;
+adding fields to the existing exhaustively constructible DynamoDB Plan variant
+would break downstream Rust callers. A future additive pricing boundary may
+accept the regional PITR rate without changing that existing public type.
 
 This cost is attractive for a low-idle AWS action ledger. It does not make
 DynamoDB free or universally preferable. Large JSON changes round up by KiB,

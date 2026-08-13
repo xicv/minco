@@ -9,8 +9,11 @@ async fn main() -> Result<()> {
     } else {
         let parameter = std::env::var("DATABASE_URL_PARAMETER")
             .context("DATABASE_URL_PARAMETER is required")?;
+        let audit_parameter = std::env::var("AUDIT_DATABASE_URL_PARAMETER")
+            .context("AUDIT_DATABASE_URL_PARAMETER is required")?;
         let database_url = minco_aws_lambda::load_secure_parameter(&parameter).await?;
-        AppConfig::from_env_with_database_url(Some(database_url))?
+        let audit_database_url = minco_aws_lambda::load_secure_parameter(&audit_parameter).await?;
+        AppConfig::from_env_with_database_urls(Some(database_url), Some(audit_database_url))?
     };
     let application = build_application(&config).await?;
     let router = application.router.layer(middleware::from_fn(

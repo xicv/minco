@@ -19,7 +19,8 @@ PY
 )"
 smoke_suffix="$(date -u +%Y%m%d%H%M%S)-$$"
 table_name="minco-orders-$smoke_suffix"
-table_created=false
+audit_table_name="minco-orders-audit-$smoke_suffix"
+created_tables=()
 
 export COMPOSE_PROJECT_NAME="minco-rustack-dynamodb-$$"
 export MINCO_RUSTACK_PORT="$smoke_port"
@@ -36,26 +37,28 @@ aws_local() {
 }
 
 table_absent() {
-  ! aws_local dynamodb describe-table --table-name "$table_name" >/dev/null 2>&1
+  local target_table="$1"
+  ! aws_local dynamodb describe-table --table-name "$target_table" >/dev/null 2>&1
 }
 
-delete_table() {
-  if [[ "$table_created" == true ]]; then
-    aws_local dynamodb delete-table --table-name "$table_name" >/dev/null 2>&1 || true
+delete_tables() {
+  local target_table
+  for target_table in "${created_tables[@]}"; do
+    aws_local dynamodb delete-table --table-name "$target_table" >/dev/null 2>&1 || true
     for _attempt in {1..30}; do
-      if table_absent; then
-        table_created=false
-        return 0
+      if table_absent "$target_table"; then
+        break
       fi
       sleep 0.2
     done
-    return 1
-  fi
+    table_absent "$target_table" || return 1
+  done
+  created_tables=()
 }
 
 cleanup() {
   set +e
-  delete_table
+  delete_tables
   docker compose -f infra/local/compose.yaml down --remove-orphans >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -117,35 +120,62 @@ aws_local dynamodb create-table \
       "Projection": {"ProjectionType": "ALL"}
     }
   ]' >/dev/null
-table_created=true
+created_tables+=("$table_name")
 
-active=false
-for _attempt in {1..30}; do
-  status="$(
-    aws_local dynamodb describe-table \
-      --table-name "$table_name" \
-      --query 'Table.TableStatus' \
-      --output text 2>/dev/null || true
-  )"
-  if [[ "$status" == "ACTIVE" ]]; then
-    active=true
-    break
-  fi
-  sleep 0.2
-done
-[[ "$active" == true ]] || {
-  echo "Rustack DynamoDB table did not become ACTIVE within 6 seconds" >&2
+aws_local dynamodb create-table \
+  --table-name "$audit_table_name" \
+  --billing-mode PAY_PER_REQUEST \
+  --attribute-definitions \
+    AttributeName=pk,AttributeType=S \
+    AttributeName=sk,AttributeType=S \
+  --key-schema \
+    AttributeName=pk,KeyType=HASH \
+    AttributeName=sk,KeyType=RANGE >/dev/null
+created_tables+=("$audit_table_name")
+
+wait_active() {
+  local target_table="$1"
+  local active=false
+  local status
+  for _attempt in {1..30}; do
+    status="$(
+      aws_local dynamodb describe-table \
+        --table-name "$target_table" \
+        --query 'Table.TableStatus' \
+        --output text 2>/dev/null || true
+    )"
+    if [[ "$status" == "ACTIVE" ]]; then
+      active=true
+      break
+    fi
+    sleep 0.2
+  done
+  [[ "$active" == true ]]
+}
+
+wait_active "$table_name" || {
+  echo "Rustack Orders table did not become ACTIVE within 6 seconds" >&2
+  exit 1
+}
+wait_active "$audit_table_name" || {
+  echo "Rustack audit table did not become ACTIVE within 6 seconds" >&2
   exit 1
 }
 
 export MINCO_ORDERS_TEST_DYNAMODB_TABLE="$table_name"
+export MINCO_ORDERS_TEST_DYNAMODB_AUDIT_TABLE="$audit_table_name"
 export MINCO_ORDERS_TEST_DYNAMODB_ENDPOINT="$AWS_ENDPOINT_URL"
 
 cargo test -p orders-adapters --features dynamodb --test dynamodb --locked \
+  all_orders_ports_preserve_idempotency_sort_cursor_revision_and_soft_delete \
+  -- --ignored --exact
+cargo test -p orders-adapters --features dynamodb --test dynamodb --locked \
+  audited_orders_actions_are_atomic_queryable_and_race_safe \
   -- --ignored --exact
 
-delete_table
-table_absent
+delete_tables
+table_absent "$table_name"
+table_absent "$audit_table_name"
 
 printf '%s\n' \
-  "Rustack DynamoDB conformance passed: transactions, strong reads, sharded index queries, conditional updates, soft delete, and absence-verified cleanup"
+  "Rustack DynamoDB conformance passed: Orders plus audit cross-table transactions, strong reads, sharded queries, conditional races, soft delete, history, and absence-verified cleanup"

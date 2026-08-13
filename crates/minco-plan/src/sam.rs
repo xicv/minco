@@ -87,10 +87,15 @@ pub fn render_sam_with_code_uris(
         .functions
         .iter()
         .any(|function| function.database_connections_per_instance > 0);
+    let uses_audit_database_parameter = uses_database_parameter
+        && plan
+            .application_graph
+            .capabilities
+            .contains_key("audit.ledger");
     output.push_str("Parameters:\n");
     render_live_function_version_parameter(&mut output);
     if uses_database_parameter {
-        render_database_parameters(&mut output);
+        render_database_parameters(&mut output, uses_audit_database_parameter);
     }
     if let Some(static_site) = &plan.static_site {
         render_static_site_parameters(&mut output, static_site);
@@ -100,14 +105,14 @@ pub fn render_sam_with_code_uris(
         "  LiveFunctionVersionIsCandidate: !Equals [!Ref LiveFunctionVersion, 'candidate']\n",
     );
     if uses_database_parameter {
-        render_database_conditions(&mut output);
+        render_database_conditions(&mut output, uses_audit_database_parameter);
     }
     output.push_str("Resources:\n");
     if let Some(table) = plan.database.dynamodb_table() {
-        render_dynamodb_table(&mut output, table);
+        render_dynamodb_table(&mut output, table, false);
     }
-    if let Some(table) = plan.database.dynamodb_audit_table() {
-        render_dynamodb_table(&mut output, table);
+    if let Some(table) = plan.dynamodb_audit_table() {
+        render_dynamodb_table(&mut output, &table, true);
     }
     if let Some(static_site) = &plan.static_site {
         render_static_site_resources(&mut output, static_site);
@@ -201,17 +206,17 @@ pub fn render_sam_with_code_uris(
     )
     .expect("writing to String cannot fail");
     if function.database_connections_per_instance > 0 {
-        render_database_environment(&mut output, function);
+        render_database_environment(&mut output, function, uses_audit_database_parameter);
     }
     if let Some(table) = plan.database.dynamodb_table()
         && table.function_id == function.name
     {
         render_dynamodb_environment(&mut output, table);
     }
-    if let Some(table) = plan.database.dynamodb_audit_table()
+    if let Some(table) = plan.dynamodb_audit_table()
         && table.function_id == function.name
     {
-        render_dynamodb_audit_environment(&mut output, table);
+        render_dynamodb_audit_environment(&mut output, &table);
     }
     writeln!(
         output,
@@ -234,24 +239,23 @@ pub fn render_sam_with_code_uris(
         .dynamodb_table()
         .is_some_and(|table| table.function_id == function.name)
         || plan
-            .database
             .dynamodb_audit_table()
             .is_some_and(|table| table.function_id == function.name);
     if function.database_connections_per_instance > 0 || uses_dynamodb || plan.realtime.is_some() {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
         if function.database_connections_per_instance > 0 {
-            render_database_policy_statements(&mut output);
+            render_database_policy_statements(&mut output, uses_audit_database_parameter);
         }
         if let Some(table) = plan.database.dynamodb_table()
             && table.function_id == function.name
         {
             render_dynamodb_policy_statement(&mut output, table);
         }
-        if let Some(table) = plan.database.dynamodb_audit_table()
+        if let Some(table) = plan.dynamodb_audit_table()
             && table.function_id == function.name
         {
-            render_dynamodb_audit_policy_statement(&mut output, table);
+            render_dynamodb_audit_policy_statement(&mut output, &table);
         }
         if let Some(realtime) = &plan.realtime {
             render_realtime_policy_statement(&mut output, realtime);
@@ -610,7 +614,7 @@ fn render_live_function_version_parameter(output: &mut String) {
     );
 }
 
-fn render_database_parameters(output: &mut String) {
+fn render_database_parameters(output: &mut String, uses_audit_database_parameter: bool) {
     output.push_str("  DatabaseUrlParameterName:\n");
     output.push_str("    Type: String\n");
     output.push_str("    AllowedPattern: '^/[A-Za-z0-9_.\\-/]+$'\n");
@@ -622,6 +626,19 @@ fn render_database_parameters(output: &mut String) {
         "    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'\n",
     );
     output.push_str("    Description: Customer-managed KMS key ARN for the database parameter; leave empty only when the AWS-managed aws/ssm key is used.\n");
+    if uses_audit_database_parameter {
+        output.push_str("  AuditDatabaseUrlParameterName:\n");
+        output.push_str("    Type: String\n");
+        output.push_str("    AllowedPattern: '^/[A-Za-z0-9_.\\-/]+$'\n");
+        output.push_str("    Description: Existing SSM SecureString containing the physically separate audit PostgreSQL URL.\n");
+        output.push_str("  AuditDatabaseUrlKmsKeyArn:\n");
+        output.push_str("    Type: String\n");
+        output.push_str("    Default: ''\n");
+        output.push_str(
+            "    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'\n",
+        );
+        output.push_str("    Description: Customer-managed KMS key ARN for the audit database parameter; leave empty only when the AWS-managed aws/ssm key is used.\n");
+    }
     output.push_str("  LambdaSubnetIds:\n");
     output.push_str("    Type: String\n");
     output.push_str("    Default: ''\n");
@@ -647,10 +664,13 @@ fn render_database_parameters(output: &mut String) {
     );
 }
 
-fn render_database_conditions(output: &mut String) {
+fn render_database_conditions(output: &mut String, uses_audit_database_parameter: bool) {
     output.push_str(
         "  UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]\n",
     );
+    if uses_audit_database_parameter {
+        output.push_str("  UsesCustomerManagedAuditDatabaseKey: !Not [!Equals [!Ref AuditDatabaseUrlKmsKeyArn, '']]\n");
+    }
     output.push_str("  UsesVpc: !And\n");
     output.push_str("    - !Not [!Equals [!Ref LambdaSubnetIds, '']]\n");
     output.push_str("    - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]\n");
@@ -721,7 +741,11 @@ fn render_vpc_config(output: &mut String) {
     output.push_str("        - !Ref AWS::NoValue\n");
 }
 
-fn render_dynamodb_table(output: &mut String, table: &DynamoDbTablePlan) {
+fn render_dynamodb_table(
+    output: &mut String,
+    table: &DynamoDbTablePlan,
+    deletion_protection: bool,
+) {
     writeln!(output, "  {}:", table.logical_id).expect("writing to String cannot fail");
     output.push_str("    Type: AWS::DynamoDB::Table\n");
     let deletion_policy = match table.deletion_policy {
@@ -736,8 +760,7 @@ fn render_dynamodb_table(output: &mut String, table: &DynamoDbTablePlan) {
     output.push_str("      BillingMode: PAY_PER_REQUEST\n");
     writeln!(
         output,
-        "      DeletionProtectionEnabled: {}",
-        table.deletion_protection
+        "      DeletionProtectionEnabled: {deletion_protection}"
     )
     .expect("writing to String cannot fail");
     output.push_str("      AttributeDefinitions:\n");
@@ -905,9 +928,18 @@ fn render_dynamodb_audit_policy_statement(output: &mut String, table: &DynamoDbT
     .expect("writing to String cannot fail");
 }
 
-fn render_database_environment(output: &mut String, function: &FunctionPlan) {
+fn render_database_environment(
+    output: &mut String,
+    function: &FunctionPlan,
+    uses_audit_database_parameter: bool,
+) {
     output.push_str("          DATABASE_KIND: postgres\n");
     output.push_str("          DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName\n");
+    if uses_audit_database_parameter {
+        output.push_str(
+            "          AUDIT_DATABASE_URL_PARAMETER: !Ref AuditDatabaseUrlParameterName\n",
+        );
+    }
     writeln!(
         output,
         "          DATABASE_MAX_CONNECTIONS: {}",
@@ -916,7 +948,7 @@ fn render_database_environment(output: &mut String, function: &FunctionPlan) {
     .expect("writing to String cannot fail");
 }
 
-fn render_database_policy_statements(output: &mut String) {
+fn render_database_policy_statements(output: &mut String, uses_audit_database_parameter: bool) {
     output.push_str("            - Effect: Allow\n");
     output.push_str("              Action: [ssm:GetParameter]\n");
     output.push_str("              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'\n");
@@ -931,6 +963,23 @@ fn render_database_policy_statements(output: &mut String) {
         .push_str("                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'\n");
     output.push_str("                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'\n");
     output.push_str("              - !Ref AWS::NoValue\n");
+    if uses_audit_database_parameter {
+        output.push_str("            - Effect: Allow\n");
+        output.push_str("              Action: [ssm:GetParameter]\n");
+        output.push_str("              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AuditDatabaseUrlParameterName}'\n");
+        output.push_str("            - !If\n");
+        output.push_str("              - UsesCustomerManagedAuditDatabaseKey\n");
+        output.push_str("              - Effect: Allow\n");
+        output.push_str("                Action: [kms:Decrypt]\n");
+        output.push_str("                Resource: !Ref AuditDatabaseUrlKmsKeyArn\n");
+        output.push_str("                Condition:\n");
+        output.push_str("                  StringEquals:\n");
+        output.push_str(
+            "                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'\n",
+        );
+        output.push_str("                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AuditDatabaseUrlParameterName}'\n");
+        output.push_str("              - !Ref AWS::NoValue\n");
+    }
     output.push_str("            - !If\n");
     output.push_str("              - UsesVpc\n");
     output.push_str("              - Effect: Allow\n");
@@ -1043,17 +1092,23 @@ fn render_worker_function(
     )
     .expect("writing to String cannot fail");
     if function.database_connections_per_instance > 0 {
-        render_database_environment(output, function);
+        render_database_environment(
+            output,
+            function,
+            plan.application_graph
+                .capabilities
+                .contains_key("audit.ledger"),
+        );
     }
     if let Some(table) = plan.database.dynamodb_table()
         && table.function_id == function.name
     {
         render_dynamodb_environment(output, table);
     }
-    if let Some(table) = plan.database.dynamodb_audit_table()
+    if let Some(table) = plan.dynamodb_audit_table()
         && table.function_id == function.name
     {
-        render_dynamodb_audit_environment(output, table);
+        render_dynamodb_audit_environment(output, &table);
     }
     let has_sqs_trigger = plan.triggers.iter().any(|trigger| {
         matches!(
@@ -1066,24 +1121,28 @@ fn render_worker_function(
         .dynamodb_table()
         .is_some_and(|table| table.function_id == function.name)
         || plan
-            .database
             .dynamodb_audit_table()
             .is_some_and(|table| table.function_id == function.name);
     if function.database_connections_per_instance > 0 || uses_dynamodb || has_sqs_trigger {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
         if function.database_connections_per_instance > 0 {
-            render_database_policy_statements(output);
+            render_database_policy_statements(
+                output,
+                plan.application_graph
+                    .capabilities
+                    .contains_key("audit.ledger"),
+            );
         }
         if let Some(table) = plan.database.dynamodb_table()
             && table.function_id == function.name
         {
             render_dynamodb_policy_statement(output, table);
         }
-        if let Some(table) = plan.database.dynamodb_audit_table()
+        if let Some(table) = plan.dynamodb_audit_table()
             && table.function_id == function.name
         {
-            render_dynamodb_audit_policy_statement(output, table);
+            render_dynamodb_audit_policy_statement(output, &table);
         }
     }
     for trigger in &plan.triggers {
@@ -1348,6 +1407,25 @@ mod tests {
         let relocated =
             render_sam_with_code_uri(&plan, Some("../../../artifact.zip")).expect("SAM");
         assert!(relocated.contains("CodeUri: '../../../artifact.zip'"));
+    }
+
+    #[test]
+    fn audit_ledger_capability_injects_a_distinct_postgres_secret_boundary() {
+        let mut plan = minimal_http_plan();
+        plan.application_graph
+            .capabilities
+            .insert("audit.ledger".into(), "2.0.0".parse().expect("version"));
+
+        let yaml = render_sam(&plan).expect("SAM");
+
+        assert!(yaml.contains("  AuditDatabaseUrlParameterName:\n"));
+        assert!(yaml.contains(
+            "          AUDIT_DATABASE_URL_PARAMETER: !Ref AuditDatabaseUrlParameterName\n"
+        ));
+        assert!(yaml.contains("  UsesCustomerManagedAuditDatabaseKey:"));
+        assert!(yaml.contains("Resource: !Ref AuditDatabaseUrlKmsKeyArn"));
+        assert!(yaml.contains("parameter${AuditDatabaseUrlParameterName}"));
+        assert!(!yaml.contains("AUDIT_DATABASE_URL:"));
     }
 
     #[test]

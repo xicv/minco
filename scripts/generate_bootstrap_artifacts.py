@@ -58,14 +58,15 @@ def main() -> None:
                 plan[key] = existing[key]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n")
-    (ROOT / "infra/aws/generated/template.yaml").write_text(render_sam(plan))
+    audit_enabled = "audit" in manifest.get("plugins", {}).get("enabled", [])
+    (ROOT / "infra/aws/generated/template.yaml").write_text(render_sam(plan, audit_enabled))
     roadmap = yaml.safe_load((ROOT / manifest["roadmap"]).read_text())
     (ROOT / "roadmap/roadmap.mmd").write_text(render_graph(roadmap["milestones"]))
     tasks = [read_task(path) for path in sorted((ROOT / manifest["tasks"]).rglob("*.md"))]
     (ROOT / "roadmap/tasks.mmd").write_text(render_graph(tasks))
 
 
-def render_sam(plan: dict) -> str:
+def render_sam(plan: dict, audit_enabled: bool = False) -> str:
     function = plan["functions"][0]
     description = f"Minco deployment for {plan['application']} ({plan['environment']})"
     lines = [
@@ -87,6 +88,23 @@ def render_sam(plan: dict) -> str:
         "    Default: ''",
         "    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'",
         "    Description: Customer-managed KMS key ARN for the database parameter; leave empty only when the AWS-managed aws/ssm key is used.",
+    ]
+    if audit_enabled:
+        lines.extend(
+            [
+                "  AuditDatabaseUrlParameterName:",
+                "    Type: String",
+                "    AllowedPattern: '^/[A-Za-z0-9_.\\-/]+$'",
+                "    Description: Existing SSM SecureString containing the physically separate audit PostgreSQL URL.",
+                "  AuditDatabaseUrlKmsKeyArn:",
+                "    Type: String",
+                "    Default: ''",
+                "    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'",
+                "    Description: Customer-managed KMS key ARN for the audit database parameter; leave empty only when the AWS-managed aws/ssm key is used.",
+            ]
+        )
+    lines.extend(
+        [
         "  LambdaSubnetIds:",
         "    Type: String",
         "    Default: ''",
@@ -111,6 +129,14 @@ def render_sam(plan: dict) -> str:
         "Conditions:",
         "  LiveFunctionVersionIsCandidate: !Equals [!Ref LiveFunctionVersion, 'candidate']",
         "  UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]",
+        ]
+    )
+    if audit_enabled:
+        lines.append(
+            "  UsesCustomerManagedAuditDatabaseKey: !Not [!Equals [!Ref AuditDatabaseUrlKmsKeyArn, '']]"
+        )
+    lines.extend(
+        [
         "  UsesVpc: !And",
         "    - !Not [!Equals [!Ref LambdaSubnetIds, '']]",
         "    - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]",
@@ -124,7 +150,8 @@ def render_sam(plan: dict) -> str:
         "      CorsConfiguration:",
         "        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]",
         "        AllowHeaders:",
-    ]
+        ]
+    )
     lines.extend(f"          - {quote(header)}" for header in plan["allowed_headers"])
     lines.append("        AllowOrigins:")
     lines.extend(f"          - {quote(origin)}" for origin in plan["allowed_origins"])
@@ -202,6 +229,11 @@ def render_sam(plan: dict) -> str:
             f"          APP_ENV: {quote(plan['environment'])}",
             "          DATABASE_KIND: postgres",
             "          DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName",
+            *(
+                ["          AUDIT_DATABASE_URL_PARAMETER: !Ref AuditDatabaseUrlParameterName"]
+                if audit_enabled
+                else []
+            ),
             f"          DATABASE_MAX_CONNECTIONS: {quote(str(function['database_connections_per_instance']))}",
             f"          ALLOWED_ORIGINS: {quote(','.join(plan['allowed_origins']))}",
             "          ALLOW_DEVELOPMENT_HEADERS: 'false'",
@@ -220,6 +252,25 @@ def render_sam(plan: dict) -> str:
             "                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'",
             "                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'",
             "              - !Ref AWS::NoValue",
+            *(
+                [
+                    "            - Effect: Allow",
+                    "              Action: [ssm:GetParameter]",
+                    "              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AuditDatabaseUrlParameterName}'",
+                    "            - !If",
+                    "              - UsesCustomerManagedAuditDatabaseKey",
+                    "              - Effect: Allow",
+                    "                Action: [kms:Decrypt]",
+                    "                Resource: !Ref AuditDatabaseUrlKmsKeyArn",
+                    "                Condition:",
+                    "                  StringEquals:",
+                    "                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'",
+                    "                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AuditDatabaseUrlParameterName}'",
+                    "              - !Ref AWS::NoValue",
+                ]
+                if audit_enabled
+                else []
+            ),
             "            - !If",
             "              - UsesVpc",
             "              - Effect: Allow",

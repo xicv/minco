@@ -83,6 +83,7 @@ impl DeploymentConfig {
             self.schema_version,
             &self.runtime,
             &self.database,
+            &application_graph,
             &self.functions,
             &self.triggers,
         );
@@ -163,6 +164,15 @@ pub struct DeploymentPlan {
     pub log_retention_days: u32,
     pub cost_policy: CostPolicy,
     pub performance_policy: PerformancePolicy,
+}
+
+impl DeploymentPlan {
+    /// Returns the deterministic, physically separate audit table required by
+    /// the selected audit ledger capability for a `DynamoDB` deployment.
+    #[must_use]
+    pub fn dynamodb_audit_table(&self) -> Option<DynamoDbTablePlan> {
+        derive_dynamodb_audit_table(&self.database, &self.application_graph)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -417,6 +427,7 @@ impl DeploymentPlan {
                     self.schema_version,
                     &self.runtime,
                     &self.database,
+                    &self.application_graph,
                     &self.functions,
                     &self.triggers,
                 );
@@ -586,6 +597,7 @@ impl DeploymentPlan {
                     self.schema_version,
                     &self.runtime,
                     &self.database,
+                    &self.application_graph,
                     &self.functions,
                     &self.triggers,
                 )
@@ -1247,11 +1259,8 @@ fn validate_sam_resource_identifiers(plan: &DeploymentPlan, diagnostics: &mut Ve
             "DynamoDB table contract".to_owned(),
         );
     }
-    if let Some(table) = plan.database.dynamodb_audit_table() {
-        insert_resource(
-            table.logical_id.clone(),
-            "DynamoDB audit table contract".to_owned(),
-        );
+    if let Some(table) = plan.dynamodb_audit_table() {
+        insert_resource(table.logical_id, "DynamoDB audit table contract".to_owned());
     }
     for function in plan
         .functions
@@ -1372,7 +1381,11 @@ fn valid_sqs_queue_name(value: &str, fifo: bool) -> bool {
 
 fn validate_dynamodb_table(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiagnostic>) {
     let Some(table) = plan.database.dynamodb_table() else {
-        if plan.database.dynamodb_audit_table().is_some() {
+        if plan
+            .application_graph
+            .capabilities
+            .contains_key("audit.ledger")
+        {
             diagnostics.push(error(
                 "MINCO-DYNAMODB-013",
                 "DynamoDB audit table requires an explicit operational table for atomic writes",
@@ -1381,10 +1394,10 @@ fn validate_dynamodb_table(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiag
         return;
     };
     validate_one_dynamodb_table(plan, table, diagnostics);
-    let Some(audit) = plan.database.dynamodb_audit_table() else {
+    let Some(audit) = plan.dynamodb_audit_table() else {
         return;
     };
-    validate_one_dynamodb_table(plan, audit, diagnostics);
+    validate_one_dynamodb_table(plan, &audit, diagnostics);
     if table.logical_id == audit.logical_id {
         diagnostics.push(error(
             "MINCO-DYNAMODB-009",
@@ -1410,13 +1423,10 @@ fn validate_dynamodb_table(plan: &DeploymentPlan, diagnostics: &mut Vec<PlanDiag
             "DynamoDB audit table requires string pk/sk keys and no global secondary indexes",
         ));
     }
-    if !audit.point_in_time_recovery
-        || !audit.deletion_protection
-        || audit.deletion_policy != DynamoDbDeletionPolicy::Retain
-    {
+    if !audit.point_in_time_recovery || audit.deletion_policy != DynamoDbDeletionPolicy::Retain {
         diagnostics.push(error(
             "MINCO-DYNAMODB-012",
-            "DynamoDB audit table requires point-in-time recovery, deletion protection and retain deletion policy",
+            "DynamoDB audit table requires point-in-time recovery and retain deletion policy; SAM adds deletion protection",
         ));
     }
 }
@@ -1669,8 +1679,6 @@ pub struct DynamoDbTablePlan {
     pub global_secondary_indexes: Vec<DynamoDbGlobalSecondaryIndex>,
     #[serde(default)]
     pub point_in_time_recovery: bool,
-    #[serde(default)]
-    pub deletion_protection: bool,
     pub deletion_policy: DynamoDbDeletionPolicy,
 }
 
@@ -1717,14 +1725,8 @@ pub enum DatabaseDeployment {
         write_million_rate_usd: Option<f64>,
         storage_gb_month: f64,
         storage_rate_usd: Option<f64>,
-        #[serde(default)]
-        point_in_time_recovery_gb_month: f64,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        point_in_time_recovery_rate_usd: Option<f64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         table: Option<DynamoDbTablePlan>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        audit_table: Option<Box<DynamoDbTablePlan>>,
     },
     SqlitePersistentHost {
         host_monthly_usd: f64,
@@ -1740,14 +1742,6 @@ impl DatabaseDeployment {
     pub const fn dynamodb_table(&self) -> Option<&DynamoDbTablePlan> {
         match self {
             Self::DynamoDbOnDemand { table, .. } => table.as_ref(),
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn dynamodb_audit_table(&self) -> Option<&DynamoDbTablePlan> {
-        match self {
-            Self::DynamoDbOnDemand { audit_table, .. } => audit_table.as_deref(),
             _ => None,
         }
     }
@@ -1887,8 +1881,6 @@ impl DatabaseDeployment {
                 write_million_rate_usd,
                 storage_gb_month,
                 storage_rate_usd,
-                point_in_time_recovery_gb_month,
-                point_in_time_recovery_rate_usd,
                 ..
             } => {
                 check_non_negative(
@@ -1913,16 +1905,6 @@ impl DatabaseDeployment {
                 );
                 check_non_negative(&mut invalid, "storage_gb_month", *storage_gb_month);
                 check_optional_non_negative(&mut invalid, "storage_rate_usd", *storage_rate_usd);
-                check_non_negative(
-                    &mut invalid,
-                    "point_in_time_recovery_gb_month",
-                    *point_in_time_recovery_gb_month,
-                );
-                check_optional_non_negative(
-                    &mut invalid,
-                    "point_in_time_recovery_rate_usd",
-                    *point_in_time_recovery_rate_usd,
-                );
             }
             Self::SqlitePersistentHost {
                 host_monthly_usd,
@@ -2067,6 +2049,7 @@ fn derive_iam_intents(
     schema_version: u32,
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,
+    application_graph: &ApplicationGraph,
     functions: &[FunctionPlan],
     triggers: &[TriggerPlan],
 ) -> Vec<IamIntent> {
@@ -2095,7 +2078,7 @@ fn derive_iam_intents(
         });
     }
     if matches!(runtime, RuntimePlan::LambdaZipArm64)
-        && let Some(table) = database.dynamodb_audit_table()
+        && let Some(table) = derive_dynamodb_audit_table(database, application_graph)
     {
         intents.push(IamIntent {
             function_id: table.function_id.clone(),
@@ -2109,7 +2092,7 @@ fn derive_iam_intents(
             .map(str::to_owned)
             .collect(),
             resource: IamResource::DynamoDbTable {
-                logical_id: table.logical_id.clone(),
+                logical_id: table.logical_id,
             },
         });
     }
@@ -2179,6 +2162,35 @@ fn derive_iam_intents(
             .then_with(|| iam_resource_key(&left.resource).cmp(&iam_resource_key(&right.resource)))
     });
     intents
+}
+
+fn derive_dynamodb_audit_table(
+    database: &DatabaseDeployment,
+    application_graph: &ApplicationGraph,
+) -> Option<DynamoDbTablePlan> {
+    if !application_graph.capabilities.contains_key("audit.ledger") {
+        return None;
+    }
+    let table = database.dynamodb_table()?;
+    let logical_prefix = table
+        .logical_id
+        .strip_suffix("Table")
+        .unwrap_or(&table.logical_id);
+    Some(DynamoDbTablePlan {
+        logical_id: format!("{logical_prefix}AuditTable"),
+        function_id: table.function_id.clone(),
+        partition_key: DynamoDbKeyAttribute {
+            name: "pk".into(),
+            scalar_type: DynamoDbScalarType::String,
+        },
+        sort_key: Some(DynamoDbKeyAttribute {
+            name: "sk".into(),
+            scalar_type: DynamoDbScalarType::String,
+        }),
+        global_secondary_indexes: Vec::new(),
+        point_in_time_recovery: true,
+        deletion_policy: DynamoDbDeletionPolicy::Retain,
+    })
 }
 
 fn iam_resource_key(resource: &IamResource) -> (&str, &str) {

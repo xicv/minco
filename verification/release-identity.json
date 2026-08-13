@@ -82,7 +82,7 @@
     },
     {
       "manifest_path": "extensions/minco-aws-dynamodb/Cargo.toml",
-      "manifest_sha256": "b6d21214fc0f9f9ea83dcb2bed2db7ec02fd6a6089f2d1ba710513554ebbec3c",
+      "manifest_sha256": "d85f38a07c1796237dd1b58acc15f14a789415186dd1764192235c322e4f945b",
       "name": "minco-aws-dynamodb",
       "version": {
         "workspace": true
@@ -298,7 +298,7 @@
     },
     {
       "manifest_path": "extensions/minco-sqlx-postgres/Cargo.toml",
-      "manifest_sha256": "9fd1c1070c170a717125948ee5e41108489a927a971438efb19f2d2f7890ae8c",
+      "manifest_sha256": "80f801d0e8fc87356e9de79d2f782704e723ae3a73e891541620a976a0fce0da",
       "name": "minco-sqlx-postgres",
       "version": {
         "workspace": true
@@ -306,7 +306,7 @@
     },
     {
       "manifest_path": "extensions/minco-sqlx-sqlite/Cargo.toml",
-      "manifest_sha256": "1f43f189197f61e7d5412a1ad07eab72aaa638f56a9e8f752483fbe6c495f762",
+      "manifest_sha256": "db95d781cc540f18682659bf194c37679e45962bd06d6b906e00610003e5ee05",
       "name": "minco-sqlx-sqlite",
       "version": {
         "workspace": true
@@ -334,7 +334,7 @@
       "core_compatibility": "^1.5.0",
       "crate": "minco-plugin-audit",
       "descriptor_path": "plugins/minco-plugin-audit/minco-plugin.json",
-      "descriptor_sha256": "42b2e5ed8536540f1f16140e1804b9f4cca99a9147bb6e8b4ef4335a5a0edd24",
+      "descriptor_sha256": "a83c233c043d38853b4b1dcfe6eedffff66d238c1b8cf476118219359c0c1355",
       "id": "audit",
       "kind": "plugin",
       "plugin_version": "1.0.0",
@@ -354,7 +354,7 @@
       "core_compatibility": "^1.5.0",
       "crate": "minco-aws-dynamodb",
       "descriptor_path": "extensions/minco-aws-dynamodb/minco-plugin.json",
-      "descriptor_sha256": "a4c93c3a1f9cdbc176aaa27d9510123af0092f9a224f9d281d897de2c071feec",
+      "descriptor_sha256": "1a4c9e8b585785815ea81aaeeb07515a12c00e6a633e69367d45407e4c300aaa",
       "id": "aws-dynamodb",
       "kind": "adapter",
       "plugin_version": "1.0.0",
@@ -521,7 +521,7 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "702f8a1b862822d74a0dee775b99abe5ef3957ecfc3314dbd6236ea7027b7c99",
+  "projection_sha256": "d6b97fd5cb419c0350b2f293ea8ec55500a3844bca1e5e1cf8c6235bb032edee",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "0d6df5b3ed8dc55d35116217120619c46086170f72912b03fc277ffcdaa7b2b2"

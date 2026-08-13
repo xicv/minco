@@ -8,20 +8,20 @@
     "errors": 0,
     "warnings": 0,
     "metrics": {
-      "toml_files": 98,
+      "toml_files": 100,
       "yaml_files": 38,
       "json_files": 72,
       "workspace_members": 39,
-      "contract_sha256": "f0e0d1aee9858e54f814270b6f78a5c63ea6993311210f6a6f6ee7323838843f",
-      "contract_operations": 7,
-      "contract_schemas": 13,
+      "contract_sha256": "f43837b7e41a03b311588dd5466f7029d4bf1e8940685bd194bc1bc97abd796c",
+      "contract_operations": 8,
+      "contract_schemas": 17,
       "plugins": 19,
       "milestones": 15,
-      "tasks": 104,
-      "rust_files": 204,
+      "tasks": 108,
+      "rust_files": 212,
       "python_files": 41,
       "shell_files": 82,
-      "implementation_files_scanned": 477
+      "implementation_files_scanned": 491
     },
     "findings": [],
     "limitations": [
@@ -30,11 +30,11 @@
     ]
   },
   "metrics": {
-    "rust_files": 204,
-    "rust_lines": 106487,
-    "unsafe_tokens": 14,
-    "production_unwrap_expect": 198,
-    "sql_files": 16
+    "rust_files": 212,
+    "rust_lines": 114164,
+    "unsafe_tokens": 15,
+    "production_unwrap_expect": 216,
+    "sql_files": 20
   },
   "findings": [
     {
@@ -47,7 +47,7 @@
       "severity": "warning",
       "code": "REVIEW-RUST-001",
       "path": "crates/minco-plan/src/sam.rs",
-      "message": "82 unwrap/expect calls before test code"
+      "message": "86 unwrap/expect calls before test code"
     },
     {
       "severity": "information",

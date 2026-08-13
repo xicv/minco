@@ -1,6 +1,7 @@
 //! Concrete order persistence adapters.
 #![forbid(unsafe_code)]
 
+pub mod audit;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
 mod memory;
@@ -9,6 +10,7 @@ mod postgres;
 #[cfg(feature = "sqlite")]
 mod sqlite;
 
+pub use audit::OrderAuditReader;
 #[cfg(feature = "dynamodb")]
 pub use dynamodb::DynamoDbOrderStore;
 pub use memory::MemoryOrderStore;

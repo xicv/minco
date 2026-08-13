@@ -1,4 +1,5 @@
 use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
+use minco_core::ApplicationGraph;
 use minco_plan::{
     CostClass, DeploymentConfig, DeploymentPlan, IamResource, IngressPlan, PreviewCleanupSchedule,
     PreviewLifecyclePlan, PreviewResource, PreviewResourceRetention, QueuePlan, RealtimeDeployment,
@@ -145,6 +146,18 @@ fn preview_cleanup_rejects_recurring_or_incomplete_schedule_authority() {
 }
 
 fn plan_from_config(source: &str) -> DeploymentPlan {
+    plan_from_config_with_graph(source, ApplicationGraph::default())
+}
+
+fn plan_from_config_with_audit(source: &str) -> DeploymentPlan {
+    let mut graph = ApplicationGraph::default();
+    graph
+        .capabilities
+        .insert("audit.ledger".into(), "2.0.0".parse().expect("version"));
+    plan_from_config_with_graph(source, graph)
+}
+
+fn plan_from_config_with_graph(source: &str, graph: ApplicationGraph) -> DeploymentPlan {
     let config: DeploymentConfig = toml::from_str(source).expect("deployment config");
     let contract = ContractDocument {
         source: "inline".into(),
@@ -157,7 +170,7 @@ fn plan_from_config(source: &str) -> DeploymentPlan {
         raw: serde_json::json!({}),
     };
 
-    config.into_plan(&contract)
+    config.into_plan_with_graph(&contract, graph)
 }
 
 #[test]
@@ -955,7 +968,7 @@ fn dynamodb_worker_fixture_has_no_relational_connection_or_iam_projection() {
 
 #[test]
 fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam() {
-    let plan = plan_from_config(include_str!("fixtures/api_dynamodb_explicit_v2.toml"));
+    let plan = plan_from_config_with_audit(include_str!("fixtures/api_dynamodb_explicit_v2.toml"));
 
     let diagnostics = plan.validate();
     assert!(
@@ -990,7 +1003,7 @@ fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam()
                 ]
             && matches!(
                 &intent.resource,
-                IamResource::DynamoDbTable { logical_id } if logical_id == "AuditLedgerTable"
+                IamResource::DynamoDbTable { logical_id } if logical_id == "OrdersAuditTable"
             )
     }));
 
@@ -998,7 +1011,7 @@ fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam()
     let _: serde_yaml_ng::Value = serde_yaml_ng::from_str(&yaml).expect("syntactically valid SAM");
     for required in [
         "  OrdersTable:\n",
-        "  AuditLedgerTable:\n",
+        "  OrdersAuditTable:\n",
         "    Type: AWS::DynamoDB::Table\n",
         "      BillingMode: PAY_PER_REQUEST\n",
         "      DeletionProtectionEnabled: true\n",
@@ -1006,7 +1019,7 @@ fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam()
         "    DeletionPolicy: Retain\n",
         "    UpdateReplacePolicy: Retain\n",
         "          DYNAMODB_TABLE_NAME: !Ref OrdersTable\n",
-        "          AUDIT_DYNAMODB_TABLE_NAME: !Ref AuditLedgerTable\n",
+        "          AUDIT_DYNAMODB_TABLE_NAME: !Ref OrdersAuditTable\n",
         "                - dynamodb:DescribeTable\n",
         "                - dynamodb:GetItem\n",
         "                - dynamodb:TransactWriteItems\n",
@@ -1017,7 +1030,7 @@ fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam()
         "                - !Sub '${OrdersTable.Arn}/index/orders-by-created-at-inverted-id'\n",
         "                - !Sub '${OrdersTable.Arn}/index/orders-by-id'\n",
         "                - dynamodb:BatchGetItem\n",
-        "              Resource: !GetAtt AuditLedgerTable.Arn\n",
+        "              Resource: !GetAtt OrdersAuditTable.Arn\n",
     ] {
         assert!(yaml.contains(required), "missing {required:?} in:\n{yaml}");
     }
@@ -1035,11 +1048,9 @@ fn explicit_dynamodb_table_contract_is_schema_closed_and_validates_provider_iden
     );
     assert!(toml::from_str::<DeploymentConfig>(&unknown).is_err());
 
-    let mut plan = plan_from_config(source);
+    let mut plan = plan_from_config_with_audit(source);
     let minco_plan::DatabaseDeployment::DynamoDbOnDemand {
-        table: Some(table),
-        audit_table: Some(audit_table),
-        ..
+        table: Some(table), ..
     } = &mut plan.database
     else {
         panic!("explicit DynamoDB table");
@@ -1047,17 +1058,11 @@ fn explicit_dynamodb_table_contract_is_schema_closed_and_validates_provider_iden
     table.logical_id = "not-a-logical-id".into();
     table.function_id = "missing-function".into();
     table.global_secondary_indexes[1].name = table.global_secondary_indexes[0].name.clone();
-    audit_table.logical_id = table.logical_id.clone();
-    audit_table.partition_key.name = "wrong".into();
-    audit_table.point_in_time_recovery = false;
     let diagnostics = plan.validate();
     for code in [
         "MINCO-DYNAMODB-002",
         "MINCO-DYNAMODB-003",
         "MINCO-DYNAMODB-008",
-        "MINCO-DYNAMODB-009",
-        "MINCO-DYNAMODB-011",
-        "MINCO-DYNAMODB-012",
     ] {
         assert!(
             diagnostics
@@ -1066,6 +1071,13 @@ fn explicit_dynamodb_table_contract_is_schema_closed_and_validates_provider_iden
             "missing {code} in {diagnostics:#?}"
         );
     }
+    let audit = plan
+        .dynamodb_audit_table()
+        .expect("audit capability derives a separate table");
+    assert_eq!(audit.logical_id, "not-a-logical-idAuditTable");
+    assert_eq!(audit.partition_key.name, "pk");
+    assert_eq!(audit.sort_key.expect("sort key").name, "sk");
+    assert!(audit.point_in_time_recovery);
 }
 
 #[test]

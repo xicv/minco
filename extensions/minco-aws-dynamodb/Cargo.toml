@@ -32,6 +32,7 @@ aws-config.workspace = true
 aws-sdk-dynamodb.workspace = true
 chrono.workspace = true
 http.workspace = true
+hex.workspace = true
 minco-core.workspace = true
 minco-plugin-audit.workspace = true
 serde.workspace = true

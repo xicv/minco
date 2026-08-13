@@ -239,6 +239,56 @@ paths:
           $ref: '#/components/responses/Problem'
         default:
           $ref: '#/components/responses/Problem'
+  /orders/{orderId}/audit:
+    parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: listOrderAuditHistory
+      summary: List the durable semantic action history for an order
+      tags: [orders]
+      x-minco-resource:
+        name: order-audit-history
+        action: list
+        defaultLimit: 50
+        maxLimit: 100
+        defaultSort: [-occurredAt, -eventId]
+        sortFields: [occurredAt, eventId]
+        filterFields: []
+        cursorFields: [occurredAt, eventId]
+      parameters:
+        - in: query
+          name: page[limit]
+          description: Maximum number of audit actions to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - in: query
+          name: page[after]
+          description: Opaque cursor returned by the previous audit page.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - in: query
+          name: sort
+          description: Comma-separated allowlisted fields; the default newest-first order is recommended.
+          schema: { type: string }
+      responses:
+        '200':
+          description: One bounded page of durable order actions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderAuditCollection'
+        default:
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     bearerAuth:
@@ -303,6 +353,71 @@ components:
             $ref: '#/components/schemas/OrderResponse'
         page:
           $ref: '#/components/schemas/CursorPageInfo'
+    OrderAuditActor:
+      type: object
+      additionalProperties: false
+      required: [kind, subject]
+      properties:
+        kind:
+          type: string
+          enum: [human, service, system, migration, database_principal, unknown]
+        subject:
+          type: [string, 'null']
+    OrderAuditChange:
+      type: object
+      additionalProperties: false
+      required: [after, before, field]
+      properties:
+        after:
+          type: [string, 'null']
+          description: Privacy-safe literal, digest marker, redaction marker or omission marker.
+        before:
+          type: [string, 'null']
+          description: Privacy-safe literal, digest marker, redaction marker or omission marker.
+        field:
+          type: string
+    OrderAuditCollection:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderAuditEvent'
+        page:
+          $ref: '#/components/schemas/CursorPageInfo'
+    OrderAuditEvent:
+      type: object
+      additionalProperties: false
+      required: [action, actor, changes, correlationId, eventId, occurredAt, operationId, recordedAt, resourceRevision]
+      properties:
+        action:
+          type: string
+        actor:
+          $ref: '#/components/schemas/OrderAuditActor'
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderAuditChange'
+        correlationId:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        operationId:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        resourceRevision:
+          type: [integer, 'null']
+          format: int64
+          minimum: 1
     OrderDocument:
       type: object
       additionalProperties: false
