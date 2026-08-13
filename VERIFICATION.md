@@ -2,10 +2,32 @@
 
 Date: 2026-08-13
 Current workspace version: `1.7.0`
-Published baseline: `1.6.0`
-Workspace release state: `candidate`
+Published baseline: `1.7.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T33 `1.7.0` published release closure
+
+PR #163 reviewed exact source `22d62cb75a24011e2e83e9ccb3c4e07df4b02081`
+and tree `31d279aca70e747ea934258ec2ce1548c66fd90d`, with zero unresolved
+threads and passing clean-Linux run `31712458388`. The guarded squash merge
+created `7773892792696ccf061ddbb49fa284e5ba7f6747` with that exact tree.
+Merged-main clean-Linux run `31712808528` and authentication-only OIDC run
+`31713263154` passed for the same source.
+
+Immutable tag `v1.7.0` resolves to the merge commit. Publication run
+`31713475849` passed package archive, selected-package, external-consumer and
+dependency-ordered upload gates. Independent registry validation found all 34
+exact `1.7.0` packages present and non-yanked, and a fresh public install
+reported `minco 1.7.0`. The GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.7.0>.
+
+This post-publication change promotes repository and documentation truth only.
+Stable Pages and all exact docs.rs routes remain separate gates until verified.
+No AWS application operation or production mutation occurred. Hosted
+performance, current live-provider evidence, model-driven application
+evaluation and human-review measurement remain `NOT RUN` or absent.
 
 ## M14-T32 `1.7.0` candidate preparation
 

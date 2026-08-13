@@ -5,7 +5,7 @@ description: Install version-matched Minco skills, inspect bounded project conte
 
 # Develop with Codex and Claude Code
 
-The Minco 1.7.0 candidate packages nine focused application workflows for Codex
+The Minco 1.7.0 release packages nine focused application workflows for Codex
 and Claude Code. Every skill teaches the Apple-first fresh local-runtime
 boundary while preserving exact-resource recovery, explicit selection and
 Docker fallback. The durable-audit, typed-fake, topology-cost and

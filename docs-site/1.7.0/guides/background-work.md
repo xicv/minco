@@ -13,7 +13,7 @@ IAM grant, or running worker.
 
 ```toml
 [dependencies]
-minco = { version = "1.6.0", features = ["plan", "aws-worker"] }
+minco = { version = "1.7.0", features = ["plan", "aws-worker"] }
 ```
 
 Generate an application-owned worker boundary with a dry run first:

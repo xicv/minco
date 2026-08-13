@@ -1,21 +1,37 @@
-# Minco 1.7.0 candidate handoff
+# Minco 1.7.0 release-closure handoff
 
 Date: 2026-08-13
-Published baseline: `1.6.0`
+Published baseline: `1.7.0`
 Current workspace version: `1.7.0`
-Workspace release state: `candidate`
-Published `1.6.0` source: `9abae9128dddc9bc32d099732e1421a0332e4785`
-Published source-tree digest: `af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418`
-Published release task: `M14-T30`
-Latest release task: `M14-T32` (`completed`)
+Workspace release state: `published`
+Published `1.7.0` source: `7773892792696ccf061ddbb49fa284e5ba7f6747`
+Published source-tree digest: `ef52d3083c0f8b73db9ae1f01e028aae265e28579cc705faf0b20938f060d345`
+Published release task: `M14-T33`
+Latest release task: `M14-T33` (`active`)
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active 1.7.0 release closure
+
+PR #163 reviewed exact source `22d62cb75a24011e2e83e9ccb3c4e07df4b02081`
+and tree `31d279aca70e747ea934258ec2ce1548c66fd90d`, with zero unresolved
+threads and passing clean-Linux run `31712458388`. It merged by guarded squash
+as the same tree in commit `7773892792696ccf061ddbb49fa284e5ba7f6747`.
+Merged-main clean-Linux run `31712808528`, authentication-only OIDC run
+`31713263154` and publication run `31713475849` passed. Immutable tag
+`v1.7.0`, all 34 exact non-yanked registry versions, a fresh public CLI install
+and the GitHub release are verified independently.
+
+The closure changes release and documentation truth only. Stable Pages and all
+exact docs.rs routes remain separate until verified. No AWS application
+operation or production mutation occurred; provider/performance and
+model/human outcome lanes remain absent or `NOT RUN`.
 
 ## Completed 1.7.0 candidate preparation
 
 M14-T32 advances the existing 34-package family and 19 official descriptors to
-`1.7.0`, freezes the candidate manual and carries the already merged Apple-first
+`1.7.0`, freezes the release manual and carries the already merged Apple-first
 fresh local-service behavior into versioned release evidence. The immutable
-published baseline remains `v1.6.0` at the source and digest recorded above.
+previously published baseline was `v1.6.0`.
 
 Existing receipts and exact owned resources remain authoritative. Docker is
 still supported, and no automatic persistent-data migration or resource

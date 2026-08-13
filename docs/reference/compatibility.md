@@ -2,17 +2,16 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.6.0`
+Published release: `1.7.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.7.0` candidate
+Current workspace: `1.7.0` published
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1, 1.2, 1.3, 1.4, 1.5 and published 1.6.0 release lines plus the
-unpublished 1.7.0 candidate. Merge, tag,
+the 1.1 through published 1.7.0 release lines. Merge, tag,
 registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
@@ -40,10 +39,10 @@ The 1.6.0 release adds the versioned V2 audit contract, ledger services and
 derived DynamoDB audit plan without adding fields or variants to previously
 exhaustively constructible public types. Existing audit interfaces, CLI names,
 serialized Plan inputs, defaults and provider selection remain compatible.
-Official descriptors advance in lock-step to `^1.6.0`; older compatible
+Official descriptors advance in lock-step to `^1.7.0`; older compatible
 third-party descriptors remain valid unless they require the V2 surface.
 
-The 1.7.0 candidate changes fresh `auto` local-service selection to prefer a
+The 1.7.0 release changes fresh `auto` local-service selection to prefer a
 ready Apple Container runtime. It preserves explicit runtime selection,
 receipt and exact-resource precedence, Docker fallback, public APIs, Plan IR,
 production topology and provider semantics. Official descriptors advance in

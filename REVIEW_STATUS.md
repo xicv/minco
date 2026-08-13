@@ -1,5 +1,21 @@
 # Review status
 
+## Active M14-T33 Minco 1.7.0 published release closure
+
+Minco `1.7.0` is the current published baseline from exact release source
+`7773892792696ccf061ddbb49fa284e5ba7f6747`. PR #163 reviewed tree
+`31d279aca70e747ea934258ec2ce1548c66fd90d` with zero unresolved review
+threads, passed exact-head clean Linux and merged as the same tree. Immutable
+tag `v1.7.0`, publication run `31713475849`, all 34 exact non-yanked crates.io
+records, a fresh public CLI install and the GitHub release are independently
+verified.
+
+This truth-only closure changes no Rust API, Plan IR, plugin capability,
+runtime selection, provider topology or Docker fallback. Stable Pages and exact
+docs.rs routes remain independent gates. Live AWS, production, hosted
+performance, model outcome and measured human-review evidence remain unproven
+or `NOT RUN`.
+
 ## Completed M14-T32 Minco 1.7.0 candidate preparation
 
 The exact published `1.6.0` baseline comes from release source

@@ -1,14 +1,13 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.6.0`
+Published baseline: `1.7.0`
 Current workspace version: `1.7.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use exact published `1.6.0` dependencies for applications. Follow the
-[1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md), then review the
-[1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing.
-Use the [1.6.0-to-1.7.0 guide](1.6.0-to-1.7.0.md) when evaluating the
-unpublished Apple-first local-runtime candidate from source.
+Use exact published `1.7.0` dependencies for applications. Follow the
+[1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing,
+then use the [1.6.0-to-1.7.0 guide](1.6.0-to-1.7.0.md) for Apple-first fresh
+local-service selection.
 Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 
@@ -22,7 +21,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.6.0", default-features = false, features = ["contract"] }
+minco = { version = "1.7.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -197,6 +196,11 @@ Applications moving from `1.5.0` to the published `1.6.0` release must use the
 [`1.5.0` to `1.6.0` guide](1.5.0-to-1.6.0.md). It covers semantic audit intent,
 separate SQL ledgers, DynamoDB cross-table transactions, bounded history,
 privacy, indefinite growth and archive authority.
+
+Applications moving from `1.6.0` to the published `1.7.0` release must use the
+[`1.6.0` to `1.7.0` guide](1.6.0-to-1.7.0.md). It covers Apple-first fresh
+automatic local-service selection, existing-resource precedence and the
+retained explicit Docker fallback.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

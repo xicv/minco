@@ -6,21 +6,20 @@ description: Install the Minco toolchain and choose a small, explicit framework 
 # Installation
 
 Minco uses ordinary Rust packages plus the `cargo minco` control plane. The
-published baseline is 1.6.0. The 1.7.0 candidate and current development require
-Rust 1.97.1. Use exact 1.6.0 packages for applications and the
-repository-pinned workspace binary only when deliberately evaluating
-unreleased source.
+published baseline is 1.7.0. The release and current development require Rust
+1.97.1. Use exact 1.7.0 packages for applications and the repository-pinned
+workspace binary only when deliberately evaluating unreleased source.
 
 ## Install the CLI
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 1.6.0 --locked
+cargo +1.97.1 install cargo-minco --version 1.7.0 --locked
 cargo minco --version
 ```
 
-The last command should print `minco 1.6.0`. Contributors reviewing the
-unpublished 1.7.0 candidate use the repository-pinned toolchain and workspace binary:
+The last command should print `minco 1.7.0`. Contributors reviewing unreleased
+source use the repository-pinned toolchain and workspace binary:
 
 ```bash
 git clone https://github.com/xicv/minco.git
@@ -34,20 +33,20 @@ The facade's defaults are deliberately small: OpenAPI contracts, HTTP
 conventions, health, observability, and idempotency.
 
 ```bash
-cargo add minco@1.6.0
+cargo add minco@1.7.0
 ```
 
 Add only the capabilities the application needs:
 
 ```bash
 # PostgreSQL API running on native Lambda
-cargo add minco@1.6.0 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@1.7.0 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Local or single-process SQLite API
-cargo add minco@1.6.0 --features sqlx-sqlite,test
+cargo add minco@1.7.0 --features sqlx-sqlite,test
 
 # Provider-neutral kernel only
-cargo add minco@1.6.0 --no-default-features
+cargo add minco@1.7.0 --no-default-features
 ```
 
 See [Cargo feature flags](../reference/feature-flags) before enabling `full`.
@@ -71,7 +70,9 @@ inspection as compilation.
 
 ## Optional tools
 
-- Docker is needed for the local PostgreSQL and Rustack topology, not for an
+- Apple Container 1.2.x is preferred for fresh Minco-owned PostgreSQL and
+  Rustack services on qualified Apple silicon hosts. Docker remains the
+  fallback and supports Compose-only custom services; neither is needed for an
   SQLite-only application.
 - Jujutsu is the recommended task workflow; generated projects initialize a
   colocated JJ/Git repository unless `--vcs none` is selected.
