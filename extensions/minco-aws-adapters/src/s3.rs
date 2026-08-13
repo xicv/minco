@@ -7,15 +7,22 @@ use aws_sdk_s3::{
     config::endpoint::{DefaultResolver, Params, ResolveEndpoint},
     presigning::PresigningConfig,
     primitives::ByteStream,
-    types::ServerSideEncryption,
+    types::{
+        ChecksumAlgorithm, ChecksumType, CompletedMultipartUpload, CompletedPart,
+        ServerSideEncryption,
+    },
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
+use futures::stream;
 use hmac::{Hmac, KeyInit, Mac};
 use minco_plugin_object_storage::{
-    ObjectAccessSigner, ObjectKey, ObjectMetadata, ObjectStore, ObjectStoreError,
+    CompleteMultipartObject, CompletedMultipartObject, MultipartObjectSigner, ObjectAccessSigner,
+    ObjectDownloadSigner, ObjectKey, ObjectMetadata, ObjectReadHead, ObjectReadRequest,
+    ObjectReadResponse, ObjectStore, ObjectStoreError, ObjectStreamReader, ObjectTransferError,
     ObjectUploadError, ObjectUploadSigner, PresignGetObject, PresignPutObject, PresignedMethod,
-    PresignedObjectRequest, PutObject, SignObjectUpload, StoredObject,
+    PresignedObjectRequest, ProviderMultipartUploadId, PutObject, SignMultipartObject,
+    SignMultipartPart, SignObjectDownload, SignObjectUpload, StoredObject,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -192,6 +199,64 @@ impl S3ObjectAdapter {
             Utc::now(),
         )
         .await
+    }
+
+    async fn presigning_window(
+        &self,
+        expires_in: TimeDelta,
+    ) -> Result<(PresigningConfig, DateTime<Utc>), ObjectStoreError> {
+        validate_expiry(expires_in)?;
+        let credentials = self
+            .credentials
+            .provide_credentials()
+            .await
+            .map_err(|_| ObjectStoreError::Store("AWS credentials are unavailable".into()))?;
+        let now = Utc::now();
+        let expires_at = effective_capability_expiry(now, expires_in, &credentials)
+            .map_err(upload_error_to_store)?;
+        let seconds = (expires_at - now)
+            .num_seconds()
+            .try_into()
+            .map_err(|_| ObjectStoreError::InvalidExpiry)?;
+        let config = PresigningConfig::expires_in(std::time::Duration::from_secs(seconds))
+            .map_err(|error| ObjectStoreError::Store(error.to_string()))?;
+        Ok((config, expires_at))
+    }
+
+    async fn read_head(&self, key: &ObjectKey) -> Result<Option<ObjectReadHead>, ObjectStoreError> {
+        let output = match self
+            .client
+            .head_object()
+            .bucket(&self.bucket)
+            .key(self.provider_key(key))
+            .send()
+            .await
+        {
+            Ok(output) => output,
+            Err(error)
+                if error.as_service_error().is_some_and(
+                    aws_sdk_s3::operation::head_object::HeadObjectError::is_not_found,
+                ) =>
+            {
+                return Ok(None);
+            }
+            Err(error) => {
+                return Err(ObjectStoreError::Store(crate::provider_error(
+                    "S3 HeadObject",
+                    &error,
+                )));
+            }
+        };
+        decode_read_head(
+            key,
+            output.metadata(),
+            output.content_type(),
+            output.content_length(),
+            output.e_tag(),
+            output.version_id(),
+            output.last_modified(),
+        )
+        .map(Some)
     }
 }
 
@@ -439,14 +504,7 @@ impl ObjectAccessSigner for S3ObjectAdapter {
         &self,
         request: PresignGetObject,
     ) -> Result<PresignedObjectRequest, ObjectStoreError> {
-        validate_expiry(request.expires_in)?;
-        let seconds = request
-            .expires_in
-            .num_seconds()
-            .try_into()
-            .map_err(|_| ObjectStoreError::InvalidExpiry)?;
-        let config = PresigningConfig::expires_in(std::time::Duration::from_secs(seconds))
-            .map_err(|error| ObjectStoreError::Store(error.to_string()))?;
+        let (config, expires_at) = self.presigning_window(request.expires_in).await?;
         let mut operation = self
             .client
             .get_object()
@@ -469,8 +527,277 @@ impl ObjectAccessSigner for S3ObjectAdapter {
                 .map(|(name, value)| (name.to_ascii_lowercase(), value.to_owned()))
                 .collect(),
             form_fields: BTreeMap::new(),
-            expires_at: Utc::now() + request.expires_in,
+            expires_at,
         })
+    }
+}
+
+#[async_trait]
+impl ObjectDownloadSigner for S3ObjectAdapter {
+    async fn sign_download(
+        &self,
+        request: SignObjectDownload,
+    ) -> Result<PresignedObjectRequest, ObjectTransferError> {
+        validate_download_name(request.download_file_name.as_deref().unwrap_or("download"))?;
+        let (config, expires_at) = self
+            .presigning_window(request.expires_in)
+            .await
+            .map_err(ObjectTransferError::from)?;
+        let mut operation = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(self.provider_key(&request.key))
+            .if_match(request.if_match)
+            .response_cache_control(request.cache_control);
+        if let Some(range) = request.range {
+            operation = operation.range(range.to_http_value());
+        }
+        if let Some(version_id) = request.version_id {
+            operation = operation.version_id(version_id);
+        }
+        if let Some(file_name) = request.download_file_name {
+            operation = operation
+                .response_content_disposition(format!("attachment; filename=\"{file_name}\""));
+        }
+        let signed = operation.presigned(config).await.map_err(|error| {
+            ObjectTransferError::Provider(format!("S3 presigning failed: {error}"))
+        })?;
+        Ok(PresignedObjectRequest {
+            method: PresignedMethod::Get,
+            url: signed.uri().to_owned(),
+            headers: signed
+                .headers()
+                .map(|(name, value)| (name.to_ascii_lowercase(), value.to_owned()))
+                .collect(),
+            form_fields: BTreeMap::new(),
+            expires_at,
+        })
+    }
+}
+
+#[async_trait]
+impl ObjectStreamReader for S3ObjectAdapter {
+    async fn head(&self, key: &ObjectKey) -> Result<Option<ObjectReadHead>, ObjectStoreError> {
+        self.read_head(key).await
+    }
+
+    async fn read(
+        &self,
+        request: ObjectReadRequest,
+    ) -> Result<Option<ObjectReadResponse>, ObjectStoreError> {
+        let Some(head) = self.read_head(&request.key).await? else {
+            return Ok(None);
+        };
+        if request
+            .expected_entity_tag
+            .as_deref()
+            .is_some_and(|expected| expected != head.entity_tag)
+            || request
+                .version_id
+                .as_deref()
+                .is_some_and(|expected| Some(expected) != head.version_id.as_deref())
+        {
+            return Err(ObjectStoreError::Store(
+                ObjectTransferError::PreconditionFailed.to_string(),
+            ));
+        }
+        let mut operation = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(self.provider_key(&request.key))
+            .if_match(&head.entity_tag);
+        if let Some(range) = request.range {
+            operation = operation.range(range.to_http_value());
+        }
+        if let Some(version_id) = request.version_id.or_else(|| head.version_id.clone()) {
+            operation = operation.version_id(version_id);
+        }
+        let output = match operation.send().await {
+            Ok(output) => output,
+            Err(error)
+                if error.as_service_error().is_some_and(
+                    aws_sdk_s3::operation::get_object::GetObjectError::is_no_such_key,
+                ) =>
+            {
+                return Ok(None);
+            }
+            Err(error) => {
+                return Err(ObjectStoreError::Store(crate::provider_error(
+                    "S3 GetObject stream",
+                    &error,
+                )));
+            }
+        };
+        let content_range = output.content_range().map(str::to_owned);
+        let body = output.body;
+        let chunks = stream::unfold(body, |mut body| async move {
+            body.next().await.map(|chunk| {
+                let chunk = chunk.map(|bytes| bytes.to_vec()).map_err(|error| {
+                    ObjectStoreError::Store(format!("S3 body read failed: {error}"))
+                });
+                (chunk, body)
+            })
+        });
+        Ok(Some(ObjectReadResponse {
+            head,
+            content_range,
+            stream: Box::pin(chunks),
+        }))
+    }
+}
+
+#[async_trait]
+impl MultipartObjectSigner for S3ObjectAdapter {
+    async fn initiate_multipart(
+        &self,
+        request: SignMultipartObject,
+    ) -> Result<ProviderMultipartUploadId, ObjectTransferError> {
+        validate_content_type(&request.content_type)?;
+        let attributes = encode_attributes(&request.attributes)?;
+        let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let output = self
+            .client
+            .create_multipart_upload()
+            .bucket(&self.bucket)
+            .key(self.provider_key(&request.key))
+            .content_type(request.content_type)
+            .checksum_algorithm(ChecksumAlgorithm::Sha256)
+            .checksum_type(ChecksumType::Composite)
+            .server_side_encryption(ServerSideEncryption::Aes256)
+            .metadata(META_CREATED_AT, created_at)
+            .metadata(META_ATTRIBUTES, attributes)
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectTransferError::Provider(crate::provider_error(
+                    "S3 CreateMultipartUpload",
+                    &error,
+                ))
+            })?;
+        ProviderMultipartUploadId::parse(
+            output
+                .upload_id()
+                .ok_or_else(|| {
+                    ObjectTransferError::Provider(
+                        "S3 CreateMultipartUpload returned no upload ID".into(),
+                    )
+                })?
+                .to_owned(),
+        )
+    }
+
+    async fn sign_multipart_part(
+        &self,
+        request: SignMultipartPart,
+    ) -> Result<PresignedObjectRequest, ObjectTransferError> {
+        let (config, expires_at) = self
+            .presigning_window(request.expires_in)
+            .await
+            .map_err(ObjectTransferError::from)?;
+        let content_length =
+            i64::try_from(request.size_bytes).map_err(|_| ObjectTransferError::InvalidPartSize)?;
+        let part_number = i32::try_from(request.part_number)
+            .map_err(|_| ObjectTransferError::InvalidPartNumber)?;
+        let checksum = sha256_base64(&request.sha256)?;
+        let signed = self
+            .client
+            .upload_part()
+            .bucket(&self.bucket)
+            .key(self.provider_key(&request.key))
+            .upload_id(request.upload_id.expose_secret())
+            .part_number(part_number)
+            .content_length(content_length)
+            .checksum_algorithm(ChecksumAlgorithm::Sha256)
+            .checksum_sha256(checksum)
+            .presigned(config)
+            .await
+            .map_err(|error| {
+                ObjectTransferError::Provider(format!("S3 presigning failed: {error}"))
+            })?;
+        Ok(PresignedObjectRequest {
+            method: PresignedMethod::Put,
+            url: signed.uri().to_owned(),
+            headers: signed
+                .headers()
+                .map(|(name, value)| (name.to_ascii_lowercase(), value.to_owned()))
+                .collect(),
+            form_fields: BTreeMap::new(),
+            expires_at,
+        })
+    }
+
+    async fn complete_multipart(
+        &self,
+        request: CompleteMultipartObject,
+    ) -> Result<CompletedMultipartObject, ObjectTransferError> {
+        let parts = request
+            .parts
+            .iter()
+            .map(|part| {
+                Ok(CompletedPart::builder()
+                    .part_number(
+                        i32::try_from(part.part_number)
+                            .map_err(|_| ObjectTransferError::InvalidPartNumber)?,
+                    )
+                    .e_tag(&part.entity_tag)
+                    .checksum_sha256(sha256_base64(&part.sha256)?)
+                    .build())
+            })
+            .collect::<Result<Vec<_>, ObjectTransferError>>()?;
+        self.client
+            .complete_multipart_upload()
+            .bucket(&self.bucket)
+            .key(self.provider_key(&request.key))
+            .upload_id(request.upload_id.expose_secret())
+            .multipart_upload(
+                CompletedMultipartUpload::builder()
+                    .set_parts(Some(parts))
+                    .build(),
+            )
+            .checksum_type(ChecksumType::Composite)
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectTransferError::Provider(crate::provider_error(
+                    "S3 CompleteMultipartUpload",
+                    &error,
+                ))
+            })?;
+        let head = self
+            .read_head(&request.key)
+            .await?
+            .ok_or(ObjectTransferError::MissingObject)?;
+        Ok(CompletedMultipartObject {
+            key: head.key,
+            content_type: head.content_type,
+            size_bytes: head.size_bytes,
+            entity_tag: Some(head.entity_tag),
+            version_id: head.version_id,
+            attributes: head.attributes,
+        })
+    }
+
+    async fn abort_multipart(
+        &self,
+        key: &ObjectKey,
+        upload_id: &ProviderMultipartUploadId,
+    ) -> Result<(), ObjectTransferError> {
+        self.client
+            .abort_multipart_upload()
+            .bucket(&self.bucket)
+            .key(self.provider_key(key))
+            .upload_id(upload_id.expose_secret())
+            .send()
+            .await
+            .map_err(|error| {
+                ObjectTransferError::Provider(crate::provider_error(
+                    "S3 AbortMultipartUpload",
+                    &error,
+                ))
+            })?;
+        Ok(())
     }
 }
 
@@ -761,6 +1088,56 @@ fn decode_metadata(
     })
 }
 
+fn decode_read_head(
+    key: &ObjectKey,
+    metadata: Option<&HashMap<String, String>>,
+    content_type: Option<&str>,
+    content_length: Option<i64>,
+    entity_tag: Option<&str>,
+    version_id: Option<&str>,
+    last_modified: Option<&aws_sdk_s3::primitives::DateTime>,
+) -> Result<ObjectReadHead, ObjectStoreError> {
+    let content_type = content_type
+        .filter(|value| !value.trim().is_empty())
+        .ok_or(ObjectStoreError::InvalidContentType)?
+        .to_owned();
+    let size_bytes = content_length
+        .ok_or_else(|| ObjectStoreError::Store("S3 object has no content length".into()))
+        .and_then(|value| {
+            u64::try_from(value)
+                .map_err(|_| ObjectStoreError::Store("S3 object size is invalid".into()))
+        })?;
+    let entity_tag = entity_tag
+        .filter(|value| !value.is_empty() && !value.starts_with("W/"))
+        .ok_or_else(|| ObjectStoreError::Store("S3 object has no strong entity tag".into()))?
+        .to_owned();
+    let last_modified = last_modified
+        .and_then(|value| DateTime::from_timestamp(value.secs(), value.subsec_nanos()))
+        .ok_or_else(|| ObjectStoreError::Store("S3 last-modified time is unavailable".into()))?;
+    let attributes = metadata
+        .and_then(|values| values.get(META_ATTRIBUTES))
+        .map(|value| {
+            STANDARD
+                .decode(value)
+                .map_err(|error| ObjectStoreError::Store(error.to_string()))
+                .and_then(|bytes| {
+                    serde_json::from_slice(&bytes)
+                        .map_err(|error| ObjectStoreError::Store(error.to_string()))
+                })
+        })
+        .transpose()?
+        .unwrap_or_default();
+    Ok(ObjectReadHead {
+        key: key.clone(),
+        content_type,
+        size_bytes,
+        entity_tag,
+        version_id: version_id.map(str::to_owned),
+        last_modified,
+        attributes,
+    })
+}
+
 fn post_signature(
     secret: &str,
     date: &str,
@@ -819,6 +1196,28 @@ mod tests {
             expiry.map(as_system_time),
             "minco-fixed-policy-test",
         )
+    }
+
+    fn adapter() -> S3ObjectAdapter {
+        adapter_with_credentials(credentials(None, None))
+    }
+
+    fn adapter_with_credentials(value: Credentials) -> S3ObjectAdapter {
+        let credentials = SharedCredentialsProvider::new(value);
+        let config = aws_sdk_s3::Config::builder()
+            .behavior_version(aws_sdk_s3::config::BehaviorVersion::latest())
+            .region(aws_sdk_s3::config::Region::new("ap-southeast-2"))
+            .credentials_provider(credentials.clone())
+            .build();
+        S3ObjectAdapter::new(
+            aws_sdk_s3::Client::from_conf(config),
+            credentials,
+            "minco-objects",
+            "tenant-uploads",
+            "ap-southeast-2",
+            None,
+        )
+        .unwrap()
     }
 
     fn fixed_post() -> S3PostObject {
@@ -1042,6 +1441,87 @@ mod tests {
             .await,
             Err(ObjectUploadError::InvalidCredentialExpiry)
         ));
+    }
+
+    #[tokio::test]
+    async fn resumable_presigned_requests_bind_range_size_and_part_checksum() {
+        let adapter = adapter();
+        let key = ObjectKey::parse("documents/revision-2").unwrap();
+        let download = ObjectDownloadSigner::sign_download(
+            &adapter,
+            SignObjectDownload {
+                key: key.clone(),
+                range: Some(minco_plugin_object_storage::ObjectByteRange::from(16)),
+                if_match: "\"strong-etag\"".into(),
+                version_id: Some("version-2".into()),
+                download_file_name: Some("report.pdf".into()),
+                cache_control: "private, max-age=600, immutable".into(),
+                expires_in: TimeDelta::minutes(10),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(download.method, PresignedMethod::Get);
+        assert_eq!(
+            download.headers.get("range").map(String::as_str),
+            Some("bytes=16-")
+        );
+        assert_eq!(
+            download.headers.get("if-match").map(String::as_str),
+            Some("\"strong-etag\"")
+        );
+        assert!(download.url.contains("versionId=version-2"));
+        assert!(format!("{download:?}").contains("[REDACTED PRESIGNED URL]"));
+
+        let checksum = "ab".repeat(32);
+        let part = MultipartObjectSigner::sign_multipart_part(
+            &adapter,
+            SignMultipartPart {
+                key,
+                upload_id: ProviderMultipartUploadId::parse("provider-upload-secret").unwrap(),
+                part_number: 2,
+                size_bytes: 16 * 1024 * 1024,
+                sha256: checksum.clone(),
+                expires_in: TimeDelta::minutes(10),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(part.method, PresignedMethod::Put);
+        assert_eq!(
+            part.headers.get("content-length").map(String::as_str),
+            Some("16777216")
+        );
+        assert_eq!(
+            part.headers
+                .get("x-amz-checksum-sha256")
+                .map(String::as_str),
+            Some(sha256_base64(&checksum).unwrap().as_str())
+        );
+        let debug = format!("{part:?}");
+        assert!(!debug.contains("provider-upload-secret"));
+        assert!(debug.contains("[REDACTED PRESIGNED URL]"));
+    }
+
+    #[tokio::test]
+    async fn sdk_presigning_never_outlives_temporary_credentials() {
+        let credential_expiry = Utc::now() + TimeDelta::minutes(5);
+        let adapter = adapter_with_credentials(credentials(None, Some(credential_expiry)));
+        let signed = ObjectDownloadSigner::sign_download(
+            &adapter,
+            SignObjectDownload {
+                key: ObjectKey::parse("documents/revision-2").unwrap(),
+                range: None,
+                if_match: "\"strong-etag\"".into(),
+                version_id: None,
+                download_file_name: Some("report.pdf".into()),
+                cache_control: "private, no-store".into(),
+                expires_in: TimeDelta::minutes(10),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(signed.expires_at <= credential_expiry - CREDENTIAL_EXPIRY_SAFETY_SKEW);
     }
 
     #[test]

@@ -76,7 +76,7 @@
     },
     {
       "manifest_path": "extensions/minco-aws-adapters/Cargo.toml",
-      "manifest_sha256": "d63e23131f462c31c19c95c866840a77808962b64177994313b98fdf3adbc0cb",
+      "manifest_sha256": "661a64aa111dad616cf8aa2ffd4b85fccebbedf640deb283e7175f2829f60560",
       "name": "minco-aws-adapters",
       "version": {
         "workspace": true
@@ -236,7 +236,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-object-storage/Cargo.toml",
-      "manifest_sha256": "bfd4e64309171cbf502ac5db53355fce91465fe7c80280c23f62c439be8e2cf7",
+      "manifest_sha256": "ea826766c730910483899b02c9e4d8d9bdfe53c29bc1bd11f3cdc9cf1e3fe821",
       "name": "minco-plugin-object-storage",
       "version": {
         "workspace": true
@@ -346,7 +346,7 @@
       "core_compatibility": "^1.7.0",
       "crate": "minco-aws-adapters",
       "descriptor_path": "extensions/minco-aws-adapters/minco-plugin.json",
-      "descriptor_sha256": "6a31a30b2309b3809a1ddf933b0febebba667b0a6a78186822c57056b30df527",
+      "descriptor_sha256": "551853da9c56fd833737ae669d90d2388ced01447c4298bf78dc011515fcf5e5",
       "id": "aws-adapters",
       "kind": "adapter",
       "plugin_version": "1.0.0",
@@ -523,7 +523,7 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "98e129067cdcdc4e7aa099d186c34967a38390686b9bdfb8e71f602f1395375c",
+  "projection_sha256": "f6d3688c3d4194e9cf84fac9a1786af374a2d851c9ccb45f0d0753da4b71da97",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "2cfa5c6c074b34eb3cca45282489b98ffd9a05f91612a2451e8d458b4f7a8bfb"

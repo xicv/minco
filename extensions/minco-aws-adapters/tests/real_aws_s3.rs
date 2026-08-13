@@ -5,8 +5,11 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use minco_aws_adapters::{s3::S3Addressing, s3_storage::S3ObjectStorage};
 use minco_core::{PluginId, PluginManager, PluginSelection};
 use minco_plugin_object_storage::{
-    IssueObjectUpload, IssuedObjectUpload, ObjectKey, ObjectMetadataReader, ObjectStore,
-    ObjectUploadError, ObjectUploadPolicy, ObjectUploadService,
+    DownloadCachePolicy, IssueMultipartObjectUpload, IssueObjectDownload, IssueObjectUpload,
+    IssuedObjectUpload, MultipartObjectService, MultipartPartReceipt, MultipartUploadPolicy,
+    ObjectByteRange, ObjectDownloadPolicy, ObjectDownloadService, ObjectKey, ObjectMetadataReader,
+    ObjectStore, ObjectUploadError, ObjectUploadPolicy, ObjectUploadService,
+    PendingMultipartUpload,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -41,16 +44,38 @@ async fn managed_uploads_conform_on_bounded_real_s3() {
         ObjectUploadPolicy::new(ObjectKey::parse("uploads").unwrap(), 1024, ["text/plain"])
             .unwrap();
     let mut manager = PluginManager::default();
-    manager.register(storage.plugin(policy).unwrap()).unwrap();
+    let multipart_policy = MultipartUploadPolicy::new(
+        ObjectKey::parse("large-uploads").unwrap(),
+        16 * 1024 * 1024,
+        5 * 1024 * 1024,
+        ["text/plain"],
+    )
+    .unwrap();
+    let download_policy =
+        ObjectDownloadPolicy::new(chrono::TimeDelta::minutes(10), DownloadCachePolicy::NoStore)
+            .unwrap();
+    manager
+        .register(
+            storage
+                .transfer_plugin(policy, multipart_policy, download_policy)
+                .unwrap(),
+        )
+        .unwrap();
     let mut selection = PluginSelection::default();
     selection
         .enabled
         .insert(PluginId::new("object-storage").unwrap());
     let application = manager.compose(&selection).unwrap();
     let uploads = application.services.get::<ObjectUploadService>().unwrap();
+    let multipart = application
+        .services
+        .get::<MultipartObjectService>()
+        .unwrap();
+    let downloads = application.services.get::<ObjectDownloadService>().unwrap();
     let adapter = storage.adapter();
     let client = aws_sdk_s3::Client::new(&shared);
     let mut cleanup = Vec::new();
+    let mut multipart_cleanup = Vec::new();
 
     let result = run_conformance(
         &bucket,
@@ -58,16 +83,35 @@ async fn managed_uploads_conform_on_bounded_real_s3() {
         &run_id,
         &journal,
         &uploads,
+        &multipart,
+        &downloads,
         &storage,
         &client,
         &mut cleanup,
+        &mut multipart_cleanup,
     )
     .await;
 
     let cleanup_result: TestResult = async {
+        let mut failures = Vec::new();
+        for pending in multipart_cleanup {
+            touch(
+                &journal,
+                "AbortMultipartUpload",
+                "abort conformance-owned incomplete multipart upload",
+            );
+            if let Err(error) = multipart.abort(&pending).await {
+                failures.push(format!("abort {} failed: {error}", pending.upload_id));
+            }
+        }
         for key in cleanup {
             touch(&journal, "DeleteObject", "remove conformance-owned object");
-            adapter.delete(&key).await?;
+            if let Err(error) = adapter.delete(&key).await {
+                failures.push(format!("delete {key:?} failed: {error}"));
+            }
+        }
+        if !failures.is_empty() {
+            return Err(std::io::Error::other(failures.join("; ")).into());
         }
         Ok(())
     }
@@ -82,9 +126,12 @@ async fn run_conformance(
     run_id: &str,
     journal: &str,
     uploads: &Arc<ObjectUploadService>,
+    multipart: &Arc<MultipartObjectService>,
+    downloads: &Arc<ObjectDownloadService>,
     storage: &S3ObjectStorage,
     client: &aws_sdk_s3::Client,
     cleanup: &mut Vec<ObjectKey>,
+    multipart_cleanup: &mut Vec<PendingMultipartUpload>,
 ) -> TestResult {
     let positive_body = b"minco-managed-real-s3";
     let positive = issue(uploads, positive_body, run_id, "positive").await?;
@@ -265,7 +312,151 @@ async fn run_conformance(
         "conflicting provider and metadata checksums did not fail closed",
     )?;
 
+    let large_body = vec![b'm'; 5 * 1024 * 1024 + 3];
+    touch(
+        journal,
+        "CreateMultipartUpload",
+        "initiate checksummed conformance multipart upload",
+    );
+    let issued = multipart
+        .issue(IssueMultipartObjectUpload {
+            content_type: "text/plain".into(),
+            size_bytes: large_body.len() as u64,
+            attributes: BTreeMap::from([
+                ("case".into(), "multipart".into()),
+                ("run".into(), run_id.into()),
+            ]),
+        })
+        .await?;
+    multipart_cleanup.push(issued.pending.clone());
+    cleanup.push(issued.pending.key.clone());
+    let mut trusted_parts = Vec::new();
+    for part_number in 1..=issued.grant.part_count {
+        let offset = usize::try_from(u64::from(part_number - 1) * issued.grant.part_size_bytes)?;
+        let size = usize::try_from(issued.grant.expected_part_size(part_number)?)?;
+        let body = &large_body[offset..offset + size];
+        let checksum = sha256(body);
+        let part = multipart
+            .issue_part(&issued.pending, part_number, checksum.clone())
+            .await?;
+        touch(
+            journal,
+            "UploadPart",
+            "upload exact checksummed multipart part",
+        );
+        let response = signed_request(&part.grant.request, body.to_vec()).await?;
+        ensure(
+            response.status().is_success(),
+            format!("multipart part returned {}", response.status()),
+        )?;
+        let entity_tag = required_response_header(&response, "etag")?;
+        let provider_checksum = required_response_header(&response, "x-amz-checksum-sha256")?;
+        ensure(
+            provider_checksum == STANDARD.encode(Sha256::digest(body)),
+            "provider part checksum changed",
+        )?;
+        trusted_parts.push(multipart.accept_part(
+            &issued.pending,
+            &part.expected,
+            MultipartPartReceipt {
+                part_number,
+                entity_tag,
+                sha256: checksum,
+            },
+        )?);
+    }
+    touch(
+        journal,
+        "CompleteMultipartUpload",
+        "complete ordered checksummed multipart upload",
+    );
+    let completed = multipart.complete(&issued.pending, &trusted_parts).await?;
+    multipart_cleanup.retain(|pending| pending.upload_id != issued.pending.upload_id);
+    ensure(
+        completed.size_bytes == large_body.len() as u64,
+        "completed multipart size changed",
+    )?;
+
+    touch(journal, "HeadObject", "read strong download validator");
+    touch(
+        journal,
+        "PresignedGet",
+        "issue exact range download capability",
+    );
+    let download = downloads
+        .issue(IssueObjectDownload {
+            key: completed.key.clone(),
+            range: Some(ObjectByteRange::bounded(17, 34)?),
+            expected_entity_tag: completed.entity_tag.clone(),
+            version_id: completed.version_id,
+            download_file_name: Some("multipart.txt".into()),
+        })
+        .await?;
+    touch(journal, "GetObject", "download one exact resumable range");
+    let response = signed_request(&download.request, Vec::new()).await?;
+    ensure(
+        response.status() == reqwest::StatusCode::PARTIAL_CONTENT,
+        format!("range GET returned {}", response.status()),
+    )?;
+    ensure(
+        response.bytes().await?.as_ref() == &large_body[17..34],
+        "range GET returned different bytes",
+    )?;
+
+    touch(
+        journal,
+        "CreateMultipartUpload",
+        "initiate abort conformance upload",
+    );
+    let abandoned = multipart
+        .issue(IssueMultipartObjectUpload {
+            content_type: "text/plain".into(),
+            size_bytes: 5 * 1024 * 1024,
+            attributes: BTreeMap::from([("case".into(), "abort".into())]),
+        })
+        .await?;
+    multipart_cleanup.push(abandoned.pending.clone());
+    touch(
+        journal,
+        "AbortMultipartUpload",
+        "abort exact incomplete multipart upload",
+    );
+    multipart.abort(&abandoned.pending).await?;
+    multipart_cleanup.retain(|pending| pending.upload_id != abandoned.pending.upload_id);
+
     Ok(())
+}
+
+async fn signed_request(
+    request: &minco_plugin_object_storage::PresignedObjectRequest,
+    body: Vec<u8>,
+) -> TestResult<reqwest::Response> {
+    let client = reqwest::Client::new();
+    let mut builder = match request.method {
+        minco_plugin_object_storage::PresignedMethod::Get => client.get(&request.url),
+        minco_plugin_object_storage::PresignedMethod::Put => client.put(&request.url),
+        minco_plugin_object_storage::PresignedMethod::Post => {
+            return Err(
+                std::io::Error::other("signed multipart helper does not accept POST").into(),
+            );
+        }
+    };
+    for (name, value) in &request.headers {
+        builder = builder.header(name, value);
+    }
+    if !body.is_empty() {
+        builder = builder.body(body);
+    }
+    Ok(builder.send().await?)
+}
+
+fn required_response_header(response: &reqwest::Response, name: &str) -> TestResult<String> {
+    response
+        .headers()
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+        .ok_or_else(|| std::io::Error::other(format!("response header {name} is missing")).into())
 }
 
 async fn issue(

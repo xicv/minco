@@ -5,8 +5,10 @@ use aws_sdk_s3::types::ChecksumMode;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::{DateTime, Utc};
 use minco_plugin_object_storage::{
-    ManagedObjectStoragePlugin, ObjectHead, ObjectKey, ObjectMetadataReader, ObjectStore,
-    ObjectStoreError, ObjectUploadPolicy,
+    ManagedObjectStoragePlugin, ManagedObjectTransferServices, MultipartObjectService,
+    MultipartUploadPolicy, ObjectDownloadPolicy, ObjectDownloadService, ObjectDownloadSigner,
+    ObjectHead, ObjectKey, ObjectMetadataReader, ObjectReadService, ObjectStore, ObjectStoreError,
+    ObjectStreamReader, ObjectUploadPolicy,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -110,6 +112,30 @@ impl S3ObjectStorage {
             metadata,
             policy,
         ))
+    }
+
+    /// Compose the bounded single-upload lifecycle together with direct
+    /// resumable download and multipart services from one exact S3 client,
+    /// bucket, prefix, and credential source.
+    pub fn transfer_plugin(
+        &self,
+        upload_policy: ObjectUploadPolicy,
+        multipart_policy: MultipartUploadPolicy,
+        download_policy: ObjectDownloadPolicy,
+    ) -> Result<ManagedObjectStoragePlugin, ObjectStoreError> {
+        let plugin = self.plugin(upload_policy)?;
+        let reader: Arc<dyn ObjectStreamReader> = self.adapter.clone();
+        let download_signer: Arc<dyn ObjectDownloadSigner> = self.adapter.clone();
+        let multipart_signer: Arc<dyn minco_plugin_object_storage::MultipartObjectSigner> =
+            self.adapter.clone();
+        let reads = ObjectReadService::new(reader);
+        let downloads = ObjectDownloadService::new(download_signer, reads.clone(), download_policy);
+        let multipart = MultipartObjectService::new(multipart_signer, multipart_policy);
+        Ok(
+            plugin.with_transfer_services(ManagedObjectTransferServices::new(
+                reads, downloads, multipart,
+            )),
+        )
     }
 
     pub fn adapter(&self) -> Arc<S3ObjectAdapter> {
@@ -258,21 +284,9 @@ fn decode_sha256(
         .map(|value| validate_sha256(value))
         .transpose()?;
     let provider_sha256 = provider_checksum_sha256
-        .map(|value| {
-            STANDARD
-                .decode(value)
-                .map_err(|error| ObjectStoreError::Store(error.to_string()))
-                .and_then(|bytes| {
-                    if bytes.len() == 32 {
-                        Ok(hex(&bytes))
-                    } else {
-                        Err(ObjectStoreError::Store(
-                            "S3 SHA-256 checksum has an invalid length".into(),
-                        ))
-                    }
-                })
-        })
-        .transpose()?;
+        .map(decode_provider_sha256)
+        .transpose()?
+        .flatten();
     match (metadata_sha256, provider_sha256) {
         (Some(metadata), Some(provider)) if metadata != provider => Err(ObjectStoreError::Store(
             "S3 checksum metadata does not match the provider checksum".into(),
@@ -283,6 +297,39 @@ fn decode_sha256(
         // checksum, while compatibility objects remain readable with no
         // verified checksum.
         (_, None) => Ok(None),
+    }
+}
+
+fn decode_provider_sha256(value: &str) -> Result<Option<String>, ObjectStoreError> {
+    let (encoded, is_composite) = match value.rsplit_once('-') {
+        Some((encoded, part_count)) => {
+            let part_count = part_count.parse::<u32>().map_err(|_| {
+                ObjectStoreError::Store("S3 composite SHA-256 checksum is invalid".into())
+            })?;
+            if part_count == 0 {
+                return Err(ObjectStoreError::Store(
+                    "S3 composite SHA-256 checksum is invalid".into(),
+                ));
+            }
+            (encoded, true)
+        }
+        None => (value, false),
+    };
+    let bytes = STANDARD
+        .decode(encoded)
+        .map_err(|error| ObjectStoreError::Store(error.to_string()))?;
+    if bytes.len() != 32 {
+        return Err(ObjectStoreError::Store(
+            "S3 SHA-256 checksum has an invalid length".into(),
+        ));
+    }
+    if is_composite {
+        // S3's multipart checksum is a checksum of part checksums, not the
+        // SHA-256 of the complete byte sequence. Do not promote it to the
+        // application field whose contract is the latter.
+        Ok(None)
+    } else {
+        Ok(Some(hex(&bytes)))
     }
 }
 
@@ -396,6 +443,16 @@ mod tests {
     fn metadata_only_checksum_is_not_treated_as_provider_verified() {
         let metadata = hex(&Sha256::digest(b"metadata-only"));
         assert_eq!(decode_sha256(Some(&metadata), None).unwrap(), None);
+    }
+
+    #[test]
+    fn multipart_composite_checksum_is_not_treated_as_a_whole_object_checksum() {
+        let metadata = hex(&Sha256::digest(b"whole-object"));
+        let composite = format!("{}-2", STANDARD.encode(Sha256::digest(b"parts")));
+        assert_eq!(
+            decode_sha256(Some(&metadata), Some(&composite)).unwrap(),
+            None
+        );
     }
 
     #[test]

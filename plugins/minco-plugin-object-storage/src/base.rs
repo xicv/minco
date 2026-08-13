@@ -17,7 +17,7 @@ use std::{
 };
 use tokio::sync::{Mutex, RwLock};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct ObjectKey(String);
 
@@ -39,6 +39,16 @@ impl ObjectKey {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for ObjectKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::parse(value).map_err(|_| serde::de::Error::custom("invalid object key"))
     }
 }
 
