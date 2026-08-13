@@ -17,11 +17,11 @@ contains no NAT Gateway, provisioned concurrency, scheduled poller, or
 always-on application compute. Storage, retained logs, DNS, secrets, database
 storage, schedules, requests, and other residual dimensions remain explicit.
 
-> Published baseline: `1.5.0`
+> Published baseline: `1.6.0`
 >
 > Current workspace version: `1.6.0`
 >
-> Workspace release state: `candidate`
+> Workspace release state: `published`
 >
 > Current publishable package count: `34`
 
@@ -30,16 +30,16 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 Read the [versioned Minco documentation](https://xicv.github.io/minco/), or
 start directly with:
 
-- [Build your first API](https://xicv.github.io/minco/1.5.0/getting-started/first-application)
-- [Build a resource API](https://xicv.github.io/minco/1.5.0/guides/resource-api)
-- [Deploy to AWS](https://xicv.github.io/minco/1.5.0/guides/deployment)
-- [CLI reference](https://xicv.github.io/minco/1.5.0/reference/cli)
+- [Build your first API](https://xicv.github.io/minco/1.6.0/getting-started/first-application)
+- [Build a resource API](https://xicv.github.io/minco/1.6.0/guides/resource-api)
+- [Deploy to AWS](https://xicv.github.io/minco/1.6.0/guides/deployment)
+- [CLI reference](https://xicv.github.io/minco/1.6.0/reference/cli)
 - [Generated package, feature, plugin, CLI, schema, and diagnostic reference](docs/reference/generated/index.md)
-- [Plugin conformance](https://xicv.github.io/minco/1.5.0/guides/plugin-conformance)
-- [Zero idle, precisely](https://xicv.github.io/minco/1.5.0/explanation/zero-idle)
-- [Develop with Codex and Claude](https://xicv.github.io/minco/1.5.0/guides/agent-development)
-- [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.5.0/guides/payments-waffo)
-- [Review the 1.6.0 durable auditing candidate](https://xicv.github.io/minco/1.6.0/guides/auditing)
+- [Plugin conformance](https://xicv.github.io/minco/1.6.0/guides/plugin-conformance)
+- [Zero idle, precisely](https://xicv.github.io/minco/1.6.0/explanation/zero-idle)
+- [Develop with Codex and Claude](https://xicv.github.io/minco/1.6.0/guides/agent-development)
+- [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.6.0/guides/payments-waffo)
+- [Operate durable auditing](https://xicv.github.io/minco/1.6.0/guides/auditing)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -51,7 +51,7 @@ Install the exact stable control plane:
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 1.5.0 --locked
+cargo +1.97.1 install cargo-minco --version 1.6.0 --locked
 ```
 
 Generate and inspect a layered SQLite application:
@@ -68,18 +68,18 @@ cargo minco check --with-cargo
 Applications normally depend on the feature-gated facade:
 
 ```bash
-cargo add minco@1.5.0
+cargo add minco@1.6.0
 
 # PostgreSQL API on native Lambda
-cargo add minco@1.5.0 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@1.6.0 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Provider-neutral core only
-cargo add minco@1.5.0 --no-default-features
+cargo add minco@1.6.0 --no-default-features
 ```
 
 ## Agent-native application development
 
-The `1.6.0` candidate packages nine focused, version-matched workflow skills
+The `1.6.0` release packages nine focused, version-matched workflow skills
 for Codex and Claude Code. It keeps the provider-specific Waffo workflow,
 updates every skill for the durable-audit release boundary, and retains the
 mandatory cumulative changelog-to-skill freshness gate. Minco
@@ -108,7 +108,7 @@ measured human-review effort remain `NOT RUN` for this release.
 
 ## The resource API convention
 
-Minco 1.5.0 retains the opt-in, OpenAPI-first CRUD convention without adding
+Minco 1.6.0 retains the opt-in, OpenAPI-first CRUD convention without adding
 an ORM or generic repository:
 
 | Action | Success | Control |
@@ -125,7 +125,7 @@ policy, and transaction boundaries remain in application use cases.
 
 ## Durable action auditing
 
-The `1.6.0` candidate adds a schema-agnostic, append-only audit contract without
+The `1.6.0` release adds a schema-agnostic, append-only audit contract without
 introducing an ORM. Application use cases produce semantic actions and adapters
 commit them with the domain mutation: SQL profiles use a transactional source
 journal and a separate ledger, while the Orders DynamoDB profile uses one
@@ -140,7 +140,7 @@ PITR, relationship fanout and archive costs stay visible. See the
 
 ## Static plugin distribution and conformance
 
-The published `1.5.0` release includes strict, archive-visible plugin distribution
+The published `1.6.0` release includes strict, archive-visible plugin distribution
 records and one public offline conformance kit. Metadata can be inspected without
 loading plugin code; it never enables a crate or replaces explicit Cargo
 dependencies and typed constructor registration.
@@ -154,7 +154,7 @@ cargo minco plugin test --all --json
 Passing conformance proves the declared package and, when supplied, concrete
 composition behavior. Application, provider/live, deployment and production
 readiness remain distinct evidence states. See the
-[`1.5.0` plugin guide](https://xicv.github.io/minco/1.5.0/guides/plugin-conformance).
+[`1.6.0` plugin guide](https://xicv.github.io/minco/1.6.0/guides/plugin-conformance).
 
 ## Core guarantees
 
@@ -210,9 +210,9 @@ deployment, promotion, and production runtime are separate evidence states.
 
 ## Release
 
-The coordinated 34-crate `1.5.0` family is published from immutable tag
-[`v1.5.0`](https://github.com/xicv/minco/releases/tag/v1.5.0) at exact qualified
-commit `c3706559357510d33d046fa461f8550fbbd4c04c`. Independent registry validation
+The coordinated 34-crate `1.6.0` family is published from immutable tag
+[`v1.6.0`](https://github.com/xicv/minco/releases/tag/v1.6.0) at exact qualified
+commit `9abae9128dddc9bc32d099732e1421a0332e4785`. Independent registry validation
 found all 34 exact versions present and non-yanked after the guarded
 dependency-ordered upload. Source, hosted qualification, tag, GitHub release,
 registry, docs.rs, stable documentation, AWS deployment and production runtime
@@ -230,6 +230,7 @@ See [`CHANGELOG.md`](CHANGELOG.md),
 [`docs/adoption/1.2.2-to-1.3.0.md`](docs/adoption/1.2.2-to-1.3.0.md), and
 [`docs/adoption/1.3.0-to-1.4.0.md`](docs/adoption/1.3.0-to-1.4.0.md), and
 [`docs/adoption/1.4.0-to-1.5.0.md`](docs/adoption/1.4.0-to-1.5.0.md), and
+[`docs/adoption/1.5.0-to-1.6.0.md`](docs/adoption/1.5.0-to-1.6.0.md), and
 [`docs/development/publishing.md`](docs/development/publishing.md).
 
 ## License

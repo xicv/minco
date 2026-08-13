@@ -5,7 +5,7 @@ description: Install version-matched Minco skills, inspect bounded project conte
 
 # Develop with Codex and Claude Code
 
-The Minco 1.6.0 candidate packages nine focused application workflows for Codex
+The Minco 1.6.0 release packages nine focused application workflows for Codex
 and Claude Code. Every skill teaches the durable-audit boundary: keep semantic
 actions and authorization in use cases, preserve atomic adapter transactions,
 bound history queries and relationship projections, and keep retention/archive

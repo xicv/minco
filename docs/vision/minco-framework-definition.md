@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `1.5.0`
+Published baseline: `1.6.0`
 Current workspace version: `1.6.0`
-Workspace release state: `candidate`
-Reviewed release source: `c3706559357510d33d046fa461f8550fbbd4c04c`
+Workspace release state: `published`
+Reviewed release source: `9abae9128dddc9bc32d099732e1421a0332e4785`
 
 ## Product identity
 
@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The immutable published `1.5.0` classification is:
+The immutable published `1.6.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
@@ -35,13 +35,16 @@ The immutable published `1.5.0` classification is:
 > 1.4 release adds presentation and reproducibility maintenance without
 > widening the provider or runtime boundary. The 1.5 release adds typed
 > side-effect fakes and provider-free assurance/cost regression without a new
-> production adapter or provider promise.
+> production adapter or provider promise. The 1.6 release adds durable,
+> schema-agnostic action auditing with separate SQL ledgers and an access-
+> pattern-specific DynamoDB transaction without adding an ORM, automatic
+> archive, global database default or provider/deployment claim.
 
 The published 1.5.0 release preserves that classification. It packages
 additive application-test fakes plus provider-free measured assurance and cost
 regression without adding a provider, deployment topology or control plane.
 
-The 1.6.0 candidate adds durable, schema-agnostic action auditing with separate
+The published 1.6.0 release adds durable, schema-agnostic action auditing with separate
 SQL ledgers, an access-pattern-specific DynamoDB transaction and bounded Orders
 history. It does not add an ORM, global database default, automatic archive or
 provider/deployment claim.
@@ -125,7 +128,7 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `1.5.0` state | Remaining boundary |
+| Area | Current published `1.6.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |
@@ -142,7 +145,7 @@ The framework-completion program preserves the accepted ADRs and
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Versioned, searchable and browser-checked Diátaxis product with stable `1.5.0` and historical version lines | Broader exercised recipe and application-adoption matrix |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with stable `1.6.0` and historical version lines | Broader exercised recipe and application-adoption matrix |
 | AI support | Version-matched Codex/Claude skills, bounded context/eval, ProjectView, read-only MCP and local workbench | Model-driven application outcomes and measured human review effort remain `NOT RUN` |
 | Compatibility | Published 1.x public API, CLI, schema and feature freeze with additive 1.2 release evidence | Ongoing semver regression proof and multi-application adoption |
 

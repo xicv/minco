@@ -63,7 +63,7 @@ Application-specific model evaluation, measured human-review effort, hosted
 performance and current live-provider proof remain `NOT RUN` or absent for the
 1.5 release.
 
-The 1.6 candidate adds real-engine SQL audit transaction/journal tests and
+The 1.6 release adds real-engine SQL audit transaction/journal tests and
 disposable DynamoDB transaction conformance. Test duplicate requests, concurrent
 revisions, relay lease expiry, post-delete history, privacy-safe values, bounded
 fanout and storage warnings. Emulator or local-engine evidence does not become
