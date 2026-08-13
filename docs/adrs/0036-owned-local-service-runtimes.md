@@ -85,8 +85,10 @@ runtime is unavailable during stop, Minco reports the exact residual resource
 instead of claiming cleanup. Failed startup cleans up only a resource created
 by that attempt and only after ownership proof.
 
-Fresh `auto` selection prefers a ready Docker Compose runtime, then a ready
-Apple Container runtime on Apple silicon. An exact existing receipt/resource
+Fresh `auto` selection originally preferred a ready Docker Compose runtime,
+then a ready Apple Container runtime on Apple silicon. ADR-0044 changes fresh
+selection to prefer a ready qualified Apple Container and retain Docker as the
+fallback. An exact existing receipt/resource
 takes precedence for deterministic crash recovery. Explicit runtime selection
 still fails if that runtime is unavailable. Supported Apple Container versions
 are 1.2.x until a later version is qualified; unsupported versions fail with an

@@ -19,10 +19,10 @@ cargo minco dev
 
 `cargo minco dev` starts only the local services declared by the application
 graph, waits for readiness, applies the declared local migration, starts the API
-and optional processes, and coordinates shutdown on Ctrl-C. The default
-`MINCO_CONTAINER_RUNTIME=auto` uses Docker Compose when it is ready and falls
-back to Apple Container 1.2.x on Apple silicon macOS 26 after `container system
-start`.
+and optional processes, and coordinates shutdown on Ctrl-C. On Apple silicon
+macOS 26, the default `MINCO_CONTAINER_RUNTIME=auto` prefers Apple Container
+1.2.x after `container system start` and falls back to ready Docker Compose.
+Other supported hosts use Docker Compose.
 Select a runtime explicitly when required:
 
 ```bash

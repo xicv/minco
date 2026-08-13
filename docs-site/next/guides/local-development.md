@@ -45,6 +45,14 @@ The reference default selects PostgreSQL plus the Rustack services declared by
 the graph. Standard AWS endpoint overrides let the same adapters talk to local
 S3, SQS, SSM, and STS seams without contacting AWS.
 
+On Apple silicon macOS 26 or newer, a fresh
+`MINCO_CONTAINER_RUNTIME=auto` start prefers a ready Apple Container 1.2.x
+runtime and falls back to Docker Compose. Existing exact receipts and owned
+resources still win, so this default never silently moves PostgreSQL data.
+Use `MINCO_CONTAINER_RUNTIME=docker` or `apple` when the runtime must be
+explicit. Docker remains supported for other hosts and Compose-only custom
+services.
+
 Explicit port overrides make parallel workspaces possible:
 
 ```bash

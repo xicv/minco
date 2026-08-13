@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1472,
+  "file_count": 1474,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -404,8 +404,8 @@
     },
     {
       "path": "crates/minco-cli/src/service_runtime.rs",
-      "sha256": "0a2ff4acb427028d6f6efb8bcda3b2e278aa2a6eb3c3d91310478cd5b96eb8b6",
-      "size_bytes": 153972
+      "sha256": "e65064dfc2abcae1512ce6b92fbb45e689ebbae2a762c3d9f43f171c85e08f3e",
+      "size_bytes": 155012
     },
     {
       "path": "crates/minco-cli/src/update.rs",
@@ -449,8 +449,8 @@
     },
     {
       "path": "crates/minco-cli/templates/app/README.md.tmpl",
-      "sha256": "ce10fc4ef342044db3a22cdf8a8a5fb7aa79b345cca264ff2e590283b9fcc2a5",
-      "size_bytes": 2866
+      "sha256": "67683470ed082088246d1d8e3cf6aabecbd8cd2fd96814978a5754d517ce4ebf",
+      "size_bytes": 2901
     },
     {
       "path": "crates/minco-cli/templates/app/config/environments/default.toml.tmpl",
@@ -1629,8 +1629,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "4c7842fe5520dabb6762b0ece27f8bac04f988e4374f0cacbf6998e708a8ff00",
-      "size_bytes": 7755
+      "sha256": "9f9f30f34b86865a6000adaf8182fc1f83a6e9b98b5868281c4c99be6b761a63",
+      "size_bytes": 7948
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -1899,8 +1899,8 @@
     },
     {
       "path": "docs/adrs/0036-owned-local-service-runtimes.md",
-      "sha256": "a88258a9bd0d31fecc765771ba8a459568714d4b812f54991ac83042fc9e2be6",
-      "size_bytes": 10976
+      "sha256": "7d99bcd0e85f2089b32e48cd0be0d3fa2e75969521e8263ecfb630343f6ff17a",
+      "size_bytes": 11101
     },
     {
       "path": "docs/adrs/0037-release-bound-delivery-evidence.md",
@@ -1936,6 +1936,11 @@
       "path": "docs/adrs/0043-durable-audit-ledger.md",
       "sha256": "57a01e84184e5bbbfa4542320281a0880d158a247aefec9a7987b11ffb51c130",
       "size_bytes": 7582
+    },
+    {
+      "path": "docs/adrs/0044-apple-container-default.md",
+      "sha256": "07cb18436efa8b7d6fc5b9ce5060387a0e420ad840938f6d1d2c0ebf84e4f2a7",
+      "size_bytes": 2810
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -2084,8 +2089,8 @@
     },
     {
       "path": "docs/development/local-development.md",
-      "sha256": "2c04c4870de3bfc75643ff3b18008fb5ac9927def9f0d9625e9f397067e7325e",
-      "size_bytes": 6985
+      "sha256": "26fb25d4dfd9975d26456e6ecbef787d190666be7905373e440bb0f7b7dce724",
+      "size_bytes": 7351
     },
     {
       "path": "docs/development/publishing.md",
@@ -4309,8 +4314,8 @@
     },
     {
       "path": "docs-site/next/guides/local-development.md",
-      "sha256": "df28e6188111fb1df959c5045e0919a0d8120531400496684d7459a49ff731b9",
-      "size_bytes": 2470
+      "sha256": "cf736d154c81314e2b3371a30e033e8786dfd737d0c4701c90777a06b7b2235f",
+      "size_bytes": 2899
     },
     {
       "path": "docs-site/next/guides/mobile-api.md",
@@ -6044,8 +6049,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "401c71a7be77841253b2e3c32d79d10ca6299e3e69804615f9dc46377ee775e3",
-      "size_bytes": 12403
+      "sha256": "05ffda02402fa765d1c8d974d42c1accda8360c9947b57719bc7f482631110a7",
+      "size_bytes": 12526
     },
     {
       "path": "rust-toolchain.toml",
@@ -6988,6 +6993,11 @@
       "size_bytes": 4652
     },
     {
+      "path": "tasks/M14/M14-T31-apple-container-default.md",
+      "sha256": "5488d88511980bdc031607facc9af780e5576d2edc5afaa519400f53aafa0389",
+      "size_bytes": 5477
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -7404,7 +7414,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "8c38f93a39002af0a5717b194629aa92700cfe487c5a42c69c3a048e04b3fd62",
-  "total_size_bytes": 10749678,
+  "source_tree_sha256": "a2e5421ea59edb484152807a792f935a32f25b2ae7c3dd1fceb9184b4e858310",
+  "total_size_bytes": 10760276,
   "version": "1.6.0"
 }

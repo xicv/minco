@@ -31,8 +31,9 @@ project-owned `infra/local/compose.yaml` remains the Docker Compose source of
 truth, while `cargo minco dev` supplies the graph-selected services, ports and
 Rustack capabilities and supervises the application processes.
 
-The default `auto` runtime prefers a ready Docker Compose installation and then
-falls back to Apple Container 1.2.x on Apple silicon macOS 26 or newer:
+On Apple silicon macOS 26 or newer, the default `auto` runtime prefers a ready
+Apple Container 1.2.x installation and falls back to ready Docker Compose.
+Other supported hosts use Docker Compose:
 
 ```bash
 MINCO_CONTAINER_RUNTIME=auto cargo minco dev
@@ -45,6 +46,12 @@ first-class PostgreSQL and Rustack service plans to native OCI commands. Keep
 custom Compose-only infrastructure on Docker until it is represented in the
 Minco development graph. Start Apple's runtime once with `container system
 start`; Minco does not mutate the global runtime lifecycle.
+
+An exact lifecycle receipt or existing owned resource takes precedence over
+the fresh default, so an upgrade never silently moves PostgreSQL data between
+runtimes. Select `apple` explicitly during a deliberate migration, validate the
+database, and remove the old Docker volume only through a separate data-loss
+decision.
 
 Container and Compose project names include the normalized application name
 and a fingerprint of the canonical Compose path. Separate checkouts and JJ
