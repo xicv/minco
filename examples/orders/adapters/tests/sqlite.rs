@@ -1,14 +1,21 @@
 #![cfg(feature = "sqlite")]
 
 use chrono::Utc;
+use minco_plugin_audit::{
+    AuditJournalStore, AuditLedgerWriter, AuditQuery, AuditReader, AuditRelay, AuditResourceRef,
+};
 use orders_adapters::SqliteOrderStore;
 use orders_application::{
-    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery,
-    OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderTransaction, SortDirection,
-    StoreError, UpdateOrderPort,
+    Actor, ApplicationError, ConditionalResult, DeleteOrder, DeleteOrderPort, GetOrderPort,
+    ListOrdersPort, ListOrdersQuery, OrderSortField, OrderSortTerm, PlaceOrder, PlaceOrderCommand,
+    PlaceOrderLine, PlaceOrderPort, PlaceOrderTransaction, SortDirection, StoreError, SystemClock,
+    UpdateOrder, UpdateOrderCommand, UpdateOrderPort,
 };
 use orders_domain::{CustomerReference, Order, OrderLine, Quantity, Sku};
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use uuid::Uuid;
 
 struct TestDatabase {
@@ -28,6 +35,15 @@ impl TestDatabase {
             .migrate(migrations)
             .await
             .expect("apply SQLite migrations");
+        let plugin_migrations = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../extensions/minco-sqlx-sqlite/migrations/plugins");
+        minco_sqlx_sqlite::migrate_with_history_table(
+            store.pool(),
+            plugin_migrations,
+            "_minco_plugin_migrations",
+        )
+        .await
+        .expect("apply audit journal migrations");
         Self { path, store }
     }
 
@@ -62,6 +78,7 @@ fn transaction(key: &str, fingerprint: &str) -> PlaceOrderTransaction {
         order,
         idempotency_key: key.into(),
         request_fingerprint: fingerprint.into(),
+        audit: None,
     }
 }
 
@@ -325,4 +342,153 @@ async fn cursor_update_and_delete_are_revision_safe() {
         None
     );
     database.close().await;
+}
+
+#[tokio::test]
+async fn semantic_actions_commit_with_source_and_relay_once_to_a_separate_ledger() {
+    let database = TestDatabase::open().await;
+    let source_path = database.path;
+    let store = Arc::new(database.store);
+    let ledger_path =
+        std::env::temp_dir().join(format!("minco-orders-audit-{}.db", Uuid::new_v4()));
+    let ledger_pool =
+        minco_sqlx_sqlite::connect(&minco_sqlx_sqlite::SqlitePoolConfig::file(&ledger_path))
+            .await
+            .expect("connect separate audit ledger");
+    minco_sqlx_sqlite::audit_v2::validate_separate_audit_pools(store.pool(), &ledger_pool)
+        .await
+        .expect("separate files");
+    minco_sqlx_sqlite::audit_v2::migrate_audit_ledger(&ledger_pool)
+        .await
+        .expect("migrate audit ledger");
+
+    let actor = Actor::service(
+        "orders-user",
+        [
+            "orders.create".to_owned(),
+            "orders.update".to_owned(),
+            "orders.delete".to_owned(),
+        ],
+    );
+    let command = PlaceOrderCommand {
+        customer_reference: "PO-AUDITED".into(),
+        lines: vec![PlaceOrderLine {
+            sku: "SKU-AUDITED".into(),
+            quantity: 1,
+        }],
+    };
+    let correlation_id = Uuid::now_v7();
+    let placed = PlaceOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(&actor, command.clone(), "audited-key", correlation_id)
+        .await
+        .expect("place audited order");
+    let pending: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM minco_audit_journal")
+        .fetch_one(store.pool())
+        .await
+        .expect("pending journal count");
+    assert_eq!(pending, 1);
+
+    let ledger = Arc::new(minco_sqlx_sqlite::audit_v2::SqliteAuditLedger::new(
+        ledger_pool.clone(),
+    ));
+    let mut query = AuditQuery::for_resource(
+        orders_application::ORDERS_AUDIT_TENANT_SCOPE,
+        AuditResourceRef::new("order", placed.order.id.into_uuid().to_string()),
+    );
+    query.limit = 100;
+    assert!(
+        ledger
+            .list_resource_history(&query)
+            .await
+            .expect("history before relay")
+            .records
+            .is_empty()
+    );
+    let journal: Arc<dyn AuditJournalStore> = Arc::new(
+        minco_sqlx_sqlite::audit_v2::SqliteAuditJournal::new(store.pool().clone()),
+    );
+    let writer: Arc<dyn AuditLedgerWriter> = ledger.clone();
+    let relay = AuditRelay::new(journal, writer);
+    let report = relay
+        .dispatch_once("sqlite-test-relay", 100, chrono::TimeDelta::minutes(1))
+        .await
+        .expect("dispatch create action");
+    assert_eq!(report.inserted, 1);
+
+    let replayed_order = PlaceOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(&actor, command, "audited-key", correlation_id)
+        .await
+        .expect("idempotent replay");
+    assert!(replayed_order.replayed);
+    let pending: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM minco_audit_journal")
+        .fetch_one(store.pool())
+        .await
+        .expect("journal after replay");
+    assert_eq!(pending, 0);
+
+    let updated = UpdateOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(
+            &actor,
+            placed.order.id,
+            placed.order.revision,
+            UpdateOrderCommand {
+                customer_reference: Some("PO-AUDITED-UPDATED".into()),
+                lines: None,
+            },
+            Uuid::now_v7(),
+        )
+        .await
+        .expect("update audited order");
+    assert_eq!(
+        UpdateOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+            .execute_correlated(
+                &actor,
+                updated.id,
+                placed.order.revision,
+                UpdateOrderCommand {
+                    customer_reference: Some("PO-RACING".into()),
+                    lines: None,
+                },
+                Uuid::now_v7(),
+            )
+            .await,
+        Err(ApplicationError::PreconditionFailed)
+    );
+    let pending: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM minco_audit_journal")
+        .fetch_one(store.pool())
+        .await
+        .expect("journal after race");
+    assert_eq!(pending, 1);
+    relay
+        .dispatch_once("sqlite-test-relay", 100, chrono::TimeDelta::minutes(1))
+        .await
+        .expect("dispatch update action");
+
+    DeleteOrder::new(Arc::clone(&store), Arc::new(SystemClock))
+        .execute_correlated(&actor, updated.id, updated.revision, Uuid::now_v7())
+        .await
+        .expect("delete audited order");
+    relay
+        .dispatch_once("sqlite-test-relay", 100, chrono::TimeDelta::minutes(1))
+        .await
+        .expect("dispatch delete action");
+    let history = ledger
+        .list_resource_history(&query)
+        .await
+        .expect("history after deletion");
+    assert_eq!(history.records.len(), 3);
+    assert_eq!(history.records[0].action, "order.deleted");
+    assert_eq!(history.records[1].action, "order.updated");
+    assert_eq!(history.records[2].action, "order.created");
+    assert!(
+        history
+            .records
+            .iter()
+            .all(|record| record.actor.subject.as_deref() == Some("orders-user"))
+    );
+
+    store.pool().close().await;
+    ledger_pool.close().await;
+    remove_database_files(&source_path);
+    remove_database_files(&ledger_path);
 }

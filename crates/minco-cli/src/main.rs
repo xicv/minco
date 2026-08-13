@@ -8377,7 +8377,7 @@ Resources:
             .map(|plugin| plugin.id.as_str())
             .collect::<Vec<_>>();
 
-        assert_eq!(ids, ["health", "idempotency", "observability"]);
+        assert_eq!(ids, ["audit", "health", "idempotency", "observability"]);
         assert_eq!(plan.local_aws_services, ["ssm", "sts"]);
     }
 
@@ -8457,7 +8457,7 @@ Resources:
                 .iter()
                 .map(|service| service["owner"]["plugin_id"].as_str().unwrap())
                 .collect::<Vec<_>>(),
-            ["health", "idempotency", "observability"]
+            ["audit", "audit", "health", "idempotency", "observability"]
         );
         assert!(services.iter().all(|service| {
             service

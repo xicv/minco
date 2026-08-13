@@ -13,6 +13,10 @@
   "application": "minco-orders",
   "application_graph": {
     "capabilities": {
+      "audit.append": "1.0.0",
+      "audit.health": "1.0.0",
+      "audit.ledger": "2.0.0",
+      "audit.query": "2.0.0",
       "health.registry": "1.0.0",
       "http.idempotency": "1.0.0",
       "idempotency.claim": "1.0.0",
@@ -28,6 +32,46 @@
     "migrations": {},
     "operations": {},
     "plugins": [
+      {
+        "configuration": [],
+        "configuration_namespace": "plugins.audit",
+        "core_compatibility": "^1.3.0",
+        "data_classes": [
+          "internal",
+          "personal",
+          "confidential"
+        ],
+        "default_enabled": false,
+        "description": "Durable append-only audit history independent of operational logs",
+        "documentation": "https://docs.rs/minco-plugin-audit",
+        "health_checks": [],
+        "id": "audit",
+        "migrations": [],
+        "operations": [],
+        "plugin_dependencies": [],
+        "provides": [
+          {
+            "name": "audit.append",
+            "version": "1.0.0"
+          },
+          {
+            "name": "audit.ledger",
+            "version": "2.0.0"
+          },
+          {
+            "name": "audit.query",
+            "version": "2.0.0"
+          },
+          {
+            "name": "audit.health",
+            "version": "1.0.0"
+          }
+        ],
+        "requires": [],
+        "resources": [],
+        "stability": "beta",
+        "version": "1.0.0"
+      },
       {
         "configuration": [],
         "configuration_namespace": "plugins.health",
@@ -233,6 +277,12 @@
       "method": "get",
       "operation_id": "getReady",
       "path": "/health/ready"
+    },
+    {
+      "authenticated": true,
+      "method": "get",
+      "operation_id": "listOrderAuditHistory",
+      "path": "/orders/{orderId}/audit"
     },
     {
       "authenticated": true,

@@ -14,6 +14,7 @@ Enable `dynamodb` on `orders-service` or `orders-adapters` and set:
 ```text
 DATABASE_KIND=dynamodb
 DYNAMODB_TABLE_NAME=<injected table reference>
+AUDIT_DYNAMODB_TABLE_NAME=<injected distinct audit table reference>
 AWS_REGION=<selected deployment Region>
 ```
 
@@ -32,12 +33,17 @@ The table has `pk` and `sk` string keys. It stores two durable item kinds:
 | Canonical order | `ORDER#<uuid>` / `ORDER` | Strong direct reads, revision-conditional update, and soft delete |
 | Idempotency response | `IDEMPOTENCY#<sha256>` / `IDEMPOTENCY` | Immutable request fingerprint and original response snapshot |
 
-`placeOrder` uses one `TransactWriteItems` call with conditional puts for both
-items. The raw idempotency key is hashed before persistence and before deriving
+`placeOrder` uses one `TransactWriteItems` call with conditional puts for the
+two source items plus an immutable canonical audit event and its order-history
+projection in the distinct audit table. `updateOrder` and `deleteOrder` use the
+same cross-table transaction boundary. A revision-condition race therefore
+commits neither a false audit event nor a partial source mutation. The raw
+idempotency key is hashed before persistence and before deriving
 the SDK client request token. Concurrent requests with the same key and
 fingerprint commit one order and replay the immutable response; a different
-fingerprint returns the stable application conflict. The snapshot is retained
-after later order update or deletion.
+fingerprint returns the stable application conflict and a replay creates no
+second semantic action. The snapshot and audit history are retained after later
+order update or deletion.
 
 `getOrder` uses a strongly consistent table `GetItem`. `updateOrder` and
 `deleteOrder` use a revision condition; the adapter then performs a strong read
@@ -75,23 +81,28 @@ when that list-read behavior is acceptable.
 ## Plan, SAM, IAM, and cost
 
 [`minco.dynamodb.toml`](../../examples/orders/config/minco.dynamodb.toml)
-declares the exact table keys, all three indexes, point-in-time recovery,
-retention policy, and consuming function. A DynamoDB cost-only plan without
+declares both exact table key contracts, the three operational indexes,
+point-in-time recovery, deletion protection, retention policy, current Sydney
+rates, and consuming function. A DynamoDB cost-only plan without
 that table contract still fails SAM rendering closed.
 
 The explicit contract renders:
 
-- one on-demand, server-side-encrypted DynamoDB table;
-- point-in-time recovery and `Retain`/`Delete` replacement policy;
-- `DATABASE_KIND` and the CloudFormation table reference;
-- exact table and `/index/*` resources for `DescribeTable`, `GetItem`,
-  `Query`, `TransactWriteItems`, and `UpdateItem`—never `dynamodb:*`, the
-  unused `PutItem`, or `Resource: "*"`.
+- two on-demand, server-side-encrypted DynamoDB tables with distinct names;
+- point-in-time recovery, deletion protection and `Retain` replacement policy;
+- `DATABASE_KIND`, `DYNAMODB_TABLE_NAME` and
+  `AUDIT_DYNAMODB_TABLE_NAME` CloudFormation references;
+- exact operational table and `/index/*` IAM for `DescribeTable`, `GetItem`,
+  `Query`, `TransactWriteItems`, and `UpdateItem`; and
+- separate audit-table IAM for `BatchGetItem`, `DescribeTable`, `Query`, and
+  `TransactWriteItems`—never `dynamodb:*`, the unused `PutItem`, or
+  `Resource: "*"`.
 
 Cost output keeps request volume, transaction write amplification, three GSI
-projections, storage, recovery, backup, and retained-table residual cost
-visible. Missing Region-specific prices leave the estimate incomplete; idle
-request cost is not presented as a complete zero-dollar claim.
+projections, audit canonical/projection fan-out, storage, PITR, and retained
+table residual cost visible. The audit table has no practical table-size ceiling
+but is not literally infinite or free; hot-query horizon, export/archive policy,
+service quotas, throttling, legal retention and cost remain explicit operations.
 
 ## Local conformance and cleanup
 
@@ -102,9 +113,10 @@ scripts/dev/rustack-dynamodb-smoke.sh
 ```
 
 The script starts the repository-pinned Rustack image with only DynamoDB and
-STS, chooses a unique compose project, host port, and table, creates the exact
-three-index table, and exercises all five Orders ports. It uses test-only
-credentials, deletes the table, polls until it is absent, and removes the
+STS, chooses a unique compose project, host port, and two tables, creates the
+exact three-index Orders table plus the audit table, and exercises the Orders
+ports and semantic history. It uses test-only credentials, deletes both tables,
+polls until each is absent, and removes the
 container and network through an exit trap. A failing test still runs cleanup.
 
 This is emulator conformance, not AWS delivery proof. Rustack is pinned to

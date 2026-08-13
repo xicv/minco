@@ -122,6 +122,12 @@ impl AuditPlugin {
         self
     }
 
+    #[must_use]
+    pub fn with_ledger_services(mut self, services: AuditLedgerServices) -> Self {
+        self.ledger = Some(services);
+        self
+    }
+
     pub fn memory() -> (Self, Arc<MemoryAuditSink>) {
         let sink = Arc::new(MemoryAuditSink::default());
         let ledger = Arc::new(MemoryAuditLedger::default());

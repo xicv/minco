@@ -37,13 +37,20 @@ required = true
 secret = true
 description = "Opaque database connection secret reference"
 
+[[configuration.fields]]
+key = "audit.database_url"
+kind = "string"
+required = false
+secret = true
+description = "Opaque connection secret reference for the physically separate audit ledger"
+
 [architecture]
 domain_roots = ["examples/orders/domain"]
 application_roots = ["examples/orders/application"]
 api_roots = ["examples/orders/api"]
 
 [plugins]
-enabled = ["health", "observability", "idempotency"]
+enabled = ["health", "observability", "idempotency", "audit"]
 disabled = []
 
 [database]
@@ -146,6 +153,12 @@ handler = "examples/orders/api/src/lib.rs#delete_order"
 application = "examples/orders/application/src/lib.rs#DeleteOrder"
 adapters = ["memory", "postgres", "sqlite", "dynamodb"]
 tests = ["examples/orders/api/src/lib.rs#resource_crud_is_shaped_and_conditionally_safe_through_the_real_router", "examples/orders/adapters/tests/sqlite.rs#cursor_update_and_delete_are_revision_safe", "examples/orders/adapters/tests/dynamodb.rs#all_orders_ports_preserve_idempotency_sort_cursor_revision_and_soft_delete"]
+
+[operations.listOrderAuditHistory]
+handler = "examples/orders/api/src/lib.rs#list_order_audit_history"
+application = "examples/orders/application/src/lib.rs#ListOrderAuditHistory"
+adapters = ["memory", "postgres", "sqlite", "dynamodb"]
+tests = ["examples/orders/application/src/lib.rs#audit_history_requires_its_own_permission_before_reading", "examples/orders/api/src/lib.rs#resource_crud_is_shaped_and_conditionally_safe_through_the_real_router"]
 
 [operations.feedbackWidget]
 contract = "plugins/minco-plugin-feedback/openapi/feedback.openapi.yaml"

@@ -58,6 +58,22 @@ table, separate from application and Feedback migration histories.
 Only token hashes are stored. Idempotency completion and abort compare exact
 lease IDs. Audit tables expose no update/delete API.
 
+When the relational AWS profile enables the `audit.ledger` capability, the
+generated SAM template requires both `DatabaseUrlParameterName` and
+`AuditDatabaseUrlParameterName`. Each names an existing SSM `SecureString`;
+the latter must contain a PostgreSQL URL for a physically separate audit
+database. The Lambda loads both parameters at startup, and the generated role
+grants `ssm:GetParameter` only for those exact names. Optional customer-managed
+KMS key ARNs are likewise separate and constrained to SSM decrypts for their
+matching parameter ARN. Secret values never enter Plan IR, SAM, manifests, or
+environment configuration.
+
+Do not point both parameters at the same database. SQL source mutations commit
+their audit intent to the source-side journal, and the explicit bounded relay
+delivers it to the separate append-only ledger. This avoids pretending that a
+cross-database write can be atomic while keeping the user-facing mutation fast
+and retryable.
+
 ## Local conformance
 
 Run:

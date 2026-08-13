@@ -16,6 +16,15 @@ Parameters:
     Default: ''
     AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'
     Description: Customer-managed KMS key ARN for the database parameter; leave empty only when the AWS-managed aws/ssm key is used.
+  AuditDatabaseUrlParameterName:
+    Type: String
+    AllowedPattern: '^/[A-Za-z0-9_.\-/]+$'
+    Description: Existing SSM SecureString containing the physically separate audit PostgreSQL URL.
+  AuditDatabaseUrlKmsKeyArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^arn:[a-z0-9-]+:kms:[a-z0-9-]+:[0-9]{12}:key/([A-Fa-f0-9-]+|mrk-[A-Fa-f0-9]+)$'
+    Description: Customer-managed KMS key ARN for the audit database parameter; leave empty only when the AWS-managed aws/ssm key is used.
   LambdaSubnetIds:
     Type: String
     Default: ''
@@ -40,6 +49,7 @@ Rules:
 Conditions:
   LiveFunctionVersionIsCandidate: !Equals [!Ref LiveFunctionVersion, 'candidate']
   UsesCustomerManagedDatabaseKey: !Not [!Equals [!Ref DatabaseUrlKmsKeyArn, '']]
+  UsesCustomerManagedAuditDatabaseKey: !Not [!Equals [!Ref AuditDatabaseUrlKmsKeyArn, '']]
   UsesVpc: !And
     - !Not [!Equals [!Ref LambdaSubnetIds, '']]
     - !Not [!Equals [!Ref LambdaSecurityGroupIds, '']]
@@ -170,6 +180,19 @@ Resources:
                 uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'
               security:
                 - JwtAuthorizer: []
+          '/orders/{orderId}/audit':
+            get:
+              operationId: 'listOrderAuditHistory'
+              responses:
+                default:
+                  description: Lambda proxy response
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                payloadFormatVersion: '2.0'
+                type: aws_proxy
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'
+              security:
+                - JwtAuthorizer: []
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -192,6 +215,7 @@ Resources:
           APP_ENV: 'dev'
           DATABASE_KIND: postgres
           DATABASE_URL_PARAMETER: !Ref DatabaseUrlParameterName
+          AUDIT_DATABASE_URL_PARAMETER: !Ref AuditDatabaseUrlParameterName
           DATABASE_MAX_CONNECTIONS: '2'
           ALLOWED_ORIGINS: 'https://app.example.invalid'
           ALLOW_DEVELOPMENT_HEADERS: 'false'
@@ -209,6 +233,19 @@ Resources:
                   StringEquals:
                     kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
                     kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'
+              - !Ref AWS::NoValue
+            - Effect: Allow
+              Action: [ssm:GetParameter]
+              Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AuditDatabaseUrlParameterName}'
+            - !If
+              - UsesCustomerManagedAuditDatabaseKey
+              - Effect: Allow
+                Action: [kms:Decrypt]
+                Resource: !Ref AuditDatabaseUrlKmsKeyArn
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+                    kms:EncryptionContext:PARAMETER_ARN: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AuditDatabaseUrlParameterName}'
               - !Ref AWS::NoValue
             - !If
               - UsesVpc

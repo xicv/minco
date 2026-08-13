@@ -20,10 +20,11 @@ kind = "dynamo_db_on_demand"
 read_request_units_million = 1.0
 write_request_units_million = 0.25
 storage_gb_month = 1.0
-# Supply reviewed regional rates before considering the estimate complete:
-# read_million_rate_usd = 0.0
-# write_million_rate_usd = 0.0
-# storage_rate_usd = 0.0
+point_in_time_recovery_gb_month = 1.0
+read_million_rate_usd = 0.1425
+write_million_rate_usd = 0.71
+storage_rate_usd = 0.285
+point_in_time_recovery_rate_usd = 0.228
 
 [database.table]
 logical_id = "OrdersTable"
@@ -32,6 +33,16 @@ partition_key = { name = "pk", scalar_type = "string" }
 sort_key = { name = "sk", scalar_type = "string" }
 point_in_time_recovery = true
 deletion_policy = "retain"
+deletion_protection = true
+
+[database.audit_table]
+logical_id = "OrdersAuditTable"
+function_id = "api"
+partition_key = { name = "pk", scalar_type = "string" }
+sort_key = { name = "sk", scalar_type = "string" }
+point_in_time_recovery = true
+deletion_policy = "retain"
+deletion_protection = true
 
 [[database.table.global_secondary_indexes]]
 name = "orders-by-created-at"

@@ -290,7 +290,6 @@ impl AuditReader for DynamoDbAuditLedger {
                     "#pk = :pk"
                 })
                 .expression_attribute_names("#pk", PARTITION_KEY)
-                .expression_attribute_names("#sk", SORT_KEY)
                 .expression_attribute_values(":pk", AttributeValue::S(partition.clone()))
                 .scan_index_forward(matches!(
                     query.direction,
@@ -300,10 +299,12 @@ impl AuditReader for DynamoDbAuditLedger {
                 .limit(QUERY_PAGE_SIZE)
                 .set_exclusive_start_key(exclusive_start_key);
             if let Some(after) = query.after {
-                request = request.expression_attribute_values(
-                    ":after",
-                    AttributeValue::S(cursor_sort_key(after)?),
-                );
+                request = request
+                    .expression_attribute_names("#sk", SORT_KEY)
+                    .expression_attribute_values(
+                        ":after",
+                        AttributeValue::S(cursor_sort_key(after)?),
+                    );
             }
             let output = request.send().await.map_err(infrastructure)?;
             for item in output.items() {

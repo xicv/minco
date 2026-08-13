@@ -1,7 +1,14 @@
 use async_trait::async_trait;
+use minco_plugin_audit::{
+    AuditAppendReport, AuditCursor, AuditLedgerError, AuditLedgerWriter, AuditLifecyclePolicy,
+    AuditPage, AuditQuery, AuditReader, AuditRecordV2, AuditSegmentState, AuditSegmentStatus,
+    AuditStorageHealth, AuditStorageInspector, AuditStorageSnapshot, evaluate_storage_health,
+};
 use orders_application::{
-    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery, OrderCursor,
-    OrderPage, OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderResult,
+    ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrderAuditHistoryPort,
+    ListOrderAuditHistoryQuery, ListOrdersPort, ListOrdersQuery, OrderAuditCursor,
+    OrderAuditIntent, OrderAuditPage, OrderAuditSortDirection, OrderCursor, OrderPage,
+    OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderResult,
     PlaceOrderTransaction, SortDirection, StoreError, UpdateOrderPort,
 };
 use orders_domain::{Order, OrderId};
@@ -22,6 +29,7 @@ struct MemoryState {
     orders: BTreeMap<uuid::Uuid, Order>,
     idempotency: BTreeMap<String, IdempotencyRecord>,
     deleted: BTreeSet<uuid::Uuid>,
+    audit: BTreeMap<uuid::Uuid, AuditRecordV2>,
 }
 
 #[derive(Debug, Default)]
@@ -42,6 +50,11 @@ impl PlaceOrderPort for MemoryOrderStore {
         &self,
         transaction: PlaceOrderTransaction,
     ) -> Result<PlaceOrderResult, StoreError> {
+        let audit = transaction
+            .audit
+            .as_ref()
+            .map(crate::audit::audit_record)
+            .transpose()?;
         let mut state = self
             .state
             .lock()
@@ -55,6 +68,9 @@ impl PlaceOrderPort for MemoryOrderStore {
                 replayed: true,
             });
         }
+        if let Some(audit) = &audit {
+            ensure_audit_available(&state, audit)?;
+        }
         let order_id = transaction.order.id;
         state
             .orders
@@ -66,6 +82,9 @@ impl PlaceOrderPort for MemoryOrderStore {
                 response: transaction.order.clone(),
             },
         );
+        if let Some(audit) = audit {
+            insert_audit(&mut state, audit)?;
+        }
         let result = PlaceOrderResult {
             order: transaction.order,
             replayed: false,
@@ -155,6 +174,33 @@ impl UpdateOrderPort for MemoryOrderStore {
         drop(state);
         Ok(ConditionalResult::Applied(order))
     }
+
+    async fn save_order_with_audit(
+        &self,
+        order: Order,
+        expected_revision: u64,
+        audit: OrderAuditIntent,
+    ) -> Result<ConditionalResult<Order>, StoreError> {
+        let audit = crate::audit::audit_record(&audit)?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| StoreError::Internal("memory store lock was poisoned".into()))?;
+        let id = order.id.into_uuid();
+        if state.deleted.contains(&id) {
+            return Ok(ConditionalResult::NotFound);
+        }
+        let Some(current) = state.orders.get(&id) else {
+            return Ok(ConditionalResult::NotFound);
+        };
+        if current.revision != expected_revision {
+            return Ok(ConditionalResult::PreconditionFailed);
+        }
+        insert_audit(&mut state, audit)?;
+        state.orders.insert(id, order.clone());
+        drop(state);
+        Ok(ConditionalResult::Applied(order))
+    }
 }
 
 #[async_trait]
@@ -183,12 +229,253 @@ impl DeleteOrderPort for MemoryOrderStore {
         drop(state);
         Ok(ConditionalResult::Applied(()))
     }
+
+    async fn delete_order_with_audit(
+        &self,
+        id: OrderId,
+        expected_revision: u64,
+        _deleted_at: chrono::DateTime<chrono::Utc>,
+        audit: OrderAuditIntent,
+    ) -> Result<ConditionalResult<()>, StoreError> {
+        let audit = crate::audit::audit_record(&audit)?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| StoreError::Internal("memory store lock was poisoned".into()))?;
+        let id = id.into_uuid();
+        if state.deleted.contains(&id) {
+            return Ok(ConditionalResult::NotFound);
+        }
+        let Some(order) = state.orders.get(&id) else {
+            return Ok(ConditionalResult::NotFound);
+        };
+        if order.revision != expected_revision {
+            return Ok(ConditionalResult::PreconditionFailed);
+        }
+        insert_audit(&mut state, audit)?;
+        state.deleted.insert(id);
+        drop(state);
+        Ok(ConditionalResult::Applied(()))
+    }
+}
+
+#[async_trait]
+impl ListOrderAuditHistoryPort for MemoryOrderStore {
+    async fn list_order_audit_history(
+        &self,
+        query: ListOrderAuditHistoryQuery,
+    ) -> Result<OrderAuditPage, StoreError> {
+        let order_id = query.order_id.into_uuid().to_string();
+        let mut records = self
+            .state
+            .lock()
+            .map_err(|_| StoreError::Internal("memory store lock was poisoned".into()))?
+            .audit
+            .values()
+            .filter(|record| {
+                record.resource.resource_type == "order" && record.resource.resource_id == order_id
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by(|left, right| match query.direction {
+            OrderAuditSortDirection::OldestFirst => {
+                (left.occurred_at, left.event_id).cmp(&(right.occurred_at, right.event_id))
+            }
+            OrderAuditSortDirection::NewestFirst => {
+                (right.occurred_at, right.event_id).cmp(&(left.occurred_at, left.event_id))
+            }
+        });
+        if let Some(after) = query.after {
+            records.retain(|record| match query.direction {
+                OrderAuditSortDirection::OldestFirst => {
+                    (record.occurred_at, record.event_id) > (after.occurred_at, after.event_id)
+                }
+                OrderAuditSortDirection::NewestFirst => {
+                    (record.occurred_at, record.event_id) < (after.occurred_at, after.event_id)
+                }
+            });
+        }
+        let limit = usize::from(query.limit);
+        let has_more = records.len() > limit;
+        records.truncate(limit);
+        let next_cursor =
+            has_more
+                .then(|| records.last())
+                .flatten()
+                .map(|record| OrderAuditCursor {
+                    occurred_at: record.occurred_at,
+                    event_id: record.event_id,
+                });
+        Ok(OrderAuditPage {
+            events: records.into_iter().map(crate::audit::order_event).collect(),
+            next_cursor,
+        })
+    }
+}
+
+#[async_trait]
+impl AuditLedgerWriter for MemoryOrderStore {
+    async fn append_batch(
+        &self,
+        records: &[AuditRecordV2],
+    ) -> Result<AuditAppendReport, AuditLedgerError> {
+        if records.is_empty() || records.len() > minco_plugin_audit::MAX_AUDIT_BATCH_RECORDS {
+            return Err(AuditLedgerError::InvalidBatch(
+                "invalid record count".into(),
+            ));
+        }
+        for record in records {
+            record.validate()?;
+        }
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| AuditLedgerError::Infrastructure)?;
+        for record in records {
+            if let Some(existing) = state.audit.get(&record.event_id)
+                && existing != record
+            {
+                return Err(AuditLedgerError::EventConflict(record.event_id));
+            }
+        }
+        let mut inserted = 0;
+        for record in records {
+            if state
+                .audit
+                .insert(record.event_id, record.clone())
+                .is_none()
+            {
+                inserted += 1;
+            }
+        }
+        Ok(AuditAppendReport {
+            requested: records.len(),
+            inserted,
+            duplicates: records.len() - inserted,
+        })
+    }
+}
+
+#[async_trait]
+impl AuditReader for MemoryOrderStore {
+    async fn list_resource_history(
+        &self,
+        query: &AuditQuery,
+    ) -> Result<AuditPage, AuditLedgerError> {
+        query.validate()?;
+        let mut records = self
+            .state
+            .lock()
+            .map_err(|_| AuditLedgerError::Infrastructure)?
+            .audit
+            .values()
+            .filter(|record| {
+                record.tenant_scope == query.tenant_scope
+                    && ((record.resource == query.resource)
+                        || (query.include_related
+                            && record.related_resources.iter().any(|related| {
+                                related.resource == query.resource
+                                    && query
+                                        .relation
+                                        .as_ref()
+                                        .is_none_or(|relation| relation == &related.relation)
+                            })))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by(|left, right| {
+            let ordering =
+                (left.occurred_at, left.event_id).cmp(&(right.occurred_at, right.event_id));
+            match query.direction {
+                minco_plugin_audit::AuditSortDirection::OldestFirst => ordering,
+                minco_plugin_audit::AuditSortDirection::NewestFirst => ordering.reverse(),
+            }
+        });
+        if let Some(after) = query.after {
+            records.retain(|record| {
+                let position = (record.occurred_at, record.event_id);
+                let cursor = (after.occurred_at, after.event_id);
+                match query.direction {
+                    minco_plugin_audit::AuditSortDirection::OldestFirst => position > cursor,
+                    minco_plugin_audit::AuditSortDirection::NewestFirst => position < cursor,
+                }
+            });
+        }
+        let has_more = records.len() > query.limit;
+        records.truncate(query.limit);
+        let next_cursor = has_more
+            .then(|| records.last())
+            .flatten()
+            .map(AuditCursor::from);
+        Ok(AuditPage {
+            records,
+            next_cursor,
+        })
+    }
+}
+
+#[async_trait]
+impl AuditStorageInspector for MemoryOrderStore {
+    async fn storage_health(&self) -> Result<AuditStorageHealth, AuditLedgerError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| AuditLedgerError::Infrastructure)?;
+        let mut records = state.audit.values().collect::<Vec<_>>();
+        records.sort_by_key(|record| (record.occurred_at, record.event_id));
+        let hot_bytes = records.iter().try_fold(0_u64, |total, record| {
+            let bytes =
+                u64::try_from(record.validate()?).map_err(|_| AuditLedgerError::Encoding)?;
+            total.checked_add(bytes).ok_or(AuditLedgerError::Encoding)
+        })?;
+        let snapshot = AuditStorageSnapshot {
+            provider: "memory".into(),
+            hot_bytes,
+            free_bytes: None,
+            pending_records: 0,
+            pending_bytes: 0,
+            oldest_pending_seconds: None,
+            quarantined_records: 0,
+            archive_watermark: None,
+            segments: vec![AuditSegmentStatus {
+                segment_id: 1,
+                state: AuditSegmentState::Active,
+                record_count: u64::try_from(records.len())
+                    .map_err(|_| AuditLedgerError::Encoding)?,
+                encoded_bytes: hot_bytes,
+                first: records.first().map(|record| AuditCursor::from(*record)),
+                last: records.last().map(|record| AuditCursor::from(*record)),
+                archive_receipt: None,
+            }],
+        };
+        drop(state);
+        evaluate_storage_health(AuditLifecyclePolicy::cloud_online(), snapshot)
+    }
 }
 
 #[async_trait]
 impl OrderReadiness for MemoryOrderStore {
     async fn ready(&self) -> bool {
         self.state.lock().is_ok()
+    }
+}
+
+fn insert_audit(state: &mut MemoryState, record: AuditRecordV2) -> Result<(), StoreError> {
+    match state.audit.get(&record.event_id) {
+        Some(existing) if existing == &record => Ok(()),
+        Some(_) => Err(StoreError::Internal("audit event ID conflict".into())),
+        None => {
+            state.audit.insert(record.event_id, record);
+            Ok(())
+        }
+    }
+}
+
+fn ensure_audit_available(state: &MemoryState, record: &AuditRecordV2) -> Result<(), StoreError> {
+    match state.audit.get(&record.event_id) {
+        Some(existing) if existing == record => Ok(()),
+        Some(_) => Err(StoreError::Internal("audit event ID conflict".into())),
+        None => Ok(()),
     }
 }
 
@@ -260,6 +547,7 @@ mod tests {
             order,
             idempotency_key: key.into(),
             request_fingerprint: fingerprint.into(),
+            audit: None,
         }
     }
 
