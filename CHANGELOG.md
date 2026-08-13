@@ -5,7 +5,10 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes yet.
+No changes beyond the published `1.6.0` release. Release sections from `1.2.0`
+onward retain exact candidate-source wording because their digests are bound
+into the portable agent bundle; tag, registry, documentation and provider
+evidence stay separate in `VERIFICATION.md`.
 
 ## [1.6.0] - 2026-08-13
 

@@ -1,15 +1,20 @@
 ---
 title: Minco 1.6.0
-description: Release candidate documentation for durable auditing and contract-to-cloud Rust application development.
+description: Stable documentation for durable auditing and contract-to-cloud Rust application development.
 ---
 
 # Minco 1.6.0
 
-<p class="doc-kicker">Frozen 1.6.0 candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
-<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.5.0/">1.5.0 manual</a>, while making unreleased behavior visibly separate from stable guidance.</p>
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.6.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
 
-The 1.6 candidate adds [durable action auditing](./guides/auditing): semantic
+<p class="doc-lead">This frozen manual describes the published <code>1.6.0</code> release. It extends the <a href="../1.5.0/">1.5.0 manual</a> with durable action auditing while preserving provider and deployment boundaries.</p>
+
+The 1.6 release adds [durable action auditing](./guides/auditing): semantic
 application actions, physically separate ledgers, atomic SQL-journal or
 DynamoDB transactions, bounded history, and explicit retained-growth policy.
 

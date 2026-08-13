@@ -1,13 +1,12 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.5.0`
+Published baseline: `1.6.0`
 Current workspace version: `1.6.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use exact published `1.5.0` dependencies for applications. The release adds
-provider-free testing and assurance interfaces; follow the
-[1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md). Review the unpublished
-[1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before evaluating durable auditing.
+Use exact published `1.6.0` dependencies for applications. Follow the
+[1.4.0-to-1.5.0 guide](1.4.0-to-1.5.0.md), then review the
+[1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing.
 Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 
@@ -21,7 +20,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.5.0", default-features = false, features = ["contract"] }
+minco = { version = "1.6.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -192,7 +191,7 @@ use the [`1.4.0` to `1.5.0` guide](1.4.0-to-1.5.0.md). It covers the additive
 typed fakes, measured assurance, topology-cost regression, compatible runtime
 boundary and explicit `NOT RUN` model/provider evidence.
 
-Applications evaluating the unpublished `1.6.0` candidate must use the
+Applications moving from `1.5.0` to the published `1.6.0` release must use the
 [`1.5.0` to `1.6.0` guide](1.5.0-to-1.6.0.md). It covers semantic audit intent,
 separate SQL ledgers, DynamoDB cross-table transactions, bounded history,
 privacy, indefinite growth and archive authority.

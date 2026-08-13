@@ -21,11 +21,11 @@ The plugin is absent from the facade defaults:
 
 ```toml
 [dependencies]
-minco = { version = "1.5.0", features = ["plugin-payments-waffo"] }
-minco-plugin-payments-waffo = "1.5.0"
+minco = { version = "1.6.0", features = ["plugin-payments-waffo"] }
+minco-plugin-payments-waffo = "1.6.0"
 ```
 
-Use the exact published 1.5.0 versions shown above. The feature also enables Minco's
+Use the exact published 1.6.0 versions shown above. The feature also enables Minco's
 idempotency plugin because typed provider actions require an explicit claim.
 
 ## Configure without embedding secrets

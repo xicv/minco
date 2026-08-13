@@ -1,18 +1,18 @@
-# 1.6 candidate support matrix
+# 1.6 support matrix
 
-Published install baseline: `1.5.0`
-Current workspace version: `1.6.0` candidate
+Published install baseline: `1.6.0`
+Current workspace version: `1.6.0`
 MSRV: Rust `1.97.1`
-Compatibility state: the published 1.5.0 family retains the 1.0 framework
+Compatibility state: the published 1.6.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
 descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
 rich mail, owned local services and release-bound evidence are published
-together with the opt-in Waffo boundary as the complete 34-package `v1.5.0`
+together with durable auditing as the complete 34-package `v1.6.0`
 family. Registry, docs.rs, stable documentation and application/live proof
 remain separate.
 
-The published 1.5.0 release preserves this support classification. The 1.6.0
-candidate adds durable audit behavior without promoting a provider or changing
+The published 1.6.0 release preserves this support classification and adds
+durable audit behavior without promoting a provider or changing
 the global database default. Its
 typed application-test fakes and provider-free assurance/cost evidence do not
 promote a deferred service, provider profile or current live-evidence claim.
@@ -56,7 +56,7 @@ it is not a blanket production-readiness promise.
 | PostgreSQL adapter | published beta | provider-specific profiles, generated app, disposable integration | CGSP deliberately keeps product SQLx/RLS authority | no transparent provider equivalence or current-price guarantee |
 | SQLite adapter | published beta | persistent-file lifecycle, transactions and feature isolation | no reviewed downstream production claim | no network, multi-instance, managed-backup or PostgreSQL-locking guarantee |
 | DynamoDB Orders adapter | published beta; qualified descendant | standard SDK unit tests, explicit Plan/SAM/IAM and pinned Rustack five-port conformance with cleanup | no reviewed downstream or real-AWS claim | access-pattern-specific; GSI lists are eventually consistent; no SQL or generic repository |
-| Durable action audit | 1.6 candidate; opt-in beta | semantic Orders actions, real SQLite/PostgreSQL transactions and journals, DynamoDB cross-table transaction conformance, bounded history/lifecycle tests | no reviewed downstream or production-retention claim | separate ledger; no ORM hook, automatic TTL/archive, generic relationship scan, complete regional price or live-provider proof |
+| Durable action audit | 1.6 published; opt-in beta | semantic Orders actions, real SQLite/PostgreSQL transactions and journals, DynamoDB cross-table transaction conformance, bounded history/lifecycle tests | no reviewed downstream or production-retention claim | separate ledger; no ORM hook, automatic TTL/archive, generic relationship scan, complete regional price or live-provider proof |
 | Plan/SAM model | 1.2 evidenced | schema/policy snapshots, topology-aware cost and ingress validation, IAM checks | CGSP consumes it only as advisory evidence | Function URLs remain declared but unsupported; not an infrastructure apply, live price or product controller |
 | AWS deployment controller | published beta | exact-artifact apply/verify/promote/rollback/cleanup rehearsal | product deployment controllers remain separate | requires explicit account/region/change-set approval; no hidden mutation |
 | Static-site intent/publication | published beta | local contract and exact-byte/hash receipt tests | products retain their own site controllers | DNS, certificate, CloudFront/S3 mutation and live-site proof are separate |
@@ -78,8 +78,8 @@ capabilities, resources and metadata digests.
 | Catalog classification | Components | Interpretation |
 | --- | --- | --- |
 | catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; the reviewed 1.x Rust/CLI/serialized boundary follows SemVer |
-| published/candidate beta plugins | `audit`, `events`, `identity`, `notifications`, `object-storage`, `sessions`, `static-site`, `realtime` | explicit opt-in with provider/failure/retention policy required; audit V2 is a 1.6 candidate surface |
-| published beta plugin | `payments-waffo` | opt-in provider-specific integration in the 1.5.0 family; offline qualified with live-provider evidence still absent |
+| published beta plugins | `audit`, `events`, `identity`, `notifications`, `object-storage`, `sessions`, `static-site`, `realtime` | explicit opt-in with provider/failure/retention policy required; audit V2 is published in 1.6 |
+| published beta plugin | `payments-waffo` | opt-in provider-specific integration in the 1.6.0 family; offline qualified with live-provider evidence still absent |
 | published beta adapters/runtimes | `aws-adapters`, `aws-dynamodb`, `aws-lambda`, `aws-worker`, `sqlx-postgres`, `sqlx-sqlite` | explicit provider/runtime selection; no default activation; DynamoDB remains application access-pattern-specific |
 
 Memory/reference implementations are for tests and local development unless a
@@ -100,7 +100,7 @@ provider.
 | Native AWS HTTP | `aws-lambda`, `plan`, selected adapters | local package/Plan/SAM plus bounded controller rehearsal | approved target and exact live verification |
 | AWS SQS worker | `aws-worker`, `plan` | local runtime/Plan and CGSP staging evidence | application queue/mapping/IAM and rollback proof |
 | Local AI/developer view | `minco-project-view`, optionally `minco-mcp` or `minco-workbench` | redaction, containment, protocol and browser evidence | remain local and read-only |
-| Waffo hosted checkout | `plugin-payments-waffo` | signed typed actions, bounded checkout, raw-body webhook verification, no-network fakes and exact 1.5.0 publication | separately authorised live Waffo sandbox evidence |
+| Waffo hosted checkout | `plugin-payments-waffo` | signed typed actions, bounded checkout, raw-body webhook verification, no-network fakes and exact 1.6.0 publication | separately authorised live Waffo sandbox evidence |
 
 Prefer the smallest profile that closes one application boundary. Do not start
 with `features = ["full"]` in a product unless its complete dependency/provider

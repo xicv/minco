@@ -2,10 +2,31 @@
 
 Date: 2026-08-13
 Current workspace version: `1.6.0`
-Published baseline: `1.5.0`
-Workspace release state: `candidate`
+Published baseline: `1.6.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T30 `1.6.0` published release closure
+
+PR #160 reviewed exact source `f47f28d696df9372a627c07b7590274e0da18dd9`
+and tree `8747a5bf12991bc54263b635c1202912f729609d`, with zero unresolved
+threads and passing clean-Linux run `31689050949`. The guarded squash merge
+created `9abae9128dddc9bc32d099732e1421a0332e4785` with that exact tree.
+Merged-main clean-Linux run `31689854658` and authentication-only OIDC run
+`31689854606` passed for the same source.
+
+Immutable tag `v1.6.0` resolves to the merge commit. Publication run
+`31690283715` passed package archive, selected package, external-consumer and
+dependency-ordered upload gates. Independent registry validation found all 34
+exact `1.6.0` packages present and non-yanked. The GitHub release is published
+at <https://github.com/xicv/minco/releases/tag/v1.6.0>.
+
+This post-publication change promotes repository and documentation truth only.
+Stable Pages and all exact docs.rs routes remain separate gates until verified.
+No AWS application operation or production mutation occurred. Hosted
+performance, current live-provider evidence, model-driven application
+evaluation and human-review measurement remain `NOT RUN` or absent.
 
 ## M14-T29 `1.6.0` candidate preparation
 

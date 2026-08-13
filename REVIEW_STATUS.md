@@ -1,6 +1,21 @@
 # Review status
 
-## Active M14-T29 Minco 1.6.0 candidate preparation
+## Active M14-T30 Minco 1.6.0 published release closure
+
+Minco `1.6.0` is the current published baseline from exact release source
+`9abae9128dddc9bc32d099732e1421a0332e4785`. PR #160 reviewed tree
+`8747a5bf12991bc54263b635c1202912f729609d` with zero unresolved review
+threads, passed exact-head clean Linux, and merged as the same tree. Immutable
+tag `v1.6.0`, publication run `31690283715`, all 34 exact non-yanked crates.io
+records and the GitHub release are independently verified.
+
+This truth-only closure changes no Rust API, Plan IR, plugin capability, audit
+storage semantics, provider topology or runtime selection. Stable Pages and
+exact docs.rs routes remain independent gates. Live AWS, production, hosted
+performance, model outcome and measured human-review evidence remain unproven
+or `NOT RUN`.
+
+## Completed M14-T29 Minco 1.6.0 candidate preparation
 
 The candidate starts from exact merged audit source
 `4bba904f498289bf2bfe6a4fa09a165e84e9d2e2`. Its release boundary is the
@@ -9,14 +24,14 @@ DynamoDB audit table and permission-gated Orders history already merged by PR
 #159. It advances the existing 34-package family, 19 descriptors, nine skills
 and versioned manual together.
 
-Review must prove compatibility against immutable `v1.5.0`, retained-growth
+Review proved compatibility against immutable `v1.5.0`, retained-growth
 and incomplete-cost truth, exact local qualification, exact-head hosted Linux,
 zero unresolved threads and reviewed-tree merge identity. Tag, registry,
 docs.rs, Pages, provider, deployment and production states remain separate.
 
-## Active M14-T24 Minco 1.5.0 published release closure
+## Previous M14-T24 Minco 1.5.0 published release closure
 
-Minco `1.5.0` is the current published baseline from exact release source
+Minco `1.5.0` was the previous published baseline from exact release source
 `c3706559357510d33d046fa461f8550fbbd4c04c`. PR #157 reviewed tree
 `6d7bd41cb1af0d83eb2e16324906a67b17643e0b` with zero review threads,
 passed exact-head clean Linux, and merged as the same tree. Immutable tag

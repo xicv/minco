@@ -1,16 +1,32 @@
-# Minco 1.6.0 candidate handoff
+# Minco 1.6.0 release-closure handoff
 
 Date: 2026-08-13
-Published baseline: `1.5.0`
+Published baseline: `1.6.0`
 Current workspace version: `1.6.0`
-Workspace release state: `candidate`
-Published `1.5.0` source: `c3706559357510d33d046fa461f8550fbbd4c04c`
-Published source-tree digest: `d7354699f7b1169b6aa02c79ef3b1a89a88dc8653bf621f92ccb1a885a38f4b1`
-Published release task: `M14-T24`
-Latest release task: `M14-T29` (`active`)
+Workspace release state: `published`
+Published `1.6.0` source: `9abae9128dddc9bc32d099732e1421a0332e4785`
+Published source-tree digest: `af1ebeb3f3635ae0468d98e4579225d84877c6eddafba988b96f70d10173f418`
+Published release task: `M14-T30`
+Latest release task: `M14-T30` (`active`)
 Active evidence tasks: `M14-T10`, `M14-T20`
 
-## Active 1.6.0 candidate preparation
+## Active 1.6.0 release closure
+
+PR #160 reviewed exact source `f47f28d696df9372a627c07b7590274e0da18dd9`
+and tree `8747a5bf12991bc54263b635c1202912f729609d`, with zero unresolved
+threads and passing clean-Linux run `31689050949`. It merged by guarded squash
+as the same tree in commit `9abae9128dddc9bc32d099732e1421a0332e4785`.
+Merged-main clean-Linux run `31689854658`, authentication-only OIDC run
+`31689854606` and publication run `31690283715` passed. Immutable tag
+`v1.6.0`, all 34 exact non-yanked registry versions and the GitHub release are
+verified independently.
+
+The closure changes release and documentation truth only. Stable Pages and all
+exact docs.rs routes remain separate until verified. No AWS application
+operation or production mutation occurred; provider/performance and
+model/human outcome lanes remain absent or `NOT RUN`.
+
+## Completed 1.6.0 candidate preparation
 
 M14-T29 starts from merged audit source
 `4bba904f498289bf2bfe6a4fa09a165e84e9d2e2`. It coordinates the additive
@@ -21,10 +37,10 @@ low-idle audit choice, not a universal default.
 
 Candidate qualification, exact-head clean Linux, merge, immutable tag,
 registry upload, docs.rs, Pages, provider, deployment and production proof are
-separate. This task authorizes candidate preparation and guarded source merge,
+separate. The task authorized candidate preparation and guarded source merge,
 not tagging, publication or deployment.
 
-## Active 1.5.0 release closure
+## Previous 1.5.0 release closure
 
 PR #157 reviewed exact head `0e6f02296ef69a84274eb74daed1dfaaccb50243`
 and tree `6d7bd41cb1af0d83eb2e16324906a67b17643e0b`, with zero review

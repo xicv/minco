@@ -6,14 +6,14 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.5.0` release contains the complete lock-step 34-package
+The published `1.6.0` release contains the complete lock-step 34-package
 inventory and retains `minco-plugin-payments-waffo`. A workspace version or source
 tag is not registry proof: release status is verified independently against the
 exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The workspace is an unpublished `1.6.0` candidate with the same 34-package
+The workspace is the published `1.6.0` release with the same 34-package
 inventory. It packages the additive durable-audit ledger and Orders golden
 slice; it does not add a package or first-publication ownership boundary.
 Source qualification, hosted
@@ -24,24 +24,25 @@ The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
 agent-native behavior, while 1.2 adds browser/native HTTP metadata, verified
 uploads, rich mail, owned local services and delivery evidence within the same
-family. The 1.3 release adds the opt-in Waffo payment boundary; the 1.6
-candidate adds durable action auditing without changing package ownership. All 34
+family. The 1.3 release adds the opt-in Waffo payment boundary; the 1.6 release
+adds durable action auditing without changing package ownership. All 34
 published packages now have crates.io ownership. Source qualification or merge
 still must not be described as registry publication.
 
-The exact published source is immutable tag `v1.5.0` at
-`c3706559357510d33d046fa461f8550fbbd4c04c`. PR-head clean-Linux run
-`31588777070`, exact-main run `31593051123` and authentication-only OIDC run
-`31593053757` passed before guarded publication. Run `31593507996` passed its
+The exact published source is immutable tag `v1.6.0` at
+`9abae9128dddc9bc32d099732e1421a0332e4785`. PR-head clean-Linux run
+`31689050949`, exact-main run `31689854658` and authentication-only OIDC run
+`31689854606` passed before guarded publication. Run `31690283715` passed its
 archive and external-consumer checks and uploaded the dependency-ordered family.
-Independent registry validation found every exact 1.5.0 version present and
+Independent registry validation found every exact 1.6.0 version present and
 non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
 The 1.3.0 first publication crossed the Waffo crate's ownership boundary. The
 1.4.0 recovery configured its exact trusted publisher without changing crate
-ownership; 1.5.0 reused the exact publisher family and still re-proved OIDC.
+ownership; 1.5.0 and 1.6.0 reused the exact publisher family and still
+re-proved OIDC.
 Exact local and clean-Linux qualification, tag, authenticated upload, registry
 verification, docs.rs and Pages deployment remain separate states.
 
