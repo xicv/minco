@@ -5,11 +5,60 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.8.0] - 2026-08-14
+
+This additive lock-step minor makes the object-storage plugin ready for
+cost-aware browser and mobile transfer control flows. It remains unpublished
+until exact-source qualification, merge, tagging and registry publication
+complete as separate evidence states.
+
+### Added
+
+- Added an opt-in authenticated object-transfer HTTP control plane for direct
+  single or multipart upload, immutable conditional update, private full/range
+  download, abort and authorized conditional cache metadata.
+- Added provider-neutral bounded streaming, strong-validator range resume and
+  checksummed multipart contracts with a production-targeted private S3 byte
+  plane and explicit non-S3 conformance boundary.
+- Added quarantined completion, application-selected inspection verdicts and a
+  structural transfer-cost projection covering storage, incomplete parts,
+  requests, egress, acceleration and optional edge dimensions without embedding
+  changing provider prices.
+
 ### Fixed
 
+- Bounded the complete 10,000-part manifest to a 3 MiB JSON control-plane body
+  and each provider part `ETag` to 64 bytes so valid S3 completion fits the
+  golden synchronous Lambda and API Gateway ingress limits.
+- Implemented authorized GET `If-None-Match` weak comparison for strong/weak
+  lists and `*`, ignored malformed candidates, and rejected invalid
+  application-supplied response entity tags before emitting headers.
+- Revalidated trusted single-upload state against its generated key, exact
+  policy, byte limit, checksum, upload identity and attributes before spending
+  a provider metadata request.
 - Added table-scoped `dynamodb:PutItem` to generated DynamoDB audit IAM because
   AWS authorizes a `Put` member inside `TransactWriteItems` as its dependent
   item operation. The audit adapter still has no standalone `PutItem` path.
+
+### Changed
+
+- Advanced all 34 publishable packages and official plugin descriptors in
+  lock-step to the additive `1.8.0` candidate line and froze matching browser,
+  mobile, plugin and adoption guidance.
+
+### Compatibility and evidence
+
+- Kept existing buffering storage and signed single-upload APIs compatible;
+  transfer services and HTTP lifecycle composition remain explicit additive
+  capabilities, and a non-S3 `ObjectStore` alone does not claim resumable HTTP.
+- Kept authorization, quotas, durable sessions, logical object pointers,
+  retention and content safety in application use cases; checksum and metadata
+  integrity never become an antivirus or safe-inline claim.
+- Added no default CDN, Transfer Acceleration, scanner, scheduler, fixed compute,
+  NAT Gateway, provisioned concurrency or large-body Lambda relay. Current
+  prices, live providers, deployment and production remain separate evidence.
 
 Release sections from `1.2.0` onward retain exact candidate-source wording
 because their digests are bound into the portable agent bundle; tag, registry,

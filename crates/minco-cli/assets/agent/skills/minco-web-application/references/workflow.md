@@ -43,3 +43,8 @@ At the 1.7 Apple Container default boundary, keep the native application
 process outside the dependency container. Apple selection or Docker fallback
 changes local dependency lifecycle only, not application, API or production
 semantics.
+
+At the 1.8 resumable object transfer boundary, use the API as an authorized
+bounded control plane and the private provider as the byte plane. Mobile retry,
+stop/resume and private caching must retain strong revision identity, while
+content remains quarantined until application inspection accepts it.

@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.7.0`
 >
-> Current workspace version: `1.7.0`
+> Current workspace version: `1.8.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `34`
 
@@ -41,6 +41,7 @@ start directly with:
 - [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.7.0/guides/payments-waffo)
 - [Operate durable auditing](https://xicv.github.io/minco/1.7.0/guides/auditing)
 - [Use Apple-first local services](https://xicv.github.io/minco/1.7.0/guides/local-development)
+- [Review the 1.8.0 object-transfer candidate](https://xicv.github.io/minco/1.8.0/guides/files-and-static-sites)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -80,11 +81,11 @@ cargo add minco@1.7.0 --no-default-features
 
 ## Agent-native application development
 
-The `1.7.0` release packages nine focused, version-matched workflow skills
-for Codex and Claude Code. It teaches the Apple-first fresh local-runtime
-selection while retaining exact-resource recovery, Docker fallback and the
-durable-audit boundary. The mandatory cumulative changelog-to-skill freshness
-gate remains in force. Minco
+The `1.8.0` candidate packages nine focused, version-matched workflow skills
+for Codex and Claude Code. Relevant skills teach the resumable object-transfer
+boundary while retaining Apple-first local services, exact-resource recovery,
+Docker fallback and durable auditing. The mandatory cumulative
+changelog-to-skill freshness gate remains in force. Minco
 plans project-local projections before writing, requires
 the exact plan digest to synchronize them, and preserves user-owned
 instructions and client configuration.
@@ -100,7 +101,7 @@ cargo minco agent eval --target all --json
 Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
-the [1.7.0 agent development guide](https://xicv.github.io/minco/1.7.0/guides/agent-development).
+the [1.8.0 candidate agent development guide](https://xicv.github.io/minco/1.8.0/guides/agent-development).
 
 Release qualification also verifies cumulative feature coverage, current
 versioned documentation, skill markers and a byte-identical deterministic
@@ -139,6 +140,17 @@ explicit bounded segments, PostgreSQL normally uses time partitions, and
 DynamoDB can retain a hot horizon before a separately proven archive. Storage,
 PITR, relationship fanout and archive costs stay visible. See the
 [1.7.0 auditing guide](https://xicv.github.io/minco/1.7.0/guides/auditing).
+
+## Direct object transfers
+
+The `1.8.0` candidate adds an opt-in authenticated JSON control plane for
+direct single/multipart upload, immutable replacement, private full/range
+download, stop/resume and conditional private-cache metadata. Large bytes go
+directly to private storage; the application still owns authorization, quotas,
+durable sessions, logical pointers, retention and content inspection. S3 is
+the production-targeted byte plane, while non-S3 providers must implement the
+additive streaming/signing/multipart contracts. See the
+[1.8.0 candidate file guide](https://xicv.github.io/minco/1.8.0/guides/files-and-static-sites).
 
 ## Static plugin distribution and conformance
 
@@ -221,6 +233,10 @@ registry, docs.rs, stable documentation, AWS deployment and production runtime
 remain separately verified evidence states; no live Waffo or AWS application
 mutation was part of this crate release.
 
+The workspace is an unpublished `1.8.0` candidate. Its object-transfer source,
+manual and local qualification do not imply a tag, registry upload, GitHub
+release, docs.rs build, Pages deployment, live provider or production runtime.
+
 See [`CHANGELOG.md`](CHANGELOG.md),
 [`docs/adoption/0.4.0-to-0.5.0.md`](docs/adoption/0.4.0-to-0.5.0.md),
 [`docs/adoption/0.5.0-to-0.6.0.md`](docs/adoption/0.5.0-to-0.6.0.md), and
@@ -234,6 +250,7 @@ See [`CHANGELOG.md`](CHANGELOG.md),
 [`docs/adoption/1.4.0-to-1.5.0.md`](docs/adoption/1.4.0-to-1.5.0.md), and
 [`docs/adoption/1.5.0-to-1.6.0.md`](docs/adoption/1.5.0-to-1.6.0.md), and
 [`docs/adoption/1.6.0-to-1.7.0.md`](docs/adoption/1.6.0-to-1.7.0.md), and
+[`docs/adoption/1.7.0-to-1.8.0.md`](docs/adoption/1.7.0-to-1.8.0.md), and
 [`docs/development/publishing.md`](docs/development/publishing.md).
 
 ## License

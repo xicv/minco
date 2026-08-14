@@ -40,3 +40,8 @@ At the 1.7 Apple Container default boundary, verify additive SemVer against the
 immutable 1.6 baseline and qualify Apple selection, receipt precedence, exact
 resource ownership and Docker fallback. Candidate, merge, tag, publication and
 runtime proof remain separate release states.
+
+At the 1.8 resumable object transfer boundary, qualify the maximum multipart
+manifest, range/cache validators, quarantine and structural cost claims against
+the immutable 1.7 baseline. Keep local, hosted, registry, provider, deployment
+and production evidence as separate states.

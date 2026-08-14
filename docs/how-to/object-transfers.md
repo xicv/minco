@@ -49,6 +49,12 @@ against its configured prefix, upload UUID, content policy and part plan before
 contacting the provider. Abort retains the narrower identity check so an older
 session can still be cleaned up after a policy change.
 
+The same rule applies to a single-request upload: pass only the trusted
+`PendingObjectUpload` record to verification. The service rechecks its generated
+key, canonical content type and checksum, byte limit, upload identity and
+attributes before the provider metadata request. This catches corrupt or
+misconfigured retained state without spending a storage request.
+
 ## Upload
 
 Call `POST /_minco/objects/uploads`. A small file can receive one exact signed
@@ -62,6 +68,12 @@ For every part:
    `POST /uploads/{uploadId}/parts/{partNumber}`;
 4. send the exact content length and all returned signed headers to S3; and
 5. send the provider `ETag` and checksum in the completion manifest.
+
+The HTTP completion body is capped at 3 MiB and each provider `ETag` at 64
+bytes. That admits S3's maximum 10,000 parts with the required SHA-256 receipts
+while keeping the JSON control plane below the synchronous Lambda and API
+Gateway request ceilings. File bytes never count toward this body because they
+go directly to the provider.
 
 Retry only failed parts. Reissuing the same part number replaces that part; keep
 only the latest accepted receipt. Do not use provider `ListParts` output as the
@@ -122,6 +134,9 @@ application object ID plus revision. Before downloading again, call
 `GET /_minco/objects/{objectId}` with the cached `ETag` in `If-None-Match`. A
 `304 Not Modified` means the local bytes remain current and no new signed URL or
 object download is needed. Do not put sensitive files in a shared/public cache.
+Weak validators, comma-separated validator lists and `If-None-Match: *` follow
+GET weak-comparison semantics; malformed candidates do not match. The
+application's authorization still runs before any `304` response.
 
 Keep the two validators distinct. The metadata response `ETag` is an
 application representation tag and must change when the immutable object

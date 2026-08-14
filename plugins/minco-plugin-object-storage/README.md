@@ -35,6 +35,12 @@ conditionally read cache metadata through one application-owned
 authorization, quotas, durable session state, immutable revision replacement,
 and mapping stable application object IDs to provider keys.
 
+The control plane admits a bounded 3 MiB JSON body so the complete 10,000-part
+provider manifest fits without relaying file bytes. Provider part `ETag` values
+are limited to 64 bytes. Metadata caching accepts weak/list/wildcard
+`If-None-Match` validators after authorization and emits only validated strong
+application tags.
+
 Completed untrusted uploads begin as `ObjectValidationState::Quarantined`.
 Checksum, byte count, MIME and provider metadata prove integrity, not safety;
 only an application-selected `ObjectContentInspector` can record accepted or
@@ -59,7 +65,10 @@ in trusted application state.
 the trusted record's retention deadline. An upload accepted before expiry can
 be verified afterward; the application owns pending-record cleanup. Managed
 verification also checks that the provider reports the same logical key and
-requires a provider checksum rather than trusting user metadata alone.
+requires a provider checksum rather than trusting user metadata alone. Before
+that provider lookup it revalidates the retained pending record against the
+configured key prefix, exact content policy, byte limit, checksum and upload
+identity.
 
 One managed plugin instance intentionally installs one exact upload policy.
 Keep that policy purpose-specific instead of combining unrelated product

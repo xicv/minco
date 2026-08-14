@@ -1244,7 +1244,7 @@ fn validate_attributes(
 
 fn validate_entity_tag(value: &str) -> Result<(), ObjectTransferError> {
     if value.is_empty()
-        || value.len() > 256
+        || value.len() > crate::MAX_MULTIPART_ENTITY_TAG_BYTES
         || value.starts_with("W/")
         || value.chars().any(char::is_control)
     {

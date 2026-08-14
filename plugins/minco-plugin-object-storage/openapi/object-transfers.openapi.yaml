@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Minco object transfer control plane
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Authenticated lifecycle operations for direct private object upload and
     download. File bytes are sent to the signed provider request, not to these
@@ -22,6 +22,10 @@ paths:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
+        description: >-
+          JSON control-plane manifest only. The server accepts at most 3 MiB,
+          enough for the provider maximum of 10,000 bounded part receipts while
+          remaining below the golden AWS synchronous payload limits.
         content:
           application/json:
             schema:
@@ -172,12 +176,15 @@ paths:
         - name: If-None-Match
           in: header
           required: false
+          description: >-
+            RFC-style validator list using weak comparison for GET. A matching
+            weak or strong tag, or `*`, returns 304 after authorization.
           schema: { type: string, maxLength: 256 }
       responses:
         '200':
           description: Current object revision and validation state
           headers:
-            ETag: { schema: { type: string } }
+            ETag: { schema: { $ref: '#/components/schemas/ApplicationEntityTag' } }
             Cache-Control: { schema: { type: string, const: 'private, no-cache' } }
             Vary: { schema: { type: string, const: Authorization } }
           content:
@@ -186,7 +193,7 @@ paths:
         '304':
           description: The client's cached revision remains current
           headers:
-            ETag: { schema: { type: string } }
+            ETag: { schema: { $ref: '#/components/schemas/ApplicationEntityTag' } }
             Cache-Control: { schema: { type: string, const: 'private, no-cache' } }
             Vary: { schema: { type: string, const: Authorization } }
         '401': { $ref: '#/components/responses/AuthenticationRequired' }
@@ -310,7 +317,7 @@ components:
       required: [part_number, entity_tag, sha256]
       properties:
         part_number: { type: integer, minimum: 1, maximum: 10000 }
-        entity_tag: { type: string, minLength: 1, maxLength: 256 }
+        entity_tag: { type: string, minLength: 1, maxLength: 64 }
         sha256: { type: string, pattern: '^[0-9A-Fa-f]{64}$' }
     CompletedTransferUpload:
       type: object
@@ -384,9 +391,15 @@ components:
         revision: { type: string }
         content_type: { type: string }
         size_bytes: { type: integer, format: int64 }
-        entity_tag: { type: string }
+        entity_tag: { $ref: '#/components/schemas/ApplicationEntityTag' }
         last_modified: { type: string, format: date-time }
         validation: { $ref: '#/components/schemas/ValidationState' }
+    ApplicationEntityTag:
+      type: string
+      minLength: 3
+      maxLength: 202
+      pattern: '^"[A-Za-z0-9._:-]{1,200}"$'
+      description: Strong quoted Minco representation validator.
     PresignedRequest:
       type: object
       description: Bearer capability; redact the URL and all field values from logs.

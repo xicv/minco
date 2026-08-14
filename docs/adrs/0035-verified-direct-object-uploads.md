@@ -38,8 +38,11 @@ inside the object-storage plugin:
 6. the S3 implementation binds its POST policy to the one key, exact media type,
    exact `content-length-range`, SHA-256 checksum, expiry, encryption field, and
    signed attributes;
-7. `ObjectUploadService::verify` performs one metadata lookup and accepts only
-   the issued key, media type, exact byte count, SHA-256, and attributes; and
+7. `ObjectUploadService::verify` first revalidates trusted pending state against
+   the configured key prefix, canonical media type, byte limit, checksum,
+   upload identity and attributes, then performs one metadata lookup and
+   accepts only the issued key, media type, exact byte count, SHA-256, and
+   attributes;
 8. `ObjectMetadataReader` is a provider-neutral port implemented by the memory
    adapter and by S3 `HeadObject` with checksum mode enabled;
 9. user metadata can corroborate but never replace the provider checksum; and

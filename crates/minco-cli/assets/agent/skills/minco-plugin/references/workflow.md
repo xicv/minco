@@ -36,3 +36,8 @@ or retention scheduling outside implicit plugin behavior.
 At the 1.7 Apple Container default boundary, declare the local dependency
 runtime explicitly. Keep Compose-only plugins on the Docker fallback instead
 of inferring that arbitrary Compose behavior can run through Apple Container.
+
+At the 1.8 resumable object transfer boundary, compose streaming, download,
+multipart and HTTP services explicitly. Do not infer resumable support from the
+buffering store, treat provider keys as ownership, or promote integrity checks
+into content-safety claims.

@@ -1,8 +1,8 @@
 schema = 1
-workspace_version = "1.7.0"
+workspace_version = "1.8.0"
 published_baseline = "1.7.0"
 published_release_commit = "7773892792696ccf061ddbb49fa284e5ba7f6747"
-workspace_release_state = "published"
+workspace_release_state = "candidate"
 operational_evidence_effective_date = "2026-08-12"
 published_package_count = 34
 adoption_gate_task = "M6-T07"
@@ -12,12 +12,12 @@ qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-
 post_candidate_tasks = ["M6-T01", "M12-T07"]
 published_release_task = "M14-T33"
 published_source_tree_sha256 = "ef52d3083c0f8b73db9ae1f01e028aae265e28579cc705faf0b20938f060d345"
-release_candidate_task = "M14-T32"
+release_candidate_task = "M14-T36"
 
 # The published 1.7.0 baseline is the complete 34-package family from immutable
-# tag v1.7.0. It changes only fresh automatic local-service selection to prefer
-# Apple Container while retaining Docker fallback, package inventory and
-# live-provider evidence.
+# tag v1.7.0. The unpublished 1.8.0 candidate adds direct resumable object
+# transfer contracts while retaining package inventory, application authority,
+# minimal topology and separate live-provider evidence.
 publishable_package_count = 34
 new_publishable_packages = []
 

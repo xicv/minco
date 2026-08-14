@@ -1,6 +1,32 @@
 # Review status
 
-## Active M14-T33 Minco 1.7.0 published release closure
+## Completed M14-T36 Minco 1.8.0 object-transfer candidate
+
+The candidate starts from exact merged `main`
+`9e4e4c2b5b8e35457d4d45f94b4114236a775069` and published baseline
+`v1.7.0`. Review must prove the authenticated JSON control plane stays bounded,
+large bytes remain direct, authorization precedes cache decisions, multipart
+and range validators are exact, updates use immutable revisions, untrusted
+completion stays quarantined and cost claims remain structural.
+
+The 34-package family and 19 official descriptors advance together with no new
+package. Existing buffering/single-upload APIs remain compatible, while non-S3
+providers need the additive transfer implementations before claiming resumable
+HTTP support. Local, security, hosted, merge, tag, registry, docs.rs, Pages,
+live-provider, deployment and production proof remain separate.
+
+The exact sealed source passes the complete macOS quality and local-release
+matrix from a clean JJ child. Pinned assurance proves 127 nextest tests plus one
+doctest, 85.78% line and 81.97% function coverage, 43 caught viable mutants
+with zero misses/timeouts, and additive compatibility for all 34 packages
+against `v1.7.0`. Candidate load/recovery, package archives, Plan/SAM, native
+Lambda builds, AppSync proof, owned PostgreSQL/Rustack runtime and Orders E2E
+also pass locally. Exact-head immutable security review, hosted Linux, merge,
+tag, registry, docs.rs and Pages remain independent gates; live provider,
+deployment, production and hosted performance evidence remain absent or
+`NOT RUN`.
+
+## Completed M14-T33 Minco 1.7.0 published release closure
 
 Minco `1.7.0` is the current published baseline from exact release source
 `7773892792696ccf061ddbb49fa284e5ba7f6747`. PR #163 reviewed tree

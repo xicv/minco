@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.7.0`
-Current workspace version: `1.7.0`
-Workspace release state: `published`
+Current workspace version: `1.8.0`
+Workspace release state: `candidate`
 Reviewed release source: `7773892792696ccf061ddbb49fa284e5ba7f6747`
 
 ## Product identity
@@ -56,6 +56,12 @@ The published 1.7.0 release makes Apple Container the first fresh automatic
 local-service choice on a qualified Apple host. Receipts and exact owned
 resources still outrank that default, Docker remains supported, and no
 production, Plan IR, AWS or provider boundary changes.
+
+The unpublished 1.8.0 candidate adds opt-in direct, resumable object-transfer
+contracts and an authenticated JSON control plane without moving application
+authorization, durable state, logical object identity, content safety or
+retention into the framework. It changes no default production topology and
+does not claim registry, live-provider, deployment or production proof.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,
