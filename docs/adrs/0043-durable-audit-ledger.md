@@ -49,6 +49,11 @@ a second journal table, Lambda relay, delivery lag and duplicate-delivery state.
 Provider limits still bound each application transaction; bulk operations must
 be explicitly chunked and cannot claim cross-chunk atomicity.
 
+The generated table-scoped IAM authorizes both `TransactWriteItems` and the
+dependent item actions used by its transaction members. A transactional audit
+`Put` therefore requires `dynamodb:PutItem` even though the adapter never calls
+the standalone `PutItem` API.
+
 DynamoDB is not the global default. Local SQLite and self-hosted PostgreSQL
 profiles do not acquire an AWS dependency, credentials, network path or cloud
 cost merely by selecting auditing. Explicit plugin composition and Plan IR

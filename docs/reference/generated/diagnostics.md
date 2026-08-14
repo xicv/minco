@@ -207,14 +207,14 @@ Declared codes: `559`.
 | `MINCO-COST-004` | cost | `crates/minco-plan/src/model.rs:747` | 0 |
 | `MINCO-COST-005` | cost | `crates/minco-plan/src/model.rs:792` | 1 |
 | `MINCO-COST-006` | cost | `crates/minco-plan/src/model.rs:655` | 0 |
-| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2631` | 1 |
-| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2660` | 1 |
+| `MINCO-COST-007` | cost | `crates/minco-plan/src/model.rs:2626` | 1 |
+| `MINCO-COST-008` | cost | `crates/minco-plan/src/model.rs:2655` | 1 |
 | `MINCO-COST-009` | cost | `crates/minco-plan/src/model.rs:696` | 2 |
 | `MINCO-COST-010` | cost | `crates/minco-plan/src/model.rs:731` | 0 |
 | `MINCO-DB-001` | db | `crates/minco-plan/src/model.rs:804` | 0 |
 | `MINCO-DB-002` | db | `crates/minco-plan/src/model.rs:810` | 0 |
 | `MINCO-DB-003` | db | `crates/minco-plan/src/model.rs:829` | 0 |
-| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2703` | 2 |
+| `MINCO-DB-004` | db | `crates/minco-plan/src/model.rs:2698` | 2 |
 | `MINCO-DB-005` | db | `crates/minco-plan/src/model.rs:845` | 0 |
 | `MINCO-DYNAMODB-001` | dynamodb | `crates/minco-plan/src/model.rs:1441` | 0 |
 | `MINCO-DYNAMODB-002` | dynamodb | `crates/minco-plan/src/model.rs:1447` | 1 |
@@ -250,7 +250,7 @@ Declared codes: `559`.
 | `MINCO-PERF-004` | perf | `crates/minco-plan/src/model.rs:722` | 0 |
 | `MINCO-PLAN-001` | plan | `crates/minco-plan/src/model.rs:447` | 0 |
 | `MINCO-PLAN-002` | plan | `crates/minco-plan/src/model.rs:565` | 0 |
-| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2546` | 1 |
+| `MINCO-PLAN-003` | plan | `crates/minco-plan/src/model.rs:2541` | 1 |
 | `MINCO-PLAN-004` | plan | `crates/minco-plan/src/model.rs:572` | 0 |
 | `MINCO-PLAN-005` | plan | `crates/minco-plan/src/model.rs:582` | 1 |
 | `MINCO-PLAN-010` | plan | `crates/minco-plan/src/model.rs:1006` | 2 |
@@ -262,8 +262,8 @@ Declared codes: `559`.
 | `MINCO-PLAN-016` | plan | `crates/minco-plan/src/model.rs:1022` | 2 |
 | `MINCO-PLAN-017` | plan | `crates/minco-plan/src/model.rs:1234` | 0 |
 | `MINCO-PLAN-018` | plan | `crates/minco-plan/src/model.rs:1249` | 4 |
-| `MINCO-PLAN-INGRESS-001` | plan | `crates/minco-plan/src/model.rs:2574` | 3 |
-| `MINCO-PLAN-INGRESS-002` | plan | `crates/minco-plan/src/model.rs:2602` | 5 |
+| `MINCO-PLAN-INGRESS-001` | plan | `crates/minco-plan/src/model.rs:2569` | 3 |
+| `MINCO-PLAN-INGRESS-002` | plan | `crates/minco-plan/src/model.rs:2597` | 5 |
 | `MINCO-PLAN-MIGRATE-001` | plan | `crates/minco-plan/src/model.rs:404` | 1 |
 | `MINCO-PLAN-MIGRATE-002` | plan | `crates/minco-plan/src/model.rs:411` | 2 |
 | `MINCO-PLAN-MIGRATE-003` | plan | `crates/minco-plan/src/model.rs:437` | 0 |

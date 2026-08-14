@@ -33,7 +33,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "22077b1082a77067703e3c79ce54be247877f2103cbcb0b17581c4f64bfd5ff7"
+      "sha256": "63721e978b3fae709428e487ea63962da0da9d60e79ddc781c59d2206780272a"
     },
     {
       "path": "docs-site/release.json",
@@ -523,7 +523,7 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "f6d3688c3d4194e9cf84fac9a1786af374a2d851c9ccb45f0d0753da4b71da97",
+  "projection_sha256": "a138a8f647a022c8baa731f88e82711d8e70fc1c8be45f1a7b92ef7431a759ac",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "2cfa5c6c074b34eb3cca45282489b98ffd9a05f91612a2451e8d458b4f7a8bfb"

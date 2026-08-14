@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1526,
+  "file_count": 1527,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -44,8 +44,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "22077b1082a77067703e3c79ce54be247877f2103cbcb0b17581c4f64bfd5ff7",
-      "size_bytes": 40709
+      "sha256": "63721e978b3fae709428e487ea63962da0da9d60e79ddc781c59d2206780272a",
+      "size_bytes": 40905
     },
     {
       "path": "CODEX_CONTINUATION_PROMPT.md",
@@ -1329,18 +1329,18 @@
     },
     {
       "path": "crates/minco-plan/src/lib.rs",
-      "sha256": "0369bfe2b39d3dbcebcc22911577ba889769d0ea7d3afa750b1665e35cfd08ab",
-      "size_bytes": 3181
+      "sha256": "e3fcf070bcd2535dd78e11b2d340dee60bdbd582e41b3bf7fe8c275fa3e49b49",
+      "size_bytes": 3375
     },
     {
       "path": "crates/minco-plan/src/model.rs",
-      "sha256": "1bc21a1b919a94af16ee6fae154cbe2779aadbc1826f2db0b8b5adb8eacf1add",
-      "size_bytes": 96935
+      "sha256": "583df353be1805cd08b30f1c768c868f3ae8dc81e8c84099b73478ced36e3b05",
+      "size_bytes": 96826
     },
     {
       "path": "crates/minco-plan/src/sam.rs",
-      "sha256": "f40f3575100010a413ef7e8ad4b5fca315d32b9f46ceca96220f38fb33d8e5ec",
-      "size_bytes": 65975
+      "sha256": "180ad18856d88d760ad446d9a53fd4f3ca0b7c20063afacea35f8b7adc9adebc",
+      "size_bytes": 65894
     },
     {
       "path": "crates/minco-plan/tests/fixtures/api_dynamodb_explicit_v2.toml",
@@ -1379,8 +1379,8 @@
     },
     {
       "path": "crates/minco-plan/tests/multi_runtime.rs",
-      "sha256": "6256f5dcea69ad5a5ab165d6e0ff3ce00029894da8c13f846e127edf8fed1be7",
-      "size_bytes": 41629
+      "sha256": "e7b600dff36460a75c8b406fbbe5b583fdcd65e63191173526b124408088bc39",
+      "size_bytes": 41668
     },
     {
       "path": "crates/minco-project-view/Cargo.toml",
@@ -1939,8 +1939,8 @@
     },
     {
       "path": "docs/adrs/0043-durable-audit-ledger.md",
-      "sha256": "57a01e84184e5bbbfa4542320281a0880d158a247aefec9a7987b11ffb51c130",
-      "size_bytes": 7582
+      "sha256": "88da309be2445c93868e0dd33fc4610a32f11e67127442fa88cca4d90ab35f9d",
+      "size_bytes": 7847
     },
     {
       "path": "docs/adrs/0044-apple-container-default.md",
@@ -2039,8 +2039,8 @@
     },
     {
       "path": "docs/deployment/dynamodb-orders.md",
-      "sha256": "b1e2a33de46a9d1470d0fd4d1dd9c63a29df39a5487c495d7e124536e2180ded",
-      "size_bytes": 6280
+      "sha256": "87291f954f8d0053530642f3183c304680a9490b92b18933ca6806799d6aea12",
+      "size_bytes": 6474
     },
     {
       "path": "docs/deployment/local-parity.md",
@@ -2239,7 +2239,7 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "2ea33188f499d7144d4fca2cd38b5a94d93ae1e0a82adbcebdd15ddd83e140fc",
+      "sha256": "1f4ee6291bbd15d4fb60f87f4f6ba3df7398cbb54ba138f4372e9d4947d53c82",
       "size_bytes": 50257
     },
     {
@@ -2264,7 +2264,7 @@
     },
     {
       "path": "docs/reference/generated/schemas.md",
-      "sha256": "c8ab17337d24049b1e3aa6ce1168be838a3cf0ef3e27b577a566524a03222beb",
+      "sha256": "3f442acf75a6d73f4e1bb81513fd1e6f054e002aee47965cf03872e477f7ab87",
       "size_bytes": 15784
     },
     {
@@ -6289,8 +6289,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "976cd5f8599b2bcf9cbc79e61e2b87a821d00810b2a6678ea9369f05e7b18325",
-      "size_bytes": 12735
+      "sha256": "44a69e1a1cf6ea36d867e29423cd92844fc4cab9623e102611d7d64f4f1dc7d5",
+      "size_bytes": 12931
     },
     {
       "path": "rust-toolchain.toml",
@@ -7253,6 +7253,11 @@
       "size_bytes": 7786
     },
     {
+      "path": "tasks/M14/M14-T35-audit-dynamodb-dependent-actions.md",
+      "sha256": "541a9edf8ac5e94b158bc8370e16c29248cd8735c54df608570aaeb2c588b2be",
+      "size_bytes": 3553
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -7589,7 +7594,7 @@
     },
     {
       "path": "verification/release-identity.json",
-      "sha256": "86312654003302ec795b56e5dc833231b1a73c835d7fa546e66013c19e82023a",
+      "sha256": "9362de75b9777bc3fd9c13db8799efb105b92d7cd8e4a481e0b37d1e309a2a3b",
       "size_bytes": 18155
     },
     {
@@ -7678,7 +7683,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "84402d8fe74125746812be82145df5c03810cc6472decb3299832a4d7641cef5",
-  "total_size_bytes": 11174813,
+  "source_tree_sha256": "4bf6c9c7157489292670c288dfd0cc32548a5387d9109f5a2db5adc9ff1cbb49",
+  "total_size_bytes": 11179260,
   "version": "1.7.0"
 }

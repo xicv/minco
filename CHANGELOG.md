@@ -5,10 +5,15 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.7.0` release. Release sections from `1.2.0`
-onward retain exact candidate-source wording because their digests are bound
-into the portable agent bundle; tag, registry, documentation and provider
-evidence stay separate in `VERIFICATION.md`.
+### Fixed
+
+- Added table-scoped `dynamodb:PutItem` to generated DynamoDB audit IAM because
+  AWS authorizes a `Put` member inside `TransactWriteItems` as its dependent
+  item operation. The audit adapter still has no standalone `PutItem` path.
+
+Release sections from `1.2.0` onward retain exact candidate-source wording
+because their digests are bound into the portable agent bundle; tag, registry,
+documentation and provider evidence stay separate in `VERIFICATION.md`.
 
 ## [1.7.0] - 2026-08-13
 

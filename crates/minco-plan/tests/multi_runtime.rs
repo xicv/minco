@@ -998,6 +998,7 @@ fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam()
                 == [
                     "dynamodb:BatchGetItem",
                     "dynamodb:DescribeTable",
+                    "dynamodb:PutItem",
                     "dynamodb:Query",
                     "dynamodb:TransactWriteItems",
                 ]
@@ -1030,12 +1031,12 @@ fn explicit_dynamodb_table_renders_on_demand_indexes_environment_and_exact_iam()
         "                - !Sub '${OrdersTable.Arn}/index/orders-by-created-at-inverted-id'\n",
         "                - !Sub '${OrdersTable.Arn}/index/orders-by-id'\n",
         "                - dynamodb:BatchGetItem\n",
+        "                - dynamodb:PutItem\n",
         "              Resource: !GetAtt OrdersAuditTable.Arn\n",
     ] {
         assert!(yaml.contains(required), "missing {required:?} in:\n{yaml}");
     }
     assert!(!yaml.contains("dynamodb:*"));
-    assert!(!yaml.contains("dynamodb:PutItem"));
     assert!(!yaml.contains("Resource: '*'"));
 }
 

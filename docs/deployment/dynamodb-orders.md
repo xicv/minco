@@ -94,9 +94,12 @@ The explicit contract renders:
   `AUDIT_DYNAMODB_TABLE_NAME` CloudFormation references;
 - exact operational table and `/index/*` IAM for `DescribeTable`, `GetItem`,
   `Query`, `TransactWriteItems`, and `UpdateItem`; and
-- separate audit-table IAM for `BatchGetItem`, `DescribeTable`, `Query`, and
-  `TransactWriteItems`—never `dynamodb:*`, the unused `PutItem`, or
-  `Resource: "*"`.
+- separate audit-table IAM for `BatchGetItem`, `DescribeTable`, `PutItem`,
+  `Query`, and `TransactWriteItems`—never `dynamodb:*` or `Resource: "*"`.
+
+`PutItem` authorizes the `Put` member inside the atomic
+`TransactWriteItems` request; the audit adapter does not issue a standalone
+`PutItem` request. The permission remains scoped to the exact audit table.
 
 Cost output keeps request volume, transaction write amplification, three GSI
 projections, audit canonical/projection fan-out, storage, PITR, and retained
