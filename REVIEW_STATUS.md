@@ -1,5 +1,20 @@
 # Review status
 
+## Active M14-T37 Minco 1.8.0 published release closure
+
+Minco `1.8.0` is the current published baseline from exact release source
+`fe1a20d4a6c76c7adef268727bb30b92b594e072`. PR #168 reviewed tree
+`3def2f3b5852f418d92e9ed87e86395b67d9870f` with zero unresolved review
+threads and a sealed security scan with zero findings, passed exact-head clean
+Linux, and merged as the same tree. Immutable tag `v1.8.0`, publication run
+`31775399279`, all 34 exact non-yanked crates.io records, a fresh public CLI
+install and the GitHub release are independently verified.
+
+This truth-only closure changes no Rust API, Plan IR, plugin capability,
+runtime selection, provider topology or default cost profile. Stable Pages and
+exact docs.rs routes remain independent gates. Live AWS, production, hosted
+performance and content-safety evidence remain unproven or `NOT RUN`.
+
 ## Completed M14-T36 Minco 1.8.0 object-transfer candidate
 
 The candidate starts from exact merged `main`

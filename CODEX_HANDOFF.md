@@ -1,14 +1,31 @@
-# Minco 1.8.0 object-transfer candidate handoff
+# Minco 1.8.0 published release handoff
 
 Date: 2026-08-14
-Published baseline: `1.7.0`
+Published baseline: `1.8.0`
 Current workspace version: `1.8.0`
-Workspace release state: `candidate`
-Published `1.7.0` source: `7773892792696ccf061ddbb49fa284e5ba7f6747`
-Published source-tree digest: `ef52d3083c0f8b73db9ae1f01e028aae265e28579cc705faf0b20938f060d345`
-Published release task: `M14-T33`
-Latest release task: `M14-T36` (`completed`)
+Workspace release state: `published`
+Published `1.8.0` source: `fe1a20d4a6c76c7adef268727bb30b92b594e072`
+Published source-tree digest: `99ee942d928c4e1b7626ce89a7f566d8a418a6c591b0d56743b8626837fdd00f`
+Published release task: `M14-T37`
+Latest release task: `M14-T37` (`active`)
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active 1.8.0 release closure
+
+PR #168 reviewed exact source `b589612b17c2288a92e176cb08543eb6eacb826b`
+and tree `3def2f3b5852f418d92e9ed87e86395b67d9870f` with no unresolved
+threads, passing exact-head clean-Linux run `31774750512` and a sealed security
+review with zero findings. The guarded squash merge produced exact tree-equal
+main commit `fe1a20d4a6c76c7adef268727bb30b92b594e072`. Merged-main clean-Linux
+run `31775061737`, authentication-only OIDC run `31775371863` and publication
+run `31775399279` passed. Immutable tag `v1.8.0`, all 34 exact non-yanked
+registry versions, a fresh public CLI install and the GitHub release are
+verified independently.
+
+This closure changes release and documentation truth only. Stable Pages and
+all exact docs.rs routes remain separate until verified. No AWS application
+operation or production mutation occurred; live-provider, hosted-performance
+and content-safety evidence remain absent or `NOT RUN`.
 
 ## Completed 1.8.0 candidate preparation
 

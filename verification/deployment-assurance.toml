@@ -1,6 +1,6 @@
 schema = 1
-published_baseline = "1.7.0"
-reviewed_release_commit = "7773892792696ccf061ddbb49fa284e5ba7f6747"
+published_baseline = "1.8.0"
+reviewed_release_commit = "fe1a20d4a6c76c7adef268727bb30b92b594e072"
 default_profile = "aws-http-api-lambda"
 
 [policy]

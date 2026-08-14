@@ -2,16 +2,16 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.7.0`
+Published release: `1.8.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.8.0` candidate
+Current workspace: `1.8.0` published
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1 through published 1.7.0 release lines. Merge, tag,
+the 1.1 through published 1.8.0 release lines. Merge, tag,
 registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
@@ -49,7 +49,7 @@ production topology and provider semantics. Official descriptors advance in
 lock-step to `^1.7.0`; see the
 [1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md).
 
-The 1.8.0 candidate adds opt-in streaming, multipart, private range-download,
+The 1.8.0 release adds opt-in streaming, multipart, private range-download,
 conditional metadata and HTTP lifecycle contracts to object storage. Existing
 buffering and single-upload APIs remain available, production topology defaults
 do not change, and application use cases retain authorization, state, logical

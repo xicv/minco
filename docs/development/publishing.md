@@ -6,20 +6,19 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.7.0` release contains the complete lock-step 34-package
+The published `1.8.0` release contains the complete lock-step 34-package
 inventory and retains `minco-plugin-payments-waffo`. A workspace version or source
 tag is not registry proof: release status is verified independently against the
 exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The workspace is an unpublished `1.8.0` candidate with the same 34-package
+The workspace is the published `1.8.0` release with the same 34-package
 inventory. It adds opt-in direct, resumable object-transfer contracts while
-retaining application authority and the minimal production topology; it does
-not add a package or first-publication ownership boundary. The published
-install baseline is `1.7.0`. Source qualification, hosted
-compatibility, tag, OIDC, registry, docs.rs and Pages evidence are obtained
-independently.
+retaining application authority and the minimal production topology; it adds
+no package or first-publication ownership boundary. Source qualification,
+hosted compatibility, tag, OIDC, registry, docs.rs and Pages evidence are
+obtained independently.
 
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
@@ -28,23 +27,23 @@ uploads, rich mail, owned local services and delivery evidence within the same
 family. The 1.3 release adds the opt-in Waffo payment boundary; the 1.6 release
 adds durable action auditing without changing package ownership; and the 1.7
 release changes only fresh automatic local dependency-runtime selection. The
-1.8 candidate adds object-transfer contracts without changing ownership. All 34
+1.8 release adds object-transfer contracts without changing ownership. All 34
 published packages now have crates.io ownership. Source qualification or merge
 still must not be described as registry publication.
 
-The exact published source is immutable tag `v1.7.0` at
-`7773892792696ccf061ddbb49fa284e5ba7f6747`. PR-head clean-Linux run
-`31712458388`, exact-main run `31712808528` and authentication-only OIDC run
-`31713263154` passed before guarded publication. Run `31713475849` passed its
+The exact published source is immutable tag `v1.8.0` at
+`fe1a20d4a6c76c7adef268727bb30b92b594e072`. PR-head clean-Linux run
+`31774750512`, exact-main run `31775061737` and authentication-only OIDC run
+`31775371863` passed before guarded publication. Run `31775399279` passed its
 archive and external-consumer checks and uploaded the dependency-ordered family.
-Independent registry validation found every exact 1.7.0 version present and
+Independent registry validation found every exact 1.8.0 version present and
 non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
 The 1.3.0 first publication crossed the Waffo crate's ownership boundary. The
 1.4.0 recovery configured its exact trusted publisher without changing crate
-ownership; 1.5.0, 1.6.0 and 1.7.0 reused the exact publisher family and still
+ownership; 1.5.0 through 1.8.0 reused the exact publisher family and still
 re-proved OIDC.
 Exact local and clean-Linux qualification, tag, authenticated upload, registry
 verification, docs.rs and Pages deployment remain separate states.

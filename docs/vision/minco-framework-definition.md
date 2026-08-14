@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `1.7.0`
+Published baseline: `1.8.0`
 Current workspace version: `1.8.0`
-Workspace release state: `candidate`
-Reviewed release source: `7773892792696ccf061ddbb49fa284e5ba7f6747`
+Workspace release state: `published`
+Reviewed release source: `fe1a20d4a6c76c7adef268727bb30b92b594e072`
 
 ## Product identity
 
@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The immutable published `1.7.0` classification is:
+The immutable published `1.8.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
@@ -42,6 +42,9 @@ The immutable published `1.7.0` classification is:
 > The 1.7 release changes only fresh automatic local-service selection to
 > prefer Apple Container while preserving exact-resource precedence, explicit
 > Docker fallback and the production/provider boundary.
+> The 1.8 release adds opt-in direct resumable object transfers while retaining
+> application authorization, durable state, logical identity, content safety,
+> retention and the minimal default topology.
 
 The published 1.5.0 release preserves that classification. It packages
 additive application-test fakes plus provider-free measured assurance and cost
@@ -57,11 +60,11 @@ local-service choice on a qualified Apple host. Receipts and exact owned
 resources still outrank that default, Docker remains supported, and no
 production, Plan IR, AWS or provider boundary changes.
 
-The unpublished 1.8.0 candidate adds opt-in direct, resumable object-transfer
+The published 1.8.0 release adds opt-in direct, resumable object-transfer
 contracts and an authenticated JSON control plane without moving application
 authorization, durable state, logical object identity, content safety or
 retention into the framework. It changes no default production topology and
-does not claim registry, live-provider, deployment or production proof.
+does not claim live-provider, deployment or production proof.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,
@@ -142,7 +145,7 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `1.7.0` state | Remaining boundary |
+| Area | Current published `1.8.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |
@@ -159,7 +162,7 @@ The framework-completion program preserves the accepted ADRs and
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Versioned, searchable and browser-checked Diátaxis product with stable `1.7.0` and historical version lines | Broader exercised recipe and application-adoption matrix |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with stable `1.8.0` and historical version lines | Broader exercised recipe and application-adoption matrix |
 | AI support | Version-matched Codex/Claude skills, bounded context/eval, ProjectView, read-only MCP and local workbench | Model-driven application outcomes and measured human review effort remain `NOT RUN` |
 | Compatibility | Published 1.x public API, CLI, schema and feature freeze with additive 1.2 release evidence | Ongoing semver regression proof and multi-application adoption |
 

@@ -2,30 +2,29 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 34-package lock-step `1.7.0`
-family from immutable tag `v1.7.0` at
-`7773892792696ccf061ddbb49fa284e5ba7f6747`. Source/package qualification,
+The current published boundary is the complete 34-package lock-step `1.8.0`
+family from immutable tag `v1.8.0` at
+`fe1a20d4a6c76c7adef268727bb30b92b594e072`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is an unpublished `1.8.0` candidate with the same 34-package
+The workspace is the published `1.8.0` release with the same 34-package
 inventory. It adds the opt-in direct object-transfer boundary while retaining
-application authority, additive compatibility and the minimal topology. Its
-exact source must pass local and hosted review before merge; tag, GitHub
-release, OIDC publication, registry, docs.rs and Pages remain later independent
-evidence gates.
+application authority, additive compatibility and the minimal topology. Local
+and hosted review, tag, GitHub release, OIDC publication and registry checks
+passed independently; docs.rs and Pages remain separate evidence gates.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
 mandatory release gates. Those checks do not invoke a model or measure human
 review effort.
 
-For the published 1.7.0 baseline, exact release source passed PR-head
-clean-Linux run `31712458388` and merged-main run `31712808528`. Authentication
-run `31713263154` proved the exact OIDC boundary without upload. Publication run
-`31713475849` passed archive and consumer checks before dependency-ordered
+For the published 1.8.0 baseline, exact release source passed PR-head
+clean-Linux run `31774750512` and merged-main run `31775061737`. Authentication
+run `31775371863` proved the exact OIDC boundary without upload. Publication run
+`31775399279` passed archive and consumer checks before dependency-ordered
 upload, and independent validation found all 34 exact versions present and
-non-yanked. That publication is not live Waffo, AWS, application deployment or
+non-yanked. That publication is not live provider, AWS, application deployment or
 production evidence.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
@@ -65,6 +64,8 @@ The 1.6.0 release repeated that exact tagged-family boundary and independently
 verified all 34 non-yanked registry records after upload.
 The 1.7.0 release repeated the complete exact-tag OIDC boundary and published
 all 34 packages in one guarded run before independent registry verification.
+The 1.8.0 release repeated that boundary for the additive object-transfer
+family and again published all 34 packages in one guarded run.
 Every later release must re-prove authentication and registry state; ownership
 alone is not authentication evidence.
 

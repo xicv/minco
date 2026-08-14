@@ -5,11 +5,12 @@ description: Install version-matched Minco skills, inspect bounded project conte
 
 # Develop with Codex and Claude Code
 
-The Minco 1.7.0 release packages nine focused application workflows for Codex
-and Claude Code. Every skill teaches the Apple-first fresh local-runtime
-boundary while preserving exact-resource recovery, explicit selection and
-Docker fallback. The durable-audit, typed-fake, topology-cost and
-measured-assurance boundaries remain cumulative. The `minco-waffo-payments` skill retains
+The Minco 1.8.0 release packages nine focused application workflows for Codex
+and Claude Code. Relevant skills teach the direct resumable object-transfer
+boundary while preserving application authorization, quarantine, immutable
+updates and structural cost truth. The Apple-first local runtime, durable-audit,
+typed-fake, topology-cost and measured-assurance boundaries remain cumulative.
+The `minco-waffo-payments` skill retains
 its provider-specific checkout, token, webhook and evidence boundary. The
 skills select Minco commands and source authorities; they do not add a hosted
 agent runtime or replace the application graph.
