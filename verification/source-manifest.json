@@ -7244,8 +7244,8 @@
     },
     {
       "path": "tasks/M14/M14-T33-close-1-7-release.md",
-      "sha256": "f226c6f3273c25efa8909e83528a54f24849f370190c230b8b67378a967ea122",
-      "size_bytes": 4620
+      "sha256": "3fadd5d01b34001b60f4c0bc47435f96750c6aaf09c03943ecbbb569bbf699e8",
+      "size_bytes": 4981
     },
     {
       "path": "tasks/M14/M14-T34-http-object-transfers.md",
@@ -7678,7 +7678,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "76488ace60c3fd2f7b6bbaead7a84e4e7b6519b793e0669d99a11c77ed465df6",
-  "total_size_bytes": 11174452,
+  "source_tree_sha256": "84402d8fe74125746812be82145df5c03810cc6472decb3299832a4d7641cef5",
+  "total_size_bytes": 11174813,
   "version": "1.7.0"
 }
