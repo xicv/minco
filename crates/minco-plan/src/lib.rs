@@ -5,6 +5,14 @@ mod cost;
 mod model;
 mod sam;
 
+const DYNAMODB_AUDIT_TABLE_ACTIONS: [&str; 5] = [
+    "dynamodb:BatchGetItem",
+    "dynamodb:DescribeTable",
+    "dynamodb:PutItem",
+    "dynamodb:Query",
+    "dynamodb:TransactWriteItems",
+];
+
 fn realtime_oidc_auth_is_valid(auth: &model::AuthPlan) -> bool {
     let model::AuthPlan::Jwt { issuer, audiences } = auth else {
         return false;

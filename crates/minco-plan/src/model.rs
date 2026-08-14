@@ -1,4 +1,4 @@
-use crate::{cost::CostClass, sam_logical_id};
+use crate::{DYNAMODB_AUDIT_TABLE_ACTIONS, cost::CostClass, sam_logical_id};
 use minco_contract::{ContractDocument, HttpMethod};
 use minco_core::{ApplicationGraph, ResourceKind};
 use serde::{Deserialize, Serialize};
@@ -2082,15 +2082,10 @@ fn derive_iam_intents(
     {
         intents.push(IamIntent {
             function_id: table.function_id.clone(),
-            actions: [
-                "dynamodb:BatchGetItem",
-                "dynamodb:DescribeTable",
-                "dynamodb:Query",
-                "dynamodb:TransactWriteItems",
-            ]
-            .into_iter()
-            .map(str::to_owned)
-            .collect(),
+            actions: DYNAMODB_AUDIT_TABLE_ACTIONS
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
             resource: IamResource::DynamoDbTable {
                 logical_id: table.logical_id,
             },

@@ -1,8 +1,8 @@
 use crate::{
-    AuthPlan, DatabaseDeployment, DeploymentPlan, DynamoDbDeletionPolicy, DynamoDbProjection,
-    DynamoDbTablePlan, FunctionPlan, FunctionRole, IngressPlan, PlanError, QueuePlan,
-    RealtimeDeployment, RuntimePlan, StaticSiteDeployment, TriggerPlan, oidc_client_id_pattern,
-    realtime_oidc_auth_is_valid, sam_logical_id,
+    AuthPlan, DYNAMODB_AUDIT_TABLE_ACTIONS, DatabaseDeployment, DeploymentPlan,
+    DynamoDbDeletionPolicy, DynamoDbProjection, DynamoDbTablePlan, FunctionPlan, FunctionRole,
+    IngressPlan, PlanError, QueuePlan, RealtimeDeployment, RuntimePlan, StaticSiteDeployment,
+    TriggerPlan, oidc_client_id_pattern, realtime_oidc_auth_is_valid, sam_logical_id,
 };
 use minco_contract::HttpMethod;
 use std::{collections::BTreeMap, fmt::Write as _};
@@ -912,12 +912,7 @@ fn render_dynamodb_policy_statement(output: &mut String, table: &DynamoDbTablePl
 fn render_dynamodb_audit_policy_statement(output: &mut String, table: &DynamoDbTablePlan) {
     output.push_str("            - Effect: Allow\n");
     output.push_str("              Action:\n");
-    for action in [
-        "dynamodb:BatchGetItem",
-        "dynamodb:DescribeTable",
-        "dynamodb:Query",
-        "dynamodb:TransactWriteItems",
-    ] {
+    for action in DYNAMODB_AUDIT_TABLE_ACTIONS {
         writeln!(output, "                - {action}").expect("writing to String cannot fail");
     }
     writeln!(
