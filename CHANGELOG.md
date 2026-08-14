@@ -5,7 +5,7 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes yet.
+No changes beyond the published `1.8.0` release.
 
 ## [1.8.0] - 2026-08-14
 

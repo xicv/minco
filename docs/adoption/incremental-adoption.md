@@ -1,15 +1,14 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.7.0`
+Published baseline: `1.8.0`
 Current workspace version: `1.8.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use exact published `1.7.0` dependencies for applications. Follow the
+Use exact published `1.8.0` dependencies for applications. Follow the
 [1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing,
 then use the [1.6.0-to-1.7.0 guide](1.6.0-to-1.7.0.md) for Apple-first fresh
-local-service selection. The unpublished
-[1.7.0-to-1.8.0 guide](1.7.0-to-1.8.0.md) covers opt-in resumable object
-transfers without changing the current stable dependency recommendation.
+local-service selection. The [1.7.0-to-1.8.0 guide](1.7.0-to-1.8.0.md) covers
+opt-in resumable object transfers and their application-owned policy boundary.
 Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 
@@ -23,7 +22,7 @@ real application problem and retain ordinary Rust composition around it.
 
 ```toml
 [dependencies]
-minco = { version = "1.7.0", default-features = false, features = ["contract"] }
+minco = { version = "1.8.0", default-features = false, features = ["contract"] }
 ```
 
 Adopt canonical OpenAPI, stable operation IDs, Problem Details and deterministic
@@ -204,8 +203,7 @@ Applications moving from `1.6.0` to the published `1.7.0` release must use the
 automatic local-service selection, existing-resource precedence and the
 retained explicit Docker fallback.
 
-Applications evaluating the unpublished `1.8.0` candidate from the published
-`1.7.0` baseline must use the
+Applications moving from `1.7.0` to the published `1.8.0` release must use the
 [`1.7.0` to `1.8.0` guide](1.7.0-to-1.8.0.md). It covers direct resumable object
 transfers, immutable updates, private caching, quarantine, non-S3 obligations
 and the explicit performance/cost boundary.

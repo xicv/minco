@@ -1,15 +1,20 @@
 ---
 title: Minco 1.8.0
-description: Release candidate documentation for resumable object transfers and contract-to-cloud Rust application development.
+description: Stable documentation for resumable object transfers and contract-to-cloud Rust application development.
 ---
 
 # Minco 1.8.0
 
-<p class="doc-kicker">Frozen 1.8.0 candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
-<p class="doc-lead">This manual describes the 1.8.0 candidate source. It develops the same contract-to-cloud model as the frozen <a href="../1.7.0/">1.7.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.8.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
 
-The 1.8 candidate adds [direct, resumable object transfers](./guides/files-and-static-sites)
+<p class="doc-lead">This manual describes the published 1.8.0 source. It develops the same contract-to-cloud model as the frozen <a href="../1.7.0/">1.7.0 manual</a>, while keeping later unreleased behavior visibly separate in <a href="../next/">Next</a>.</p>
+
+The 1.8 release adds [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,
 quarantine, immutable updates, private caching and explicit cost boundaries.
 

@@ -2,10 +2,33 @@
 
 Date: 2026-08-14
 Current workspace version: `1.8.0`
-Published baseline: `1.7.0`
-Workspace release state: `candidate`
+Published baseline: `1.8.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T37 `1.8.0` published release closure
+
+PR #168 reviewed exact source `b589612b17c2288a92e176cb08543eb6eacb826b`
+and tree `3def2f3b5852f418d92e9ed87e86395b67d9870f`, with zero unresolved
+threads, passing exact-head clean-Linux run `31774750512` and a sealed security
+review with zero findings. The guarded squash merge created
+`fe1a20d4a6c76c7adef268727bb30b92b594e072` with that exact tree. Merged-main
+clean-Linux run `31775061737` and authentication-only OIDC run `31775371863`
+passed for the same source.
+
+Immutable tag `v1.8.0` resolves to the merge commit. Publication run
+`31775399279` passed package archive, selected-package, external-consumer and
+dependency-ordered upload gates. Independent registry validation found all 34
+exact `1.8.0` packages present and non-yanked, and a fresh public install
+reported `minco 1.8.0`. The GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.8.0>.
+
+This post-publication change promotes repository and documentation truth only.
+Stable Pages and all exact docs.rs routes remain separate gates until verified.
+No AWS application operation or production mutation occurred. Hosted
+performance, current live-provider conformance and content-safety evidence
+remain `NOT RUN` or absent.
 
 ## M14-T36 `1.8.0` object-transfer candidate
 

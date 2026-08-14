@@ -1,22 +1,22 @@
-# 1.8 candidate support matrix
+# 1.8 support matrix
 
-Published install baseline: `1.7.0`
+Published install baseline: `1.8.0`
 Current workspace version: `1.8.0`
 MSRV: Rust `1.97.1`
-Compatibility state: the published 1.7.0 family retains the 1.0 framework
+Compatibility state: the published 1.8.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
 descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
 rich mail, owned local services and release-bound evidence are published
-together with durable auditing and Apple-first fresh local services as the
-complete 34-package `v1.7.0`
+together with durable auditing, Apple-first fresh local services and direct
+resumable object transfers as the complete 34-package `v1.8.0`
 family. Registry, docs.rs, stable documentation and application/live proof
 remain separate.
 
-The unpublished 1.8.0 workspace adds provider-neutral transfer contracts and
+The published 1.8.0 release adds provider-neutral transfer contracts and
 an authenticated object JSON control plane. S3 is the production-targeted byte
 plane. Other providers remain unsupported for resumable HTTP until they supply
 the additive stream, signing, multipart and abort contracts and pass equivalent
-conformance. Candidate source is not registry, live-provider, deployment or
+conformance. Registry publication is not live-provider, deployment or
 production evidence.
 
 The published 1.6.0 release preserves this support classification and adds
@@ -73,7 +73,7 @@ it is not a blanket production-readiness promise.
 | Plan/SAM model | 1.2 evidenced | schema/policy snapshots, topology-aware cost and ingress validation, IAM checks | CGSP consumes it only as advisory evidence | Function URLs remain declared but unsupported; not an infrastructure apply, live price or product controller |
 | AWS deployment controller | published beta | exact-artifact apply/verify/promote/rollback/cleanup rehearsal | product deployment controllers remain separate | requires explicit account/region/change-set approval; no hidden mutation |
 | Static-site intent/publication | published beta | local contract and exact-byte/hash receipt tests | products retain their own site controllers | DNS, certificate, CloudFront/S3 mutation and live-site proof are separate |
-| Verified direct object uploads | 1.2 published beta | authorization-first issue/complete tests, bounded policy, exact S3 POST signing, cleanup boundaries and a failure-scriptable public fake | no reviewed downstream adoption claim | content safety, lifecycle and separately authorised live S3 proof remain application/provider responsibilities |
+| Direct object transfers | 1.8 published beta | authorization-first issue/complete tests, direct single/multipart S3 signing, bounded streams, strong-validator range resume, private cache metadata, quarantine and failure-scriptable fakes | no reviewed downstream adoption claim | application authorization, durable sessions, logical pointers, content safety, lifecycle and separately authorised live-provider proof remain application/provider responsibilities |
 | Rich observable mail | 1.2 published beta | deterministic capture, a failure-scriptable public fake, loopback Mailpit, SES v2 submission and SNS/EventBridge normalization tests | no reviewed downstream mailbox-delivery claim | provider acceptance is not final mailbox delivery; no automatic retry after ambiguous submission |
 | Release-bound feedback and handover | 1.2 evidenced | exact release/deployment binding, a failure-scriptable feedback-store fake, digest-approved create-only receipts, path/rollback and malformed-evidence tests | no reviewed client handover adoption claim | feedback is untrusted input; receipts do not authorize implementation or deployment; live provider and performance proof remain absent |
 | Waffo Pancake payments | 1.3 published beta; opt-in | exact signed-request, hosted-checkout, idempotency, redirect-refusal, verified-webhook, CLI and deterministic-fake tests | no reviewed downstream or live Waffo claim | application owns payment state; no generic billing model, hidden retry, token persistence or checkout-return authority |
@@ -92,7 +92,7 @@ capabilities, resources and metadata digests.
 | --- | --- | --- |
 | catalog stable | `health`, `observability`, `idempotency`, `feedback` | bounded declared contracts pass current gates; the reviewed 1.x Rust/CLI/serialized boundary follows SemVer |
 | published beta plugins | `audit`, `events`, `identity`, `notifications`, `object-storage`, `sessions`, `static-site`, `realtime` | explicit opt-in with provider/failure/retention policy required; audit V2 is published in 1.6 |
-| published beta plugin | `payments-waffo` | opt-in provider-specific integration in the 1.7.0 family; offline qualified with live-provider evidence still absent |
+| published beta plugin | `payments-waffo` | opt-in provider-specific integration in the 1.8.0 family; offline qualified with live-provider evidence still absent |
 | published beta adapters/runtimes | `aws-adapters`, `aws-dynamodb`, `aws-lambda`, `aws-worker`, `sqlx-postgres`, `sqlx-sqlite` | explicit provider/runtime selection; no default activation; DynamoDB remains application access-pattern-specific |
 
 Memory/reference implementations are for tests and local development unless a
@@ -113,7 +113,7 @@ provider.
 | Native AWS HTTP | `aws-lambda`, `plan`, selected adapters | local package/Plan/SAM plus bounded controller rehearsal | approved target and exact live verification |
 | AWS SQS worker | `aws-worker`, `plan` | local runtime/Plan and CGSP staging evidence | application queue/mapping/IAM and rollback proof |
 | Local AI/developer view | `minco-project-view`, optionally `minco-mcp` or `minco-workbench` | redaction, containment, protocol and browser evidence | remain local and read-only |
-| Waffo hosted checkout | `plugin-payments-waffo` | signed typed actions, bounded checkout, raw-body webhook verification, no-network fakes and exact 1.7.0 publication | separately authorised live Waffo sandbox evidence |
+| Waffo hosted checkout | `plugin-payments-waffo` | signed typed actions, bounded checkout, raw-body webhook verification, no-network fakes and exact 1.8.0 publication | separately authorised live Waffo sandbox evidence |
 
 Prefer the smallest profile that closes one application boundary. Do not start
 with `features = ["full"]` in a product unless its complete dependency/provider

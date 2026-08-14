@@ -1,17 +1,17 @@
 # Using Minco in an application
 
-Published baseline: `1.7.0`
+Published baseline: `1.8.0`
 
 Current workspace version: `1.8.0`
 
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use published `1.7.0` dependencies. Follow the
+Use published `1.8.0` dependencies. Follow the
 [1.5.0-to-1.6.0 guide](../adoption/1.5.0-to-1.6.0.md) when adopting durable
 auditing, then the [1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md) when
-adopting Apple-first fresh local-service selection. Evaluate the unpublished
-[1.7.0-to-1.8.0 candidate](../adoption/1.7.0-to-1.8.0.md) only when direct
-resumable object-transfer source is intentionally in scope.
+adopting Apple-first fresh local-service selection, then use the
+[1.7.0-to-1.8.0 guide](../adoption/1.7.0-to-1.8.0.md) for direct resumable
+object transfers.
 
 The `minco` facade is the normal dependency for an application. It keeps the
 provider-neutral kernel always available and exposes contract, HTTP, plugins,
@@ -205,11 +205,11 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 
 ## API stability
 
-Published baseline: `1.7.0`
+Published baseline: `1.8.0`
 Current workspace version: `1.8.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Pin the published `1.7.0` line in production applications and follow
+Pin the published `1.8.0` line in production applications and follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before
 upgrading. The framework follows lock-step versions across the publishable
 crate family during the initial stabilization period. Registry availability
