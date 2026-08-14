@@ -1,6 +1,7 @@
 use crate::{
-    MemoryObjectStore, ObjectAccessSigner, ObjectKey, ObjectMetadata, ObjectStoragePlugin,
-    ObjectStore, ObjectStoreError, PresignedObjectRequest,
+    MemoryObjectStore, MultipartObjectService, ObjectAccessSigner, ObjectDownloadService,
+    ObjectKey, ObjectMetadata, ObjectReadService, ObjectStoragePlugin, ObjectStore,
+    ObjectStoreError, PresignedObjectRequest,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, TimeDelta, Utc};
@@ -12,6 +13,9 @@ use std::{
     sync::Arc,
 };
 use uuid::Uuid;
+
+#[cfg(feature = "http")]
+use crate::{ObjectTransferHttpService, object_transfer_http_module, object_transfer_operations};
 
 const MAX_UPLOAD_EXPIRY_SECONDS: i64 = 24 * 60 * 60;
 const DEFAULT_UPLOAD_EXPIRY_SECONDS: i64 = 15 * 60;
@@ -352,6 +356,33 @@ pub struct ManagedObjectStoragePlugin {
     storage: ObjectStoragePlugin,
     metadata: ObjectMetadataService,
     uploads: ObjectUploadService,
+    transfers: Option<ManagedObjectTransferServices>,
+    #[cfg(feature = "http")]
+    http: Option<ObjectTransferHttpService>,
+}
+
+/// Statically selected large-transfer services installed as one coherent
+/// provider profile. The application still owns authorization and session
+/// persistence.
+#[derive(Debug, Clone)]
+pub struct ManagedObjectTransferServices {
+    pub reads: ObjectReadService,
+    pub downloads: ObjectDownloadService,
+    pub multipart: MultipartObjectService,
+}
+
+impl ManagedObjectTransferServices {
+    pub const fn new(
+        reads: ObjectReadService,
+        downloads: ObjectDownloadService,
+        multipart: MultipartObjectService,
+    ) -> Self {
+        Self {
+            reads,
+            downloads,
+            multipart,
+        }
+    }
 }
 
 impl ManagedObjectStoragePlugin {
@@ -384,7 +415,27 @@ impl ManagedObjectStoragePlugin {
             storage: ObjectStoragePlugin::new(store).with_access_signer(access_signer),
             metadata,
             uploads,
+            transfers: None,
+            #[cfg(feature = "http")]
+            http: None,
         }
+    }
+
+    /// Install range streaming, private download grants, and multipart upload
+    /// through the same explicit provider composition.
+    #[must_use]
+    pub fn with_transfer_services(mut self, transfers: ManagedObjectTransferServices) -> Self {
+        self.transfers = Some(transfers);
+        self
+    }
+
+    /// Contribute the authenticated HTTP control plane. The injected use-case
+    /// service owns authorization and durable upload/object state.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn with_http_api(mut self, http: ObjectTransferHttpService) -> Self {
+        self.http = Some(http);
+        self
     }
 }
 
@@ -401,6 +452,30 @@ impl Plugin for ManagedObjectStoragePlugin {
                 version: Version::new(1, 0, 0),
             },
         ]);
+        if self.transfers.is_some() {
+            descriptor.provides.extend([
+                CapabilityProvision {
+                    name: "storage.object.stream".into(),
+                    version: Version::new(1, 0, 0),
+                },
+                CapabilityProvision {
+                    name: "storage.object.download".into(),
+                    version: Version::new(1, 0, 0),
+                },
+                CapabilityProvision {
+                    name: "storage.object.multipart".into(),
+                    version: Version::new(1, 0, 0),
+                },
+            ]);
+        }
+        #[cfg(feature = "http")]
+        if self.http.is_some() {
+            descriptor.provides.push(CapabilityProvision {
+                name: "storage.object.http".into(),
+                version: Version::new(1, 0, 0),
+            });
+            descriptor.operations.extend(object_transfer_operations());
+        }
         descriptor
     }
 
@@ -408,6 +483,22 @@ impl Plugin for ManagedObjectStoragePlugin {
         self.storage.install(context)?;
         context.services().insert(Arc::new(self.metadata.clone()))?;
         context.services().insert(Arc::new(self.uploads.clone()))?;
+        if let Some(transfers) = &self.transfers {
+            context
+                .services()
+                .insert(Arc::new(transfers.reads.clone()))?;
+            context
+                .services()
+                .insert(Arc::new(transfers.downloads.clone()))?;
+            context
+                .services()
+                .insert(Arc::new(transfers.multipart.clone()))?;
+        }
+        #[cfg(feature = "http")]
+        if let Some(http) = &self.http {
+            object_transfer_http_module(context.plugin_id().clone(), http.clone())
+                .contribute(context);
+        }
         Ok(())
     }
 }

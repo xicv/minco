@@ -53,7 +53,12 @@ pub fn runtime_iam_policy(
         statements.push(json!({
             "Sid": "MincoObjectStorageObjects",
             "Effect": "Allow",
-            "Action": ["s3:DeleteObject", "s3:GetObject", "s3:PutObject"],
+            "Action": [
+                "s3:AbortMultipartUpload",
+                "s3:DeleteObject",
+                "s3:GetObject",
+                "s3:PutObject"
+            ],
             "Resource": object_resource
         }));
     }
@@ -253,6 +258,7 @@ mod tests {
         assert!(encoded.contains("arn:aws:s3:::minco-objects/feedback/*"));
         assert!(encoded.contains("\"Sid\":\"MincoObjectStorageList\""));
         assert!(encoded.contains("\"s3:prefix\":[\"feedback\",\"feedback/*\"]"));
+        assert!(encoded.contains("s3:AbortMultipartUpload"));
         assert!(encoded.contains("cognito-idp:AdminCreateUser"));
         assert!(encoded.contains("cloudfront:CreateInvalidation"));
         assert!(encoded.contains("arn:aws:s3:::minco-static/site/*"));

@@ -9,7 +9,7 @@
     "warnings": 0,
     "metrics": {
       "toml_files": 100,
-      "yaml_files": 38,
+      "yaml_files": 39,
       "json_files": 78,
       "workspace_members": 39,
       "contract_sha256": "f43837b7e41a03b311588dd5466f7029d4bf1e8940685bd194bc1bc97abd796c",
@@ -17,11 +17,11 @@
       "contract_schemas": 17,
       "plugins": 19,
       "milestones": 15,
-      "tasks": 113,
-      "rust_files": 212,
+      "tasks": 114,
+      "rust_files": 216,
       "python_files": 41,
       "shell_files": 82,
-      "implementation_files_scanned": 491
+      "implementation_files_scanned": 496
     },
     "findings": [],
     "limitations": [
@@ -30,10 +30,10 @@
     ]
   },
   "metrics": {
-    "rust_files": 212,
-    "rust_lines": 114207,
+    "rust_files": 216,
+    "rust_lines": 117737,
     "unsafe_tokens": 15,
-    "production_unwrap_expect": 216,
+    "production_unwrap_expect": 217,
     "sql_files": 20
   },
   "findings": [

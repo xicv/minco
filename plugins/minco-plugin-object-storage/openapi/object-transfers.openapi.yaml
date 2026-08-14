@@ -1,0 +1,474 @@
+openapi: 3.1.0
+info:
+  title: Minco object transfer control plane
+  version: 1.0.0
+  description: >-
+    Authenticated lifecycle operations for direct private object upload and
+    download. File bytes are sent to the signed provider request, not to these
+    JSON endpoints. Presigned requests are bearer credentials and must not be
+    logged or persisted as trusted session state.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /_minco/objects/uploads:
+    post:
+      operationId: initiateObjectUpload
+      summary: Initiate an authorized single or multipart upload
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiateTransferUpload'
+            examples:
+              newDocument:
+                value:
+                  purpose: documents
+                  content_type: application/pdf
+                  size_bytes: 36700160
+                  sha256: null
+                  file_name: report.pdf
+                  replaces_object_id: null
+                  attributes: {}
+              replaceDocument:
+                value:
+                  purpose: documents
+                  content_type: application/pdf
+                  size_bytes: 1024
+                  sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+                  file_name: report.pdf
+                  replaces_object_id: document-1
+                  attributes: {}
+      responses:
+        '201':
+          description: Direct upload session created in quarantine
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferUploadResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /_minco/objects/uploads/{uploadId}/parts/{partNumber}:
+    post:
+      operationId: issueObjectUploadPart
+      summary: Issue one exact checksummed multipart PUT capability
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/UploadId'
+        - $ref: '#/components/parameters/PartNumber'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueTransferPart'
+      responses:
+        '200':
+          description: Short-lived exact part capability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultipartPartGrant'
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Expired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /_minco/objects/uploads/{uploadId}/complete:
+    post:
+      operationId: completeObjectUpload
+      summary: Verify and complete a direct upload in quarantine
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/UploadId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteTransferUpload'
+      responses:
+        '200':
+          description: Idempotent completion result; untrusted content remains quarantined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompletedTransferUpload'
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Expired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /_minco/objects/uploads/{uploadId}:
+    delete:
+      operationId: abortObjectUpload
+      summary: Stop issuing parts and abort exact provider upload state
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/UploadId'
+      responses:
+        '204':
+          description: Upload session is aborted or was already terminal
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /_minco/objects/downloads:
+    post:
+      operationId: issueObjectDownload
+      summary: Issue a private full or single-range download capability
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueTransferDownload'
+            examples:
+              resume:
+                value:
+                  object_id: document-1
+                  range:
+                    kind: from
+                    start: 16777216
+                  expected_entity_tag: '"revision-2"'
+                  download_file_name: report.pdf
+      responses:
+        '200':
+          description: Short-lived private capability bound to a strong validator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectDownloadGrant'
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /_minco/objects/{objectId}:
+    get:
+      operationId: getObjectTransferMetadata
+      summary: Conditionally read authorized metadata for a locally cached file
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/ObjectId'
+        - name: If-None-Match
+          in: header
+          required: false
+          schema: { type: string, maxLength: 256 }
+      responses:
+        '200':
+          description: Current object revision and validation state
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: 'private, no-cache' } }
+            Vary: { schema: { type: string, const: Authorization } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ObjectTransferMetadata' }
+        '304':
+          description: The client's cached revision remains current
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: 'private, no-cache' } }
+            Vary: { schema: { type: string, const: Authorization } }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema: { type: string, maxLength: 200 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, maxLength: 200 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: Required when `replaces_object_id` is present.
+      schema: { type: string, maxLength: 256 }
+    UploadId:
+      name: uploadId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PartNumber:
+      name: partNumber
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1, maximum: 10000 }
+    ObjectId:
+      name: objectId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 256 }
+  schemas:
+    InitiateTransferUpload:
+      type: object
+      additionalProperties: false
+      required: [purpose, content_type, size_bytes]
+      properties:
+        purpose: { type: string, minLength: 1, maxLength: 128 }
+        content_type: { type: string, minLength: 3, maxLength: 255 }
+        size_bytes: { type: integer, format: int64, minimum: 1 }
+        sha256:
+          oneOf:
+            - { type: string, pattern: '^[0-9A-Fa-f]{64}$' }
+            - { type: 'null' }
+        file_name:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 255 }
+            - { type: 'null' }
+        replaces_object_id:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 256 }
+            - { type: 'null' }
+        attributes:
+          type: object
+          additionalProperties: { type: string, maxLength: 1024 }
+          maxProperties: 31
+    TransferUploadResponse:
+      type: object
+      required: [upload, validation]
+      properties:
+        upload:
+          oneOf:
+            - $ref: '#/components/schemas/SingleUploadGrant'
+            - $ref: '#/components/schemas/MultipartUploadGrant'
+        validation: { $ref: '#/components/schemas/ValidationState' }
+    SingleUploadGrant:
+      type: object
+      required: [mode, upload_id, key, request]
+      properties:
+        mode: { const: single }
+        upload_id: { type: string, format: uuid }
+        key: { type: string }
+        request: { $ref: '#/components/schemas/PresignedRequest' }
+    MultipartUploadGrant:
+      type: object
+      required: [mode, upload_id, key, size_bytes, part_size_bytes, part_count]
+      properties:
+        mode: { const: multipart }
+        upload_id: { type: string, format: uuid }
+        key: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        part_size_bytes: { type: integer, format: int64, minimum: 5242880 }
+        part_count: { type: integer, minimum: 1, maximum: 10000 }
+    IssueTransferPart:
+      type: object
+      additionalProperties: false
+      required: [sha256]
+      properties:
+        sha256: { type: string, pattern: '^[0-9A-Fa-f]{64}$' }
+    MultipartPartGrant:
+      type: object
+      required: [upload_id, part_number, size_bytes, request]
+      properties:
+        upload_id: { type: string, format: uuid }
+        part_number: { type: integer, minimum: 1, maximum: 10000 }
+        size_bytes: { type: integer, format: int64, minimum: 1 }
+        request: { $ref: '#/components/schemas/PresignedRequest' }
+    CompleteTransferUpload:
+      type: object
+      additionalProperties: false
+      properties:
+        parts:
+          type: array
+          maxItems: 10000
+          items: { $ref: '#/components/schemas/MultipartPartReceipt' }
+    MultipartPartReceipt:
+      type: object
+      additionalProperties: false
+      required: [part_number, entity_tag, sha256]
+      properties:
+        part_number: { type: integer, minimum: 1, maximum: 10000 }
+        entity_tag: { type: string, minLength: 1, maxLength: 256 }
+        sha256: { type: string, pattern: '^[0-9A-Fa-f]{64}$' }
+    CompletedTransferUpload:
+      type: object
+      required: [object_id, revision, entity_tag, validation]
+      properties:
+        object_id: { type: string }
+        revision: { type: string }
+        entity_tag: { type: string }
+        validation: { $ref: '#/components/schemas/ValidationState' }
+    IssueTransferDownload:
+      type: object
+      additionalProperties: false
+      required: [object_id]
+      properties:
+        object_id: { type: string, minLength: 1, maxLength: 256 }
+        range: { $ref: '#/components/schemas/ObjectByteRange' }
+        expected_entity_tag:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 256 }
+            - { type: 'null' }
+        download_file_name:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 255 }
+            - { type: 'null' }
+    ObjectByteRange:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, start, end_exclusive]
+          properties:
+            kind: { const: bounded }
+            start: { type: integer, format: int64, minimum: 0 }
+            end_exclusive: { type: integer, format: int64, minimum: 1 }
+        - type: object
+          additionalProperties: false
+          required: [kind, start]
+          properties:
+            kind: { const: from }
+            start: { type: integer, format: int64, minimum: 0 }
+        - type: object
+          additionalProperties: false
+          required: [kind, length]
+          properties:
+            kind: { const: suffix }
+            length: { type: integer, format: int64, minimum: 1 }
+    ObjectDownloadGrant:
+      type: object
+      required: [key, request, content_type, size_bytes, entity_tag, last_modified, cache_control]
+      properties:
+        key: { type: string }
+        request: { $ref: '#/components/schemas/PresignedRequest' }
+        content_type: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        entity_tag: { type: string }
+        version_id:
+          oneOf:
+            - { type: string }
+            - { type: 'null' }
+        last_modified: { type: string, format: date-time }
+        range: { $ref: '#/components/schemas/ObjectByteRange' }
+        cache_control: { type: string }
+    ObjectTransferMetadata:
+      type: object
+      description: >-
+        Authorized cache metadata. Its entity_tag changes when the resolved
+        revision, validation state, or download eligibility changes and is
+        distinct from the provider byte validator used for range resume.
+      required: [object_id, revision, content_type, size_bytes, entity_tag, last_modified, validation]
+      properties:
+        object_id: { type: string }
+        revision: { type: string }
+        content_type: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        entity_tag: { type: string }
+        last_modified: { type: string, format: date-time }
+        validation: { $ref: '#/components/schemas/ValidationState' }
+    PresignedRequest:
+      type: object
+      description: Bearer capability; redact the URL and all field values from logs.
+      required: [method, url, headers, expires_at]
+      properties:
+        method: { type: string, enum: [GET, PUT, POST] }
+        url: { type: string, format: uri }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+        form_fields:
+          type: object
+          additionalProperties: { type: string }
+        expires_at: { type: string, format: date-time }
+    ValidationState:
+      oneOf:
+        - type: object
+          required: [state]
+          properties: { state: { const: quarantined } }
+        - type: object
+          required: [state, inspector, inspected_at]
+          properties:
+            state: { const: accepted }
+            inspector: { type: string }
+            inspected_at: { type: string, format: date-time }
+        - type: object
+          required: [state, inspector, code, inspected_at]
+          properties:
+            state: { const: rejected }
+            inspector: { type: string }
+            code: { type: string }
+            inspected_at: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status, detail, code, request_id]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+        request_id: { type: string }
+  responses:
+    BadRequest:
+      description: A conditional request header is malformed
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    AuthenticationRequired:
+      description: Authenticated principal required
+      headers:
+        WWW-Authenticate: { schema: { type: string } }
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    Forbidden:
+      description: Principal is not authorized
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    NotFound:
+      description: Object or upload session not found
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    Conflict:
+      description: Transfer state conflict
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    PreconditionFailed:
+      description: Observed object revision is stale or missing
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    PreconditionRequired:
+      description: An immutable replacement requires the current strong entity tag
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    Expired:
+      description: Upload session expired
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    ValidationFailed:
+      description: Request or file declaration failed validation
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+    Unavailable:
+      description: Object provider temporarily unavailable
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
