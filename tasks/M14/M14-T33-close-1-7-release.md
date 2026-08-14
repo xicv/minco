@@ -2,7 +2,7 @@
 id: M14-T33
 title: Close the Minco 1.7.0 published release boundary
 milestone: M14
-status: active
+status: completed
 priority: high
 area: release/docs/evidence
 depends_on: [M14-T32]
@@ -106,8 +106,14 @@ fresh public install reported `minco 1.7.0`. The
 [`v1.7.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.7.0)
 is published.
 
-Keep this task active until post-publication truth reaches `main`, stable Pages
-is deployed and all exact docs.rs routes are checked. No AWS application
-operation or production mutation was performed. Hosted performance, current
-live-provider evidence, model-driven application evaluation and human-review
-measurement remain `NOT RUN` or absent.
+Post-publication truth reached `main` in commit
+`43c263b54f880cbf64ecb9c2f299c7e788c479c7`. Pages deployment run
+`31719987753` completed successfully for that exact commit, and both the stable
+manual root and `/1.7.0/` returned HTTP 200 on 2026-08-14. An independent
+metadata-derived check of every publishable library target confirmed HTTP 200
+for all 34 exact `1.7.0` docs.rs routes. These checks close the documentation
+boundary without changing the already published tag or crate bytes.
+
+No AWS application operation or production mutation was performed. Hosted
+performance, current live-provider evidence, model-driven application
+evaluation and human-review measurement remain `NOT RUN` or absent.
