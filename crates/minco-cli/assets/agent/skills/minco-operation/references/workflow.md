@@ -48,3 +48,8 @@ At the 1.7 Apple Container default boundary, keep local dependency-runtime
 selection outside domain and external API semantics. An operation may require
 ready dependencies, but it must not silently migrate, replace or delete their
 runtime resources.
+
+At the 1.8 resumable object transfer boundary, keep upload/download handlers
+thin and call one application use case that owns authorization, durable session
+state, immutable pointer updates, quarantine and retention. Send large bytes
+directly to the selected private provider rather than through the JSON API.

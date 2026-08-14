@@ -1,11 +1,50 @@
 # Minco verification and release evidence
 
-Date: 2026-08-13
-Current workspace version: `1.7.0`
+Date: 2026-08-14
+Current workspace version: `1.8.0`
 Published baseline: `1.7.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T36 `1.8.0` object-transfer candidate
+
+The candidate starts from exact merged `main`
+`9e4e4c2b5b8e35457d4d45f94b4114236a775069` after exact-main clean-Linux
+run `31766443382` qualified the prerequisite DynamoDB audit-IAM correction.
+The slice adds and hardens direct single/multipart upload, immutable update,
+private full/range download, stop/resume, authorized cache revalidation,
+quarantined completion and structural cost projection.
+
+Focused object-storage tests prove a maximum 10,000-part completion manifest
+fits the 3 MiB HTTP body bound and stays below the golden synchronous Lambda
+payload boundary, part `ETag` values are bounded, GET cache validators use weak
+comparison after authorization, invalid response tags fail closed, and corrupt
+single-upload pending state is rejected before provider contact. The focused
+slice passes 31 plugin tests plus the UUIDv7 pending-state case and 20 S3
+adapter tests; one real-AWS test remains explicitly ignored because no
+disposable provider target was configured. Targeted Clippy passes with warnings
+denied.
+
+The exact sealed source passes `scripts/quality.sh` and the authoritative
+`MINCO_QUALITY_TOOL_ROOT=/Users/xicao/.cargo scripts/ci/local-release.sh` from
+an empty JJ child. Pinned assurance records 127 nextest tests plus one doctest,
+85.78% line and 81.97% function coverage, 43 caught viable mutants with zero
+misses/timeouts, and additive compatibility for all 34 packages against
+immutable `v1.7.0`. Candidate load passes 80/80 loopback API requests and
+1,000/1,000 synthetic worker messages; candidate recovery passes repeatable
+migration, backup, restore, application-read and rollback-contract checks.
+
+The clean matrix additionally passes AppSync local proof, all 34 package
+archive dry-runs, selected unpacked-archive consumers, Plan/SAM validation,
+native Lambda and worker builds, owned PostgreSQL and Rustack runtime
+qualification, and Orders E2E. These are bounded provider-free/local results,
+not hosted Linux, AWS, deployment, production or SLO proof. Exact-head
+immutable security review and hosted clean Linux remain separate pre-merge
+gates.
+
+No tag, registry upload, GitHub release, provider request, deployment or
+production mutation is implied by candidate source.
 
 ## M14-T33 `1.7.0` published release closure
 

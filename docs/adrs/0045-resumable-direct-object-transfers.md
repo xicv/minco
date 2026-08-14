@@ -41,6 +41,13 @@ The object-storage plugin adds four additive contracts:
    uninspected object or an incomplete price projection into a safety/billing
    claim.
 
+The HTTP completion endpoint accepts at most 3 MiB of JSON, each provider part
+`ETag` is bounded to 64 bytes, and a manifest contains at most 10,000 parts.
+This admits the complete provider limit while remaining below the golden AWS
+API Gateway and synchronous Lambda request limits. Conditional metadata reads
+use GET weak comparison for strong tags, weak tags, lists and `*`, but authorize
+before deciding whether to return `304 Not Modified`.
+
 S3 is the AWS byte-plane implementation. It uses multipart upload for large
 objects, provider-validated per-part SHA-256, server-side encryption, signed
 headers, `HeadObject`, one-range `GetObject`, conditional validators and

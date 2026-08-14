@@ -7,13 +7,15 @@ use minco_core::{PluginId, PluginManager, PluginSelection};
 use minco_http::Principal;
 use minco_plugin_object_storage::{
     CompleteTransferUpload, CompletedTransferUpload, InitiateTransferUpload, IssueTransferDownload,
-    IssueTransferPart, ManagedObjectStoragePlugin, MemoryObjectStore, MultipartPartGrant,
-    MultipartUploadGrant, ObjectAccessSigner, ObjectDownloadGrant, ObjectKey, ObjectMetadataReader,
-    ObjectStore, ObjectStoreError, ObjectTransferApiError, ObjectTransferHttpService,
-    ObjectTransferHttpUseCases, ObjectTransferMetadata, ObjectTransferRequestContext,
-    ObjectUploadError, ObjectUploadPolicy, ObjectUploadSigner, ObjectValidationState,
-    PresignGetObject, PresignPutObject, PresignedMethod, PresignedObjectRequest, SignObjectUpload,
-    TransferUploadGrant, TransferUploadResponse, object_transfer_router,
+    IssueTransferPart, MAX_MULTIPART_PARTS, ManagedObjectStoragePlugin, MemoryObjectStore,
+    MultipartPartGrant, MultipartPartReceipt, MultipartUploadGrant,
+    OBJECT_TRANSFER_HTTP_BODY_BYTES, ObjectAccessSigner, ObjectDownloadGrant, ObjectKey,
+    ObjectMetadataReader, ObjectStore, ObjectStoreError, ObjectTransferApiError,
+    ObjectTransferHttpService, ObjectTransferHttpUseCases, ObjectTransferMetadata,
+    ObjectTransferRequestContext, ObjectUploadError, ObjectUploadPolicy, ObjectUploadSigner,
+    ObjectValidationState, PresignGetObject, PresignPutObject, PresignedMethod,
+    PresignedObjectRequest, SignObjectUpload, TransferUploadGrant, TransferUploadResponse,
+    object_transfer_router,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -26,6 +28,7 @@ use uuid::Uuid;
 #[derive(Debug, Default)]
 struct FakeUseCases {
     calls: Mutex<Vec<String>>,
+    metadata_entity_tag: Option<String>,
 }
 
 #[derive(Debug)]
@@ -61,6 +64,13 @@ impl ObjectUploadSigner for UnusedSigner {
 impl FakeUseCases {
     async fn calls(&self) -> Vec<String> {
         self.calls.lock().await.clone()
+    }
+
+    fn with_metadata_entity_tag(entity_tag: impl Into<String>) -> Self {
+        Self {
+            calls: Mutex::default(),
+            metadata_entity_tag: Some(entity_tag.into()),
+        }
     }
 }
 
@@ -158,7 +168,10 @@ impl ObjectTransferHttpUseCases for FakeUseCases {
             revision: "2".into(),
             content_type: "application/pdf".into(),
             size_bytes: 10,
-            entity_tag: "\"revision-2\"".into(),
+            entity_tag: self
+                .metadata_entity_tag
+                .clone()
+                .unwrap_or_else(|| "\"revision-2\"".into()),
             last_modified: Utc::now(),
             validation: ObjectValidationState::Accepted {
                 inspector: "safe-pdf".into(),
@@ -336,6 +349,124 @@ async fn conditional_metadata_avoids_reissuing_or_redownloading_unchanged_bytes(
     );
     assert_eq!(response.headers()[header::VARY], "Authorization");
     assert_eq!(use_cases.calls().await, ["metadata"]);
+}
+
+#[tokio::test]
+async fn conditional_metadata_accepts_weak_lists_and_wildcards_after_authorization() {
+    for if_none_match in ["\"other\", W/\"revision-2\"", "*"] {
+        let use_cases = Arc::new(FakeUseCases::default());
+        let app = object_transfer_router(ObjectTransferHttpService::new(use_cases.clone()))
+            .layer(axum::Extension(principal()));
+        let response = app
+            .oneshot(
+                Request::get("/_minco/objects/document-1")
+                    .header(header::IF_NONE_MATCH, if_none_match)
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+        assert_eq!(use_cases.calls().await, ["metadata"]);
+    }
+}
+
+#[tokio::test]
+async fn conditional_metadata_ignores_malformed_validators() {
+    let use_cases = Arc::new(FakeUseCases::default());
+    let app = object_transfer_router(ObjectTransferHttpService::new(use_cases.clone()))
+        .layer(axum::Extension(principal()));
+    let response = app
+        .oneshot(
+            Request::get("/_minco/objects/document-1")
+                .header(header::IF_NONE_MATCH, "revision-2")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(use_cases.calls().await, ["metadata"]);
+}
+
+#[tokio::test]
+async fn metadata_rejects_an_invalid_application_entity_tag() {
+    let use_cases = Arc::new(FakeUseCases::with_metadata_entity_tag("not-quoted"));
+    let app = object_transfer_router(ObjectTransferHttpService::new(use_cases.clone()))
+        .layer(axum::Extension(principal()));
+    let response = app
+        .oneshot(
+            Request::get("/_minco/objects/document-1")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(!response.headers().contains_key(header::ETAG));
+    assert_eq!(use_cases.calls().await, ["metadata"]);
+}
+
+#[tokio::test]
+async fn maximum_completion_manifest_fits_control_plane_and_lambda_boundaries() {
+    let parts = (1..=MAX_MULTIPART_PARTS)
+        .map(|part_number| MultipartPartReceipt {
+            part_number,
+            entity_tag: "\\".repeat(64),
+            sha256: "a".repeat(64),
+        })
+        .collect();
+    let body = serde_json::to_vec(&CompleteTransferUpload { parts }).unwrap();
+    assert!(body.len() > 64 * 1024);
+    assert!(body.len() <= OBJECT_TRANSFER_HTTP_BODY_BYTES);
+    let nested_lambda_event = serde_json::to_vec(&serde_json::json!({
+        "version": "2.0",
+        "body": String::from_utf8(body.clone()).unwrap(),
+        "isBase64Encoded": false
+    }))
+    .unwrap();
+    assert!(nested_lambda_event.len() < 6 * 1024 * 1024);
+
+    let use_cases = Arc::new(FakeUseCases::default());
+    let app = object_transfer_router(ObjectTransferHttpService::new(use_cases.clone()))
+        .layer(axum::Extension(principal()));
+    let response = app
+        .oneshot(
+            Request::post(format!("/_minco/objects/uploads/{}/complete", Uuid::nil()))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(axum::body::Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(use_cases.calls().await, ["complete"]);
+}
+
+#[tokio::test]
+async fn completion_rejects_an_entity_tag_above_the_http_contract_bound() {
+    let use_cases = Arc::new(FakeUseCases::default());
+    let app = object_transfer_router(ObjectTransferHttpService::new(use_cases.clone()))
+        .layer(axum::Extension(principal()));
+    let body = serde_json::to_vec(&CompleteTransferUpload {
+        parts: vec![MultipartPartReceipt {
+            part_number: 1,
+            entity_tag: "e".repeat(65),
+            sha256: "a".repeat(64),
+        }],
+    })
+    .unwrap();
+    let response = app
+        .oneshot(
+            Request::post(format!("/_minco/objects/uploads/{}/complete", Uuid::nil()))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(axum::body::Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(use_cases.calls().await.is_empty());
 }
 
 #[test]

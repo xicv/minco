@@ -2,9 +2,10 @@
 
 ## Supported versions
 
-Minco is currently a pre-1.0 project. Security fixes are applied to the latest
-published minor line. Until the first signed release exists, consumers should
-pin an exact revision and review the release manifest before deployment.
+Security fixes are applied to the latest published minor line. Consumers should
+use a signed release, pin the exact version selected by their lockfile, and
+review its release manifest before deployment. Older minor lines are not
+maintained unless a release advisory explicitly says otherwise.
 
 ## Reporting a vulnerability
 

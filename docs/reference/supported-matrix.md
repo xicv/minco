@@ -1,7 +1,7 @@
-# 1.7 support matrix
+# 1.8 candidate support matrix
 
 Published install baseline: `1.7.0`
-Current workspace version: `1.7.0`
+Current workspace version: `1.8.0`
 MSRV: Rust `1.97.1`
 Compatibility state: the published 1.7.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
@@ -11,6 +11,13 @@ together with durable auditing and Apple-first fresh local services as the
 complete 34-package `v1.7.0`
 family. Registry, docs.rs, stable documentation and application/live proof
 remain separate.
+
+The unpublished 1.8.0 workspace adds provider-neutral transfer contracts and
+an authenticated object JSON control plane. S3 is the production-targeted byte
+plane. Other providers remain unsupported for resumable HTTP until they supply
+the additive stream, signing, multipart and abort contracts and pass equivalent
+conformance. Candidate source is not registry, live-provider, deployment or
+production evidence.
 
 The published 1.6.0 release preserves this support classification and adds
 durable audit behavior without promoting a provider or changing

@@ -137,11 +137,26 @@ an application-owned use case to authorize an object key, media type, size,
 expiry, and finalization policy before a native background-transfer service
 sends bytes directly to storage.
 
-Minco does **not** currently ship a generic signed-upload HTTP route or finalize
-operation. The application owns that contract and policy. Never expose broad
-storage credentials or log presigned URLs, signatures, form fields, or
-temporary credentials. Browser bucket CORS is separate from API CORS; neither
-is authentication.
+The opt-in object-transfer HTTP module supplies authenticated initiation, part
+issuance, completion, abort, download-grant and conditional metadata routes.
+The application supplies the injected authorization/session use cases; Minco
+does not turn provider keys into ownership or choose a tenant policy globally.
+The 3 MiB JSON control-plane bound admits the complete 10,000-part provider
+manifest without proxying file bytes.
+
+Use file-backed `URLSession` bodies for iOS background upload and WorkManager
+or a policy-compliant foreground transfer service on Android. Persist only
+non-secret upload state and the latest accepted receipt for each part. Retry
+failed parts, abort when the user cancels, and request a new range capability
+with the same strong byte validator to resume a stopped download. Metadata
+`If-None-Match` revalidation can retain a private cached file without paying
+for another signed grant or transfer.
+
+Never expose broad storage credentials or log presigned URLs, signatures, form
+fields, upload IDs or temporary credentials. Browser bucket CORS is separate
+from API CORS; neither is authentication. Exact upload integrity does not make
+untrusted content safe, so keep completion quarantined until application policy
+records the required inspection verdict.
 
 ## Evolve an API for installed versions
 

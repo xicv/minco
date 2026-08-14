@@ -1,13 +1,15 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.7.0`
-Current workspace version: `1.7.0`
-Workspace release state: `published`
+Current workspace version: `1.8.0`
+Workspace release state: `candidate`
 
 Use exact published `1.7.0` dependencies for applications. Follow the
 [1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing,
 then use the [1.6.0-to-1.7.0 guide](1.6.0-to-1.7.0.md) for Apple-first fresh
-local-service selection.
+local-service selection. The unpublished
+[1.7.0-to-1.8.0 guide](1.7.0-to-1.8.0.md) covers opt-in resumable object
+transfers without changing the current stable dependency recommendation.
 Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 
@@ -201,6 +203,12 @@ Applications moving from `1.6.0` to the published `1.7.0` release must use the
 [`1.6.0` to `1.7.0` guide](1.6.0-to-1.7.0.md). It covers Apple-first fresh
 automatic local-service selection, existing-resource precedence and the
 retained explicit Docker fallback.
+
+Applications evaluating the unpublished `1.8.0` candidate from the published
+`1.7.0` baseline must use the
+[`1.7.0` to `1.8.0` guide](1.7.0-to-1.8.0.md). It covers direct resumable object
+transfers, immutable updates, private caching, quarantine, non-S3 obligations
+and the explicit performance/cost boundary.
 
 ## Upgrade notes: `0.2.0` to `0.3.0`
 

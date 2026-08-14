@@ -36,7 +36,7 @@ class QualityAssuranceTests(unittest.TestCase):
             "production_slo": False,
             "provider_contact": False,
             "effective_date": "2026-08-12",
-            "source": {"version": "1.7.0", "source_tree_sha256": "a" * 64},
+            "source": {"version": "1.8.0", "source_tree_sha256": "a" * 64},
             "policy": {"sha256": "b" * 64},
             "runner": {
                 "scope": "local",
@@ -73,7 +73,7 @@ class QualityAssuranceTests(unittest.TestCase):
                 },
                 "semver": {
                     "status": "PASS",
-                    "baseline_tag": "v1.6.0",
+                    "baseline_tag": "v1.7.0",
                     "package_count": 34,
                 },
                 "local_performance": {
@@ -169,7 +169,7 @@ class QualityAssuranceTests(unittest.TestCase):
                 "cargo-semver-checks": "0.50.0",
             },
         )
-        self.assertEqual(policy["semver"]["baseline_tag"], "v1.6.0")
+        self.assertEqual(policy["semver"]["baseline_tag"], "v1.7.0")
         self.assertEqual(policy["nextest"]["baseline_executable_test_count"], 122)
         self.assertEqual(policy["nextest"]["executable_test_count"], 127)
         self.assertFalse(policy["production_slo"])

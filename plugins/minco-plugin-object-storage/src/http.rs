@@ -16,14 +16,17 @@ use http::{HeaderMap, StatusCode, header};
 use minco_core::{OperationDescriptor, PluginId};
 use minco_http::{
     ApiFailure, ApiResponseMetadata, BearerChallenge, HttpModule, Principal, REQUEST_ID_HEADER,
-    parse_if_match,
+    StrongEntityTag, parse_if_match,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt, sync::Arc};
 use uuid::Uuid;
 
 pub const OBJECT_TRANSFER_BASE_PATH: &str = "/_minco/objects";
-pub const OBJECT_TRANSFER_HTTP_BODY_BYTES: usize = 64 * 1024;
+/// Bounded for the provider's maximum 10,000-part completion manifest while
+/// remaining below API Gateway's and synchronous Lambda's payload ceilings.
+pub const OBJECT_TRANSFER_HTTP_BODY_BYTES: usize = 3 * 1024 * 1024;
+pub const MAX_MULTIPART_ENTITY_TAG_BYTES: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectTransferRequestContext {
@@ -339,7 +342,7 @@ async fn complete_upload(
             !(1..=crate::MAX_MULTIPART_PARTS).contains(&part.part_number)
                 || !valid_sha256(&part.sha256)
                 || part.entity_tag.is_empty()
-                || part.entity_tag.len() > 256
+                || part.entity_tag.len() > MAX_MULTIPART_ENTITY_TAG_BYTES
                 || part.entity_tag.chars().any(char::is_control)
         })
     {
@@ -406,17 +409,17 @@ async fn get_metadata(
         .get_metadata(context.clone(), object_id)
         .await
         .map_err(|error| api_error(error, context.request_id.clone()))?;
-    let entity_tag = http::HeaderValue::from_str(&metadata.entity_tag)
-        .map_err(|_| ApiFailure::internal(context.request_id.clone()).into_response())?;
-    let not_modified = headers
-        .get(header::IF_NONE_MATCH)
-        .is_some_and(|value| value.as_bytes() == metadata.entity_tag.as_bytes());
+    let entity_tag = parse_application_entity_tag(&metadata.entity_tag)
+        .map_err(|()| ApiFailure::internal(context.request_id.clone()).into_response())?;
+    let not_modified = if_none_match_matches(&headers, entity_tag.opaque());
     let mut response = if not_modified {
         StatusCode::NOT_MODIFIED.into_response()
     } else {
         Json(metadata).into_response()
     };
-    response.headers_mut().insert(header::ETAG, entity_tag);
+    response
+        .headers_mut()
+        .insert(header::ETAG, entity_tag.to_header_value());
     response.headers_mut().insert(
         header::CACHE_CONTROL,
         http::HeaderValue::from_static("private, no-cache"),
@@ -578,6 +581,33 @@ fn valid_sha256(value: &str) -> bool {
 
 fn valid_bounded_text(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum && !value.chars().any(char::is_control)
+}
+
+fn parse_application_entity_tag(value: &str) -> Result<StrongEntityTag, ()> {
+    let opaque = value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .ok_or(())?;
+    StrongEntityTag::from_opaque(opaque).map_err(|_| ())
+}
+
+fn if_none_match_matches(headers: &HeaderMap, current_opaque: &str) -> bool {
+    headers.get_all(header::IF_NONE_MATCH).iter().any(|value| {
+        value.to_str().is_ok_and(|value| {
+            value.split(',').any(|candidate| {
+                let candidate = candidate.trim();
+                if candidate == "*" {
+                    return true;
+                }
+                let candidate = candidate.strip_prefix("W/").unwrap_or(candidate);
+                candidate
+                    .strip_prefix('"')
+                    .and_then(|candidate| candidate.strip_suffix('"'))
+                    .and_then(|opaque| StrongEntityTag::from_opaque(opaque).ok())
+                    .is_some_and(|candidate| candidate.opaque() == current_opaque)
+            })
+        })
+    })
 }
 
 fn api_error(error: ObjectTransferApiError, request_id: String) -> Response {

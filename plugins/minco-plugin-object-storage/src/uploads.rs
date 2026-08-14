@@ -314,6 +314,7 @@ impl ObjectUploadService {
         &self,
         pending: &PendingObjectUpload,
     ) -> Result<VerifiedObjectUpload, ObjectUploadError> {
+        self.validate_pending(pending)?;
         let Some(metadata) = self.metadata.head(&pending.key).await? else {
             return Err(ObjectUploadError::MissingObject);
         };
@@ -347,6 +348,34 @@ impl ObjectUploadService {
             key: pending.key.clone(),
             metadata,
         })
+    }
+
+    fn validate_pending(&self, pending: &PendingObjectUpload) -> Result<(), ObjectUploadError> {
+        let content_type = normalize_content_type(&pending.expected_content_type)
+            .map_err(|_| ObjectUploadError::InvalidPendingUpload)?;
+        let sha256 = normalize_sha256(&pending.expected_sha256)
+            .map_err(|_| ObjectUploadError::InvalidPendingUpload)?;
+        let mut attributes = pending.expected_attributes.clone();
+        let upload_id = attributes
+            .remove(UPLOAD_ID_ATTRIBUTE)
+            .ok_or(ObjectUploadError::InvalidPendingUpload)?;
+        let parsed_upload_id =
+            Uuid::parse_str(&upload_id).map_err(|_| ObjectUploadError::InvalidPendingUpload)?;
+        validate_attributes(attributes).map_err(|_| ObjectUploadError::InvalidPendingUpload)?;
+        let expected_key = generated_key(&self.policy.key_prefix, &upload_id)
+            .map_err(|_| ObjectUploadError::InvalidPendingUpload)?;
+        if content_type != pending.expected_content_type
+            || !self.policy.allowed_content_types.contains(&content_type)
+            || pending.expected_size_bytes == 0
+            || pending.expected_size_bytes > self.policy.maximum_size_bytes
+            || sha256 != pending.expected_sha256
+            || parsed_upload_id.to_string() != upload_id
+            || parsed_upload_id.get_version_num() != 7
+            || pending.key != expected_key
+        {
+            return Err(ObjectUploadError::InvalidPendingUpload);
+        }
+        Ok(())
     }
 }
 
@@ -522,6 +551,8 @@ pub enum ObjectUploadError {
     InvalidAttributes,
     #[error("upload expiry must be greater than zero and no more than 24 hours")]
     InvalidExpiry,
+    #[error("persisted upload state does not match its configured policy")]
+    InvalidPendingUpload,
     #[error("the uploaded object does not exist")]
     MissingObject,
     #[error("the provider reported metadata for a different object key")]
@@ -617,6 +648,7 @@ mod tests {
     use crate::{PresignGetObject, PresignPutObject, PresignedMethod, PutObject};
     use minco_core::{PluginId, PluginManager, PluginSelection};
     use sha2::{Digest, Sha256};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Debug)]
     struct TestSigner;
@@ -838,8 +870,80 @@ mod tests {
         wrong_attributes.expected_attributes.clear();
         assert!(matches!(
             service.verify(&wrong_attributes).await,
-            Err(ObjectUploadError::AttributeMismatch)
+            Err(ObjectUploadError::InvalidPendingUpload)
         ));
+    }
+
+    #[derive(Debug)]
+    struct CountingMetadataReader(Arc<AtomicUsize>);
+
+    #[async_trait]
+    impl ObjectMetadataReader for CountingMetadataReader {
+        async fn head(&self, _key: &ObjectKey) -> Result<Option<ObjectHead>, ObjectStoreError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+    }
+
+    #[tokio::test]
+    async fn verification_revalidates_persisted_state_before_provider_contact() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let service = ObjectUploadService::new(
+            Arc::new(TestSigner),
+            ObjectMetadataService::new(Arc::new(CountingMetadataReader(Arc::clone(&calls)))),
+            policy(),
+        );
+        let issued = service.issue(request()).await.unwrap();
+        let mut invalid = Vec::new();
+
+        let mut wrong_key = issued.pending.clone();
+        wrong_key.key = ObjectKey::parse("uploads/images/different").unwrap();
+        invalid.push(wrong_key);
+
+        let mut noncanonical_type = issued.pending.clone();
+        noncanonical_type.expected_content_type = "IMAGE/PNG".into();
+        invalid.push(noncanonical_type);
+
+        let mut invalid_size = issued.pending.clone();
+        invalid_size.expected_size_bytes = 0;
+        invalid.push(invalid_size);
+
+        let mut oversized = issued.pending.clone();
+        oversized.expected_size_bytes = 1_025;
+        invalid.push(oversized);
+
+        let mut noncanonical_checksum = issued.pending.clone();
+        noncanonical_checksum.expected_sha256 =
+            noncanonical_checksum.expected_sha256.to_ascii_uppercase();
+        invalid.push(noncanonical_checksum);
+
+        let mut missing_upload_id = issued.pending.clone();
+        missing_upload_id
+            .expected_attributes
+            .remove(UPLOAD_ID_ATTRIBUTE);
+        invalid.push(missing_upload_id);
+
+        let mut malformed_upload_id = issued.pending;
+        malformed_upload_id
+            .expected_attributes
+            .insert(UPLOAD_ID_ATTRIBUTE.into(), "not-a-uuid".into());
+        invalid.push(malformed_upload_id);
+
+        let mut wrong_upload_id_version = invalid[0].clone();
+        let nil_upload_id = Uuid::nil().to_string();
+        wrong_upload_id_version.key = generated_key(&policy().key_prefix, &nil_upload_id).unwrap();
+        wrong_upload_id_version
+            .expected_attributes
+            .insert(UPLOAD_ID_ATTRIBUTE.into(), nil_upload_id);
+        invalid.push(wrong_upload_id_version);
+
+        for pending in invalid {
+            assert!(matches!(
+                service.verify(&pending).await,
+                Err(ObjectUploadError::InvalidPendingUpload)
+            ));
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 
     #[derive(Debug)]

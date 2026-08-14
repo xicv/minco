@@ -20,7 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 TRUTH_RELATIVE = Path("verification/repository-truth.toml")
 POLICY_RELATIVE = Path("verification/performance-policy.toml")
-BASELINE_RELATIVE = Path("verification/1.7-performance-baseline.json")
+BASELINE_RELATIVE = Path("verification/1.8-performance-baseline.json")
 PROVIDER_RELATIVE = Path("verification/provider-evidence.toml")
 CAPABILITY_RELATIVE = Path("verification/aws-capability-candidates.toml")
 MANIFEST_RELATIVE = Path("verification/source-manifest.json")

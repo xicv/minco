@@ -8,11 +8,12 @@ family from immutable tag `v1.7.0` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is the published `1.7.0` release with the same 34-package
-inventory. It packages the Apple-first fresh local-service preference while
-retaining exact-resource recovery and Docker fallback. Its exact source, merge,
-tag, GitHub release, OIDC publication and registry family are recorded
-independently; docs.rs and stable Pages remain separate evidence gates.
+The workspace is an unpublished `1.8.0` candidate with the same 34-package
+inventory. It adds the opt-in direct object-transfer boundary while retaining
+application authority, additive compatibility and the minimal topology. Its
+exact source must pass local and hosted review before merge; tag, GitHub
+release, OIDC publication, registry, docs.rs and Pages remain later independent
+evidence gates.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as

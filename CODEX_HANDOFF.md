@@ -1,16 +1,36 @@
-# Minco 1.7.0 release-closure handoff
+# Minco 1.8.0 object-transfer candidate handoff
 
-Date: 2026-08-13
+Date: 2026-08-14
 Published baseline: `1.7.0`
-Current workspace version: `1.7.0`
-Workspace release state: `published`
+Current workspace version: `1.8.0`
+Workspace release state: `candidate`
 Published `1.7.0` source: `7773892792696ccf061ddbb49fa284e5ba7f6747`
 Published source-tree digest: `ef52d3083c0f8b73db9ae1f01e028aae265e28579cc705faf0b20938f060d345`
 Published release task: `M14-T33`
-Latest release task: `M14-T33` (`active`)
+Latest release task: `M14-T36` (`completed`)
 Active evidence tasks: `M14-T10`, `M14-T20`
 
-## Active 1.7.0 release closure
+## Completed 1.8.0 candidate preparation
+
+M14-T36 starts from exact merged `main`
+`9e4e4c2b5b8e35457d4d45f94b4114236a775069`. It hardens and releases the
+already merged direct object-transfer slice: authenticated upload/part/
+complete/abort/download/metadata control operations, direct private S3 bytes,
+range resume, immutable updates, private cache revalidation, quarantine and
+structural cost accounting.
+
+The application retains authorization, quotas, durable session state, logical
+object pointers, retention and content inspection. The candidate adds no
+default CDN, acceleration, scanner, scheduler, fixed compute or large-body
+Lambda relay. The exact sealed source passes the complete macOS quality and
+local-release gates from a clean JJ child: pinned assurance, additive SemVer
+for all 34 packages, candidate load/recovery, package dry-runs, Plan/SAM and
+Lambda builds, AppSync proof, owned PostgreSQL/Rustack runtime and Orders E2E.
+Exact-head immutable security review, hosted Linux, merge, tag, OIDC
+publication, registry, docs.rs, Pages, provider, deployment and production are
+separate states.
+
+## Completed 1.7.0 release closure
 
 PR #163 reviewed exact source `22d62cb75a24011e2e83e9ccb3c4e07df4b02081`
 and tree `31d279aca70e747ea934258ec2ce1548c66fd90d`, with zero unresolved

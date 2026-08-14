@@ -37,3 +37,8 @@ At the 1.7 Apple Container default boundary, review selection races, receipt
 precedence, ambiguous ownership, port collisions and exact-resource cleanup.
 Reject automatic migration or deletion without explicit authority and verified
 resource identity.
+
+At the 1.8 resumable object transfer boundary, review bearer-secret redaction,
+exact limits, retry/abort behavior, range validators, immutable updates,
+authorization-before-cache, quarantined completion, lifecycle cleanup and
+provider-specific conformance before accepting file-serving readiness.
