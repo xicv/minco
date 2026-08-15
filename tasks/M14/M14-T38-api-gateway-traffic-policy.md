@@ -36,7 +36,10 @@ stage defaults and individual route overrides. AWS documents these settings as
 best-effort targets rather than hard ceilings. AWS SAM exposes the same
 `DefaultRouteSettings` and `RouteSettings` properties on
 `AWS::Serverless::HttpApi`, while `AWS::ApiGatewayV2::Stage` exposes equivalent
-settings for Minco's candidate stage.
+settings for Minco's candidate stage. The provider represents the burst field as
+an int32 and the steady-state rate as a double, so the public Rust budget mirrors
+that provider boundary instead of accepting a wider integer and failing later in
+CloudFormation.
 
 The implementation takes the useful Laravel idea of named, reviewable traffic
 limits but deliberately does not copy Laravel's cache-backed request middleware.
@@ -47,7 +50,8 @@ that the managed ingress can reject first.
 
 - a typed serializable `HttpTrafficPolicy` supports one optional default budget
   plus deterministic operation-ID overrides;
-- every budget rejects non-finite/non-positive request rates and zero burst;
+- every budget rejects non-finite/non-positive request rates and non-positive
+  burst values, and the burst type cannot exceed API Gateway's int32 field;
 - operation overrides fail closed when the operation ID is absent from the
   reviewed `DeploymentPlan` routes;
 - duplicate method/path route keys fail closed instead of silently overwriting
@@ -55,14 +59,18 @@ that the managed ingress can reject first.
 - traffic-policy rendering is supported only for API Gateway HTTP API ingress;
 - the same effective policy is rendered into the `$default` and `candidate`
   stages so hosted verification does not exercise a less-protected topology;
-- the existing `render_sam*` functions remain byte-compatible when no traffic
-  policy is selected;
+- tests parse the rendered YAML and verify the settings under both actual stage
+  resources rather than treating matching output strings alone as proof;
+- the existing `render_sam*` functions remain unthrottled when no traffic policy
+  is selected;
 - the implementation adds no AWS resource, schedule, fixed compute, runtime
   dependency, Redis/cache requirement, or application request-path allocation;
 - documentation states that API Gateway throttling is best-effort, can still
-  incur API Gateway request charges, and is not a hard spend cap or per-user
-  authorization control; and
-- focused unit tests cover default/route rendering and fail-closed validation.
+  incur API Gateway request charges, remains subject to account-level AWS
+  throttling limits, and is not a hard spend cap or per-user authorization
+  control; and
+- focused unit tests cover default/route rendering, provider field bounds, and
+  fail-closed validation.
 
 ## Non-goals
 
@@ -85,15 +93,19 @@ this policy only behind its own compatibility task.
 
 ## Evidence
 
-Research used the current AWS API Gateway HTTP API throttling documentation and
-AWS SAM `AWS::Serverless::HttpApi` reference, including default and per-route
-settings. Open-source SAM examples confirm the same declarative route-settings
-shape. No AWS account operation, provider mutation, deployment, release,
-registry action, or GitHub workflow is authorized by this task.
+Research used the current AWS API Gateway HTTP API throttling documentation, AWS
+SAM `AWS::Serverless::HttpApi` reference, and API Gateway v2/CloudFormation stage
+route-setting schemas, including default/per-route settings and provider numeric
+types. Open-source SAM examples confirm the same declarative route-settings
+shape. The deep review additionally checked the exact Minco SAM renderer markers,
+`HttpMethod` ownership/method rendering, canonical OpenAPI operation-ID
+uniqueness, placeholder/fake-code patterns, and the actual M14 task dependency.
+No AWS account operation, provider mutation, deployment, release, registry
+action, or GitHub workflow is authorized by this task.
 
 The execution environment used to prepare this draft does not contain `cargo`,
-`rustc`, or `gh`, and direct GitHub network access from the shell is unavailable.
-The GitHub connector is therefore used for source mutation and PR creation.
-Compilation, rustfmt and Clippy must remain `NOT RUN` until the exact branch is
-qualified in a Rust-capable local environment; they must not be represented as
-passes.
+`rustc`, `rustfmt`, `clippy-driver`, `sam`, or `gh`, and direct GitHub network
+access from the shell is unavailable. The GitHub connector is therefore used for
+source mutation and PR creation. Compilation, rustfmt and Clippy must remain
+`NOT RUN` until the exact branch is qualified in a Rust-capable local
+environment; they must not be represented as passes.
