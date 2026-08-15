@@ -17,13 +17,13 @@ use thiserror::Error;
 pub struct TrafficBudget {
     /// Steady-state request target in requests per second.
     pub rate_per_second: f64,
-    /// Token-bucket burst target.
-    pub burst: u32,
+    /// Token-bucket burst target. API Gateway exposes this as an int32.
+    pub burst: i32,
 }
 
 impl TrafficBudget {
     #[must_use]
-    pub const fn new(rate_per_second: f64, burst: u32) -> Self {
+    pub const fn new(rate_per_second: f64, burst: i32) -> Self {
         Self {
             rate_per_second,
             burst,
@@ -37,10 +37,10 @@ impl TrafficBudget {
                 reason: "rate_per_second must be finite and greater than zero",
             });
         }
-        if self.burst == 0 {
+        if self.burst <= 0 {
             return Err(HttpTrafficPolicyError::InvalidBudget {
                 target: target.to_owned(),
-                reason: "burst must be greater than zero",
+                reason: "burst must be greater than zero and fit API Gateway's int32 field",
             });
         }
         Ok(())
@@ -351,6 +351,37 @@ mod tests {
         assert_eq!(template.matches("\"POST /orders\":\n").count(), 2);
         assert_eq!(template.matches("ThrottlingBurstLimit: 5").count(), 2);
         assert_eq!(template.matches("ThrottlingRateLimit: 2.5").count(), 2);
+
+        let parsed: serde_yaml_ng::Value = serde_yaml_ng::from_str(&template).unwrap();
+        for stage in ["HttpApi", "CandidateStage"] {
+            let properties = &parsed["Resources"][stage]["Properties"];
+            assert_eq!(
+                properties["DefaultRouteSettings"]["ThrottlingBurstLimit"].as_i64(),
+                Some(40)
+            );
+            assert_eq!(
+                properties["DefaultRouteSettings"]["ThrottlingRateLimit"].as_f64(),
+                Some(20.0)
+            );
+            assert_eq!(
+                properties["RouteSettings"]["POST /orders"]["ThrottlingBurstLimit"].as_i64(),
+                Some(5)
+            );
+            assert_eq!(
+                properties["RouteSettings"]["POST /orders"]["ThrottlingRateLimit"].as_f64(),
+                Some(2.5)
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_sam_rendering_remains_unthrottled() {
+        let template = sam::render_sam(&plan()).unwrap();
+
+        assert!(!template.contains("DefaultRouteSettings:"));
+        assert!(!template.contains("RouteSettings:"));
+        assert!(!template.contains("ThrottlingBurstLimit:"));
+        assert!(!template.contains("ThrottlingRateLimit:"));
     }
 
     #[test]
@@ -371,6 +402,7 @@ mod tests {
             TrafficBudget::new(0.0, 1),
             TrafficBudget::new(f64::NAN, 1),
             TrafficBudget::new(1.0, 0),
+            TrafficBudget::new(1.0, -1),
         ] {
             let policy = HttpTrafficPolicy::new(Some(budget));
             assert!(matches!(
@@ -378,6 +410,14 @@ mod tests {
                 Err(HttpTrafficPolicyError::InvalidBudget { .. })
             ));
         }
+    }
+
+    #[test]
+    fn maximum_provider_burst_value_is_renderable() {
+        let policy = HttpTrafficPolicy::new(Some(TrafficBudget::new(1.0, i32::MAX)));
+        let template = render_sam_with_traffic_policy(&plan(), &policy).unwrap();
+
+        assert!(template.contains("ThrottlingBurstLimit: 2147483647"));
     }
 
     #[test]
