@@ -38,14 +38,18 @@ let traffic = HttpTrafficPolicy::new(Some(TrafficBudget::new(25.0, 50)))
     );
 ```
 
-`rate_per_second` must be finite and greater than zero, and `burst` must be
-non-zero. Unknown operation IDs fail closed. If two selected operations resolve
-to the same API Gateway route key, rendering also fails rather than silently
-replacing one setting.
+`rate_per_second` must be finite and greater than zero. `burst` must also be
+greater than zero and uses Rust `i32` because API Gateway exposes
+`ThrottlingBurstLimit` as an int32 provider field. Unknown operation IDs fail
+closed. If two selected operations resolve to the same API Gateway route key,
+rendering also fails rather than silently replacing one setting.
 
 Minco deliberately does not invent rate values from Lambda concurrency,
 database connection limits, or expected traffic. Those dimensions inform human
 capacity planning but do not prove the correct product-level traffic budget.
+Likewise, Minco does not pretend to know an account's current API Gateway quota:
+a configured route target still cannot exceed the applicable AWS account-level
+throttling limits.
 
 ## Render the protected topology
 
@@ -69,8 +73,9 @@ The renderer adds AWS SAM `DefaultRouteSettings` and `RouteSettings` to Minco's
 against a less-protected traffic topology.
 
 The ordinary `render_sam`, `render_sam_with_code_uri`, and
-`render_sam_with_code_uris` functions are unchanged. No throttle exists unless
-the application explicitly selects a traffic policy.
+`render_sam_with_code_uris` functions are unchanged. No **Minco-configured**
+route throttle is added unless the application explicitly selects a traffic
+policy; normal AWS account-level throttling still exists independently.
 
 ## Choose budgets deliberately
 
