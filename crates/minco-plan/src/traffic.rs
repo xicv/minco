@@ -83,7 +83,7 @@ impl HttpTrafficPolicy {
     /// Validates policy values and resolves every operation override against
     /// the already-reviewed deployment routes.
     pub fn validate(&self, plan: &DeploymentPlan) -> Result<(), HttpTrafficPolicyError> {
-        if !matches!(plan.ingress, IngressPlan::ApiGatewayHttpApi) {
+        if !matches!(&plan.ingress, IngressPlan::ApiGatewayHttpApi) {
             return Err(HttpTrafficPolicyError::UnsupportedIngress);
         }
         if self.default.is_none() && self.operations.is_empty() {
