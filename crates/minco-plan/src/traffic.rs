@@ -1,11 +1,8 @@
 use crate::{
-    model::{
-        AuthPlan, DatabaseDeployment, DeploymentConfig, DeploymentPlan, FunctionPlan, FunctionRole,
-        IngressPlan, NeonPlan, PerformancePolicy, CostPolicy,
-    },
+    model::{DeploymentPlan, IngressPlan},
     sam,
 };
-use minco_contract::{ContractDocument, HttpMethod, OwnedOperation};
+use minco_contract::HttpMethod;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
@@ -66,7 +63,7 @@ pub struct HttpTrafficPolicy {
 
 impl HttpTrafficPolicy {
     #[must_use]
-    pub const fn new(default: Option<TrafficBudget>) -> Self {
+    pub fn new(default: Option<TrafficBudget>) -> Self {
         Self {
             default,
             operations: BTreeMap::new(),
@@ -270,6 +267,11 @@ pub enum HttpTrafficPolicyError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{
+        AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, FunctionPlan, FunctionRole,
+        NeonPlan, PerformancePolicy, RoutePlan, RuntimePlan,
+    };
+    use minco_contract::{ContractDocument, OwnedOperation};
 
     fn plan() -> DeploymentPlan {
         let contract = ContractDocument {
@@ -302,7 +304,7 @@ mod tests {
             application: "traffic-test".into(),
             environment: "dev".into(),
             region: "ap-southeast-2".into(),
-            runtime: crate::model::RuntimePlan::LambdaZipArm64,
+            runtime: RuntimePlan::LambdaZipArm64,
             ingress: IngressPlan::ApiGatewayHttpApi,
             auth: AuthPlan::Jwt {
                 issuer: "https://issuer.example.invalid".into(),
@@ -393,7 +395,7 @@ mod tests {
     #[test]
     fn duplicate_route_keys_do_not_silently_overwrite_settings() {
         let mut plan = plan();
-        plan.routes.push(crate::model::RoutePlan {
+        plan.routes.push(RoutePlan {
             operation_id: "createOrderAgain".into(),
             method: HttpMethod::Post,
             path: "/orders".into(),
