@@ -4,6 +4,7 @@
 mod cost;
 mod model;
 mod sam;
+mod traffic;
 
 const DYNAMODB_AUDIT_TABLE_ACTIONS: [&str; 5] = [
     "dynamodb:BatchGetItem",
@@ -90,3 +91,8 @@ pub use model::{
     StaticSiteDeployment, TriggerPlan,
 };
 pub use sam::{render_sam, render_sam_with_code_uri, render_sam_with_code_uris};
+pub use traffic::{
+    HttpTrafficPolicy, HttpTrafficPolicyError, TrafficBudget,
+    render_sam_with_code_uri_and_traffic_policy, render_sam_with_code_uris_and_traffic_policy,
+    render_sam_with_traffic_policy,
+};
