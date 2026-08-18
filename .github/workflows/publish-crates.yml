@@ -34,7 +34,7 @@ concurrency:
 jobs:
   authentication:
     if: ${{ inputs.authenticate && !inputs.publish }}
-    runs-on: ${{ github.actor == 'xicv' && fromJSON('["self-hosted", "minco-ci"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     environment: crates-io
     permissions:
       id-token: write
@@ -44,7 +44,7 @@ jobs:
 
   release:
     if: ${{ inputs.publish }}
-    runs-on: ${{ github.actor == 'xicv' && fromJSON('["self-hosted", "minco-ci"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: crates-io
     permissions:
@@ -65,155 +65,3 @@ jobs:
         with:
           toolchain: 1.97.1
       - name: Verify release tag
-        id: release-ref
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          set -euo pipefail
-          release_tag="$RELEASE_TAG"
-          if [[ -z "$release_tag" ]]; then
-            case "$GITHUB_REF" in
-              refs/tags/*) release_tag="${GITHUB_REF#refs/tags/}" ;;
-              *)
-                echo "release_tag is required unless the workflow runs from a tag" >&2
-                exit 1
-                ;;
-            esac
-          fi
-          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
-          version="$(uv run --locked python - <<'PY'
-          import tomllib
-          from pathlib import Path
-          print(tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version'])
-          PY
-          )"
-          test "$release_tag" = "v${version}"
-          tag_commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"
-          test "$tag_commit" = "$(git rev-parse HEAD)"
-      - name: Fetch locked Rust dependencies for offline archive tests
-        run: cargo fetch --locked
-      - name: Verify committed local release evidence
-        env:
-          MINCO_RESUME_PACKAGES: ${{ inputs.resume_packages }}
-        run: |
-          uv run --locked python scripts/validate_static.py
-          if [[ -n "$MINCO_RESUME_PACKAGES" ]]; then
-            uv run --locked python scripts/validate_publish.py
-          else
-            uv run --locked python scripts/validate_publish.py --check-registry
-          fi
-          uv run --locked python scripts/source_manifest.py --check
-      - name: Refuse OIDC first publication
-        if: ${{ inputs.publish }}
-        run: |
-          uv run --locked python - <<'PY'
-          import tomllib
-          from pathlib import Path
-
-          truth = tomllib.loads(Path("verification/repository-truth.toml").read_text())
-          new_packages = truth["new_publishable_packages"]
-          if new_packages:
-              names = ", ".join(new_packages)
-              raise SystemExit(
-                  "trusted publishing cannot bootstrap new crates; use the documented "
-                  f"manual authenticated publication for the complete family first: {names}"
-              )
-          PY
-      - name: Verify partial-publication registry complement
-        if: ${{ inputs.publish && inputs.resume_packages != '' }}
-        env:
-          MINCO_RESUME_PACKAGES: ${{ inputs.resume_packages }}
-        run: |
-          uv run --locked python - <<'PY'
-          import json
-          import os
-          import tomllib
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-          from pathlib import Path
-
-          workspace = tomllib.loads(Path("Cargo.toml").read_text())
-          version = workspace["workspace"]["package"]["version"]
-          declared = workspace["workspace"]["metadata"]["minco"]["release"]["publish"]
-          selected = [
-              line
-              for line in os.environ["MINCO_RESUME_PACKAGES"].splitlines()
-              if line
-          ]
-          if len(selected) != len(set(selected)):
-              raise SystemExit("resume package list contains duplicates")
-          unknown = sorted(set(selected) - set(declared))
-          if unknown:
-              raise SystemExit(f"unknown resume packages: {', '.join(unknown)}")
-
-          present = []
-          absent = []
-          for package in declared:
-              encoded = urllib.parse.quote(package, safe="")
-              request = urllib.request.Request(
-                  f"https://crates.io/api/v1/crates/{encoded}",
-                  headers={
-                      "User-Agent": (
-                          f"minco-release-verification/{version} "
-                          "(https://github.com/xicv/minco)"
-                      ),
-                  },
-              )
-              try:
-                  with urllib.request.urlopen(request, timeout=15) as response:
-                      payload = json.load(response)
-              except urllib.error.HTTPError as error:
-                  if error.code == 404:
-                      payload = {"versions": []}
-                  else:
-                      raise
-              versions = [
-                  item
-                  for item in payload.get("versions", [])
-                  if item.get("num") == version
-              ]
-              if any(not item.get("yanked", False) for item in versions):
-                  present.append(package)
-              elif versions:
-                  raise SystemExit(f"{package} {version} exists only as yanked")
-              else:
-                  absent.append(package)
-
-          if set(selected) != set(absent):
-              raise SystemExit(
-                  "resume package list does not equal the registry-absent release set; "
-                  f"selected={sorted(selected)}, absent={sorted(absent)}"
-              )
-          expected_present = set(declared) - set(selected)
-          if set(present) != expected_present:
-              raise SystemExit("registry-present release set is incomplete")
-          print(
-              f"Verified {len(present)} present and {len(absent)} absent "
-              f"Minco {version} packages before resume."
-          )
-          PY
-      - name: Obtain short-lived crates.io token
-        if: ${{ inputs.publish }}
-        id: auth
-        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
-      - name: Publish selected crate family
-        if: ${{ inputs.publish }}
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-          MINCO_RELEASE_TAG: ${{ steps.release-ref.outputs.tag }}
-          MINCO_RESUME_PACKAGES: ${{ inputs.resume_packages }}
-        run: |
-          set -euo pipefail
-          package_args=()
-          while IFS= read -r package; do
-            [[ -z "$package" ]] && continue
-            if [[ ! "$package" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
-              echo "invalid resume package name: $package" >&2
-              exit 1
-            fi
-            package_args+=(--package "$package")
-          done <<< "$MINCO_RESUME_PACKAGES"
-          GITHUB_REF="refs/tags/${MINCO_RELEASE_TAG}" \
-            scripts/release/publish.sh --execute --skip-quality "${package_args[@]}"
