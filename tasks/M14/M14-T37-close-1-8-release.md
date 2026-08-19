@@ -2,7 +2,7 @@
 id: M14-T37
 title: Close the Minco 1.8.0 published release boundary
 milestone: M14
-status: active
+status: completed
 priority: high
 area: release/docs/evidence
 depends_on: [M14-T36]
@@ -108,7 +108,21 @@ fresh public install reported `minco 1.8.0`. The
 [`v1.8.0` GitHub release](https://github.com/xicv/minco/releases/tag/v1.8.0)
 is published.
 
-Post-publication source, stable Pages and docs.rs evidence remain in progress.
+Post-publication verification completed on 2026-08-19 from merged `main`
+`909142e884020507f9bec6a93a474cf1b486d47f` (release source plus the
+post-release CI-runner commits and PR #171). Independently verified:
+immutable tag `v1.8.0` still resolves to
+`fe1a20d4a6c76c7adef268727bb30b92b594e072`; the GitHub release is published
+and non-draft; `scripts/validate_publish.py --expect-published
+--check-registry --require-registry` reported status `ok` with zero errors
+and warnings; all 34 versioned `https://docs.rs/<crate>/1.8.0` routes served
+HTTP 200 (facade build dated 2026-08-14); and
+`https://xicv.github.io/minco/` presented `1.8.0 · Stable` with full content.
+Repository truth files (`VERIFICATION.md`, `REVIEW_STATUS.md`,
+`CODEX_HANDOFF.md`) now record this verification instead of deferring it, and
+the evidence receipts bound to the source tree were regenerated through the
+repository's own validators.
+
 No AWS application operation or production mutation has been performed.
 Hosted performance, current live-provider conformance and content-safety proof
 remain `NOT RUN` or absent.

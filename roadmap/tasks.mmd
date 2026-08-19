@@ -75,6 +75,7 @@ flowchart LR
     NM14T35["M14-T35<br/>Correct DynamoDB audit transaction permissions"]
     NM14T36["M14-T36<br/>Harden object transfers and release Minco 1.8.0"]
     NM14T37["M14-T37<br/>Close the Minco 1.8.0 published release boundary"]
+    NM14T38["M14-T38<br/>Add AWS-native HTTP traffic and compression controls"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -225,6 +226,7 @@ flowchart LR
     NM14T34 --> NM14T35
     NM14T35 --> NM14T36
     NM14T36 --> NM14T37
+    NM14T37 --> NM14T38
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01
