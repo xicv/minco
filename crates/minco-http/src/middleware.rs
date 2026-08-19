@@ -1,10 +1,13 @@
 use crate::response::{DEPRECATION_HEADER, SUNSET_HEADER};
 use axum::Router;
-use http::{HeaderName, HeaderValue, Method, StatusCode, header};
+use http::{Extensions, HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Version, header};
 use std::{collections::BTreeMap, str::FromStr, time::Duration};
 use thiserror::Error;
 use tower_http::{
-    compression::CompressionLayer,
+    compression::{
+        CompressionLayer, CompressionLevel, DefaultPredicate, Predicate,
+        predicate::SizeAbove,
+    },
     cors::{AllowOrigin, CorsLayer},
     limit::RequestBodyLimitLayer,
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
@@ -15,6 +18,22 @@ use tower_http::{
 
 pub static REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 pub static CSRF_HEADER: HeaderName = HeaderName::from_static("x-minco-csrf");
+
+/// Minimum known response size eligible for Minco's negotiated gzip layer.
+///
+/// Unknown-length streaming responses remain eligible and are still filtered by
+/// Tower HTTP's content-type predicate. The threshold avoids spending Lambda CPU
+/// and Lambda proxy base64 overhead on tiny bodies that commonly grow after gzip.
+pub const RESPONSE_COMPRESSION_MIN_BYTES: u64 = 1024;
+
+/// Response extension that opts one response out of dynamic compression.
+///
+/// Use this for a response that combines secrets with attacker-controlled
+/// reflection, or for another response whose application protocol requires an
+/// unencoded representation. Global compression remains enabled for other
+/// eligible responses.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DisableResponseCompression;
 
 /// Exact browser-request, response-exposure, and diagnostic-redaction policy.
 ///
@@ -174,6 +193,7 @@ pub struct HttpRuntimeConfig {
     pub allow_credentials: bool,
     pub timeout: Duration,
     pub max_request_body_bytes: usize,
+    /// Enables negotiated fastest-level gzip for eligible responses at least 1 KiB.
     pub compression: bool,
     /// Application baseline extended by exact installed-plugin requirements.
     pub header_policy: HttpHeaderPolicy,
@@ -244,7 +264,23 @@ pub fn apply_standard_middleware(
         .layer(TraceLayer::new_for_http());
 
     Ok(if config.compression {
-        router.layer(CompressionLayer::new())
+        let predicate = DefaultPredicate::new()
+            .and(SizeAbove::new(RESPONSE_COMPRESSION_MIN_BYTES))
+            .and(
+                |_status: StatusCode,
+                 _version: Version,
+                 _headers: &HeaderMap,
+                 extensions: &Extensions| {
+                    extensions
+                        .get::<DisableResponseCompression>()
+                        .is_none()
+                },
+            );
+        router.layer(
+            CompressionLayer::new()
+                .quality(CompressionLevel::Fastest)
+                .compress_when(predicate),
+        )
     } else {
         router
     })
@@ -323,8 +359,17 @@ pub enum HttpConfigurationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, routing::get};
+    use axum::{
+        body::Body,
+        response::{IntoResponse, Response},
+        routing::get,
+    };
+    use http_body_util::BodyExt as _;
     use tower::ServiceExt;
+
+    fn large_compressible_body() -> String {
+        "minco-response-compression-".repeat(128)
+    }
 
     #[tokio::test]
     async fn standard_stack_sets_and_propagates_request_ids() {
@@ -338,6 +383,124 @@ mod tests {
             .await
             .unwrap();
         assert!(response.headers().contains_key(&REQUEST_ID_HEADER));
+    }
+
+    #[tokio::test]
+    async fn standard_stack_negotiates_gzip_for_large_responses() {
+        let payload = large_compressible_body();
+        let original_len = payload.len();
+        let app = apply_standard_middleware(
+            Router::new().route(
+                "/",
+                get(move || {
+                    let payload = payload.clone();
+                    async move { payload }
+                }),
+            ),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = app
+            .oneshot(
+                http::Request::get("/")
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.headers().get(header::CONTENT_ENCODING),
+            Some(&HeaderValue::from_static("gzip"))
+        );
+        let varies_by_encoding = response
+            .headers()
+            .get_all(header::VARY)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .flat_map(|value| value.split(','))
+            .any(|value| value.trim().eq_ignore_ascii_case("accept-encoding"));
+        assert!(varies_by_encoding);
+
+        let encoded = response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        assert!(encoded.starts_with(&[0x1f, 0x8b]));
+        assert!(encoded.len() < original_len);
+    }
+
+    #[tokio::test]
+    async fn standard_stack_does_not_compress_tiny_responses() {
+        let app = apply_standard_middleware(
+            Router::new().route("/", get(|| async { "small-response" })),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = app
+            .oneshot(
+                http::Request::get("/")
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+    }
+
+    #[tokio::test]
+    async fn response_extension_disables_compression_for_one_response() {
+        async fn sensitive_response() -> Response {
+            let mut response = large_compressible_body().into_response();
+            response.extensions_mut().insert(DisableResponseCompression);
+            response
+        }
+
+        let app = apply_standard_middleware(
+            Router::new().route("/", get(sensitive_response)),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = app
+            .oneshot(
+                http::Request::get("/")
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+    }
+
+    #[tokio::test]
+    async fn runtime_config_can_disable_response_compression_globally() {
+        let config = HttpRuntimeConfig {
+            compression: false,
+            ..HttpRuntimeConfig::default()
+        };
+        let app = apply_standard_middleware(
+            Router::new().route("/", get(|| async { large_compressible_body() })),
+            &config,
+        )
+        .unwrap();
+        let response = app
+            .oneshot(
+                http::Request::get("/")
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
     }
 
     #[tokio::test]
