@@ -43,6 +43,17 @@ visible in Plan IR and is rendered directly into the SAM CORS policy. A plugin
 that requires an additional browser request header must have that header
 explicitly represented in the selected application configuration.
 
+Applications can also opt into a typed `HttpTrafficPolicy` when rendering the
+AWS topology. It maps one optional default request-rate/burst target plus
+operation-ID overrides to API Gateway HTTP API `DefaultRouteSettings` and
+`RouteSettings` on both Minco's default and candidate stages. The ordinary
+`render_sam*` functions remain unchanged when no policy is selected, preserving
+the frozen 1.x deployment-plan schema and existing output. This is coarse
+best-effort ingress protection, not a per-user distributed limiter or hard cost
+ceiling; it adds no Redis service, worker, schedule, provisioned compute, or
+application request-path counter. See
+[`docs/how-to/api-traffic-policy.md`](../../docs/how-to/api-traffic-policy.md).
+
 Applications should treat the generated plan as reviewable deployment evidence,
 not as an exact cloud bill forecast.
 

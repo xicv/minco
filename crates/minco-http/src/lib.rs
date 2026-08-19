@@ -10,7 +10,8 @@ mod response;
 
 pub use error::{ApiFailure, ProblemDetails, problem_response};
 pub use middleware::{
-    CSRF_HEADER, HttpConfigurationError, HttpHeaderPolicy, HttpRuntimeConfig, REQUEST_ID_HEADER,
+    CSRF_HEADER, DisableResponseCompression, HttpConfigurationError, HttpHeaderPolicy,
+    HttpRuntimeConfig, REQUEST_ID_HEADER, RESPONSE_COMPRESSION_MIN_BYTES,
     apply_standard_middleware,
 };
 pub use plugin::{

@@ -149,7 +149,10 @@ pub async fn load_secure_parameter(name: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{http::StatusCode, routing::get};
+    use axum::{
+        http::{HeaderValue, StatusCode, header},
+        routing::get,
+    };
 
     fn gateway_request(uri: &str, stage: Option<&str>) -> lambda_http::Request {
         let uri = uri.parse::<Uri>().expect("request URI is valid");
@@ -272,5 +275,37 @@ mod tests {
             .expect("router service is infallible");
 
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn compressed_response_uses_lambda_binary_transport() {
+        let router = minco_http::apply_standard_middleware(
+            Router::new().route(
+                "/payload",
+                get(|| async { "minco-lambda-compression-".repeat(128) }),
+            ),
+            &minco_http::HttpRuntimeConfig::default(),
+        )
+        .expect("standard HTTP middleware is valid");
+        let mut request = gateway_request("/payload", Some("$default"));
+        request
+            .headers_mut()
+            .insert(header::ACCEPT_ENCODING, HeaderValue::from_static("gzip"));
+
+        let response = route_request(router, request)
+            .await
+            .expect("router service is infallible");
+        assert_eq!(
+            response.headers().get(header::CONTENT_ENCODING),
+            Some(&HeaderValue::from_static("gzip"))
+        );
+
+        let response = lambda_http::IntoResponse::into_response(response).await;
+        match response.body() {
+            lambda_http::Body::Binary(bytes) => {
+                assert!(bytes.starts_with(&[0x1f, 0x8b]));
+            }
+            body => panic!("compressed Lambda response was not binary: {body:?}"),
+        }
     }
 }
