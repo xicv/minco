@@ -11,11 +11,11 @@ hero:
     alt: Diagram showing a Minco contract flowing into local, HTTP API, and queue worker runtimes with deployment evidence
   actions:
     - theme: brand
-      text: Read the 1.8.0 docs
-      link: /1.8.0/
+      text: Read the 1.9.0 docs
+      link: /1.9.0/
     - theme: alt
       text: Explore the production blueprint
-      link: /1.8.0/cookbook/production-blueprint
+      link: /1.9.0/cookbook/production-blueprint
 
 features:
   - icon: SPEC
@@ -69,7 +69,7 @@ features:
     <p class="home-kicker">Real-world reference path</p>
     <h2 id="scenario-title">A burst-ready Orders API you can inspect before AWS changes.</h2>
     <p>The reference application covers idempotent order placement, opaque cursor pagination, strong ETags, conditional updates, SQLite and PostgreSQL development, a DynamoDB access model, Lambda HTTP, optional queue workers, and exact release evidence.</p>
-    <a class="home-text-link" href="./1.8.0/cookbook/production-blueprint">Read the production blueprint</a>
+    <a class="home-text-link" href="./1.9.0/cookbook/production-blueprint">Read the production blueprint</a>
   </div>
   <ul class="home-scenario-facts">
     <li>
@@ -101,9 +101,9 @@ features:
     <h2 id="zero-idle-title">Zero idle is a reviewable constraint, not a pricing slogan.</h2>
     <p>The minimal profile denies fixed application compute, NAT Gateway, provisioned concurrency, and scheduled wakeups. Storage, logs, data transfer, domains, and selected managed services can still cost money, so Minco keeps those residual classes visible in the plan.</p>
     <div class="home-zero-links">
-      <a href="./1.8.0/explanation/zero-idle">Understand zero idle</a>
-      <a href="./1.8.0/guides/deployment">Review deployment guards</a>
-      <a href="./1.8.0/reference/testing">See the evidence model</a>
+      <a href="./1.9.0/explanation/zero-idle">Understand zero idle</a>
+      <a href="./1.9.0/guides/deployment">Review deployment guards</a>
+      <a href="./1.9.0/reference/testing">See the evidence model</a>
     </div>
   </div>
 </section>
@@ -115,7 +115,7 @@ features:
     <p>Generate an SQLite-backed application with no AWS account, then move through the same contract, application, adapter, testing, planning, and release boundaries used by production profiles.</p>
   </div>
   <div class="home-cta-actions">
-    <a href="./1.8.0/getting-started/first-application">Build the first application</a>
-    <a href="./1.8.0/features/">Browse the feature map</a>
+    <a href="./1.9.0/getting-started/first-application">Build the first application</a>
+    <a href="./1.9.0/features/">Browse the feature map</a>
   </div>
 </section>
