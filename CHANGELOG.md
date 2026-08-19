@@ -5,7 +5,29 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.8.0` release.
+No changes beyond the `1.9.0` release candidate.
+
+## [1.9.0] - 2026-08-19
+
+This additive lock-step minor adds AWS-native ingress traffic control and a
+hardened dynamic response-compression boundary. It changes no existing public
+API or serialized contract and adds no package, resource or always-on
+topology. It remains unpublished until exact-source qualification, merge,
+tagging and registry publication complete as separate evidence states.
+
+### Added
+
+- Added an opt-in API Gateway HTTP traffic policy that maps one default
+  request-rate/burst target plus canonical operation-ID overrides to
+  `DefaultRouteSettings` and `RouteSettings` on both the `$default` and
+  candidate stages, resolving against the reviewed deployment plan and failing
+  closed on unknown operations, duplicate routes, repeated operation IDs,
+  invalid budgets and ambiguous rendered stage markers.
+- Added a hardened negotiated response-compression boundary: fastest-level
+  gzip for known-size responses of at least 1 KiB with Tower HTTP's
+  content-type exclusions composed, an explicit per-response
+  `DisableResponseCompression` opt-out for BREACH-sensitive representations,
+  and proven `lambda_http` binary-body transport for compressed responses.
 
 ## [1.8.0] - 2026-08-14
 

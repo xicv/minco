@@ -1,11 +1,20 @@
 # Minco verification and release evidence
 
-Date: 2026-08-14
-Current workspace version: `1.8.0`
+Date: 2026-08-19
+Current workspace version: `1.9.0`
 Published baseline: `1.8.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T39 `1.9.0` traffic and compression candidate
+
+The workspace is an unpublished `1.9.0` candidate from merged `main` after
+`dc9ed98b05725589e5416411a9ac6b030ea70ee2`. It adds the API Gateway traffic
+policy and hardened negotiated compression released by PR #171 plus the
+publish-workflow repair from PR #173. Candidate qualification, merge, tag,
+publication, registry, docs.rs and Pages remain separate evidence states; the
+candidate manual is frozen under `docs-site/1.9.0/`.
 
 ## M14-T37 `1.8.0` published release closure
 

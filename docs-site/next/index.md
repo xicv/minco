@@ -9,9 +9,12 @@ description: Unreleased Minco documentation for contract-to-cloud Rust applicati
 
 <p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.8.0/">1.8.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
 
-The 1.8 release adds [direct, resumable object transfers](./guides/files-and-static-sites)
+The 1.8 release added [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,
 quarantine, immutable updates, private caching and explicit cost boundaries.
+The 1.9 candidate adds [gateway traffic protection](./guides/traffic-policy)
+and [negotiated response compression](./guides/http-compression) with the same
+additive, minimal-topology boundaries.
 
 ## Start with the outcome
 

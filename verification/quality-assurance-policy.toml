@@ -54,4 +54,4 @@ package_count = 34
 
 [performance]
 local_receipt = "verification/1.8-candidate-load.json"
-hosted_baseline = "verification/1.8-performance-baseline.json"
+hosted_baseline = "verification/1.9-performance-baseline.json"

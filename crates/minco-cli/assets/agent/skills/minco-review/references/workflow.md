@@ -42,3 +42,8 @@ At the 1.8 resumable object transfer boundary, review bearer-secret redaction,
 exact limits, retry/abort behavior, range validators, immutable updates,
 authorization-before-cache, quarantined completion, lifecycle cleanup and
 provider-specific conformance before accepting file-serving readiness.
+
+At the 1.9 API Gateway traffic policy boundary, prefer the managed stage and
+route throttling rendered onto both the `$default` and candidate stages before
+adding any application-side limiter. Treat it as best-effort ingress
+protection, never as authorization, a per-user quota or a hard spend cap.

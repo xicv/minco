@@ -53,3 +53,14 @@ At the 1.8 resumable object transfer boundary, keep upload/download handlers
 thin and call one application use case that owns authorization, durable session
 state, immutable pointer updates, quarantine and retention. Send large bytes
 directly to the selected private provider rather than through the JSON API.
+
+At the 1.9 API Gateway traffic policy boundary, prefer the managed stage and
+route throttling rendered onto both the `$default` and candidate stages before
+adding any application-side limiter. Treat it as best-effort ingress
+protection, never as authorization, a per-user quota or a hard spend cap.
+
+At the 1.9 negotiated response compression boundary, serve eligible known-size
+responses through the standard negotiated gzip layer and keep the per-response
+`DisableResponseCompression` marker for representations that combine secrets
+with attacker-controlled reflection. Do not add application decompression or
+dynamic Brotli without explicit measured evidence.

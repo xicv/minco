@@ -1,7 +1,7 @@
 # 1.8 support matrix
 
 Published install baseline: `1.8.0`
-Current workspace version: `1.8.0`
+Current workspace version: `1.9.0`
 MSRV: Rust `1.97.1`
 Compatibility state: the published 1.8.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
@@ -11,6 +11,10 @@ together with durable auditing, Apple-first fresh local services and direct
 resumable object transfers as the complete 34-package `v1.8.0`
 family. Registry, docs.rs, stable documentation and application/live proof
 remain separate.
+
+The unpublished `1.9.0` candidate adds the additive API Gateway traffic
+policy and hardened negotiated compression inside the same 34-package family;
+its tag and registry publication remain pending evidence states.
 
 The published 1.8.0 release adds provider-neutral transfer contracts and
 an authenticated object JSON control plane. S3 is the production-targeted byte

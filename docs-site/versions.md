@@ -10,6 +10,7 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
+| 1.9.0 | Release candidate | 1.97.1 | [Open 1.9.0 docs](/1.9.0/) |
 | 1.8.0 | Latest stable | 1.97.1 | [Open 1.8.0 docs](/1.8.0/) |
 | 1.7.0 | Previous stable | 1.97.1 | [Open 1.7.0 docs](/1.7.0/) |
 | 1.6.0 | Previous stable | 1.97.1 | [Open 1.6.0 docs](/1.6.0/) |

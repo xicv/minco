@@ -19,9 +19,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.8.0`
 >
-> Current workspace version: `1.8.0`
+> Current workspace version: `1.9.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `34`
 
@@ -31,6 +31,7 @@ Read the [versioned Minco documentation](https://xicv.github.io/minco/), or
 start directly with:
 
 - [Build your first API](https://xicv.github.io/minco/1.8.0/getting-started/first-application)
+- [Review the 1.9.0 traffic and compression candidate](https://xicv.github.io/minco/1.9.0/guides/traffic-policy)
 - [Build a resource API](https://xicv.github.io/minco/1.8.0/guides/resource-api)
 - [Deploy to AWS](https://xicv.github.io/minco/1.8.0/guides/deployment)
 - [CLI reference](https://xicv.github.io/minco/1.8.0/reference/cli)
@@ -81,7 +82,7 @@ cargo add minco@1.8.0 --no-default-features
 
 ## Agent-native application development
 
-The `1.8.0` release packages nine focused, version-matched workflow skills
+The `1.9.0` candidate packages nine focused, version-matched workflow skills
 for Codex and Claude Code. Relevant skills teach the resumable object-transfer
 boundary while retaining Apple-first local services, exact-resource recovery,
 Docker fallback and durable auditing. The mandatory cumulative
@@ -143,7 +144,16 @@ PITR, relationship fanout and archive costs stay visible. See the
 
 ## Direct object transfers
 
-The `1.8.0` release adds an opt-in authenticated JSON control plane for
+The `1.9.0` candidate adds an opt-in API Gateway HTTP traffic policy and a
+hardened negotiated response-compression boundary. Both remain additive,
+application-owned and free of new topology; see the
+[1.9.0 candidate traffic guide](https://xicv.github.io/minco/1.9.0/guides/traffic-policy)
+and
+[compression guide](https://xicv.github.io/minco/1.9.0/guides/http-compression).
+
+## Direct object transfers
+
+The `1.8.0` release added an opt-in authenticated JSON control plane for
 direct single/multipart upload, immutable replacement, private full/range
 download, stop/resume and conditional private-cache metadata. Large bytes go
 directly to private storage; the application still owns authorization, quotas,

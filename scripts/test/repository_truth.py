@@ -623,6 +623,7 @@ class RepositoryTruthTests(unittest.TestCase):
         generated = [
             self.root / "verification/1.3-performance-baseline.json",
             self.root / "verification/1.8-performance-baseline.json",
+            self.root / "verification/1.9-performance-baseline.json",
             self.root / "verification/static-validation.json",
             self.root / "verification/deep-review.json",
             self.root / "verification/publish-validation.json",
