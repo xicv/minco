@@ -21,7 +21,7 @@ owned_paths:
 checks:
   - cargo test -p minco-plan -p minco-http -p minco-aws-lambda --locked
   - cargo clippy -p minco-plan -p minco-http -p minco-aws-lambda --all-targets --all-features --locked -- -D warnings
-  - cargo fmt --check -- crates/minco-plan/src/lib.rs crates/minco-plan/src/traffic.rs crates/minco-http/src/lib.rs crates/minco-http/src/middleware.rs extensions/minco-aws-lambda/src/lib.rs
+  - rustfmt --check --edition 2024 crates/minco-plan/src/lib.rs crates/minco-plan/src/traffic.rs crates/minco-http/src/lib.rs crates/minco-http/src/middleware.rs extensions/minco-aws-lambda/src/lib.rs
   - scripts/docs/check-snippets.sh
   - scripts/docs/check-links.sh
 ---
@@ -159,9 +159,39 @@ uniqueness, placeholder/fake-code patterns, and the actual M14 task dependency.
 No AWS account operation, provider mutation, deployment, release, registry
 action, or GitHub workflow is authorized by this task.
 
-The source environment used to prepare this draft does not contain `cargo`,
-`rustc`, `rustfmt`, `clippy-driver`, or `sam`, and direct shell access to GitHub
-is unavailable. Source changes are therefore made through the GitHub connector.
-Compilation, tests, rustfmt, Clippy, documentation checks and SAM validation must
-remain `NOT RUN` until the exact branch is qualified in a Rust-capable local
-environment; they must not be represented as passes.
+### Local qualification (2026-08-19)
+
+The branch was qualified locally in a dedicated JJ workspace created from the
+exact remote PR head `c8e81111baa087852ae06aba8c82cf1ef2759204`
+(`agent/api-gateway-traffic-policy@origin`), base `origin/main`
+`7e0ee6a863f479f41003613fd29ac17bcb712b32`, on macOS 26.5.2 (build 25F84,
+arm64, Darwin 25.5.0) with rustc 1.97.1 (8bab26f4f), cargo 1.97.1 (c980f4866),
+clippy 0.1.97, rustfmt 1.9.0-stable, and SAM CLI 1.164.0, all selected by
+`rust-toolchain.toml`. Results against the exact final local tree:
+
+- `cargo check -p minco-plan -p minco-http -p minco-aws-lambda --all-targets --all-features --locked` — PASS
+- `cargo test -p minco-plan -p minco-http -p minco-aws-lambda --locked` — PASS (138 tests passed, 0 failed, 1 pre-existing ignored)
+- `cargo test -p minco-plan -p minco-http -p minco-aws-lambda --all-targets --all-features --locked` — PASS
+- `cargo clippy -p minco-plan -p minco-http -p minco-aws-lambda --all-targets --all-features --locked -- -D warnings` — PASS
+- `rustfmt --check --edition 2024 crates/minco-plan/src/lib.rs crates/minco-plan/src/traffic.rs crates/minco-http/src/lib.rs crates/minco-http/src/middleware.rs extensions/minco-aws-lambda/src/lib.rs` — PASS
+- `cargo doc -p minco-plan -p minco-http -p minco-aws-lambda --all-features --no-deps --locked` — PASS
+- `scripts/docs/check-snippets.sh` — PASS (350 fenced blocks)
+- `scripts/docs/check-links.sh` — PASS (2022 internal, 14 external, 485 canonical pages)
+- `scripts/docs/build.sh` — PASS (locked npm install, audit, and VitePress build)
+- `cargo semver-checks -p minco-plan -p minco-http -p minco-aws-lambda --baseline-version 1.8.0` — PASS (223 checks per crate, no semver update required; the change is additive)
+- `sam validate --template /tmp/minco-traffic-template.yaml --region ap-southeast-2 --lint` — PASS ("is a valid SAM Template"). The exact traffic-aware template (default budget plus one route override on both `$default` and `candidate` stages) was generated through an uncommitted transient crate example driving the public sidecar renderer; the harness was deleted before committing and no AWS API was called.
+- `uv run --locked python scripts/deep_review.py` — run for diagnosis; embedded static validation reported status ok with 0 errors/0 warnings and 0 findings. Its `verification/deep-review.json` rewrite was reverted because that evidence file is owned by active M14-T37.
+
+Dependency and ownership state at qualification time:
+
+- M14-T37 is still `active`, so `cargo run -p cargo-minco -- task ready --json`
+  does not list M14-T38; this task correctly remains `active` and cannot be
+  finished.
+- `roadmap/tasks.mmd` is owned by active M14-T37, so task-graph regeneration is
+  blocked by the ownership boundary and was not attempted.
+
+Deliberately NOT RUN: `scripts/quality.sh` wholesale (it would enforce
+workspace-wide formatting/Clippy outside this task's changed-file lint scope),
+`scripts/ci/local-release.sh` (a release-level gate outside the no-release
+boundary of this task), and writes to `verification/*` evidence files (owned by
+M14-T37). These must not be represented as passes for this branch.

@@ -1,5 +1,5 @@
 use crate::{
-    model::{DeploymentPlan, IngressPlan},
+    model::{DeploymentPlan, IngressPlan, RoutePlan},
     sam,
 };
 use minco_contract::HttpMethod;
@@ -63,7 +63,7 @@ pub struct HttpTrafficPolicy {
 
 impl HttpTrafficPolicy {
     #[must_use]
-    pub fn new(default: Option<TrafficBudget>) -> Self {
+    pub const fn new(default: Option<TrafficBudget>) -> Self {
         Self {
             default,
             operations: BTreeMap::new(),
@@ -93,11 +93,10 @@ impl HttpTrafficPolicy {
             default.validate("default")?;
         }
 
-        let routes = plan
-            .routes
-            .iter()
-            .map(|route| (route.operation_id.as_str(), route))
-            .collect::<BTreeMap<_, _>>();
+        if self.operations.is_empty() {
+            return Ok(());
+        }
+        let routes = route_index(plan)?;
         let mut route_keys = BTreeSet::new();
         for (operation_id, budget) in &self.operations {
             budget.validate(operation_id)?;
@@ -116,24 +115,40 @@ impl HttpTrafficPolicy {
         &'a self,
         plan: &'a DeploymentPlan,
     ) -> Result<Vec<(String, &'a TrafficBudget)>, HttpTrafficPolicyError> {
-        let routes = plan
-            .routes
-            .iter()
-            .map(|route| (route.operation_id.as_str(), route))
-            .collect::<BTreeMap<_, _>>();
+        let routes = route_index(plan)?;
         let mut resolved = self
             .operations
             .iter()
             .map(|(operation_id, budget)| {
-                let route = routes
-                    .get(operation_id.as_str())
-                    .ok_or_else(|| HttpTrafficPolicyError::UnknownOperation(operation_id.clone()))?;
+                let route = routes.get(operation_id.as_str()).ok_or_else(|| {
+                    HttpTrafficPolicyError::UnknownOperation(operation_id.clone())
+                })?;
                 Ok((route_key(route.method, &route.path), budget))
             })
             .collect::<Result<Vec<_>, HttpTrafficPolicyError>>()?;
         resolved.sort_by(|left, right| left.0.cmp(&right.0));
         Ok(resolved)
     }
+}
+
+/// Indexes the reviewed routes by operation ID.
+///
+/// `DeploymentPlan` deserializes without route-level validation, so a plan
+/// loaded from disk can repeat one operation ID. Resolution would then be
+/// ambiguous, so duplicates fail closed here rather than silently selecting
+/// whichever route deserialized last.
+fn route_index(
+    plan: &DeploymentPlan,
+) -> Result<BTreeMap<&str, &RoutePlan>, HttpTrafficPolicyError> {
+    let mut routes = BTreeMap::new();
+    for route in &plan.routes {
+        if routes.insert(route.operation_id.as_str(), route).is_some() {
+            return Err(HttpTrafficPolicyError::DuplicateOperation(
+                route.operation_id.clone(),
+            ));
+        }
+    }
+    Ok(routes)
 }
 
 /// Renders the existing Minco SAM topology plus explicit API Gateway traffic
@@ -231,11 +246,14 @@ fn insert_after_once(
     insertion: &str,
     stage: &'static str,
 ) -> Result<String, HttpTrafficPolicyError> {
-    let Some(index) = template.find(marker) else {
+    let mut markers = template.match_indices(marker);
+    let Some((index, _)) = markers.next() else {
         return Err(HttpTrafficPolicyError::TemplateShape(stage));
     };
-    let position = index + marker.len();
-    template.insert_str(position, insertion);
+    if markers.next().is_some() {
+        return Err(HttpTrafficPolicyError::TemplateShape(stage));
+    }
+    template.insert_str(index + marker.len(), insertion);
     Ok(template)
 }
 
@@ -256,9 +274,13 @@ pub enum HttpTrafficPolicyError {
     },
     #[error("traffic policy references unknown operation {0}")]
     UnknownOperation(String),
+    #[error(
+        "deployment plan repeats operation {0}, so traffic overrides cannot resolve to one route"
+    )]
+    DuplicateOperation(String),
     #[error("traffic policy resolves multiple operation overrides to route {0}")]
     DuplicateRouteKey(String),
-    #[error("rendered SAM template is missing the expected {0} stage marker")]
+    #[error("rendered SAM template must contain the {0} stage marker exactly once")]
     TemplateShape(&'static str),
     #[error(transparent)]
     Plan(#[from] crate::model::PlanError),
@@ -449,5 +471,177 @@ mod tests {
             policy.validate(&plan),
             Err(HttpTrafficPolicyError::DuplicateRouteKey(route)) if route == "POST /orders"
         ));
+    }
+
+    #[test]
+    fn empty_policy_fails_closed() {
+        let policy = HttpTrafficPolicy::default();
+
+        assert!(matches!(
+            policy.validate(&plan()),
+            Err(HttpTrafficPolicyError::EmptyPolicy)
+        ));
+    }
+
+    #[test]
+    fn non_finite_infinite_rates_fail_closed() {
+        for rate in [f64::INFINITY, f64::NEG_INFINITY] {
+            let policy = HttpTrafficPolicy::new(Some(TrafficBudget::new(rate, 1)));
+
+            assert!(
+                matches!(
+                    policy.validate(&plan()),
+                    Err(HttpTrafficPolicyError::InvalidBudget { .. })
+                ),
+                "rate {rate} must fail closed"
+            );
+        }
+    }
+
+    #[test]
+    fn all_traffic_render_entry_points_fail_closed_on_unknown_operations() {
+        let policy = HttpTrafficPolicy::default()
+            .with_operation("missingOperation", TrafficBudget::new(1.0, 1));
+        let plan = plan();
+
+        assert!(matches!(
+            render_sam_with_traffic_policy(&plan, &policy),
+            Err(HttpTrafficPolicyError::UnknownOperation(_))
+        ));
+        assert!(matches!(
+            render_sam_with_code_uri_and_traffic_policy(&plan, None, &policy),
+            Err(HttpTrafficPolicyError::UnknownOperation(_))
+        ));
+        assert!(matches!(
+            render_sam_with_code_uris_and_traffic_policy(&plan, &BTreeMap::new(), &policy),
+            Err(HttpTrafficPolicyError::UnknownOperation(_))
+        ));
+    }
+
+    #[test]
+    fn repeated_plan_operation_ids_fail_closed_instead_of_resolving_one_route() {
+        let mut plan = plan();
+        plan.routes.push(RoutePlan {
+            operation_id: "createOrder".into(),
+            method: HttpMethod::Post,
+            path: "/v2/orders".into(),
+            authenticated: true,
+        });
+        let policy =
+            HttpTrafficPolicy::default().with_operation("createOrder", TrafficBudget::new(2.0, 2));
+
+        assert!(matches!(
+            render_sam_with_traffic_policy(&plan, &policy),
+            Err(HttpTrafficPolicyError::DuplicateOperation(operation)) if operation == "createOrder"
+        ));
+    }
+
+    #[test]
+    fn operation_override_insertion_order_does_not_change_the_rendered_policy() {
+        let create_first = HttpTrafficPolicy::default()
+            .with_operation("createOrder", TrafficBudget::new(3.0, 6))
+            .with_operation("getHealth", TrafficBudget::new(30.0, 60));
+        let health_first = HttpTrafficPolicy::default()
+            .with_operation("getHealth", TrafficBudget::new(30.0, 60))
+            .with_operation("createOrder", TrafficBudget::new(3.0, 6));
+
+        assert_eq!(
+            render_sam_with_traffic_policy(&plan(), &create_first).unwrap(),
+            render_sam_with_traffic_policy(&plan(), &health_first).unwrap()
+        );
+    }
+
+    #[test]
+    fn traffic_rendering_preserves_code_uri_overrides_on_both_stages() {
+        let policy = HttpTrafficPolicy::new(Some(TrafficBudget::new(10.0, 20)));
+        let code_uris =
+            BTreeMap::from([("api".to_owned(), "s3://minco-releases/api.zip".to_owned())]);
+        let single = render_sam_with_code_uri_and_traffic_policy(
+            &plan(),
+            Some("s3://minco-releases/api.zip"),
+            &policy,
+        )
+        .unwrap();
+        let many =
+            render_sam_with_code_uris_and_traffic_policy(&plan(), &code_uris, &policy).unwrap();
+
+        for template in [single, many] {
+            let parsed: serde_yaml_ng::Value = serde_yaml_ng::from_str(&template).unwrap();
+            assert_eq!(
+                parsed["Resources"]["ApiFunction"]["Properties"]["CodeUri"].as_str(),
+                Some("s3://minco-releases/api.zip")
+            );
+            for stage in ["HttpApi", "CandidateStage"] {
+                let properties = &parsed["Resources"][stage]["Properties"];
+                assert_eq!(
+                    properties["DefaultRouteSettings"]["ThrottlingBurstLimit"].as_i64(),
+                    Some(20)
+                );
+                assert_eq!(
+                    properties["DefaultRouteSettings"]["ThrottlingRateLimit"].as_f64(),
+                    Some(10.0)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ordinary_code_uri_rendering_remains_unthrottled() {
+        let code_uris =
+            BTreeMap::from([("api".to_owned(), "s3://minco-releases/api.zip".to_owned())]);
+        let single =
+            sam::render_sam_with_code_uri(&plan(), Some("s3://minco-releases/api.zip")).unwrap();
+        let many = sam::render_sam_with_code_uris(&plan(), &code_uris).unwrap();
+
+        for template in [single, many] {
+            assert!(!template.contains("DefaultRouteSettings:"));
+            assert!(!template.contains("RouteSettings:"));
+            assert!(!template.contains("ThrottlingBurstLimit:"));
+            assert!(!template.contains("ThrottlingRateLimit:"));
+        }
+    }
+
+    #[test]
+    fn marker_bridge_fails_closed_when_a_stage_marker_is_missing() {
+        let error = insert_after_once(
+            "Resources:\n  HttpApi:\n".to_owned(),
+            "      StageName: '$default'\n",
+            "      DefaultRouteSettings:\n",
+            "$default",
+        );
+
+        assert!(matches!(
+            error,
+            Err(HttpTrafficPolicyError::TemplateShape("$default"))
+        ));
+    }
+
+    #[test]
+    fn marker_bridge_fails_closed_when_a_stage_marker_repeats() {
+        let marker = "      StageName: candidate\n";
+        let template = format!("head{marker}middle{marker}tail");
+
+        let error = insert_after_once(
+            template,
+            marker,
+            "      DefaultRouteSettings:\n",
+            "candidate",
+        );
+
+        assert!(matches!(
+            error,
+            Err(HttpTrafficPolicyError::TemplateShape("candidate"))
+        ));
+    }
+
+    #[test]
+    fn marker_bridge_inserts_after_the_single_marker() {
+        let marker = "      StageName: candidate\n";
+        let insertion = "      DefaultRouteSettings:\n";
+        let template = format!("head{marker}tail");
+
+        let rendered = insert_after_once(template, marker, insertion, "candidate").unwrap();
+
+        assert_eq!(rendered, format!("head{marker}{insertion}tail"));
     }
 }

@@ -158,7 +158,7 @@ The focused boundary is covered by:
 cargo test -p minco-http -p minco-aws-lambda --locked
 cargo clippy -p minco-http -p minco-aws-lambda \
   --all-targets --all-features --locked -- -D warnings
-cargo fmt --check -- \
+rustfmt --check --edition 2024 \
   crates/minco-http/src/lib.rs \
   crates/minco-http/src/middleware.rs \
   extensions/minco-aws-lambda/src/lib.rs

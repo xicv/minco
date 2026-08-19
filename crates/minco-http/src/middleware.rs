@@ -5,8 +5,7 @@ use std::{collections::BTreeMap, str::FromStr, time::Duration};
 use thiserror::Error;
 use tower_http::{
     compression::{
-        CompressionLayer, CompressionLevel, DefaultPredicate, Predicate,
-        predicate::SizeAbove,
+        CompressionLayer, CompressionLevel, DefaultPredicate, Predicate, predicate::SizeAbove,
     },
     cors::{AllowOrigin, CorsLayer},
     limit::RequestBodyLimitLayer,
@@ -271,9 +270,7 @@ pub fn apply_standard_middleware(
                  _version: Version,
                  _headers: &HeaderMap,
                  extensions: &Extensions| {
-                    extensions
-                        .get::<DisableResponseCompression>()
-                        .is_none()
+                    extensions.get::<DisableResponseCompression>().is_none()
                 },
             );
         router.layer(
@@ -371,6 +368,54 @@ mod tests {
         "minco-response-compression-".repeat(128)
     }
 
+    fn body_of_exact_bytes(len: usize) -> String {
+        let body = "a".repeat(len);
+        assert_eq!(
+            body.len(),
+            len,
+            "one-byte ASCII repetition must produce an exact byte length"
+        );
+        body
+    }
+
+    fn compression_threshold() -> usize {
+        usize::try_from(RESPONSE_COMPRESSION_MIN_BYTES).expect("threshold fits the platform usize")
+    }
+
+    fn vary_accepts_encoding(response: &http::Response<axum::body::Body>) -> bool {
+        response
+            .headers()
+            .get_all(header::VARY)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .flat_map(|value| value.split(','))
+            .any(|value| value.trim().eq_ignore_ascii_case("accept-encoding"))
+    }
+
+    fn gzip_router_with(body: String) -> Router {
+        Router::new().route(
+            "/",
+            get(move || {
+                let body = body.clone();
+                async move { body }
+            }),
+        )
+    }
+
+    async fn gzip_response(
+        router: Router,
+        accept_encoding: Option<&str>,
+    ) -> http::Response<axum::body::Body> {
+        let mut request = http::Request::get("/").body(Body::empty()).unwrap();
+        if let Some(value) = accept_encoding {
+            request.headers_mut().insert(
+                header::ACCEPT_ENCODING,
+                HeaderValue::from_str(value).expect("test accept-encoding value is valid"),
+            );
+        }
+        router.oneshot(request).await.unwrap()
+    }
+
     #[tokio::test]
     async fn standard_stack_sets_and_propagates_request_ids() {
         let app = apply_standard_middleware(
@@ -423,12 +468,7 @@ mod tests {
             .any(|value| value.trim().eq_ignore_ascii_case("accept-encoding"));
         assert!(varies_by_encoding);
 
-        let encoded = response
-            .into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes();
+        let encoded = response.into_body().collect().await.unwrap().to_bytes();
         assert!(encoded.starts_with(&[0x1f, 0x8b]));
         assert!(encoded.len() < original_len);
     }
@@ -451,6 +491,133 @@ mod tests {
             .unwrap();
 
         assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+    }
+
+    #[tokio::test]
+    async fn one_byte_below_the_threshold_stays_uncompressed() {
+        let threshold = compression_threshold();
+        let payload = body_of_exact_bytes(threshold - 1);
+        let app = apply_standard_middleware(
+            gzip_router_with(payload.clone()),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = gzip_response(app, Some("gzip")).await;
+
+        assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(body.len(), threshold - 1);
+        assert_eq!(&body[..], payload.as_bytes());
+    }
+
+    #[tokio::test]
+    async fn responses_at_the_exact_threshold_are_gzip_compressed() {
+        let threshold = compression_threshold();
+        let payload = body_of_exact_bytes(threshold);
+        let app =
+            apply_standard_middleware(gzip_router_with(payload), &HttpRuntimeConfig::default())
+                .unwrap();
+        let response = gzip_response(app, Some("gzip")).await;
+
+        assert_eq!(
+            response.headers().get(header::CONTENT_ENCODING),
+            Some(&HeaderValue::from_static("gzip"))
+        );
+        assert!(vary_accepts_encoding(&response));
+        let encoded = response.into_body().collect().await.unwrap().to_bytes();
+        assert!(encoded.starts_with(&[0x1f, 0x8b]));
+    }
+
+    #[tokio::test]
+    async fn large_eligible_responses_stay_uncompressed_without_accept_encoding() {
+        let payload = body_of_exact_bytes(compression_threshold() * 4);
+        let app = apply_standard_middleware(
+            gzip_router_with(payload.clone()),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = gzip_response(app, None).await;
+
+        assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], payload.as_bytes());
+    }
+
+    #[tokio::test]
+    async fn unsupported_accept_encoding_yields_the_identity_representation() {
+        let payload = body_of_exact_bytes(compression_threshold() * 4);
+        let app = apply_standard_middleware(
+            gzip_router_with(payload.clone()),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = gzip_response(app, Some("br")).await;
+
+        assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], payload.as_bytes());
+    }
+
+    #[tokio::test]
+    async fn already_encoded_responses_are_not_recompressed() {
+        fn precompressed(payload: Vec<u8>) -> Response {
+            let mut response = Response::new(Body::from(payload));
+            response
+                .headers_mut()
+                .insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            response
+        }
+
+        let payload = body_of_exact_bytes(compression_threshold() * 2).into_bytes();
+        let app = apply_standard_middleware(
+            Router::new().route(
+                "/",
+                get(move || {
+                    let payload = payload.clone();
+                    async move { precompressed(payload) }
+                }),
+            ),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let response = gzip_response(app, Some("gzip")).await;
+
+        assert_eq!(
+            response.headers().get(header::CONTENT_ENCODING),
+            Some(&HeaderValue::from_static("gzip"))
+        );
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(
+            body.len(),
+            compression_threshold() * 2,
+            "an already encoded response must pass through unchanged"
+        );
+    }
+
+    #[tokio::test]
+    async fn default_content_type_exclusions_remain_composed() {
+        fn typed_body(content_type: &'static str) -> Response {
+            let mut response =
+                Response::new(Body::from(body_of_exact_bytes(compression_threshold() * 2)));
+            response
+                .headers_mut()
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+            response
+        }
+
+        for content_type in ["image/png", "text/event-stream"] {
+            let app = apply_standard_middleware(
+                Router::new().route("/", get(move || async { typed_body(content_type) })),
+                &HttpRuntimeConfig::default(),
+            )
+            .unwrap();
+            let response = gzip_response(app, Some("gzip")).await;
+
+            assert!(
+                !response.headers().contains_key(header::CONTENT_ENCODING),
+                "{content_type} must stay uncompressed"
+            );
+        }
     }
 
     #[tokio::test]
@@ -477,6 +644,56 @@ mod tests {
             .unwrap();
 
         assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+    }
+
+    #[tokio::test]
+    async fn the_response_extension_affects_only_its_own_response() {
+        async fn sensitive_response() -> Response {
+            let mut response = large_compressible_body().into_response();
+            response.extensions_mut().insert(DisableResponseCompression);
+            response
+        }
+
+        let app = apply_standard_middleware(
+            Router::new()
+                .route("/sensitive", get(sensitive_response))
+                .route("/normal", get(|| async { large_compressible_body() })),
+            &HttpRuntimeConfig::default(),
+        )
+        .unwrap();
+        let disabled = app
+            .clone()
+            .oneshot(
+                http::Request::get("/sensitive")
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let compressed = app
+            .oneshot(
+                http::Request::get("/normal")
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!disabled.headers().contains_key(header::CONTENT_ENCODING));
+        assert_eq!(
+            compressed.headers().get(header::CONTENT_ENCODING),
+            Some(&HeaderValue::from_static("gzip"))
+        );
+        assert!(
+            disabled
+                .headers()
+                .keys()
+                .all(|name| !name.as_str().contains("compression")),
+            "the opt-out marker must not leak into response headers: {:?}",
+            disabled.headers()
+        );
     }
 
     #[tokio::test]

@@ -288,10 +288,9 @@ mod tests {
         )
         .expect("standard HTTP middleware is valid");
         let mut request = gateway_request("/payload", Some("$default"));
-        request.headers_mut().insert(
-            header::ACCEPT_ENCODING,
-            HeaderValue::from_static("gzip"),
-        );
+        request
+            .headers_mut()
+            .insert(header::ACCEPT_ENCODING, HeaderValue::from_static("gzip"));
 
         let response = route_request(router, request)
             .await
