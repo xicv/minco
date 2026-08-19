@@ -2,7 +2,7 @@
 id: M14-T37
 title: Close the Minco 1.8.0 published release boundary
 milestone: M14
-status: completed
+status: complete
 priority: high
 area: release/docs/evidence
 depends_on: [M14-T36]

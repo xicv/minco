@@ -7479,13 +7479,13 @@
     },
     {
       "path": "tasks/M14/M14-T37-close-1-8-release.md",
-      "sha256": "f7f645c8c2ecca6b110fdc7bf68b92aa2cbcf72e401f34428a7fc3017c459b2b",
-      "size_bytes": 5440
+      "sha256": "c1d7ae2db3ef1c2e5a66566f35cdf3edb30426787eeaa8fbf00da823a1b623df",
+      "size_bytes": 5439
     },
     {
       "path": "tasks/M14/M14-T38-api-gateway-traffic-policy.md",
-      "sha256": "a728ba9b67d94f6e29e764901b8a29a969878e898ab3c670f751e42ac70b463e",
-      "size_bytes": 14309
+      "sha256": "c6f114ea5fe51eec347a1cce95510bdddd1b604231442c4af8cf430167170add",
+      "size_bytes": 15043
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -7922,7 +7922,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "e36344ebb3f9f5f9c2f3267d98e5bf5707b277ad095560ab858daed0af6ef136",
-  "total_size_bytes": 11515568,
+  "source_tree_sha256": "c4bdcefd6607d9c375b577ee16102b6419886289b6a7170c276f995fec5e623e",
+  "total_size_bytes": 11516301,
   "version": "1.8.0"
 }

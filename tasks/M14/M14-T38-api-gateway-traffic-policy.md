@@ -2,7 +2,7 @@
 id: M14-T38
 title: Add AWS-native HTTP traffic and compression controls
 milestone: M14
-status: active
+status: complete
 priority: high
 area: plan/aws/http/cost
 depends_on: [M14-T37]
@@ -236,3 +236,16 @@ sideways from `83e29e10aaf84cb6cd09b6b62f11f2a4bafe7b46` to
 effects; both commits carry an identical tree, no history was lost, and this
 evidence commit was then rebased onto `79c958c2` so all further updates are
 strict fast-forwards.
+
+### Completion (2026-08-19)
+
+The implementation merged to `main` as PR #171 (squash commit
+`909142e884020507f9bec6a93a474cf1b486d47f`, tree-identical to the qualified
+branch head). M14-T37 closed afterwards through PR #174 with its evidence
+receipts, the truncated publish-workflow repair from PR #173, and an exact-head
+hosted compatibility run (`32212213471`, success). With the dependency
+complete, the `roadmap/tasks.mmd` ownership boundary no longer blocks this
+task: the graph was regenerated through `cargo run -p cargo-minco -- task
+graph --output roadmap/tasks.mmd` and contains node `NM14T38` plus edge
+`NM14T37 --> NM14T38`. All acceptance items are proven by the focused tests
+and evidence above; the task is complete.
