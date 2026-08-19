@@ -4839,7 +4839,7 @@
     },
     {
       "path": "docs-site/index.md",
-      "sha256": "7c68016c96531ea30cc0f58bb1ed0ce60406ee302c10d19fb21bc13245a47bb9",
+      "sha256": "33faadbb4c272ab4e02559c57ba5704f39519376bae1b74df40483c2bfe6b83e",
       "size_bytes": 5921
     },
     {
@@ -5004,7 +5004,7 @@
     },
     {
       "path": "docs-site/next/index.md",
-      "sha256": "694e57718ec6ad9ce593ed1b4c7b46fb0bfaff4ffb4ba3b203ab1ccde75ef2b8",
+      "sha256": "2a0c81c0696b41a168a808eecbbdb6115fd62de744ab10996e2fb9fc41cf4615",
       "size_bytes": 9412
     },
     {
@@ -8148,7 +8148,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "6e468bab2152af0b7f4694d28e911963d2a6a85f2ed2bb5dc731a7e716ee94df",
+  "source_tree_sha256": "610d957fe9c0a61dc19e74be18977181462cd0f6d85adeb432789d0bc8c518ed",
   "total_size_bytes": 11773678,
   "version": "1.9.0"
 }
