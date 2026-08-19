@@ -2,7 +2,7 @@
 id: M14-T39
 title: Release Minco 1.9.0 traffic and compression controls
 milestone: M14
-status: active
+status: complete
 priority: critical
 area: release/http/plan
 depends_on: [M14-T38]
@@ -119,4 +119,26 @@ operation.
 
 ## Evidence
 
-Pending local qualification at the exact release source.
+Released on 2026-08-19. The candidate change (squash merge
+`8922aab5c9ed6770d8df7f5d906f768152d3e06c`, PR #176) passed the full local
+battery at its exact source: hosted-essential end-to-end, repository truth
+53/53, workspace fmt/Clippy/tests/rustdoc/doc, documentation
+snippet/link/build/browser checks, generated apps, the cumulative
+changelog-to-skill coverage (4/4) with a refreshed deterministic agent
+workflow receipt, and the publication dry run whose external consumer install
+printed `minco 1.9.0`.
+
+Exact-main hosted compatibility run `32246605343` passed. Immutable tag
+`v1.9.0` resolves to the merge commit. Authentication-only OIDC run
+`32247017888` proved the short-lived crates.io boundary without upload.
+Guarded publication run `32247061809` passed the first-publication refusal,
+archive and consumer gates and uploaded the dependency-ordered 34-package
+family. Independent registry validation reported status `ok` with zero errors
+and warnings for all 34 exact `1.9.0` versions. The GitHub release is
+published at <https://github.com/xicv/minco/releases/tag/v1.9.0>.
+
+Stable Pages deploys through the sanctioned documentation workflow from this
+change; the API documentation service's `1.9.0` builds were still queued when
+this evidence was recorded and must be verified independently. Live AWS,
+provider, deployment, hosted performance and content-safety evidence remain
+`NOT RUN` and unclaimed.

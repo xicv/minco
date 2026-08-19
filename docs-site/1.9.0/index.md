@@ -1,15 +1,20 @@
 ---
 title: Minco 1.9.0
-description: Release candidate documentation for gateway traffic control, negotiated compression and contract-to-cloud Rust application development.
+description: Stable documentation for gateway traffic control, negotiated compression and contract-to-cloud Rust application development.
 ---
 
 # Minco 1.9.0
 
-<p class="doc-kicker">Frozen 1.9.0 candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
-<p class="doc-lead">This manual describes the 1.9.0 candidate source. It develops the same contract-to-cloud model as the frozen <a href="../1.8.0/">1.8.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
+<p class="doc-lead">This manual describes the published 1.9.0 release. It develops the same contract-to-cloud model as the <a href="../1.8.0/">1.8.0 stable manual</a> while adding the gateway traffic and compression boundaries.</p>
 
-The 1.9 candidate adds [gateway traffic protection](./guides/traffic-policy)
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.9.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
+
+The 1.9 release adds [gateway traffic protection](./guides/traffic-policy)
 and [negotiated response compression](./guides/http-compression) while
 retaining application-owned authorization, additive compatibility and the
 minimal zero-idle topology.

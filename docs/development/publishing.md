@@ -13,7 +13,7 @@ exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The workspace is an unpublished `1.9.0` candidate with the same 34-package
+The workspace is the published `1.9.0` release with the same 34-package
 inventory. It adds the API Gateway traffic policy and hardened negotiated
 response compression while
 retaining application authority and the minimal production topology; it adds

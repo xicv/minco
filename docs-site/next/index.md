@@ -12,7 +12,7 @@ description: Unreleased Minco documentation for contract-to-cloud Rust applicati
 The 1.8 release added [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,
 quarantine, immutable updates, private caching and explicit cost boundaries.
-The 1.9 candidate adds [gateway traffic protection](./guides/traffic-policy)
+The 1.9 release added [gateway traffic protection](./guides/traffic-policy)
 and [negotiated response compression](./guides/http-compression) with the same
 additive, minimal-topology boundaries.
 

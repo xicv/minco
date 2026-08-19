@@ -1,24 +1,25 @@
-# Minco 1.9.0 traffic and compression candidate handoff
+# Minco 1.9.0 traffic and compression release handoff
 
 Date: 2026-08-19
-Published baseline: `1.8.0`
+Published baseline: `1.9.0`
 Current workspace version: `1.9.0`
-Workspace release state: `candidate`
-Published `1.8.0` source: `fe1a20d4a6c76c7adef268727bb30b92b594e072`
-Published source-tree digest: `99ee942d928c4e1b7626ce89a7f566d8a418a6c591b0d56743b8626837fdd00f`
-Published release task: `M14-T37`
-Latest release task: `M14-T39` (`active`)
+Workspace release state: `published`
+Published `1.9.0` source: `8922aab5c9ed6770d8df7f5d906f768152d3e06c`
+Published source-tree digest: `b91dce1243c5e74ffbf3c11b168c8ed0689de397`
+Published release task: `M14-T39`
+Latest release task: `M14-T39` (`complete`)
 Active evidence tasks: `M14-T10`, `M14-T20`
 
-## Active 1.9.0 traffic and compression candidate
+## Completed 1.9.0 traffic and compression release
 
-M14-T39 prepares the additive `1.9.0` family from merged `main`
-`dc9ed98b05725589e5416411a9ac6b030ea70ee2`: the PR #171 traffic and
-compression controls plus the PR #173 publish-workflow repair. The candidate
-keeps all 34 packages, updates the cumulative agent feature coverage, freezes
-the `docs-site/1.9.0/` manual and refreshes the source-bound evidence
-receipts. Tag, GitHub release, OIDC publication, registry, docs.rs and Pages
-remain separate later gates; no live AWS or provider evidence is claimed.
+M14-T39 released the additive `1.9.0` family: the PR #171 traffic and
+compression controls plus the PR #173 publish-workflow repair. Exact-main
+hosted run `32246605343`, authentication-only OIDC run `32247017888` and
+publication run `32247061809` passed from immutable tag `v1.9.0`; independent
+registry validation found all 34 exact `1.9.0` versions present and
+non-yanked, and the GitHub release is published. The stable manual is frozen
+under `docs-site/1.9.0/`; docs.rs and Pages evidence is verified separately.
+No live AWS or provider evidence is claimed.
 
 ## Completed 1.8.0 release closure
 

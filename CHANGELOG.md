@@ -5,7 +5,7 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the `1.9.0` release candidate.
+No changes beyond the published `1.9.0` release.
 
 ## [1.9.0] - 2026-08-19
 

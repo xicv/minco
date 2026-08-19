@@ -1,17 +1,19 @@
 # Review status
 
-## Active M14-T39 Minco 1.9.0 traffic and compression candidate
+## Completed M14-T39 Minco 1.9.0 traffic and compression release
 
-The candidate starts from merged `main`
-`dc9ed98b05725589e5416411a9ac6b030ea70ee2` and published baseline `v1.8.0`.
-Review must prove the additive traffic policy fails closed on unknown
-operations, repeated operation IDs, duplicate route keys, invalid budgets and
-ambiguous stage markers; that compression keeps the 1 KiB threshold,
-negotiation, exclusions, no-recompression and the Lambda binary boundary; and
-that no AWS resource, always-on component or request-path limiter is added.
-The changelog-to-skill coverage, frozen candidate manual, source-bound
-receipts, package dry run, hosted compatibility run, guarded OIDC publication
-and independent registry verification remain mandatory gates.
+Minco `1.9.0` is the current published baseline from immutable tag `v1.9.0` at
+`8922aab5c9ed6770d8df7f5d906f768152d3e06c`. Review proved the additive traffic
+policy fails closed on unknown operations, repeated operation IDs, duplicate
+route keys, invalid budgets and ambiguous stage markers, and that compression
+keeps the 1 KiB threshold, negotiation, exclusions, no-recompression and the
+Lambda binary boundary, with no AWS resource, always-on component or
+request-path limiter added. The changelog-to-skill coverage, frozen stable
+manual, source-bound receipts, package dry run, exact-main hosted
+compatibility run `32246605343`, authentication run `32247017888`, guarded
+publication run `32247061809` and independent registry verification of all 34
+exact non-yanked `1.9.0` records all passed. Live-provider, hosted-performance
+and content-safety evidence remains `NOT RUN`.
 
 ## Completed M14-T37 Minco 1.8.0 published release closure
 

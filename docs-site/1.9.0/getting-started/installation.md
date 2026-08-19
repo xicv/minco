@@ -6,20 +6,19 @@ description: Install the Minco toolchain and choose a small, explicit framework 
 # Installation
 
 Minco uses ordinary Rust packages plus the `cargo minco` control plane. The
-published baseline is 1.8.0. The 1.9.0 candidate and current development require
-Rust 1.97.1. Use exact 1.8.0 packages for applications and the
-repository-pinned workspace binary only when deliberately evaluating the
-unpublished 1.9.0 source.
+published baseline is 1.9.0. The release and current development require Rust
+1.97.1. Use exact 1.9.0 packages for applications and the repository-pinned
+workspace binary only when deliberately evaluating unreleased source.
 
 ## Install the CLI
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 1.8.0 --locked
+cargo +1.97.1 install cargo-minco --version 1.9.0 --locked
 cargo minco --version
 ```
 
-The last command should print `minco 1.8.0`. Contributors reviewing unreleased
+The last command should print `minco 1.9.0`. Contributors reviewing unreleased
 source use the repository-pinned toolchain and workspace binary:
 
 ```bash

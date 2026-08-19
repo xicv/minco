@@ -2,18 +2,18 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 34-package lock-step `1.8.0`
-family from immutable tag `v1.8.0` at
-`fe1a20d4a6c76c7adef268727bb30b92b594e072`. Source/package qualification,
+The current published boundary is the complete 34-package lock-step `1.9.0`
+family from immutable tag `v1.9.0` at
+`8922aab5c9ed6770d8df7f5d906f768152d3e06c`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is an unpublished `1.9.0` candidate with the same 34-package
+The workspace is the published `1.9.0` release with the same 34-package
 inventory. It adds the API Gateway traffic policy and hardened negotiated
 response compression while retaining application authority, additive
-compatibility and the minimal topology. Its exact source must pass local and
-hosted review before merge; tag, GitHub release, OIDC publication, registry,
-docs.rs and Pages remain later independent evidence gates.
+compatibility and the minimal topology. Local and hosted review, tag, GitHub
+release, OIDC publication and registry checks passed independently; docs.rs
+and Pages remain separate evidence gates.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
