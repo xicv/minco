@@ -7,10 +7,10 @@ Workspace release state: `published`
 Published `1.8.0` source: `fe1a20d4a6c76c7adef268727bb30b92b594e072`
 Published source-tree digest: `99ee942d928c4e1b7626ce89a7f566d8a418a6c591b0d56743b8626837fdd00f`
 Published release task: `M14-T37`
-Latest release task: `M14-T37` (`active`)
+Latest release task: `M14-T37` (`completed`)
 Active evidence tasks: `M14-T10`, `M14-T20`
 
-## Active 1.8.0 release closure
+## Completed 1.8.0 release closure
 
 PR #168 reviewed exact source `b589612b17c2288a92e176cb08543eb6eacb826b`
 and tree `3def2f3b5852f418d92e9ed87e86395b67d9870f` with no unresolved
@@ -23,7 +23,10 @@ registry versions, a fresh public CLI install and the GitHub release are
 verified independently.
 
 This closure changes release and documentation truth only. Stable Pages and
-all exact docs.rs routes remain separate until verified. No AWS application
+all exact docs.rs routes are verified independently as of 2026-08-19: the
+registry validator passed with zero errors for all 34 exact packages, all 34
+versioned docs.rs routes served HTTP 200, and the Pages site presented
+`1.8.0 · Stable`. No AWS application
 operation or production mutation occurred; live-provider, hosted-performance
 and content-safety evidence remain absent or `NOT RUN`.
 

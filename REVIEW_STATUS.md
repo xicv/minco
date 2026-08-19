@@ -1,6 +1,6 @@
 # Review status
 
-## Active M14-T37 Minco 1.8.0 published release closure
+## Completed M14-T37 Minco 1.8.0 published release closure
 
 Minco `1.8.0` is the current published baseline from exact release source
 `fe1a20d4a6c76c7adef268727bb30b92b594e072`. PR #168 reviewed tree
@@ -12,7 +12,10 @@ install and the GitHub release are independently verified.
 
 This truth-only closure changes no Rust API, Plan IR, plugin capability,
 runtime selection, provider topology or default cost profile. Stable Pages and
-exact docs.rs routes remain independent gates. Live AWS, production, hosted
+exact docs.rs routes are verified independently as of 2026-08-19: the registry
+validator passed with zero errors for all 34 exact packages, all 34 versioned
+docs.rs routes served HTTP 200, and the Pages site presented `1.8.0 ·
+Stable`. Live AWS, production, hosted
 performance and content-safety evidence remain unproven or `NOT RUN`.
 
 ## Completed M14-T36 Minco 1.8.0 object-transfer candidate

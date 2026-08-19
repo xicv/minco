@@ -25,10 +25,16 @@ reported `minco 1.8.0`. The GitHub release is published at
 <https://github.com/xicv/minco/releases/tag/v1.8.0>.
 
 This post-publication change promotes repository and documentation truth only.
-Stable Pages and all exact docs.rs routes remain separate gates until verified.
-No AWS application operation or production mutation occurred. Hosted
-performance, current live-provider conformance and content-safety evidence
-remain `NOT RUN` or absent.
+Stable Pages and all exact docs.rs routes are independently verified as of
+2026-08-19: the registry validator
+(`scripts/validate_publish.py --expect-published --check-registry
+--require-registry`) reported status `ok` with zero errors and warnings for
+all 34 exact `1.8.0` packages, all 34 versioned
+`https://docs.rs/<crate>/1.8.0` routes served HTTP 200 with the facade build
+dated 2026-08-14, and `https://xicv.github.io/minco/` presented `1.8.0 ·
+Stable` with full content. No AWS application operation or production mutation
+occurred. Hosted performance, current live-provider conformance and
+content-safety evidence remain `NOT RUN` or absent.
 
 ## M14-T36 `1.8.0` object-transfer candidate
 
