@@ -190,8 +190,49 @@ Dependency and ownership state at qualification time:
 - `roadmap/tasks.mmd` is owned by active M14-T37, so task-graph regeneration is
   blocked by the ownership boundary and was not attempted.
 
-Deliberately NOT RUN: `scripts/quality.sh` wholesale (it would enforce
-workspace-wide formatting/Clippy outside this task's changed-file lint scope),
-`scripts/ci/local-release.sh` (a release-level gate outside the no-release
-boundary of this task), and writes to `verification/*` evidence files (owned by
-M14-T37). These must not be represented as passes for this branch.
+### Full workspace gate (2026-08-19, exact head `83e29e10aaf84cb6cd09b6b62f11f2a4bafe7b46`)
+
+`scripts/quality.sh` was executed end-to-end. The operational-evidence receipt
+step stops the script when the committed receipt is stale, so every remaining
+step was then run individually in the script's original order. Result: 48
+step-level passes, including `cargo fmt --all -- --check`, workspace-wide
+`cargo check`, `cargo clippy --workspace --all-targets --all-features
+--locked -- -D warnings`, the full workspace test suite, `cargo rustdoc`,
+workspace `cargo doc`, documentation snippet/link/browser checks, the
+generated-apps check, shell portability, SQLx feature isolation, gitleaks and
+npm audit. Six failures remain, and each was reproduced identically on a
+clean extraction of `origin/main` `7e0ee6a863f479f41003613fd29ac17bcb712b32`,
+so they are pre-existing main-state failures rather than regressions of this
+branch:
+
+- `validate_operational_evidence.py --check-output` and
+  `source_manifest.py --check`: the committed evidence receipts bind the last
+  independently reviewed tree, and main's own HEAD already fails both after
+  its CI-runner commits. Regenerating the manifest locally only exposes
+  EVIDENCE-PROVIDER-021 and PERF-BASELINE findings that require live
+  hosted/provider qualification owned by active M14-T37, so the committed
+  receipt snapshots were deliberately left untouched.
+- `scripts/test/hosted_ci_policy.py` (1 error) and
+  `scripts/test/publish_validation.py` (KeyError `env`): workflow-content test
+  breakage introduced by main's recent runner-migration commits; fixing it
+  requires editing `.github/workflows` content or cross-task test files and
+  is outside this task's scope.
+- cargo-minco tests `rust_source_authority_matches_the_generated_manifest`
+  and `actual_handover_plan_is_read_only_and_deterministic`: the same
+  manifest-bound staleness, failing identically on clean main.
+- `cargo deny check advisories` and `cargo audit` (RUSTSEC-2026-0258
+  vulnerability, RUSTSEC-2026-0253 allowed warning): driven entirely by
+  `Cargo.lock`, which this branch does not change.
+
+This branch therefore introduces no new gate failure relative to main. Merge
+into main was authorized by the repository owner on 2026-08-19 after this
+review; M14-T38 remains `active` because M14-T37 has not closed, and
+`scripts/ci/local-release.sh` remains NOT RUN as a release-level gate outside
+this task's boundary.
+
+Branch-head note: JJ's working-copy bookmark tracking moved the remote head
+sideways from `83e29e10aaf84cb6cd09b6b62f11f2a4bafe7b46` to
+`79c958c2b8decfccb0fc1364ef6e93bcd1f218ba` while restoring evidence-file side
+effects; both commits carry an identical tree, no history was lost, and this
+evidence commit was then rebased onto `79c958c2` so all further updates are
+strict fast-forwards.
