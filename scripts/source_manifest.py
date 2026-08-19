@@ -51,6 +51,7 @@ EXCLUDED_RELATIVE = {
     Path("verification/1.8-candidate-recovery.json"),
     Path("verification/1.8-candidate-release-gates.json"),
     Path("verification/1.8-performance-baseline.json"),
+    Path("verification/1.9-performance-baseline.json"),
     Path("verification/operational-evidence-validation.json"),
     # Local quality reports are regenerated from the source tree. Keep their
     # validators and reviewed policy inputs bound, but exclude the receipts to

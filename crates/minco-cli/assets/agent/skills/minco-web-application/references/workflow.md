@@ -48,3 +48,9 @@ At the 1.8 resumable object transfer boundary, use the API as an authorized
 bounded control plane and the private provider as the byte plane. Mobile retry,
 stop/resume and private caching must retain strong revision identity, while
 content remains quarantined until application inspection accepts it.
+
+At the 1.9 negotiated response compression boundary, keep eligible known-size
+responses on fastest gzip with Tower HTTP's content-type exclusions composed
+and use the per-response `DisableResponseCompression` opt-out for
+secret-bearing reflections. Leave static assets to CloudFront and never
+reflect credentials into compressed bodies.

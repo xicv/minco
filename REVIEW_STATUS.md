@@ -1,5 +1,18 @@
 # Review status
 
+## Active M14-T39 Minco 1.9.0 traffic and compression candidate
+
+The candidate starts from merged `main`
+`dc9ed98b05725589e5416411a9ac6b030ea70ee2` and published baseline `v1.8.0`.
+Review must prove the additive traffic policy fails closed on unknown
+operations, repeated operation IDs, duplicate route keys, invalid budgets and
+ambiguous stage markers; that compression keeps the 1 KiB threshold,
+negotiation, exclusions, no-recompression and the Lambda binary boundary; and
+that no AWS resource, always-on component or request-path limiter is added.
+The changelog-to-skill coverage, frozen candidate manual, source-bound
+receipts, package dry run, hosted compatibility run, guarded OIDC publication
+and independent registry verification remain mandatory gates.
+
 ## Completed M14-T37 Minco 1.8.0 published release closure
 
 Minco `1.8.0` is the current published baseline from exact release source

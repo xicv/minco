@@ -6,7 +6,7 @@ Published release: `1.8.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.8.0` published
+Current workspace: `1.9.0` candidate
 
 MSRV: Rust `1.97.1`
 
@@ -48,6 +48,10 @@ receipt and exact-resource precedence, Docker fallback, public APIs, Plan IR,
 production topology and provider semantics. Official descriptors advance in
 lock-step to `^1.7.0`; see the
 [1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md).
+
+The `1.9.0` candidate adds the API Gateway traffic policy and hardened
+negotiated response compression as additive, opt-in APIs; see the
+[1.8.0-to-1.9.0 guide](../adoption/1.8.0-to-1.9.0.md).
 
 The 1.8.0 release adds opt-in streaming, multipart, private range-download,
 conditional metadata and HTTP lifecycle contracts to object storage. Existing

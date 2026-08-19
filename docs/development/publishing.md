@@ -13,8 +13,9 @@ exact crates.io records. The package inventory is derived from
 `[workspace.metadata.minco.release]` and checked against every publishable
 workspace member by `scripts/validate_publish.py`.
 
-The workspace is the published `1.8.0` release with the same 34-package
-inventory. It adds opt-in direct, resumable object-transfer contracts while
+The workspace is an unpublished `1.9.0` candidate with the same 34-package
+inventory. It adds the API Gateway traffic policy and hardened negotiated
+response compression while
 retaining application authority and the minimal production topology; it adds
 no package or first-publication ownership boundary. Source qualification,
 hosted compatibility, tag, OIDC, registry, docs.rs and Pages evidence are

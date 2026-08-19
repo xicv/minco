@@ -33,3 +33,8 @@ At the 1.7 Apple Container default boundary, treat an existing receipt and its
 exact owned resources as stronger evidence than the fresh-install default.
 Require explicit runtime selection, a verified data backup or export and exact
 ownership before migration or deletion.
+
+At the 1.9 API Gateway traffic policy boundary, prefer the managed stage and
+route throttling rendered onto both the `$default` and candidate stages before
+adding any application-side limiter. Treat it as best-effort ingress
+protection, never as authorization, a per-user quota or a hard spend cap.

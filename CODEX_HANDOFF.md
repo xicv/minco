@@ -1,14 +1,24 @@
-# Minco 1.8.0 published release handoff
+# Minco 1.9.0 traffic and compression candidate handoff
 
-Date: 2026-08-14
+Date: 2026-08-19
 Published baseline: `1.8.0`
-Current workspace version: `1.8.0`
-Workspace release state: `published`
+Current workspace version: `1.9.0`
+Workspace release state: `candidate`
 Published `1.8.0` source: `fe1a20d4a6c76c7adef268727bb30b92b594e072`
 Published source-tree digest: `99ee942d928c4e1b7626ce89a7f566d8a418a6c591b0d56743b8626837fdd00f`
 Published release task: `M14-T37`
-Latest release task: `M14-T37` (`completed`)
+Latest release task: `M14-T39` (`active`)
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active 1.9.0 traffic and compression candidate
+
+M14-T39 prepares the additive `1.9.0` family from merged `main`
+`dc9ed98b05725589e5416411a9ac6b030ea70ee2`: the PR #171 traffic and
+compression controls plus the PR #173 publish-workflow repair. The candidate
+keeps all 34 packages, updates the cumulative agent feature coverage, freezes
+the `docs-site/1.9.0/` manual and refreshes the source-bound evidence
+receipts. Tag, GitHub release, OIDC publication, registry, docs.rs and Pages
+remain separate later gates; no live AWS or provider evidence is claimed.
 
 ## Completed 1.8.0 release closure
 

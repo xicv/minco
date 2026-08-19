@@ -394,8 +394,8 @@ Declared codes: `559`.
 | `STATIC-BUDGET-003` | repository truth | `scripts/validate_static.py:358` | 0 |
 | `STATIC-BUDGET-004` | repository truth | `scripts/test/repository_truth.py:575` | 3 |
 | `STATIC-BUDGET-005` | repository truth | `scripts/validate_static.py:464` | 0 |
-| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:649` | 1 |
-| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:666` | 1 |
+| `STATIC-BUDGET-006` | repository truth | `scripts/test/repository_truth.py:650` | 1 |
+| `STATIC-BUDGET-007` | repository truth | `scripts/test/repository_truth.py:667` | 1 |
 | `STATIC-CARGO-001` | repository truth | `scripts/validate_static.py:195` | 0 |
 | `STATIC-CARGO-002` | repository truth | `scripts/validate_static.py:198` | 0 |
 | `STATIC-CARGO-003` | repository truth | `scripts/validate_static.py:204` | 0 |
@@ -438,7 +438,7 @@ Declared codes: `559`.
 | `STATIC-MEASURE-002` | repository truth | `scripts/test/repository_truth.py:606` | 1 |
 | `STATIC-MEASURE-003` | repository truth | `scripts/validate_static.py:476` | 0 |
 | `STATIC-MEASURE-004` | repository truth | `scripts/test/repository_truth.py:613` | 1 |
-| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:656` | 1 |
+| `STATIC-MEASURE-005` | repository truth | `scripts/test/repository_truth.py:657` | 1 |
 | `STATIC-PLACEHOLDER-001` | repository truth | `scripts/validate_static.py:1668` | 0 |
 | `STATIC-PLAN-000` | repository truth | `scripts/validate_static.py:1556` | 0 |
 | `STATIC-PLAN-001` | repository truth | `scripts/validate_static.py:1562` | 0 |

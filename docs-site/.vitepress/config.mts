@@ -71,6 +71,8 @@ function workspaceSidebar(root: string) {
       collapsed: false,
       items: [
         { text: 'Plan an AWS deployment', link: link('guides/deployment') },
+        { text: 'Protect traffic at the gateway', link: link('guides/traffic-policy') },
+        { text: 'Compress HTTP delivery', link: link('guides/http-compression') },
         { text: 'Use the DynamoDB adapter', link: link('guides/dynamodb') },
         { text: 'Zero idle, precisely', link: link('explanation/zero-idle') },
         { text: 'Production blueprint', link: link('cookbook/production-blueprint') },
