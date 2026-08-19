@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.8.0`
+Published baseline: `1.9.0`
 Current workspace version: `1.9.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
 Use exact published `1.8.0` dependencies for applications. Follow the
 [1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing,

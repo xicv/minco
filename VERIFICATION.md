@@ -2,19 +2,22 @@
 
 Date: 2026-08-19
 Current workspace version: `1.9.0`
-Published baseline: `1.8.0`
-Workspace release state: `candidate`
+Published baseline: `1.9.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M14-T39 `1.9.0` traffic and compression candidate
+## M14-T39 `1.9.0` traffic and compression release
 
-The workspace is an unpublished `1.9.0` candidate from merged `main` after
-`dc9ed98b05725589e5416411a9ac6b030ea70ee2`. It adds the API Gateway traffic
+The release merged as `8922aab5c9ed6770d8df7f5d906f768152d3e06c` from the
+qualified candidate change. It adds the API Gateway traffic
 policy and hardened negotiated compression released by PR #171 plus the
-publish-workflow repair from PR #173. Candidate qualification, merge, tag,
-publication, registry, docs.rs and Pages remain separate evidence states; the
-candidate manual is frozen under `docs-site/1.9.0/`.
+publish-workflow repair from PR #173. Exact-main hosted run `32246605343`,
+authentication-only OIDC run `32247017888` and publication run `32247061809`
+passed from immutable tag `v1.9.0`; independent registry validation found all
+34 exact `1.9.0` versions present and non-yanked, and the GitHub release is
+published. docs.rs and Pages remain separate evidence gates; the stable manual
+is frozen under `docs-site/1.9.0/`.
 
 ## M14-T37 `1.8.0` published release closure
 

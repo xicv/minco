@@ -2,11 +2,11 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.8.0`
+Published release: `1.9.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.9.0` candidate
+Current workspace: `1.9.0` published
 
 MSRV: Rust `1.97.1`
 
@@ -49,7 +49,7 @@ production topology and provider semantics. Official descriptors advance in
 lock-step to `^1.7.0`; see the
 [1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md).
 
-The `1.9.0` candidate adds the API Gateway traffic policy and hardened
+The `1.9.0` release adds the API Gateway traffic policy and hardened
 negotiated response compression as additive, opt-in APIs; see the
 [1.8.0-to-1.9.0 guide](../adoption/1.8.0-to-1.9.0.md).
 

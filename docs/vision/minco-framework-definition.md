@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `1.8.0`
+Published baseline: `1.9.0`
 Current workspace version: `1.9.0`
-Workspace release state: `candidate`
-Reviewed release source: `fe1a20d4a6c76c7adef268727bb30b92b594e072`
+Workspace release state: `published`
+Reviewed release source: `8922aab5c9ed6770d8df7f5d906f768152d3e06c`
 
 ## Product identity
 
@@ -145,7 +145,7 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `1.8.0` state | Remaining boundary |
+| Area | Current published `1.9.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |

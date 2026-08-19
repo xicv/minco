@@ -1,8 +1,8 @@
 schema = 1
 workspace_version = "1.9.0"
-published_baseline = "1.8.0"
-published_release_commit = "fe1a20d4a6c76c7adef268727bb30b92b594e072"
-workspace_release_state = "candidate"
+published_baseline = "1.9.0"
+published_release_commit = "8922aab5c9ed6770d8df7f5d906f768152d3e06c"
+workspace_release_state = "published"
 operational_evidence_effective_date = "2026-08-12"
 published_package_count = 34
 adoption_gate_task = "M6-T07"
@@ -11,7 +11,7 @@ qualified_candidate_source_tree_sha256 = "a678ebf52b4c7a9f60ae9adb43221984b5f588
 qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench"]
 post_candidate_tasks = ["M6-T01", "M12-T07"]
 published_release_task = "M14-T37"
-published_source_tree_sha256 = "99ee942d928c4e1b7626ce89a7f566d8a418a6c591b0d56743b8626837fdd00f"
+published_source_tree_sha256 = "b91dce1243c5e74ffbf3c11b168c8ed0689de397"
 release_candidate_task = "M14-T36"
 
 # The published 1.8.0 baseline is the complete 34-package family from immutable

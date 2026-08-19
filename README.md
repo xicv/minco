@@ -17,11 +17,11 @@ contains no NAT Gateway, provisioned concurrency, scheduled poller, or
 always-on application compute. Storage, retained logs, DNS, secrets, database
 storage, schedules, requests, and other residual dimensions remain explicit.
 
-> Published baseline: `1.8.0`
+> Published baseline: `1.9.0`
 >
 > Current workspace version: `1.9.0`
 >
-> Workspace release state: `candidate`
+> Workspace release state: `published`
 >
 > Current publishable package count: `34`
 
@@ -31,7 +31,7 @@ Read the [versioned Minco documentation](https://xicv.github.io/minco/), or
 start directly with:
 
 - [Build your first API](https://xicv.github.io/minco/1.8.0/getting-started/first-application)
-- [Review the 1.9.0 traffic and compression candidate](https://xicv.github.io/minco/1.9.0/guides/traffic-policy)
+- [Protect traffic at the gateway](https://xicv.github.io/minco/1.9.0/guides/traffic-policy)
 - [Build a resource API](https://xicv.github.io/minco/1.8.0/guides/resource-api)
 - [Deploy to AWS](https://xicv.github.io/minco/1.8.0/guides/deployment)
 - [CLI reference](https://xicv.github.io/minco/1.8.0/reference/cli)
@@ -74,7 +74,7 @@ Applications normally depend on the feature-gated facade:
 cargo add minco@1.8.0
 
 # PostgreSQL API on native Lambda
-cargo add minco@1.8.0 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@1.9.0 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Provider-neutral core only
 cargo add minco@1.8.0 --no-default-features
@@ -82,7 +82,7 @@ cargo add minco@1.8.0 --no-default-features
 
 ## Agent-native application development
 
-The `1.9.0` candidate packages nine focused, version-matched workflow skills
+The `1.9.0` release packages nine focused, version-matched workflow skills
 for Codex and Claude Code. Relevant skills teach the resumable object-transfer
 boundary while retaining Apple-first local services, exact-resource recovery,
 Docker fallback and durable auditing. The mandatory cumulative
