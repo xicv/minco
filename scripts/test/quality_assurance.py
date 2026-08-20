@@ -54,9 +54,9 @@ class QualityAssuranceTests(unittest.TestCase):
             "gates": {
                 "nextest_parity": {
                     "status": "PASS",
-                    "nextest_test_count": 127,
+                    "nextest_test_count": policy["nextest"]["executable_test_count"],
                     "doctest_count": 1,
-                    "cargo_test_count": 128,
+                    "cargo_test_count": policy["nextest"]["executable_test_count"] + 1,
                 },
                 "coverage": {
                     "status": "PASS",
@@ -73,8 +73,13 @@ class QualityAssuranceTests(unittest.TestCase):
                 },
                 "semver": {
                     "status": "PASS",
-                    "baseline_tag": "v1.7.0",
-                    "package_count": 34,
+                    "baseline_tag": policy["semver"]["baseline_tag"],
+                    "baseline_commit": policy["semver"]["baseline_commit"],
+                    "package_count": policy["semver"]["package_count"],
+                    "checked_package_count": policy["semver"][
+                        "baseline_package_count"
+                    ],
+                    "new_packages": policy["semver"]["new_packages"],
                 },
                 "local_performance": {
                     "status": "PASS",
@@ -169,9 +174,15 @@ class QualityAssuranceTests(unittest.TestCase):
                 "cargo-semver-checks": "0.50.0",
             },
         )
-        self.assertEqual(policy["semver"]["baseline_tag"], "v1.7.0")
+        self.assertEqual(policy["semver"]["baseline_tag"], "v1.9.0")
+        self.assertEqual(policy["semver"]["package_count"], 36)
+        self.assertEqual(policy["semver"]["baseline_package_count"], 34)
+        self.assertEqual(
+            policy["semver"]["new_packages"],
+            ["minco-interaction", "minco-plugin-ticketing"],
+        )
         self.assertEqual(policy["nextest"]["baseline_executable_test_count"], 122)
-        self.assertEqual(policy["nextest"]["executable_test_count"], 127)
+        self.assertEqual(policy["nextest"]["executable_test_count"], 144)
         self.assertFalse(policy["production_slo"])
         self.assertFalse(policy["provider_contact"])
 
@@ -506,6 +517,81 @@ class QualityAssuranceTests(unittest.TestCase):
                 mock.patch.object(ASSURANCE, "publishable_packages", return_value=[]),
             ):
                 ASSURANCE.validate_current_receipt(receipt, policy, root=root)
+
+    def test_semver_gate_excludes_only_reviewed_new_packages(self) -> None:
+        policy = {
+            "semver": {
+                "baseline_tag": "v1.9.0",
+                "baseline_commit": "a" * 40,
+                "package_count": 2,
+                "baseline_package_count": 1,
+                "new_packages": ["minco-new"],
+            }
+        }
+        completed = mock.Mock(returncode=0, stdout=("a" * 40) + "\n")
+        with (
+            mock.patch.object(
+                ASSURANCE,
+                "publishable_packages",
+                return_value=["minco-established", "minco-new"],
+            ),
+            mock.patch.object(
+                ASSURANCE,
+                "command_environment",
+                return_value={"GIT_DIR": "/fixture/.git"},
+            ),
+            mock.patch.object(ASSURANCE.subprocess, "run", return_value=completed),
+            mock.patch.object(
+                ASSURANCE,
+                "baseline_package_names",
+                return_value={"minco-established"},
+            ),
+            mock.patch.object(
+                ASSURANCE,
+                "run_command",
+                return_value=("", {"id": "semver"}),
+            ) as run_command,
+        ):
+            gate = ASSURANCE.semver_gate(policy, [], Path("/fixture"))
+
+        arguments = run_command.call_args.args[1]
+        self.assertIn("minco-established", arguments)
+        self.assertNotIn("minco-new", arguments)
+        self.assertEqual(gate["packages"], ["minco-established", "minco-new"])
+        self.assertEqual(gate["checked_packages"], ["minco-established"])
+        self.assertEqual(gate["new_packages"], ["minco-new"])
+
+    def test_semver_gate_rejects_a_package_that_is_not_new(self) -> None:
+        policy = {
+            "semver": {
+                "baseline_tag": "v1.9.0",
+                "baseline_commit": "a" * 40,
+                "package_count": 2,
+                "baseline_package_count": 1,
+                "new_packages": ["minco-new"],
+            }
+        }
+        completed = mock.Mock(returncode=0, stdout=("a" * 40) + "\n")
+        with (
+            mock.patch.object(
+                ASSURANCE,
+                "publishable_packages",
+                return_value=["minco-established", "minco-new"],
+            ),
+            mock.patch.object(
+                ASSURANCE,
+                "command_environment",
+                return_value={"GIT_DIR": "/fixture/.git"},
+            ),
+            mock.patch.object(ASSURANCE.subprocess, "run", return_value=completed),
+            mock.patch.object(
+                ASSURANCE,
+                "baseline_package_names",
+                return_value={"minco-established", "minco-new"},
+            ),
+            self.assertRaisesRegex(RuntimeError, "ASSURANCE-SEMVER-004"),
+        ):
+            ASSURANCE.semver_gate(policy, [], Path("/fixture"))
 
 
 if __name__ == "__main__":

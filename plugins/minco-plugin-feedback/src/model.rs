@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-pub use minco_interaction::{AttachmentKind as FeedbackAttachmentKind, AttachmentUpload};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
@@ -7,6 +6,67 @@ use std::{
     str::FromStr,
 };
 use uuid::Uuid;
+
+/// Feedback-facing attachment classification retained for 1.x compatibility.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FeedbackAttachmentKind {
+    Screenshot,
+    Audio,
+    File,
+}
+
+impl From<FeedbackAttachmentKind> for minco_interaction::AttachmentKind {
+    fn from(value: FeedbackAttachmentKind) -> Self {
+        match value {
+            FeedbackAttachmentKind::Screenshot => Self::Screenshot,
+            FeedbackAttachmentKind::Audio => Self::Audio,
+            FeedbackAttachmentKind::File => Self::File,
+        }
+    }
+}
+
+impl From<minco_interaction::AttachmentKind> for FeedbackAttachmentKind {
+    fn from(value: minco_interaction::AttachmentKind) -> Self {
+        match value {
+            minco_interaction::AttachmentKind::Screenshot => Self::Screenshot,
+            minco_interaction::AttachmentKind::Audio => Self::Audio,
+            minco_interaction::AttachmentKind::File => Self::File,
+        }
+    }
+}
+
+/// Feedback-facing upload retained while shared policy lives in `minco-interaction`.
+#[derive(Clone, PartialEq, Eq)]
+pub struct AttachmentUpload {
+    pub kind: FeedbackAttachmentKind,
+    pub file_name: String,
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+
+impl fmt::Debug for AttachmentUpload {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AttachmentUpload")
+            .field("kind", &self.kind)
+            .field("file_name", &"[REDACTED]")
+            .field("content_type", &self.content_type)
+            .field("size_bytes", &self.bytes.len())
+            .finish()
+    }
+}
+
+impl From<&AttachmentUpload> for minco_interaction::AttachmentUpload {
+    fn from(value: &AttachmentUpload) -> Self {
+        Self {
+            kind: value.kind.into(),
+            file_name: value.file_name.clone(),
+            content_type: value.content_type.clone(),
+            bytes: value.bytes.clone(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]

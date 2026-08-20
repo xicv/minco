@@ -77,6 +77,8 @@ flowchart LR
     NM14T37["M14-T37<br/>Close the Minco 1.8.0 published release boundary"]
     NM14T38["M14-T38<br/>Add AWS-native HTTP traffic and compression controls"]
     NM14T39["M14-T39<br/>Release Minco 1.9.0 traffic and compression controls"]
+    NM14T40["M14-T40<br/>Add shared Ticketing interaction and multi-surface support entry"]
+    NM14T41["M14-T41<br/>Release Minco 1.10.0 Ticketing support entry"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -229,6 +231,8 @@ flowchart LR
     NM14T36 --> NM14T37
     NM14T37 --> NM14T38
     NM14T38 --> NM14T39
+    NM14T39 --> NM14T40
+    NM14T40 --> NM14T41
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01

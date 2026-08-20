@@ -3,18 +3,15 @@
 Published install baseline: `1.9.0`
 Current workspace version: `1.10.0`
 MSRV: Rust `1.97.1`
-Compatibility state: the published 1.8.0 family retains the 1.0 framework
+Compatibility state: the published 1.9.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
 descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
 rich mail, owned local services and release-bound evidence are published
 together with durable auditing, Apple-first fresh local services and direct
-resumable object transfers as the complete 34-package `v1.8.0`
-family. Registry, docs.rs, stable documentation and application/live proof
-remain separate.
-
-The published `1.9.0` release adds the additive API Gateway traffic policy
-and hardened negotiated compression inside the same 34-package `v1.9.0`
-family.
+resumable object transfers. It adds the API Gateway traffic policy and hardened
+negotiated compression inside the complete 34-package `v1.9.0` family.
+Registry, docs.rs, stable documentation and application/live proof remain
+separate.
 
 The unpublished `1.10.0` candidate adds the shared Interaction crate and beta
 Ticketing plugin as the 35th and 36th publishable packages. Its local source

@@ -467,6 +467,7 @@
         "skills": [
           "minco-lifecycle",
           "minco-operation",
+          "minco-release",
           "minco-review"
         ],
         "documentation": [
@@ -484,6 +485,7 @@
         "skill_marker": "1.9 negotiated response compression boundary",
         "skills": [
           "minco-operation",
+          "minco-release",
           "minco-web-application"
         ],
         "documentation": [
@@ -502,6 +504,7 @@
         "skills": [
           "minco-operation",
           "minco-plugin",
+          "minco-release",
           "minco-review",
           "minco-web-application"
         ],

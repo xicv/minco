@@ -91,31 +91,29 @@ test('search includes current troubleshooting language and excludes frozen manua
   await search.fill('stale ETag')
 
   const results = page.locator('.VPLocalSearchBox')
+  const resultLinkTo = (path: string) =>
+    results.locator(`[role="option"] > a[href*="${path}"]`)
   const currentSearchSegment = release.state === 'candidate' ? 'next' : release.stable
   await expect(
-    results.locator(`a[href*="/${currentSearchSegment}/guides/troubleshooting"]`).first()
+    resultLinkTo(`/${currentSearchSegment}/guides/troubleshooting`).first()
   ).toBeVisible()
 
   await search.fill('login')
   await expect(
-    results
-      .locator(`a[href*="/${currentSearchSegment}/guides/identity-and-sessions"]`)
-      .first()
+    resultLinkTo(`/${currentSearchSegment}/guides/identity-and-sessions`).first()
   ).toBeVisible()
 
   await search.fill('direct upload')
   await expect(
-    results
-      .locator(`a[href*="/${currentSearchSegment}/guides/files-and-static-sites"]`)
-      .first()
+    resultLinkTo(`/${currentSearchSegment}/guides/files-and-static-sites`).first()
   ).toBeVisible()
 
-  await expect(results.locator('a[href*="/0.5.0/"]')).toHaveCount(0)
-  await expect(results.locator('a[href*="/0.6.0/"]')).toHaveCount(0)
-  await expect(results.locator('a[href*="/1.0.0/"]')).toHaveCount(0)
+  await expect(resultLinkTo('/0.5.0/')).toHaveCount(0)
+  await expect(resultLinkTo('/0.6.0/')).toHaveCount(0)
+  await expect(resultLinkTo('/1.0.0/')).toHaveCount(0)
   if (release.state === 'candidate') {
-    await expect(results.locator(`a[href*="/${release.workspace}/"]`)).toHaveCount(0)
-    await expect(results.locator(`a[href*="/${release.stable}/"]`)).toHaveCount(0)
+    await expect(resultLinkTo(`/${release.workspace}/`)).toHaveCount(0)
+    await expect(resultLinkTo(`/${release.stable}/`)).toHaveCount(0)
   }
 })
 

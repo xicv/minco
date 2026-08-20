@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The immutable published `1.8.0` classification is:
+The immutable published `1.9.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
@@ -45,6 +45,9 @@ The immutable published `1.8.0` classification is:
 > The 1.8 release adds opt-in direct resumable object transfers while retaining
 > application authorization, durable state, logical identity, content safety,
 > retention and the minimal default topology.
+> The 1.9 release adds an opt-in API Gateway HTTP traffic policy and negotiated
+> response compression without adding a request-path limiter, always-on
+> component or new provider topology.
 
 The published 1.5.0 release preserves that classification. It packages
 additive application-test fakes plus provider-free measured assurance and cost
@@ -65,6 +68,10 @@ contracts and an authenticated JSON control plane without moving application
 authorization, durable state, logical object identity, content safety or
 retention into the framework. It changes no default production topology and
 does not claim live-provider, deployment or production proof.
+
+The published 1.9.0 release adds managed-stage and operation-specific API
+Gateway traffic policy plus hardened response compression. Both remain
+application-owned, additive and free of new provisioned infrastructure.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,

@@ -31,12 +31,12 @@ packages in the published 1.9.0 baseline have crates.io ownership; the two
 1.10.0 additions do not. Source qualification or merge still must not be
 described as registry publication.
 
-The exact published source is immutable tag `v1.8.0` at
-`fe1a20d4a6c76c7adef268727bb30b92b594e072`. PR-head clean-Linux run
-`31774750512`, exact-main run `31775061737` and authentication-only OIDC run
-`31775371863` passed before guarded publication. Run `31775399279` passed its
+The exact published source is immutable tag `v1.9.0` at
+`8922aab5c9ed6770d8df7f5d906f768152d3e06c`. The complete local qualification,
+exact-main clean-Linux run `32246605343` and authentication-only OIDC run
+`32247017888` passed before guarded publication. Run `32247061809` passed its
 archive and external-consumer checks and uploaded the dependency-ordered family.
-Independent registry validation found every exact 1.8.0 version present and
+Independent registry validation found every exact 1.9.0 version present and
 non-yanked. Later candidate qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
@@ -227,12 +227,15 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The complete 34-package family has crossed that ownership boundary.
+exists. The complete published 34-package family has crossed that ownership
+boundary; the two `1.10.0` additions have not.
 Before 1.1.0 publication, trusted-publisher configuration was independently
 reconciled for all packages. The 1.2.0 upload used a short-lived OIDC token only
 after exact-tag verification and locked dependency prefetch; every later OIDC
-upload must verify the current configuration again. Configure and verify the
-new Waffo crate's trusted publisher before relying on OIDC for a later family.
+upload must verify the current configuration again. After manually publishing
+`minco-interaction` and `minco-plugin-ticketing` with the complete `1.10.0`
+family, configure and verify their trusted publishers before relying on OIDC
+for a later family.
 
 ## Trusted publishing after the first release
 

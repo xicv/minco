@@ -20,13 +20,13 @@ changelog-to-skill coverage plus the deterministic workflow receipt as
 mandatory release gates. Those checks do not invoke a model or measure human
 review effort.
 
-For the published 1.8.0 baseline, exact release source passed PR-head
-clean-Linux run `31774750512` and merged-main run `31775061737`. Authentication
-run `31775371863` proved the exact OIDC boundary without upload. Publication run
-`31775399279` passed archive and consumer checks before dependency-ordered
-upload, and independent validation found all 34 exact versions present and
-non-yanked. That publication is not live provider, AWS, application deployment or
-production evidence.
+For the published 1.9.0 baseline, the exact release source passed the complete
+local qualification before merge and exact-main clean-Linux run `32246605343`.
+Authentication run `32247017888` proved the exact OIDC boundary without upload.
+Publication run `32247061809` passed archive and consumer checks before the
+dependency-ordered upload, and independent validation found all 34 exact
+versions present and non-yanked. That publication is not live provider, AWS,
+application deployment or production evidence.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:

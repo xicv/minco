@@ -35,7 +35,7 @@
       {
         "configuration": [],
         "configuration_namespace": "plugins.audit",
-        "core_compatibility": "^1.8.0",
+        "core_compatibility": "^1.10.0",
         "data_classes": [
           "internal",
           "personal",
@@ -75,7 +75,7 @@
       {
         "configuration": [],
         "configuration_namespace": "plugins.health",
-        "core_compatibility": "^1.8.0",
+        "core_compatibility": "^1.10.0",
         "data_classes": [],
         "default_enabled": true,
         "description": "Liveness, readiness, and dependency health registry",
@@ -113,7 +113,7 @@
           }
         ],
         "configuration_namespace": "plugins.idempotency",
-        "core_compatibility": "^1.8.0",
+        "core_compatibility": "^1.10.0",
         "data_classes": [
           "internal"
         ],
@@ -172,7 +172,7 @@
           }
         ],
         "configuration_namespace": "plugins.observability",
-        "core_compatibility": "^1.8.0",
+        "core_compatibility": "^1.10.0",
         "data_classes": [],
         "default_enabled": true,
         "description": "Structured tracing and CloudWatch-compatible JSON logging",
