@@ -15,20 +15,20 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `559`.
+Declared codes: `560`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
-| `ASSURANCE-COMMAND-001` | deployment assurance | `scripts/quality_assurance.py:583` | 0 |
+| `ASSURANCE-COMMAND-001` | deployment assurance | `scripts/quality_assurance.py:614` | 0 |
 | `ASSURANCE-COST-001` | deployment assurance | `scripts/validate_deployment_assurance.py:339` | 0 |
 | `ASSURANCE-COST-002` | deployment assurance | `scripts/validate_deployment_assurance.py:388` | 0 |
 | `ASSURANCE-COST-003` | deployment assurance | `scripts/validate_deployment_assurance.py:394` | 0 |
 | `ASSURANCE-COST-004` | deployment assurance | `scripts/validate_deployment_assurance.py:400` | 0 |
-| `ASSURANCE-COVERAGE-001` | deployment assurance | `scripts/quality_assurance.py:349` | 2 |
-| `ASSURANCE-COVERAGE-002` | deployment assurance | `scripts/quality_assurance.py:361` | 1 |
+| `ASSURANCE-COVERAGE-001` | deployment assurance | `scripts/quality_assurance.py:375` | 2 |
+| `ASSURANCE-COVERAGE-002` | deployment assurance | `scripts/quality_assurance.py:387` | 1 |
 | `ASSURANCE-DATA-001` | deployment assurance | `scripts/validate_deployment_assurance.py:128` | 0 |
-| `ASSURANCE-DATE-001` | deployment assurance | `scripts/quality_assurance.py:1001` | 1 |
-| `ASSURANCE-DATE-002` | deployment assurance | `scripts/quality_assurance.py:483` | 0 |
+| `ASSURANCE-DATE-001` | deployment assurance | `scripts/quality_assurance.py:1100` | 1 |
+| `ASSURANCE-DATE-002` | deployment assurance | `scripts/quality_assurance.py:514` | 0 |
 | `ASSURANCE-DECISION-001` | deployment assurance | `scripts/validate_deployment_assurance.py:428` | 0 |
 | `ASSURANCE-DECISION-002` | deployment assurance | `scripts/validate_deployment_assurance.py:434` | 0 |
 | `ASSURANCE-DEFAULT-001` | deployment assurance | `scripts/validate_deployment_assurance.py:305` | 0 |
@@ -54,20 +54,20 @@ Declared codes: `559`.
 | `ASSURANCE-INGRESS-003` | deployment assurance | `scripts/test/deployment_assurance.py:182` | 1 |
 | `ASSURANCE-INGRESS-004` | deployment assurance | `scripts/validate_deployment_assurance.py:546` | 0 |
 | `ASSURANCE-INGRESS-005` | deployment assurance | `scripts/validate_deployment_assurance.py:553` | 0 |
-| `ASSURANCE-MUTATION-001` | deployment assurance | `scripts/quality_assurance.py:384` | 2 |
-| `ASSURANCE-NEXTEST-001` | deployment assurance | `scripts/quality_assurance.py:395` | 1 |
-| `ASSURANCE-PATH-001` | deployment assurance | `scripts/quality_assurance.py:1100` | 9 |
-| `ASSURANCE-PATH-002` | deployment assurance | `scripts/quality_assurance.py:759` | 2 |
-| `ASSURANCE-PATH-003` | deployment assurance | `scripts/quality_assurance.py:1065` | 0 |
+| `ASSURANCE-MUTATION-001` | deployment assurance | `scripts/quality_assurance.py:410` | 2 |
+| `ASSURANCE-NEXTEST-001` | deployment assurance | `scripts/quality_assurance.py:421` | 1 |
+| `ASSURANCE-PATH-001` | deployment assurance | `scripts/quality_assurance.py:1199` | 9 |
+| `ASSURANCE-PATH-002` | deployment assurance | `scripts/quality_assurance.py:839` | 2 |
+| `ASSURANCE-PATH-003` | deployment assurance | `scripts/quality_assurance.py:1164` | 0 |
 | `ASSURANCE-PATH-004` | deployment assurance | `scripts/quality_assurance.py:105` | 0 |
 | `ASSURANCE-PERF-001` | deployment assurance | `scripts/validate_deployment_assurance.py:407` | 0 |
-| `ASSURANCE-PERFORMANCE-001` | deployment assurance | `scripts/quality_assurance.py:410` | 1 |
-| `ASSURANCE-PERFORMANCE-002` | deployment assurance | `scripts/quality_assurance.py:523` | 1 |
+| `ASSURANCE-PERFORMANCE-001` | deployment assurance | `scripts/quality_assurance.py:1047` | 1 |
+| `ASSURANCE-PERFORMANCE-002` | deployment assurance | `scripts/quality_assurance.py:554` | 1 |
 | `ASSURANCE-POLICY-001` | deployment assurance | `scripts/quality_assurance.py:199` | 1 |
 | `ASSURANCE-POLICY-002` | deployment assurance | `scripts/quality_assurance.py:202` | 1 |
 | `ASSURANCE-POLICY-003` | deployment assurance | `scripts/quality_assurance.py:206` | 1 |
-| `ASSURANCE-POLICY-004` | deployment assurance | `scripts/quality_assurance.py:212` | 0 |
-| `ASSURANCE-POLICY-005` | deployment assurance | `scripts/quality_assurance.py:481` | 0 |
+| `ASSURANCE-POLICY-004` | deployment assurance | `scripts/quality_assurance.py:213` | 0 |
+| `ASSURANCE-POLICY-005` | deployment assurance | `scripts/quality_assurance.py:237` | 1 |
 | `ASSURANCE-PROFILE-001` | deployment assurance | `scripts/validate_deployment_assurance.py:212` | 0 |
 | `ASSURANCE-PROFILE-002` | deployment assurance | `scripts/validate_deployment_assurance.py:229` | 0 |
 | `ASSURANCE-PROFILE-003` | deployment assurance | `scripts/validate_deployment_assurance.py:237` | 0 |
@@ -75,30 +75,31 @@ Declared codes: `559`.
 | `ASSURANCE-PROFILE-005` | deployment assurance | `scripts/validate_deployment_assurance.py:253` | 0 |
 | `ASSURANCE-PROFILE-006` | deployment assurance | `scripts/validate_deployment_assurance.py:296` | 0 |
 | `ASSURANCE-PROFILE-007` | deployment assurance | `scripts/validate_deployment_assurance.py:596` | 0 |
-| `ASSURANCE-RECEIPT-001` | deployment assurance | `scripts/quality_assurance.py:270` | 1 |
-| `ASSURANCE-RECEIPT-002` | deployment assurance | `scripts/quality_assurance.py:273` | 0 |
-| `ASSURANCE-RECEIPT-003` | deployment assurance | `scripts/quality_assurance.py:309` | 2 |
-| `ASSURANCE-RECEIPT-004` | deployment assurance | `scripts/quality_assurance.py:323` | 4 |
-| `ASSURANCE-RECEIPT-005` | deployment assurance | `scripts/quality_assurance.py:285` | 0 |
-| `ASSURANCE-RECEIPT-006` | deployment assurance | `scripts/quality_assurance.py:292` | 0 |
-| `ASSURANCE-RECEIPT-007` | deployment assurance | `scripts/quality_assurance.py:458` | 1 |
-| `ASSURANCE-RECEIPT-008` | deployment assurance | `scripts/quality_assurance.py:306` | 1 |
-| `ASSURANCE-RECEIPT-009` | deployment assurance | `scripts/quality_assurance.py:220` | 2 |
-| `ASSURANCE-RECEIPT-010` | deployment assurance | `scripts/quality_assurance.py:237` | 4 |
-| `ASSURANCE-RECEIPT-011` | deployment assurance | `scripts/quality_assurance.py:268` | 1 |
-| `ASSURANCE-RECEIPT-012` | deployment assurance | `scripts/quality_assurance.py:414` | 3 |
-| `ASSURANCE-RECEIPT-013` | deployment assurance | `scripts/quality_assurance.py:501` | 6 |
+| `ASSURANCE-RECEIPT-001` | deployment assurance | `scripts/quality_assurance.py:296` | 1 |
+| `ASSURANCE-RECEIPT-002` | deployment assurance | `scripts/quality_assurance.py:299` | 0 |
+| `ASSURANCE-RECEIPT-003` | deployment assurance | `scripts/quality_assurance.py:335` | 2 |
+| `ASSURANCE-RECEIPT-004` | deployment assurance | `scripts/quality_assurance.py:349` | 4 |
+| `ASSURANCE-RECEIPT-005` | deployment assurance | `scripts/quality_assurance.py:311` | 0 |
+| `ASSURANCE-RECEIPT-006` | deployment assurance | `scripts/quality_assurance.py:318` | 0 |
+| `ASSURANCE-RECEIPT-007` | deployment assurance | `scripts/quality_assurance.py:489` | 1 |
+| `ASSURANCE-RECEIPT-008` | deployment assurance | `scripts/quality_assurance.py:332` | 1 |
+| `ASSURANCE-RECEIPT-009` | deployment assurance | `scripts/quality_assurance.py:246` | 2 |
+| `ASSURANCE-RECEIPT-010` | deployment assurance | `scripts/quality_assurance.py:263` | 4 |
+| `ASSURANCE-RECEIPT-011` | deployment assurance | `scripts/quality_assurance.py:294` | 1 |
+| `ASSURANCE-RECEIPT-012` | deployment assurance | `scripts/quality_assurance.py:445` | 3 |
+| `ASSURANCE-RECEIPT-013` | deployment assurance | `scripts/quality_assurance.py:532` | 6 |
 | `ASSURANCE-RECOVERY-001` | deployment assurance | `scripts/validate_deployment_assurance.py:413` | 0 |
 | `ASSURANCE-SCHEMA-001` | deployment assurance | `scripts/validate_deployment_assurance.py:133` | 0 |
 | `ASSURANCE-SCOPE-001` | deployment assurance | `scripts/validate_deployment_assurance.py:269` | 0 |
-| `ASSURANCE-SEMVER-001` | deployment assurance | `scripts/quality_assurance.py:402` | 2 |
-| `ASSURANCE-SEMVER-002` | deployment assurance | `scripts/quality_assurance.py:874` | 0 |
-| `ASSURANCE-SEMVER-003` | deployment assurance | `scripts/quality_assurance.py:885` | 0 |
+| `ASSURANCE-SEMVER-001` | deployment assurance | `scripts/quality_assurance.py:433` | 2 |
+| `ASSURANCE-SEMVER-002` | deployment assurance | `scripts/quality_assurance.py:960` | 0 |
+| `ASSURANCE-SEMVER-003` | deployment assurance | `scripts/quality_assurance.py:696` | 1 |
+| `ASSURANCE-SEMVER-004` | deployment assurance | `scripts/quality_assurance.py:713` | 3 |
 | `ASSURANCE-SOURCE-001` | deployment assurance | `scripts/quality_assurance.py:154` | 0 |
 | `ASSURANCE-SOURCE-002` | deployment assurance | `scripts/quality_assurance.py:160` | 0 |
-| `ASSURANCE-SOURCE-003` | deployment assurance | `scripts/quality_assurance.py:475` | 0 |
+| `ASSURANCE-SOURCE-003` | deployment assurance | `scripts/quality_assurance.py:506` | 0 |
 | `ASSURANCE-STATUS-001` | deployment assurance | `scripts/validate_deployment_assurance.py:262` | 0 |
-| `ASSURANCE-TOOL-001` | deployment assurance | `scripts/quality_assurance.py:627` | 0 |
+| `ASSURANCE-TOOL-001` | deployment assurance | `scripts/quality_assurance.py:658` | 0 |
 | `ASSURANCE-TRUTH-001` | deployment assurance | `scripts/validate_deployment_assurance.py:140` | 0 |
 | `ASSURANCE-TRUTH-002` | deployment assurance | `scripts/validate_deployment_assurance.py:150` | 0 |
 | `ASSURANCE-TRUTH-003` | deployment assurance | `scripts/validate_deployment_assurance.py:156` | 0 |

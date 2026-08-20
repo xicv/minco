@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1701,
+  "file_count": 1702,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -99,13 +99,13 @@
     },
     {
       "path": "PUBLISHING.md",
-      "sha256": "44cd1149c871355c1259aff47917bb89652fa08de63fd8135cb7af02ee4854f1",
-      "size_bytes": 3780
+      "sha256": "7194c0d8605efad2d2cd1228b9e63f4e3f092149e5b9d7c2e7d0591cdfc752d2",
+      "size_bytes": 3807
     },
     {
       "path": "README.md",
-      "sha256": "1edd1c33c6972520b688fb5632af59e4deee6be9b1531515a97f6ac74b0c9570",
-      "size_bytes": 12219
+      "sha256": "72d2a3377c9a574e2c30cef8745efcc5f04e9c0c41a7a3cbaed379cafef82d12",
+      "size_bytes": 12463
     },
     {
       "path": "REVIEW_STATUS.md",
@@ -179,8 +179,8 @@
     },
     {
       "path": "crates/minco-cli/assets/agent/bundle.json",
-      "sha256": "ab9a52e0a9de8f0fadb299f7aa839edfa927db0f78c291a62d1c978e69022d0c",
-      "size_bytes": 19446
+      "sha256": "12432950edb42d159fdfa8b711733c723d03dcc62d41534a5664a817b045f4eb",
+      "size_bytes": 19527
     },
     {
       "path": "crates/minco-cli/assets/agent/evals/scenarios.json",
@@ -274,8 +274,8 @@
     },
     {
       "path": "crates/minco-cli/assets/agent/skills/minco-release/references/workflow.md",
-      "sha256": "5ce99a773fd12be60c3f6888ba9327f29273e763bfa9f17614b43a74ad082f26",
-      "size_bytes": 2322
+      "sha256": "406ce3171f4a46b2994ce13b1e29ec275c0f556a2879a34a5eb066e750759e6d",
+      "size_bytes": 3279
     },
     {
       "path": "crates/minco-cli/assets/agent/skills/minco-review/SKILL.md",
@@ -2179,8 +2179,8 @@
     },
     {
       "path": "docs/development/publishing.md",
-      "sha256": "7e7cc499b158185b1ec33d7b9784f0dc919f2ed2fc542b24585b1ef89d88992b",
-      "size_bytes": 16400
+      "sha256": "9c8f79eb40b12171079f52f0f878760b54795a1b224461a3fae6f99f2e99b0a3",
+      "size_bytes": 16549
     },
     {
       "path": "docs/development/quality-assurance.md",
@@ -2329,8 +2329,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "c65174e3b7c95ae9996be155cf1fe8f96fa91d414806cdb196be7f7a0872b430",
-      "size_bytes": 50257
+      "sha256": "7c09c85c06211dcc650d5f2b1a6a58e1417edfd0c711b90b3c24076b470ad22c",
+      "size_bytes": 50349
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -2369,8 +2369,8 @@
     },
     {
       "path": "docs/reference/supported-matrix.md",
-      "sha256": "704d6106026c51d04320b7e9c90a79007730b09f80f852f6a35b530be821bfde",
-      "size_bytes": 15231
+      "sha256": "e3e6ca40314d3a13b221b5957d863bb4a76aeea6219e3e4d3550c43ff6e382e5",
+      "size_bytes": 15155
     },
     {
       "path": "docs/research/audit-ledger-costs-2026-08.md",
@@ -2449,8 +2449,8 @@
     },
     {
       "path": "docs/vision/minco-framework-definition.md",
-      "sha256": "7a32d98e1caf6f96c17f5be247805e7de8046041215dc7d56942b9daac21cd2e",
-      "size_bytes": 21800
+      "sha256": "9994b69ae972f01f34cde8572b9c66a4e0c6b15b08caaba6671a2e7f24f607d6",
+      "size_bytes": 22208
     },
     {
       "path": "docs-site/.gitignore",
@@ -5359,8 +5359,8 @@
     },
     {
       "path": "docs-site/tests/docs-discovery.spec.mts",
-      "sha256": "04202d15621f3a7520ea895d1178648d662070bd1d98c1025b3e57e56122f7c5",
-      "size_bytes": 6175
+      "sha256": "ad0aaf9e47508936b92d574495dd3656d2fe98add9c092338c0284def60d016c",
+      "size_bytes": 6136
     },
     {
       "path": "docs-site/tests/docs.spec.mts",
@@ -6089,8 +6089,8 @@
     },
     {
       "path": "infra/aws/generated/plan.json",
-      "sha256": "4024d1ae0f5589f967ae96ce87e67544f23dd0c3c64a8eb8df6dcb7ed82083c8",
-      "size_bytes": 8049
+      "sha256": "5782ab83d4b0734c945ac1ac961882e319997ea76a1c76a4074c7e3bb180a222",
+      "size_bytes": 8053
     },
     {
       "path": "infra/aws/generated/template.yaml",
@@ -6279,8 +6279,8 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/src/model.rs",
-      "sha256": "8895e10c5ab00d3ba4643ccc291bf992e7a0ccc147dc15b663ed48268fc6f4c8",
-      "size_bytes": 43426
+      "sha256": "233b42cffb8ac55ce25bc18691cd83d203a57dde7a0ccebccab5822849be5e75",
+      "size_bytes": 45338
     },
     {
       "path": "plugins/minco-plugin-feedback/src/persistence/mod.rs",
@@ -6304,8 +6304,8 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/src/service.rs",
-      "sha256": "0df3ee9c17d12bcf5675434da7c3d0ff6b07f1c9ebce0f9b15f9c8af73aa33d2",
-      "size_bytes": 61927
+      "sha256": "37e17f827db879b8be3ac5541470c8c02b4a1f2c88904e60b51283606f02e346",
+      "size_bytes": 62548
     },
     {
       "path": "plugins/minco-plugin-feedback/src/store.rs",
@@ -6314,8 +6314,8 @@
     },
     {
       "path": "plugins/minco-plugin-feedback/src/transcription.rs",
-      "sha256": "b400fda45e7c14e4588f10afb1f70337d8d59baf24de05f129cb69f0d3429387",
-      "size_bytes": 464
+      "sha256": "f6b8b75bf010c3658b49a04f7616650ab49ae43d8d7e20435f05389d24d8ae7e",
+      "size_bytes": 8767
     },
     {
       "path": "plugins/minco-plugin-feedback/tests/browser/widget.spec.cjs",
@@ -6909,8 +6909,8 @@
     },
     {
       "path": "proofs/realtime-appsync/aws-handler/Cargo.lock",
-      "sha256": "79053d77fd248e4cd7322f5940a94fd591b475f634d87b27edd307847a9a37e3",
-      "size_bytes": 66414
+      "sha256": "f96676965b0e2cae59c3bdef2c18dc7e6249585ecd4ae40275bf3f112c5ac31a",
+      "size_bytes": 66417
     },
     {
       "path": "proofs/realtime-appsync/aws-handler/Cargo.toml",
@@ -7129,8 +7129,8 @@
     },
     {
       "path": "roadmap/tasks.mmd",
-      "sha256": "6bd23df77e4fc472ad197d63070f2d19b4d28cb88624e29d9ffd8c1d33ac8255",
-      "size_bytes": 13338
+      "sha256": "5c50c69d994516f0f4f7942d35164e1e9ce04b1e52f1d9ee80368daf3e5db5fc",
+      "size_bytes": 13550
     },
     {
       "path": "rust-toolchain.toml",
@@ -7504,8 +7504,8 @@
     },
     {
       "path": "scripts/quality_assurance.py",
-      "sha256": "e1f7471a1882ba7da050a1105486d7c07294a9f6c6d6ae8b5554f0492973c0eb",
-      "size_bytes": 42973
+      "sha256": "832cbabf23f87f1376f373d5c73f0c547a48208af2caf578db8ae79ee8bb2c48",
+      "size_bytes": 46840
     },
     {
       "path": "scripts/release/candidate-load.sh",
@@ -7664,8 +7664,8 @@
     },
     {
       "path": "scripts/test/quality_assurance.py",
-      "sha256": "52b76a257901c91229731b2595d8f58ae16cdb65076544a06cfc920e14528606",
-      "size_bytes": 21333
+      "sha256": "c71644f3075fe475abba6bcada0b554bf45428814a083f76d17a6fbe2f9c0c4e",
+      "size_bytes": 24902
     },
     {
       "path": "scripts/test/release_identity.py",
@@ -8123,6 +8123,11 @@
       "size_bytes": 11531
     },
     {
+      "path": "tasks/M14/M14-T41-release-1-10-0.md",
+      "sha256": "cb4942f9d806167a3b5583767fc454622a8948c0847b48c320c1499a09223bb2",
+      "size_bytes": 5137
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -8394,7 +8399,7 @@
     },
     {
       "path": "verification/agent-workflows.json",
-      "sha256": "2749e2ae866cad0fe355f659d7ab47386231274322cc4fca2e7729bc2f2887dd",
+      "sha256": "c50396d3ec9e64cd013b3c0abee906e1fd540b3c78174a454bec00bbeb600250",
       "size_bytes": 2259
     },
     {
@@ -8459,8 +8464,8 @@
     },
     {
       "path": "verification/quality-assurance-policy.toml",
-      "sha256": "65e9589e5a496853d3d5303ad5ebdc80b36070549f7c3aa46e08335653f6fc05",
-      "size_bytes": 1709
+      "sha256": "5d279a35041b27b004e5713c02f3c607edf94ff6fdd987e99e623b865e75fa0b",
+      "size_bytes": 1801
     },
     {
       "path": "verification/release-identity.json",
@@ -8561,7 +8566,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "541962c569463aa8f3a6373d4ba2ce92cce8c351018ab603935ef90295bdc000",
-  "total_size_bytes": 12390886,
+  "source_tree_sha256": "258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0",
+  "total_size_bytes": 12416449,
   "version": "1.10.0"
 }
