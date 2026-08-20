@@ -5,14 +5,14 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the unpublished `1.10.0` candidate.
+No changes beyond the published `1.10.0` release.
 
 ## [1.10.0] - 2026-08-20
 
-This additive candidate introduces a portal-first Ticketing support boundary
+This additive release introduces a portal-first Ticketing support boundary
 without changing existing Feedback public names or enabling a runtime,
-database, provider, schedule, or fixed compute by default. It is unpublished;
-package ownership, trusted publishing, release, deployment, and production
+database, provider, schedule, or fixed compute by default. All 36 exact package
+versions are published; future trusted publishing, deployment, and production
 remain separate evidence states.
 
 ### Added
@@ -32,9 +32,8 @@ remain separate evidence states.
 - Moved provider-neutral transcription primitives out of Feedback while
   preserving every existing Feedback public name and Cargo feature through
   compatibility re-exports.
-- Opened the 36-package `1.10.0` candidate family with
-  `minco-interaction` and `minco-plugin-ticketing` explicitly recorded as
-  unowned first-publication candidates.
+- Published the 36-package `1.10.0` family with `minco-interaction` and
+  `minco-plugin-ticketing` crossing their first-publication ownership boundary.
 
 ### Compatibility and evidence
 

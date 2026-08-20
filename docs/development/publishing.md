@@ -6,18 +6,19 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.9.0` release contains the complete lock-step 34-package
+The published `1.10.0` release contains the complete lock-step 36-package
 inventory. A workspace version or source tag is not registry proof: release
 status is verified independently against the exact crates.io records. The
 package inventory is derived from `[workspace.metadata.minco.release]` and
 checked against every publishable workspace member by
 `scripts/validate_publish.py`.
 
-The workspace is an unpublished `1.10.0` candidate with 36 publishable
-packages. `minco-interaction` and `minco-plugin-ticketing` are explicitly
-recorded in `new_publishable_packages`; neither name has crossed first manual
-publication or trusted-publisher configuration. Source qualification, hosted
-compatibility, tag, OIDC, registry, docs.rs and Pages evidence remain separate.
+The workspace is the published `1.10.0` source with 36 publishable packages.
+`minco-interaction` and `minco-plugin-ticketing` are explicitly recorded in
+`new_publishable_packages`; both crossed first manual publication and are owned
+on crates.io. Their future trusted-publisher configuration remains unverified.
+Source qualification, hosted compatibility, tag, registry, docs.rs and Pages
+evidence remain separate.
 
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
@@ -26,20 +27,20 @@ uploads, rich mail, owned local services and delivery evidence within the same
 family. The 1.3 release adds the opt-in Waffo payment boundary; the 1.6 release
 adds durable action auditing without changing package ownership; and the 1.7
 release changes only fresh automatic local dependency-runtime selection. The
-1.8 release adds object-transfer contracts without changing ownership. All 34
-packages in the published 1.9.0 baseline have crates.io ownership; the two
-1.10.0 additions do not. Source qualification or merge still must not be
-described as registry publication.
+1.8 release adds object-transfer contracts without changing ownership. The
+1.10 release adds the shared Interaction and beta Ticketing packages. All 36
+packages in the published 1.10.0 baseline now have crates.io ownership. Source
+qualification or merge still must not be described as registry publication.
 
-The exact published source is immutable tag `v1.9.0` at
-`8922aab5c9ed6770d8df7f5d906f768152d3e06c`. The complete local qualification,
-exact-main clean-Linux run `32246605343` and authentication-only OIDC run
-`32247017888` passed before guarded publication. Run `32247061809` passed its
-archive and external-consumer checks and uploaded the dependency-ordered family.
-Independent registry validation found every exact 1.9.0 version present and
-non-yanked. Later candidate qualification
-must use its own exact source and must not be described as registry, tag or
-deployment proof.
+The exact published source is immutable tag `v1.10.0` at
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`. The complete local qualification
+and exact-main clean-Linux run `32392228228` passed before manual authenticated
+publication. Archive and external-consumer checks passed before the
+dependency-ordered upload. Two crates.io rate limits were handled by querying
+the registry and resuming only the exact missing packages. Independent registry
+validation found every exact 1.10.0 version present and non-yanked. Later
+candidate qualification must use its own exact source and must not be described
+as registry, tag or deployment proof.
 
 The 1.3.0 first publication crossed the Waffo crate's ownership boundary. The
 1.4.0 recovery configured its exact trusted publisher without changing crate
@@ -72,7 +73,9 @@ verification, docs.rs and Pages deployment remain separate states.
 | `minco-plugin-events` | Transactional event/outbox contracts and dispatch primitives. |
 | `minco-plugin-notifications` | Notification contracts and bounded delivery providers. |
 | `minco-plugin-audit` | Durable audit contracts and adapters. |
+| `minco-interaction` | Provider-neutral support context, attachment, transcription, transition, and activity contracts. |
 | `minco-plugin-feedback` | Feedback capture, persistence, administration, and widget contract. |
+| `minco-plugin-ticketing` | Project-scoped Ticketing, atomic handoffs, requester-safe projections, and explicit persistence. |
 | `minco-plugin-static-site` | Static-site runtime integration. |
 | `minco-plugin-realtime` | Provider-neutral ephemeral publication and subscriber-only browser delivery contracts. |
 | `minco-plugin-payments-waffo` | Opt-in signed Waffo hosted checkout, read-only queries and verified webhook mechanics. |

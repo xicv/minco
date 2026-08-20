@@ -1,24 +1,33 @@
-# Minco 1.10.0 Ticketing candidate handoff
+# Minco 1.10.0 published release handoff
 
-Date: 2026-08-19
-Published baseline: `1.9.0`
+Date: 2026-08-21
+Published baseline: `1.10.0`
 Current workspace version: `1.10.0`
-Workspace release state: `candidate`
-Published `1.9.0` source: `8922aab5c9ed6770d8df7f5d906f768152d3e06c`
-Published source-tree digest: `b91dce1243c5e74ffbf3c11b168c8ed0689de397`
-Published release task: `M14-T39`
-Latest release task: `M14-T39` (`complete`)
-Active candidate task: `M14-T40`
+Workspace release state: `published`
+Published `1.10.0` source: `2075b60b8fe86c04d3c8289d71eb8293a39fc378`
+Published source-tree digest: `258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0`
+Published release task: `M14-T41`
+Latest release task: `M14-T41` (`active`: trusted-publisher and documentation-service closure)
+Completed candidate task: `M14-T40`
 Active evidence tasks: `M14-T10`, `M14-T20`
 
-## Active 1.10.0 Ticketing candidate
+## Published 1.10.0 Ticketing release
 
-M14-T40 introduces the public `minco-interaction` and
-`minco-plugin-ticketing` packages, preserves Feedback compatibility, and adds
-the portal-first launcher plus atomic handoff/persistence slice. The candidate
-family contains 36 publishable packages; the two new package names remain
-unowned and unpublished. No tag, registry upload, release, deployment, provider
-request, or production mutation is implied.
+PR #180 merged the exact locally qualified candidate as
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`; its Git tree is identical to
+candidate commit `fcf0cf88d541bb1f93e1b89300fe0c2de0020f27`. Exact-main hosted run
+`32392228228` passed before immutable tag `v1.10.0` was created. Manual
+authenticated publication crossed the two new-name ownership boundaries and,
+after two crates.io 429 responses, resumed only the independently proven
+missing packages. All 36 exact versions are present and non-yanked, and the
+GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.10.0>.
+
+The stable 1.10 manual and repository truth are being promoted separately.
+Future trusted-publisher configuration for `minco-interaction` and
+`minco-plugin-ticketing` remains unverified because browser control returned
+`Transport closed` twice before opening crates.io settings. No AWS, provider,
+application deployment or production mutation is implied.
 
 ## Completed 1.9.0 traffic and compression release
 

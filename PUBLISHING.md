@@ -2,31 +2,33 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 34-package lock-step `1.9.0`
-family from immutable tag `v1.9.0` at
-`8922aab5c9ed6770d8df7f5d906f768152d3e06c`. Source/package qualification,
+The current published boundary is the complete 36-package lock-step `1.10.0`
+family from immutable tag `v1.10.0` at
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is an unpublished `1.10.0` candidate with 36 publishable
-packages. `minco-interaction` and `minco-plugin-ticketing` are new
-first-publication candidates; neither crates.io ownership nor trusted
-publishing is claimed. The published `1.9.0` family remains the installable
-baseline. Local review does not authorize a tag, upload, release, deployment,
-provider request, or production mutation.
+The workspace is the published `1.10.0` source with 36 publishable packages.
+`minco-interaction` and `minco-plugin-ticketing` crossed their first-publication
+ownership boundary in this release. Their future trusted-publisher settings
+remain unverified because the crates.io browser session was unavailable. Local
+review does not authorize a later tag, upload, release, deployment, provider
+request, or production mutation.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
 mandatory release gates. Those checks do not invoke a model or measure human
 review effort.
 
-For the published 1.9.0 baseline, the exact release source passed the complete
-local qualification before merge and exact-main clean-Linux run `32246605343`.
-Authentication run `32247017888` proved the exact OIDC boundary without upload.
-Publication run `32247061809` passed archive and consumer checks before the
-dependency-ordered upload, and independent validation found all 34 exact
-versions present and non-yanked. That publication is not live provider, AWS,
-application deployment or production evidence.
+For the published 1.10.0 baseline, the exact release source passed the complete
+local qualification before PR #180 merged as
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`; exact-main clean-Linux run
+`32392228228` then passed. Manual authenticated publication passed archive and
+consumer checks, uploaded the dependency-ordered family, and resumed only the
+independently proven missing packages after two crates.io rate limits.
+Independent validation found all 36 exact versions present and non-yanked.
+That publication is not live provider, AWS, application deployment or
+production evidence.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a
 reviewed `Cargo.lock` before Cargo's package normalization and compilation gate:

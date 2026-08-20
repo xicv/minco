@@ -1,13 +1,18 @@
 ---
-title: Minco 1.10.0 Candidate
-description: Unpublished Minco 1.10.0 candidate documentation for contract-to-cloud Rust application development.
+title: Minco 1.10.0
+description: Stable Minco 1.10.0 documentation for portal-first Ticketing and contract-to-cloud Rust application development.
 ---
 
-# Minco 1.10.0 Candidate
+# Minco 1.10.0
 
-<p class="doc-kicker">Unpublished candidate manual</p>
+<p class="doc-kicker">Stable release manual</p>
 
-<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.9.0/">1.9.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
+<p class="doc-lead">This manual describes the published 1.10.0 release. It develops the same contract-to-cloud model as the <a href="../1.9.0/">1.9.0 manual</a> while adding the portal-first Ticketing support boundary.</p>
+
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.10.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
 
 The 1.8 release added [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,
@@ -15,7 +20,7 @@ quarantine, immutable updates, private caching and explicit cost boundaries.
 The 1.9 release added [gateway traffic protection](./guides/traffic-policy)
 and [negotiated response compression](./guides/http-compression) with the same
 additive, minimal-topology boundaries.
-The current candidate adds a [portal-first Ticketing support entry](./guides/ticketing)
+The 1.10 release adds a [portal-first Ticketing support entry](./guides/ticketing)
 with atomic one-time handoffs and requester-safe projections.
 
 ## Start with the outcome

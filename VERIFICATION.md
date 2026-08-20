@@ -1,23 +1,47 @@
 # Minco verification and release evidence
 
-Date: 2026-08-19
+Date: 2026-08-21
 Current workspace version: `1.10.0`
-Published baseline: `1.9.0`
-Workspace release state: `candidate`
+Published baseline: `1.10.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T41 `1.10.0` Ticketing release
+
+The exact candidate source digest
+`258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0`
+passed the uninterrupted full local release command with measured assurance,
+all 36 package archives and external consumers, SemVer checks for 34
+established packages plus the two-new-package boundary, deterministic
+Plan/SAM/Lambda artifacts, isolated PostgreSQL/Rustack, and Orders E2E. PR #180
+merged the same Git tree as
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`; hosted clean-Linux run
+`32392228228` passed on that exact `main` SHA.
+
+Immutable tag `v1.10.0` resolves to that merge commit. Manual authenticated
+publication uploaded 32 packages before crates.io rate-limited
+`minco-plugin-feedback`; independent registry proof identified exactly four
+missing packages. The first partial resume published Feedback, the new
+Ticketing crate, and `minco` before a second rate limit; a final one-package
+resume published `cargo-minco`. The retained
+`verification/1.10-published-release-validation.json` reports status `ok`, zero
+errors and warnings, and all 36 exact versions present and non-yanked. The
+GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.10.0>.
+
+The two new crate names are owned. Their future trusted-publisher settings are
+not yet verified: browser control returned exact error `Transport closed`
+twice before reaching crates.io settings. Pages and all docs.rs routes remain
+separate post-merge checks. No provider request, AWS application deployment or
+production mutation occurred.
+
 ## M14-T40 `1.10.0` Ticketing candidate
 
-The candidate adds `minco-interaction` and `minco-plugin-ticketing` as the 35th
-and 36th publishable packages. Their crates.io ownership and trusted-publisher
-configuration are not established or claimed. Local qualification covers the
-provider-neutral interaction boundary, Feedback compatibility, the Ticketing
-domain and HTTP contract, atomic memory/SQLite handoff consumption, idempotent
-external ingress, plugin conformance, and the packaged browser launcher.
-
-No registry upload, tag, GitHub release, hosted run, provider request,
-deployment, or production mutation is part of this candidate task.
+M14-T40 prepared the provider-neutral interaction boundary, Feedback
+compatibility, Ticketing domain and HTTP contract, atomic memory/SQLite handoff
+consumption, idempotent external ingress, plugin conformance, and packaged
+browser launcher that M14-T41 subsequently released.
 
 ## M14-T39 `1.9.0` traffic and compression release
 

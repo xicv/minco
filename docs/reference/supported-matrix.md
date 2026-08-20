@@ -1,21 +1,22 @@
 # Minco support matrix
 
-Published install baseline: `1.9.0`
+Published install baseline: `1.10.0`
 Current workspace version: `1.10.0`
 MSRV: Rust `1.97.1`
-Compatibility state: the published 1.9.0 family retains the 1.0 framework
+Compatibility state: the published 1.10.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
 descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
 rich mail, owned local services and release-bound evidence are published
 together with durable auditing, Apple-first fresh local services and direct
 resumable object transfers. It adds the API Gateway traffic policy and hardened
-negotiated compression inside the complete 34-package `v1.9.0` family.
+negotiated compression, shared Interaction, and beta Ticketing inside the
+complete 36-package `v1.10.0` family.
 Registry, docs.rs, stable documentation and application/live proof remain
 separate.
 
-The unpublished `1.10.0` candidate adds the shared Interaction crate and beta
-Ticketing plugin as the 35th and 36th publishable packages. Its local source
-evidence is not registry, provider, deployment, or production proof.
+The published `1.10.0` release adds the shared Interaction crate and beta
+Ticketing plugin as the 35th and 36th publishable packages. Registry
+publication is not provider, deployment, or production proof.
 
 The published 1.8.0 release adds provider-neutral transfer contracts and
 an authenticated object JSON control plane. S3 is the production-targeted byte
