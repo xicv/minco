@@ -49,3 +49,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0043](adrs/0043-durable-audit-ledger.md) | Record semantic actions through a separate durable audit ledger with provider-specific atomicity and lifecycle policy. | Accepted |
 | [ADR-0044](adrs/0044-apple-container-default.md) | Prefer a ready qualified Apple Container for fresh local services while retaining Docker fallback and exact-resource recovery. | Accepted |
 | [ADR-0045](adrs/0045-resumable-direct-object-transfers.md) | Keep large HTTP and mobile object transfers direct, resumable, immutable, validation-gated and structurally cost-aware. | Accepted |
+| [ADR-0046](adrs/0046-multi-surface-ticketing-entry.md) | Keep Ticketing portal-first and expose one privacy-bounded handoff contract to widgets, extensions, native clients and BFF integrations. | Proposed |
