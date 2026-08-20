@@ -17,37 +17,37 @@ contains no NAT Gateway, provisioned concurrency, scheduled poller, or
 always-on application compute. Storage, retained logs, DNS, secrets, database
 storage, schedules, requests, and other residual dimensions remain explicit.
 
-> Published baseline: `1.9.0`
+> Published baseline: `1.10.0`
 >
 > Current workspace version: `1.10.0`
 >
-> Workspace release state: `candidate`
+> Workspace release state: `published`
 >
 > Current publishable package count: `36`
 
-The source tree is an unpublished 1.10.0 candidate. Continue using the
-published 1.9.0 family unless explicitly qualifying the candidate; its two new
-package names have not crossed the crates.io ownership boundary.
+The complete 36-package 1.10.0 family is published from immutable tag
+`v1.10.0`. The two new package names are owned on crates.io; future trusted
+publisher configuration remains independently unverified.
 
 ## Documentation
 
 Read the [versioned Minco documentation](https://xicv.github.io/minco/), or
 start directly with:
 
-- [Build your first API](https://xicv.github.io/minco/1.9.0/getting-started/first-application)
-- [Protect traffic at the gateway](https://xicv.github.io/minco/1.9.0/guides/traffic-policy)
-- [Build a resource API](https://xicv.github.io/minco/1.9.0/guides/resource-api)
-- [Deploy to AWS](https://xicv.github.io/minco/1.9.0/guides/deployment)
-- [CLI reference](https://xicv.github.io/minco/1.9.0/reference/cli)
+- [Build your first API](https://xicv.github.io/minco/1.10.0/getting-started/first-application)
+- [Protect traffic at the gateway](https://xicv.github.io/minco/1.10.0/guides/traffic-policy)
+- [Build a resource API](https://xicv.github.io/minco/1.10.0/guides/resource-api)
+- [Deploy to AWS](https://xicv.github.io/minco/1.10.0/guides/deployment)
+- [CLI reference](https://xicv.github.io/minco/1.10.0/reference/cli)
 - [Generated package, feature, plugin, CLI, schema, and diagnostic reference](docs/reference/generated/index.md)
-- [Plugin conformance](https://xicv.github.io/minco/1.9.0/guides/plugin-conformance)
-- [Zero idle, precisely](https://xicv.github.io/minco/1.9.0/explanation/zero-idle)
-- [Develop with Codex and Claude](https://xicv.github.io/minco/1.9.0/guides/agent-development)
-- [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.9.0/guides/payments-waffo)
-- [Operate durable auditing](https://xicv.github.io/minco/1.9.0/guides/auditing)
-- [Use Apple-first local services](https://xicv.github.io/minco/1.9.0/guides/local-development)
-- [Transfer files directly](https://xicv.github.io/minco/1.9.0/guides/files-and-static-sites)
-- [Preview portal-first Ticketing](https://xicv.github.io/minco/1.10.0/guides/ticketing)
+- [Plugin conformance](https://xicv.github.io/minco/1.10.0/guides/plugin-conformance)
+- [Zero idle, precisely](https://xicv.github.io/minco/1.10.0/explanation/zero-idle)
+- [Develop with Codex and Claude](https://xicv.github.io/minco/1.10.0/guides/agent-development)
+- [Integrate Waffo hosted payments](https://xicv.github.io/minco/1.10.0/guides/payments-waffo)
+- [Operate durable auditing](https://xicv.github.io/minco/1.10.0/guides/auditing)
+- [Use Apple-first local services](https://xicv.github.io/minco/1.10.0/guides/local-development)
+- [Transfer files directly](https://xicv.github.io/minco/1.10.0/guides/files-and-static-sites)
+- [Use portal-first Ticketing](https://xicv.github.io/minco/1.10.0/guides/ticketing)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -59,7 +59,7 @@ Install the exact stable control plane:
 
 ```bash
 rustup toolchain install 1.97.1 --component clippy,rustfmt
-cargo +1.97.1 install cargo-minco --version 1.9.0 --locked
+cargo +1.97.1 install cargo-minco --version 1.10.0 --locked
 ```
 
 Generate and inspect a layered SQLite application:
@@ -76,18 +76,18 @@ cargo minco check --with-cargo
 Applications normally depend on the feature-gated facade:
 
 ```bash
-cargo add minco@1.9.0
+cargo add minco@1.10.0
 
 # PostgreSQL API on native Lambda
-cargo add minco@1.9.0 --features sqlx-postgres,aws-lambda,plan,release,test
+cargo add minco@1.10.0 --features sqlx-postgres,aws-lambda,plan,release,test
 
 # Provider-neutral core only
-cargo add minco@1.9.0 --no-default-features
+cargo add minco@1.10.0 --no-default-features
 ```
 
 ## Agent-native application development
 
-The `1.9.0` release packages nine focused, version-matched workflow skills
+The `1.10.0` release packages nine focused, version-matched workflow skills
 for Codex and Claude Code. Relevant skills teach the resumable object-transfer
 boundary while retaining Apple-first local services, exact-resource recovery,
 Docker fallback and durable auditing. The mandatory cumulative
@@ -107,7 +107,7 @@ cargo minco agent eval --target all --json
 Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
-the [1.9.0 agent development guide](https://xicv.github.io/minco/1.9.0/guides/agent-development).
+the [1.10.0 agent development guide](https://xicv.github.io/minco/1.10.0/guides/agent-development).
 
 Release qualification also verifies cumulative feature coverage, current
 versioned documentation, skill markers and a byte-identical deterministic
@@ -117,7 +117,7 @@ measured human-review effort remain `NOT RUN` for this release.
 
 ## The resource API convention
 
-Minco 1.9.0 retains the opt-in, OpenAPI-first CRUD convention without adding
+Minco 1.10.0 retains the opt-in, OpenAPI-first CRUD convention without adding
 an ORM or generic repository:
 
 | Action | Success | Control |
@@ -145,16 +145,16 @@ Audit storage does not silently rotate at a byte threshold. SQLite can seal
 explicit bounded segments, PostgreSQL normally uses time partitions, and
 DynamoDB can retain a hot horizon before a separately proven archive. Storage,
 PITR, relationship fanout and archive costs stay visible. See the
-[1.9.0 auditing guide](https://xicv.github.io/minco/1.9.0/guides/auditing).
+[1.10.0 auditing guide](https://xicv.github.io/minco/1.10.0/guides/auditing).
 
 ## Gateway traffic and response compression
 
 The `1.9.0` release adds an opt-in API Gateway HTTP traffic policy and a
 hardened negotiated response-compression boundary. Both remain additive,
 application-owned and free of new topology; see the
-[1.9.0 traffic guide](https://xicv.github.io/minco/1.9.0/guides/traffic-policy)
+[1.10.0 traffic guide](https://xicv.github.io/minco/1.10.0/guides/traffic-policy)
 and
-[compression guide](https://xicv.github.io/minco/1.9.0/guides/http-compression).
+[compression guide](https://xicv.github.io/minco/1.10.0/guides/http-compression).
 
 ## Direct object transfers
 
@@ -165,11 +165,11 @@ directly to private storage; the application still owns authorization, quotas,
 durable sessions, logical pointers, retention and content inspection. S3 is
 the production-targeted byte plane, while non-S3 providers must implement the
 additive streaming/signing/multipart contracts. See the
-[1.9.0 file guide](https://xicv.github.io/minco/1.9.0/guides/files-and-static-sites).
+[1.10.0 file guide](https://xicv.github.io/minco/1.10.0/guides/files-and-static-sites).
 
 ## Static plugin distribution and conformance
 
-The published `1.9.0` release includes strict, archive-visible plugin distribution
+The published `1.10.0` release includes strict, archive-visible plugin distribution
 records and one public offline conformance kit. Metadata can be inspected without
 loading plugin code; it never enables a crate or replaces explicit Cargo
 dependencies and typed constructor registration.
@@ -183,7 +183,7 @@ cargo minco plugin test --all --json
 Passing conformance proves the declared package and, when supplied, concrete
 composition behavior. Application, provider/live, deployment and production
 readiness remain distinct evidence states. See the
-[`1.9.0` plugin guide](https://xicv.github.io/minco/1.9.0/guides/plugin-conformance).
+[`1.10.0` plugin guide](https://xicv.github.io/minco/1.10.0/guides/plugin-conformance).
 
 ## Core guarantees
 
@@ -239,11 +239,11 @@ deployment, promotion, and production runtime are separate evidence states.
 
 ## Release
 
-The coordinated 34-crate `1.9.0` family is published from immutable tag
-[`v1.9.0`](https://github.com/xicv/minco/releases/tag/v1.9.0) at exact qualified
-commit `8922aab5c9ed6770d8df7f5d906f768152d3e06c`. Independent registry validation
-found all 34 exact versions present and non-yanked after the guarded
-dependency-ordered upload. Source, hosted qualification, tag, GitHub release,
+The coordinated 36-crate `1.10.0` family is published from immutable tag
+[`v1.10.0`](https://github.com/xicv/minco/releases/tag/v1.10.0) at exact qualified
+commit `2075b60b8fe86c04d3c8289d71eb8293a39fc378`. Independent registry validation
+found all 36 exact versions present and non-yanked after the guarded
+dependency-ordered upload and two rate-limit-safe, registry-proven resumes. Source, hosted qualification, tag, GitHub release,
 registry, docs.rs, stable documentation, AWS deployment and production runtime
 remain separately verified evidence states; no live provider, AWS application
 or production mutation was part of this crate release.

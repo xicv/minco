@@ -5,7 +5,7 @@ description: Install version-matched Minco skills, inspect bounded project conte
 
 # Develop with Codex and Claude Code
 
-The Minco 1.9.0 release packages nine focused application workflows for Codex
+The Minco 1.10.0 release packages nine focused application workflows for Codex
 and Claude Code. Relevant skills teach the direct resumable object-transfer
 boundary while preserving application authorization, quarantine, immutable
 updates and structural cost truth. The Apple-first local runtime, durable-audit,

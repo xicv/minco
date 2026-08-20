@@ -85,7 +85,7 @@
       },
       {
         "version": "1.10.0",
-        "changelog_sha256": "144034f471c075b9d41a05d0e5de12bd2df8a4d04e1011a75bcd0d9ec1f230c7",
+        "changelog_sha256": "4481b6c7168265e773915ff549a65c318b6cf5d606c0051c9c9bfb4628d66397",
         "features": [
           "ticketing-support-entry"
         ]
@@ -516,7 +516,7 @@
           "Added the beta `minco-plugin-ticketing` crate",
           "Added a packaged framework-neutral support launcher",
           "Moved provider-neutral transcription primitives out of Feedback",
-          "Opened the 36-package `1.10.0` candidate family",
+          "Published the 36-package `1.10.0` family",
           "Kept trusted requester identity and permissions server-derived",
           "Added no portal hosting, mailbox polling"
         ]

@@ -1,5 +1,23 @@
 # Review status
 
+## Released M14-T41 Minco 1.10.0 Ticketing support entry
+
+Minco `1.10.0` is the current published baseline from immutable tag `v1.10.0`
+at `2075b60b8fe86c04d3c8289d71eb8293a39fc378`. Review preserved all existing
+Feedback public names while extracting provider-neutral Interaction services,
+proved Ticketing authorization, privacy, idempotency and atomic handoffs, and
+kept the plugin opt-in with no portal host, mailbox poller, schedule, fixed
+compute or provider default. The full local release matrix, 36-package archive
+and external-consumer checks, exact-main hosted run `32392228228`, immutable
+tag, registry-proven partial-upload recovery, all 36 exact non-yanked versions,
+and the GitHub release passed as separate evidence lanes.
+
+The stable 1.10 documentation and all nine packaged AI skills are current in
+source. Future trusted-publisher settings for the two newly claimed crates are
+not verified because the crates.io browser bridge returned `Transport closed`.
+Pages, docs.rs, live-provider, AWS deployment, hosted-performance and production
+runtime remain separate evidence states.
+
 ## Completed M14-T39 Minco 1.9.0 traffic and compression release
 
 Minco `1.9.0` is the current published baseline from immutable tag `v1.9.0` at

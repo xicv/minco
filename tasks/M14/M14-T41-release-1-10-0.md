@@ -115,6 +115,29 @@ verify the complete family before configuring their future trusted publishers.
 
 ## Evidence
 
-Pending exact-source qualification, hosted compatibility, tag, publication,
-registry, GitHub release, docs.rs and stable Pages evidence. These states will
-be recorded separately as they become authoritative.
+Released on 2026-08-21 local time. Candidate commit
+`fcf0cf88d541bb1f93e1b89300fe0c2de0020f27` with source digest
+`258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0`
+passed the uninterrupted full local release qualification, including measured
+assurance, 34 established-package SemVer comparisons, the two-new-package
+boundary, all 36 archives and external consumers, deterministic artifacts,
+owned isolated PostgreSQL/Rustack, and Orders E2E. PR #180 merged the same Git
+tree as `2075b60b8fe86c04d3c8289d71eb8293a39fc378`; exact-main hosted run
+`32392228228` passed before immutable tag `v1.10.0` was pushed.
+
+Manual authenticated publication uploaded 32 packages before crates.io returned
+429 with retry time `2026-08-20T16:44:16Z`. Independent registry validation
+proved exactly four packages missing. A four-package partial resume published
+Feedback, the new Ticketing crate, and `minco` before a second 429 with retry
+time `2026-08-20T16:46:16Z`; a final `cargo-minco`-only resume passed.
+`verification/1.10-published-release-validation.json` reports status `ok`, zero
+errors and warnings, and all 36 exact versions present and non-yanked. The
+GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.10.0>.
+
+The two new crate names crossed ownership. Future trusted-publisher
+configuration is still pending because the browser-control bridge returned
+exact error `Transport closed` twice before any crates.io settings page was
+accessed. Stable Pages and all exact docs.rs routes also remain independent
+post-merge checks. The task therefore remains active; no AWS, provider,
+application deployment or production mutation is claimed.
