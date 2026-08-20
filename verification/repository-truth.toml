@@ -1,8 +1,8 @@
 schema = 1
-workspace_version = "1.9.0"
+workspace_version = "1.10.0"
 published_baseline = "1.9.0"
 published_release_commit = "8922aab5c9ed6770d8df7f5d906f768152d3e06c"
-workspace_release_state = "published"
+workspace_release_state = "candidate"
 operational_evidence_effective_date = "2026-08-12"
 published_package_count = 34
 adoption_gate_task = "M6-T07"
@@ -10,16 +10,15 @@ qualified_candidate_task = "M12-T06"
 qualified_candidate_source_tree_sha256 = "a678ebf52b4c7a9f60ae9adb43221984b5f5884d44f5d0400e14781a5bf28554"
 qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench"]
 post_candidate_tasks = ["M6-T01", "M12-T07"]
-published_release_task = "M14-T37"
+published_release_task = "M14-T39"
 published_source_tree_sha256 = "b91dce1243c5e74ffbf3c11b168c8ed0689de397"
-release_candidate_task = "M14-T36"
+release_candidate_task = "M14-T40"
 
-# The published 1.8.0 baseline is the complete 34-package family from immutable
-# tag v1.8.0. It adds direct resumable object-transfer contracts while retaining
-# package inventory, application authority, minimal topology and separate
-# live-provider evidence.
-publishable_package_count = 34
-new_publishable_packages = []
+# The published 1.9.0 baseline is the complete 34-package family from immutable
+# tag v1.9.0. The unpublished 1.10.0 candidate adds two public packages; neither
+# name has crossed the crates.io ownership or trusted-publisher boundary.
+publishable_package_count = 36
+new_publishable_packages = ["minco-interaction", "minco-plugin-ticketing"]
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760

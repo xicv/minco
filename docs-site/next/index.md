@@ -15,6 +15,8 @@ quarantine, immutable updates, private caching and explicit cost boundaries.
 The 1.9 release added [gateway traffic protection](./guides/traffic-policy)
 and [negotiated response compression](./guides/http-compression) with the same
 additive, minimal-topology boundaries.
+The current candidate adds a [portal-first Ticketing support entry](./guides/ticketing)
+with atomic one-time handoffs and requester-safe projections.
 
 ## Start with the outcome
 
@@ -165,7 +167,9 @@ boot-time production migrations.
   [events and notifications](./guides/events-and-notifications),
   [files and static sites](./guides/files-and-static-sites), the
   [realtime invalidation path](./guides/realtime), or the
-  [client feedback loop](./guides/feedback).
+  [client feedback loop](./guides/feedback). Use
+  [Ticketing support entry](./guides/ticketing) when the application needs a
+  project-scoped requester and agent conversation rather than a review thread.
 - Inspect the same bounded project model through
   [ProjectView, MCP, and the local workbench](./guides/project-view), or select
   the [DynamoDB Orders adapter](./guides/dynamodb).

@@ -6,12 +6,13 @@ Published release: `1.9.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.9.0` published
+Current workspace: `1.10.0` unpublished candidate
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1 through published 1.8.0 release lines. Merge, tag,
+the 1.1 through published 1.9.0 release lines and the additive 1.10.0
+candidate. Merge, tag,
 registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
@@ -72,7 +73,7 @@ source-compatible struct-shape change.
 
 The generated references are the exhaustive inventory authorities. The freeze
 applies to every rustdoc-visible public item in the
-[34 publishable packages](generated/packages.md), all named package features,
+[36 publishable packages](generated/packages.md), all named package features,
 the complete [CLI](generated/cli.md), the generated configuration and Plan
 [schemas](generated/schemas.md), the plugin [distribution contract](generated/plugins.md),
 and the generated [diagnostic codes](generated/diagnostics.md).

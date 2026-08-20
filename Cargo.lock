@@ -928,7 +928,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-minco"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -1420,7 +1420,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2385,7 +2385,7 @@ dependencies = [
 
 [[package]]
 name = "minco"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "minco-aws-adapters",
  "minco-aws-dynamodb",
@@ -2396,6 +2396,7 @@ dependencies = [
  "minco-core",
  "minco-db",
  "minco-http",
+ "minco-interaction",
  "minco-plan",
  "minco-plugin-audit",
  "minco-plugin-events",
@@ -2410,6 +2411,7 @@ dependencies = [
  "minco-plugin-realtime",
  "minco-plugin-sessions",
  "minco-plugin-static-site",
+ "minco-plugin-ticketing",
  "minco-release",
  "minco-sqlx-postgres",
  "minco-sqlx-sqlite",
@@ -2418,7 +2420,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-adapters"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2456,7 +2458,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-dynamodb"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2476,7 +2478,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-lambda"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -2493,7 +2495,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-worker"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "aws_lambda_events",
@@ -2508,7 +2510,7 @@ dependencies = [
 
 [[package]]
 name = "minco-config"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "hex",
  "minco-core",
@@ -2522,7 +2524,7 @@ dependencies = [
 
 [[package]]
 name = "minco-contract"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "chrono",
  "hex",
@@ -2537,7 +2539,7 @@ dependencies = [
 
 [[package]]
 name = "minco-core"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "semver",
  "serde",
@@ -2547,7 +2549,7 @@ dependencies = [
 
 [[package]]
 name = "minco-db"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "hex",
  "serde",
@@ -2560,7 +2562,7 @@ dependencies = [
 
 [[package]]
 name = "minco-deploy-aws"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "hex",
  "minco-plugin-static-site",
@@ -2576,7 +2578,7 @@ dependencies = [
 
 [[package]]
 name = "minco-dev"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "reqwest",
  "rustix",
@@ -2589,7 +2591,7 @@ dependencies = [
 
 [[package]]
 name = "minco-http"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "axum",
  "http 1.5.0",
@@ -2608,8 +2610,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "minco-interaction"
+version = "1.10.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "hex",
+ "minco-plugin-audit",
+ "minco-plugin-events",
+ "minco-plugin-notifications",
+ "minco-plugin-object-storage",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "subtle",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "minco-mcp"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "minco-project-view",
  "rmcp",
@@ -2622,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plan"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "http 1.5.0",
  "minco-contract",
@@ -2636,7 +2662,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-audit"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2651,7 +2677,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-events"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2666,7 +2692,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-feedback"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2676,6 +2702,7 @@ dependencies = [
  "minco-contract",
  "minco-core",
  "minco-http",
+ "minco-interaction",
  "minco-plugin-audit",
  "minco-plugin-events",
  "minco-plugin-health",
@@ -2689,7 +2716,6 @@ dependencies = [
  "sha2 0.11.0",
  "sqlx",
  "subtle",
- "tempfile",
  "thiserror",
  "tokio",
  "tower",
@@ -2699,7 +2725,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-health"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2710,7 +2736,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-idempotency"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2727,7 +2753,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-identity"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2741,7 +2767,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-notifications"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2760,7 +2786,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-object-storage"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2782,7 +2808,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-observability"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "minco-core",
  "semver",
@@ -2795,7 +2821,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-payments-waffo"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "apollo-parser",
@@ -2824,7 +2850,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-realtime"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2838,7 +2864,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-sessions"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2855,7 +2881,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-static-site"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "hex",
@@ -2870,8 +2896,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "minco-plugin-ticketing"
+version = "1.10.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "hex",
+ "http 1.5.0",
+ "minco-contract",
+ "minco-core",
+ "minco-http",
+ "minco-interaction",
+ "minco-plugin-audit",
+ "minco-plugin-events",
+ "minco-plugin-health",
+ "minco-plugin-identity",
+ "minco-plugin-notifications",
+ "minco-plugin-object-storage",
+ "minco-test",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "subtle",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tower",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "minco-project-view"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "hex",
  "minco-contract",
@@ -2888,7 +2949,7 @@ dependencies = [
 
 [[package]]
 name = "minco-release"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "chrono",
  "hex",
@@ -2901,7 +2962,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-postgres"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2922,7 +2983,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-sqlite"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2942,7 +3003,7 @@ dependencies = [
 
 [[package]]
 name = "minco-test"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "axum",
  "http 1.5.0",
@@ -2958,7 +3019,7 @@ dependencies = [
 
 [[package]]
 name = "minco-workbench"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "axum",
  "minco-project-view",
@@ -3063,7 +3124,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "orders-adapters"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "aws-sdk-dynamodb",
@@ -3085,7 +3146,7 @@ dependencies = [
 
 [[package]]
 name = "orders-api"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -3108,7 +3169,7 @@ dependencies = [
 
 [[package]]
 name = "orders-application"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3124,7 +3185,7 @@ dependencies = [
 
 [[package]]
 name = "orders-domain"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "chrono",
  "serde",
@@ -3134,7 +3195,7 @@ dependencies = [
 
 [[package]]
 name = "orders-service"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3346,7 +3407,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3574,7 +3635,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3632,7 +3693,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4274,7 +4335,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4887,7 +4948,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

@@ -35,6 +35,10 @@ pub use minco_contract as contract;
 /// Axum and Tower delivery conventions.
 pub use minco_http as http;
 
+#[cfg(feature = "interaction")]
+/// Provider-neutral support entry, attachments, transcription, and workflow primitives.
+pub use minco_interaction as interaction;
+
 #[cfg(feature = "plan")]
 /// Provider-neutral deployment planning, structural cost checks, and SAM rendering.
 pub use minco_plan as plan;
@@ -90,6 +94,10 @@ pub use minco_plugin_audit as plugin_audit;
 #[cfg(feature = "plugin-feedback")]
 /// Official AI-ready client feedback-loop plugin.
 pub use minco_plugin_feedback as plugin_feedback;
+
+#[cfg(feature = "plugin-ticketing")]
+/// Official project-scoped support Ticketing plugin.
+pub use minco_plugin_ticketing as plugin_ticketing;
 
 #[cfg(feature = "plugin-static-site")]
 /// Official provider-neutral static-site deployment plugin.
@@ -195,6 +203,9 @@ fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), cor
 
     #[cfg(feature = "plugin-feedback")]
     manager.register(plugin_feedback::FeedbackPlugin::memory())?;
+
+    #[cfg(feature = "plugin-ticketing")]
+    manager.register(plugin_ticketing::TicketingPlugin::memory())?;
 
     #[cfg(feature = "plugin-static-site")]
     manager.register(plugin_static_site::StaticSitePlugin::default())?;

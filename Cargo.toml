@@ -14,6 +14,7 @@ members = [
   "crates/minco-workbench",
   "crates/minco-release",
   "crates/minco-http",
+  "crates/minco-interaction",
   "crates/minco-test",
   "crates/minco-cli",
   "plugins/minco-plugin-health",
@@ -27,6 +28,7 @@ members = [
   "plugins/minco-plugin-notifications",
   "plugins/minco-plugin-audit",
   "plugins/minco-plugin-feedback",
+  "plugins/minco-plugin-ticketing",
   "plugins/minco-plugin-static-site",
   "plugins/minco-plugin-realtime",
   "extensions/minco-sqlx-postgres",
@@ -55,6 +57,7 @@ default-members = [
   "crates/minco-workbench",
   "crates/minco-release",
   "crates/minco-http",
+  "crates/minco-interaction",
   "crates/minco-test",
   "crates/minco-cli",
   "plugins/minco-plugin-health",
@@ -68,6 +71,7 @@ default-members = [
   "plugins/minco-plugin-notifications",
   "plugins/minco-plugin-audit",
   "plugins/minco-plugin-feedback",
+  "plugins/minco-plugin-ticketing",
   "plugins/minco-plugin-static-site",
   "plugins/minco-plugin-realtime",
   "extensions/minco-sqlx-postgres",
@@ -84,7 +88,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "1.9.0"
+version = "1.10.0"
 edition = "2024"
 rust-version = "1.97.1"
 license = "MIT OR Apache-2.0"
@@ -161,40 +165,42 @@ zeroize = "1.9"
 
 # Every publishable path dependency carries an explicit version. Cargo removes
 # the path when packaging and resolves the version from the target registry.
-minco = { version = "1.9.0", path = "crates/minco", default-features = false }
-minco-config = { version = "1.9.0", path = "crates/minco-config" }
-minco-db = { version = "1.9.0", path = "crates/minco-db" }
-minco-dev = { version = "1.9.0", path = "crates/minco-dev" }
-minco-core = { version = "1.9.0", path = "crates/minco-core" }
-minco-contract = { version = "1.9.0", path = "crates/minco-contract" }
-minco-deploy-aws = { version = "1.9.0", path = "crates/minco-deploy-aws" }
-minco-plan = { version = "1.9.0", path = "crates/minco-plan" }
-minco-project-view = { version = "1.9.0", path = "crates/minco-project-view" }
-minco-mcp = { version = "1.9.0", path = "crates/minco-mcp" }
-minco-workbench = { version = "1.9.0", path = "crates/minco-workbench" }
-minco-release = { version = "1.9.0", path = "crates/minco-release" }
-minco-http = { version = "1.9.0", path = "crates/minco-http" }
-minco-test = { version = "1.9.0", path = "crates/minco-test" }
-minco-plugin-health = { version = "1.9.0", path = "plugins/minco-plugin-health" }
-minco-plugin-observability = { version = "1.9.0", path = "plugins/minco-plugin-observability" }
-minco-plugin-idempotency = { version = "1.9.0", path = "plugins/minco-plugin-idempotency" }
-minco-plugin-payments-waffo = { version = "1.9.0", path = "plugins/minco-plugin-payments-waffo", default-features = false }
-minco-plugin-sessions = { version = "1.9.0", path = "plugins/minco-plugin-sessions" }
-minco-plugin-identity = { version = "1.9.0", path = "plugins/minco-plugin-identity" }
-minco-plugin-object-storage = { version = "1.9.0", path = "plugins/minco-plugin-object-storage" }
-minco-plugin-events = { version = "1.9.0", path = "plugins/minco-plugin-events" }
-minco-plugin-notifications = { version = "1.9.0", path = "plugins/minco-plugin-notifications" }
-minco-plugin-audit = { version = "1.9.0", path = "plugins/minco-plugin-audit" }
-minco-plugin-feedback = { version = "1.9.0", path = "plugins/minco-plugin-feedback", default-features = false }
-minco-plugin-static-site = { version = "1.9.0", path = "plugins/minco-plugin-static-site" }
-minco-plugin-realtime = { version = "1.9.0", path = "plugins/minco-plugin-realtime" }
-minco-sqlx-postgres = { version = "1.9.0", path = "extensions/minco-sqlx-postgres" }
-minco-sqlx-sqlite = { version = "1.9.0", path = "extensions/minco-sqlx-sqlite" }
-minco-aws-adapters = { version = "1.9.0", path = "extensions/minco-aws-adapters" }
-minco-aws-dynamodb = { version = "1.9.0", path = "extensions/minco-aws-dynamodb" }
-minco-aws-lambda = { version = "1.9.0", path = "extensions/minco-aws-lambda" }
-minco-aws-worker = { version = "1.9.0", path = "extensions/minco-aws-worker" }
-cargo-minco = { version = "1.9.0", path = "crates/minco-cli" }
+minco = { version = "1.10.0", path = "crates/minco", default-features = false }
+minco-config = { version = "1.10.0", path = "crates/minco-config" }
+minco-db = { version = "1.10.0", path = "crates/minco-db" }
+minco-dev = { version = "1.10.0", path = "crates/minco-dev" }
+minco-core = { version = "1.10.0", path = "crates/minco-core" }
+minco-contract = { version = "1.10.0", path = "crates/minco-contract" }
+minco-deploy-aws = { version = "1.10.0", path = "crates/minco-deploy-aws" }
+minco-plan = { version = "1.10.0", path = "crates/minco-plan" }
+minco-project-view = { version = "1.10.0", path = "crates/minco-project-view" }
+minco-mcp = { version = "1.10.0", path = "crates/minco-mcp" }
+minco-workbench = { version = "1.10.0", path = "crates/minco-workbench" }
+minco-release = { version = "1.10.0", path = "crates/minco-release" }
+minco-http = { version = "1.10.0", path = "crates/minco-http" }
+minco-interaction = { version = "1.10.0", path = "crates/minco-interaction" }
+minco-test = { version = "1.10.0", path = "crates/minco-test" }
+minco-plugin-health = { version = "1.10.0", path = "plugins/minco-plugin-health" }
+minco-plugin-observability = { version = "1.10.0", path = "plugins/minco-plugin-observability" }
+minco-plugin-idempotency = { version = "1.10.0", path = "plugins/minco-plugin-idempotency" }
+minco-plugin-payments-waffo = { version = "1.10.0", path = "plugins/minco-plugin-payments-waffo", default-features = false }
+minco-plugin-sessions = { version = "1.10.0", path = "plugins/minco-plugin-sessions" }
+minco-plugin-identity = { version = "1.10.0", path = "plugins/minco-plugin-identity" }
+minco-plugin-object-storage = { version = "1.10.0", path = "plugins/minco-plugin-object-storage" }
+minco-plugin-events = { version = "1.10.0", path = "plugins/minco-plugin-events" }
+minco-plugin-notifications = { version = "1.10.0", path = "plugins/minco-plugin-notifications" }
+minco-plugin-audit = { version = "1.10.0", path = "plugins/minco-plugin-audit" }
+minco-plugin-feedback = { version = "1.10.0", path = "plugins/minco-plugin-feedback", default-features = false }
+minco-plugin-ticketing = { version = "1.10.0", path = "plugins/minco-plugin-ticketing", default-features = false }
+minco-plugin-static-site = { version = "1.10.0", path = "plugins/minco-plugin-static-site" }
+minco-plugin-realtime = { version = "1.10.0", path = "plugins/minco-plugin-realtime" }
+minco-sqlx-postgres = { version = "1.10.0", path = "extensions/minco-sqlx-postgres" }
+minco-sqlx-sqlite = { version = "1.10.0", path = "extensions/minco-sqlx-sqlite" }
+minco-aws-adapters = { version = "1.10.0", path = "extensions/minco-aws-adapters" }
+minco-aws-dynamodb = { version = "1.10.0", path = "extensions/minco-aws-dynamodb" }
+minco-aws-lambda = { version = "1.10.0", path = "extensions/minco-aws-lambda" }
+minco-aws-worker = { version = "1.10.0", path = "extensions/minco-aws-worker" }
+cargo-minco = { version = "1.10.0", path = "crates/minco-cli" }
 
 # Private reference-application packages. They remain path-only and cannot be
 # published accidentally.
@@ -230,12 +236,14 @@ package_tests = [
   "minco-db",
   "minco-deploy-aws",
   "minco-dev",
+  "minco-interaction",
   "minco-plugin-realtime",
   "minco-project-view",
   "minco-mcp",
   "minco-workbench",
   "minco-aws-dynamodb",
   "minco-plugin-payments-waffo",
+  "minco-plugin-ticketing",
 ]
 publish = [
   "minco-core",
@@ -261,9 +269,11 @@ publish = [
   "minco-plugin-events",
   "minco-plugin-notifications",
   "minco-plugin-audit",
+  "minco-interaction",
   "minco-sqlx-postgres",
   "minco-sqlx-sqlite",
   "minco-plugin-feedback",
+  "minco-plugin-ticketing",
   "minco-plugin-realtime",
   "minco-plugin-payments-waffo",
   "minco-aws-adapters",

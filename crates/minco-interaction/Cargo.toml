@@ -1,0 +1,51 @@
+[package]
+name = "minco-interaction"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Provider-neutral support entry, attachments, transcription, workflow, and activity helpers for Minco applications"
+documentation = "https://docs.rs/minco-interaction"
+readme = "README.md"
+keywords = ["minco", "support", "attachments", "transcription"]
+categories = ["web-programming", "development-tools"]
+publish = ["crates-io"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[features]
+default = []
+openai-transcription = ["dep:reqwest"]
+command-transcription = ["dep:tempfile", "dep:tokio"]
+full = ["openai-transcription", "command-transcription"]
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+hex.workspace = true
+minco-plugin-audit.workspace = true
+minco-plugin-events.workspace = true
+minco-plugin-notifications.workspace = true
+minco-plugin-object-storage.workspace = true
+reqwest = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+tempfile = { workspace = true, optional = true }
+thiserror.workspace = true
+tokio = { workspace = true, optional = true }
+url.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

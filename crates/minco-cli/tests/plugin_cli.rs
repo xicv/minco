@@ -1011,7 +1011,14 @@ fn plugin_test_all_uses_the_public_offline_conformance_boundary() {
     );
     let reports: Value = serde_json::from_slice(&output.stdout).expect("conformance JSON");
     let reports = reports.as_array().expect("conformance reports");
-    assert_eq!(reports.len(), 19);
+    let catalog: toml::Value = toml::from_str(
+        &fs::read_to_string(workspace_root().join("plugins/catalog.toml")).expect("plugin catalog"),
+    )
+    .expect("valid plugin catalog");
+    let catalog_entries = catalog["plugin"]
+        .as_array()
+        .expect("plugin catalog entries");
+    assert_eq!(reports.len(), catalog_entries.len());
     assert!(
         reports
             .iter()
@@ -1026,6 +1033,11 @@ fn plugin_test_all_uses_the_public_offline_conformance_boundary() {
         reports
             .iter()
             .any(|report| report["plugin_id"] == "payments-waffo")
+    );
+    assert!(
+        reports
+            .iter()
+            .any(|report| report["plugin_id"] == "ticketing")
     );
     for report in reports {
         assert_eq!(report["status"], "passed", "{report:#}");

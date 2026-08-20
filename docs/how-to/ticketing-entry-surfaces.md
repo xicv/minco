@@ -65,6 +65,10 @@ The browser posts only bounded context to the same-origin host endpoint. The hos
 endpoint derives trusted identity from its existing authenticated session and
 calls the private Ticketing integration operation.
 
+Page titles are not captured automatically. A host may opt in by supplying
+`page_title` through `MincoSupport.getContext`; avoid doing that on pages whose
+titles contain customer, employee, health or financial data.
+
 A host with a custom client or CSRF mechanism can provide callbacks instead:
 
 ```js
@@ -162,6 +166,10 @@ history and creates the first ticket or requester session through one atomic
 store operation. Store only the handoff digest. A repeated consume returns the
 same safe idempotent result only when the original operation completed; a
 concurrent second consumer must not create another session or ticket.
+
+The exchange sends the bearer only in `X-Minco-Ticketing-Handoff`. Configure the
+Minco HTTP header policy to mark that header sensitive. Do not copy it into a
+cookie, query, path, audit record, activity metadata or error detail.
 
 Recommended defaults:
 
@@ -288,6 +296,20 @@ Declare every worker, queue, DLQ, subscription-renewal schedule and recovery
 poller. The base Ticketing plugin must not silently install an always-on worker
 or schedule.
 
+## External email ingress boundary
+
+SES receipt processing and Microsoft Graph mailbox synchronization are separate
+adapters outside the Ticketing domain. They normalize a provider, mailbox scope,
+provider message ID, full-content SHA-256, optional raw-message object key,
+Internet Message ID, `In-Reply-To` and `References`. Ticketing deduplicates on
+project plus provider plus mailbox scope plus provider message ID. Replaying the
+same identity and digest is safe; reusing the identity with different content
+fails closed. Never thread by subject alone.
+
+Provider adapters must own receipt/webhook validation, raw-message retention,
+delta recovery, subscription renewal, retry and DLQ policy. The base plugin
+configures no mailbox, cloud receipt action, queue, worker, poller or schedule.
+
 ## Qualification
 
 Before promoting the example into the published plugin asset, prove:
@@ -298,8 +320,9 @@ npm test
 npm run check
 ```
 
-Then add browser tests for keyboard use, modal/tab fallback, mobile viewport,
-strict `postMessage`, exact-origin launch validation, CSP failure, blocked iframe
-storage and no horizontal overflow. The plugin's Rust handoff and persistence
-implementation requires its own unit, concurrency, SQLite and Axum contract
-qualification.
+The committed Playwright suite runs those journeys in Chromium and Firefox,
+including keyboard focus restoration, modal/tab fallback, mobile full-screen
+layout at 200% zoom, reduced motion, strict cross-origin `postMessage`, exact-
+origin launch validation, readiness fallback and no-opener tab reservation. The
+plugin's Rust handoff and persistence implementation separately requires unit,
+concurrency, real temporary SQLite and Axum/OpenAPI contract qualification.

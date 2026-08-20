@@ -4,6 +4,10 @@
   "type": "module",
   "scripts": {
     "test": "node --test support-entry.test.js",
-    "check": "node --check support-entry.js"
+    "check": "node --check support-entry.js",
+    "test:browser": "playwright test --config playwright.config.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
   }
 }

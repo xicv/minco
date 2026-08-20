@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -48,6 +48,37 @@ that merely opens a website has weak product and store-review value. A Minco
 extension therefore needs an actual user-invoked capability such as confirmed
 page-context capture, selected-text capture, screenshot capture or ticket lookup;
 it must not be the default installation path.
+
+Primary-source research was refreshed on 2026-08-20. The reviewed sources were
+Chatwoot's hosted help-center and user guide, Frappe Helpdesk's portal and email
+guides, the Papercups widget/source repositories, FreeScout and Zammad channel
+documentation, Chrome's Manifest V3, `activeTab`, remote-code and minimum-
+functionality policies, MDN's exact-origin `postMessage` guidance, AWS SES
+receipt/S3 action documentation, and Microsoft Graph change-notification and
+message-delta documentation. The decision borrows only the portal/widget/channel
+separation and recovery patterns; it does not adopt any provider's runtime,
+dynamic plugin, mailbox or deployment architecture.
+
+References reviewed:
+
+- <https://www.chatwoot.com/product/help-center>
+- <https://www.chatwoot.com/hc/user-guide/en/>
+- <https://docs.frappe.io/helpdesk/your-first-steps-with-frappe-helpdesk>
+- <https://docs.frappe.io/helpdesk/email-communication>
+- <https://github.com/papercups-io/chat-widget>
+- <https://github.com/papercups-io/papercups>
+- <https://github.com/freescout-help-desk/freescout>
+- <https://admin-docs.zammad.org/en/latest/channels/email/index.html>
+- <https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3>
+- <https://developer.chrome.com/docs/extensions/develop/concepts/activeTab>
+- <https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements>
+- <https://developer.chrome.com/docs/webstore/program-policies/policies>
+- <https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage>
+- <https://docs.aws.amazon.com/ses/latest/dg/receiving-email-concepts.html>
+- <https://docs.aws.amazon.com/ses/latest/dg/receiving-email-action-s3.html>
+- <https://learn.microsoft.com/en-us/graph/change-notifications-overview>
+- <https://learn.microsoft.com/en-us/graph/change-notifications-lifecycle-events>
+- <https://learn.microsoft.com/en-us/graph/delta-query-messages>
 
 ## Decision
 
@@ -229,11 +260,11 @@ blast radius and supports revocation by consumption.
 
 ## Compatibility
 
-This decision is additive. The existing Feedback widget and routes remain
-unchanged until their shared interaction pieces are moved with public aliases
-and regression fixtures. The browser reference under `examples/ticketing-entry`
-is not yet a published Minco API; it proves the contract before the Ticketing
-plugin freezes it.
+This decision is additive. The existing Feedback widget, routes, persisted
+records, Cargo features and Rust names remain available through compatibility
+aliases. The browser reference under `examples/ticketing-entry` is also served
+by the disabled beta Ticketing plugin only after its unit and real-browser gates
+pass; the portal itself remains application-owned.
 
 ## Safety
 

@@ -54,3 +54,7 @@ responses on fastest gzip with Tower HTTP's content-type exclusions composed
 and use the per-response `DisableResponseCompression` opt-out for
 secret-bearing reflections. Leave static assets to CloudFront and never
 reflect credentials into compressed bodies.
+
+At the 1.10 Ticketing support-entry boundary, pass only bounded untrusted page
+context, use fragment-only handoffs, validate the exact portal origin and
+message shape, and keep modal focus and tab fallback behavior accessible.

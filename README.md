@@ -19,11 +19,15 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.9.0`
 >
-> Current workspace version: `1.9.0`
+> Current workspace version: `1.10.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
-> Current publishable package count: `34`
+> Current publishable package count: `36`
+
+The source tree is an unpublished 1.10.0 candidate. Continue using the
+published 1.9.0 family unless explicitly qualifying the candidate; its two new
+package names have not crossed the crates.io ownership boundary.
 
 ## Documentation
 

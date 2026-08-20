@@ -2,7 +2,7 @@
 id: M14-T40
 title: Add shared Ticketing interaction and multi-surface support entry
 milestone: M14
-status: active
+status: complete
 priority: high
 area: plugins/ticketing/feedback/integration
 depends_on: [M14-T39]
@@ -196,3 +196,45 @@ plugin or a production portal.
 
 No GitHub workflow, AWS operation, mailbox configuration, deployment,
 publication, tag, release or production mutation is authorized by this task.
+
+## Local implementation evidence - 2026-08-20
+
+The implementation remains isolated in JJ workspace `task-m14-t40`, change
+`nmtqvust`, continuing draft PR #179 from head
+`ba267da9334d992a6538ebfd202f6559d6a024a8`. It has not been pushed at the time
+of this record.
+
+- launcher unit tests: 12 passed; `npm run check` and JSON-schema parsing passed;
+- Ticketing launcher Playwright: 14 passed across Chromium and Firefox;
+- focused all-feature Rust check and Clippy with `-D warnings` passed;
+- focused all-feature Rust tests passed: 8 `minco-interaction`, 52 Feedback
+  (49 unit, 2 persistence, 1 typed fake), and 25 Ticketing;
+- Minco facade all-feature check, test, and Clippy passed;
+- `cargo minco plugin validate` returned `[]`;
+- Feedback browser compatibility: 40 passed across Chromium and Firefox;
+- docs snippets passed for 539 fenced blocks; links passed for 2,399 internal,
+  13 external, and 571 canonical pages; rendered docs browser tests passed 38
+  with 2 desktop-inapplicable tests skipped;
+- both generated PostgreSQL and SQLite applications compiled and tested, and
+  generated TODO specifications failed explicitly as designed;
+- the ordered 36-package content inventory and publication metadata validator
+  passed with zero findings; and
+- Cargo deny, Cargo audit, npm audit and gitleaks passed. Cargo audit retained
+  one explicitly allowed upstream `lru` unsoundness warning.
+
+Atomic handoff tests cover valid, expired, wrong-project, wrong-portal, unknown,
+different replay, identical replay after expiry, concurrent consumption,
+rollback, digest-only persistence and redacted diagnostics in memory and real
+SQLite. External-ingress tests prove authoritative same-identity/same-digest
+replay, different-digest conflict, missing-ticket rollback and canonical digest
+handling. SQLite listing applies all filters before its 201-row lookahead and
+is covered beyond the former 1,000-row boundary.
+
+The workspace is a source-only, unpublished 1.10.0 candidate because two new
+public package names require a coordinated first-publication boundary.
+Individual `cargo package` verification cannot resolve the unpublished 1.10.0
+internal dependency family from crates.io before that separately authorized
+publication sequence. No crate was published and no tag, release, provider,
+deployment or production operation was performed. Hosted performance and live
+provider evidence remain explicitly `NOT RUN`; neither is implied by local
+quality.

@@ -1,0 +1,688 @@
+openapi: 3.1.0
+info:
+  title: Minco Ticketing Plugin API
+  version: 0.1.0
+  description: >-
+    Project-scoped support entry, one-time handoff exchange, requester and agent
+    ticket conversations, managed workflow, external ingress, and AI context.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /_minco/ticketing/support-entry.js:
+    get:
+      operationId: getTicketingSupportEntry
+      summary: Get the dependency-free hardened support launcher
+      security: []
+      responses:
+        '200':
+          description: JavaScript launcher source
+          content:
+            application/javascript:
+              schema: {type: string}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/bootstrap:
+    get:
+      operationId: getTicketingBootstrap
+      summary: Get browser-safe support entry configuration
+      security: []
+      responses:
+        '200':
+          description: Browser-safe bootstrap without handoff credentials
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SupportBootstrap'}
+              examples:
+                default:
+                  value:
+                    schema_version: 1
+                    project_id: example
+                    portal_origin: https://support.example.test
+                    label: Get support
+                    brand: Support
+                    enabled_surfaces: [widget, portal, api]
+                    screenshot_enabled: true
+                    voice_enabled: true
+                    file_enabled: true
+                    attachment_limits: {count: 8, screenshot_bytes: 4194304, audio_bytes: 5242880, file_bytes: 5242880, aggregate_bytes: 8388608}
+                    recording_limit: 90
+                    privacy_notice: Share only information needed to resolve this request.
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/integrations/handoffs:
+    post:
+      operationId: issueTicketingHandoff
+      summary: Issue a short-lived handoff for a trusted integration principal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IssueHandoff'}
+            examples:
+              order:
+                value:
+                  project_id: example
+                  requester_subject: user-42
+                  requester_permissions: [ticketing.create, ticketing.read]
+                  surface: widget
+                  context: {page_url: https://app.example.test/orders/42}
+                  return_location: https://app.example.test/orders/42
+      responses:
+        '200':
+          description: Exact browser handoff contract
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IssuedHandoff'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/handoffs/exchange:
+    post:
+      operationId: consumeTicketingHandoff
+      summary: Atomically exchange one handoff and create or return its ticket result
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/Handoff'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExchangeHandoff'}
+            examples:
+              browser:
+                value:
+                  project_id: example
+                  portal_origin: https://support.example.test
+                  subject: Order did not update
+                  description: The status remains pending.
+                  channel: portal
+                  priority: normal
+      responses:
+        '200': {$ref: '#/components/responses/ConsumedHandoff'}
+        '201': {$ref: '#/components/responses/ConsumedHandoff'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/from-handoff:
+    post:
+      operationId: createTicketFromHandoff
+      summary: Compatibility route for atomic handoff exchange and ticket creation
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/Handoff'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExchangeHandoff'}
+      responses:
+        '200': {$ref: '#/components/responses/ConsumedHandoff'}
+        '201': {$ref: '#/components/responses/ConsumedHandoff'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets:
+    post:
+      operationId: createTicket
+      summary: Create a project-scoped ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateTicket'}
+            examples:
+              api:
+                value:
+                  project_id: example
+                  subject: Cannot complete checkout
+                  description: The final action returns an error.
+                  requester: {subject: user-42}
+                  channel: api
+                  priority: high
+                  resource_references: []
+      responses:
+        '201': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+    get:
+      operationId: listTickets
+      summary: List tickets with bounded cursor pagination
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageAfter'}
+        - in: query
+          name: filter[status]
+          schema: {$ref: '#/components/schemas/TicketStatus'}
+        - in: query
+          name: filter[queue_id]
+          schema: {type: string, maxLength: 200}
+        - in: query
+          name: filter[assignee_subject]
+          schema: {type: string, maxLength: 300}
+        - in: query
+          name: filter[requester_subject]
+          schema: {type: string, maxLength: 300}
+      responses:
+        '200':
+          description: Ticket page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TicketCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}:
+    get:
+      operationId: getTicket
+      summary: Get one agent-visible ticket
+      parameters: [{$ref: '#/components/parameters/TicketId'}]
+      responses:
+        '200': {$ref: '#/components/responses/Ticket'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/requester-replies:
+    post:
+      operationId: replyToTicketAsRequester
+      summary: Add a requester-visible inbound reply
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody: {$ref: '#/components/requestBodies/Reply'}
+      responses:
+        '200': {$ref: '#/components/responses/RequesterTicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/agent-replies:
+    post:
+      operationId: replyToTicketAsAgent
+      summary: Add a public outbound agent reply
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody: {$ref: '#/components/requestBodies/Reply'}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/internal-notes:
+    post:
+      operationId: addTicketInternalNote
+      summary: Add an agent-only internal note
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody: {$ref: '#/components/requestBodies/Reply'}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/assignment:
+    patch:
+      operationId: changeTicketAssignment
+      summary: Assign or unassign a ticket
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [assignee_subject]
+              properties:
+                assignee_subject: {type: [string, 'null'], maxLength: 300}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/queue:
+    patch:
+      operationId: transferTicketQueue
+      summary: Transfer a ticket to a queue
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [queue_id]
+              properties: {queue_id: {type: string, minLength: 1, maxLength: 200}}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/priority:
+    patch:
+      operationId: changeTicketPriority
+      summary: Change ticket priority
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [priority]
+              properties: {priority: {$ref: '#/components/schemas/TicketPriority'}}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/status:
+    patch:
+      operationId: changeTicketStatus
+      summary: Apply an explicit ticket transition
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status: {$ref: '#/components/schemas/TicketStatus'}
+                resolution: {type: [string, 'null'], maxLength: 20000}
+                close_reason: {type: [string, 'null'], maxLength: 500}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/ingress/messages:
+    post:
+      operationId: ingestTicketExternalMessage
+      summary: Ingest one verified external-provider message idempotently
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IngressMessage'}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/tickets/{ticketId}/ai-context:
+    get:
+      operationId: getTicketAiContext
+      summary: Export deterministic agent context
+      parameters: [{$ref: '#/components/parameters/TicketId'}]
+      responses:
+        '200':
+          description: AI context
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TicketAiContext'}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    TicketId:
+      in: path
+      name: ticketId
+      required: true
+      schema: {type: string, format: uuid}
+    Handoff:
+      in: header
+      name: X-Minco-Ticketing-Handoff
+      required: true
+      description: One-time sensitive bearer; never send in a URL
+      schema: {type: string, minLength: 64, maxLength: 64, pattern: '^[0-9a-fA-F]{64}$'}
+    IfMatch:
+      in: header
+      name: If-Match
+      required: true
+      schema: {type: string, pattern: '^"ticket:[0-9a-f-]+:[1-9][0-9]*"$'}
+    PageLimit:
+      in: query
+      name: page[limit]
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    PageAfter:
+      in: query
+      name: page[after]
+      schema: {type: string, maxLength: 512}
+  requestBodies:
+    Reply:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [body]
+            properties: {body: {type: string, minLength: 1, maxLength: 20000}}
+  responses:
+    Problem:
+      description: RFC 9457-style problem response with request ID
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+    ConsumedHandoff:
+      description: Atomic authoritative handoff result
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ConsumedHandoff'}
+    Ticket:
+      description: Ticket
+      headers:
+        ETag: {schema: {type: string}}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Ticket'}
+    TicketMutation:
+      description: Updated ticket
+      headers:
+        ETag: {schema: {type: string}}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/TicketMutation'}
+    RequesterTicketMutation:
+      description: Updated requester-safe ticket
+      headers:
+        ETag: {schema: {type: string}}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/RequesterTicketMutation'}
+  schemas:
+    ProblemDetails:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail, code, requestId]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        code: {type: string}
+        requestId: {type: string}
+        errors:
+          type: [object, 'null']
+          additionalProperties:
+            type: array
+            items: {type: string}
+          x-minco-open-object:
+            rationale: Validation field names are application-defined and each value is a list of public-safe messages.
+    TicketPriority: {type: string, enum: [low, normal, high, urgent]}
+    TicketChannel: {type: string, enum: [portal, email, api, voice, internal, other]}
+    TicketStatus: {type: string, enum: [new, open, pending_requester, pending_internal, on_hold, resolved, closed]}
+    TicketClockState: {type: string, enum: [open, paused, stopped]}
+    TicketMessageKind: {type: string, enum: [public_reply, internal_note, system_event, voice_transcript]}
+    TicketMessageDirection: {type: string, enum: [inbound, outbound, internal, system]}
+    AttachmentKind: {type: string, enum: [screenshot, audio, file]}
+    SupportSurface: {type: string, enum: [widget, portal, extension, api, mobile]}
+    AttachmentLimits:
+      type: object
+      additionalProperties: false
+      required: [count, screenshot_bytes, audio_bytes, file_bytes, aggregate_bytes]
+      properties:
+        count: {type: integer, minimum: 0, maximum: 64}
+        screenshot_bytes: {type: integer, minimum: 1}
+        audio_bytes: {type: integer, minimum: 1}
+        file_bytes: {type: integer, minimum: 1}
+        aggregate_bytes: {type: integer, minimum: 1}
+    SupportBootstrap:
+      type: object
+      additionalProperties: false
+      required: [schema_version, project_id, portal_origin, label, brand, enabled_surfaces, screenshot_enabled, voice_enabled, file_enabled, attachment_limits, recording_limit, privacy_notice]
+      properties:
+        schema_version: {type: integer, const: 1}
+        project_id: {type: string, maxLength: 100}
+        portal_origin: {type: string, format: uri}
+        label: {type: string, maxLength: 80}
+        brand: {type: string, maxLength: 80}
+        enabled_surfaces: {type: array, items: {$ref: '#/components/schemas/SupportSurface'}}
+        screenshot_enabled: {type: boolean}
+        voice_enabled: {type: boolean}
+        file_enabled: {type: boolean}
+        attachment_limits: {$ref: '#/components/schemas/AttachmentLimits'}
+        recording_limit: {type: integer, minimum: 1}
+        privacy_notice: {type: string, maxLength: 2000}
+    ResourceReference:
+      type: object
+      additionalProperties: false
+      required: [system, resource_type, resource_id]
+      properties:
+        system: {type: string, maxLength: 100}
+        resource_type: {type: string, maxLength: 100}
+        resource_id: {type: string, maxLength: 300}
+    SourceReference:
+      type: object
+      additionalProperties: false
+      required: [provider, scope, external_id]
+      properties:
+        provider: {type: string, maxLength: 100}
+        scope: {type: string, maxLength: 300}
+        external_id: {type: string, maxLength: 500}
+    SupportContext:
+      type: object
+      additionalProperties: false
+      required: [page_url]
+      properties:
+        page_url: {type: string, format: uri, maxLength: 4096}
+        optional_page_title: {type: [string, 'null'], maxLength: 2000}
+        optional_route_name: {type: [string, 'null'], maxLength: 2000}
+        optional_release_id: {type: [string, 'null'], maxLength: 2000}
+        optional_request_id: {type: [string, 'null'], maxLength: 2000}
+        optional_locale: {type: [string, 'null'], maxLength: 40}
+        optional_timezone: {type: [string, 'null'], maxLength: 100}
+        optional_viewport: {type: [string, 'null'], maxLength: 32, pattern: '^[0-9]{1,6}x[0-9]{1,6}$'}
+        optional_selected_text: {type: [string, 'null'], maxLength: 2000}
+        resource_references: {type: array, maxItems: 8, items: {$ref: '#/components/schemas/ResourceReference'}}
+    IssueHandoff:
+      type: object
+      additionalProperties: false
+      required: [project_id, requester_subject, requester_permissions, surface, context, return_location]
+      properties:
+        project_id: {type: string, maxLength: 100}
+        requester_subject: {type: string, maxLength: 300}
+        requester_permissions: {type: array, maxItems: 64, items: {type: string, maxLength: 160}}
+        surface: {$ref: '#/components/schemas/SupportSurface'}
+        context: {$ref: '#/components/schemas/SupportContext'}
+        return_location: {type: string, format: uri, maxLength: 2000}
+    IssuedHandoff:
+      type: object
+      additionalProperties: false
+      required: [launch_url, expires_at]
+      properties:
+        launch_url: {type: string, format: uri, maxLength: 4096, pattern: '^[^?#]+#handoff=[0-9a-fA-F]{64}$', description: Contains the opaque token only in the URL fragment}
+        expires_at: {type: string, format: date-time}
+    ExchangeHandoff:
+      type: object
+      additionalProperties: false
+      required: [project_id, portal_origin, subject, description, channel, priority]
+      properties:
+        project_id: {type: string, maxLength: 100}
+        portal_origin: {type: string, format: uri}
+        subject: {type: string, minLength: 1, maxLength: 300}
+        description: {type: string, minLength: 1, maxLength: 20000}
+        channel: {$ref: '#/components/schemas/TicketChannel'}
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+    TicketRequester:
+      type: object
+      additionalProperties: false
+      required: [subject]
+      properties:
+        subject: {type: string, minLength: 1, maxLength: 300}
+        display_name: {type: [string, 'null'], maxLength: 300}
+        email: {type: [string, 'null'], maxLength: 320}
+    CreateTicket:
+      type: object
+      additionalProperties: false
+      required: [project_id, subject, description, requester, channel]
+      properties:
+        project_id: {type: string, maxLength: 100}
+        subject: {type: string, minLength: 1, maxLength: 300}
+        description: {type: string, minLength: 1, maxLength: 20000}
+        requester: {$ref: '#/components/schemas/TicketRequester'}
+        channel: {$ref: '#/components/schemas/TicketChannel'}
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+        resource_references: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/ResourceReference'}}
+    TicketMessage:
+      type: object
+      additionalProperties: false
+      required: [id, kind, direction, body, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: '#/components/schemas/TicketMessageKind'}
+        direction: {$ref: '#/components/schemas/TicketMessageDirection'}
+        author_subject: {type: [string, 'null']}
+        body: {type: string, maxLength: 20000}
+        created_at: {type: string, format: date-time}
+    TicketAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, kind, object_key, file_name, content_type, size_bytes, sha256, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: '#/components/schemas/AttachmentKind'}
+        object_key: {type: string}
+        file_name: {type: string, maxLength: 160}
+        content_type: {type: string, maxLength: 160}
+        size_bytes: {type: integer, minimum: 1}
+        sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        created_at: {type: string, format: date-time}
+    Ticket:
+      type: object
+      additionalProperties: false
+      required: [id, project_id, display_reference, subject, description, requester, channel, priority, status, clock_state, followers, tags, source_references, resource_references, messages, attachments, created_at, updated_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        project_id: {type: string}
+        display_reference: {type: string}
+        subject: {type: string}
+        description: {type: string}
+        requester: {$ref: '#/components/schemas/TicketRequester'}
+        channel: {$ref: '#/components/schemas/TicketChannel'}
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+        status: {$ref: '#/components/schemas/TicketStatus'}
+        clock_state: {$ref: '#/components/schemas/TicketClockState'}
+        queue_id: {type: [string, 'null']}
+        assignee_subject: {type: [string, 'null']}
+        followers: {type: array, uniqueItems: true, items: {type: string}}
+        category: {type: [string, 'null']}
+        tags: {type: array, uniqueItems: true, items: {type: string}}
+        source_references: {type: array, items: {$ref: '#/components/schemas/SourceReference'}}
+        resource_references: {type: array, items: {$ref: '#/components/schemas/ResourceReference'}}
+        messages: {type: array, items: {$ref: '#/components/schemas/TicketMessage'}}
+        attachments: {type: array, items: {$ref: '#/components/schemas/TicketAttachment'}}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        first_public_response_at: {type: [string, 'null'], format: date-time}
+        waiting_since: {type: [string, 'null'], format: date-time}
+        resolved_at: {type: [string, 'null'], format: date-time}
+        closed_at: {type: [string, 'null'], format: date-time}
+        resolution: {type: [string, 'null']}
+        close_reason: {type: [string, 'null']}
+        revision: {type: integer, minimum: 0}
+    TicketWarning:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties: {code: {type: string}, detail: {type: string}}
+    TicketMutation:
+      type: object
+      additionalProperties: false
+      required: [ticket]
+      properties:
+        ticket: {$ref: '#/components/schemas/Ticket'}
+        warnings: {type: array, items: {$ref: '#/components/schemas/TicketWarning'}}
+    RequesterTicketMutation:
+      type: object
+      additionalProperties: false
+      required: [ticket]
+      properties:
+        ticket: {$ref: '#/components/schemas/RequesterTicket'}
+        warnings: {type: array, items: {$ref: '#/components/schemas/TicketWarning'}}
+    RequesterMessage:
+      type: object
+      additionalProperties: false
+      required: [id, kind, direction, body, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [public_reply, system_event, voice_transcript]}
+        direction: {$ref: '#/components/schemas/TicketMessageDirection'}
+        author_subject: {type: [string, 'null']}
+        body: {type: string, maxLength: 20000}
+        created_at: {type: string, format: date-time}
+    RequesterAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, kind, file_name, content_type, size_bytes, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: '#/components/schemas/AttachmentKind'}
+        file_name: {type: string, maxLength: 160}
+        content_type: {type: string, maxLength: 160}
+        size_bytes: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+    RequesterTicket:
+      type: object
+      additionalProperties: false
+      required: [id, project_id, display_reference, subject, description, requester, channel, priority, status, messages, attachments, created_at, updated_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        project_id: {type: string}
+        display_reference: {type: string}
+        subject: {type: string}
+        description: {type: string}
+        requester: {$ref: '#/components/schemas/TicketRequester'}
+        channel: {$ref: '#/components/schemas/TicketChannel'}
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+        status: {$ref: '#/components/schemas/TicketStatus'}
+        messages: {type: array, items: {$ref: '#/components/schemas/RequesterMessage'}}
+        attachments: {type: array, items: {$ref: '#/components/schemas/RequesterAttachment'}}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        revision: {type: integer, minimum: 0}
+    ConsumedHandoff:
+      type: object
+      additionalProperties: false
+      required: [ticket, result, repeated]
+      properties:
+        ticket: {$ref: '#/components/schemas/RequesterTicket'}
+        result:
+          type: object
+          additionalProperties: false
+          required: [ticket_id, requester_session_id]
+          properties:
+            ticket_id: {type: string, format: uuid}
+            requester_session_id: {type: string, format: uuid}
+        repeated: {type: boolean}
+    TicketCollection:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/Ticket'}}
+        page:
+          type: object
+          additionalProperties: false
+          required: [hasMore, nextCursor]
+          properties:
+            hasMore: {type: boolean}
+            nextCursor: {type: [string, 'null']}
+    IngressMessage:
+      type: object
+      additionalProperties: false
+      required: [provider, mailbox_scope, external_message_id, content_sha256, ticket_id, body, expected_revision]
+      properties:
+        provider: {type: string, maxLength: 100}
+        mailbox_scope: {type: string, maxLength: 300}
+        external_message_id: {type: string, maxLength: 500}
+        content_sha256: {type: string, pattern: '^[0-9a-fA-F]{64}$'}
+        raw_message_object_key: {type: [string, 'null'], maxLength: 1000}
+        internet_message_id: {type: [string, 'null'], maxLength: 1000}
+        in_reply_to: {type: [string, 'null'], maxLength: 1000}
+        references: {type: array, maxItems: 64, items: {type: string, maxLength: 1000}}
+        ticket_id: {type: string, format: uuid}
+        body: {type: string, minLength: 1, maxLength: 20000}
+        expected_revision: {type: integer, minimum: 0}
+    TicketAiContext:
+      type: object
+      additionalProperties: false
+      required: [schema_version, project_id, ticket_id, display_reference, subject, description, status, priority, resource_references, messages]
+      properties:
+        schema_version: {type: integer, const: 1}
+        project_id: {type: string}
+        ticket_id: {type: string, format: uuid}
+        display_reference: {type: string}
+        subject: {type: string}
+        description: {type: string}
+        status: {$ref: '#/components/schemas/TicketStatus'}
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+        resource_references: {type: array, items: {$ref: '#/components/schemas/ResourceReference'}}
+        messages: {type: array, items: {$ref: '#/components/schemas/TicketMessage'}}

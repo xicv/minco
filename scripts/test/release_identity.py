@@ -31,6 +31,7 @@ class ReleaseIdentityTests(unittest.TestCase):
         truth = tomllib.loads(
             (ROOT / "verification/repository-truth.toml").read_text()
         )
+        catalog = tomllib.loads((ROOT / "plugins/catalog.toml").read_text())
         release = json.loads((ROOT / "docs-site/release.json").read_text())
 
         first = identity.build_projection(ROOT)
@@ -43,8 +44,8 @@ class ReleaseIdentityTests(unittest.TestCase):
         self.assertEqual(
             first["workspace"]["release_state"], truth["workspace_release_state"]
         )
-        self.assertEqual(len(first["packages"]), 34)
-        self.assertEqual(len(first["plugins"]), 19)
+        self.assertEqual(len(first["packages"]), truth["publishable_package_count"])
+        self.assertEqual(len(first["plugins"]), len(catalog["plugin"]))
         self.assertEqual(first["documentation"]["stable"], release["stable"])
         self.assertEqual(first["documentation"]["state"], release["state"])
 

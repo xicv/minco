@@ -173,15 +173,18 @@ class ReleaseGateRecordContractTests(unittest.TestCase):
         self.assertLess(publish, load)
 
     def test_generated_evidence_uses_the_current_release_series(self) -> None:
-        self.assertEqual(CANDIDATE_QUALIFICATION.WORKSPACE_VERSION, "1.8.0")
-        self.assertEqual(CANDIDATE_QUALIFICATION.RELEASE_SERIES, "1.8")
+        workspace = tomllib.loads((ROOT / "Cargo.toml").read_text())
+        version = workspace["workspace"]["package"]["version"]
+        release_series = ".".join(version.split(".")[:2])
+        self.assertEqual(CANDIDATE_QUALIFICATION.WORKSPACE_VERSION, version)
+        self.assertEqual(CANDIDATE_QUALIFICATION.RELEASE_SERIES, release_series)
         self.assertEqual(
             CANDIDATE_QUALIFICATION.CANDIDATE_RECOVERY_RECORD,
-            "verification/1.8-candidate-recovery.json",
+            f"verification/{release_series}-candidate-recovery.json",
         )
         self.assertEqual(
             CANDIDATE_QUALIFICATION.CANDIDATE_LOAD_RECORD,
-            "verification/1.8-candidate-load.json",
+            f"verification/{release_series}-candidate-load.json",
         )
 
     def test_every_current_command_catalog_preserves_historical_evidence(self) -> None:

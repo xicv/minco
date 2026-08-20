@@ -11,16 +11,16 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 2000,
-      "pattern": "^[^\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]+$"
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
     },
     "ResourceReference": {
       "type": "object",
       "additionalProperties": false,
       "required": ["system", "resource_type", "resource_id"],
       "properties": {
-        "system": { "type": "string", "minLength": 1, "maxLength": 100 },
-        "resource_type": { "type": "string", "minLength": 1, "maxLength": 100 },
-        "resource_id": { "type": "string", "minLength": 1, "maxLength": 300 }
+        "system": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^\\u0000-\\u001F\\u007F]+$" },
+        "resource_type": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^\\u0000-\\u001F\\u007F]+$" },
+        "resource_id": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "^[^\\u0000-\\u001F\\u007F]+$" }
       }
     },
     "SupportContext": {
@@ -82,6 +82,7 @@
           "type": "string",
           "format": "uri",
           "maxLength": 4096,
+          "pattern": "^[^?#]+#handoff=[0-9a-fA-F]{64}$",
           "description": "Exact configured support-portal origin. The one-time bearer handoff belongs in the URL fragment, not the query string."
         },
         "expires_at": { "type": "string", "format": "date-time" }

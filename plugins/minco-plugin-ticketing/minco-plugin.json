@@ -1,0 +1,81 @@
+{
+  "conformance": {
+    "evidence": [
+      "cargo test -p minco-plugin-ticketing --all-features --locked"
+    ],
+    "profile": "minco-plugin-v1"
+  },
+  "core_compatibility": "^1.10.0",
+  "default_enabled": false,
+  "documentation": {
+    "reference": "https://docs.rs/minco-plugin-ticketing"
+  },
+  "failure_policy": {
+    "description": "Authorization, project scope, one-time handoff consumption, revisions, and persistence failures reject the operation; requester projections never expose internal notes.",
+    "mode": "fail_closed"
+  },
+  "feature": "plugin-ticketing",
+  "id": "ticketing",
+  "kind": "plugin",
+  "plugin_version": "0.1.0",
+  "plugin_dependencies": ["health", "identity", "object-storage", "notifications", "audit", "events"],
+  "requires": [
+    {"name": "health.registry", "version": "^1"},
+    {"name": "identity.resolve", "version": "^1"},
+    {"name": "authorization.permissions", "version": "^1"},
+    {"name": "storage.object", "version": "^1"},
+    {"name": "notifications.send", "version": "^1"},
+    {"name": "audit.append", "version": "^1"},
+    {"name": "events.publish", "version": "^1"},
+    {"name": "events.outbox", "version": "^1"}
+  ],
+  "provides": [
+    {"name": "ticketing.create", "version": "1.0.0"},
+    {"name": "ticketing.read", "version": "1.0.0"},
+    {"name": "ticketing.conversation", "version": "1.0.0"},
+    {"name": "ticketing.manage", "version": "1.0.0"},
+    {"name": "ticketing.integrate", "version": "1.0.0"},
+    {"name": "ticketing.ingest", "version": "1.0.0"},
+    {"name": "ticketing.attachments", "version": "1.0.0"},
+    {"name": "ticketing.ai-context", "version": "1.0.0"},
+    {"name": "ticketing.support-entry", "version": "1.0.0"}
+  ],
+  "configuration": [
+    {"key": "project_id", "kind": "string", "required": true, "secret": false, "description": "Stable application project identifier"},
+    {"key": "portal_origin", "kind": "string", "required": true, "secret": false, "description": "Exact HTTPS portal origin"},
+    {"key": "allowed_return_paths", "kind": "object", "required": true, "secret": false, "description": "Exact application origins mapped to allowed path prefixes"},
+    {"key": "handoff_ttl_seconds", "kind": "integer", "required": false, "secret": false, "default": 120, "description": "One-time handoff lifetime, at most 900 seconds"},
+    {"key": "support_label", "kind": "string", "required": false, "secret": false, "default": "Get support", "description": "Accessible launcher label"},
+    {"key": "support_brand", "kind": "string", "required": false, "secret": false, "default": "Support", "description": "Browser-safe support brand"},
+    {"key": "privacy_notice", "kind": "string", "required": false, "secret": false, "default": "Share only information needed to resolve this request.", "description": "Browser-safe privacy notice"}
+  ],
+  "operations": [
+    {"operation_id":"getTicketingSupportEntry","method":"GET","path":"/_minco/ticketing/support-entry.js","public":true,"idempotent":false},
+    {"operation_id":"getTicketingBootstrap","method":"GET","path":"/_minco/ticketing/bootstrap","public":true,"idempotent":false},
+    {"operation_id":"issueTicketingHandoff","method":"POST","path":"/_minco/ticketing/integrations/handoffs","public":false,"idempotent":false},
+    {"operation_id":"consumeTicketingHandoff","method":"POST","path":"/_minco/ticketing/handoffs/exchange","public":true,"idempotent":false,"headers":["X-Minco-Ticketing-Handoff"]},
+    {"operation_id":"createTicketFromHandoff","method":"POST","path":"/_minco/ticketing/tickets/from-handoff","public":true,"idempotent":false,"headers":["X-Minco-Ticketing-Handoff"]},
+    {"operation_id":"createTicket","method":"POST","path":"/_minco/ticketing/tickets","public":false,"idempotent":false},
+    {"operation_id":"listTickets","method":"GET","path":"/_minco/ticketing/tickets","public":false,"idempotent":false},
+    {"operation_id":"getTicket","method":"GET","path":"/_minco/ticketing/tickets/{ticketId}","public":false,"idempotent":false},
+    {"operation_id":"replyToTicketAsRequester","method":"POST","path":"/_minco/ticketing/tickets/{ticketId}/requester-replies","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"replyToTicketAsAgent","method":"POST","path":"/_minco/ticketing/tickets/{ticketId}/agent-replies","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"addTicketInternalNote","method":"POST","path":"/_minco/ticketing/tickets/{ticketId}/internal-notes","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"changeTicketAssignment","method":"PATCH","path":"/_minco/ticketing/tickets/{ticketId}/assignment","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"transferTicketQueue","method":"PATCH","path":"/_minco/ticketing/tickets/{ticketId}/queue","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"changeTicketPriority","method":"PATCH","path":"/_minco/ticketing/tickets/{ticketId}/priority","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"changeTicketStatus","method":"PATCH","path":"/_minco/ticketing/tickets/{ticketId}/status","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"ingestTicketExternalMessage","method":"POST","path":"/_minco/ticketing/ingress/messages","public":false,"idempotent":false},
+    {"operation_id":"getTicketAiContext","method":"GET","path":"/_minco/ticketing/tickets/{ticketId}/ai-context","public":false,"idempotent":false}
+  ],
+  "migrations": [{"id":"ticketing-sqlite-v1","database":"sqlite","path":"migrations/sqlite"}],
+  "health_checks": [{"id":"ticketing-store","critical":true}],
+  "data_classes": ["customer_provided", "personal", "confidential", "internal"],
+  "retention": "application_defined",
+  "runtimes": [
+    "native"
+  ],
+  "databases": ["sqlite"],
+  "schema": 1,
+  "stability": "beta"
+}

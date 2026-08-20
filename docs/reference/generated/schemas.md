@@ -89,6 +89,13 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | `plugins.static-site.price_class` | `string` | no | no | price_class100 | CloudFront price class: price_class100, price_class200, or price_class_all |
 | `plugins.static-site.source_directory` | `string` | no | no | dist | Directory containing the built static artifact |
 | `plugins.static-site.spa_fallback` | `boolean` | no | no | yes | Rewrite missing browser routes to the index document |
+| `plugins.ticketing.allowed_return_paths` | `object` | yes | no | — | Exact application origins mapped to allowed path prefixes |
+| `plugins.ticketing.handoff_ttl_seconds` | `integer` | no | no | 120 | One-time handoff lifetime, at most 900 seconds |
+| `plugins.ticketing.portal_origin` | `string` | yes | no | — | Exact HTTPS portal origin |
+| `plugins.ticketing.privacy_notice` | `string` | no | no | Share only information needed to resolve this request. | Browser-safe privacy notice |
+| `plugins.ticketing.project_id` | `string` | yes | no | — | Stable application project identifier |
+| `plugins.ticketing.support_brand` | `string` | no | no | Support | Browser-safe support brand |
+| `plugins.ticketing.support_label` | `string` | no | no | Get support | Accessible launcher label |
 | `runtime.log_level` | `string` | yes | no | info | Default structured logging filter |
 
 ## DeploymentPlan top-level schema
