@@ -165,8 +165,8 @@ Declared codes: `559`.
 | `EVIDENCE-SOURCE-004` | operational evidence | `scripts/test/operational_evidence.py:308` | 1 |
 | `EVIDENCE-SOURCE-005` | operational evidence | `scripts/validate_operational_evidence.py:257` | 0 |
 | `EVIDENCE-VALIDATOR-001` | operational evidence | `scripts/validate_operational_evidence.py:758` | 0 |
-| `MINCO-AGENT-CONTEXT-OPERATION-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:560` | 1 |
-| `MINCO-AGENT-CONTEXT-TASK-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:602` | 1 |
+| `MINCO-AGENT-CONTEXT-OPERATION-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:561` | 1 |
+| `MINCO-AGENT-CONTEXT-TASK-ABSENT` | agent | `crates/minco-cli/src/agent_cmd.rs:603` | 1 |
 | `MINCO-ARCH-001` | arch | `crates/minco-cli/src/architecture.rs:132` | 0 |
 | `MINCO-ARCH-002` | arch | `crates/minco-cli/src/architecture.rs:133` | 0 |
 | `MINCO-ARCH-003` | arch | `crates/minco-cli/src/architecture.rs:134` | 0 |

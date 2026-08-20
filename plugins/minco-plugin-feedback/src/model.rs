@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+pub use minco_interaction::{AttachmentKind as FeedbackAttachmentKind, AttachmentUpload};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
@@ -105,25 +106,29 @@ impl FeedbackStatus {
             Acknowledged, Closed, InProgress, NeedsClarification, New, ReadyForDevelopment,
             Resolved,
         };
-        self == target
-            || matches!(
-                (self, target),
-                (
-                    New,
-                    Acknowledged | NeedsClarification | ReadyForDevelopment | Closed
-                ) | (
-                    Acknowledged,
-                    NeedsClarification | ReadyForDevelopment | InProgress | Closed
-                ) | (
-                    NeedsClarification,
-                    Acknowledged | ReadyForDevelopment | Closed
-                ) | (
-                    ReadyForDevelopment,
-                    InProgress | NeedsClarification | Closed
-                ) | (InProgress, NeedsClarification | Resolved)
-                    | (Resolved, InProgress | Closed)
-                    | (Closed, Acknowledged)
-            )
+        use minco_interaction::{TransitionRule, transition_allowed};
+        const RULES: &[TransitionRule<FeedbackStatus>] = &[
+            TransitionRule::new(New, Acknowledged),
+            TransitionRule::new(New, NeedsClarification),
+            TransitionRule::new(New, ReadyForDevelopment),
+            TransitionRule::new(New, Closed),
+            TransitionRule::new(Acknowledged, NeedsClarification),
+            TransitionRule::new(Acknowledged, ReadyForDevelopment),
+            TransitionRule::new(Acknowledged, InProgress),
+            TransitionRule::new(Acknowledged, Closed),
+            TransitionRule::new(NeedsClarification, Acknowledged),
+            TransitionRule::new(NeedsClarification, ReadyForDevelopment),
+            TransitionRule::new(NeedsClarification, Closed),
+            TransitionRule::new(ReadyForDevelopment, InProgress),
+            TransitionRule::new(ReadyForDevelopment, NeedsClarification),
+            TransitionRule::new(ReadyForDevelopment, Closed),
+            TransitionRule::new(InProgress, NeedsClarification),
+            TransitionRule::new(InProgress, Resolved),
+            TransitionRule::new(Resolved, InProgress),
+            TransitionRule::new(Resolved, Closed),
+            TransitionRule::new(Closed, Acknowledged),
+        ];
+        transition_allowed(&self, &target, RULES)
     }
 }
 
@@ -175,14 +180,6 @@ pub enum FeedbackMessageSource {
     Text,
     VoiceTranscript,
     StatusChange,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FeedbackAttachmentKind {
-    Screenshot,
-    Audio,
-    File,
 }
 
 const RELEASE_BINDING_MESSAGE_PREFIX: &str = "minco.feedback.release-binding.v1:";
@@ -619,14 +616,6 @@ pub struct CreateFeedbackInput {
     pub context: FeedbackContext,
     #[serde(default)]
     pub tags: BTreeSet<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AttachmentUpload {
-    pub kind: FeedbackAttachmentKind,
-    pub file_name: String,
-    pub content_type: String,
-    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

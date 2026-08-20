@@ -1,11 +1,23 @@
 # Minco verification and release evidence
 
 Date: 2026-08-19
-Current workspace version: `1.9.0`
+Current workspace version: `1.10.0`
 Published baseline: `1.9.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T40 `1.10.0` Ticketing candidate
+
+The candidate adds `minco-interaction` and `minco-plugin-ticketing` as the 35th
+and 36th publishable packages. Their crates.io ownership and trusted-publisher
+configuration are not established or claimed. Local qualification covers the
+provider-neutral interaction boundary, Feedback compatibility, the Ticketing
+domain and HTTP contract, atomic memory/SQLite handoff consumption, idempotent
+external ingress, plugin conformance, and the packaged browser launcher.
+
+No registry upload, tag, GitHub release, hosted run, provider request,
+deployment, or production mutation is part of this candidate task.
 
 ## M14-T39 `1.9.0` traffic and compression release
 

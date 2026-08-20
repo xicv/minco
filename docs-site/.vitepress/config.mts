@@ -53,6 +53,7 @@ function workspaceSidebar(root: string) {
         { text: 'Durable action auditing', link: link('guides/auditing') },
         { text: 'Realtime subscriptions', link: link('guides/realtime') },
         { text: 'Client feedback loop', link: link('guides/feedback') },
+        { text: 'Ticketing support entry', link: link('guides/ticketing') },
         { text: 'Waffo hosted payments', link: link('guides/payments-waffo') },
         { text: 'Resource API conventions', link: link('reference/resource-api') }
       ]

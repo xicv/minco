@@ -5,7 +5,45 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.9.0` release.
+No changes beyond the unpublished `1.10.0` candidate.
+
+## [1.10.0] - 2026-08-20
+
+This additive candidate introduces a portal-first Ticketing support boundary
+without changing existing Feedback public names or enabling a runtime,
+database, provider, schedule, or fixed compute by default. It is unpublished;
+package ownership, trusted publishing, release, deployment, and production
+remain separate evidence states.
+
+### Added
+
+- Added the public `minco-interaction` crate for bounded support context,
+  attachments, transcription, static transitions, and explicitly best-effort
+  post-commit activity helpers.
+- Added the beta `minco-plugin-ticketing` crate with project-scoped tickets,
+  requester-safe projections, atomic one-time handoffs, external-message
+  idempotency, explicit SQLite persistence, OpenAPI, and static composition.
+- Added a packaged framework-neutral support launcher with modal and tab modes,
+  fragment-only handoffs, exact message shapes, keyboard focus containment,
+  mobile full-screen layout, reduced motion, and real Chromium/Firefox tests.
+
+### Changed
+
+- Moved provider-neutral transcription primitives out of Feedback while
+  preserving every existing Feedback public name and Cargo feature through
+  compatibility re-exports.
+- Opened the 36-package `1.10.0` candidate family with
+  `minco-interaction` and `minco-plugin-ticketing` explicitly recorded as
+  unowned first-publication candidates.
+
+### Compatibility and evidence
+
+- Kept trusted requester identity and permissions server-derived, browser
+  context bounded and untrusted, internal notes private, and first handoff
+  consumption atomic with the authoritative ticket/session result.
+- Added no portal hosting, mailbox polling, provider request, deployment,
+  publication, production mutation, scheduler, NAT Gateway, fixed compute, or
+  provisioned concurrency; current evidence is local and provider-free.
 
 ## [1.9.0] - 2026-08-19
 

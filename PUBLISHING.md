@@ -8,12 +8,12 @@ family from immutable tag `v1.9.0` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is the published `1.9.0` release with the same 34-package
-inventory. It adds the API Gateway traffic policy and hardened negotiated
-response compression while retaining application authority, additive
-compatibility and the minimal topology. Local and hosted review, tag, GitHub
-release, OIDC publication and registry checks passed independently; docs.rs
-and Pages remain separate evidence gates.
+The workspace is an unpublished `1.10.0` candidate with 36 publishable
+packages. `minco-interaction` and `minco-plugin-ticketing` are new
+first-publication candidates; neither crates.io ownership nor trusted
+publishing is claimed. The published `1.9.0` family remains the installable
+baseline. Local review does not authorize a tag, upload, release, deployment,
+provider request, or production mutation.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as

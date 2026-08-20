@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://minco.example/schemas/ticketing-support-entry-v1.json",
+  "title": "Minco Ticketing support-entry contract",
+  "oneOf": [
+    { "$ref": "#/$defs/SupportHandoffRequest" },
+    { "$ref": "#/$defs/SupportHandoffResponse" }
+  ],
+  "$defs": {
+    "VisibleText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+    },
+    "ResourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "resource_type", "resource_id"],
+      "properties": {
+        "system": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^\\u0000-\\u001F\\u007F]+$" },
+        "resource_type": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^\\u0000-\\u001F\\u007F]+$" },
+        "resource_id": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "^[^\\u0000-\\u001F\\u007F]+$" }
+      }
+    },
+    "SupportContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_url"],
+      "properties": {
+        "page_url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096,
+          "description": "HTTP(S) scheme, authority and path only. Query, fragment and user information are forbidden."
+        },
+        "page_title": { "$ref": "#/$defs/VisibleText" },
+        "route_name": { "$ref": "#/$defs/VisibleText" },
+        "release_id": { "$ref": "#/$defs/VisibleText" },
+        "request_id": { "$ref": "#/$defs/VisibleText" },
+        "locale": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "viewport": { "type": "string", "pattern": "^[0-9]{1,6}x[0-9]{1,6}$" },
+        "selected_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "Included only after an explicit user or host-application action."
+        },
+        "resource_references": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/ResourceReference" }
+        }
+      }
+    },
+    "SupportHandoffRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "surface", "return_url", "context"],
+      "properties": {
+        "project_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "surface": {
+          "type": "string",
+          "enum": ["widget", "portal", "extension", "api", "mobile"]
+        },
+        "return_url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096,
+          "description": "Must pass the project-owned exact-origin and path allowlist."
+        },
+        "context": { "$ref": "#/$defs/SupportContext" }
+      }
+    },
+    "SupportHandoffResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["launch_url", "expires_at"],
+      "properties": {
+        "launch_url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096,
+          "pattern": "^[^?#]+#handoff=[0-9a-fA-F]{64}$",
+          "description": "Exact configured support-portal origin. The one-time bearer handoff belongs in the URL fragment, not the query string."
+        },
+        "expires_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

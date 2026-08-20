@@ -41,3 +41,7 @@ At the 1.8 resumable object transfer boundary, compose streaming, download,
 multipart and HTTP services explicitly. Do not infer resumable support from the
 buffering store, treat provider keys as ownership, or promote integrity checks
 into content-safety claims.
+
+At the 1.10 Ticketing support-entry boundary, keep Ticketing statically
+selected with explicit storage and HTTP capabilities. Feedback compatibility
+does not authorize a hidden provider, portal, mailbox poller or scheduler.

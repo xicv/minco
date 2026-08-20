@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="replace-with-the-host-framework-token" />
+    <title>Minco support-entry example</title>
+  </head>
+  <body>
+    <main>
+      <h1>Application content</h1>
+      <p>The launcher opens the canonical support portal without duplicating ticket UI.</p>
+    </main>
+
+    <script>
+      // The host application derives the requester from its authenticated server
+      // session. Do not put service credentials or trusted requester claims in
+      // browser configuration.
+      window.MincoSupport = {
+        getContext() {
+          return {
+            route_name: 'orders.show',
+            release_id: 'application-release-id',
+            resource_references: [
+              { system: 'example', resource_type: 'order', resource_id: 'opaque-order-id' },
+            ],
+          };
+        },
+      };
+    </script>
+    <script type="module" src="./support-entry.js"></script>
+    <minco-support-launcher
+      portal="https://support.example.test/"
+      project="example"
+      handoff-endpoint="/api/support/handoff"
+      label="Get support"
+      position="bottom-right"
+    ></minco-support-launcher>
+  </body>
+</html>

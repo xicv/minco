@@ -189,3 +189,13 @@ feature = "plugin-static-site"
 default_enabled = false
 stability = "beta"
 description = "Private static assets, CDN caching, SPA fallback, and optional custom-domain deployment intent."
+
+[[plugin]]
+id = "ticketing"
+crate = "minco-plugin-ticketing"
+path = "plugins/minco-plugin-ticketing"
+kind = "plugin"
+feature = "plugin-ticketing"
+default_enabled = false
+stability = "beta"
+description = "Project-scoped support ticketing with atomic browser handoffs, conversation, and explicit SQLite persistence."

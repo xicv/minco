@@ -21,6 +21,7 @@ config = ["dep:minco-config"]
 db = ["dep:minco-db"]
 contract = ["dep:minco-contract"]
 http = ["dep:minco-http"]
+interaction = ["dep:minco-interaction"]
 plan = ["dep:minco-plan", "contract"]
 release = ["dep:minco-release"]
 test = ["dep:minco-test", "http"]
@@ -50,6 +51,18 @@ plugin-feedback = [
   "http",
   "minco-plugin-feedback/http",
 ]
+plugin-ticketing = [
+  "dep:minco-plugin-ticketing",
+  "interaction",
+  "plugin-health",
+  "plugin-identity",
+  "plugin-object-storage",
+  "plugin-events",
+  "plugin-notifications",
+  "plugin-audit",
+  "http",
+  "minco-plugin-ticketing/http",
+]
 official-plugins = [
   "default-plugins",
   "plugin-payments-waffo",
@@ -60,6 +73,7 @@ official-plugins = [
   "plugin-notifications",
   "plugin-audit",
   "plugin-feedback",
+  "plugin-ticketing",
   "plugin-static-site",
   "plugin-realtime",
 ]
@@ -79,6 +93,7 @@ full = [
   "db",
   "contract",
   "http",
+  "interaction",
   "plan",
   "release",
   "test",
@@ -97,6 +112,7 @@ minco-db = { workspace = true, optional = true }
 minco-core.workspace = true
 minco-contract = { workspace = true, optional = true }
 minco-http = { workspace = true, optional = true }
+minco-interaction = { workspace = true, optional = true }
 minco-plan = { workspace = true, optional = true }
 minco-release = { workspace = true, optional = true }
 minco-test = { workspace = true, optional = true }
@@ -111,6 +127,7 @@ minco-plugin-events = { workspace = true, optional = true }
 minco-plugin-notifications = { workspace = true, optional = true }
 minco-plugin-audit = { workspace = true, optional = true }
 minco-plugin-feedback = { workspace = true, optional = true }
+minco-plugin-ticketing = { workspace = true, optional = true }
 minco-plugin-static-site = { workspace = true, optional = true }
 minco-plugin-realtime = { workspace = true, optional = true }
 minco-sqlx-postgres = { workspace = true, optional = true }

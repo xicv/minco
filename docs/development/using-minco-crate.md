@@ -2,9 +2,9 @@
 
 Published baseline: `1.9.0`
 
-Current workspace version: `1.9.0`
+Current workspace version: `1.10.0`
 
-Workspace release state: `published`
+Workspace release state: `candidate`
 
 Use published `1.9.0` dependencies. Follow the
 [1.5.0-to-1.6.0 guide](../adoption/1.5.0-to-1.6.0.md) when adopting durable
@@ -12,6 +12,9 @@ auditing, then the [1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md) when
 adopting Apple-first fresh local-service selection, then use the
 [1.7.0-to-1.8.0 guide](../adoption/1.7.0-to-1.8.0.md) for direct resumable
 object transfers.
+The [1.9.0-to-1.10.0 guide](../adoption/1.9.0-to-1.10.0.md) covers the
+unpublished Ticketing and shared-interaction candidate. Continue using
+published 1.9.0 dependencies until that candidate is separately released.
 
 The `minco` facade is the normal dependency for an application. It keeps the
 provider-neutral kernel always available and exposes contract, HTTP, plugins,
@@ -206,8 +209,8 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 ## API stability
 
 Published baseline: `1.9.0`
-Current workspace version: `1.9.0`
-Workspace release state: `published`
+Current workspace version: `1.10.0`
+Workspace release state: `candidate`
 
 Pin the published `1.8.0` line in production applications and follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before

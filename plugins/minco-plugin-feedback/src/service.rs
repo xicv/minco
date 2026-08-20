@@ -7,12 +7,11 @@ use crate::{
     TranscriptionError, TranscriptionService, TransitionFeedbackInput, hash_access_token,
 };
 use chrono::{TimeDelta, Utc};
+use minco_interaction::{AttachmentError, AttachmentLimits, AttachmentPolicy, AttachmentService};
 use minco_plugin_audit::{AuditEvent, AuditService};
 use minco_plugin_events::{DomainEvent, EventServices, OutboxRecord};
 use minco_plugin_notifications::{Notification, NotificationChannel, NotificationService};
-use minco_plugin_object_storage::{
-    ObjectKey, ObjectStoreError, ObjectStoreService, PutObject, StoredObject,
-};
+use minco_plugin_object_storage::{ObjectKey, ObjectStoreError, ObjectStoreService, StoredObject};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
@@ -530,26 +529,9 @@ impl FeedbackService {
             input.context.environment = Some(binding.environment.clone());
         }
 
-        if uploads.len() > self.config.max_attachments {
-            return Err(FeedbackServiceError::InvalidAttachment(format!(
-                "feedback contains {} attachments; configured maximum is {}",
-                uploads.len(),
-                self.config.max_attachments
-            )));
-        }
-        let aggregate_bytes = uploads.iter().try_fold(0_usize, |total, upload| {
-            total.checked_add(upload.bytes.len()).ok_or_else(|| {
-                FeedbackServiceError::InvalidAttachment(
-                    "aggregate attachment size exceeds the platform address space".into(),
-                )
-            })
-        })?;
-        if aggregate_bytes > self.config.max_http_body_bytes {
-            return Err(FeedbackServiceError::InvalidAttachment(format!(
-                "aggregate attachment payload is {aggregate_bytes} bytes; configured HTTP body ceiling is {} bytes",
-                self.config.max_http_body_bytes
-            )));
-        }
+        self.attachment_policy()?
+            .validate_batch(&uploads)
+            .map_err(feedback_attachment_error)?;
 
         let mut thread = FeedbackThread::create(input)?;
         if let Some(binding) = self.release_binding.as_deref() {
@@ -832,15 +814,10 @@ impl FeedbackService {
         feedback_id: FeedbackId,
         upload: AttachmentUpload,
     ) -> Result<(FeedbackAttachment, Vec<FeedbackWarning>), FeedbackServiceError> {
-        self.validate_attachment(&upload)?;
-        let safe_name = safe_file_name(&upload.file_name);
-        let attachment_id = Uuid::now_v7();
-        let object_key = ObjectKey::parse(format!(
-            "feedback/{feedback_id}/{attachment_id}/{safe_name}"
-        ))?;
+        let validated = self.validate_attachment(&upload)?;
+        let safe_name = validated.file_name;
         let mut attributes = BTreeMap::from([
             ("feedback_id".into(), feedback_id.to_string()),
-            ("attachment_id".into(), attachment_id.to_string()),
             ("file_name".into(), safe_name.clone()),
             (
                 "kind".into(),
@@ -848,15 +825,10 @@ impl FeedbackService {
             ),
         ]);
         attributes.insert("project_id".into(), self.config.project_id.clone());
-        let metadata = self
-            .objects
-            .put(PutObject {
-                key: object_key.clone(),
-                bytes: upload.bytes.clone(),
-                content_type: upload.content_type.clone(),
-                attributes,
-            })
-            .await?;
+        let metadata = AttachmentService::new(self.objects.clone(), self.attachment_policy()?)
+            .store_small("feedback", &feedback_id.to_string(), &upload, attributes)
+            .await
+            .map_err(feedback_attachment_error)?;
         let mut warnings = Vec::new();
         let transcript = if upload.kind == FeedbackAttachmentKind::Audio
             && self.config.transcription_enabled
@@ -890,9 +862,9 @@ impl FeedbackService {
         };
         Ok((
             FeedbackAttachment {
-                id: attachment_id,
+                id: metadata.id,
                 kind: upload.kind,
-                object_key: object_key.as_str().to_owned(),
+                object_key: metadata.object_key.as_str().to_owned(),
                 file_name: safe_name,
                 content_type: upload.content_type,
                 size_bytes: metadata.size_bytes,
@@ -904,7 +876,10 @@ impl FeedbackService {
         ))
     }
 
-    fn validate_attachment(&self, upload: &AttachmentUpload) -> Result<(), FeedbackServiceError> {
+    fn validate_attachment(
+        &self,
+        upload: &AttachmentUpload,
+    ) -> Result<minco_interaction::ValidatedAttachment, FeedbackServiceError> {
         match upload.kind {
             FeedbackAttachmentKind::Screenshot if !self.config.screenshot_enabled => {
                 return Err(FeedbackServiceError::InvalidAttachment(
@@ -918,24 +893,50 @@ impl FeedbackService {
             }
             _ => {}
         }
-        self.validate_upload_size(upload.kind, upload.bytes.len())?;
-        if upload.file_name.trim().is_empty() || upload.file_name.chars().any(char::is_control) {
-            return Err(FeedbackServiceError::InvalidAttachment(
-                "attachment file name is invalid".into(),
-            ));
-        }
-        let content_type = upload.content_type.trim().to_ascii_lowercase();
-        if content_type.is_empty()
-            || (upload.kind == FeedbackAttachmentKind::Screenshot
-                && !content_type.starts_with("image/"))
-            || (upload.kind == FeedbackAttachmentKind::Audio && !content_type.starts_with("audio/"))
-        {
-            return Err(FeedbackServiceError::InvalidAttachment(format!(
-                "content type {:?} is not valid for {:?}",
-                upload.content_type, upload.kind
-            )));
-        }
-        Ok(())
+        self.attachment_policy()?
+            .validate_upload(upload)
+            .map_err(feedback_attachment_error)
+    }
+
+    fn attachment_policy(&self) -> Result<AttachmentPolicy, FeedbackServiceError> {
+        AttachmentPolicy::new(
+            AttachmentLimits {
+                count: self.config.max_attachments,
+                screenshot_bytes: self.config.max_screenshot_bytes as u64,
+                audio_bytes: self.config.max_audio_bytes as u64,
+                file_bytes: self.config.max_file_bytes as u64,
+                aggregate_bytes: self.config.max_http_body_bytes as u64,
+            },
+            [
+                (FeedbackAttachmentKind::Screenshot, "image/png"),
+                (FeedbackAttachmentKind::Screenshot, "image/jpeg"),
+                (FeedbackAttachmentKind::Screenshot, "image/gif"),
+                (FeedbackAttachmentKind::Screenshot, "image/webp"),
+                (FeedbackAttachmentKind::Screenshot, "image/avif"),
+                (FeedbackAttachmentKind::Audio, "audio/webm"),
+                (FeedbackAttachmentKind::Audio, "audio/mpeg"),
+                (FeedbackAttachmentKind::Audio, "audio/mp3"),
+                (FeedbackAttachmentKind::Audio, "audio/mp4"),
+                (FeedbackAttachmentKind::Audio, "audio/x-m4a"),
+                (FeedbackAttachmentKind::Audio, "audio/ogg"),
+                (FeedbackAttachmentKind::Audio, "audio/wav"),
+                (FeedbackAttachmentKind::Audio, "audio/x-wav"),
+                (FeedbackAttachmentKind::File, "application/pdf"),
+                (FeedbackAttachmentKind::File, "text/plain"),
+                (FeedbackAttachmentKind::File, "text/csv"),
+                (FeedbackAttachmentKind::File, "application/json"),
+                (FeedbackAttachmentKind::File, "application/zip"),
+                (
+                    FeedbackAttachmentKind::File,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
+                (
+                    FeedbackAttachmentKind::File,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            ],
+        )
+        .map_err(feedback_attachment_error)
     }
 
     async fn cleanup_objects(&self, keys: &[ObjectKey]) {
@@ -1179,22 +1180,19 @@ impl FeedbackService {
     }
 }
 
-fn safe_file_name(value: &str) -> String {
-    let safe = value
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_') {
-                character
-            } else {
-                '-'
-            }
-        })
-        .take(160)
-        .collect::<String>();
-    if safe.trim_matches('-').is_empty() {
-        "attachment.bin".into()
-    } else {
-        safe
+fn feedback_attachment_error(error: AttachmentError) -> FeedbackServiceError {
+    match error {
+        AttachmentError::AttachmentTooLarge {
+            kind,
+            actual,
+            maximum,
+        } => FeedbackServiceError::AttachmentTooLarge {
+            kind,
+            actual: usize::try_from(actual).unwrap_or(usize::MAX),
+            maximum: usize::try_from(maximum).unwrap_or(usize::MAX),
+        },
+        AttachmentError::ObjectStore(error) => FeedbackServiceError::ObjectStore(error),
+        other => FeedbackServiceError::InvalidAttachment(other.to_string()),
     }
 }
 

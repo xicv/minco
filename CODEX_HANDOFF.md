@@ -1,14 +1,24 @@
-# Minco 1.9.0 traffic and compression release handoff
+# Minco 1.10.0 Ticketing candidate handoff
 
 Date: 2026-08-19
 Published baseline: `1.9.0`
-Current workspace version: `1.9.0`
-Workspace release state: `published`
+Current workspace version: `1.10.0`
+Workspace release state: `candidate`
 Published `1.9.0` source: `8922aab5c9ed6770d8df7f5d906f768152d3e06c`
 Published source-tree digest: `b91dce1243c5e74ffbf3c11b168c8ed0689de397`
 Published release task: `M14-T39`
 Latest release task: `M14-T39` (`complete`)
+Active candidate task: `M14-T40`
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active 1.10.0 Ticketing candidate
+
+M14-T40 introduces the public `minco-interaction` and
+`minco-plugin-ticketing` packages, preserves Feedback compatibility, and adds
+the portal-first launcher plus atomic handoff/persistence slice. The candidate
+family contains 36 publishable packages; the two new package names remain
+unowned and unpublished. No tag, registry upload, release, deployment, provider
+request, or production mutation is implied.
 
 ## Completed 1.9.0 traffic and compression release
 

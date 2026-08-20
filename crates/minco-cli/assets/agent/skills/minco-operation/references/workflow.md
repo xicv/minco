@@ -64,3 +64,7 @@ responses through the standard negotiated gzip layer and keep the per-response
 `DisableResponseCompression` marker for representations that combine secrets
 with attacker-controlled reflection. Do not add application decompression or
 dynamic Brotli without explicit measured evidence.
+
+At the 1.10 Ticketing support-entry boundary, keep requester identity and
+permissions server-derived, bound untrusted browser context, and issue
+single-use handoffs only after the durable ticket result exists.

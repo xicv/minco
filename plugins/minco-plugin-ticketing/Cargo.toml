@@ -1,0 +1,65 @@
+[package]
+name = "minco-plugin-ticketing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/minco-plugin-ticketing"
+publish = ["crates-io"]
+description = "Project-scoped support ticketing, atomic handoffs, conversation, SQLite persistence, and support-entry HTTP for Minco"
+readme = "README.md"
+keywords = ["minco", "support", "ticketing", "workflow"]
+categories = ["web-programming", "development-tools"]
+include = ["src/**", "assets/**", "openapi/**", "migrations/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
+
+[features]
+default = ["http"]
+http = ["dep:axum", "dep:http", "dep:minco-http", "dep:minco-plugin-health"]
+sqlite = ["dep:sqlx", "sqlx/sqlite"]
+full = ["http", "sqlite"]
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+hex.workspace = true
+minco-core.workspace = true
+minco-http = { workspace = true, optional = true }
+minco-interaction.workspace = true
+minco-plugin-audit.workspace = true
+minco-plugin-events.workspace = true
+minco-plugin-health = { workspace = true, optional = true }
+minco-plugin-identity.workspace = true
+minco-plugin-notifications.workspace = true
+minco-plugin-object-storage.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx = { workspace = true, optional = true, features = ["macros"] }
+subtle.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+axum = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
+
+[dev-dependencies]
+minco-test.workspace = true
+minco-contract.workspace = true
+tempfile.workspace = true
+tower.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

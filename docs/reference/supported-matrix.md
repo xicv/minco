@@ -1,7 +1,7 @@
-# 1.8 support matrix
+# Minco support matrix
 
 Published install baseline: `1.9.0`
-Current workspace version: `1.9.0`
+Current workspace version: `1.10.0`
 MSRV: Rust `1.97.1`
 Compatibility state: the published 1.8.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
@@ -15,6 +15,10 @@ remain separate.
 The published `1.9.0` release adds the additive API Gateway traffic policy
 and hardened negotiated compression inside the same 34-package `v1.9.0`
 family.
+
+The unpublished `1.10.0` candidate adds the shared Interaction crate and beta
+Ticketing plugin as the 35th and 36th publishable packages. Its local source
+evidence is not registry, provider, deployment, or production proof.
 
 The published 1.8.0 release adds provider-neutral transfer contracts and
 an authenticated object JSON control plane. S3 is the production-targeted byte
