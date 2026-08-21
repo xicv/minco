@@ -55,5 +55,5 @@ baseline_package_count = 34
 new_packages = ["minco-interaction", "minco-plugin-ticketing"]
 
 [performance]
-local_receipt = "verification/1.10-candidate-load.json"
+local_receipt = "verification/1.11-candidate-load.json"
 hosted_baseline = "verification/1.9-performance-baseline.json"

@@ -19,15 +19,16 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.10.0`
 >
-> Current workspace version: `1.10.0`
+> Current workspace version: `1.11.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
 > Current publishable package count: `36`
 
 The complete 36-package 1.10.0 family is published from immutable tag
-`v1.10.0`. The two new package names are owned on crates.io; future trusted
-publisher configuration remains independently unverified.
+`v1.10.0`, including trusted publishers, Pages and docs.rs proof. The 1.11.0
+workspace is an unpublished additive candidate for contract-enforced request
+validation; use exact 1.10.0 packages until registry publication is verified.
 
 ## Documentation
 
@@ -48,6 +49,7 @@ start directly with:
 - [Use Apple-first local services](https://xicv.github.io/minco/1.10.0/guides/local-development)
 - [Transfer files directly](https://xicv.github.io/minco/1.10.0/guides/files-and-static-sites)
 - [Use portal-first Ticketing](https://xicv.github.io/minco/1.10.0/guides/ticketing)
+- [Preview contract-enforced request validation](https://xicv.github.io/minco/1.11.0/guides/contract-request-validation)
 
 Repository-native decisions, operational detail, and release evidence remain
 under [`docs/`](docs/), [`docs/DECISIONS.md`](docs/DECISIONS.md), and
@@ -87,10 +89,10 @@ cargo add minco@1.10.0 --no-default-features
 
 ## Agent-native application development
 
-The `1.10.0` release packages nine focused, version-matched workflow skills
-for Codex and Claude Code. Relevant skills teach the resumable object-transfer
-boundary while retaining Apple-first local services, exact-resource recovery,
-Docker fallback and durable auditing. The mandatory cumulative
+The `1.11.0` candidate packages nine focused, version-matched workflow skills
+for Codex and Claude Code. Relevant skills teach generated request validation,
+typed extraction, coarse authorization, safe correlation IDs and explicit
+body-limit/timeout provenance while retaining every earlier boundary. The mandatory cumulative
 changelog-to-skill freshness gate remains in force. Minco
 plans project-local projections before writing, requires
 the exact plan digest to synchronize them, and preserves user-owned
@@ -107,7 +109,7 @@ cargo minco agent eval --target all --json
 Context and evaluation are bounded, read-only projections over authoritative
 Minco project facts. They do not invoke a model, contact a provider, run a task,
 or grant commit, release, deployment, database, or production authority. See
-the [1.10.0 agent development guide](https://xicv.github.io/minco/1.10.0/guides/agent-development).
+the [1.11.0 candidate agent development guide](https://xicv.github.io/minco/1.11.0/guides/agent-development).
 
 Release qualification also verifies cumulative feature coverage, current
 versioned documentation, skill markers and a byte-identical deterministic
@@ -117,7 +119,7 @@ measured human-review effort remain `NOT RUN` for this release.
 
 ## The resource API convention
 
-Minco 1.10.0 retains the opt-in, OpenAPI-first CRUD convention without adding
+Minco 1.11.0 retains the opt-in, OpenAPI-first CRUD convention without adding
 an ORM or generic repository:
 
 | Action | Success | Control |
@@ -131,6 +133,16 @@ an ORM or generic repository:
 Errors use `application/problem+json` with stable codes and request IDs.
 Authorization, validation, domain invariants, audit, retention, deletion
 policy, and transaction boundaries remain in application use cases.
+
+## Contract-enforced requests
+
+The 1.11.0 candidate can generate bounded semantic request checks directly from
+reviewed OpenAPI when `x-minco-request-validation: generated` is selected.
+`ValidatedJson`, `ValidatedQuery` and `ValidatedPath` extract once; a separate
+generated policy enforces exact coarse permissions and scopes before one use
+case. Structural failures are `400`, decoded assertion failures are bounded
+`422`, and business authorization remains application-owned. See the
+[candidate guide](https://xicv.github.io/minco/1.11.0/guides/contract-request-validation).
 
 ## Durable action auditing
 

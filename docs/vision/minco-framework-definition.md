@@ -3,8 +3,8 @@
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
 Published baseline: `1.10.0`
-Current workspace version: `1.10.0`
-Workspace release state: `published`
+Current workspace version: `1.11.0`
+Workspace release state: `candidate`
 Reviewed release source: `2075b60b8fe86c04d3c8289d71eb8293a39fc378`
 
 ## Product identity
@@ -51,6 +51,9 @@ The immutable published `1.10.0` classification is:
 > The 1.10 release adds a provider-neutral support-interaction boundary and an
 > opt-in beta Ticketing plugin without adding a hosted portal, mailbox poller,
 > scheduler, fixed compute, provider request or default production topology.
+> The 1.11 candidate adds opt-in generated request validation, typed extraction,
+> coarse delivery authorization and hardened request middleware without moving
+> business policy into HTTP or adding a provider resource.
 
 The published 1.5.0 release preserves that classification. It packages
 additive application-test fakes plus provider-free measured assurance and cost

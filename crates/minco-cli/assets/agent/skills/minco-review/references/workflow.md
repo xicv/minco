@@ -51,3 +51,10 @@ protection, never as authorization, a per-user quota or a hard spend cap.
 At the 1.10 Ticketing support-entry boundary, review requester/internal
 projection separation, revision conflicts, exact idempotency, atomic handoff
 consumption, bounded context and closed cross-window messaging.
+
+At the 1.11 contract-enforced request boundary, review request-reachable schema
+coverage, missing-versus-null preservation, bounded errors and work, one-pass
+typed extraction, exact permission/scope semantics, authorization before the
+use case, safe request IDs, and explicit body-limit/timeout provenance. Reject
+runtime rule registries, generated-file edits, reflected request values and any
+claim that coarse delivery authorization replaces application policy.

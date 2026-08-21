@@ -8,15 +8,15 @@ family from immutable tag `v1.10.0` at
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is the published `1.10.0` source with 36 publishable packages.
-`minco-interaction` and `minco-plugin-ticketing` crossed their first-publication
-ownership boundary in this release. Their future trusted-publisher settings
-were reconciled and read back on 2026-08-21 for repository `xicv/minco`,
-workflow `publish-crates.yml` and environment `crates-io`. Local review does
-not authorize a later tag, upload, release, deployment, live application-
-provider request, or production mutation.
+The workspace is an unpublished additive `1.11.0` candidate with the same 36
+publishable packages. No package ownership boundary is new. Every existing
+publisher, including `minco-interaction` and `minco-plugin-ticketing`, was
+already reconciled for repository `xicv/minco`, workflow `publish-crates.yml`
+and environment `crates-io`. Candidate qualification, merge, exact-main hosted
+compatibility, tag, OIDC authentication, upload, registry verification,
+docs.rs and Pages remain separate states.
 
-The release keeps all nine AI skills current and retains cumulative
+The candidate keeps all nine AI skills current for the 1.11 request boundary and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
 mandatory release gates. Those checks do not invoke a model or measure human
 review effort.

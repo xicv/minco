@@ -1,15 +1,30 @@
-# Minco 1.10.0 published release handoff
+# Minco 1.11.0 candidate release handoff
 
 Date: 2026-08-21
 Published baseline: `1.10.0`
-Current workspace version: `1.10.0`
-Workspace release state: `published`
+Current workspace version: `1.11.0`
+Workspace release state: `candidate`
 Published `1.10.0` source: `2075b60b8fe86c04d3c8289d71eb8293a39fc378`
 Published source-tree digest: `258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0`
 Published release task: `M14-T41`
-Latest release task: `M14-T41` (`complete`)
-Completed candidate task: `M14-T40`
+Latest release task: `M14-T43` (`active`)
+Completed candidate task: `M14-T42`
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Active 1.11.0 request-boundary candidate
+
+M14-T43 starts from exact merged main
+`fc6483ccb42f86a7247dd65e1500716ed7132313`. It advances the existing
+36-package family to `1.11.0`, freezes the current manual under
+`docs-site/1.11.0/`, and updates all nine packaged Codex/Claude skills for the
+opt-in generated request-validation boundary. The published install baseline
+remains exact 1.10.0 until the candidate is reviewed, merged, tagged, uploaded
+and independently verified.
+
+No package ownership boundary is new. Exact local qualification, independent
+review, hosted clean Linux, tag, OIDC authentication, guarded publication,
+registry, GitHub release, Pages and docs.rs are separate gates. No AWS,
+application-provider, deployment, database or production mutation is implied.
 
 ## Published 1.10.0 Ticketing release
 

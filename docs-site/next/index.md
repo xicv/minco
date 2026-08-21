@@ -17,6 +17,11 @@ and [negotiated response compression](./guides/http-compression) with the same
 additive, minimal-topology boundaries.
 The 1.10 release adds a [portal-first Ticketing support entry](./guides/ticketing)
 with atomic one-time handoffs and requester-safe projections.
+The 1.11 candidate adds [contract-enforced request validation](./guides/contract-request-validation)
+with direct generated checks, one-pass typed extractors, separate coarse
+authorization policy, safe request IDs and explicit body-limit/timeout
+provenance. Application use cases still own tenancy, resource ownership,
+stored-state authorization and business invariants.
 
 ## Start with the outcome
 

@@ -13,13 +13,13 @@ package inventory is derived from `[workspace.metadata.minco.release]` and
 checked against every publishable workspace member by
 `scripts/validate_publish.py`.
 
-The workspace is the published `1.10.0` source with 36 publishable packages.
-`minco-interaction` and `minco-plugin-ticketing` crossed first manual
-publication and are owned on crates.io. Their future trusted-publisher entries
-were independently reconciled on 2026-08-21 for repository `xicv/minco`,
-workflow `publish-crates.yml` and environment `crates-io`.
-`new_publishable_packages` is empty. Source qualification, hosted
-compatibility, tag, registry, docs.rs and Pages evidence remain separate.
+The workspace is an unpublished additive `1.11.0` candidate with the same 36
+publishable packages. `minco-interaction` and `minco-plugin-ticketing` are
+already owned on crates.io and their future trusted-publisher entries were
+independently reconciled on 2026-08-21 for repository `xicv/minco`, workflow
+`publish-crates.yml` and environment `crates-io`. `new_publishable_packages`
+remains empty. Candidate source, hosted compatibility, tag, OIDC
+authentication, upload, registry, docs.rs and Pages evidence remain separate.
 
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
@@ -29,9 +29,11 @@ family. The 1.3 release adds the opt-in Waffo payment boundary; the 1.6 release
 adds durable action auditing without changing package ownership; and the 1.7
 release changes only fresh automatic local dependency-runtime selection. The
 1.8 release adds object-transfer contracts without changing ownership. The
-1.10 release adds the shared Interaction and beta Ticketing packages. All 36
-packages in the published 1.10.0 baseline now have crates.io ownership. Source
-qualification or merge still must not be described as registry publication.
+1.10 release adds the shared Interaction and beta Ticketing packages. The 1.11
+candidate adds the contract-enforced request boundary without changing package
+ownership. All 36 packages in the published 1.10.0 baseline have crates.io
+ownership. Source qualification or merge still must not be described as
+registry publication.
 
 The exact published source is immutable tag `v1.10.0` at
 `2075b60b8fe86c04d3c8289d71eb8293a39fc378`. The complete local qualification
