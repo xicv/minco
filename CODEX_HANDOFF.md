@@ -7,7 +7,7 @@ Workspace release state: `published`
 Published `1.10.0` source: `2075b60b8fe86c04d3c8289d71eb8293a39fc378`
 Published source-tree digest: `258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0`
 Published release task: `M14-T41`
-Latest release task: `M14-T41` (`active`: trusted-publisher and documentation-service closure)
+Latest release task: `M14-T41` (`complete`)
 Completed candidate task: `M14-T40`
 Active evidence tasks: `M14-T10`, `M14-T20`
 
@@ -23,11 +23,13 @@ missing packages. All 36 exact versions are present and non-yanked, and the
 GitHub release is published at
 <https://github.com/xicv/minco/releases/tag/v1.10.0>.
 
-The stable 1.10 manual and repository truth are being promoted separately.
-Future trusted-publisher configuration for `minco-interaction` and
-`minco-plugin-ticketing` remains unverified because browser control returned
-`Transport closed` twice before opening crates.io settings. No AWS, provider,
-application deployment or production mutation is implied.
+The stable 1.10 manual and repository truth are published. Exactly one reviewed
+future trusted-publisher entry was created and read back for each new crate:
+repository `xicv/minco`, workflow `publish-crates.yml`, environment
+`crates-io`. Exact merged-main Pages run `32476082843`, the stable versioned
+site and all 36 exact docs.rs routes passed independently. No AWS or live
+application-provider request, application deployment or production mutation is
+implied.
 
 ## Completed 1.9.0 traffic and compression release
 

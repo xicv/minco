@@ -29,6 +29,7 @@ is retained as a stable reference; `next` is allowed to change.
 
 The 1.10.0 source, local and hosted qualification, immutable tag, 36-package
 registry publication and GitHub release are independently verified. The two
-new package names crossed their crates.io ownership boundary; future trusted
-publisher configuration is not yet verified. No live provider, deployment, or
-production proof is implied.
+new package names crossed their crates.io ownership boundary, and their future
+trusted-publisher entries were created and read back for `xicv/minco`,
+`publish-crates.yml` and the `crates-io` environment. No live application
+provider, deployment, or production proof is implied.

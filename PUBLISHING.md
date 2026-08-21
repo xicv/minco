@@ -11,9 +11,10 @@ remain separate states for every release.
 The workspace is the published `1.10.0` source with 36 publishable packages.
 `minco-interaction` and `minco-plugin-ticketing` crossed their first-publication
 ownership boundary in this release. Their future trusted-publisher settings
-remain unverified because the crates.io browser session was unavailable. Local
-review does not authorize a later tag, upload, release, deployment, provider
-request, or production mutation.
+were reconciled and read back on 2026-08-21 for repository `xicv/minco`,
+workflow `publish-crates.yml` and environment `crates-io`. Local review does
+not authorize a later tag, upload, release, deployment, live application-
+provider request, or production mutation.
 
 The release keeps all nine AI skills current and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
