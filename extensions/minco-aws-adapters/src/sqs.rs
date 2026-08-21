@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use minco_plugin_events::{DomainEvent, EventError, EventPublisher};
 
-const SQS_MAX_MESSAGE_BYTES: usize = 1_048_576;
+pub(crate) const SQS_MAX_MESSAGE_BYTES: usize = 1_048_576;
 
 #[derive(Debug, Clone)]
 pub struct SqsEventPublisher {
@@ -82,7 +82,7 @@ fn validate_event(event: &DomainEvent) -> Result<(), EventError> {
     Ok(())
 }
 
-fn validate_message_body(body: &str) -> Result<(), EventError> {
+pub(crate) fn validate_message_body(body: &str) -> Result<(), EventError> {
     if body.is_empty() || body.len() > SQS_MAX_MESSAGE_BYTES || !body.chars().all(is_sqs_character)
     {
         return Err(EventError::Infrastructure(
@@ -92,7 +92,7 @@ fn validate_message_body(body: &str) -> Result<(), EventError> {
     Ok(())
 }
 
-const fn is_sqs_character(character: char) -> bool {
+pub(crate) const fn is_sqs_character(character: char) -> bool {
     matches!(character, '\u{9}' | '\u{A}' | '\u{D}')
         || matches!(
             character as u32,

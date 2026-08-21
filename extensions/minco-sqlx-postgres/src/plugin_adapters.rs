@@ -680,7 +680,8 @@ mod tests {
             return;
         };
         sqlx::raw_sql(
-            "TRUNCATE minco_outbox, minco_sessions, minco_idempotency, minco_audit RESTART IDENTITY",
+            "TRUNCATE minco_outbox, minco_sessions, minco_idempotency, minco_audit, \
+             minco_job_publications, minco_jobs, minco_job_locks RESTART IDENTITY",
         )
         .execute(&pool)
         .await
@@ -690,7 +691,7 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(migration_count, 2);
+        assert_eq!(migration_count, 3);
 
         let outbox = PostgresOutboxStore::new(pool.clone());
         let event = DomainEvent::new(

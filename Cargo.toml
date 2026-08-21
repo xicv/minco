@@ -25,6 +25,7 @@ members = [
   "plugins/minco-plugin-identity",
   "plugins/minco-plugin-object-storage",
   "plugins/minco-plugin-events",
+  "plugins/minco-plugin-jobs",
   "plugins/minco-plugin-notifications",
   "plugins/minco-plugin-audit",
   "plugins/minco-plugin-feedback",
@@ -68,6 +69,7 @@ default-members = [
   "plugins/minco-plugin-identity",
   "plugins/minco-plugin-object-storage",
   "plugins/minco-plugin-events",
+  "plugins/minco-plugin-jobs",
   "plugins/minco-plugin-notifications",
   "plugins/minco-plugin-audit",
   "plugins/minco-plugin-feedback",
@@ -188,6 +190,7 @@ minco-plugin-sessions = { version = "1.11.0", path = "plugins/minco-plugin-sessi
 minco-plugin-identity = { version = "1.11.0", path = "plugins/minco-plugin-identity" }
 minco-plugin-object-storage = { version = "1.11.0", path = "plugins/minco-plugin-object-storage" }
 minco-plugin-events = { version = "1.11.0", path = "plugins/minco-plugin-events" }
+minco-plugin-jobs = { version = "1.11.0", path = "plugins/minco-plugin-jobs" }
 minco-plugin-notifications = { version = "1.11.0", path = "plugins/minco-plugin-notifications" }
 minco-plugin-audit = { version = "1.11.0", path = "plugins/minco-plugin-audit" }
 minco-plugin-feedback = { version = "1.11.0", path = "plugins/minco-plugin-feedback", default-features = false }
@@ -267,6 +270,7 @@ publish = [
   "minco-plugin-identity",
   "minco-plugin-object-storage",
   "minco-plugin-events",
+  "minco-plugin-jobs",
   "minco-plugin-notifications",
   "minco-plugin-audit",
   "minco-interaction",

@@ -53,6 +53,7 @@ function workspaceSidebar(root: string) {
         { text: 'Identity and sessions', link: link('guides/identity-and-sessions') },
         { text: 'Files and static sites', link: link('guides/files-and-static-sites') },
         { text: 'Events and notifications', link: link('guides/events-and-notifications') },
+        { text: 'Durable jobs and schedules', link: link('guides/durable-jobs') },
         { text: 'Durable action auditing', link: link('guides/auditing') },
         { text: 'Realtime subscriptions', link: link('guides/realtime') },
         { text: 'Client feedback loop', link: link('guides/feedback') },

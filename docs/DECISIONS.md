@@ -51,3 +51,4 @@ This register summarizes the settled framework decisions. Detailed rationale and
 | [ADR-0045](adrs/0045-resumable-direct-object-transfers.md) | Keep large HTTP and mobile object transfers direct, resumable, immutable, validation-gated and structurally cost-aware. | Accepted |
 | [ADR-0046](adrs/0046-multi-surface-ticketing-entry.md) | Keep Ticketing portal-first and expose one privacy-bounded handoff contract to widgets, extensions, native clients and BFF integrations. | Proposed |
 | [ADR-0047](adrs/0047-contract-derived-request-boundary.md) | Generate bounded request validation and coarse authorization from opted-in OpenAPI while preserving application-owned business policy. | Accepted |
+| [ADR-0048](adrs/0048-durable-typed-work.md) | Add durable typed work with at-least-once delivery, lease-based execution, explicit schedules and guarded operator recovery. | Accepted |

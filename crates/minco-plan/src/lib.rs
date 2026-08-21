@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 mod cost;
+pub mod durable_work;
 mod model;
 mod sam;
 mod traffic;
@@ -88,7 +89,8 @@ pub use model::{
     IngressPlan, NeonPlan, PerformancePolicy, PlanDiagnostic, PlanError, PreviewCleanupSchedule,
     PreviewLifecyclePlan, PreviewResource, PreviewResourceRetention, QueuePlan, RealtimeDeployment,
     RoutePlan, RuntimePlan, ScheduleCleanupPlan, ScheduleCompletionAction, Severity,
-    StaticSiteDeployment, TriggerPlan,
+    StaticSiteDeployment, TriggerPlan, derive_iam_intents, is_schedule_expression, is_stable_id,
+    local_aws_services,
 };
 pub use sam::{render_sam, render_sam_with_code_uri, render_sam_with_code_uris};
 pub use traffic::{

@@ -1,6 +1,7 @@
 #![cfg(feature = "sqlite")]
 
 use chrono::Utc;
+use minco_aws_worker::MessageHandler as _;
 use minco_plugin_audit::{
     AuditJournalStore, AuditLedgerWriter, AuditQuery, AuditReader, AuditRelay, AuditResourceRef,
 };
@@ -79,7 +80,51 @@ fn transaction(key: &str, fingerprint: &str) -> PlaceOrderTransaction {
         idempotency_key: key.into(),
         request_fingerprint: fingerprint.into(),
         audit: None,
+        confirmation_job: None,
     }
+}
+
+#[tokio::test]
+async fn place_order_commits_the_confirmation_job_atomically() {
+    let database = TestDatabase::open().await;
+    let key = format!("sqlite-jobs-{}", Uuid::new_v4());
+    let correlation = Uuid::now_v7();
+    let mut command = transaction(&key, "fingerprint");
+    command.confirmation_job = Some(orders_application::OrderConfirmationJob {
+        order_id: command.order.id,
+        correlation_id: correlation,
+    });
+    let placed = database
+        .store
+        .place_order(command)
+        .await
+        .expect("placed with a durable confirmation job");
+
+    // The durable job and its publication intent committed with the order.
+    let jobs: Vec<(String,)> = sqlx::query_as(
+        "SELECT json_extract(envelope, '$.job_name') FROM minco_jobs \
+         WHERE worker_profile = 'orders-notifications'",
+    )
+    .fetch_all(database.store.pool())
+    .await
+    .expect("query durable jobs");
+    assert_eq!(jobs.len(), 1, "exactly one confirmation job per order");
+    assert_eq!(
+        jobs[0].0,
+        orders_adapters::jobs::CONFIRMATION_JOB_NAME.to_owned()
+    );
+    let publications: Vec<(String,)> =
+        sqlx::query_as("SELECT status FROM minco_job_publications WHERE status = 'pending'")
+            .fetch_all(database.store.pool())
+            .await
+            .expect("query publication intents");
+    assert_eq!(
+        publications.len(),
+        1,
+        "the job carries one recoverable publication intent"
+    );
+    let _ = placed;
+    database.close().await;
 }
 
 #[tokio::test]
@@ -491,4 +536,216 @@ async fn semantic_actions_commit_with_source_and_relay_once_to_a_separate_ledger
     ledger_pool.close().await;
     remove_database_files(&source_path);
     remove_database_files(&ledger_path);
+}
+
+/// A deterministic confirmation sink: records effects and can be scripted to
+/// fail transiently or permanently.
+#[derive(Debug, Default)]
+struct RecordingSink {
+    sent: std::sync::Mutex<Vec<String>>,
+    transient_failures: std::sync::atomic::AtomicU32,
+    permanent: std::sync::atomic::AtomicBool,
+}
+
+#[async_trait::async_trait]
+impl orders_adapters::jobs::ConfirmationSink for RecordingSink {
+    async fn send_confirmation(
+        &self,
+        confirmation: &orders_adapters::jobs::SendOrderConfirmation,
+    ) -> Result<(), String> {
+        if self.permanent.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err("notify-rejected".into());
+        }
+        if self
+            .transient_failures
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst)
+            > 0
+        {
+            return Err("notification-unavailable".into());
+        }
+        self.sent
+            .lock()
+            .expect("sink lock")
+            .push(confirmation.order_id.clone());
+        Ok(())
+    }
+}
+
+/// The golden durable-work slice: order commit, queue dispatch, typed
+/// handler, one notification effect, duplicate suppression, durable retry
+/// and inspectable permanent failure.
+#[tokio::test]
+async fn confirmation_job_reaches_the_handler_exactly_once() {
+    let database = TestDatabase::open().await;
+    let sink = std::sync::Arc::new(RecordingSink::default());
+    let registry = std::sync::Arc::new(orders_adapters::jobs::confirmation_registry(sink.clone()));
+    let (services, _store, dispatcher) = minco_plugin_jobs::JobsServices::memory(registry.clone());
+    let job_store = minco_sqlx_sqlite::jobs::SqliteJobStore::new(
+        sqlx::SqlitePool::connect(&format!("sqlite://{}", database.path.display()))
+            .await
+            .expect("job pool"),
+    );
+    let services = minco_plugin_jobs::JobsServices::new(
+        std::sync::Arc::new(job_store),
+        services.publications.clone(),
+        services.dispatcher.clone(),
+        services.locks.clone(),
+        services.clock.clone(),
+        services.executor.clone(),
+    );
+
+    // Place the order; the confirmation job committed with it.
+    let key = format!("sqlite-golden-{}", Uuid::new_v4());
+    let mut command = transaction(&key, "fingerprint");
+    command.confirmation_job = Some(orders_application::OrderConfirmationJob {
+        order_id: command.order.id,
+        correlation_id: Uuid::now_v7(),
+    });
+    database
+        .store
+        .place_order(command)
+        .await
+        .expect("place order");
+
+    // Read the committed envelope and dispatch it through the queue fake.
+    let jobs: Vec<(String,)> = sqlx::query_as(
+        "SELECT envelope FROM minco_jobs WHERE worker_profile = 'orders-notifications'",
+    )
+    .fetch_all(database.store.pool())
+    .await
+    .expect("read durable jobs");
+    assert_eq!(jobs.len(), 1);
+    let envelope: minco_plugin_jobs::JobEnvelope =
+        serde_json::from_str(&jobs[0].0).expect("decode committed envelope");
+    let worker =
+        minco_aws_worker::jobs::JobMessageHandler::durable("orders-jobs-worker", services.clone());
+    let body = String::from_utf8(envelope.to_json_bytes().expect("serialize")).expect("utf-8");
+    worker
+        .handle(minco_aws_worker::WorkerMessage {
+            message_id: "m-1".into(),
+            body: body.clone(),
+            attributes: std::collections::BTreeMap::new(),
+            message_group_id: None,
+        })
+        .await
+        .expect("first delivery acknowledged");
+    // A duplicate delivery of the completed job is acknowledged without a
+    // second business effect.
+    worker
+        .handle(minco_aws_worker::WorkerMessage {
+            message_id: "m-2".into(),
+            body,
+            attributes: std::collections::BTreeMap::new(),
+            message_group_id: None,
+        })
+        .await
+        .expect("duplicate delivery acknowledged");
+    assert_eq!(
+        sink.sent.lock().expect("sink lock").len(),
+        1,
+        "exactly one confirmation effect"
+    );
+    let _ = dispatcher;
+    database.close().await;
+}
+
+#[tokio::test]
+async fn transient_confirmation_failure_retries_and_permanent_failure_is_inspectable() {
+    let database = TestDatabase::open().await;
+    let sink = std::sync::Arc::new(RecordingSink {
+        sent: std::sync::Mutex::new(Vec::new()),
+        transient_failures: std::sync::atomic::AtomicU32::new(1),
+        permanent: std::sync::atomic::AtomicBool::new(false),
+    });
+    let registry = std::sync::Arc::new(orders_adapters::jobs::confirmation_registry(sink.clone()));
+    let job_store = std::sync::Arc::new(minco_sqlx_sqlite::jobs::SqliteJobStore::new(
+        sqlx::SqlitePool::connect(&format!("sqlite://{}", database.path.display()))
+            .await
+            .expect("job pool"),
+    ));
+    let services = minco_plugin_jobs::JobsServices::new(
+        job_store.clone(),
+        job_store.clone(),
+        std::sync::Arc::new(minco_plugin_jobs::FakeJobDispatcher::new()),
+        job_store.clone(),
+        std::sync::Arc::new(minco_plugin_jobs::SystemJobClock),
+        std::sync::Arc::new(minco_plugin_jobs::JobExecutor::new(registry.clone())),
+    );
+
+    let mut envelope =
+        orders_adapters::jobs::confirmation_envelope(&orders_application::OrderConfirmationJob {
+            order_id: orders_domain::OrderId::new(),
+            correlation_id: Uuid::now_v7(),
+        })
+        .expect("envelope");
+    // Fast backoff keeps the retry proof within the test budget.
+    envelope.retry = Some(minco_plugin_jobs::RetryPolicy::fixed(5, 1));
+    services
+        .submit_durable(envelope.clone())
+        .await
+        .expect("submit");
+
+    let worker = minco_aws_worker::jobs::JobMessageHandler::durable("w", services.clone());
+    let body = String::from_utf8(envelope.to_json_bytes().unwrap()).unwrap();
+    let message = |id: &str| minco_aws_worker::WorkerMessage {
+        message_id: id.into(),
+        body: body.clone(),
+        attributes: std::collections::BTreeMap::new(),
+        message_group_id: None,
+    };
+    worker.handle(message("m-1")).await.expect("retry acked");
+    let record = services.store.get(envelope.job_id).await.unwrap().unwrap();
+    assert_eq!(
+        format!("{:?}", record.status),
+        "Pending",
+        "the retry is durable"
+    );
+    // After the retry delay the job succeeds.
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    worker.handle(message("m-2")).await.expect("second ack");
+    assert_eq!(sink.sent.lock().unwrap().len(), 1);
+
+    // A permanently failing job becomes inspectable.
+    let failing_sink = std::sync::Arc::new(RecordingSink {
+        sent: std::sync::Mutex::new(Vec::new()),
+        transient_failures: std::sync::atomic::AtomicU32::new(0),
+        permanent: std::sync::atomic::AtomicBool::new(true),
+    });
+    let failing_registry =
+        std::sync::Arc::new(orders_adapters::jobs::confirmation_registry(failing_sink));
+    let failing_services = minco_plugin_jobs::JobsServices::new(
+        job_store.clone(),
+        job_store.clone(),
+        std::sync::Arc::new(minco_plugin_jobs::FakeJobDispatcher::new()),
+        job_store.clone(),
+        std::sync::Arc::new(minco_plugin_jobs::SystemJobClock),
+        std::sync::Arc::new(minco_plugin_jobs::JobExecutor::new(failing_registry)),
+    );
+    let mut exhausted =
+        orders_adapters::jobs::confirmation_envelope(&orders_application::OrderConfirmationJob {
+            order_id: orders_domain::OrderId::new(),
+            correlation_id: Uuid::now_v7(),
+        })
+        .expect("envelope");
+    exhausted.maximum_attempts = 1;
+    exhausted.retry = Some(minco_plugin_jobs::RetryPolicy::fixed(1, 1));
+    failing_services
+        .submit_durable(exhausted.clone())
+        .await
+        .expect("submit failing");
+    let failing_worker =
+        minco_aws_worker::jobs::JobMessageHandler::durable("w", failing_services.clone());
+    failing_worker
+        .handle(minco_aws_worker::WorkerMessage {
+            message_id: "m-3".into(),
+            body: String::from_utf8(exhausted.to_json_bytes().unwrap()).unwrap(),
+            attributes: std::collections::BTreeMap::new(),
+            message_group_id: None,
+        })
+        .await
+        .expect("permanent failure acked");
+    let failed = failing_services.store.list_failed(10).await.unwrap();
+    assert_eq!(failed.len(), 1, "the failure is inspectable");
+    assert_eq!(failed[0].envelope.job_id, exhausted.job_id);
+    database.close().await;
 }

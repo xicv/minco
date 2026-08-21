@@ -46,6 +46,7 @@ s3 = [
   "dep:minco-plugin-object-storage",
 ]
 sqs = ["dep:aws-sdk-sqs", "dep:http", "dep:minco-plugin-events"]
+jobs = ["sqs", "dep:minco-plugin-jobs"]
 ses = [
   "dep:aws-config",
   "dep:aws-sdk-sesv2",
@@ -63,7 +64,16 @@ static-site = [
   "dep:minco-plugin-static-site",
   "dep:tokio",
 ]
-full = ["appsync-events", "s3", "sqs", "ses", "cognito", "webhook", "static-site"]
+full = [
+  "appsync-events",
+  "s3",
+  "sqs",
+  "ses",
+  "cognito",
+  "webhook",
+  "static-site",
+  "jobs",
+]
 
 [dependencies]
 async-trait.workspace = true
@@ -83,6 +93,7 @@ hex.workspace = true
 http = { workspace = true, optional = true }
 minco-core.workspace = true
 minco-plugin-events = { workspace = true, optional = true }
+minco-plugin-jobs = { workspace = true, optional = true }
 minco-plugin-identity = { workspace = true, optional = true }
 minco-plugin-notifications = { workspace = true, optional = true }
 minco-plugin-object-storage = { workspace = true, optional = true }

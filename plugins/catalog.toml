@@ -51,6 +51,16 @@ stability = "beta"
 description = "Explicit SQS Lambda partial-batch worker runtime without hidden schedules."
 
 [[plugin]]
+id = "jobs"
+crate = "minco-plugin-jobs"
+path = "plugins/minco-plugin-jobs"
+kind = "plugin"
+feature = "plugin-jobs"
+default_enabled = false
+stability = "beta"
+description = "Durable typed jobs with at-least-once delivery, lease-based execution and explicit scheduling."
+
+[[plugin]]
 id = "events"
 crate = "minco-plugin-events"
 path = "plugins/minco-plugin-events"

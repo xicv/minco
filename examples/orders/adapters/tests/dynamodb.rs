@@ -46,6 +46,7 @@ fn transaction(key: &str, fingerprint: &str, index: i64) -> PlaceOrderTransactio
         idempotency_key: key.into(),
         request_fingerprint: fingerprint.into(),
         audit: None,
+        confirmation_job: None,
     }
 }
 

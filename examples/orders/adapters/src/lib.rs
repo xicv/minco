@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod audit;
+pub mod jobs;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
 mod memory;

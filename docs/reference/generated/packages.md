@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Workspace version: `1.11.0`. MSRV: `1.97.1`. Publishable packages: `36`.
+Workspace version: `1.11.0`. MSRV: `1.97.1`. Publishable packages: `37`.
 
 Publication is dependency ordered. A docs.rs link is present for every public package; archive-smoke packages are the subset exercised independently before publication.
 
@@ -40,18 +40,19 @@ Publication is dependency ordered. A docs.rs link is present for every public pa
 | 19 | `minco-plugin-identity` | Verified-claims identity mapping and permission authorization for Minco | no | [docs.rs](https://docs.rs/minco-plugin-identity/1.11.0/minco_plugin_identity/) |
 | 20 | `minco-plugin-object-storage` | Provider-neutral object storage port and reference memory implementation for Minco | no | [docs.rs](https://docs.rs/minco-plugin-object-storage/1.11.0/minco_plugin_object_storage/) |
 | 21 | `minco-plugin-events` | Domain event publisher and transactional outbox ports for Minco | no | [docs.rs](https://docs.rs/minco-plugin-events/1.11.0/minco_plugin_events/) |
-| 22 | `minco-plugin-notifications` | Provider-neutral notification and rich outbound mail ports with deterministic local test adapters for Minco | no | [docs.rs](https://docs.rs/minco-plugin-notifications/1.11.0/minco_plugin_notifications/) |
-| 23 | `minco-plugin-audit` | Append-only audit event port and reference memory sink for Minco | no | [docs.rs](https://docs.rs/minco-plugin-audit/1.11.0/minco_plugin_audit/) |
-| 24 | `minco-interaction` | Provider-neutral support entry, attachments, transcription, workflow, and activity helpers for Minco applications | yes | [docs.rs](https://docs.rs/minco-interaction/1.11.0/minco_interaction/) |
-| 25 | `minco-sqlx-postgres` | Bounded SQLx PostgreSQL pools, migrations, and safe seed execution for Minco | no | [docs.rs](https://docs.rs/minco-sqlx-postgres/1.11.0/minco_sqlx_postgres/) |
-| 26 | `minco-sqlx-sqlite` | SQLx SQLite pools, migrations, and safe seed execution for Minco applications | no | [docs.rs](https://docs.rs/minco-sqlx-sqlite/1.11.0/minco_sqlx_sqlite/) |
-| 27 | `minco-plugin-feedback` | AI-ready client feedback loops with screenshots, voice, discussion, persistence, and an embeddable widget for Minco | no | [docs.rs](https://docs.rs/minco-plugin-feedback/1.11.0/minco_plugin_feedback/) |
-| 28 | `minco-plugin-ticketing` | Project-scoped support ticketing, atomic handoffs, conversation, SQLite persistence, and support-entry HTTP for Minco | yes | [docs.rs](https://docs.rs/minco-plugin-ticketing/1.11.0/minco_plugin_ticketing/) |
-| 29 | `minco-plugin-realtime` | Provider-neutral subscriber-only realtime publication for Minco applications | yes | [docs.rs](https://docs.rs/minco-plugin-realtime/1.11.0/minco_plugin_realtime/) |
-| 30 | `minco-plugin-payments-waffo` | Signed Waffo Pancake checkout, payment API, and webhook integration for Minco | yes | [docs.rs](https://docs.rs/minco-plugin-payments-waffo/1.11.0/minco_plugin_payments_waffo/) |
-| 31 | `minco-aws-adapters` | Production AWS and signed-webhook adapters for Minco official plugin ports | no | [docs.rs](https://docs.rs/minco-aws-adapters/1.11.0/minco_aws_adapters/) |
-| 32 | `minco-aws-dynamodb` | Validated AWS DynamoDB provider primitives for explicit Minco access models | yes | [docs.rs](https://docs.rs/minco-aws-dynamodb/1.11.0/minco_aws_dynamodb/) |
-| 33 | `minco-aws-lambda` | Native AWS Lambda HTTP runtime, API Gateway principal mapping, and SSM loading for Minco | no | [docs.rs](https://docs.rs/minco-aws-lambda/1.11.0/minco_aws_lambda/) |
-| 34 | `minco-aws-worker` | Explicit AWS Lambda SQS partial-batch worker runtime for Minco | no | [docs.rs](https://docs.rs/minco-aws-worker/1.11.0/minco_aws_worker/) |
-| 35 | `minco` | Contract-first, AI-native, AWS-native Rust web framework with static plugins and deployment planning | no | [docs.rs](https://docs.rs/minco/1.11.0/minco/) |
-| 36 | `cargo-minco` | Cargo subcommand for Minco local development, contracts, plugins, plans, releases, and JJ workflows | no | [docs.rs](https://docs.rs/cargo-minco/1.11.0/cargo_minco/) |
+| 22 | `minco-plugin-jobs` | Durable typed jobs, at-least-once dispatch and explicit scheduling contracts for Minco | no | [docs.rs](https://docs.rs/minco-plugin-jobs/1.11.0/minco_plugin_jobs/) |
+| 23 | `minco-plugin-notifications` | Provider-neutral notification and rich outbound mail ports with deterministic local test adapters for Minco | no | [docs.rs](https://docs.rs/minco-plugin-notifications/1.11.0/minco_plugin_notifications/) |
+| 24 | `minco-plugin-audit` | Append-only audit event port and reference memory sink for Minco | no | [docs.rs](https://docs.rs/minco-plugin-audit/1.11.0/minco_plugin_audit/) |
+| 25 | `minco-interaction` | Provider-neutral support entry, attachments, transcription, workflow, and activity helpers for Minco applications | yes | [docs.rs](https://docs.rs/minco-interaction/1.11.0/minco_interaction/) |
+| 26 | `minco-sqlx-postgres` | Bounded SQLx PostgreSQL pools, migrations, and safe seed execution for Minco | no | [docs.rs](https://docs.rs/minco-sqlx-postgres/1.11.0/minco_sqlx_postgres/) |
+| 27 | `minco-sqlx-sqlite` | SQLx SQLite pools, migrations, and safe seed execution for Minco applications | no | [docs.rs](https://docs.rs/minco-sqlx-sqlite/1.11.0/minco_sqlx_sqlite/) |
+| 28 | `minco-plugin-feedback` | AI-ready client feedback loops with screenshots, voice, discussion, persistence, and an embeddable widget for Minco | no | [docs.rs](https://docs.rs/minco-plugin-feedback/1.11.0/minco_plugin_feedback/) |
+| 29 | `minco-plugin-ticketing` | Project-scoped support ticketing, atomic handoffs, conversation, SQLite persistence, and support-entry HTTP for Minco | yes | [docs.rs](https://docs.rs/minco-plugin-ticketing/1.11.0/minco_plugin_ticketing/) |
+| 30 | `minco-plugin-realtime` | Provider-neutral subscriber-only realtime publication for Minco applications | yes | [docs.rs](https://docs.rs/minco-plugin-realtime/1.11.0/minco_plugin_realtime/) |
+| 31 | `minco-plugin-payments-waffo` | Signed Waffo Pancake checkout, payment API, and webhook integration for Minco | yes | [docs.rs](https://docs.rs/minco-plugin-payments-waffo/1.11.0/minco_plugin_payments_waffo/) |
+| 32 | `minco-aws-adapters` | Production AWS and signed-webhook adapters for Minco official plugin ports | no | [docs.rs](https://docs.rs/minco-aws-adapters/1.11.0/minco_aws_adapters/) |
+| 33 | `minco-aws-dynamodb` | Validated AWS DynamoDB provider primitives for explicit Minco access models | yes | [docs.rs](https://docs.rs/minco-aws-dynamodb/1.11.0/minco_aws_dynamodb/) |
+| 34 | `minco-aws-lambda` | Native AWS Lambda HTTP runtime, API Gateway principal mapping, and SSM loading for Minco | no | [docs.rs](https://docs.rs/minco-aws-lambda/1.11.0/minco_aws_lambda/) |
+| 35 | `minco-aws-worker` | Explicit AWS Lambda SQS partial-batch worker runtime for Minco | no | [docs.rs](https://docs.rs/minco-aws-worker/1.11.0/minco_aws_worker/) |
+| 36 | `minco` | Contract-first, AI-native, AWS-native Rust web framework with static plugins and deployment planning | no | [docs.rs](https://docs.rs/minco/1.11.0/minco/) |
+| 37 | `cargo-minco` | Cargo subcommand for Minco local development, contracts, plugins, plans, releases, and JJ workflows | no | [docs.rs](https://docs.rs/cargo-minco/1.11.0/cargo_minco/) |

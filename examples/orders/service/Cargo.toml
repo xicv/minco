@@ -13,6 +13,8 @@ postgres = ["orders-adapters/postgres", "dep:minco-sqlx-postgres"]
 dynamodb = ["orders-adapters/dynamodb", "dep:minco-aws-dynamodb"]
 lambda = ["dep:minco-aws-lambda", "postgres"]
 all-runtimes = ["sqlite", "postgres", "dynamodb", "lambda"]
+jobs-worker = ["dep:minco-aws-worker", "dep:minco-plugin-jobs", "orders-adapters/sqlite"]
+jobs-sqs = ["jobs-worker", "dep:minco-aws-adapters", "dep:aws-config", "dep:aws-sdk-sqs"]
 
 [lib]
 name = "orders_service"
@@ -35,6 +37,11 @@ path = "src/bin/migrate.rs"
 name = "orders-audit-relay"
 path = "src/bin/audit_relay.rs"
 
+[[bin]]
+name = "orders-jobs-worker"
+path = "src/bin/jobs_worker.rs"
+required-features = ["jobs-worker"]
+
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
@@ -48,12 +55,18 @@ minco-plugin-health.workspace = true
 minco-plugin-audit.workspace = true
 minco-plugin-idempotency.workspace = true
 minco-plugin-observability.workspace = true
+minco-aws-adapters = { workspace = true, optional = true, features = ["jobs"] }
+minco-aws-worker = { workspace = true, optional = true, features = ["jobs"] }
+aws-config = { workspace = true, optional = true }
+aws-sdk-sqs = { workspace = true, optional = true }
+minco-plugin-jobs = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+tokio.workspace = true
 minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
 orders-adapters.workspace = true
 orders-api.workspace = true
 orders-application.workspace = true
-tokio.workspace = true
 tracing.workspace = true
 
 [lints]

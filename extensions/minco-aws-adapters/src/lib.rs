@@ -15,6 +15,8 @@ pub mod s3;
 pub mod s3_storage;
 #[cfg(feature = "ses")]
 pub mod ses;
+#[cfg(all(feature = "jobs", feature = "sqs"))]
+pub mod jobs_sqs;
 #[cfg(feature = "sqs")]
 pub mod sqs;
 #[cfg(feature = "static-site")]

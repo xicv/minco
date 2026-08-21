@@ -64,6 +64,10 @@ pub struct RuntimeCostEstimate {
     pub schedules: Vec<ScheduleCostDimension>,
     pub workers: Vec<WorkerCostDimension>,
     pub queues: Vec<QueueCostDimension>,
+    /// Scheduled durable-job dispatches (Scheduler-to-SQS) with their queue
+    /// request pressure.
+    #[serde(default)]
+    pub durable_work: Vec<crate::durable_work::JobScheduleCostDimension>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub realtime: Option<RealtimeCostDimension>,
     pub fixed_cost_resources: Vec<String>,
@@ -381,11 +385,45 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
         ));
     }
 
+    let durable_work = plan
+        .durable_work
+        .as_ref()
+        .map_or_else(Vec::new, |topology| {
+            topology
+                .schedules
+                .iter()
+                .filter(|schedule| {
+                    topology
+                        .profile(&schedule.worker_profile)
+                        .is_some_and(|profile| {
+                            plan.queues.iter().any(|queue| queue.id == profile.queue_id)
+                        })
+                })
+                .map(|schedule| {
+                    let queue_id = topology
+                        .profile(&schedule.worker_profile)
+                        .map_or_else(String::new, |profile| profile.queue_id.clone());
+                    crate::durable_work::JobScheduleCostDimension {
+                        schedule_id: schedule.id.clone(),
+                        worker_profile: schedule.worker_profile.clone(),
+                        queue_id,
+                        expression: schedule.expression.clone(),
+                        enabled: schedule.enabled,
+                        estimated_monthly_invocations: monthly_schedule_invocations(
+                            &schedule.expression,
+                        ),
+                        queue_requests_per_invocation: 1,
+                    }
+                })
+                .collect()
+        });
+
     RuntimeCostEstimate {
         complete: missing_rates.is_empty(),
         schedules,
         workers,
         queues,
+        durable_work,
         realtime,
         fixed_cost_resources,
         request_based_resources,
@@ -952,6 +990,7 @@ mod tests {
             routes: Vec::new(),
             application_graph: minco_core::ApplicationGraph::default(),
             static_site: None,
+            durable_work: None,
             realtime: None,
             preview: None,
             local_aws_services: Vec::new(),

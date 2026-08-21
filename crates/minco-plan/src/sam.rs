@@ -1339,6 +1339,7 @@ mod tests {
             ],
             application_graph: minco_core::ApplicationGraph::default(),
             static_site: None,
+            durable_work: None,
             realtime: None,
             preview: None,
             local_aws_services: vec!["ssm".into(), "sts".into()],

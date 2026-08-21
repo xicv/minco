@@ -36,6 +36,8 @@ pub struct DeploymentConfig {
     pub queues: Vec<QueuePlan>,
     #[serde(default)]
     pub triggers: Vec<TriggerPlan>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub durable_work: Option<crate::durable_work::DurableWorkTopology>,
     #[serde(default)]
     pub scheduled_wakeups: Vec<String>,
     #[serde(default)]
@@ -112,6 +114,7 @@ impl DeploymentConfig {
             routes,
             application_graph,
             static_site: None,
+            durable_work: self.durable_work,
             realtime: None,
             preview: None,
             local_aws_services,
@@ -149,6 +152,10 @@ pub struct DeploymentPlan {
     pub application_graph: ApplicationGraph,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub static_site: Option<StaticSiteDeployment>,
+    /// Additive durable typed work topology; `None` leaves serialized
+    /// schema-2 bytes unchanged and renders no job resources.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub durable_work: Option<crate::durable_work::DurableWorkTopology>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub realtime: Option<RealtimeDeployment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -299,7 +306,7 @@ impl StaticSiteDeployment {
     }
 }
 
-fn local_aws_services(
+pub fn local_aws_services(
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,
     graph: &ApplicationGraph,
@@ -1553,7 +1560,7 @@ fn redrive_cycle_start<'a>(
     None
 }
 
-fn is_stable_id(value: &str) -> bool {
+pub fn is_stable_id(value: &str) -> bool {
     let mut characters = value.chars();
     matches!(characters.next(), Some(first) if first.is_ascii_lowercase())
         && characters.all(|character| {
@@ -1561,7 +1568,7 @@ fn is_stable_id(value: &str) -> bool {
         })
 }
 
-fn is_schedule_expression(value: &str) -> bool {
+pub fn is_schedule_expression(value: &str) -> bool {
     (1..=256).contains(&value.len())
         && !value.contains(['\r', '\n'])
         && value.ends_with(')')
@@ -2045,7 +2052,7 @@ pub enum IamResource {
     Function { function_id: String },
 }
 
-fn derive_iam_intents(
+pub fn derive_iam_intents(
     schema_version: u32,
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,
@@ -2363,6 +2370,7 @@ mod tests {
             }],
             queues: Vec::new(),
             triggers: Vec::new(),
+            durable_work: None,
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],

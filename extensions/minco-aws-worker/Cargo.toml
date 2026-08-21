@@ -30,6 +30,7 @@ plugin = "minco-plugin.json"
 [features]
 default = []
 events = ["dep:chrono", "dep:minco-plugin-events"]
+jobs = ["dep:chrono", "dep:minco-plugin-jobs", "dep:serde", "dep:serde_json", "dep:uuid"]
 
 [dependencies]
 async-trait.workspace = true
@@ -38,6 +39,10 @@ chrono = { workspace = true, optional = true }
 futures.workspace = true
 lambda_runtime.workspace = true
 minco-plugin-events = { workspace = true, optional = true }
+minco-plugin-jobs = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true

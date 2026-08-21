@@ -7,8 +7,8 @@ use minco_plugin_audit::{
 use orders_application::{
     ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrderAuditHistoryPort,
     ListOrderAuditHistoryQuery, ListOrdersPort, ListOrdersQuery, OrderAuditCursor,
-    OrderAuditIntent, OrderAuditPage, OrderAuditSortDirection, OrderCursor, OrderPage,
-    OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderResult,
+    OrderAuditIntent, OrderAuditPage, OrderAuditSortDirection, OrderConfirmationJob, OrderCursor,
+    OrderPage, OrderReadiness, OrderSortField, OrderSortTerm, PlaceOrderPort, PlaceOrderResult,
     PlaceOrderTransaction, SortDirection, StoreError, UpdateOrderPort,
 };
 use orders_domain::{Order, OrderId};
@@ -30,6 +30,7 @@ struct MemoryState {
     idempotency: BTreeMap<String, IdempotencyRecord>,
     deleted: BTreeSet<uuid::Uuid>,
     audit: BTreeMap<uuid::Uuid, AuditRecordV2>,
+    confirmation_jobs: Vec<OrderConfirmationJob>,
 }
 
 #[derive(Debug, Default)]
@@ -41,6 +42,14 @@ impl MemoryOrderStore {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Confirmation job intents recorded by `place_order`, in commit order.
+    pub fn confirmation_jobs(&self) -> Vec<OrderConfirmationJob> {
+        self.state
+            .lock()
+            .map(|state| state.confirmation_jobs.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -75,6 +84,9 @@ impl PlaceOrderPort for MemoryOrderStore {
         state
             .orders
             .insert(order_id.into_uuid(), transaction.order.clone());
+        if let Some(confirmation) = &transaction.confirmation_job {
+            state.confirmation_jobs.push(confirmation.clone());
+        }
         state.idempotency.insert(
             transaction.idempotency_key,
             IdempotencyRecord {
@@ -548,6 +560,7 @@ mod tests {
             idempotency_key: key.into(),
             request_fingerprint: fingerprint.into(),
             audit: None,
+            confirmation_job: None,
         }
     }
 
