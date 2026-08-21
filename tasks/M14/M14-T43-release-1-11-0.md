@@ -77,6 +77,7 @@ owned_paths:
   - verification/1.11-candidate-load.json
   - verification/1.11-candidate-recovery.json
   - verification/1.11-candidate-release-gates.json
+  - verification/1.11-published-release-validation.json
   - verification/agent-workflows.json
   - verification/deep-review.json
   - verification/deployment-assurance.toml
@@ -140,3 +141,23 @@ Release preparation started from merged `main`
 `fc6483ccb42f86a7247dd65e1500716ed7132313`. PR #170 and the 1.10 publication
 evidence closure PR #182 were already merged with exact-tree proof. The primary
 workspace's unrelated `.mimosa` state was not modified.
+
+The uninterrupted clean-source `scripts/ci/local-release.sh` qualification
+passed for source-tree digest
+`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`,
+including all 36 archives and consumers, documentation and nine-skill workflow
+receipt, candidate load/recovery, Plan/SAM/Lambda artifacts, isolated
+PostgreSQL/Rustack and Orders E2E. Independent review reported no findings.
+PR #183 merged the exact reviewed tree as
+`81640a6b25924be115ceb11cdec1fd2a42a71381`; exact-main clean-Linux run
+`32489926320` passed before tagging.
+
+Immutable tag `v1.11.0` resolves to that exact main SHA. Authentication-only
+trusted-publishing run `32490523716` passed, then guarded publication run
+`32490558619` uploaded all 36 packages in dependency order. The retained
+`verification/1.11-published-release-validation.json` independently records
+all 36 exact versions present and non-yanked with no findings. The GitHub
+release is published at <https://github.com/xicv/minco/releases/tag/v1.11.0>.
+Pages and docs.rs remain separate closure gates and will be recorded only after
+their exact public states are verified. No provider request, AWS application
+deployment, database mutation or production operation occurred.

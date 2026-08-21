@@ -1,6 +1,6 @@
 # HTTP request boundary
 
-The candidate `x-minco-request-validation: generated` profile supports closed
+The published `x-minco-request-validation: generated` profile supports closed
 object and required shape, optional non-null fields, Unicode string bounds,
 array and property bounds, inclusive/exclusive whole 64-bit integer bounds,
 scalar `enum`/`const`, local references and nested arrays. Unrepresentable roots,

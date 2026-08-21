@@ -30,7 +30,7 @@ contracts without the opt-in profile unchanged.
   and non-opted generated DTO behavior. Added no AWS resource, wake source,
   fixed compute, schedule, hosted service, deployment or provider operation.
 - Advanced all 36 publishable packages and official plugin descriptors in
-  lock-step to the additive `1.11.0` candidate line, with a frozen manual and
+  lock-step to the additive `1.11.0` release line, with a frozen manual and
   version-matched nine-skill Codex/Claude bundle.
 
 ## [1.10.0] - 2026-08-20

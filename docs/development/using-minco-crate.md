@@ -1,12 +1,12 @@
 # Using Minco in an application
 
-Published baseline: `1.10.0`
+Published baseline: `1.11.0`
 
 Current workspace version: `1.11.0`
 
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Use published `1.10.0` dependencies. Follow the
+Use published `1.11.0` dependencies. Follow the
 [1.5.0-to-1.6.0 guide](../adoption/1.5.0-to-1.6.0.md) when adopting durable
 auditing, then the [1.6.0-to-1.7.0 guide](../adoption/1.6.0-to-1.7.0.md) when
 adopting Apple-first fresh local-service selection, then use the
@@ -15,8 +15,8 @@ object transfers.
 The [1.9.0-to-1.10.0 guide](../adoption/1.9.0-to-1.10.0.md) covers the
 published Ticketing and shared-interaction boundary. The
 [1.10.0-to-1.11.0 guide](../adoption/1.10.0-to-1.11.0.md) covers the
-unpublished contract-enforced request candidate. Continue using exact 1.10.0
-dependencies until registry publication is independently verified.
+published contract-enforced request boundary. Opt in only after application
+authorization and request policy are deliberately qualified.
 
 The `minco` facade is the normal dependency for an application. It keeps the
 provider-neutral kernel always available and exposes contract, HTTP, plugins,
@@ -210,11 +210,11 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 
 ## API stability
 
-Published baseline: `1.10.0`
+Published baseline: `1.11.0`
 Current workspace version: `1.11.0`
-Workspace release state: `candidate`
+Workspace release state: `published`
 
-Pin the published `1.10.0` line in production applications and follow
+Pin the published `1.11.0` line in production applications and follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before
 upgrading. The framework follows lock-step versions across the publishable
 crate family during the initial stabilization period. Registry availability

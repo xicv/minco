@@ -30,7 +30,7 @@ include = ["src/**", "Cargo.toml", "minco-plugin.json"]
 plugin = "minco-plugin.json"
 ```
 
-Use exact `1.10.0` registry dependencies. Use reviewed
+Use exact `1.11.0` registry dependencies. Use reviewed
 path dependencies only while developing coordinated post-release changes from
 a Minco source checkout.
 
@@ -46,7 +46,7 @@ cost intent only when the plugin really supports them.
   "id": "example",
   "kind": "plugin",
   "plugin_version": "0.1.0",
-  "core_compatibility": "^1.10.0",
+  "core_compatibility": "^1.11.0",
   "stability": "experimental",
   "default_enabled": false,
   "feature": "plugin-example",

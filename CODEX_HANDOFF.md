@@ -1,30 +1,32 @@
-# Minco 1.11.0 candidate release handoff
+# Minco 1.11.0 release handoff
 
-Date: 2026-08-21
-Published baseline: `1.10.0`
+Date: 2026-08-22
+Published baseline: `1.11.0`
 Current workspace version: `1.11.0`
-Workspace release state: `candidate`
-Published `1.10.0` source: `2075b60b8fe86c04d3c8289d71eb8293a39fc378`
-Published source-tree digest: `258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0`
-Published release task: `M14-T41`
+Workspace release state: `published`
+Published `1.11.0` source: `81640a6b25924be115ceb11cdec1fd2a42a71381`
+Published source-tree digest: `85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`
+Published release task: `M14-T43`
 Latest release task: `M14-T43` (`active`)
 Completed candidate task: `M14-T42`
 Active evidence tasks: `M14-T10`, `M14-T20`
 
-## Active 1.11.0 request-boundary candidate
+## Published 1.11.0 request-boundary release
 
-M14-T43 starts from exact merged main
-`fc6483ccb42f86a7247dd65e1500716ed7132313`. It advances the existing
-36-package family to `1.11.0`, freezes the current manual under
-`docs-site/1.11.0/`, and updates all nine packaged Codex/Claude skills for the
-opt-in generated request-validation boundary. The published install baseline
-remains exact 1.10.0 until the candidate is reviewed, merged, tagged, uploaded
-and independently verified.
+M14-T43 advanced the existing 36-package family to `1.11.0`, froze the manual
+under `docs-site/1.11.0/`, and updated all nine packaged Codex/Claude skills for
+the opt-in generated request-validation boundary. The uninterrupted local
+release matrix passed for source digest
+`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`,
+independent review found no issues, and PR #183 merged the exact reviewed tree
+as `81640a6b25924be115ceb11cdec1fd2a42a71381`.
 
-No package ownership boundary is new. Exact local qualification, independent
-review, hosted clean Linux, tag, OIDC authentication, guarded publication,
-registry, GitHub release, Pages and docs.rs are separate gates. No AWS,
-application-provider, deployment, database or production mutation is implied.
+Exact-main hosted run `32489926320`, authentication-only run `32490523716` and
+guarded publication run `32490558619` passed. Immutable tag `v1.11.0`, all 36
+exact non-yanked registry versions and the GitHub release are independently
+verified. Stable Pages and docs.rs are still separate documentation closure
+gates. No AWS, application-provider, deployment, database or production
+mutation is implied.
 
 ## Published 1.10.0 Ticketing release
 
