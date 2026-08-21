@@ -2594,8 +2594,10 @@ name = "minco-http"
 version = "1.10.0"
 dependencies = [
  "axum",
+ "futures",
  "http 1.5.0",
  "http-body-util",
+ "minco-contract",
  "minco-core",
  "semver",
  "serde",
@@ -3148,6 +3150,7 @@ dependencies = [
 name = "orders-api"
 version = "1.10.0"
 dependencies = [
+ "async-trait",
  "axum",
  "base64 0.23.1",
  "chrono",

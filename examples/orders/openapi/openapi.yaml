@@ -5,6 +5,7 @@ info:
   description: >-
     Contract-first reference application demonstrating Minco's domain,
     application, adapter, HTTP, local development, release, and AWS deployment path.
+x-minco-request-validation: generated
 servers:
   - url: /
 security:
@@ -58,6 +59,9 @@ paths:
       operationId: placeOrder
       summary: Place an order exactly once
       tags: [orders]
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: [orders.create]
       x-minco-idempotent: true
       x-minco-resource:
         name: order
@@ -77,6 +81,13 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PlaceOrderRequest'
+            examples:
+              purchaseOrder:
+                value:
+                  customerReference: PO-42
+                  lines:
+                    - sku: SKU-1
+                      quantity: 2
       responses:
         '201':
           description: A new order was accepted
@@ -104,12 +115,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrderDocument'
+        '422':
+          description: The decoded request violates generated contract assertions
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         default:
           $ref: '#/components/responses/Problem'
     get:
       operationId: listOrders
       summary: List orders with bounded cursor pagination
       tags: [orders]
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: [orders.read]
       x-minco-resource:
         name: order
         action: list
@@ -165,6 +185,9 @@ paths:
       operationId: getOrder
       summary: Retrieve one order
       tags: [orders]
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: [orders.read]
       x-minco-resource:
         name: order
         action: read
@@ -185,6 +208,9 @@ paths:
       operationId: updateOrder
       summary: Update an order if its entity tag is current
       tags: [orders]
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: [orders.update]
       x-minco-resource:
         name: order
         action: update
@@ -200,6 +226,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateOrderRequest'
+            examples:
+              customerReference:
+                value:
+                  customerReference: PO-43
       responses:
         '200':
           description: Updated order
@@ -215,12 +245,21 @@ paths:
           $ref: '#/components/responses/Problem'
         '428':
           $ref: '#/components/responses/Problem'
+        '422':
+          description: The decoded request violates generated contract assertions
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         default:
           $ref: '#/components/responses/Problem'
     delete:
       operationId: deleteOrder
       summary: Delete an order if its entity tag is current
       tags: [orders]
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: [orders.delete]
       x-minco-resource:
         name: order
         action: delete
@@ -251,6 +290,9 @@ paths:
       operationId: listOrderAuditHistory
       summary: List the durable semantic action history for an order
       tags: [orders]
+      x-minco-auth:
+        mode: permission_scoped
+        permissions: [orders.audit.read]
       x-minco-resource:
         name: order-audit-history
         action: list

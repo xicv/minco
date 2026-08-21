@@ -218,6 +218,7 @@ pub fn load_contract_source(
         }
     }
     validate_schema_positions(&raw, &mut findings);
+    validate_request_validation_profile(&raw, &mut findings);
     schema_names.sort();
     Ok(ContractReport {
         document: ContractDocument {
@@ -976,6 +977,15 @@ fn security_allows_anonymous(
             continue;
         };
         allows_anonymous |= requirement.is_empty();
+        if requirement.len() > 1 {
+            error(
+                findings,
+                "MINCO-CONTRACT-036",
+                "generated authorization does not support AND-composed security schemes",
+                location,
+            );
+            valid = false;
+        }
         for scopes in requirement.values() {
             let Some(scopes) = scopes.as_array() else {
                 valid = false;
@@ -1053,6 +1063,991 @@ fn validate_schema_positions(document: &Value, findings: &mut Vec<ContractFindin
             }
         }
     }
+}
+
+const REQUEST_VALIDATION_PROFILE: &str = "generated";
+const REQUEST_SCHEMA_MAX_DEPTH: usize = 32;
+const REQUEST_SCHEMA_MAX_NODES: usize = 4_096;
+const REQUEST_SCHEMA_MAX_PROPERTIES: usize = 256;
+const REQUEST_SCHEMA_MAX_IDENTIFIER_BYTES: usize = 128;
+const REQUEST_SCHEMA_MAX_ENUM_MEMBERS: usize = 128;
+
+fn validate_request_validation_profile(document: &Value, findings: &mut Vec<ContractFinding>) {
+    let Some(profile) = document.get("x-minco-request-validation") else {
+        return;
+    };
+    if profile.as_str() != Some(REQUEST_VALIDATION_PROFILE) {
+        error(
+            findings,
+            "MINCO-CONTRACT-029",
+            "x-minco-request-validation must be generated when present",
+            "x-minco-request-validation",
+        );
+        return;
+    }
+
+    let mut validation = RequestSchemaValidation {
+        document,
+        findings,
+        active_references: BTreeSet::new(),
+        visited_nodes: 0,
+        complexity_reported: false,
+    };
+    let Some(paths) = document.get("paths").and_then(Value::as_object) else {
+        return;
+    };
+    let mut path_names = paths.keys().collect::<Vec<_>>();
+    path_names.sort();
+    for path_name in path_names {
+        let Some(path_item) = paths[path_name].as_object() else {
+            continue;
+        };
+        let path_location = format!("$.paths.{path_name}");
+        validation.visit_parameters(
+            path_item.get("parameters"),
+            &format!("{path_location}.parameters"),
+        );
+        for method in [
+            "get", "put", "post", "delete", "options", "head", "patch", "trace",
+        ] {
+            let Some(operation) = path_item.get(method).and_then(Value::as_object) else {
+                continue;
+            };
+            let operation_location = format!("{path_location}.{method}");
+            validation.visit_parameters(
+                operation.get("parameters"),
+                &format!("{operation_location}.parameters"),
+            );
+            if let Some(request_body) = operation.get("requestBody") {
+                validation
+                    .visit_request_body(request_body, &format!("{operation_location}.requestBody"));
+            }
+        }
+    }
+}
+
+struct RequestSchemaValidation<'a, 'b> {
+    document: &'a Value,
+    findings: &'b mut Vec<ContractFinding>,
+    active_references: BTreeSet<String>,
+    visited_nodes: usize,
+    complexity_reported: bool,
+}
+
+impl RequestSchemaValidation<'_, '_> {
+    fn validate_json_request_root(&mut self, schema: &Value, location: &str) {
+        let mut active = BTreeSet::new();
+        if !self.json_request_root_is_generated(schema, 0, &mut active) {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated JSON request bodies must reference a named object or string-enum schema",
+                location,
+            );
+        }
+    }
+
+    fn json_request_root_is_generated(
+        &self,
+        schema: &Value,
+        depth: usize,
+        active: &mut BTreeSet<String>,
+    ) -> bool {
+        if depth > REQUEST_SCHEMA_MAX_DEPTH {
+            return false;
+        }
+        let Some(object) = schema.as_object() else {
+            return false;
+        };
+        let Some(reference) = object.get("$ref").and_then(Value::as_str) else {
+            return false;
+        };
+        let Some(name) = exact_schema_component_name(reference) else {
+            return false;
+        };
+        if object.len() != 1 || !active.insert(reference.to_owned()) {
+            return false;
+        }
+        let pointer = format!("/components/schemas/{}", escape_json_pointer(name));
+        let supported = self.document.pointer(&pointer).is_some_and(|target| {
+            let Some(target_object) = target.as_object() else {
+                return false;
+            };
+            if target_object.contains_key("$ref") {
+                return self.json_request_root_is_generated(target, depth + 1, active);
+            }
+            target_object.get("type").and_then(Value::as_str) == Some("object")
+                || (target_object.get("type").and_then(Value::as_str) == Some("string")
+                    && target_object.get("enum").is_some())
+        });
+        active.remove(reference);
+        supported
+    }
+
+    fn visit_parameters(&mut self, parameters: Option<&Value>, location: &str) {
+        let Some(parameters) = parameters.and_then(Value::as_array) else {
+            return;
+        };
+        for (index, parameter) in parameters.iter().enumerate() {
+            let parameter_location = format!("{location}[{index}]");
+            let Some(parameter) = self
+                .resolve_component_reference(
+                    parameter,
+                    "#/components/parameters/",
+                    &parameter_location,
+                )
+                .cloned()
+            else {
+                continue;
+            };
+            let Some(parameter) = parameter.as_object() else {
+                self.malformed(
+                    "generated request parameters must be objects",
+                    &parameter_location,
+                );
+                continue;
+            };
+            let valid_name = parameter
+                .get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|name| !name.is_empty());
+            let parameter_in = parameter.get("in").and_then(Value::as_str);
+            let valid_in = matches!(parameter_in, Some("query" | "path" | "header" | "cookie"));
+            if !valid_name || !valid_in {
+                self.malformed(
+                    "generated request parameters require a nonempty name and valid in value",
+                    &parameter_location,
+                );
+            }
+            let has_schema = parameter.contains_key("schema");
+            let has_content = parameter.contains_key("content");
+            if has_schema == has_content {
+                self.malformed(
+                    "generated request parameters require exactly one of schema or content",
+                    &parameter_location,
+                );
+            }
+            if !matches!(parameter_in, Some("path" | "query")) {
+                continue;
+            }
+            if parameter.contains_key("content") {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-035",
+                    "generated request parameters do not support content-based schemas",
+                    &format!("{parameter_location}.content"),
+                );
+            }
+            if let Some(schema) = parameter.get("schema") {
+                self.visit_schema(schema, &format!("{parameter_location}.schema"), 0, false);
+            }
+        }
+    }
+
+    fn visit_request_body(&mut self, request_body: &Value, location: &str) {
+        let Some(request_body) = self
+            .resolve_component_reference(request_body, "#/components/requestBodies/", location)
+            .cloned()
+        else {
+            return;
+        };
+        let Some(request_body) = request_body.as_object() else {
+            self.malformed("generated request bodies must be objects", location);
+            return;
+        };
+        let Some(content) = request_body.get("content").and_then(Value::as_object) else {
+            self.malformed(
+                "generated request bodies require an object-form content map",
+                &format!("{location}.content"),
+            );
+            return;
+        };
+        let mut media_types = content.keys().collect::<Vec<_>>();
+        media_types.sort();
+        for media_type in media_types {
+            if media_type != "application/json" && !media_type.ends_with("+json") {
+                continue;
+            }
+            let Some(schema) = content[media_type]
+                .as_object()
+                .and_then(|media| media.get("schema"))
+            else {
+                self.malformed(
+                    "generated JSON request media types require a schema",
+                    &format!("{location}.content.{media_type}"),
+                );
+                continue;
+            };
+            let schema_location = format!("{location}.content.{media_type}.schema");
+            self.validate_json_request_root(schema, &schema_location);
+            self.visit_schema(schema, &schema_location, 0, false);
+        }
+    }
+
+    fn visit_schema(
+        &mut self,
+        schema: &Value,
+        location: &str,
+        depth: usize,
+        named_component_root: bool,
+    ) {
+        if depth > REQUEST_SCHEMA_MAX_DEPTH {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-032",
+                "generated request schema reference depth exceeds the supported limit",
+                location,
+            );
+            return;
+        }
+        self.visited_nodes += 1;
+        if self.visited_nodes > REQUEST_SCHEMA_MAX_NODES {
+            if !self.complexity_reported {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-033",
+                    "generated request schema complexity exceeds the supported limit",
+                    location,
+                );
+                self.complexity_reported = true;
+            }
+            return;
+        }
+        let Some(object) = schema.as_object() else {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated request schemas must use object-form schemas",
+                location,
+            );
+            return;
+        };
+
+        if let Some(reference) = object.get("$ref").and_then(Value::as_str) {
+            if object.len() != 1 {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-035",
+                    "generated request schema $ref siblings are not supported",
+                    location,
+                );
+            }
+            self.visit_schema_reference(reference, location, depth);
+            return;
+        } else if object.contains_key("$ref") {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-031",
+                "generated request schema $ref must be a local string reference",
+                &format!("{location}.$ref"),
+            );
+        }
+
+        self.validate_keywords(object, location);
+        self.validate_schema_type(object.get("type"), location);
+        self.validate_assertion_applicability(object, location);
+        self.validate_unsigned_bounds(object, "minLength", "maxLength", location);
+        self.validate_unsigned_bounds(object, "minItems", "maxItems", location);
+        self.validate_unsigned_bounds(object, "minProperties", "maxProperties", location);
+        self.validate_numeric_bounds(object, location);
+        self.validate_scalar_values(object, location);
+
+        if let Some(properties) = object.get("properties") {
+            let Some(properties) = properties.as_object() else {
+                self.malformed("properties must be an object", location);
+                return;
+            };
+            if properties.len() > REQUEST_SCHEMA_MAX_PROPERTIES {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-033",
+                    "generated request object property count exceeds the supported limit",
+                    &format!("{location}.properties"),
+                );
+                return;
+            }
+            let mut names = properties.keys().collect::<Vec<_>>();
+            names.sort();
+            let required = object
+                .get("required")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<BTreeSet<_>>();
+            let mut generated_names = BTreeSet::new();
+            for name in names {
+                if name.len() > REQUEST_SCHEMA_MAX_IDENTIFIER_BYTES {
+                    error(
+                        self.findings,
+                        "MINCO-CONTRACT-033",
+                        "generated request property name exceeds the supported byte limit",
+                        &format!("{location}.properties.{name}"),
+                    );
+                    continue;
+                }
+                if name.is_empty() || name == "$" || name.contains('.') {
+                    error(
+                        self.findings,
+                        "MINCO-CONTRACT-033",
+                        "generated request property names must be unambiguous dot-path segments",
+                        &format!("{location}.properties.{name}"),
+                    );
+                }
+                if !generated_names.insert(request_rust_identifier(name)) {
+                    error(
+                        self.findings,
+                        "MINCO-CONTRACT-033",
+                        "generated request property names must map to unique Rust identifiers",
+                        &format!("{location}.properties.{name}"),
+                    );
+                }
+                let property = &properties[name];
+                if !required.contains(name.as_str()) && schema_is_nullable_value(property) {
+                    let presence_is_observable = object.get("minProperties").is_some()
+                        || object.get("maxProperties").is_some();
+                    let null_is_distinct = property
+                        .get("enum")
+                        .and_then(Value::as_array)
+                        .is_some_and(|values| !values.iter().any(Value::is_null))
+                        || property.get("const").is_some_and(|value| !value.is_null());
+                    if presence_is_observable || null_is_distinct {
+                        error(
+                            self.findings,
+                            "MINCO-CONTRACT-035",
+                            "generated optional nullable properties cannot be combined with presence-sensitive assertions",
+                            &format!("{location}.properties.{name}"),
+                        );
+                    }
+                }
+                self.visit_schema(
+                    property,
+                    &format!("{location}.properties.{name}"),
+                    depth + 1,
+                    false,
+                );
+            }
+        }
+        self.validate_required(object, location);
+        if schema_includes_object(object.get("type"))
+            && object.get("additionalProperties") != Some(&Value::Bool(false))
+        {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated request object schemas must set additionalProperties to false",
+                location,
+            );
+        }
+        if schema_includes_object(object.get("type")) && !named_component_root {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated request object schemas must use a named components.schemas reference",
+                location,
+            );
+        }
+        if let Some(items) = object.get("items") {
+            self.visit_schema(items, &format!("{location}.items"), depth + 1, false);
+        }
+    }
+
+    fn visit_schema_reference(&mut self, reference: &str, location: &str, depth: usize) {
+        let Some(name) = exact_schema_component_name(reference) else {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-031",
+                "generated request schema references must resolve under components.schemas",
+                &format!("{location}.$ref"),
+            );
+            return;
+        };
+        if name.len() > REQUEST_SCHEMA_MAX_IDENTIFIER_BYTES {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-031",
+                "generated request schema reference has an invalid component name",
+                &format!("{location}.$ref"),
+            );
+            return;
+        }
+        if !self.active_references.insert(reference.to_owned()) {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-032",
+                "recursive generated request schemas are not supported",
+                &format!("$.components.schemas.{name}"),
+            );
+            return;
+        }
+        let pointer = format!("/components/schemas/{}", escape_json_pointer(name));
+        if let Some(target) = self.document.pointer(&pointer) {
+            self.visit_schema(
+                target,
+                &format!("$.components.schemas.{name}"),
+                depth + 1,
+                true,
+            );
+        } else {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-031",
+                "generated request schema reference does not resolve",
+                &format!("{location}.$ref"),
+            );
+        }
+        self.active_references.remove(reference);
+    }
+
+    fn resolve_component_reference<'a>(
+        &'a mut self,
+        value: &'a Value,
+        prefix: &str,
+        location: &str,
+    ) -> Option<&'a Value> {
+        let Some(reference) = value.get("$ref") else {
+            return Some(value);
+        };
+        let Some(reference) = reference.as_str() else {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-031",
+                "generated request component $ref must be a string",
+                &format!("{location}.$ref"),
+            );
+            return None;
+        };
+        let Some(name) = reference.strip_prefix(prefix) else {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-031",
+                "generated request component references must be local and use the expected component kind",
+                &format!("{location}.$ref"),
+            );
+            return None;
+        };
+        if name.is_empty() || name.contains('/') || name.contains('~') {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-031",
+                "generated request component references must target one exact component entry",
+                &format!("{location}.$ref"),
+            );
+            return None;
+        }
+        if value.as_object().is_some_and(|object| object.len() != 1) {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated request component $ref siblings are not supported",
+                location,
+            );
+            return None;
+        }
+        match self.document.pointer(&reference[1..]) {
+            Some(target) if target.is_object() && target.get("$ref").is_none() => Some(target),
+            Some(_) => {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-031",
+                    "generated request component references must resolve directly to an object",
+                    &format!("{location}.$ref"),
+                );
+                None
+            }
+            None => {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-031",
+                    "generated request component reference does not resolve",
+                    &format!("{location}.$ref"),
+                );
+                None
+            }
+        }
+    }
+
+    fn validate_keywords(&mut self, object: &serde_json::Map<String, Value>, location: &str) {
+        const SUPPORTED: &[&str] = &[
+            "$ref",
+            "$comment",
+            "type",
+            "title",
+            "description",
+            "default",
+            "deprecated",
+            "readOnly",
+            "writeOnly",
+            "examples",
+            "example",
+            "externalDocs",
+            "xml",
+            "discriminator",
+            "format",
+            "properties",
+            "required",
+            "additionalProperties",
+            "items",
+            "minLength",
+            "maxLength",
+            "minItems",
+            "maxItems",
+            "minProperties",
+            "maxProperties",
+            "minimum",
+            "maximum",
+            "exclusiveMinimum",
+            "exclusiveMaximum",
+            "enum",
+            "const",
+            "x-minco-open-object",
+        ];
+        for keyword in object.keys() {
+            if SUPPORTED.contains(&keyword.as_str()) || keyword.starts_with("x-") {
+                continue;
+            }
+            error(
+                self.findings,
+                "MINCO-CONTRACT-030",
+                &format!(
+                    "request-reachable assertion {keyword} is not supported by generated validation"
+                ),
+                &format!("{location}.{keyword}"),
+            );
+        }
+        if object.get("readOnly") == Some(&Value::Bool(true)) {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "readOnly request properties are not supported by generated request DTOs",
+                &format!("{location}.readOnly"),
+            );
+        }
+    }
+
+    fn validate_schema_type(&mut self, value: Option<&Value>, location: &str) {
+        let valid_primitive =
+            |value: &str| matches!(value, "boolean" | "object" | "array" | "integer" | "string");
+        let valid = match value {
+            Some(Value::String(value)) => valid_primitive(value),
+            Some(Value::Array(values)) => {
+                let strings = values.iter().filter_map(Value::as_str).collect::<Vec<_>>();
+                strings.len() == values.len()
+                    && strings.len() == 2
+                    && strings
+                        .iter()
+                        .all(|value| *value == "null" || valid_primitive(value))
+                    && strings.iter().filter(|value| **value == "null").count() == 1
+                    && strings
+                        .iter()
+                        .any(|value| matches!(*value, "boolean" | "integer" | "string"))
+            }
+            _ => false,
+        };
+        if !valid {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated request type must be a representable JSON type, optionally plus null",
+                location,
+            );
+        }
+    }
+
+    fn validate_assertion_applicability(
+        &mut self,
+        object: &serde_json::Map<String, Value>,
+        location: &str,
+    ) {
+        let schema_type = request_schema_type(object);
+        if matches!(
+            object.get("format").and_then(Value::as_str),
+            Some("uuid" | "date-time")
+        ) && ["minLength", "maxLength", "enum", "const"]
+            .iter()
+            .any(|keyword| object.contains_key(*keyword))
+        {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated typed string formats cannot be combined with lexical assertions",
+                location,
+            );
+        }
+        if object.contains_key("enum")
+            && ["minLength", "maxLength", "const"]
+                .iter()
+                .any(|keyword| object.contains_key(*keyword))
+        {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated request enum schemas cannot combine additional value assertions",
+                location,
+            );
+        }
+        for (keywords, expected) in [
+            (&["minLength", "maxLength"][..], "string"),
+            (&["minItems", "maxItems", "items"][..], "array"),
+            (
+                &[
+                    "minProperties",
+                    "maxProperties",
+                    "properties",
+                    "required",
+                    "additionalProperties",
+                ][..],
+                "object",
+            ),
+            (
+                &["minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"][..],
+                "integer",
+            ),
+        ] {
+            for keyword in keywords {
+                if object.contains_key(*keyword) && schema_type != Some(expected) {
+                    error(
+                        self.findings,
+                        "MINCO-CONTRACT-035",
+                        &format!("generated request assertion {keyword} requires type {expected}"),
+                        &format!("{location}.{keyword}"),
+                    );
+                }
+            }
+        }
+    }
+
+    fn validate_unsigned_bounds(
+        &mut self,
+        object: &serde_json::Map<String, Value>,
+        minimum: &str,
+        maximum: &str,
+        location: &str,
+    ) {
+        let minimum_value = object.get(minimum).map(Value::as_u64);
+        let maximum_value = object.get(maximum).map(Value::as_u64);
+        let shaped = matches!(minimum_value, None | Some(Some(_)))
+            && matches!(maximum_value, None | Some(Some(_)));
+        let ordered = match (minimum_value.flatten(), maximum_value.flatten()) {
+            (Some(minimum), Some(maximum)) => minimum <= maximum,
+            _ => true,
+        };
+        if !shaped || !ordered {
+            self.malformed(
+                &format!("{minimum} and {maximum} must be ordered non-negative integers"),
+                location,
+            );
+        }
+    }
+
+    fn validate_numeric_bounds(&mut self, object: &serde_json::Map<String, Value>, location: &str) {
+        for keyword in ["minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"] {
+            if object
+                .get(keyword)
+                .is_some_and(|value| json_integer_i128(value).is_none())
+            {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-035",
+                    &format!("generated integer assertion {keyword} must use a whole 64-bit value"),
+                    &format!("{location}.{keyword}"),
+                );
+            }
+        }
+        for (minimum, maximum) in [
+            ("minimum", "maximum"),
+            ("exclusiveMinimum", "exclusiveMaximum"),
+        ] {
+            if let (Some(minimum), Some(maximum)) = (
+                object.get(minimum).and_then(json_integer_i128),
+                object.get(maximum).and_then(json_integer_i128),
+            ) && minimum > maximum
+            {
+                self.malformed(&format!("{minimum} must not exceed {maximum}"), location);
+            }
+        }
+    }
+
+    fn validate_scalar_values(&mut self, object: &serde_json::Map<String, Value>, location: &str) {
+        let schema_type = request_schema_type(object);
+        let nullable = schema_is_nullable_type(object.get("type"));
+        if let Some(values) = object.get("enum") {
+            let Some(values) = values.as_array() else {
+                self.malformed("enum must be an array", location);
+                return;
+            };
+            if values.is_empty()
+                || values.len() > REQUEST_SCHEMA_MAX_ENUM_MEMBERS
+                || !values.iter().all(is_scalar_json)
+            {
+                self.malformed(
+                    "enum must contain between 1 and 128 unique scalar values",
+                    location,
+                );
+            }
+            let unique = values.iter().map(Value::to_string).collect::<BTreeSet<_>>();
+            if unique.len() != values.len() {
+                self.malformed("enum values must be unique", location);
+            }
+            if values
+                .iter()
+                .any(|value| !scalar_matches_generated_type(value, schema_type, nullable, object))
+            {
+                error(
+                    self.findings,
+                    "MINCO-CONTRACT-035",
+                    "generated request enum values must match the declared representable type",
+                    &format!("{location}.enum"),
+                );
+            }
+            if schema_includes_string(object.get("type")) {
+                let strings = values.iter().filter_map(Value::as_str).collect::<Vec<_>>();
+                let identifiers = strings
+                    .iter()
+                    .map(|value| request_rust_enum_identifier(value))
+                    .collect::<BTreeSet<_>>();
+                if strings
+                    .iter()
+                    .any(|value| value.len() > REQUEST_SCHEMA_MAX_IDENTIFIER_BYTES)
+                    || identifiers.len() != strings.len()
+                {
+                    error(
+                        self.findings,
+                        "MINCO-CONTRACT-033",
+                        "generated request enum values must map to unique bounded Rust identifiers",
+                        location,
+                    );
+                }
+            }
+        }
+        if object
+            .get("const")
+            .is_some_and(|value| !is_scalar_json(value))
+        {
+            self.malformed("const must be a scalar value", location);
+        } else if object.get("const").is_some_and(|value| {
+            !scalar_matches_generated_type(value, schema_type, nullable, object)
+        }) {
+            error(
+                self.findings,
+                "MINCO-CONTRACT-035",
+                "generated request const must match the declared representable type",
+                &format!("{location}.const"),
+            );
+        }
+    }
+
+    fn validate_required(&mut self, object: &serde_json::Map<String, Value>, location: &str) {
+        let Some(required) = object.get("required") else {
+            return;
+        };
+        let Some(required) = required.as_array() else {
+            self.malformed(
+                "required must be an array of unique property names",
+                location,
+            );
+            return;
+        };
+        let names = required
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+        let unique = names.iter().copied().collect::<BTreeSet<_>>();
+        if names.len() != required.len() || unique.len() != names.len() {
+            self.malformed(
+                "required must be an array of unique property names",
+                location,
+            );
+        }
+        if let Some(properties) = object.get("properties").and_then(Value::as_object)
+            && names.iter().any(|name| !properties.contains_key(*name))
+        {
+            self.malformed("required names must exist in properties", location);
+        }
+    }
+
+    fn malformed(&mut self, message: &str, location: &str) {
+        error(self.findings, "MINCO-CONTRACT-034", message, location);
+    }
+}
+
+const fn is_scalar_json(value: &Value) -> bool {
+    matches!(
+        value,
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
+    )
+}
+
+fn exact_schema_component_name(reference: &str) -> Option<&str> {
+    let name = reference.strip_prefix("#/components/schemas/")?;
+    (!name.is_empty() && !name.contains('/') && !name.contains('~')).then_some(name)
+}
+
+fn request_schema_type(object: &serde_json::Map<String, Value>) -> Option<&str> {
+    match object.get("type") {
+        Some(Value::String(value)) => Some(value),
+        Some(Value::Array(values)) => values
+            .iter()
+            .filter_map(Value::as_str)
+            .find(|value| *value != "null"),
+        _ => None,
+    }
+}
+
+fn schema_is_nullable_type(value: Option<&Value>) -> bool {
+    value
+        .and_then(Value::as_array)
+        .is_some_and(|types| types.iter().any(|value| value.as_str() == Some("null")))
+}
+
+fn json_integer_i128(value: &Value) -> Option<i128> {
+    value
+        .as_i64()
+        .map(i128::from)
+        .or_else(|| value.as_u64().map(i128::from))
+}
+
+fn scalar_matches_generated_type(
+    value: &Value,
+    schema_type: Option<&str>,
+    nullable: bool,
+    schema: &serde_json::Map<String, Value>,
+) -> bool {
+    if value.is_null() {
+        return nullable;
+    }
+    match schema_type {
+        Some("string") => value.is_string(),
+        Some("boolean") => value.is_boolean(),
+        Some("integer") => {
+            let Some(value) = json_integer_i128(value) else {
+                return false;
+            };
+            if schema.get("format").and_then(Value::as_str) == Some("int32") {
+                (i128::from(i32::MIN)..=i128::from(i32::MAX)).contains(&value)
+            } else {
+                (i128::from(i64::MIN)..=i128::from(i64::MAX)).contains(&value)
+            }
+        }
+        _ => false,
+    }
+}
+
+fn schema_is_nullable_value(schema: &Value) -> bool {
+    schema
+        .get("type")
+        .and_then(Value::as_array)
+        .is_some_and(|types| types.iter().any(|value| value.as_str() == Some("null")))
+}
+
+fn request_rust_identifier(value: &str) -> String {
+    let mut output = String::new();
+    let mut previous_was_separator = false;
+    for (index, character) in value.chars().enumerate() {
+        if character.is_ascii_uppercase() {
+            if index > 0 && !previous_was_separator {
+                output.push('_');
+            }
+            output.push(character.to_ascii_lowercase());
+            previous_was_separator = false;
+        } else if character.is_ascii_alphanumeric() || character == '_' {
+            output.push(character.to_ascii_lowercase());
+            previous_was_separator = false;
+        } else if !output.is_empty() && !previous_was_separator {
+            output.push('_');
+            previous_was_separator = true;
+        }
+    }
+    while output.ends_with('_') {
+        output.pop();
+    }
+    if output.is_empty() {
+        output.push_str("field");
+    }
+    if output.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        output.insert(0, '_');
+    }
+    output
+}
+
+fn request_rust_enum_identifier(value: &str) -> String {
+    let mut output = value
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut characters = part.chars();
+            match characters.next() {
+                Some(first) => first.to_ascii_uppercase().to_string() + characters.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<String>();
+    if output.is_empty() {
+        output.push_str("Value");
+    } else if output.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        output.insert_str(0, "Value");
+    }
+    if is_rust_reserved_identifier(&output) {
+        output.insert_str(0, "Value");
+    }
+    output
+}
+
+fn is_rust_reserved_identifier(value: &str) -> bool {
+    matches!(
+        value,
+        "Self"
+            | "as"
+            | "break"
+            | "const"
+            | "continue"
+            | "crate"
+            | "else"
+            | "enum"
+            | "extern"
+            | "false"
+            | "fn"
+            | "for"
+            | "if"
+            | "impl"
+            | "in"
+            | "let"
+            | "loop"
+            | "match"
+            | "mod"
+            | "move"
+            | "mut"
+            | "pub"
+            | "ref"
+            | "return"
+            | "self"
+            | "static"
+            | "struct"
+            | "super"
+            | "trait"
+            | "true"
+            | "type"
+            | "unsafe"
+            | "use"
+            | "where"
+            | "while"
+            | "async"
+            | "await"
+            | "dyn"
+            | "abstract"
+            | "become"
+            | "box"
+            | "do"
+            | "final"
+            | "macro"
+            | "override"
+            | "priv"
+            | "typeof"
+            | "unsized"
+            | "virtual"
+            | "yield"
+            | "try"
+    )
 }
 
 fn visit_component_entries(
@@ -1253,6 +2248,14 @@ fn schema_includes_object(schema_type: Option<&Value>) -> bool {
     match schema_type {
         Some(Value::String(value)) => value == "object",
         Some(Value::Array(values)) => values.iter().any(|value| value.as_str() == Some("object")),
+        _ => false,
+    }
+}
+
+fn schema_includes_string(schema_type: Option<&Value>) -> bool {
+    match schema_type {
+        Some(Value::String(value)) => value == "string",
+        Some(Value::Array(values)) => values.iter().any(|value| value.as_str() == Some("string")),
         _ => false,
     }
 }

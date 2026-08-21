@@ -2,9 +2,13 @@ use http::HeaderMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
-use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+use crate::request_id_from_headers;
+
+/// Reserved provider-neutral claim used to carry normalized exact scope tokens.
+pub const PRINCIPAL_SCOPES_CLAIM: &str = "urn:minco:principal:scopes";
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Principal {
     pub subject: String,
     #[serde(default)]
@@ -13,9 +17,52 @@ pub struct Principal {
     pub claims: BTreeMap<String, String>,
 }
 
+impl std::fmt::Debug for Principal {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Principal")
+            .field("subject", &self.subject)
+            .field("permissions", &self.permissions)
+            .field("claim_keys", &self.claims.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
 impl Principal {
     pub fn has_permission(&self, permission: &str) -> bool {
         self.permissions.contains(permission)
+    }
+
+    #[must_use]
+    pub fn with_scopes<I, S>(mut self, scopes: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let scopes = scopes
+            .into_iter()
+            .map(|scope| scope.as_ref().to_owned())
+            .filter(|scope| {
+                !scope.is_empty() && !scope.bytes().any(|byte| byte.is_ascii_whitespace())
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if scopes.is_empty() {
+            self.claims.remove(PRINCIPAL_SCOPES_CLAIM);
+        } else {
+            self.claims
+                .insert(PRINCIPAL_SCOPES_CLAIM.to_owned(), scopes);
+        }
+        self
+    }
+
+    #[must_use]
+    pub fn has_scope(&self, scope: &str) -> bool {
+        self.claims
+            .get(PRINCIPAL_SCOPES_CLAIM)
+            .is_some_and(|scopes| scopes.split_ascii_whitespace().any(|value| value == scope))
     }
 }
 
@@ -29,11 +76,7 @@ pub fn principal_from_headers(
     headers: &HeaderMap,
     allow_development_headers: bool,
 ) -> Result<RequestMetadata, PrincipalError> {
-    let request_id = headers
-        .get("x-request-id")
-        .and_then(|value| value.to_str().ok())
-        .filter(|value| !value.trim().is_empty())
-        .map_or_else(|| Uuid::now_v7().to_string(), str::to_owned);
+    let request_id = request_id_from_headers(headers);
     if !allow_development_headers {
         return Ok(RequestMetadata {
             request_id,

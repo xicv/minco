@@ -11,10 +11,11 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use http::{HeaderMap, HeaderValue, StatusCode};
-use minco_contract::ContractOperation;
+use minco_contract::{ContractAuthorizationPolicy, ContractOperation};
 use minco_http::{
     ApiFailure, EntityTagError, Principal, RequestMetadata, ResourceListPolicy, StrongEntityTag,
-    parse_if_match, parse_resource_list_query, principal_from_headers,
+    ValidatedJson, authorize_operation, parse_if_match, parse_resource_list_query,
+    principal_from_headers, request_id_from_headers,
 };
 use minco_plugin_health::HealthRegistry;
 use orders_application::{
@@ -192,10 +193,15 @@ async fn place_order(
     State(state): State<ApiState>,
     principal: Option<Extension<Principal>>,
     headers: HeaderMap,
-    Json(request): Json<generated::PlaceOrderRequest>,
+    ValidatedJson(request): ValidatedJson<generated::PlaceOrderRequest>,
 ) -> Result<Response, ApiFailure> {
-    let (metadata, actor) =
-        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
+    let (metadata, actor) = actor(
+        &headers,
+        principal,
+        state.allow_development_headers,
+        &generated::PLACE_ORDER_AUTHORIZATION,
+    )
+    .map_err(|failure| *failure)?;
     let idempotency_key = headers
         .get("idempotency-key")
         .and_then(|value| value.to_str().ok())
@@ -234,8 +240,13 @@ async fn get_order(
     headers: HeaderMap,
     Path(order_id): Path<Uuid>,
 ) -> Result<Response, ApiFailure> {
-    let (metadata, actor) =
-        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
+    let (metadata, actor) = actor(
+        &headers,
+        principal,
+        state.allow_development_headers,
+        &generated::GET_ORDER_AUTHORIZATION,
+    )
+    .map_err(|failure| *failure)?;
     let order = GetOrder::new(Arc::clone(&state.get_orders))
         .execute(&actor, OrderId::from_uuid(order_id))
         .await
@@ -249,8 +260,13 @@ async fn list_orders(
     headers: HeaderMap,
     RawQuery(raw_query): RawQuery,
 ) -> Result<Json<generated::OrderCollection>, ApiFailure> {
-    let (metadata, actor) =
-        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
+    let (metadata, actor) = actor(
+        &headers,
+        principal,
+        state.allow_development_headers,
+        &generated::LIST_ORDERS_AUTHORIZATION,
+    )
+    .map_err(|failure| *failure)?;
     let policy = ResourceListPolicy::new(
         20,
         100,
@@ -323,10 +339,15 @@ async fn update_order(
     principal: Option<Extension<Principal>>,
     headers: HeaderMap,
     Path(order_id): Path<Uuid>,
-    Json(request): Json<generated::UpdateOrderRequest>,
+    ValidatedJson(request): ValidatedJson<generated::UpdateOrderRequest>,
 ) -> Result<Response, ApiFailure> {
-    let (metadata, actor) =
-        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
+    let (metadata, actor) = actor(
+        &headers,
+        principal,
+        state.allow_development_headers,
+        &generated::UPDATE_ORDER_AUTHORIZATION,
+    )
+    .map_err(|failure| *failure)?;
     let expected_revision = expected_revision(&headers, order_id, &metadata.request_id)?;
     let command = UpdateOrderCommand {
         customer_reference: request.customer_reference,
@@ -359,8 +380,13 @@ async fn delete_order(
     headers: HeaderMap,
     Path(order_id): Path<Uuid>,
 ) -> Result<StatusCode, ApiFailure> {
-    let (metadata, actor) =
-        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
+    let (metadata, actor) = actor(
+        &headers,
+        principal,
+        state.allow_development_headers,
+        &generated::DELETE_ORDER_AUTHORIZATION,
+    )
+    .map_err(|failure| *failure)?;
     let expected_revision = expected_revision(&headers, order_id, &metadata.request_id)?;
     DeleteOrder::new(Arc::clone(&state.delete_orders), Arc::clone(&state.clock))
         .execute_correlated(
@@ -381,8 +407,13 @@ async fn list_order_audit_history(
     Path(order_id): Path<Uuid>,
     RawQuery(raw_query): RawQuery,
 ) -> Result<Json<generated::OrderAuditCollection>, ApiFailure> {
-    let (metadata, actor) =
-        actor(&headers, principal, state.allow_development_headers).map_err(|failure| *failure)?;
+    let (metadata, actor) = actor(
+        &headers,
+        principal,
+        state.allow_development_headers,
+        &generated::LIST_ORDER_AUDIT_HISTORY_AUTHORIZATION,
+    )
+    .map_err(|failure| *failure)?;
     let policy = ResourceListPolicy::new(
         50,
         100,
@@ -677,29 +708,28 @@ fn actor(
     headers: &HeaderMap,
     principal: Option<Extension<Principal>>,
     allow_development_headers: bool,
+    policy: &ContractAuthorizationPolicy,
 ) -> Result<(RequestMetadata, Actor), Box<ApiFailure>> {
+    let request_id = request_id_from_headers(headers);
     let mut metadata =
         principal_from_headers(headers, allow_development_headers).map_err(|_| {
             Box::new(ApiFailure::new(
                 StatusCode::UNAUTHORIZED,
-                "invalid_principal",
-                "Invalid principal",
-                "The request identity is invalid.",
-                "unknown",
+                "unauthenticated",
+                "Authentication required",
+                "A valid bearer credential is required for this operation.",
+                request_id,
             ))
         })?;
     if let Some(Extension(principal)) = principal {
         metadata.principal = Some(principal);
     }
-    let principal = metadata.principal.as_ref().ok_or_else(|| {
-        Box::new(ApiFailure::new(
-            StatusCode::UNAUTHORIZED,
-            "authentication_required",
-            "Authentication required",
-            "A valid request principal is required.",
-            metadata.request_id.clone(),
-        ))
-    })?;
+    authorize_operation(metadata.principal.as_ref(), policy, &metadata.request_id)
+        .map_err(Box::new)?;
+    let principal = metadata
+        .principal
+        .as_ref()
+        .ok_or_else(|| Box::new(ApiFailure::internal(&metadata.request_id)))?;
     Ok((
         metadata.clone(),
         Actor::service(
@@ -772,8 +802,25 @@ mod tests {
     use axum::body::Body;
     use http_body_util::BodyExt;
     use orders_adapters::MemoryOrderStore;
-    use orders_application::SystemClock;
+    use orders_application::{PlaceOrderResult, PlaceOrderTransaction, StoreError, SystemClock};
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tower::ServiceExt;
+
+    struct CountingPlaceOrderPort {
+        calls: AtomicUsize,
+        delegate: Arc<MemoryOrderStore>,
+    }
+
+    #[async_trait::async_trait]
+    impl PlaceOrderPort for CountingPlaceOrderPort {
+        async fn place_order(
+            &self,
+            transaction: PlaceOrderTransaction,
+        ) -> Result<PlaceOrderResult, StoreError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.delegate.place_order(transaction).await
+        }
+    }
 
     fn app() -> Router {
         build_router(ApiState::new(
@@ -1035,6 +1082,262 @@ mod tests {
             .await
             .expect("response");
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    async fn place_problem(
+        body: String,
+        content_type: Option<&str>,
+        permissions: Option<&str>,
+    ) -> (http::HeaderMap, minco_http::ProblemDetails) {
+        let mut request = http::Request::post("/orders")
+            .header("idempotency-key", Uuid::now_v7().to_string())
+            .header("x-request-id", "orders-validation-1")
+            .body(Body::from(body))
+            .expect("request");
+        if let Some(content_type) = content_type {
+            request
+                .headers_mut()
+                .insert(http::header::CONTENT_TYPE, content_type.parse().unwrap());
+        }
+        if let Some(permissions) = permissions {
+            request
+                .headers_mut()
+                .insert("x-minco-subject", "test-user".parse().unwrap());
+            request
+                .headers_mut()
+                .insert("x-minco-permissions", permissions.parse().unwrap());
+        }
+        let response = app().oneshot(request).await.expect("response");
+        let headers = response.headers().clone();
+        let problem = serde_json::from_slice(
+            &response
+                .into_body()
+                .collect()
+                .await
+                .expect("body")
+                .to_bytes(),
+        )
+        .expect("Problem Details");
+        (headers, problem)
+    }
+
+    #[tokio::test]
+    async fn generated_place_order_validation_covers_unicode_collections_and_nested_paths() {
+        let valid_unicode = "🦀".repeat(64);
+        let response = app()
+            .oneshot(
+                http::Request::post("/orders")
+                    .header("content-type", "application/json")
+                    .header("idempotency-key", "unicode-boundary")
+                    .header("x-minco-subject", "test-user")
+                    .header("x-minco-permissions", "orders.create")
+                    .body(Body::from(format!(
+                        r#"{{"customerReference":"{valid_unicode}","lines":[{{"sku":"🦀","quantity":1}}]}}"#
+                    )))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let too_many_lines = (0..101)
+            .map(|_| r#"{"sku":"SKU","quantity":1}"#)
+            .collect::<Vec<_>>()
+            .join(",");
+        for (body, path) in [
+            (
+                r#"{"customerReference":"","lines":[{"sku":"SKU","quantity":1}]}"#.to_owned(),
+                "customerReference",
+            ),
+            (
+                format!(
+                    r#"{{"customerReference":"{}","lines":[{{"sku":"SKU","quantity":1}}]}}"#,
+                    "🦀".repeat(65)
+                ),
+                "customerReference",
+            ),
+            (
+                r#"{"customerReference":"PO","lines":[]}"#.to_owned(),
+                "lines",
+            ),
+            (
+                format!(r#"{{"customerReference":"PO","lines":[{too_many_lines}]}}"#),
+                "lines",
+            ),
+            (
+                r#"{"customerReference":"PO","lines":[{"sku":"SKU","quantity":0}]}"#.to_owned(),
+                "lines.0.quantity",
+            ),
+            (
+                r#"{"customerReference":"PO","lines":[{"sku":"","quantity":1}]}"#.to_owned(),
+                "lines.0.sku",
+            ),
+        ] {
+            let (_, problem) =
+                place_problem(body, Some("application/json"), Some("orders.create")).await;
+            assert_eq!(problem.status, 422, "{problem:?}");
+            assert_eq!(problem.code, "validation_failed");
+            assert!(problem.errors.contains_key(path), "{problem:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn order_json_structure_media_and_authorization_failures_are_stable() {
+        for (body, content_type, permissions, status, code) in [
+            (
+                "{".to_owned(),
+                Some("application/json"),
+                Some("orders.create"),
+                400,
+                "invalid_json",
+            ),
+            (
+                r#"{"customerReference":"PO","lines":[{"sku":"SKU","quantity":1}],"unknown":true}"#
+                    .to_owned(),
+                Some("application/json"),
+                Some("orders.create"),
+                400,
+                "invalid_request",
+            ),
+            (
+                r#"{"customerReference":"PO","lines":[{"sku":"SKU","quantity":1}]}"#.to_owned(),
+                None,
+                Some("orders.create"),
+                415,
+                "unsupported_media_type",
+            ),
+            (
+                r#"{"customerReference":"PO","lines":[{"sku":"SKU","quantity":1}]}"#.to_owned(),
+                Some("application/json"),
+                None,
+                401,
+                "unauthenticated",
+            ),
+            (
+                r#"{"customerReference":"PO","lines":[{"sku":"SKU","quantity":1}]}"#.to_owned(),
+                Some("application/json"),
+                Some("orders.read"),
+                403,
+                "forbidden",
+            ),
+        ] {
+            let (headers, problem) = place_problem(body, content_type, permissions).await;
+            assert_eq!(problem.status, status, "{problem:?}");
+            assert_eq!(problem.code, code);
+            assert_eq!(problem.request_id, "orders-validation-1");
+            assert_eq!(
+                headers[&minco_http::REQUEST_ID_HEADER],
+                "orders-validation-1"
+            );
+        }
+
+        let response = app()
+            .oneshot(
+                http::Request::post("/orders")
+                    .header("content-type", "application/json")
+                    .header("idempotency-key", "invalid-principal")
+                    .header("x-request-id", "invalid-principal-1")
+                    .header("x-minco-subject", "   ")
+                    .header("x-minco-permissions", "orders.create")
+                    .body(Body::from(
+                        r#"{"customerReference":"PO","lines":[{"sku":"SKU","quantity":1}]}"#,
+                    ))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.headers()[http::header::WWW_AUTHENTICATE], "Bearer");
+        assert_eq!(
+            response.headers()[&minco_http::REQUEST_ID_HEADER],
+            "invalid-principal-1"
+        );
+        let problem: minco_http::ProblemDetails = serde_json::from_slice(
+            &response
+                .into_body()
+                .collect()
+                .await
+                .expect("body")
+                .to_bytes(),
+        )
+        .expect("Problem Details");
+        assert_eq!(problem.code, "unauthenticated");
+        assert_eq!(problem.request_id, "invalid-principal-1");
+    }
+
+    #[tokio::test]
+    async fn coarse_authorization_fails_before_the_place_order_port() {
+        let store = Arc::new(MemoryOrderStore::new());
+        let counting = Arc::new(CountingPlaceOrderPort {
+            calls: AtomicUsize::new(0),
+            delegate: Arc::clone(&store),
+        });
+        let app = build_router(ApiState::from_ports(
+            counting.clone(),
+            store.clone(),
+            store.clone(),
+            store.clone(),
+            store.clone(),
+            store,
+            Arc::new(SystemClock),
+            Arc::new(HealthRegistry::default()),
+            true,
+        ));
+        let request = |permissions: &'static str, key: &'static str| {
+            http::Request::post("/orders")
+                .header("content-type", "application/json")
+                .header("idempotency-key", key)
+                .header("x-minco-subject", "test-user")
+                .header("x-minco-permissions", permissions)
+                .body(Body::from(
+                    r#"{"customerReference":"PO","lines":[{"sku":"SKU","quantity":1}]}"#,
+                ))
+                .expect("request")
+        };
+
+        let denied = app
+            .clone()
+            .oneshot(request("orders.read", "denied"))
+            .await
+            .expect("response");
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        assert_eq!(counting.calls.load(Ordering::SeqCst), 0);
+
+        let allowed = app
+            .oneshot(request("orders.create", "allowed"))
+            .await
+            .expect("response");
+        assert_eq!(allowed.status(), StatusCode::CREATED);
+        assert_eq!(counting.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn generated_update_validation_distinguishes_empty_missing_and_explicit_null() {
+        let order = place(&app(), "update-validation", "PO-1").await;
+        for (body, status, code) in [
+            ("{}", 422, "validation_failed"),
+            (r#"{"customerReference":null}"#, 400, "invalid_request"),
+            (r#"{"lines":null}"#, 400, "invalid_request"),
+            (r#"{"unknown":true}"#, 400, "invalid_request"),
+        ] {
+            let response = app()
+                .oneshot(
+                    http::Request::patch(format!("/orders/{}", order.data.id))
+                        .header("content-type", "application/json")
+                        .header(http::header::IF_MATCH, "\"order:invalid:1\"")
+                        .header("x-minco-subject", "test-user")
+                        .header("x-minco-permissions", "orders.update")
+                        .body(Body::from(body))
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(response.status().as_u16(), status);
+            let problem: minco_http::ProblemDetails =
+                serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes())
+                    .expect("Problem Details");
+            assert_eq!(problem.code, code);
+        }
     }
 
     #[tokio::test]

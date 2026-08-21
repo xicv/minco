@@ -6,7 +6,7 @@ use http::{HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::REQUEST_ID_HEADER;
+use crate::{REQUEST_ID_HEADER, safe_request_id};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,13 +108,16 @@ impl IntoResponse for ApiFailure {
 }
 
 pub fn problem_response(failure: ApiFailure) -> Response {
+    let request_id = safe_request_id(Some(&failure.request_id));
+    let bearer_challenge =
+        failure.status == StatusCode::UNAUTHORIZED && failure.code.as_ref() == "unauthenticated";
     let problem = ProblemDetails {
         type_uri: format!("https://minco.dev/problems/{}", failure.code),
         title: failure.title,
         status: failure.status.as_u16(),
         detail: failure.detail,
         code: failure.code.into(),
-        request_id: failure.request_id.clone(),
+        request_id: request_id.clone(),
         errors: failure.errors,
     };
     let mut response = (failure.status, Json(problem)).into_response();
@@ -122,10 +125,15 @@ pub fn problem_response(failure: ApiFailure) -> Response {
         http::header::CONTENT_TYPE,
         HeaderValue::from_static("application/problem+json"),
     );
-    if let Ok(value) = HeaderValue::from_str(&failure.request_id) {
-        response
-            .headers_mut()
-            .insert(REQUEST_ID_HEADER.clone(), value);
+    let value = HeaderValue::from_str(&request_id).expect("safe request IDs are valid headers");
+    response
+        .headers_mut()
+        .insert(REQUEST_ID_HEADER.clone(), value);
+    if bearer_challenge {
+        response.headers_mut().insert(
+            http::header::WWW_AUTHENTICATE,
+            HeaderValue::from_static("Bearer"),
+        );
     }
     response
 }

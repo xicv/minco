@@ -105,7 +105,7 @@ python3 -c 'import json,sys; body=json.load(open(sys.argv[1])); assert body["cod
 unauthorized_status="$(curl --silent --show-error --output "$tmp/unauthorized.json" --write-out '%{http_code}' \
   "$base_url/orders/$order_id")"
 [[ "$unauthorized_status" == 401 ]] || { cat "$tmp/unauthorized.json" >&2; exit 1; }
-python3 -c 'import json,sys; body=json.load(open(sys.argv[1])); assert body["code"] == "authentication_required", body' "$tmp/unauthorized.json"
+python3 -c 'import json,sys; body=json.load(open(sys.argv[1])); assert body["code"] == "unauthenticated", body' "$tmp/unauthorized.json"
 
 update_headers="$tmp/update.headers"
 update_status="$(curl --silent --show-error --dump-header "$update_headers" --output "$tmp/update.json" --write-out '%{http_code}' \
