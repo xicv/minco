@@ -30,6 +30,8 @@ is retained as a stable reference; `next` is allowed to change.
 
 The 1.11.0 source, uninterrupted local qualification, exact-main hosted check,
 immutable tag, guarded OIDC publication, 36 exact non-yanked registry records
-and GitHub release are independently verified. Pages and docs.rs remain
-separate documentation evidence lanes, and no live application provider,
-deployment, or production proof is implied.
+and GitHub release are independently verified. Exact-commit Pages run
+`32497158350` passed, and the root plus frozen manual serve `1.11.0` as latest
+stable. docs.rs remains a separate evidence lane: all 36 jobs were present in
+its queue at closure observation, but no exact rustdoc-route pass is recorded
+yet. No live application provider, deployment, or production proof is implied.

@@ -36,9 +36,19 @@ Immutable tag `v1.11.0` resolves to that main SHA. Authentication-only OIDC run
 `32490523716` and guarded publication run `32490558619` passed. The retained
 registry receipt reports all 36 exact versions present and non-yanked with no
 findings, and the GitHub release is published at
-<https://github.com/xicv/minco/releases/tag/v1.11.0>. Pages and docs.rs remain
-separate documentation closure gates. No live provider request, AWS application
-deployment, database mutation or production operation occurred.
+<https://github.com/xicv/minco/releases/tag/v1.11.0>. Stable-documentation PR
+#184 merged as `6e2e4b655e0110929102d2aa6b1460f1a38c0fbd`; its Git tree equals the
+reviewed head tree `6b9e08d63264b4be1c997b6c565956c2c3d4d89a`. Exact-commit Pages run
+`32497158350` passed, and the root plus frozen `1.11.0` manual returned HTTP
+200 with `1.11.0` marked latest stable.
+
+docs.rs remains an explicitly separate external state. At
+`2026-08-21T15:26:11Z`, all 36 exact `1.11.0` jobs appeared in its overloaded
+build queue at priority `-1`; the service warned that queued builds could take
+up to a couple of days, and 0/36 exact rustdoc routes returned HTTP 200. That
+is queued propagation, not a documentation pass. No live provider request,
+AWS application deployment, database mutation or production operation
+occurred.
 
 ## M14-T41 `1.10.0` Ticketing release
 

@@ -16,8 +16,10 @@ release_candidate_task = "M14-T42"
 
 # The published 1.11.0 baseline is the complete 36-package family from immutable
 # tag v1.11.0. It adds an opt-in contract-enforced request boundary without a
-# new package or ownership boundary. Authentication, registry, Pages, docs.rs,
-# provider and application-runtime evidence remain separate evidence lanes.
+# new package or ownership boundary. Authentication and registry passed;
+# exact-commit Pages passed separately; all 36 docs.rs jobs were queued at
+# closure observation, but no exact rustdoc-route pass is recorded. Provider and
+# application-runtime evidence remain separate evidence lanes.
 publishable_package_count = 36
 new_publishable_packages = []
 

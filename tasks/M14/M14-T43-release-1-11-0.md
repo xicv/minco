@@ -158,6 +158,16 @@ trusted-publishing run `32490523716` passed, then guarded publication run
 `verification/1.11-published-release-validation.json` independently records
 all 36 exact versions present and non-yanked with no findings. The GitHub
 release is published at <https://github.com/xicv/minco/releases/tag/v1.11.0>.
-Pages and docs.rs remain separate closure gates and will be recorded only after
-their exact public states are verified. No provider request, AWS application
-deployment, database mutation or production operation occurred.
+Stable-documentation PR #184 merged as
+`6e2e4b655e0110929102d2aa6b1460f1a38c0fbd`; its Git tree exactly equals the
+reviewed head tree `6b9e08d63264b4be1c997b6c565956c2c3d4d89a`. Pages run
+`32497158350` passed on that exact merge commit. The public root and frozen
+`1.11.0` manual both returned HTTP 200, with the root linking the 1.11.0 docs
+and the manual identifying `1.11.0` as the latest stable release.
+
+docs.rs remains a separate truthful external state rather than a release pass.
+At `2026-08-21T15:26:11Z`, all 36 exact `1.11.0` jobs appeared in its
+overloaded build queue at priority `-1`; docs.rs warned that the queue could
+take up to a couple of days, and 0/36 exact rustdoc routes returned HTTP 200.
+No provider request, AWS application deployment, database mutation or
+production operation occurred.
