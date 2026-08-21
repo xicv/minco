@@ -24,9 +24,14 @@ as `81640a6b25924be115ceb11cdec1fd2a42a71381`.
 Exact-main hosted run `32489926320`, authentication-only run `32490523716` and
 guarded publication run `32490558619` passed. Immutable tag `v1.11.0`, all 36
 exact non-yanked registry versions and the GitHub release are independently
-verified. Stable Pages and docs.rs are still separate documentation closure
-gates. No AWS, application-provider, deployment, database or production
-mutation is implied.
+verified. Stable documentation PR #184 merged as
+`6e2e4b655e0110929102d2aa6b1460f1a38c0fbd` with exact reviewed-tree equality;
+Pages run `32497158350` passed on that exact commit, and the root plus frozen
+`1.11.0` manual returned HTTP 200 with `1.11.0` marked latest stable. docs.rs
+remains a separate queued state: at `2026-08-21T15:26:11Z` all 36 exact jobs
+were present in the overloaded build queue at priority `-1`, while 0/36 exact
+rustdoc routes were available. No AWS, application-provider, deployment,
+database or production mutation is implied.
 
 ## Published 1.10.0 Ticketing release
 

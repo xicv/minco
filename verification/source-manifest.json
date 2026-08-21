@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "abd3011b2ce4741ea1ec164e292586a995c44e18f0b71a260d7ccea42880e4fa",
-      "size_bytes": 20854
+      "sha256": "24ddb3730592712db9612f7c96356e0bb76df3ff996caa94822924921f6f0572",
+      "size_bytes": 21240
     },
     {
       "path": "CONTRIBUTING.md",
@@ -99,18 +99,18 @@
     },
     {
       "path": "PUBLISHING.md",
-      "sha256": "c5bcdf0520c67bea7b4a657350ac5122dfc04d24183e4c22dd470e817e3dda56",
-      "size_bytes": 4467
+      "sha256": "f78c140eab85303be44861263beb83a3a08c4d1f00e4458e3faeb04d8e55e8df",
+      "size_bytes": 4688
     },
     {
       "path": "README.md",
-      "sha256": "1f9d3b07be31f0b48daa9c5a81026c0fd015aa8314285560ab1623f535e08067",
-      "size_bytes": 13317
+      "sha256": "20263fd4bcae9c57faac4760a2e43258977774bfccf6a57cf14686a8267c51da",
+      "size_bytes": 13637
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "58e2e8e914da7526877b0da4208da838742b6448829ece9fb3eb02c0b327eecb",
-      "size_bytes": 36116
+      "sha256": "39ebbb9feee958961c915abb4004ffb7fa7ac772c786352b00fc570741d1d238",
+      "size_bytes": 36490
     },
     {
       "path": "SECURITY.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "89ce2d24151616f7516cc2a77d5ff4dd009a51ba581f099128a5af994b2d6886",
-      "size_bytes": 152726
+      "sha256": "2904442870532a1e5ade032b278ecb1be7b440aa552ed57e9e44f108e8a65ebe",
+      "size_bytes": 153316
     },
     {
       "path": "compose.mail.yml",
@@ -5659,8 +5659,8 @@
     },
     {
       "path": "docs-site/versions.md",
-      "sha256": "df205a60b1f390844a55336e52725d67b0d6f04ee508a5fef641d4cb93cef3f5",
-      "size_bytes": 1808
+      "sha256": "ccda74c320dbdc9a9b40c519c990fe4cb1ce4349a425413763d9680db708e622",
+      "size_bytes": 2003
     },
     {
       "path": "examples/orders/adapters/Cargo.toml",
@@ -8424,8 +8424,8 @@
     },
     {
       "path": "tasks/M14/M14-T43-release-1-11-0.md",
-      "sha256": "0dd2fab7ff5c3c6b33bc1b6b281e91aa92987cb340baf13ef9d511663acc2be7",
-      "size_bytes": 6732
+      "sha256": "0afa3121a5c61227152db1334be4c1c83ee8965319e76fbc24e7f7342cf5be35",
+      "size_bytes": 7325
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -8759,7 +8759,7 @@
     },
     {
       "path": "verification/provider-evidence.toml",
-      "sha256": "0b85b1da0d2c6cf8abdb5ff95ad8a1c7490566129b733028bf00dd7ff4f1ae7b",
+      "sha256": "e9e0b2635100aa0365aadb09569bcc603e5b2d38cbb10e2e9402aa11ac023aed",
       "size_bytes": 1891
     },
     {
@@ -8779,13 +8779,13 @@
     },
     {
       "path": "verification/release-identity.json",
-      "sha256": "93bf9e06659571750760b6fa31d7ea9096770badcd57c6548cc68b0dd798d378",
+      "sha256": "79e1d261c71cb1c329a732db2c29bece66987a7f79f42e4319ae3619cc1e9a9e",
       "size_bytes": 19137
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "04f51598d05950baadbe244242d68a4d0bad528437cb310f0b1d8f5901336bfc",
-      "size_bytes": 1264
+      "sha256": "c92ab00f20355233772bae971fc1e1074aaff97d73f2eec563e6c697bf1dd7d8",
+      "size_bytes": 1401
     },
     {
       "path": "verification/rust-dependency-hygiene.json",
@@ -8879,7 +8879,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "3e53f5f7392f20a5a41a2fa4ea1d297b83a954b88f647ae6e8051650c31e9e60",
-  "total_size_bytes": 12884946,
+  "source_tree_sha256": "8866119b7530399f85e1c02a1487ef25308e01200d7ddbbe9606e8d111726dd1",
+  "total_size_bytes": 12887762,
   "version": "1.11.0"
 }

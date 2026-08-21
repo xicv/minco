@@ -27,7 +27,7 @@
       "1.8.0",
       "1.9.0"
     ],
-    "versions_page_sha256": "df205a60b1f390844a55336e52725d67b0d6f04ee508a5fef641d4cb93cef3f5",
+    "versions_page_sha256": "ccda74c320dbdc9a9b40c519c990fe4cb1ce4349a425413763d9680db708e622",
     "workspace": "1.11.0"
   },
   "inputs": [
@@ -45,7 +45,7 @@
     },
     {
       "path": "docs-site/versions.md",
-      "sha256": "df205a60b1f390844a55336e52725d67b0d6f04ee508a5fef641d4cb93cef3f5"
+      "sha256": "ccda74c320dbdc9a9b40c519c990fe4cb1ce4349a425413763d9680db708e622"
     },
     {
       "path": "plugins/catalog.toml",
@@ -53,7 +53,7 @@
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "04f51598d05950baadbe244242d68a4d0bad528437cb310f0b1d8f5901336bfc"
+      "sha256": "c92ab00f20355233772bae971fc1e1074aaff97d73f2eec563e6c697bf1dd7d8"
     }
   ],
   "kind": "minco.release-identity.v1",
@@ -553,10 +553,10 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "284f2c272fdc00767cb8f49087c64a4d799639c604eb625396b9e03860a27960",
+  "projection_sha256": "9f9a78e9f8538328ae9a5cc37290ca357159e3ad66cf558be082e60f6f583d43",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
-    "sha256": "04f51598d05950baadbe244242d68a4d0bad528437cb310f0b1d8f5901336bfc"
+    "sha256": "c92ab00f20355233772bae971fc1e1074aaff97d73f2eec563e6c697bf1dd7d8"
   },
   "schema_version": 1,
   "workspace": {

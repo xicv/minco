@@ -19,9 +19,14 @@ PR #183 merged the exact tree as
 `81640a6b25924be115ceb11cdec1fd2a42a71381`; hosted run `32489926320`,
 authentication run `32490523716`, publication run `32490558619`, immutable tag
 `v1.11.0`, all 36 exact non-yanked versions and the GitHub release passed as
-separate gates. Stable Pages and docs.rs remain separate documentation closure
-gates. No AWS application or provider operation is authorized by this release
-work.
+separate gates. Stable-documentation PR #184 merged as
+`6e2e4b655e0110929102d2aa6b1460f1a38c0fbd`, and exact-commit Pages run
+`32497158350` passed; both the root and frozen `1.11.0` manual returned HTTP
+200 with the release marked latest stable. docs.rs is not claimed green: at
+`2026-08-21T15:26:11Z` all 36 exact jobs were queued at priority `-1`, and
+0/36 rustdoc routes were available while docs.rs warned that its queue could
+take up to a couple of days. No AWS application or provider operation is
+authorized by this release work.
 
 ## Released M14-T41 Minco 1.10.0 Ticketing support entry
 

@@ -12,8 +12,11 @@ The workspace is the published additive `1.11.0` source with the same 36
 publishable packages and no new ownership boundary. Exact-main hosted run
 `32489926320`, authentication-only run `32490523716` and guarded publication
 run `32490558619` passed for the immutable tag. Independent registry validation
-found all 36 exact versions present and non-yanked. docs.rs and Pages remain
-separate documentation states.
+found all 36 exact versions present and non-yanked. Stable-documentation PR
+#184 and exact-commit Pages run `32497158350` passed, and the public root plus
+frozen `1.11.0` manual are current. docs.rs remains separate: all 36 exact jobs
+were visible at priority `-1` on 2026-08-21, but no exact rustdoc-route pass is
+recorded yet.
 
 The release keeps all nine AI skills current for the 1.11 request boundary and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as

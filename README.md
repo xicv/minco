@@ -27,7 +27,9 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 The complete 36-package 1.11.0 family is published from immutable tag
 `v1.11.0`. Exact-source qualification, trusted publishing, registry, GitHub
-release, Pages and docs.rs remain separate evidence lanes.
+release, Pages and docs.rs remain separate evidence lanes. Exact-commit Pages
+run `32497158350` passed and the stable site is live; all 36 docs.rs jobs were
+queued at closure observation, and no exact rustdoc-route pass is claimed yet.
 
 ## Documentation
 
@@ -255,8 +257,10 @@ The coordinated 36-crate `1.11.0` family is published from immutable tag
 commit `81640a6b25924be115ceb11cdec1fd2a42a71381`. Independent registry validation
 found all 36 exact versions present and non-yanked after one guarded
 dependency-ordered OIDC publication run. Source qualification, hosted Linux,
-tag, GitHub release and registry are verified; docs.rs, stable documentation,
-AWS deployment and production runtime remain separate evidence states. No live
+tag, GitHub release, registry and exact-commit stable Pages are verified.
+docs.rs remains a separate state: all 36 exact jobs were present in its queue at
+closure observation, while no rustdoc-route pass is recorded yet. AWS
+deployment and production runtime remain separate evidence states. No live
 provider, AWS application or production mutation was part of this crate
 release.
 
