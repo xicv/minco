@@ -14,11 +14,12 @@ checked against every publishable workspace member by
 `scripts/validate_publish.py`.
 
 The workspace is the published `1.10.0` source with 36 publishable packages.
-`minco-interaction` and `minco-plugin-ticketing` are explicitly recorded in
-`new_publishable_packages`; both crossed first manual publication and are owned
-on crates.io. Their future trusted-publisher configuration remains unverified.
-Source qualification, hosted compatibility, tag, registry, docs.rs and Pages
-evidence remain separate.
+`minco-interaction` and `minco-plugin-ticketing` crossed first manual
+publication and are owned on crates.io. Their future trusted-publisher entries
+were independently reconciled on 2026-08-21 for repository `xicv/minco`,
+workflow `publish-crates.yml` and environment `crates-io`.
+`new_publishable_packages` is empty. Source qualification, hosted
+compatibility, tag, registry, docs.rs and Pages evidence remain separate.
 
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
@@ -230,15 +231,14 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The complete published 34-package family has crossed that ownership
-boundary; the two `1.10.0` additions have not.
+exists. The complete published 36-package family has crossed that ownership
+boundary.
 Before 1.1.0 publication, trusted-publisher configuration was independently
 reconciled for all packages. The 1.2.0 upload used a short-lived OIDC token only
 after exact-tag verification and locked dependency prefetch; every later OIDC
-upload must verify the current configuration again. After manually publishing
-`minco-interaction` and `minco-plugin-ticketing` with the complete `1.10.0`
-family, configure and verify their trusted publishers before relying on OIDC
-for a later family.
+upload must verify the current configuration again. The two `1.10.0` additions
+were configured and read back after manual publication, so a later family may
+use OIDC only after its own authentication and exact configuration preflight.
 
 ## Trusted publishing after the first release
 

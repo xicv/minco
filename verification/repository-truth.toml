@@ -16,7 +16,8 @@ release_candidate_task = "M14-T40"
 
 # The published 1.10.0 baseline is the complete 36-package family from immutable
 # tag v1.10.0. Both new public package names crossed the crates.io ownership
-# boundary; their future trusted-publisher configuration remains unverified.
+# boundary; their future trusted-publisher entries were reconciled and read back
+# on 2026-08-21 for xicv/minco, publish-crates.yml and the crates-io environment.
 publishable_package_count = 36
 new_publishable_packages = []
 

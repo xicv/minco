@@ -13,10 +13,12 @@ tag, registry-proven partial-upload recovery, all 36 exact non-yanked versions,
 and the GitHub release passed as separate evidence lanes.
 
 The stable 1.10 documentation and all nine packaged AI skills are current in
-source. Future trusted-publisher settings for the two newly claimed crates are
-not verified because the crates.io browser bridge returned `Transport closed`.
-Pages, docs.rs, live-provider, AWS deployment, hosted-performance and production
-runtime remain separate evidence states.
+source. The two newly claimed crates have exactly one reviewed future
+trusted-publisher entry each for `xicv/minco`, `publish-crates.yml` and the
+`crates-io` environment. Merged-main Pages run `32476082843`, the stable
+versioned site and all 36 exact docs.rs routes passed independently.
+Live-provider, AWS deployment, hosted-performance and production runtime remain
+separate evidence states.
 
 ## Completed M14-T39 Minco 1.9.0 traffic and compression release
 

@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "32e103c462af60fde64fd2a619f05f14f082cedc0460a16558a1246e479603af",
-      "size_bytes": 19891
+      "sha256": "92f83d94c5df4d4062d69d88dbcc0caaa07b2751792542bd8a0c7cc85cff2bbb",
+      "size_bytes": 19949
     },
     {
       "path": "CONTRIBUTING.md",
@@ -99,8 +99,8 @@
     },
     {
       "path": "PUBLISHING.md",
-      "sha256": "213a43beb944da9bcd090f49e82a827a75d43c8a28235b9a61450af526ac48d3",
-      "size_bytes": 3907
+      "sha256": "35a34487b2484032b6cdb573d7dde3282ebee313af63abb6dfec6a0528f85cbc",
+      "size_bytes": 3984
     },
     {
       "path": "README.md",
@@ -109,8 +109,8 @@
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "bdf38ad9792095eeb2a1f69411273b507912a83608bbec0915da9c3951554775",
-      "size_bytes": 34783
+      "sha256": "7d9e9d200804be8446954edbfd116a4b0a7b75dd92233a52bec20a486280b023",
+      "size_bytes": 34897
     },
     {
       "path": "SECURITY.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "92f4eec9728a98aee5e14f09de9cf11bf5eec7183d99198b3cfed0e53ae43f85",
-      "size_bytes": 150482
+      "sha256": "22b88422e32415175abd2a562e3a9ced0794fe474315c8c0f2df98abf85a9da6",
+      "size_bytes": 150843
     },
     {
       "path": "compose.mail.yml",
@@ -1819,8 +1819,8 @@
     },
     {
       "path": "docs/adoption/1.9.0-to-1.10.0.md",
-      "sha256": "2a7e29275d41fe05cf0b2beefbbee319b6d0c155541712f2cf896f4671d078cb",
-      "size_bytes": 1948
+      "sha256": "b0128c22e4140c5f5acf1f1ad15db909fa2c460f69bf2940c6148c58288f8582",
+      "size_bytes": 2055
     },
     {
       "path": "docs/adoption/garmentiq-contract-only-2026-08-03.md",
@@ -2224,8 +2224,8 @@
     },
     {
       "path": "docs/development/publishing.md",
-      "sha256": "8a342ea706881b99b3bd0f54a8cbe7456dc42b8ca7cf6846a5e2e74fe9606559",
-      "size_bytes": 16935
+      "sha256": "3e06d19bb6e545bf512fbd6aa8c6c285d8332ffe2cb604bd183f8887c21838b9",
+      "size_bytes": 16965
     },
     {
       "path": "docs/development/quality-assurance.md",
@@ -5434,8 +5434,8 @@
     },
     {
       "path": "docs-site/versions.md",
-      "sha256": "db50db98c0deee3954fc7945b09fa394cb840a1ffebb154d3c8630bdf96c56b6",
-      "size_bytes": 1730
+      "sha256": "d88e69cf4c228e58246caa6438e6809691a433801dddb519306e6db152f8288d",
+      "size_bytes": 1824
     },
     {
       "path": "examples/orders/adapters/Cargo.toml",
@@ -8189,8 +8189,8 @@
     },
     {
       "path": "tasks/M14/M14-T41-release-1-10-0.md",
-      "sha256": "8932d267df98c78a3b50cbb1b4f24f80743577abb8e98064b243ece934e8cdf9",
-      "size_bytes": 6604
+      "sha256": "26cef87ff09ce5247d5f18911fd9c6cb9453adb558f949e6e1e7e8685639248c",
+      "size_bytes": 7117
     },
     {
       "path": "tasks/M14/M14-T42-contract-enforced-request-boundary.md",
@@ -8524,7 +8524,7 @@
     },
     {
       "path": "verification/provider-evidence.toml",
-      "sha256": "97f15e6d681d7128e813852a5b01f6390f0ee0645950b9c92d7117483e0cfa0a",
+      "sha256": "35e5aba1647c983d6ad4f4bd3168906fe9604d32756d985eb31a91dd85dc963c",
       "size_bytes": 1891
     },
     {
@@ -8544,13 +8544,13 @@
     },
     {
       "path": "verification/release-identity.json",
-      "sha256": "3dbe63bf075a803f1d0547a26b84d3d7bc3bc06c551e5a8308da27864aed20fa",
+      "sha256": "3443b2015fb68597c09aa57b402b11bda08d4ab3d552c86048f88bb5373a0a15",
       "size_bytes": 19121
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "c9c4c45a44235f327906a46cd6c369964927e2f0fb22e66dd31e4eaf60aaa7bf",
-      "size_bytes": 1185
+      "sha256": "06e0b89e20102c9566fedb11cb85bcbcc7cc5838b7505e2d01f8885c9026e54f",
+      "size_bytes": 1271
     },
     {
       "path": "verification/rust-dependency-hygiene.json",
@@ -8641,7 +8641,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "bfdba5c5dd170adc17dc5310efb5057dc06d7dca6e5c95bf87d8b043a3ec4e1c",
-  "total_size_bytes": 12618126,
+  "source_tree_sha256": "75d4aa852b98d323c3880ed6434e07e0b8fcb3fecc1d044160a88119fecbd65f",
+  "total_size_bytes": 12619566,
   "version": "1.10.0"
 }

@@ -2,7 +2,7 @@
 id: M14-T41
 title: Release Minco 1.10.0 Ticketing support entry
 milestone: M14
-status: active
+status: complete
 priority: critical
 area: release/ticketing/agent/docs
 depends_on: [M14-T40]
@@ -135,9 +135,18 @@ errors and warnings, and all 36 exact versions present and non-yanked. The
 GitHub release is published at
 <https://github.com/xicv/minco/releases/tag/v1.10.0>.
 
-The two new crate names crossed ownership. Future trusted-publisher
-configuration is still pending because the browser-control bridge returned
-exact error `Transport closed` twice before any crates.io settings page was
-accessed. Stable Pages and all exact docs.rs routes also remain independent
-post-merge checks. The task therefore remains active; no AWS, provider,
-application deployment or production mutation is claimed.
+The two new crate names crossed ownership. On 2026-08-21 an authenticated,
+read-before-write crates.io API reconciliation found no existing GitHub
+trusted-publisher entry for either crate, then created and read back exactly one
+reviewed entry for each: IDs `17250` (`minco-interaction`) and `17251`
+(`minco-plugin-ticketing`), repository `xicv/minco`, workflow
+`publish-crates.yml`, environment `crates-io`. The existing Cargo credential
+was consumed in memory and was not printed or committed.
+
+Exact merged-main Pages run `32476082843` passed for
+`9e9013bca378716c8131c23b4d547883231f7f1c`; the versioned
+<https://xicv.github.io/minco/1.10.0/> manual returned HTTP 200 and identified
+`1.10.0` as stable. All 36 exact versioned docs.rs library routes independently
+returned HTTP 200. These checks close the release task without claiming an AWS
+or other live application-provider request, application deployment or
+production mutation.
