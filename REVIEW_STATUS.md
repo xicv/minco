@@ -1,5 +1,22 @@
 # Review status
 
+## Active M14-T43 Minco 1.11.0 request-boundary release
+
+The current workspace is an unpublished additive `1.11.0` candidate over the
+published 36-package `v1.10.0` baseline. Review must keep OpenAPI authoritative,
+reject unsupported request-reachable shapes before generation, preserve
+missing-versus-null semantics, bound errors and adversarial work, extract typed
+requests once, enforce exact coarse permission/scope policy before the use case,
+and leave business authorization in the application layer.
+
+The candidate must also keep request IDs safe before tracing/reflection and use
+explicit streamed-limit/timeout provenance without rewriting application-owned
+responses. Version bump, frozen 1.11 manual, website candidate routing, adoption
+guide and cumulative nine-skill coverage move together. Local quality,
+clean-source release qualification, independent review, merge, hosted Linux,
+tag, registry, docs.rs and Pages remain separate gates. No AWS application or
+provider operation is authorized by this release work.
+
 ## Released M14-T41 Minco 1.10.0 Ticketing support entry
 
 Minco `1.10.0` is the current published baseline from immutable tag `v1.10.0`

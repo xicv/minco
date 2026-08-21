@@ -1,11 +1,31 @@
 # Minco verification and release evidence
 
 Date: 2026-08-21
-Current workspace version: `1.10.0`
+Current workspace version: `1.11.0`
 Published baseline: `1.10.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
+
+## M14-T43 `1.11.0` contract-enforced request candidate
+
+Release preparation starts from merged main
+`fc6483ccb42f86a7247dd65e1500716ed7132313` after PR #170 and the 1.10
+publication-evidence closure merged with exact-tree proof. The candidate
+advances the same 36-package family and official descriptors in lock-step,
+freezes the contract-validation and HTTP request-boundary manual, and updates
+the cumulative nine-skill Codex/Claude bundle.
+
+The feature remains opt-in through
+`x-minco-request-validation: generated`. Generated typed extraction and coarse
+permission/scope policy do not replace application-owned tenancy, resource
+ownership, stored-state authorization or business invariants. No new crate,
+ownership boundary, workflow, AWS resource, provider request, deployment,
+database mutation or production operation is part of candidate preparation.
+Focused checks, full local quality, clean-source release qualification,
+independent review, merge, exact-main hosted compatibility, tag, OIDC
+authentication, upload, registry validation, GitHub release, Pages and docs.rs
+are retained as separate gates and will be recorded only after they pass.
 
 ## M14-T41 `1.10.0` Ticketing release
 

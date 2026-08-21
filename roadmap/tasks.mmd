@@ -79,6 +79,8 @@ flowchart LR
     NM14T39["M14-T39<br/>Release Minco 1.9.0 traffic and compression controls"]
     NM14T40["M14-T40<br/>Add shared Ticketing interaction and multi-surface support entry"]
     NM14T41["M14-T41<br/>Release Minco 1.10.0 Ticketing support entry"]
+    NM14T42["M14-T42<br/>Add a contract-enforced request boundary"]
+    NM14T43["M14-T43<br/>Release Minco 1.11.0 contract-enforced request boundary"]
     NM2T01["M2-T01<br/>Stabilize the static plugin and capability kernel"]
     NM2T02["M2-T02<br/>Validate plugin enable disable and scaffolding commands"]
     NM3T01["M3-T01<br/>Verify PostgreSQL idempotent order persistence"]
@@ -233,6 +235,9 @@ flowchart LR
     NM14T38 --> NM14T39
     NM14T39 --> NM14T40
     NM14T40 --> NM14T41
+    NM14T40 --> NM14T42
+    NM14T41 --> NM14T43
+    NM14T42 --> NM14T43
     NM0T01 --> NM2T01
     NM2T01 --> NM2T02
     NM1T01 --> NM3T01

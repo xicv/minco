@@ -61,6 +61,22 @@ def regular_file_without_symlinks(base: Path, relative: Path) -> bool:
 class CloudFormationLoader(yaml.SafeLoader):
     """Safe YAML loader that preserves CloudFormation intrinsic tags as data."""
 
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        """Reject duplicate keys instead of accepting YAML's last-key-wins behavior."""
+        self.flatten_mapping(node)
+        mapping: dict[Any, Any] = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping",
+                    node.start_mark,
+                    f"found duplicate key {key!r}",
+                    key_node.start_mark,
+                )
+            mapping[key] = self.construct_object(value_node, deep=deep)
+        return mapping
+
 
 def _cloudformation_tag(loader: CloudFormationLoader, tag_suffix: str, node: yaml.Node) -> Any:
     if isinstance(node, yaml.ScalarNode):
@@ -1647,6 +1663,43 @@ class Validator:
                         f"template omits exact request header {configured_header}",
                         template_path,
                     )
+            try:
+                template = yaml.load(text, Loader=CloudFormationLoader)
+                http_api = template["Resources"]["HttpApi"]["Properties"]
+                definition_paths = http_api["DefinitionBody"]["paths"]
+                actual_routes = sorted(
+                    [
+                        {
+                            "operation_id": operation["operationId"],
+                            "method": method,
+                            "path": path,
+                            "authenticated": bool(operation.get("security")),
+                        }
+                        for path, path_item in definition_paths.items()
+                        for method, operation in path_item.items()
+                        if method in HTTP_METHODS
+                    ],
+                    key=lambda item: item["operation_id"],
+                )
+                if actual_routes != expected_routes:
+                    self.error(
+                        "STATIC-SAM-006",
+                        "template route inventory differs from the generated deployment plan",
+                        template_path,
+                    )
+                exposed_headers = http_api["CorsConfiguration"].get("ExposeHeaders", [])
+                if exposed_headers != plan.get("exposed_headers", []):
+                    self.error(
+                        "STATIC-SAM-007",
+                        "template CORS exposed headers differ from the generated deployment plan",
+                        template_path,
+                    )
+            except (KeyError, TypeError, yaml.YAMLError) as exc:
+                self.error(
+                    "STATIC-SAM-006",
+                    f"template route inventory cannot be parsed: {exc}",
+                    template_path,
+                )
 
     def validate_no_placeholders(self) -> None:
         patterns = [

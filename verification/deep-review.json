@@ -17,7 +17,7 @@
       "contract_schemas": 17,
       "plugins": 20,
       "milestones": 15,
-      "tasks": 122,
+      "tasks": 123,
       "rust_files": 238,
       "python_files": 41,
       "shell_files": 82,
@@ -31,7 +31,7 @@
   },
   "metrics": {
     "rust_files": 238,
-    "rust_lines": 130015,
+    "rust_lines": 130022,
     "unsafe_tokens": 21,
     "production_unwrap_expect": 252,
     "sql_files": 21

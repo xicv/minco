@@ -1,8 +1,8 @@
 # Incrementally adopting Minco
 
 Published baseline: `1.10.0`
-Current workspace version: `1.10.0`
-Workspace release state: `published`
+Current workspace version: `1.11.0`
+Workspace release state: `candidate`
 
 Use exact published `1.10.0` dependencies for applications. Follow the
 [1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing,
@@ -10,7 +10,10 @@ then use the [1.6.0-to-1.7.0 guide](1.6.0-to-1.7.0.md) for Apple-first fresh
 local-service selection. The [1.7.0-to-1.8.0 guide](1.7.0-to-1.8.0.md) covers
 opt-in resumable object transfers and their application-owned policy boundary.
 The [1.9.0-to-1.10.0 guide](1.9.0-to-1.10.0.md) covers the published
-Ticketing and shared-interaction package boundaries.
+Ticketing and shared-interaction package boundaries. The
+[1.10.0-to-1.11.0 guide](1.10.0-to-1.11.0.md) covers opt-in generated request
+validation and the typed HTTP boundary; use it only when deliberately
+qualifying the unpublished candidate.
 Select the payment feature only when
 the application owns the corresponding provider and payment-state boundary.
 

@@ -36,3 +36,9 @@ At the 1.7 Apple Container default boundary, own runtime-selection code,
 receipts, exact-resource tests, migration guidance and fallback documentation
 together. Preserve Docker support and keep automatic data migration or resource
 deletion outside the task unless separately authorised.
+
+At the 1.11 contract-enforced request boundary, own OpenAPI authority,
+request-reachable analysis, deterministic generation, typed extraction,
+authorization policy, middleware provenance, in-process contract tests,
+versioned documentation and compatibility evidence together. Keep application
+business policy and provider topology outside that delivery-boundary change.

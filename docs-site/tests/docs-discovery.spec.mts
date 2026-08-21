@@ -80,6 +80,29 @@ test('published stable and next expose browser and native client guidance', asyn
   ).toBeVisible()
 })
 
+test('candidate and next expose the contract-enforced request boundary', async ({
+  page
+}) => {
+  for (const [path, marker] of [
+    ['./next/guides/contract-request-validation', 'ValidatedJson'],
+    [`${workspacePath}guides/contract-request-validation`, 'ValidatedJson'],
+    ['./next/reference/http-request-boundary', 'validation_failed'],
+    [`${workspacePath}reference/http-request-boundary`, 'validation_failed']
+  ]) {
+    await page.goto(path)
+    await waitForHydration(page)
+    await expect(page.locator('main')).toContainText(marker)
+  }
+
+  await page.goto(`${workspacePath}reference/documentation-map`)
+  await expect(
+    page.getByRole('link', { name: 'Enforce request contracts' }).first()
+  ).toBeVisible()
+  await expect(
+    page.getByRole('link', { name: 'HTTP request boundary' }).first()
+  ).toBeVisible()
+})
+
 test('search includes current troubleshooting language and excludes frozen manuals', async ({
   page
 }) => {

@@ -68,3 +68,11 @@ dynamic Brotli without explicit measured evidence.
 At the 1.10 Ticketing support-entry boundary, keep requester identity and
 permissions server-derived, bound untrusted browser context, and issue
 single-use handoffs only after the durable ticket result exists.
+
+At the 1.11 contract-enforced request boundary, opt in only through
+`x-minco-request-validation: generated`. Use one generated typed extractor and
+the separate generated coarse authorization policy before one application use
+case. Treat structural decoding as `400`, decoded assertion failures as bounded
+`422`, and leave tenancy, ownership, stored-state checks and business invariants
+in the application layer. Do not add a runtime validation registry or infer
+authorization from validation.

@@ -5,6 +5,13 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-08-21
+
+This additive lock-step minor makes reviewed OpenAPI request assertions an
+executable, bounded Rust delivery boundary. It preserves application-owned
+business authorization and invariants, adds no provider resource, and keeps
+contracts without the opt-in profile unchanged.
+
 ### Added
 
 - Added opt-in OpenAPI-derived request validation with bounded direct generated
@@ -22,6 +29,9 @@ Semantic Versioning once public releases begin.
 - Preserved published public struct fields, constructors, serialized Problems
   and non-opted generated DTO behavior. Added no AWS resource, wake source,
   fixed compute, schedule, hosted service, deployment or provider operation.
+- Advanced all 36 publishable packages and official plugin descriptors in
+  lock-step to the additive `1.11.0` candidate line, with a frozen manual and
+  version-matched nine-skill Codex/Claude bundle.
 
 ## [1.10.0] - 2026-08-20
 

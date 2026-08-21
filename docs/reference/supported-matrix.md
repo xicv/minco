@@ -1,7 +1,7 @@
 # Minco support matrix
 
 Published install baseline: `1.10.0`
-Current workspace version: `1.10.0`
+Current workspace version: `1.11.0` candidate
 MSRV: Rust `1.97.1`
 Compatibility state: the published 1.10.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
@@ -13,6 +13,13 @@ negotiated compression, shared Interaction, and beta Ticketing inside the
 complete 36-package `v1.10.0` family.
 Registry, docs.rs, stable documentation and application/live proof remain
 separate.
+
+The `1.11.0` candidate adds an opt-in contract-enforced request boundary:
+direct generated semantic checks, one-pass typed Axum extractors, exact coarse
+permission/scope policy, safe correlation IDs, and explicit streamed-limit and
+timeout provenance. Application use cases still own tenancy, resource
+ownership, stored-state authorization and business invariants. It adds no AWS
+resource or managed gateway validator.
 
 The published `1.10.0` release adds the shared Interaction crate and beta
 Ticketing plugin as the 35th and 36th publishable packages. Registry

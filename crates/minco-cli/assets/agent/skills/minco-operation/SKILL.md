@@ -18,12 +18,18 @@ Follow one test-driven vertical slice at a time.
    both clients consume the operation. Do not create a second business API.
 3. Run `cargo minco contract check --json`; sync generated bindings rather than
    editing `// @generated` files.
+   When `x-minco-request-validation: generated` is selected, keep request
+   bodies on named generated DTOs, use `ValidatedJson`, `ValidatedQuery`, or
+   `ValidatedPath`, and call the separate generated authorization policy before
+   the application use case. Unsupported request-reachable schema shapes must
+   fail contract validation rather than being approximated.
 4. Add one failing application test through a use-case-shaped port.
 5. Implement domain invariants and the application use case without Axum,
    SQLx, AWS SDK, Lambda, or Minco HTTP/plan dependencies.
 6. Add an adapter only when persistence or an external boundary is required.
 7. Add an in-process Axum contract test for status, media type, headers, IDs,
-   body, authorization, and fail-before-persistence behavior.
+   body, structural `400`, semantic `422`, authorization, and
+   fail-before-persistence behavior.
 8. When applicable, model a verified direct upload as authorization-first
    issuance plus provider-metadata completion, and rich mail as validated
    submission plus a separate acceptance/delivery observation boundary.
