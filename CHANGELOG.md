@@ -5,7 +5,23 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the published `1.10.0` release.
+### Added
+
+- Added opt-in OpenAPI-derived request validation with bounded direct generated
+  checks, single-pass typed Axum extractors, separate coarse authorization
+  policies, exact identity scope mapping and Orders place/update integration.
+
+### Fixed
+
+- Hardened request IDs before tracing and final Problem reflection, and replaced
+  ambiguous timeout/body-limit response inference with explicit Minco-owned
+  streamed-limit and timeout boundaries that preserve application responses.
+
+### Compatibility and cost
+
+- Preserved published public struct fields, constructors, serialized Problems
+  and non-opted generated DTO behavior. Added no AWS resource, wake source,
+  fixed compute, schedule, hosted service, deployment or provider operation.
 
 ## [1.10.0] - 2026-08-20
 

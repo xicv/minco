@@ -153,8 +153,11 @@ pub mod prelude {
 
     #[cfg(feature = "http")]
     pub use minco_http::{
-        ApiFailure, HttpConfigurationError, HttpHeaderPolicy, HttpRuntimeConfig, Principal,
-        ProblemDetails, RequestMetadata, apply_standard_middleware, problem_response,
+        ApiFailure, ContractAuthorizationAlternative, ContractAuthorizationPolicy,
+        ContractValidate, ContractValidationErrors, HttpConfigurationError, HttpHeaderPolicy,
+        HttpRuntimeConfig, Principal, ProblemDetails, RequestMetadata, ValidatedJson,
+        ValidatedPath, ValidatedQuery, apply_standard_middleware, authorize_operation,
+        problem_response,
     };
 }
 
@@ -241,5 +244,26 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(ids, ["health", "idempotency", "observability"]);
+    }
+}
+
+#[cfg(all(test, feature = "http"))]
+mod http_prelude_tests {
+    use super::prelude::*;
+
+    #[test]
+    fn request_boundary_types_are_available_through_the_facade_prelude() {
+        fn accepts<T: ContractValidate>() {}
+        accepts::<FacadeRequest>();
+        let request = ValidatedJson(FacadeRequest);
+        let _ = request.into_inner();
+        let _: Option<ValidatedQuery<FacadeRequest>> = None;
+        let _: Option<ValidatedPath<FacadeRequest>> = None;
+    }
+
+    struct FacadeRequest;
+
+    impl ContractValidate for FacadeRequest {
+        fn validate_contract(&self, _errors: &mut ContractValidationErrors) {}
     }
 }

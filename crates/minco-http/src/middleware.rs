@@ -1,19 +1,34 @@
 use crate::response::{DEPRECATION_HEADER, SUNSET_HEADER};
-use axum::Router;
+use axum::{
+    Router,
+    body::Body,
+    extract::{DefaultBodyLimit, Request, State},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+};
 use http::{Extensions, HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Version, header};
-use std::{collections::BTreeMap, str::FromStr, time::Duration};
+use http_body_util::{BodyExt as _, LengthLimitError, Limited};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 use thiserror::Error;
 use tower_http::{
     compression::{
         CompressionLayer, CompressionLevel, DefaultPredicate, Predicate, predicate::SizeAbove,
     },
     cors::{AllowOrigin, CorsLayer},
-    limit::RequestBodyLimitLayer,
-    request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
+    request_id::PropagateRequestIdLayer,
     sensitive_headers::SetSensitiveRequestHeadersLayer,
-    timeout::TimeoutLayer,
     trace::TraceLayer,
 };
+
+use crate::{ApiFailure, request_id_from_headers};
 
 pub static REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 pub static CSRF_HEADER: HeaderName = HeaderName::from_static("x-minco-csrf");
@@ -245,22 +260,28 @@ pub fn apply_standard_middleware(
         cors
     };
 
+    // Router layers run request-side in reverse declaration order. Keep this
+    // explicit so an untrusted request ID is normalized before propagation,
+    // sensitive marking and tracing, while Minco-owned failures remain inside
+    // CORS and correlation handling. The body limit wraps the stream and the
+    // timeout wraps only the downstream operation future.
     let router = router
-        .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
-        .layer(TimeoutLayer::with_status_code(
-            StatusCode::REQUEST_TIMEOUT,
+        .layer(DefaultBodyLimit::disable())
+        .layer(middleware::from_fn_with_state(
             config.timeout,
+            enforce_request_timeout,
         ))
-        .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER.clone()))
-        .layer(SetRequestIdLayer::new(
-            REQUEST_ID_HEADER.clone(),
-            MakeRequestUuid,
+        .layer(middleware::from_fn_with_state(
+            config.max_request_body_bytes,
+            enforce_request_body_limit,
         ))
+        .layer(cors)
+        .layer(TraceLayer::new_for_http())
         .layer(SetSensitiveRequestHeadersLayer::new(
             config.header_policy.sensitive_request_headers(),
         ))
-        .layer(cors)
-        .layer(TraceLayer::new_for_http());
+        .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER.clone()))
+        .layer(middleware::from_fn(normalize_request_id));
 
     Ok(if config.compression {
         let predicate = DefaultPredicate::new()
@@ -281,6 +302,77 @@ pub fn apply_standard_middleware(
     } else {
         router
     })
+}
+
+async fn normalize_request_id(mut request: Request, next: Next) -> Response {
+    let request_id = request_id_from_headers(request.headers());
+    request.headers_mut().insert(
+        REQUEST_ID_HEADER.clone(),
+        HeaderValue::from_str(&request_id).expect("safe request IDs are valid headers"),
+    );
+    next.run(request).await
+}
+
+async fn enforce_request_body_limit(
+    State(limit): State<usize>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let request_id = request_id_from_headers(request.headers());
+    let declared_length = request
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<usize>().ok());
+    if declared_length.is_some_and(|length| length > limit) {
+        return payload_too_large(request_id).into_response();
+    }
+
+    let body = std::mem::take(request.body_mut());
+    let overflowed = Arc::new(AtomicBool::new(false));
+    let overflow_observer = Arc::clone(&overflowed);
+    let body = Limited::new(body, limit).map_err(move |error| {
+        if error.downcast_ref::<LengthLimitError>().is_some() {
+            overflow_observer.store(true, Ordering::Release);
+        }
+        error
+    });
+    *request.body_mut() = Body::new(body);
+    let response = next.run(request).await;
+    if overflowed.load(Ordering::Acquire) {
+        payload_too_large(request_id).into_response()
+    } else {
+        response
+    }
+}
+
+async fn enforce_request_timeout(
+    State(timeout): State<Duration>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let request_id = request_id_from_headers(request.headers());
+    match tokio::time::timeout(timeout, next.run(request)).await {
+        Ok(response) => response,
+        Err(_) => ApiFailure::new(
+            StatusCode::REQUEST_TIMEOUT,
+            "request_timeout",
+            "Request timeout",
+            "The request did not complete within the configured time limit.",
+            request_id,
+        )
+        .into_response(),
+    }
+}
+
+fn payload_too_large(request_id: String) -> ApiFailure {
+    ApiFailure::new(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "payload_too_large",
+        "Payload too large",
+        "Request body exceeds the configured limit.",
+        request_id,
+    )
 }
 
 fn validate_runtime_config(config: &HttpRuntimeConfig) -> Result<(), HttpConfigurationError> {
@@ -361,7 +453,6 @@ mod tests {
         response::{IntoResponse, Response},
         routing::get,
     };
-    use http_body_util::BodyExt as _;
     use tower::ServiceExt;
 
     fn large_compressible_body() -> String {

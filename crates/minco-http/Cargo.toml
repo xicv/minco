@@ -15,22 +15,24 @@ categories = ["web-programming::http-server"]
 publish = ["crates-io"]
 include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 [dependencies]
+minco-contract.workspace = true
 minco-core.workspace = true
 axum.workspace = true
 http.workspace = true
+http-body-util.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_urlencoded.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-http-body-util.workspace = true
+futures.workspace = true
 semver.workspace = true
-tokio.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

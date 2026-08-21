@@ -11,6 +11,8 @@ It provides:
 - sensitive-header handling;
 - tracing and negotiated response compression;
 - provider-neutral principals;
+- single-pass validated JSON, query, and path extraction;
+- generated coarse operation authorization;
 - RFC 9457-style Problem Details responses; and
 - typed `Retry-After`, bearer challenge, deprecation, sunset, and link metadata.
 
@@ -22,6 +24,20 @@ let router = Router::new().route("/health/live", get(|| async { "ok" }));
 let router = apply_standard_middleware(router, &HttpRuntimeConfig::default())?;
 # Ok::<(), HttpConfigurationError>(())
 ```
+
+`ValidatedJson<T>`, `ValidatedQuery<T>` and `ValidatedPath<T>` invoke native
+Axum extraction once and then statically dispatch `ContractValidate`. Public
+failures use the stable 400/413/415/422 taxonomy without raw parser text.
+`authorize_operation` checks generated exact permissions and scope alternatives
+before a use case, while application authorization remains in force.
+
+The standard stack normalizes the bounded request ID before tracing. Its
+Minco-owned body limit rejects excessive declared length and wraps streamed
+input without buffering. Explicit overflow provenance normalizes streamed 413s
+for native and validated extractors; its timeout produces an explicit Problem
+response. Application-owned 408/413 responses are never inferred or rewritten.
+
+See [HTTP request boundary reference](../../docs/reference/http-request-boundary.md).
 
 ## Compression boundary
 

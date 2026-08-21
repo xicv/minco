@@ -15,14 +15,24 @@ use std::{
 
 /// Claims supplied only after signature, issuer, audience, expiry, and other
 /// transport-level checks have succeeded.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedClaims {
     pub subject: String,
     #[serde(default)]
     pub claims: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+impl std::fmt::Debug for VerifiedClaims {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("VerifiedClaims")
+            .field("subject", &self.subject)
+            .field("claim_keys", &self.claims.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Identity {
     pub subject: String,
     #[serde(default)]
@@ -31,6 +41,18 @@ pub struct Identity {
     pub scopes: BTreeSet<String>,
     #[serde(default)]
     pub claims: BTreeMap<String, String>,
+}
+
+impl std::fmt::Debug for Identity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Identity")
+            .field("subject", &self.subject)
+            .field("permissions", &self.permissions)
+            .field("scopes", &self.scopes)
+            .field("claim_keys", &self.claims.keys().collect::<Vec<_>>())
+            .finish()
+    }
 }
 
 impl Identity {
@@ -49,11 +71,18 @@ impl Identity {
 
 impl From<Identity> for minco_http::Principal {
     fn from(identity: Identity) -> Self {
+        let Identity {
+            subject,
+            permissions,
+            scopes,
+            claims,
+        } = identity;
         Self {
-            subject: identity.subject,
-            permissions: identity.permissions,
-            claims: identity.claims,
+            subject,
+            permissions,
+            claims,
         }
+        .with_scopes(scopes)
     }
 }
 
@@ -614,6 +643,25 @@ mod tests {
         assert!(identity.has_permission("feedback.create"));
         assert!(identity.scopes.contains("openid"));
         assert!(identity.require_permission("feedback.manage").is_err());
+
+        let principal: minco_http::Principal = identity.into();
+        assert!(principal.has_permission("feedback.create"));
+        assert!(principal.has_scope("openid"));
+        assert!(!principal.has_scope("open"));
+    }
+
+    #[test]
+    fn identity_debug_output_does_not_include_verified_claim_values() {
+        let identity = Identity {
+            subject: "client-1".into(),
+            permissions: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            claims: BTreeMap::from([("token_hint".into(), "secret-claim-value".into())]),
+        };
+        let principal: minco_http::Principal = identity.clone().into();
+
+        assert!(!format!("{identity:?}").contains("secret-claim-value"));
+        assert!(!format!("{principal:?}").contains("secret-claim-value"));
     }
 
     #[tokio::test]

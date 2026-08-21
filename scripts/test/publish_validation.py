@@ -134,7 +134,8 @@ assert [finding for finding in validate(drifted) if finding[0] == "PUBLISH-021"]
     (
         "PUBLISH-021",
         "minco-contract package.include omits integration test sources: "
-        "['tests/compatibility.rs', 'tests/contract_policy.rs']",
+        "['tests/compatibility.rs', 'tests/contract_policy.rs', "
+        "'tests/request_profile.rs', 'tests/request_validation.rs']",
     )
 ]
 
