@@ -92,7 +92,7 @@
       },
       {
         "version": "1.11.0",
-        "changelog_sha256": "2a88ec6845650d4329db9cd857d12cf4483a2a65dd6533b37fb68302ed979d69",
+        "changelog_sha256": "30125b832b086894f5628984747582f9ab86a8e4aa602484ef36fa8f8cc12028",
         "features": [
           "contract-enforced-request-boundary"
         ]

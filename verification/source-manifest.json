@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1763,
+  "file_count": 1764,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -44,8 +44,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "8bf8bd45d81478a6afe5ba7a0aa75b5865a1e963f22e88a4400c19b6d4529c8f",
-      "size_bytes": 47694
+      "sha256": "cf67a6471c1b060ba5a44b62ead186033e8e94e1bd833b720101682012b20c72",
+      "size_bytes": 47692
     },
     {
       "path": "CODEX_CONTINUATION_PROMPT.md",
@@ -54,8 +54,8 @@
     },
     {
       "path": "CODEX_HANDOFF.md",
-      "sha256": "ccf54e56d59004100314a6c7e673677756a68f69a2435aaf8d072dce39cb8f92",
-      "size_bytes": 20730
+      "sha256": "abd3011b2ce4741ea1ec164e292586a995c44e18f0b71a260d7ccea42880e4fa",
+      "size_bytes": 20854
     },
     {
       "path": "CONTRIBUTING.md",
@@ -99,18 +99,18 @@
     },
     {
       "path": "PUBLISHING.md",
-      "sha256": "ec85c4c4c4f8a81cdd28d6176cd5e598566dc11c10e2abc98e0a6f552af45fec",
-      "size_bytes": 4014
+      "sha256": "c5bcdf0520c67bea7b4a657350ac5122dfc04d24183e4c22dd470e817e3dda56",
+      "size_bytes": 4467
     },
     {
       "path": "README.md",
-      "sha256": "16c3b0e4f6324ca5edade91524f3fc903bc952606d986897833be7112d26aef2",
-      "size_bytes": 13369
+      "sha256": "1f9d3b07be31f0b48daa9c5a81026c0fd015aa8314285560ab1623f535e08067",
+      "size_bytes": 13317
     },
     {
       "path": "REVIEW_STATUS.md",
-      "sha256": "18a39bb944e4cebab903f155d9eff9c4c886fd14367dddadb6869e2d30651a7d",
-      "size_bytes": 35927
+      "sha256": "58e2e8e914da7526877b0da4208da838742b6448829ece9fb3eb02c0b327eecb",
+      "size_bytes": 36116
     },
     {
       "path": "SECURITY.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "VERIFICATION.md",
-      "sha256": "ea4c6f27d42268dedb2b04c1d495f2fbbffbffd9726935881c68922cf000699f",
-      "size_bytes": 151999
+      "sha256": "89ce2d24151616f7516cc2a77d5ff4dd009a51ba581f099128a5af994b2d6886",
+      "size_bytes": 152726
     },
     {
       "path": "compose.mail.yml",
@@ -179,7 +179,7 @@
     },
     {
       "path": "crates/minco-cli/assets/agent/bundle.json",
-      "sha256": "0aa2825b76f953cfed1d6ccf0f240bc5c4d4a5b6fa24546711d56c3535ff4973",
+      "sha256": "5276daf3cef373fd28b5de89f89b7b2843fd3dbdd70c70efeaf3b6206e08703c",
       "size_bytes": 20508
     },
     {
@@ -1774,8 +1774,8 @@
     },
     {
       "path": "docs/adoption/1.10.0-to-1.11.0.md",
-      "sha256": "b4799695eba00aec95f5d4aad6381f7a89ff9624d3e75376aabd792551579bb6",
-      "size_bytes": 2167
+      "sha256": "0b34b2bb5ce4240316e44229a751cc0d5c045083aa4ccc20dfccfc46382c9d31",
+      "size_bytes": 2152
     },
     {
       "path": "docs/adoption/1.2.0-to-1.2.1.md",
@@ -1834,8 +1834,8 @@
     },
     {
       "path": "docs/adoption/incremental-adoption.md",
-      "sha256": "8751132d47399e9a23feec44641341f91738090fb9120c972ee4054c8d7dde02",
-      "size_bytes": 13494
+      "sha256": "4c1a9637fd3c7be8bae91ec07907228a872444e68ec245a87f71f2fee99e3858",
+      "size_bytes": 13507
     },
     {
       "path": "docs/adoption/two-application-validation-2026-08-03.md",
@@ -2229,8 +2229,8 @@
     },
     {
       "path": "docs/development/publishing.md",
-      "sha256": "35222e6e9e371647e03a78511a5b511f071ad906a2335c8c011cd77b21abf515",
-      "size_bytes": 17086
+      "sha256": "f4d4cb1c9b6f1bb7904e0bad0df1f77ba8ad1e06ffdcfcfc4b627f9d497e3d61",
+      "size_bytes": 17113
     },
     {
       "path": "docs/development/quality-assurance.md",
@@ -2259,8 +2259,8 @@
     },
     {
       "path": "docs/development/using-minco-crate.md",
-      "sha256": "bbb97a4b0d0998b978dcc071abefb331712b8227e68bbedcfd552f4df1bf48e3",
-      "size_bytes": 7072
+      "sha256": "9a9ec3e598eb5b4d69a477a48e4e67aa73b672ab82e0b10f4198e7a9ca954c34",
+      "size_bytes": 7065
     },
     {
       "path": "docs/how-to/agent-setup.md",
@@ -2369,8 +2369,8 @@
     },
     {
       "path": "docs/reference/compatibility.md",
-      "sha256": "5119be84db2fdf8570d9b0bfe0d9e7573609a001e3cd9600ac40ba4521e4eab1",
-      "size_bytes": 17931
+      "sha256": "e6e1bfce437b6134be08a3aff364adb524d4f8c9a16e9613c61a56da12fe54a8",
+      "size_bytes": 17895
     },
     {
       "path": "docs/reference/configuration.md",
@@ -2429,8 +2429,8 @@
     },
     {
       "path": "docs/reference/supported-matrix.md",
-      "sha256": "be0ad08bca05fa8ebd30df7541f9941b64dd01e4883b546e76ab4da3a135e757",
-      "size_bytes": 15609
+      "sha256": "da31511fa1f87800ea14ac1f7533525a08c2aa2127a21e5085275fca1aee19a3",
+      "size_bytes": 15607
     },
     {
       "path": "docs/research/audit-ledger-costs-2026-08.md",
@@ -2509,8 +2509,8 @@
     },
     {
       "path": "docs/vision/minco-framework-definition.md",
-      "sha256": "91c8c3e609be690ed8f8c6ccca342c8daad6b06a87f5c94b4e1a3abf472345a4",
-      "size_bytes": 22973
+      "sha256": "e9704408d620fb3875e2e7b0e0cb3de75954b1eb69f4c82b2d88423329a0f964",
+      "size_bytes": 23282
     },
     {
       "path": "docs-site/.gitignore",
@@ -3304,7 +3304,7 @@
     },
     {
       "path": "docs-site/1.11.0/getting-started/installation.md",
-      "sha256": "02e2f03cdfbc881a441f2f60893909b9b62c59f6b0f43562514c88c9bd582437",
+      "sha256": "bd3e0d995655df32851470c0efd4e13e314a499ced554039a52ad74ded3e3ce8",
       "size_bytes": 2569
     },
     {
@@ -3314,7 +3314,7 @@
     },
     {
       "path": "docs-site/1.11.0/guides/agent-development.md",
-      "sha256": "55cf60cd5d4fb431689553b887c363a4fe6c2088bfdf416d4ccd807fc18c676c",
+      "sha256": "8fd8a11eff2b0916ddad4c4391cfa7ab7d69a6c581387a37f7d80c5b0753090e",
       "size_bytes": 5399
     },
     {
@@ -3324,7 +3324,7 @@
     },
     {
       "path": "docs-site/1.11.0/guides/background-work.md",
-      "sha256": "4a315cb4d2bd2e634297ea002c51bf3831f5d1e802e8ac9234aff5a54a95a048",
+      "sha256": "f8e066d3707405927ea9dba28b94431fb1e389c368420ddb7d6eff9984422eac",
       "size_bytes": 2333
     },
     {
@@ -3389,12 +3389,12 @@
     },
     {
       "path": "docs-site/1.11.0/guides/payments-waffo.md",
-      "sha256": "86e53c9dcfc78cf68020390e22d750adec37798295c5e704650bf78633a9a203",
+      "sha256": "688190814e71800746ec75f752978b29478eafe6769a6c81dd8963474d81e93c",
       "size_bytes": 4082
     },
     {
       "path": "docs-site/1.11.0/guides/plugin-conformance.md",
-      "sha256": "638805af52124178433d072a35dd2304b1ca2908359790f2418ab26e4073dde7",
+      "sha256": "f1e565b317ca1ca2f747b03bc847444a1aa6e30f7966e441cf47ff540f63d198",
       "size_bytes": 3326
     },
     {
@@ -3429,8 +3429,8 @@
     },
     {
       "path": "docs-site/1.11.0/index.md",
-      "sha256": "d799c64e98d617efb0d1d163215a26b461a33f86b6d7eab83a13991f96aaebe1",
-      "size_bytes": 10133
+      "sha256": "d8818dd401e63389b97a64ac674d01e94e217b31ac67887476af1e8097b99418",
+      "size_bytes": 10214
     },
     {
       "path": "docs-site/1.11.0/plugins/index.md",
@@ -3454,12 +3454,12 @@
     },
     {
       "path": "docs-site/1.11.0/reference/feature-flags.md",
-      "sha256": "e849bc4259ceab7f7738dc4053297b2c741f254e15aaad837eed0d75b11dad44",
+      "sha256": "f0410cdeb5e4e0402885133e8f61ea8c868662ef5116db92ca4e50d627f4efaa",
       "size_bytes": 3492
     },
     {
       "path": "docs-site/1.11.0/reference/http-request-boundary.md",
-      "sha256": "f739d3596003968684caae48ff6c7c944a9b82ca467cd5a7441b210f0276c1cd",
+      "sha256": "2f10b31e0f41ca247851fb629e2f4b6c7171306c7eb91ac34ac35c62876fc747",
       "size_bytes": 1611
     },
     {
@@ -5394,7 +5394,7 @@
     },
     {
       "path": "docs-site/index.md",
-      "sha256": "5cc914c735a626c86c6a00513798f60bab7ca570af4fd0e800426e559b53bc63",
+      "sha256": "8f882be7f1b14b5735e16e6ffe6aaf8bd15973f0b82a68b5db7a167b532a3dc5",
       "size_bytes": 5930
     },
     {
@@ -5444,7 +5444,7 @@
     },
     {
       "path": "docs-site/next/getting-started/installation.md",
-      "sha256": "02e2f03cdfbc881a441f2f60893909b9b62c59f6b0f43562514c88c9bd582437",
+      "sha256": "bd3e0d995655df32851470c0efd4e13e314a499ced554039a52ad74ded3e3ce8",
       "size_bytes": 2569
     },
     {
@@ -5454,7 +5454,7 @@
     },
     {
       "path": "docs-site/next/guides/agent-development.md",
-      "sha256": "55cf60cd5d4fb431689553b887c363a4fe6c2088bfdf416d4ccd807fc18c676c",
+      "sha256": "8fd8a11eff2b0916ddad4c4391cfa7ab7d69a6c581387a37f7d80c5b0753090e",
       "size_bytes": 5399
     },
     {
@@ -5464,7 +5464,7 @@
     },
     {
       "path": "docs-site/next/guides/background-work.md",
-      "sha256": "4a315cb4d2bd2e634297ea002c51bf3831f5d1e802e8ac9234aff5a54a95a048",
+      "sha256": "f8e066d3707405927ea9dba28b94431fb1e389c368420ddb7d6eff9984422eac",
       "size_bytes": 2333
     },
     {
@@ -5529,12 +5529,12 @@
     },
     {
       "path": "docs-site/next/guides/payments-waffo.md",
-      "sha256": "86e53c9dcfc78cf68020390e22d750adec37798295c5e704650bf78633a9a203",
+      "sha256": "688190814e71800746ec75f752978b29478eafe6769a6c81dd8963474d81e93c",
       "size_bytes": 4082
     },
     {
       "path": "docs-site/next/guides/plugin-conformance.md",
-      "sha256": "638805af52124178433d072a35dd2304b1ca2908359790f2418ab26e4073dde7",
+      "sha256": "f1e565b317ca1ca2f747b03bc847444a1aa6e30f7966e441cf47ff540f63d198",
       "size_bytes": 3326
     },
     {
@@ -5569,8 +5569,8 @@
     },
     {
       "path": "docs-site/next/index.md",
-      "sha256": "6ae3eb00903cfc6e3e80a7aa494ea2b2c5cc8205ea6ef71b031784df63393742",
-      "size_bytes": 10089
+      "sha256": "fbfb4aff6581dfbda1ca923fb2ed595123f5c5fee737a33247aa162abe940027",
+      "size_bytes": 10087
     },
     {
       "path": "docs-site/next/plugins/index.md",
@@ -5594,7 +5594,7 @@
     },
     {
       "path": "docs-site/next/reference/feature-flags.md",
-      "sha256": "e849bc4259ceab7f7738dc4053297b2c741f254e15aaad837eed0d75b11dad44",
+      "sha256": "f0410cdeb5e4e0402885133e8f61ea8c868662ef5116db92ca4e50d627f4efaa",
       "size_bytes": 3492
     },
     {
@@ -5644,7 +5644,7 @@
     },
     {
       "path": "docs-site/release.json",
-      "sha256": "23a71dd5116bee138bbf980e154a82f6191dbbf136195947b44a03a8ee10c883",
+      "sha256": "137d018d6580cc1d5e47dc8125c95558cf88c9f96d78868c6a9af60b007f60c9",
       "size_bytes": 74
     },
     {
@@ -5659,8 +5659,8 @@
     },
     {
       "path": "docs-site/versions.md",
-      "sha256": "846fb92e9d5293543e408d4ddfd42c2c1ae2bad2bec57987429432273cae3cdf",
-      "size_bytes": 1864
+      "sha256": "df205a60b1f390844a55336e52725d67b0d6f04ee508a5fef641d4cb93cef3f5",
+      "size_bytes": 1808
     },
     {
       "path": "examples/orders/adapters/Cargo.toml",
@@ -8424,8 +8424,8 @@
     },
     {
       "path": "tasks/M14/M14-T43-release-1-11-0.md",
-      "sha256": "ca813e90a891e437eec44fe4f7cb268ebdeb4693f284eaf94c5717fcbf406cfc",
-      "size_bytes": 5453
+      "sha256": "0dd2fab7ff5c3c6b33bc1b6b281e91aa92987cb340baf13ef9d511663acc2be7",
+      "size_bytes": 6732
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -8648,6 +8648,11 @@
       "size_bytes": 3119
     },
     {
+      "path": "verification/1.11-published-release-validation.json",
+      "sha256": "b12799f920d35b183a0a609715c9b6cbe4185e3650e9a8102a683b807c401390",
+      "size_bytes": 3119
+    },
+    {
       "path": "verification/1.2-published-release-validation.json",
       "sha256": "e05fe9e4bc31503e58a9689f50fbef32233de4f277539a356dd4f74448d38075",
       "size_bytes": 2830
@@ -8704,7 +8709,7 @@
     },
     {
       "path": "verification/agent-workflows.json",
-      "sha256": "d37cf64d6bbcef20f95afc5273b55aa348cccbb6329cec6396149c52346f0acf",
+      "sha256": "0671717b483f8bd1af361a16d839d3e6d17737c30a792e79abfd7949814de4f2",
       "size_bytes": 2259
     },
     {
@@ -8729,7 +8734,7 @@
     },
     {
       "path": "verification/deployment-assurance.toml",
-      "sha256": "a5f0f89477729112edb3412e0a7d8f3eba41d9ef2d7870df962ad6569f732826",
+      "sha256": "81c5baa172ab51938cf1f16437816c88226ef82a0b489518ce521db9c8408280",
       "size_bytes": 3959
     },
     {
@@ -8754,8 +8759,8 @@
     },
     {
       "path": "verification/provider-evidence.toml",
-      "sha256": "d394467e9fd041fc3eebc3f00d6aa430c78a40463117ea42bd0ac35c59c42c26",
-      "size_bytes": 1895
+      "sha256": "0b85b1da0d2c6cf8abdb5ff95ad8a1c7490566129b733028bf00dd7ff4f1ae7b",
+      "size_bytes": 1891
     },
     {
       "path": "verification/published-release-validation.json",
@@ -8774,13 +8779,13 @@
     },
     {
       "path": "verification/release-identity.json",
-      "sha256": "7a94c200120889402f35fcc4145d6f44196ce928f53454f0a5410f8d258272f7",
+      "sha256": "93bf9e06659571750760b6fa31d7ea9096770badcd57c6548cc68b0dd798d378",
       "size_bytes": 19137
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "5973ba6fb9b9bf6ecb855578f21615e03c38e06e30d298a99c99055893d6d1fd",
-      "size_bytes": 1261
+      "sha256": "04f51598d05950baadbe244242d68a4d0bad528437cb310f0b1d8f5901336bfc",
+      "size_bytes": 1264
     },
     {
       "path": "verification/rust-dependency-hygiene.json",
@@ -8874,7 +8879,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835",
-  "total_size_bytes": 12878798,
+  "source_tree_sha256": "3e53f5f7392f20a5a41a2fa4ea1d297b83a954b88f647ae6e8051650c31e9e60",
+  "total_size_bytes": 12884946,
   "version": "1.11.0"
 }

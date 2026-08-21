@@ -13,7 +13,7 @@ resources.
 
 ```toml
 [dependencies]
-minco = "1.10.0"
+minco = "1.11.0"
 ```
 
 The default enables `contract`, `http`, and `default-plugins`. The default
@@ -74,7 +74,7 @@ the smaller explicit set they operate.
 
 ```toml
 [dependencies]
-minco = { version = "1.10.0", features = [
+minco = { version = "1.11.0", features = [
   "config",
   "plan",
   "release",

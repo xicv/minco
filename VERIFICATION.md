@@ -1,17 +1,17 @@
 # Minco verification and release evidence
 
-Date: 2026-08-21
+Date: 2026-08-22
 Current workspace version: `1.11.0`
-Published baseline: `1.10.0`
-Workspace release state: `candidate`
+Published baseline: `1.11.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
-## M14-T43 `1.11.0` contract-enforced request candidate
+## M14-T43 `1.11.0` contract-enforced request release
 
-Release preparation starts from merged main
+Release preparation started from merged main
 `fc6483ccb42f86a7247dd65e1500716ed7132313` after PR #170 and the 1.10
-publication-evidence closure merged with exact-tree proof. The candidate
+publication-evidence closure merged with exact-tree proof. The release
 advances the same 36-package family and official descriptors in lock-step,
 freezes the contract-validation and HTTP request-boundary manual, and updates
 the cumulative nine-skill Codex/Claude bundle.
@@ -21,11 +21,24 @@ The feature remains opt-in through
 permission/scope policy do not replace application-owned tenancy, resource
 ownership, stored-state authorization or business invariants. No new crate,
 ownership boundary, workflow, AWS resource, provider request, deployment,
-database mutation or production operation is part of candidate preparation.
-Focused checks, full local quality, clean-source release qualification,
-independent review, merge, exact-main hosted compatibility, tag, OIDC
-authentication, upload, registry validation, GitHub release, Pages and docs.rs
-are retained as separate gates and will be recorded only after they pass.
+database mutation or production operation is part of this release.
+The uninterrupted `scripts/ci/local-release.sh` qualification passed for
+source-tree digest
+`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`,
+including documentation, deterministic nine-skill workflows, SemVer, load and
+recovery, all 36 archives and consumers, Plan/SAM/Lambda artifacts, isolated
+PostgreSQL/Rustack and Orders E2E. Independent review reported no findings. PR
+#183 merged the exact reviewed tree as
+`81640a6b25924be115ceb11cdec1fd2a42a71381`; exact-main clean-Linux run
+`32489926320` passed.
+
+Immutable tag `v1.11.0` resolves to that main SHA. Authentication-only OIDC run
+`32490523716` and guarded publication run `32490558619` passed. The retained
+registry receipt reports all 36 exact versions present and non-yanked with no
+findings, and the GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.11.0>. Pages and docs.rs remain
+separate documentation closure gates. No live provider request, AWS application
+deployment, database mutation or production operation occurred.
 
 ## M14-T41 `1.10.0` Ticketing release
 

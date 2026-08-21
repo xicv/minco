@@ -1,20 +1,20 @@
 # Minco support matrix
 
-Published install baseline: `1.10.0`
-Current workspace version: `1.11.0` candidate
+Published install baseline: `1.11.0`
+Current workspace version: `1.11.0` published
 MSRV: Rust `1.97.1`
-Compatibility state: the published 1.10.0 family retains the 1.0 framework
+Compatibility state: the published 1.11.0 family retains the 1.0 framework
 boundary, separately qualified DynamoDB
 descendant, agent-native layer, browser/native HTTP metadata, verified uploads,
 rich mail, owned local services and release-bound evidence are published
 together with durable auditing, Apple-first fresh local services and direct
 resumable object transfers. It adds the API Gateway traffic policy and hardened
 negotiated compression, shared Interaction, and beta Ticketing inside the
-complete 36-package `v1.10.0` family.
+complete 36-package `v1.11.0` family.
 Registry, docs.rs, stable documentation and application/live proof remain
 separate.
 
-The `1.11.0` candidate adds an opt-in contract-enforced request boundary:
+The `1.11.0` release adds an opt-in contract-enforced request boundary:
 direct generated semantic checks, one-pass typed Axum extractors, exact coarse
 permission/scope policy, safe correlation IDs, and explicit streamed-limit and
 timeout provenance. Application use cases still own tenancy, resource

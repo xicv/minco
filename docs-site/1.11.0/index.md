@@ -1,13 +1,18 @@
 ---
-title: Minco 1.11.0 Candidate
-description: Unpublished Minco 1.11.0 candidate documentation for contract-enforced Rust request boundaries.
+title: Minco 1.11.0
+description: Published Minco 1.11.0 documentation for contract-enforced Rust request boundaries.
 ---
 
-# Minco 1.11.0 Candidate
+# Minco 1.11.0
 
-<p class="doc-kicker">Unpublished candidate manual</p>
+<p class="doc-kicker">Published stable manual</p>
 
-<p class="doc-lead">This manual describes the 1.11.0 candidate source. It develops the same contract-to-cloud model as the frozen <a href="../1.10.0/">1.10.0 stable manual</a>, while keeping release, registry and provider evidence visibly separate.</p>
+<p class="doc-lead">This frozen manual describes the published 1.11.0 source while keeping source, hosted qualification, registry, documentation and provider evidence visibly separate.</p>
+
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.11.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
 
 The 1.8 release added [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,
@@ -17,7 +22,7 @@ and [negotiated response compression](./guides/http-compression) with the same
 additive, minimal-topology boundaries.
 The 1.10 release adds a [portal-first Ticketing support entry](./guides/ticketing)
 with atomic one-time handoffs and requester-safe projections.
-The current candidate adds [contract-enforced request validation](./guides/contract-request-validation)
+The 1.11 release adds [contract-enforced request validation](./guides/contract-request-validation)
 with direct generated checks, one-pass typed extractors, separate coarse
 authorization policy, safe request IDs and explicit body-limit/timeout
 provenance. Application use cases still own tenancy, resource ownership,

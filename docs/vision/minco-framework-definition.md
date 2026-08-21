@@ -2,10 +2,10 @@
 
 Status: Accepted product direction for the framework-completion program
 Decision date: 2026-07-27
-Published baseline: `1.10.0`
+Published baseline: `1.11.0`
 Current workspace version: `1.11.0`
-Workspace release state: `candidate`
-Reviewed release source: `2075b60b8fe86c04d3c8289d71eb8293a39fc378`
+Workspace release state: `published`
+Reviewed release source: `81640a6b25924be115ceb11cdec1fd2a42a71381`
 
 ## Product identity
 
@@ -18,7 +18,7 @@ recreate Laravel in Rust. It is an explicit lifecycle that connects an
 application's public contract to ordinary Rust business code, statically linked
 capabilities, provider resources, cost, deployment, and verifiable evidence.
 
-The immutable published `1.10.0` classification is:
+The immutable published `1.11.0` classification is:
 
 > Published-source coherent through resource API conventions, static plugin
 > distribution, realtime, explicit DynamoDB access, ProjectView/MCP/workbench,
@@ -51,7 +51,7 @@ The immutable published `1.10.0` classification is:
 > The 1.10 release adds a provider-neutral support-interaction boundary and an
 > opt-in beta Ticketing plugin without adding a hosted portal, mailbox poller,
 > scheduler, fixed compute, provider request or default production topology.
-> The 1.11 candidate adds opt-in generated request validation, typed extraction,
+> The 1.11 release adds opt-in generated request validation, typed extraction,
 > coarse delivery authorization and hardened request middleware without moving
 > business policy into HTTP or adding a provider resource.
 
@@ -83,6 +83,11 @@ The published 1.10.0 release adds shared support-interaction contracts and the
 beta Ticketing plugin while preserving Feedback public names. Requester
 identity and permissions remain server-derived, handoffs remain one-time and
 atomic, and no hosted portal or provider runtime becomes a framework default.
+
+The published 1.11.0 release adds opt-in generated request validation, typed
+extraction, coarse delivery authorization and hardened request middleware.
+Application use cases continue to own tenancy, resource ownership, stored-state
+authorization and business invariants; the release adds no provider resource.
 
 The post-1.0 program now prioritises measured application adoption,
 support-truth coherence, feedback-to-task traceability, performance baselines,
@@ -163,7 +168,7 @@ The framework-completion program preserves the accepted ADRs and
 
 ## Current maturity
 
-| Area | Current published `1.10.0` state | Remaining boundary |
+| Area | Current published `1.11.0` state | Remaining boundary |
 |---|---|---|
 | Core architecture | Strong | Preserve and stabilise |
 | Static plugin kernel | Strong, with published archive-visible distribution metadata and a public conformance kit | Planned mutation workflows and measured external adoption |
@@ -180,7 +185,7 @@ The framework-completion program preserves the accepted ADRs and
 | Migrations | Status, plan, drift, lock, apply, verify and receipt | Live target rehearsal |
 | Seeders and fixtures | Classified, idempotent, preservation-aware plans | Live application policy evidence |
 | Generators | Contract-aware vertical-slice family and app-owned stubs | Stabilisation through generated consumers |
-| Documentation | Versioned, searchable and browser-checked Diátaxis product with stable `1.10.0` and historical version lines | Broader exercised recipe and application-adoption matrix |
+| Documentation | Versioned, searchable and browser-checked Diátaxis product with stable `1.11.0` and historical version lines | Broader exercised recipe and application-adoption matrix |
 | AI support | Version-matched Codex/Claude skills, bounded context/eval, ProjectView, read-only MCP and local workbench | Model-driven application outcomes and measured human review effort remain `NOT RUN` |
 | Compatibility | Published 1.x public API, CLI, schema and feature freeze with additive 1.2 release evidence | Ongoing semver regression proof and multi-application adoption |
 
