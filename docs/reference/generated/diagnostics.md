@@ -15,7 +15,7 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `570`.
+Declared codes: `589`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
@@ -253,6 +253,25 @@ Declared codes: `570`.
 | `MINCO-HTTP-006` | http | `crates/minco-plan/src/model.rs:642` | 0 |
 | `MINCO-HTTP-007` | http | `crates/minco-plan/src/model.rs:649` | 0 |
 | `MINCO-IAM-001` | iam | `crates/minco-plan/src/model.rs:606` | 1 |
+| `MINCO-JOBS-001` | jobs | `crates/minco-plan/src/durable_work.rs:23` | 0 |
+| `MINCO-JOBS-002` | jobs | `crates/minco-plan/src/durable_work.rs:24` | 0 |
+| `MINCO-JOBS-003` | jobs | `crates/minco-plan/src/durable_work.rs:25` | 0 |
+| `MINCO-JOBS-004` | jobs | `crates/minco-plan/src/durable_work.rs:26` | 0 |
+| `MINCO-JOBS-005` | jobs | `crates/minco-plan/src/durable_work.rs:27` | 0 |
+| `MINCO-JOBS-006` | jobs | `crates/minco-plan/src/durable_work.rs:28` | 0 |
+| `MINCO-JOBS-007` | jobs | `crates/minco-plan/src/durable_work.rs:29` | 0 |
+| `MINCO-JOBS-008` | jobs | `crates/minco-plan/src/durable_work.rs:30` | 0 |
+| `MINCO-JOBS-009` | jobs | `crates/minco-plan/src/durable_work.rs:31` | 0 |
+| `MINCO-JOBS-010` | jobs | `crates/minco-plan/src/durable_work.rs:32` | 0 |
+| `MINCO-JOBS-011` | jobs | `crates/minco-plan/src/durable_work.rs:33` | 0 |
+| `MINCO-JOBS-012` | jobs | `crates/minco-plan/src/durable_work.rs:34` | 0 |
+| `MINCO-JOBS-013` | jobs | `crates/minco-plan/src/durable_work.rs:35` | 0 |
+| `MINCO-JOBS-014` | jobs | `crates/minco-plan/src/durable_work.rs:36` | 0 |
+| `MINCO-JOBS-015` | jobs | `crates/minco-plan/src/durable_work.rs:37` | 0 |
+| `MINCO-JOBS-016` | jobs | `crates/minco-plan/src/durable_work.rs:38` | 0 |
+| `MINCO-JOBS-017` | jobs | `crates/minco-plan/src/durable_work.rs:39` | 0 |
+| `MINCO-JOBS-018` | jobs | `crates/minco-plan/src/durable_work.rs:40` | 0 |
+| `MINCO-JOBS-019` | jobs | `crates/minco-plan/src/durable_work.rs:41` | 0 |
 | `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:758` | 0 |
 | `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:769` | 0 |
 | `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:5549` | 0 |

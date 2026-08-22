@@ -1,4 +1,8 @@
 /target/
+crates/*/target/
+/extensions/*/target/
+/plugins/*/target/
+/examples/*/target/
 /.env
 /.env.*
 !/.env.example

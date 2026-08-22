@@ -58,3 +58,7 @@ typed extraction, exact permission/scope semantics, authorization before the
 use case, safe request IDs, and explicit body-limit/timeout provenance. Reject
 runtime rule registries, generated-file edits, reflected request values and any
 claim that coarse delivery authorization replaces application policy.
+
+## Durable typed work
+
+- Durable typed work: jobs are typed commands whose durable row owns execution; use `plugin-jobs` for at-least-once dispatch with fenced claims and explicit schedules.

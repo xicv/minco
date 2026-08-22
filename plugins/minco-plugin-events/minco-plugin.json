@@ -3,7 +3,7 @@
   "id": "events",
   "kind": "plugin",
   "plugin_version": "1.0.0",
-  "core_compatibility": "^1.11.0",
+  "core_compatibility": "^1.12.0",
   "stability": "beta",
   "default_enabled": false,
   "feature": "plugin-events",

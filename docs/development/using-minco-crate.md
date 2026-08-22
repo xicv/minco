@@ -2,9 +2,9 @@
 
 Published baseline: `1.11.0`
 
-Current workspace version: `1.11.0`
+Current workspace version: `1.12.0`
 
-Workspace release state: `published`
+Workspace release state: `candidate`
 
 Use published `1.11.0` dependencies. Follow the
 [1.5.0-to-1.6.0 guide](../adoption/1.5.0-to-1.6.0.md) when adopting durable
@@ -211,8 +211,8 @@ schedules. The mapping must enable `ReportBatchItemFailures`.
 ## API stability
 
 Published baseline: `1.11.0`
-Current workspace version: `1.11.0`
-Workspace release state: `published`
+Current workspace version: `1.12.0`
+Workspace release state: `candidate`
 
 Pin the published `1.11.0` line in production applications and follow
 `docs/adoption/incremental-adoption.md` plus the versioned upgrade guide before

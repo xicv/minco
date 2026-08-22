@@ -8,20 +8,20 @@
     "errors": 0,
     "warnings": 0,
     "metrics": {
-      "toml_files": 102,
+      "toml_files": 103,
       "yaml_files": 40,
-      "json_files": 90,
-      "workspace_members": 41,
+      "json_files": 91,
+      "workspace_members": 42,
       "contract_sha256": "231a11a35589d84cb3047e7e40c182f57fef1e1726c8a97eb04f266294dd09a8",
       "contract_operations": 8,
       "contract_schemas": 17,
-      "plugins": 20,
+      "plugins": 21,
       "milestones": 15,
-      "tasks": 123,
-      "rust_files": 238,
+      "tasks": 124,
+      "rust_files": 253,
       "python_files": 41,
       "shell_files": 82,
-      "implementation_files_scanned": 522
+      "implementation_files_scanned": 540
     },
     "findings": [],
     "limitations": [
@@ -30,11 +30,11 @@
     ]
   },
   "metrics": {
-    "rust_files": 238,
-    "rust_lines": 130022,
+    "rust_files": 253,
+    "rust_lines": 139614,
     "unsafe_tokens": 21,
-    "production_unwrap_expect": 252,
-    "sql_files": 21
+    "production_unwrap_expect": 300,
+    "sql_files": 23
   },
   "findings": [
     {
@@ -52,6 +52,12 @@
     {
       "severity": "warning",
       "code": "REVIEW-RUST-001",
+      "path": "crates/minco-plan/src/durable_work.rs",
+      "message": "9 unwrap/expect calls before test code"
+    },
+    {
+      "severity": "warning",
+      "code": "REVIEW-RUST-001",
       "path": "crates/minco-plan/src/sam.rs",
       "message": "86 unwrap/expect calls before test code"
     },
@@ -60,6 +66,12 @@
       "code": "REVIEW-RUST-003",
       "path": "extensions/minco-aws-adapters/examples/render_smoke_assets.rs",
       "message": "dynamic error type in production path; confirm boundary use"
+    },
+    {
+      "severity": "warning",
+      "code": "REVIEW-RUST-001",
+      "path": "plugins/minco-plugin-jobs/src/memory.rs",
+      "message": "26 unwrap/expect calls before test code"
     },
     {
       "severity": "warning",

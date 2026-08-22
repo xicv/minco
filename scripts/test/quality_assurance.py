@@ -175,14 +175,14 @@ class QualityAssuranceTests(unittest.TestCase):
             },
         )
         self.assertEqual(policy["semver"]["baseline_tag"], "v1.9.0")
-        self.assertEqual(policy["semver"]["package_count"], 36)
+        self.assertEqual(policy["semver"]["package_count"], 37)
         self.assertEqual(policy["semver"]["baseline_package_count"], 34)
         self.assertEqual(
             policy["semver"]["new_packages"],
-            ["minco-interaction", "minco-plugin-ticketing"],
+            ["minco-interaction", "minco-plugin-jobs", "minco-plugin-ticketing"],
         )
         self.assertEqual(policy["nextest"]["baseline_executable_test_count"], 122)
-        self.assertEqual(policy["nextest"]["executable_test_count"], 144)
+        self.assertEqual(policy["nextest"]["executable_test_count"], 153)
         self.assertFalse(policy["production_slo"])
         self.assertFalse(policy["provider_contact"])
 

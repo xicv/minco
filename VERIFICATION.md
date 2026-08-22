@@ -1,9 +1,9 @@
 # Minco verification and release evidence
 
 Date: 2026-08-22
-Current workspace version: `1.11.0`
+Current workspace version: `1.12.0`
 Published baseline: `1.11.0`
-Workspace release state: `published`
+Workspace release state: `candidate`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 

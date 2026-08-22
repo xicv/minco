@@ -63,6 +63,17 @@ pub struct PlaceOrderTransaction {
     pub idempotency_key: String,
     pub request_fingerprint: String,
     pub audit: Option<OrderAuditIntent>,
+    /// Durable confirmation dispatch: one `orders.send-confirmation` job
+    /// committed atomically with the placed order.
+    pub confirmation_job: Option<OrderConfirmationJob>,
+}
+
+/// The application-owned intent for the order confirmation job. Adapters
+/// translate it into a durable job envelope inside the same transaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrderConfirmationJob {
+    pub order_id: OrderId,
+    pub correlation_id: Uuid,
 }
 
 #[async_trait]
@@ -322,12 +333,17 @@ where
         let fingerprint = request_fingerprint(actor, &command)?;
         let order = Order::new(customer_reference, lines, self.clock.now())?;
         let audit = place_order_audit(actor, &order, &idempotency_key, correlation_id)?;
+        let confirmation_job = OrderConfirmationJob {
+            order_id: order.id,
+            correlation_id,
+        };
         self.store
             .place_order(PlaceOrderTransaction {
                 order,
                 idempotency_key,
                 request_fingerprint: fingerprint,
                 audit: Some(audit),
+                confirmation_job: Some(confirmation_job),
             })
             .await
             .map_err(ApplicationError::from)

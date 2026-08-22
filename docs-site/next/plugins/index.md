@@ -114,6 +114,17 @@ explicit worker owns delivery.
 
 Feature: `plugin-events` · Guide: [Events and notifications](../guides/events-and-notifications)
 
+## Jobs
+
+<span class="doc-badge">beta</span>
+
+`minco-plugin-jobs` supplies durable typed work: typed job contracts, an
+explicit handler registry, a bounded versioned envelope, at-least-once
+dispatch ports, lease-based execution and explicit scheduling contracts. It
+installs no scheduler or polling service; dispatch is explicit and bounded.
+
+Feature: `plugin-jobs` · Guide: [Durable jobs and schedules](../guides/durable-jobs)
+
 ## Notifications
 
 <span class="doc-badge">beta</span>

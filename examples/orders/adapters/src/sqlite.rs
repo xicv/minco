@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use minco_plugin_audit::AuditJournalEntry;
-use minco_sqlx_sqlite::{SqliteError, SqlitePoolConfig, audit_v2::SqliteAuditJournal};
+use minco_sqlx_sqlite::{
+    SqliteError, SqlitePoolConfig, audit_v2::SqliteAuditJournal, jobs::SqliteJobStore,
+};
 use orders_application::{
     ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery,
     OrderAuditIntent, OrderCursor, OrderPage, OrderReadiness, OrderSortField, OrderSortTerm,
@@ -16,6 +18,7 @@ use uuid::Uuid;
 pub struct SqliteOrderStore {
     pool: SqlitePool,
     audit_journal: SqliteAuditJournal,
+    job_store: SqliteJobStore,
 }
 
 impl SqliteOrderStore {
@@ -23,6 +26,7 @@ impl SqliteOrderStore {
     pub fn new(pool: SqlitePool) -> Self {
         Self {
             audit_journal: SqliteAuditJournal::new(pool.clone()),
+            job_store: SqliteJobStore::new(pool.clone()),
             pool,
         }
     }
@@ -134,6 +138,15 @@ impl PlaceOrderPort for SqliteOrderStore {
                     .enqueue_in(&mut db, audit)
                     .await
                     .map_err(crate::audit::audit_error)?;
+            }
+            if let Some(confirmation) = &transaction.confirmation_job {
+                let envelope = crate::jobs::confirmation_envelope(confirmation)
+                    .map_err(|error| StoreError::Internal(error.to_string()))?;
+                let record = minco_plugin_jobs::pending_record(envelope);
+                self.job_store
+                    .enqueue_in(&mut db, record)
+                    .await
+                    .map_err(|error| StoreError::Internal(error.to_string()))?;
             }
             db.commit().await.map_err(|error| database_error(&error))?;
             return Ok(PlaceOrderResult {

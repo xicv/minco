@@ -4,7 +4,7 @@ owner = "plugin:official-storage"
 backend = "sqlite"
 history_table = "_minco_plugin_storage_migrations"
 depends_on = []
-verify_tables = ["minco_audit", "minco_audit_journal", "minco_idempotency", "minco_sessions"]
+verify_tables = ["minco_audit", "minco_audit_journal", "minco_idempotency", "minco_job_locks", "minco_job_publications", "minco_jobs", "minco_sessions"]
 
 [[migration]]
 version = 1
@@ -13,5 +13,10 @@ reversible = false
 
 [[migration]]
 version = 2
+risk = "additive"
+reversible = false
+
+[[migration]]
+version = 3
 risk = "additive"
 reversible = false

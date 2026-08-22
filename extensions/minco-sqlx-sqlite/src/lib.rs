@@ -17,6 +17,7 @@ use std::{
 use thiserror::Error;
 
 pub mod audit_v2;
+pub mod jobs;
 pub mod plugin_adapters;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]

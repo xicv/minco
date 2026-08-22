@@ -70,9 +70,9 @@ const EXCLUDED_EXACT: &[&str] = &[
     "verification/1.10-candidate-load.json",
     "verification/1.10-candidate-recovery.json",
     "verification/1.10-candidate-release-gates.json",
-    "verification/1.11-candidate-load.json",
-    "verification/1.11-candidate-recovery.json",
-    "verification/1.11-candidate-release-gates.json",
+    "verification/1.12-candidate-load.json",
+    "verification/1.12-candidate-recovery.json",
+    "verification/1.12-candidate-release-gates.json",
     "verification/operational-evidence-validation.json",
     "verification/static-validation.json",
     "verification/deep-review.json",
@@ -1212,7 +1212,7 @@ mod tests {
             &BTreeSet::new()
         ));
         assert!(!source_path_included(
-            Path::new("verification/1.11-candidate-release-gates.json"),
+            Path::new("verification/1.12-candidate-release-gates.json"),
             &BTreeSet::new()
         ));
         assert!(!source_path_included(

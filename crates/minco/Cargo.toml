@@ -36,6 +36,7 @@ plugin-sessions = ["dep:minco-plugin-sessions"]
 plugin-identity = ["dep:minco-plugin-identity", "http"]
 plugin-object-storage = ["dep:minco-plugin-object-storage"]
 plugin-events = ["dep:minco-plugin-events"]
+plugin-jobs = ["dep:minco-plugin-jobs"]
 plugin-notifications = ["dep:minco-plugin-notifications"]
 plugin-audit = ["dep:minco-plugin-audit"]
 plugin-static-site = ["dep:minco-plugin-static-site"]
@@ -70,6 +71,7 @@ official-plugins = [
   "plugin-identity",
   "plugin-object-storage",
   "plugin-events",
+  "plugin-jobs",
   "plugin-notifications",
   "plugin-audit",
   "plugin-feedback",
@@ -124,6 +126,7 @@ minco-plugin-sessions = { workspace = true, optional = true }
 minco-plugin-identity = { workspace = true, optional = true }
 minco-plugin-object-storage = { workspace = true, optional = true }
 minco-plugin-events = { workspace = true, optional = true }
+minco-plugin-jobs = { workspace = true, optional = true }
 minco-plugin-notifications = { workspace = true, optional = true }
 minco-plugin-audit = { workspace = true, optional = true }
 minco-plugin-feedback = { workspace = true, optional = true }
