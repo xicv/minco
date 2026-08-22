@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Plan model source SHA-256: `cf113b04b5bd94b4de8aab022dd55702da13bf07ad1185a0efbd7d19acffd18b`.
+Plan model source SHA-256: `8376735a1f7325fc871aa79adb90fde203a1e929d90d31c9535448900098a25b`.
 
 ## Composed configuration schema
 
@@ -119,7 +119,6 @@ Rust types are shown exactly as declared. Serde attributes may omit empty or opt
 | `routes` | `Vec<RoutePlan>` | yes |
 | `application_graph` | `ApplicationGraph` | yes |
 | `static_site` | `Option<StaticSiteDeployment>` | no |
-| `durable_work` | `Option<crate::durable_work::DurableWorkTopology>` | no |
 | `realtime` | `Option<RealtimeDeployment>` | no |
 | `preview` | `Option<PreviewLifecyclePlan>` | no |
 | `local_aws_services` | `Vec<String>` | yes |

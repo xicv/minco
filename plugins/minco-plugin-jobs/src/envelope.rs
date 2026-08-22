@@ -105,7 +105,7 @@ impl std::fmt::Debug for JobEnvelope {
             .field("metadata_names", &self.metadata.keys().collect::<Vec<_>>())
             .field("has_dedupe_key", &self.dedupe_key.is_some())
             .field("has_overlap_key", &self.overlap_key.is_some())
-            .field("partition", &self.partition)
+            .field("partition", &self.partition.as_ref().map_or(0, String::len))
             .field("retry", &self.retry)
             .finish_non_exhaustive()
     }
@@ -303,8 +303,9 @@ impl JobEnvelope {
 }
 
 /// Optional submission-time configuration applied through
-/// [`JobEnvelope::with`].
-#[derive(Debug, Clone, Default)]
+/// [`JobEnvelope::with`]. `Debug` shows only structural information:
+/// key presence, bounded lengths and metadata names, never values.
+#[derive(Clone, Default)]
 pub struct JobOptions {
     pub deadline: Option<DateTime<Utc>>,
     pub available_at: Option<DateTime<Utc>>,
@@ -314,6 +315,27 @@ pub struct JobOptions {
     pub overlap_key: Option<String>,
     pub retry: Option<RetryPolicy>,
     pub metadata: BTreeMap<String, String>,
+}
+
+impl std::fmt::Debug for JobOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JobOptions")
+            .field("deadline", &self.deadline)
+            .field("available_at", &self.available_at)
+            .field("causation_id", &self.causation_id)
+            .field("partition", &self.partition.as_ref().map_or(0, String::len))
+            .field(
+                "dedupe_key",
+                &self.dedupe_key.as_ref().map_or(0, String::len),
+            )
+            .field(
+                "overlap_key",
+                &self.overlap_key.as_ref().map_or(0, String::len),
+            )
+            .field("retry", &self.retry)
+            .field("metadata_names", &self.metadata.keys().collect::<Vec<_>>())
+            .finish_non_exhaustive()
+    }
 }
 
 impl JobOptions {
@@ -479,6 +501,51 @@ mod tests {
     }
 
     #[test]
+    fn debug_excludes_partition_dedupe_and_overlap_key_values() {
+        let mut manual =
+            envelope().with(JobOptions::default().with_partition("tenant-secret-partition"));
+        manual.dedupe_key = Some("dedupe-secret-key".into());
+        manual.overlap_key = Some("overlap-secret-key".into());
+        let text = format!("{manual:?}");
+        assert!(
+            !text.contains("tenant-secret-partition"),
+            "envelope debug leaked the partition value"
+        );
+        assert!(
+            !text.contains("dedupe-secret-key"),
+            "envelope debug leaked the dedupe key"
+        );
+        assert!(
+            !text.contains("overlap-secret-key"),
+            "envelope debug leaked the overlap key"
+        );
+        assert!(text.contains("partition"), "bounded length is shown");
+
+        let options = JobOptions::default()
+            .with_partition("tenant-secret-partition")
+            .with_dedupe_key("dedupe-secret-key")
+            .with_overlap_key("overlap-secret-key")
+            .with_metadata("source", "payload-secret");
+        let text = format!("{options:?}");
+        assert!(
+            !text.contains("tenant-secret-partition"),
+            "options debug leaked the partition value"
+        );
+        assert!(
+            !text.contains("dedupe-secret-key") && !text.contains("overlap-secret-key"),
+            "options debug leaked a routing key"
+        );
+        assert!(
+            !text.contains("payload-secret"),
+            "options debug leaked a metadata value"
+        );
+        assert!(
+            text.contains("metadata_names") && text.contains("dedupe_key"),
+            "options debug shows structure only"
+        );
+    }
+
+    #[test]
     fn unknown_envelope_fields_are_rejected() {
         let mut value = serde_json::to_value(envelope()).expect("serialize");
         let object = value.as_object_mut().expect("object");
@@ -564,5 +631,100 @@ mod tests {
             Uuid::now_v7(),
         )
         .expect("valid envelope")
+    }
+}
+
+/// Canonical semantic fingerprint of a job envelope.
+///
+/// The fingerprint covers every behaviour-affecting field — job identity,
+/// payload, worker profile, partition, overlap boundary, retry policy,
+/// attempt ceiling, deadline and metadata — and excludes only generated
+/// identities and diagnostic timestamps. It is the deduplication
+/// comparison rule and the transport-integrity check: a delivery whose
+/// fingerprint differs from the durable record's fingerprint is a forged or
+/// stale copy and fails closed.
+pub fn semantic_fingerprint(envelope: &JobEnvelope) -> String {
+    use sha2::Digest;
+    let canonical = serde_json::json!({
+        "job_name": envelope.job_name,
+        "job_version": envelope.job_version,
+        "payload": envelope.payload,
+        "worker_profile": envelope.worker_profile,
+        "partition": envelope.partition,
+        "overlap_key": envelope.overlap_key,
+        "maximum_attempts": envelope.maximum_attempts,
+        "deadline": envelope.deadline,
+        "retry": envelope.retry,
+        "metadata": envelope.metadata,
+    });
+    let encoded = canonical.to_string();
+    let digest = sha2::Sha256::digest(encoded.as_bytes());
+    hex_encode(&digest)
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(TABLE[usize::from(byte >> 4)] as char);
+        out.push(TABLE[usize::from(byte & 0x0F)] as char);
+    }
+    out
+}
+
+#[cfg(test)]
+mod fingerprint_tests {
+    use super::*;
+
+    fn fingerprint_envelope() -> JobEnvelope {
+        JobEnvelope::for_parts(
+            "orders.send-confirmation",
+            1,
+            serde_json::json!({ "order_id": "o-1" }),
+            "orders-notifications",
+            Uuid::now_v7(),
+        )
+        .expect("valid envelope")
+    }
+
+    #[test]
+    fn fingerprints_cover_behaviour_and_exclude_generated_identity() {
+        let base = fingerprint_envelope();
+        let same_semantics = base.clone();
+        assert_eq!(
+            semantic_fingerprint(&base),
+            semantic_fingerprint(&same_semantics)
+        );
+        let mut regenerated = base.clone();
+        regenerated.job_id = Uuid::now_v7();
+        regenerated.created_at += chrono::TimeDelta::seconds(5);
+        assert_eq!(
+            semantic_fingerprint(&base),
+            semantic_fingerprint(&regenerated),
+            "generated identities do not change semantics"
+        );
+        for mutate in [
+            |envelope: &mut JobEnvelope| envelope.payload = serde_json::json!({ "order_id": "x" }),
+            |envelope: &mut JobEnvelope| envelope.job_version += 1,
+            |envelope: &mut JobEnvelope| envelope.worker_profile = "other".into(),
+            |envelope: &mut JobEnvelope| {
+                envelope.deadline = Some(envelope.created_at + chrono::TimeDelta::days(1));
+            },
+            |envelope: &mut JobEnvelope| envelope.maximum_attempts += 1,
+            |envelope: &mut JobEnvelope| {
+                envelope.retry = Some(crate::policy::RetryPolicy::fixed(9, 9));
+            },
+            |envelope: &mut JobEnvelope| {
+                envelope.metadata.insert("source".into(), "changed".into());
+            },
+        ] {
+            let mut altered = base.clone();
+            mutate(&mut altered);
+            assert_ne!(
+                semantic_fingerprint(&base),
+                semantic_fingerprint(&altered),
+                "behaviour change must alter the fingerprint"
+            );
+        }
     }
 }

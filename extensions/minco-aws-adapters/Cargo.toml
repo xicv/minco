@@ -110,6 +110,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 aws-config.workspace = true
+minco-plugin-jobs.workspace = true
 axum.workspace = true
 http.workspace = true
 minco-plugin-notifications.workspace = true

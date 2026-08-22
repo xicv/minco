@@ -579,19 +579,19 @@ async fn confirmation_job_reaches_the_handler_exactly_once() {
     let database = TestDatabase::open().await;
     let sink = std::sync::Arc::new(RecordingSink::default());
     let registry = std::sync::Arc::new(orders_adapters::jobs::confirmation_registry(sink.clone()));
-    let (services, _store, dispatcher) = minco_plugin_jobs::JobsServices::memory(registry.clone());
-    let job_store = minco_sqlx_sqlite::jobs::SqliteJobStore::new(
+    let (memory, _store, dispatcher) = minco_plugin_jobs::JobsServices::memory(registry.clone());
+    let job_store = std::sync::Arc::new(minco_sqlx_sqlite::jobs::SqliteJobStore::new(
         sqlx::SqlitePool::connect(&format!("sqlite://{}", database.path.display()))
             .await
             .expect("job pool"),
-    );
+    ));
     let services = minco_plugin_jobs::JobsServices::new(
-        std::sync::Arc::new(job_store),
-        services.publications.clone(),
-        services.dispatcher.clone(),
-        services.locks.clone(),
-        services.clock.clone(),
-        services.executor.clone(),
+        job_store.clone(),
+        job_store.clone(),
+        dispatcher.clone(),
+        job_store.clone(),
+        memory.clock.clone(),
+        memory.executor.clone(),
     );
 
     // Place the order; the confirmation job committed with it.
@@ -607,16 +607,44 @@ async fn confirmation_job_reaches_the_handler_exactly_once() {
         .await
         .expect("place order");
 
-    // Read the committed envelope and dispatch it through the queue fake.
-    let jobs: Vec<(String,)> = sqlx::query_as(
-        "SELECT envelope FROM minco_jobs WHERE worker_profile = 'orders-notifications'",
-    )
-    .fetch_all(database.store.pool())
-    .await
-    .expect("read durable jobs");
+    // The real request-assisted publication driver: after commit, one
+    // bounded pass claims the due publication and sends it through the
+    // configured transport (the recording fake here).
+    let report = services
+        .dispatch_due_once(
+            &format!("request-assisted-{key}"),
+            10,
+            chrono::TimeDelta::minutes(1),
+        )
+        .await
+        .expect("request-assisted dispatch");
+    assert_eq!(
+        report.dispatched, 1,
+        "the committed publication is delivered"
+    );
+    let sent = dispatcher.dispatched();
+    assert_eq!(sent.len(), 1, "one transport delivery");
+    let envelope = sent[0].envelope.clone();
+    // The durable publication identity persisted at commit time is exactly
+    // what the delivery carries: persistence-to-transport identity, read
+    // from the database rather than from the delivery itself.
+    let persisted: Vec<(String,)> =
+        sqlx::query_as("SELECT publication_id FROM minco_job_publications")
+            .fetch_all(database.store.pool())
+            .await
+            .expect("read persisted publication identities");
+    assert_eq!(persisted.len(), 1);
+    assert_eq!(
+        sent[0].publication_id.to_string(),
+        persisted[0].0,
+        "the delivery carries its durable publication identity"
+    );
+    let jobs: Vec<(String,)> = sqlx::query_as("SELECT status FROM minco_job_publications")
+        .fetch_all(database.store.pool())
+        .await
+        .expect("read publications");
     assert_eq!(jobs.len(), 1);
-    let envelope: minco_plugin_jobs::JobEnvelope =
-        serde_json::from_str(&jobs[0].0).expect("decode committed envelope");
+    assert_eq!(jobs[0].0, "published", "no orphan publication remains");
     let worker =
         minco_aws_worker::jobs::JobMessageHandler::durable("orders-jobs-worker", services.clone());
     let body = String::from_utf8(envelope.to_json_bytes().expect("serialize")).expect("utf-8");

@@ -22,9 +22,10 @@ pub trait Job: Serialize + DeserializeOwned + Send + Sync + 'static {
     const VERSION: u16;
 }
 
-/// Bounded execution context handed to a handler. It never appears in
-/// `Debug` output.
-#[derive(Debug, Clone)]
+/// Bounded execution context handed to a handler. Its `Debug` output shows
+/// only structural information — metadata names and bounded key lengths —
+/// never partition or metadata values.
+#[derive(Clone)]
 pub struct JobContext {
     pub job_id: uuid::Uuid,
     pub correlation_id: uuid::Uuid,
@@ -34,6 +35,21 @@ pub struct JobContext {
     pub deadline: Option<chrono::DateTime<chrono::Utc>>,
     pub partition: Option<String>,
     pub metadata: BTreeMap<String, String>,
+}
+
+impl std::fmt::Debug for JobContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JobContext")
+            .field("job_id", &self.job_id)
+            .field("correlation_id", &self.correlation_id)
+            .field("causation_id", &self.causation_id)
+            .field("attempt", &self.attempt)
+            .field("maximum_attempts", &self.maximum_attempts)
+            .field("deadline", &self.deadline)
+            .field("partition", &self.partition.as_ref().map_or(0, String::len))
+            .field("metadata_names", &self.metadata.keys().collect::<Vec<_>>())
+            .finish_non_exhaustive()
+    }
 }
 
 /// A handler failure with stable, public-safe classification.
@@ -93,6 +109,7 @@ pub mod failure_codes {
     pub const RETRIES_EXHAUSTED: &str = "JOBS-RETRIES-EXHAUSTED";
     pub const OVERLAP_BUSY: &str = "JOBS-OVERLAP-BUSY";
     pub const PAYLOAD_DECODE: &str = "JOBS-PAYLOAD-DECODE";
+    pub const TRANSPORT_INTEGRITY: &str = "JOBS-TRANSPORT-INTEGRITY";
 }
 
 fn sanitize_code(code: impl Into<String>) -> String {
@@ -414,6 +431,28 @@ mod tests {
             partition: None,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn context_debug_excludes_partition_and_metadata_values() {
+        let mut subject = context();
+        subject.partition = Some("tenant-secret-partition".into());
+        subject
+            .metadata
+            .insert("source".into(), "context-secret-value".into());
+        let text = format!("{subject:?}");
+        assert!(
+            !text.contains("tenant-secret-partition"),
+            "context debug leaked the partition value"
+        );
+        assert!(
+            !text.contains("context-secret-value"),
+            "context debug leaked a metadata value"
+        );
+        assert!(
+            text.contains("metadata_names"),
+            "context debug shows metadata names only"
+        );
     }
 
     #[tokio::test]

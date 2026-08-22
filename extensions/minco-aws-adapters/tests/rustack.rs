@@ -2,9 +2,13 @@
 
 use aws_credential_types::{Credentials, provider::SharedCredentialsProvider};
 use chrono::TimeDelta;
-use minco_aws_adapters::{s3::S3Addressing, s3_storage::S3ObjectStorage, sqs::SqsEventPublisher};
+use minco_aws_adapters::{
+    jobs_sqs::SqsJobDispatcher, s3::S3Addressing, s3_storage::S3ObjectStorage,
+    sqs::SqsEventPublisher,
+};
 use minco_core::{PluginId, PluginManager, PluginSelection};
 use minco_plugin_events::{DomainEvent, EventPublisher};
+use minco_plugin_jobs::{JobDelivery, JobDispatcher as _, JobEnvelope};
 use minco_plugin_object_storage::{
     IssueObjectUpload, ObjectAccessSigner, ObjectKey, ObjectStore, ObjectUploadError,
     ObjectUploadPolicy, ObjectUploadService, PresignGetObject, PresignPutObject, PresignedMethod,
@@ -209,7 +213,7 @@ async fn s3_and_sqs_adapters_use_standard_sdk_endpoints() {
     publisher.publish(&event).await.unwrap();
     let messages = sqs
         .receive_message()
-        .queue_url(queue_url)
+        .queue_url(&queue_url)
         .max_number_of_messages(10)
         .wait_time_seconds(1)
         .send()
@@ -220,5 +224,41 @@ async fn s3_and_sqs_adapters_use_standard_sdk_endpoints() {
             .body()
             .and_then(|body| serde_json::from_str::<DomainEvent>(body).ok())
             .is_some_and(|received| received.id == event.id)
+    }));
+
+    // Durable job dispatch through the same standard SDK endpoints: the
+    // serialized envelope carries the durable publication identity and the
+    // received message body round-trips exactly.
+    let dispatcher = SqsJobDispatcher::new(sqs.clone(), &queue_url, false).unwrap();
+    let envelope = JobEnvelope::for_parts(
+        "orders.send-confirmation",
+        1,
+        serde_json::json!({ "order_id": "rustack-order" }),
+        "orders-notifications",
+        Uuid::now_v7(),
+    )
+    .unwrap();
+    let publication_id = Uuid::now_v7();
+    let delivery = JobDelivery {
+        envelope: envelope.clone(),
+        publication_id,
+    };
+    dispatcher
+        .dispatch(&delivery, chrono::Utc::now())
+        .await
+        .unwrap();
+    let job_messages = sqs
+        .receive_message()
+        .queue_url(&queue_url)
+        .max_number_of_messages(10)
+        .wait_time_seconds(1)
+        .send()
+        .await
+        .unwrap();
+    assert!(job_messages.messages().iter().any(|message| {
+        message.body().is_some_and(|body| {
+            serde_json::from_str::<JobEnvelope>(body)
+                .is_ok_and(|received| received.job_id == envelope.job_id)
+        })
     }));
 }

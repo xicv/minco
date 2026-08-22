@@ -204,9 +204,9 @@ fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), cor
 
     #[cfg(feature = "plugin-jobs")]
     manager.register(
-        plugin_jobs::JobsPlugin::memory(std::sync::Arc::new(
-            plugin_jobs::JobHandlerRegistry::new(),
-        ))
+        plugin_jobs::JobsPlugin::memory(
+            std::sync::Arc::new(plugin_jobs::JobHandlerRegistry::new()),
+        )
         .0,
     )?;
 

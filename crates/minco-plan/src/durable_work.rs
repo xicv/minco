@@ -35,6 +35,10 @@ pub mod durable_work_codes {
     pub const SCHEDULE_ID_COLLISION: &str = "MINCO-JOBS-013";
     pub const SCHEDULE_DLQ_FIFO: &str = "MINCO-JOBS-014";
     pub const DISABLED_ZERO_RESOURCES: &str = "MINCO-JOBS-015";
+    pub const WORKER_ARTIFACT_REQUIRED: &str = "MINCO-JOBS-016";
+    pub const SCHEDULE_FIFO_UNSUPPORTED: &str = "MINCO-JOBS-017";
+    pub const SCHEDULE_DLQ_REFERENCE: &str = "MINCO-JOBS-018";
+    pub const SCHEDULE_INPUT_SIZE: &str = "MINCO-JOBS-019";
 }
 
 /// Scheduler target payloads are capped at 256 KiB by the provider.
@@ -62,6 +66,10 @@ pub struct WorkerProfilePlan {
     /// Worker function id synthesized into `plan.functions` with the
     /// `Worker` role.
     pub function_id: String,
+    /// Explicit artifact identity for the worker function. Durable workers
+    /// never inherit the API binary or another worker's artifact: a missing
+    /// or ambiguous artifact fails validation.
+    pub artifact_path: String,
     pub fifo: bool,
     pub batch_size: u32,
     pub batching_window_seconds: u32,
@@ -155,14 +163,10 @@ impl DurableWorkTopology {
 /// of the plan. A disabled or absent sidecar returns the plan unchanged:
 /// zero queues, zero workers, zero schedules.
 #[must_use]
-pub fn apply_durable_work(plan: &DeploymentPlan) -> DeploymentPlan {
-    let Some(topology) = plan
-        .durable_work
-        .as_ref()
-        .filter(|topology| topology.enabled)
-    else {
+pub fn apply_durable_work(plan: &DeploymentPlan, topology: &DurableWorkTopology) -> DeploymentPlan {
+    if !topology.enabled {
         return plan.clone();
-    };
+    }
     let mut next = plan.clone();
     for profile in &topology.profiles {
         if !next.queues.iter().any(|queue| queue.id == profile.queue_id) {
@@ -184,18 +188,7 @@ pub fn apply_durable_work(plan: &DeploymentPlan) -> DeploymentPlan {
             next.functions.push(FunctionPlan {
                 name: profile.function_id.clone(),
                 role: FunctionRole::Worker,
-                artifact_path: next
-                    .functions
-                    .iter()
-                    .find(|function| function.role == FunctionRole::Worker)
-                    .map_or_else(
-                        || {
-                            next.functions
-                                .first()
-                                .map_or_else(String::new, |function| function.artifact_path.clone())
-                        },
-                        |worker| worker.artifact_path.clone(),
-                    ),
+                artifact_path: profile.artifact_path.clone(),
                 memory_mb: profile.memory_mb,
                 timeout_seconds: profile.timeout_seconds,
                 reserved_concurrency: profile.reserved_concurrency,
@@ -247,11 +240,11 @@ fn diagnostic(code: &str, message: String) -> PlanDiagnostic {
 /// Validate the durable-work sidecar. Synthesized queues, functions and
 /// mappings are validated by the ordinary schema-2 topology rules once
 /// applied; this pass covers the sidecar-only contracts.
-pub fn validate_durable_work(plan: &DeploymentPlan) -> Vec<PlanDiagnostic> {
+pub fn validate_durable_work(
+    plan: &DeploymentPlan,
+    topology: &DurableWorkTopology,
+) -> Vec<PlanDiagnostic> {
     let mut diagnostics = Vec::new();
-    let Some(topology) = plan.durable_work.as_ref() else {
-        return diagnostics;
-    };
     if !topology.enabled {
         if !topology.profiles.is_empty()
             || !topology.routes.is_empty()
@@ -314,6 +307,15 @@ pub fn validate_durable_work(plan: &DeploymentPlan) -> Vec<PlanDiagnostic> {
                 ),
             ));
         }
+        if profile.artifact_path.trim().is_empty() {
+            diagnostics.push(diagnostic(
+                durable_work_codes::WORKER_ARTIFACT_REQUIRED,
+                format!(
+                    "worker profile '{}' must declare an explicit artifact path",
+                    profile.id
+                ),
+            ));
+        }
     }
     for route in &topology.routes {
         if !topology
@@ -372,6 +374,19 @@ pub fn validate_durable_work(plan: &DeploymentPlan) -> Vec<PlanDiagnostic> {
                 durable_work_codes::SCHEDULE_PROFILE_REFERENCE,
                 format!(
                     "schedule '{}' targets unknown worker profile '{}'",
+                    schedule.id, schedule.worker_profile
+                ),
+            ));
+        } else if topology
+            .profile(&schedule.worker_profile)
+            .is_some_and(|profile| profile.fifo)
+        {
+            diagnostics.push(diagnostic(
+                durable_work_codes::SCHEDULE_FIFO_UNSUPPORTED,
+                format!(
+                    "schedule '{}' targets FIFO profile '{}': the provider cannot carry an \
+                     explicit occurrence deduplication identity and Minco queues do not declare \
+                     content-based deduplication",
                     schedule.id, schedule.worker_profile
                 ),
             ));
@@ -442,12 +457,19 @@ pub fn validate_durable_work(plan: &DeploymentPlan) -> Vec<PlanDiagnostic> {
             schedule.dead_letter_queue_id.as_deref(),
             topology.profile(&schedule.worker_profile),
         ) {
-            let dlq_fifo = plan
-                .queues
-                .iter()
-                .find(|queue| queue.id == dlq)
-                .is_some_and(|queue| queue.fifo);
-            if dlq_fifo {
+            let referenced = plan.queues.iter().find(|queue| queue.id == dlq);
+            let Some(referenced) = referenced else {
+                diagnostics.push(diagnostic(
+                    durable_work_codes::SCHEDULE_DLQ_REFERENCE,
+                    format!(
+                        "schedule '{}' dead-letter queue '{dlq}' does not exist in the plan",
+                        schedule.id
+                    ),
+                ));
+                let _ = profile;
+                continue;
+            };
+            if referenced.fifo {
                 diagnostics.push(diagnostic(
                     durable_work_codes::SCHEDULE_DLQ_FIFO,
                     format!(
@@ -456,7 +478,21 @@ pub fn validate_durable_work(plan: &DeploymentPlan) -> Vec<PlanDiagnostic> {
                     ),
                 ));
             }
-            let _ = profile;
+        }
+        // Validate the COMPLETE rendered Scheduler input — wrapper, context
+        // placeholders, job metadata, payload and quoting overhead — against
+        // the provider's 256 KiB target-input cap, then the materialized
+        // envelope against the envelope bound.
+        let input_bytes = scheduled_trigger_input(schedule).len();
+        if input_bytes > MAX_SCHEDULE_PAYLOAD_BYTES {
+            diagnostics.push(diagnostic(
+                durable_work_codes::SCHEDULE_INPUT_SIZE,
+                format!(
+                    "schedule '{}' rendered input is {input_bytes} bytes; the provider target \
+                     input maximum is {MAX_SCHEDULE_PAYLOAD_BYTES}",
+                    schedule.id
+                ),
+            ));
         }
     }
     diagnostics
@@ -477,6 +513,46 @@ pub struct JobScheduleCostDimension {
     pub queue_requests_per_invocation: u64,
 }
 
+/// Structural cost dimensions for one durable-work topology.
+///
+/// This is a sidecar estimate over the topology's explicit schedules; it
+/// invents no provider prices and claims only request-shaped queue and
+/// scheduled invocations whose rates stay region-dependent.
+#[must_use]
+pub fn estimate_durable_work_cost(
+    plan: &DeploymentPlan,
+    topology: &DurableWorkTopology,
+) -> Vec<JobScheduleCostDimension> {
+    if !topology.enabled {
+        return Vec::new();
+    }
+    topology
+        .schedules
+        .iter()
+        .filter(|schedule| {
+            topology
+                .profile(&schedule.worker_profile)
+                .is_some_and(|profile| plan.queues.iter().any(|queue| queue.id == profile.queue_id))
+        })
+        .map(|schedule| {
+            let queue_id = topology
+                .profile(&schedule.worker_profile)
+                .map_or_else(String::new, |profile| profile.queue_id.clone());
+            JobScheduleCostDimension {
+                schedule_id: schedule.id.clone(),
+                worker_profile: schedule.worker_profile.clone(),
+                queue_id,
+                expression: schedule.expression.clone(),
+                enabled: schedule.enabled,
+                estimated_monthly_invocations: crate::cost::monthly_schedule_invocations(
+                    &schedule.expression,
+                ),
+                queue_requests_per_invocation: 1,
+            }
+        })
+        .collect()
+}
+
 fn yaml_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
@@ -491,17 +567,11 @@ fn yaml_quote(value: &str) -> String {
 /// per-invocation context attributes.
 pub fn render_sam_with_durable_work(
     plan: &DeploymentPlan,
+    topology: &DurableWorkTopology,
     code_uris: &std::collections::BTreeMap<String, String>,
 ) -> Result<String, crate::PlanError> {
     let mut template = crate::sam::render_sam_with_code_uris(plan, code_uris)?;
-    let Some(topology) = plan
-        .durable_work
-        .as_ref()
-        .filter(|topology| topology.enabled)
-    else {
-        return Ok(template);
-    };
-    if topology.schedules.is_empty() {
+    if !topology.enabled || topology.schedules.is_empty() {
         return Ok(template);
     }
     let mut resources = String::new();
@@ -531,21 +601,6 @@ pub fn render_sam_with_durable_work(
             writeln!(resources, "        MaximumWindowInMinutes: {minutes}")
                 .expect("write to string");
         }
-        if let Some(attempts) = schedule.maximum_retry_attempts {
-            writeln!(
-                resources,
-                "      RetryPolicy:\n        MaximumRetryAttempts: {attempts}"
-            )
-            .expect("write to string");
-        }
-        if let Some(dlq) = schedule.dead_letter_queue_id.as_deref() {
-            writeln!(
-                resources,
-                "      DeadLetterConfig:\n        Arn: !GetAtt {}Queue.Arn",
-                crate::sam_logical_id(dlq)
-            )
-            .expect("write to string");
-        }
         if let Some(timezone) = schedule.timezone.as_deref() {
             writeln!(
                 resources,
@@ -554,12 +609,30 @@ pub fn render_sam_with_durable_work(
             )
             .expect("write to string");
         }
-        writeln!(
+        // Per the provider schema, RetryPolicy and DeadLetterConfig belong
+        // to the schedule Target, not to the schedule root.
+        write!(
             resources,
             "      Target:\n        Arn: !GetAtt {queue_logical}.Arn\n        RoleArn: !GetAtt JobsSchedulerRole.Arn\n        Input: {}",
             yaml_quote(&input),
         )
         .expect("write to string");
+        if let Some(attempts) = schedule.maximum_retry_attempts {
+            write!(
+                resources,
+                "\n        RetryPolicy:\n          MaximumRetryAttempts: {attempts}"
+            )
+            .expect("write to string");
+        }
+        if let Some(dlq) = schedule.dead_letter_queue_id.as_deref() {
+            write!(
+                resources,
+                "\n        DeadLetterConfig:\n          Arn: !GetAtt {}Queue.Arn",
+                crate::sam_logical_id(dlq)
+            )
+            .expect("write to string");
+        }
+        writeln!(resources).expect("write to string");
     }
     resources.push_str(
         "  JobsSchedulerRole:\n    Type: AWS::IAM::Role\n    Properties:\n      AssumeRolePolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Effect: Allow\n            Principal:\n              Service: scheduler.amazonaws.com\n            Action: sts:AssumeRole\n      Policies:\n        - PolicyName: !Sub '${AWS::StackName}-jobs-scheduler'\n          PolicyDocument:\n            Version: '2012-10-17'\n            Statement:\n              - Effect: Allow\n                Action: sqs:SendMessage\n                Resource:\n",
@@ -574,7 +647,7 @@ pub fn render_sam_with_durable_work(
             "SAM template is missing the Outputs block for durable-work resources".into(),
         ));
     };
-    template.insert_str(position, &resources);
+    template.insert_str(position + 1, &resources);
     Ok(template)
 }
 
@@ -641,7 +714,6 @@ mod tests {
             functions: vec![],
             queues: vec![],
             triggers: vec![],
-            durable_work: None,
             scheduled_wakeups: vec![],
             uses_nat_gateway: false,
             allowed_origins: vec!["https://orders.example.com".into()],
@@ -659,6 +731,7 @@ mod tests {
                 id: "orders-notifications".into(),
                 queue_id: "jobs-orders-notifications".into(),
                 function_id: "orders-jobs-worker".into(),
+                artifact_path: "target/lambda/orders-jobs-worker.zip".into(),
                 fifo: false,
                 batch_size: 10,
                 batching_window_seconds: 1,
@@ -696,10 +769,9 @@ mod tests {
         }
     }
 
-    fn plan_with(topology: DurableWorkTopology) -> DeploymentPlan {
+    fn plan_with(topology: &DurableWorkTopology) -> DeploymentPlan {
         let mut config = config();
         config.functions = vec![api_function()];
-        config.durable_work = Some(topology);
         let contract = minco_contract::ContractDocument {
             source: "inline".into(),
             openapi_version: "3.1.0".into(),
@@ -711,7 +783,24 @@ mod tests {
             raw: serde_json::json!({}),
         };
         let plan = config.into_plan_with_graph(&contract, minco_core::ApplicationGraph::default());
-        apply_durable_work(&plan)
+        apply_durable_work(&plan, topology)
+    }
+
+    fn plan_with_kept(topology: &DurableWorkTopology) -> DeploymentPlan {
+        let mut config = config();
+        config.functions = vec![api_function()];
+        let contract = minco_contract::ContractDocument {
+            source: "inline".into(),
+            openapi_version: "3.1.0".into(),
+            title: "orders".into(),
+            version: "1".into(),
+            sha256: "hash".into(),
+            operations: Vec::new(),
+            schema_names: Vec::new(),
+            raw: serde_json::json!({}),
+        };
+        let plan = config.into_plan_with_graph(&contract, minco_core::ApplicationGraph::default());
+        apply_durable_work(&plan, topology)
     }
 
     #[test]
@@ -721,7 +810,7 @@ mod tests {
         topology.profiles.clear();
         topology.routes.clear();
         topology.schedules.clear();
-        let plan = plan_with(topology);
+        let plan = plan_with_kept(&topology);
         assert!(plan.queues.is_empty(), "no job queues");
         assert!(
             !plan
@@ -730,7 +819,7 @@ mod tests {
                 .any(|function| function.role == FunctionRole::Worker),
             "no worker functions"
         );
-        assert!(validate_durable_work(&plan).is_empty());
+        assert!(validate_durable_work(&plan, &topology).is_empty());
         // A plan without the sidecar serializes identically to schema 2.
         let mut config = config();
         config.functions = vec![api_function()];
@@ -754,7 +843,7 @@ mod tests {
 
     #[test]
     fn enabled_topology_synthesizes_queue_worker_and_mapping() {
-        let plan = plan_with(topology());
+        let plan = plan_with(&topology());
         assert!(
             plan.queues
                 .iter()
@@ -777,7 +866,7 @@ mod tests {
         baseline.enabled = false;
         baseline.profiles.clear();
         baseline.routes.clear();
-        let base = plan_with(baseline);
+        let base = plan_with(&baseline);
         let base_codes: Vec<String> = base
             .validate()
             .iter()
@@ -804,14 +893,14 @@ mod tests {
     fn fifo_profile_requires_an_ordering_source_on_routes() {
         let mut topology = topology();
         topology.profiles[0].fifo = true;
-        let diagnostics = validate_durable_work(&plan_with(topology.clone()));
+        let diagnostics = validate_durable_work(&plan_with(&topology), &topology);
         assert!(
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == durable_work_codes::PROFILE_FIFO_PAYLOAD)
         );
         topology.routes[0].ordering_source = Some("partition".into());
-        assert!(validate_durable_work(&plan_with(topology)).is_empty());
+        assert!(validate_durable_work(&plan_with(&topology), &topology).is_empty());
     }
 
     fn schedule() -> JobSchedulePlan {
@@ -835,15 +924,15 @@ mod tests {
     fn schedule_validation_covers_expression_timezone_retry_and_payload() {
         let mut topology = topology();
         topology.schedules = vec![schedule()];
-        let plan = plan_with(topology.clone());
-        let diagnostics = validate_durable_work(&plan);
+        let plan = plan_with_kept(&topology);
+        let diagnostics = validate_durable_work(&plan, &topology);
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         topology.schedules[0].expression = "every tuesday".into();
         topology.schedules[0].timezone = Some("Not/A Timezone".into());
         topology.schedules[0].maximum_retry_attempts = Some(200);
         topology.schedules[0].flexible_window_minutes = Some(0);
         topology.schedules[0].payload = serde_json::json!({ "pad": "x".repeat(300_000) });
-        let diagnostics = validate_durable_work(&plan_with(topology));
+        let diagnostics = validate_durable_work(&plan_with(&topology), &topology);
         for code in [
             durable_work_codes::SCHEDULE_EXPRESSION,
             durable_work_codes::SCHEDULE_TIMEZONE,
@@ -862,7 +951,7 @@ mod tests {
     fn schedule_id_collisions_fail() {
         let mut topology = topology();
         topology.schedules = vec![schedule(), schedule()];
-        let diagnostics = validate_durable_work(&plan_with(topology));
+        let diagnostics = validate_durable_work(&plan_with(&topology), &topology);
         assert!(
             diagnostics
                 .iter()
@@ -870,18 +959,18 @@ mod tests {
         );
     }
 
-    fn render(topology: DurableWorkTopology) -> String {
-        let plan = plan_with(topology);
+    fn render(topology: &DurableWorkTopology) -> String {
+        let plan = plan_with_kept(topology);
         let mut code_uris = std::collections::BTreeMap::new();
         code_uris.insert("api".to_owned(), "./bootstrap.zip".to_owned());
-        render_sam_with_durable_work(&plan, &code_uris).expect("render")
+        render_sam_with_durable_work(&plan, topology, &code_uris).expect("render")
     }
 
     #[test]
     fn rate_cron_and_one_time_schedules_render_with_least_privilege_iam() {
         let mut topology = topology();
         topology.schedules = vec![schedule()];
-        let template = render(topology.clone());
+        let template = render(&topology);
         assert!(template.contains("OrdersExpirySchedule:"));
         assert!(template.contains("Type: AWS::Scheduler::Schedule"));
         assert!(template.contains("ScheduleExpression: 'rate(1 hours)'"));
@@ -906,7 +995,7 @@ mod tests {
         cron.flexible_window_minutes = Some(15);
         cron.maximum_retry_attempts = Some(3);
         topology.schedules = vec![cron];
-        let template = render(topology.clone());
+        let template = render(&topology);
         assert!(template.contains("ScheduleExpression: 'cron(0 13 * * ? *)'"));
         assert!(template.contains("ScheduleExpressionTimezone: 'Pacific/Auckland'"));
         assert!(template.contains("Mode: FLEXIBLE"));
@@ -918,7 +1007,7 @@ mod tests {
         one_time.expression = "at(2026-09-01T03:00:00)".into();
         one_time.enabled = false;
         topology.schedules = vec![one_time];
-        let template = render(topology);
+        let template = render(&topology);
         assert!(template.contains("ScheduleExpression: 'at(2026-09-01T03:00:00)'"));
         assert!(template.contains("State: DISABLED"));
     }
@@ -943,7 +1032,7 @@ mod tests {
 
     #[test]
     fn schedule_renders_no_resources_when_topology_lacks_schedules() {
-        let template = render(topology());
+        let template = render(&topology());
         assert!(!template.contains("AWS::Scheduler::Schedule"));
         assert!(!template.contains("JobsSchedulerRole"));
     }

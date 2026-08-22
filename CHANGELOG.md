@@ -5,6 +5,41 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-08-22
+
+This additive candidate introduces durable typed work (M14-T44, ADR-0048)
+without changing existing public Plan shapes or enabling a runtime, database,
+provider, schedule, or fixed compute by default. It is unpublished; package
+ownership, trusted publishing, release, deployment, and production remain
+separate evidence states.
+
+### Added
+
+- Added the beta `minco-plugin-jobs` crate with typed job commands, an
+  explicit handler registry with payload upcasters, a bounded closed-shape
+  envelope with semantic fingerprints, dispatch modes, fenced execution
+  claims, atomic retry-and-republish publication generations, Scheduler
+  occurrence ingestion, overlap locks, and a profile-routed dispatcher.
+- Added PostgreSQL and SQLite durable job storage: job rows, publication
+  generations and overlap locks with atomic claims (`FOR UPDATE SKIP LOCKED`
+  and `BEGIN IMMEDIATE`), claim fencing, revision-guarded operator
+  transitions, and transactional `enqueue_in` shared with the business
+  mutation.
+- Added the `SqsJobDispatcher` sharing the event publisher's queue-target and
+  body validation, with publication-scoped FIFO deduplication identities.
+- Added the opt-in typed jobs worker path (`minco-aws-worker/jobs`) that
+  executes claimed durable records only, deduplicates Scheduler occurrences
+  on `schedule_id + scheduled_time`, and routes missing durable rows to the
+  queue poison path instead of inline fallback.
+- Added the `durable_work` Plan sidecar (explicit parameter, public structs
+  unchanged) synthesizing job queues, workers and event-source mappings
+  through the existing schema-2 rules, rendering EventBridge Scheduler
+  targets with least-privilege IAM, and validating artifacts, FIFO
+  compatibility, DLQ references and complete rendered input sizes.
+- Added the Orders durable-work golden slice: `placeOrder` commits one
+  `orders.send-confirmation` job and publication generation atomically, and
+  the request-assisted dispatch driver delivers it through the real path.
+
 ## [1.11.0] - 2026-08-21
 
 This additive lock-step minor makes reviewed OpenAPI request assertions an

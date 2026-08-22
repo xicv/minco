@@ -350,7 +350,6 @@ mod tests {
             }],
             queues: Vec::new(),
             triggers: Vec::new(),
-            durable_work: None,
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],
