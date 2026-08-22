@@ -40,7 +40,8 @@ pub fn confirmation_envelope(
         envelope.with(
             JobOptions::default()
                 .with_causation(job.correlation_id)
-                .with_retry(RetryPolicy::exponential(5, 30, 900)),
+                .with_retry(RetryPolicy::exponential(5, 30, 900))
+                .with_overlap_key(format!("orders.confirm:{}", job.order_id.into_uuid())),
         )
     })
 }

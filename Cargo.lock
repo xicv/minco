@@ -176,9 +176,9 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "aws-config"
-version = "1.11.0"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a767267da9e2c2e189b2f9df8b5657e850ecf5352644734ba130d4a57095cf1b"
+checksum = "1b180a3c8b55960db3426d8964b8745e652466a1a49fe1a2eda828046d30b5e4"
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -266,9 +266,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-cloudfront"
-version = "1.128.0"
+version = "1.127.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f762fcb13918a022bd05eb2d933e57e9120451c2b28dd19f7dacb6a7896690c6"
+checksum = "47c5280a30d63e011b7a9a94ea6a915a0eff0aa45a525ba13c46d29fa4873607"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -292,9 +292,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-cognitoidentityprovider"
-version = "1.129.0"
+version = "1.128.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cd209b1021d2a5ce81fe280c02301edfd4965de1918f66a49f87b8c7f981bb0"
+checksum = "1f7f29363bd9bab356722916875d6fbb54bffa231cc828962c5da98d43505aef"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -318,9 +318,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-dynamodb"
-version = "1.122.0"
+version = "1.121.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da6141acba66f1db7da2b3c7b2c0ee5178f86240cee676ed5c37cf74b9a2b37b"
+checksum = "8de999e21177c7513e70b4adfdc6656f438651b2de2c6690e058073da3a3082c"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -345,9 +345,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-s3"
-version = "1.143.0"
+version = "1.142.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0ade5433c9561daac7c0c6bc910f1240b4f8ec0d6148b0b463aac0691d747c9"
+checksum = "f9e15a5c55e05f4b0b7e483160b3c85cccdf77cff02c95504f3e71d460855cd2"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -382,9 +382,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-sesv2"
-version = "1.130.0"
+version = "1.129.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61ce6148d928f015b7a16dab655e542170acea5ae907ee2dfa79c00743411dde"
+checksum = "955d5471e0180e58ae181e494467267c90368fd5b73c1719b40725170479c86b"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -408,9 +408,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-sqs"
-version = "1.107.0"
+version = "1.106.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16df2d9b99f4c97ad4035837ba03f0a16386a3e2dbb84ca32481ab8749161056"
+checksum = "d3f757d3be7ba736345ee3d5b22db7dc0c8c556da0aefb26e5d8aa07267dcc25"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -434,9 +434,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-ssm"
-version = "1.120.0"
+version = "1.119.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9688e4d27ab56db3a34469c9c4bf13f7301cae53d0ec959887831344d7e03e1b"
+checksum = "a3a2007c49b4a471fbf2560999b5e2a32a2a8dddf5a6780ee32ad79163cdba12"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -460,9 +460,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-sts"
-version = "1.112.0"
+version = "1.111.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f582002918346a3e685be1b391c7bea155073088cea6bd4e4b7663df9e43b6c"
+checksum = "120e7eb63457a9e547f9986fe3b273f77c43679da4d04f46359fa881c5e19b6e"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -575,9 +575,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-http-client"
-version = "1.4.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebfd138fac0337cee7516c352757ea73b9f2266e57d0bcb5bc70e9547e45aef1"
+checksum = "3c1c8a04cb31ba74d0115af5a890bb8c0d48fba64b52812fa13929a6ef0cc83c"
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-runtime-api",
@@ -632,9 +632,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-runtime"
-version = "1.14.0"
+version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b82e438d30e02a825d363bd639a9efaed68a8089d86101054b0081e7e0d3e606"
+checksum = "483b858ff67522011c4786310c5cd8fd88d0be7ea3d5f1a48328446300c4269e"
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-http",
@@ -658,9 +658,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-runtime-api"
-version = "1.15.0"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "954c563ce84507722d2679f07a35d21b9c6466b3872d513020d0281fc8112ac9"
+checksum = "3b98f2e1fd67ec06618f9c291e5e495a468e60519e44c9c1979cd0521f3affdb"
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-runtime-api-macros",
@@ -928,7 +928,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-minco"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -972,9 +972,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.4.4"
+version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ad534f4357a5264cce5019c989cf66a4f0dc4e0d1b1d15f8aacec0ff7360273"
+checksum = "509591b7bcd67f4ef775afad7662703b4935daaa6ec0e5605cfb1090b32a2b6d"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1242,12 +1242,12 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.24.1"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed17f5901b6630b993ca003def43f2f8ef4014fc13b047b57aad617ff32bc2ec"
+checksum = "88490bf1b990d87eaaa7ac8aa887f629a08e7359765b4911faf63c3763347d23"
 dependencies = [
- "darling_core 0.24.1",
- "darling_macro 0.24.1",
+ "darling_core 0.24.0",
+ "darling_macro 0.24.0",
 ]
 
 [[package]]
@@ -1265,9 +1265,9 @@ dependencies = [
 
 [[package]]
 name = "darling_core"
-version = "0.24.1"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6837e2cf7485aaae18f86181d2f0e9a7ed297a025e220aeabf63fdebd3a2ddff"
+checksum = "084e274f91c482280130e1e34e0b8d6e66776a060d7b6de7b84289ca778868c4"
 dependencies = [
  "ident_case",
  "proc-macro2",
@@ -1289,11 +1289,11 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
-version = "0.24.1"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ac7135c3ef02b2f7833bbeb1be5ba7f966dcde8a87c6b87f65a778d71a02785"
+checksum = "68f5792fa0d41cd2325ce0ffa64f0a340eaebd4971a3a0c5e1ffd2cc488a355e"
 dependencies = [
- "darling_core 0.24.1",
+ "darling_core 0.24.0",
  "quote",
  "syn 3.0.3",
 ]
@@ -1391,9 +1391,9 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "either"
-version = "1.18.0"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
+checksum = "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d"
 dependencies = [
  "serde",
 ]
@@ -1420,7 +1420,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1651,9 +1651,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.18"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "839c0e8a181239723652be9062bb56ca5bf5f64011f73b623f6f4fc59086a228"
+checksum = "a9f37a958b41b3b19ee2707c06439c0e9e547e847223eb791ecb0cb821c65e27"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -1989,9 +1989,9 @@ checksum = "e590f038c1464a96894fd6d10127e90a8be4509f56ff7ecef851b15cee0b7caa"
 
 [[package]]
 name = "icu_provider"
-version = "2.3.1"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d27bbb9d3abbefac45d55f647c9de1d44aafcd1186eb91879afef17c396c3e73"
+checksum = "92a7ed671a6aad807a8651a2e1782a6598fda9ce5185dd8158549e95a91c6428"
 dependencies = [
  "displaydoc",
  "icu_locale_core",
@@ -2329,9 +2329,9 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "mail-parser"
-version = "0.11.7"
+version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d1bb2f9fb98d69b0369be719dc8ab2f535a959e3761128c5c044fae97f68c12"
+checksum = "4084ec5c2f90b341d0c70990e92a23b128f75ca14fc1dd5edd8fd5c9b417da4d"
 dependencies = [
  "hashify",
 ]
@@ -2385,7 +2385,7 @@ dependencies = [
 
 [[package]]
 name = "minco"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "minco-aws-adapters",
  "minco-aws-dynamodb",
@@ -2421,7 +2421,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-adapters"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2460,7 +2460,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-dynamodb"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2480,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-lambda"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -2497,7 +2497,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-worker"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "aws_lambda_events",
@@ -2516,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "minco-config"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "hex",
  "minco-core",
@@ -2530,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "minco-contract"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "chrono",
  "hex",
@@ -2545,7 +2545,7 @@ dependencies = [
 
 [[package]]
 name = "minco-core"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "semver",
  "serde",
@@ -2555,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "minco-db"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "hex",
  "serde",
@@ -2568,7 +2568,7 @@ dependencies = [
 
 [[package]]
 name = "minco-deploy-aws"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "hex",
  "minco-plugin-static-site",
@@ -2584,7 +2584,7 @@ dependencies = [
 
 [[package]]
 name = "minco-dev"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "reqwest",
  "rustix",
@@ -2597,7 +2597,7 @@ dependencies = [
 
 [[package]]
 name = "minco-http"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "axum",
  "futures",
@@ -2619,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "minco-interaction"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2643,7 +2643,7 @@ dependencies = [
 
 [[package]]
 name = "minco-mcp"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "minco-project-view",
  "rmcp",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plan"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "http 1.5.0",
  "minco-contract",
@@ -2670,7 +2670,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-audit"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2685,7 +2685,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-events"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2700,7 +2700,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-feedback"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2733,7 +2733,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-health"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2744,7 +2744,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-idempotency"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2761,7 +2761,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-identity"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2775,7 +2775,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-jobs"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2783,6 +2783,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "thiserror",
  "tokio",
  "uuid",
@@ -2790,7 +2791,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-notifications"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2809,7 +2810,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-object-storage"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2831,7 +2832,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-observability"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "minco-core",
  "semver",
@@ -2844,7 +2845,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-payments-waffo"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "anyhow",
  "apollo-parser",
@@ -2873,7 +2874,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-realtime"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "minco-core",
@@ -2887,7 +2888,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-sessions"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2904,7 +2905,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-static-site"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "hex",
@@ -2920,7 +2921,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-ticketing"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2955,7 +2956,7 @@ dependencies = [
 
 [[package]]
 name = "minco-project-view"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "hex",
  "minco-contract",
@@ -2972,7 +2973,7 @@ dependencies = [
 
 [[package]]
 name = "minco-release"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "chrono",
  "hex",
@@ -2985,7 +2986,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-postgres"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3007,7 +3008,7 @@ dependencies = [
 
 [[package]]
 name = "minco-sqlx-sqlite"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3028,7 +3029,7 @@ dependencies = [
 
 [[package]]
 name = "minco-test"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "axum",
  "http 1.5.0",
@@ -3044,7 +3045,7 @@ dependencies = [
 
 [[package]]
 name = "minco-workbench"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "axum",
  "minco-project-view",
@@ -3149,7 +3150,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "orders-adapters"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "aws-sdk-dynamodb",
@@ -3175,7 +3176,7 @@ dependencies = [
 
 [[package]]
 name = "orders-api"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -3199,7 +3200,7 @@ dependencies = [
 
 [[package]]
 name = "orders-application"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3215,7 +3216,7 @@ dependencies = [
 
 [[package]]
 name = "orders-domain"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "chrono",
  "serde",
@@ -3225,7 +3226,7 @@ dependencies = [
 
 [[package]]
 name = "orders-service"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3443,7 +3444,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3594,9 +3595,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.1.4"
+version = "3.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a15bc53261a9dc37e105df006e4656c598379a8f9581f8950debb130f27a7cf"
+checksum = "5f17072af977b0f86f714dbd64b3d37d0715bb63064f9d13483f0a1775813374"
 dependencies = [
  "chrono",
  "futures",
@@ -3617,11 +3618,11 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.1.4"
+version = "3.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a85d45508e9b4ba024fe996c2638799635d75b6dd0ba8f32ccf08f8026f0c780"
+checksum = "54817231d63a35330d5c3a5782a4a166fbe3b914a9faab440d3dd8bd37971890"
 dependencies = [
- "darling 0.24.1",
+ "darling 0.24.0",
  "proc-macro2",
  "quote",
  "serde_json",
@@ -3671,7 +3672,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3729,7 +3730,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4371,7 +4372,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4984,7 +4985,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5215,9 +5216,9 @@ dependencies = [
 
 [[package]]
 name = "zerovec"
-version = "0.11.8"
+version = "0.11.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb0464e17806c1d976d5cba29399c7f08e516e279e2ba493f63123b5fca67dd8"
+checksum = "94b5c6b5976d66c1d703c4fd17d3f5e43c8cedaacf604961b171adc7130896d8"
 dependencies = [
  "yoke",
  "zerofrom",
@@ -5226,9 +5227,9 @@ dependencies = [
 
 [[package]]
 name = "zerovec-derive"
-version = "0.11.6"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34df6fc39dbd26ddc9c10e6a2984476e13acce22e64e4487636ef494369225da"
+checksum = "9f212a141d820099d57ffafb9569be9617a6f27d3dc881fbee8fb56642f917a9"
 dependencies = [
  "proc-macro2",
  "quote",

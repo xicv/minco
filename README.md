@@ -19,11 +19,11 @@ storage, schedules, requests, and other residual dimensions remain explicit.
 
 > Published baseline: `1.11.0`
 >
-> Current workspace version: `1.11.0`
+> Current workspace version: `1.12.0`
 >
-> Workspace release state: `published`
+> Workspace release state: `candidate`
 >
-> Current publishable package count: `36`
+> Current publishable package count: `37`
 
 The complete 36-package 1.11.0 family is published from immutable tag
 `v1.11.0`. Exact-source qualification, trusted publishing, registry, GitHub

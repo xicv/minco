@@ -1,5 +1,5 @@
 {
-  "bundle_digest": "e2472baca6b3f77937b12bbb1d8477c907e0e41d8406e0fdcc4909b2f63887d1",
+  "bundle_digest": "b4030f7f3c8189b196a458037dc483ab8a271ea45ccb117a3aebd9d3f76dad58",
   "evidence_lanes": {
     "deployment": "absent",
     "hosted": "absent",
@@ -27,7 +27,7 @@
     "Client discovery is proven through documented project layouts and byte parity, not interactive client UI automation.",
     "No hosted, deployment, runtime, production, or acceptance evidence was produced."
   ],
-  "minco_version": "1.11.0",
+  "minco_version": "1.12.0",
   "negative_cases": {
     "evidence_lane_upgrade_forbidden": true,
     "framework_application_mode_separated": true,
@@ -42,7 +42,7 @@
     "canonical_files_per_client": 27,
     "claude_path": ".claude/skills",
     "codex_path": ".agents/skills",
-    "initial_plan_digest": "d18c88f1fb4ab894096855654e7cb3dbf236ccd224342ab4a08a4962fc17c2db",
+    "initial_plan_digest": "71c3d71f707783aa6c616b52369bf2fa6f43e2e2f613b15c44e9927677ff5e30",
     "read_only_eval": true
   },
   "scenario_suite_digest": "1e4325d9aedb3ca621fa808e0dea368ac4d4f846c6607da8be0d2f8d967b2091",

@@ -2,9 +2,9 @@
 #![forbid(unsafe_code)]
 
 pub mod audit;
-pub mod jobs;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
+pub mod jobs;
 mod memory;
 #[cfg(feature = "postgres")]
 mod postgres;

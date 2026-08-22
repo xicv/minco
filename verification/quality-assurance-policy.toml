@@ -19,7 +19,7 @@ cargo-semver-checks = "1.93"
 packages = ["minco-core", "minco-plan", "minco-release"]
 baseline_revision = "f48ead125b09699f1d7e8ab8bf02deeeb9dc6fb4"
 baseline_executable_test_count = 122
-executable_test_count = 144
+executable_test_count = 153
 doctest_count = 1
 
 [coverage]
@@ -50,10 +50,10 @@ maximum_unviable = 3
 baseline_tag = "v1.9.0"
 baseline_commit = "8922aab5c9ed6770d8df7f5d906f768152d3e06c"
 packages = "publishable_workspace"
-package_count = 36
+package_count = 37
 baseline_package_count = 34
-new_packages = ["minco-interaction", "minco-plugin-ticketing"]
+new_packages = ["minco-interaction", "minco-plugin-jobs", "minco-plugin-ticketing"]
 
 [performance]
-local_receipt = "verification/1.11-candidate-load.json"
+local_receipt = "verification/1.12-candidate-load.json"
 hosted_baseline = "verification/1.9-performance-baseline.json"

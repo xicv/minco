@@ -36,8 +36,6 @@ pub struct DeploymentConfig {
     pub queues: Vec<QueuePlan>,
     #[serde(default)]
     pub triggers: Vec<TriggerPlan>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub durable_work: Option<crate::durable_work::DurableWorkTopology>,
     #[serde(default)]
     pub scheduled_wakeups: Vec<String>,
     #[serde(default)]
@@ -114,7 +112,6 @@ impl DeploymentConfig {
             routes,
             application_graph,
             static_site: None,
-            durable_work: self.durable_work,
             realtime: None,
             preview: None,
             local_aws_services,
@@ -152,10 +149,6 @@ pub struct DeploymentPlan {
     pub application_graph: ApplicationGraph,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub static_site: Option<StaticSiteDeployment>,
-    /// Additive durable typed work topology; `None` leaves serialized
-    /// schema-2 bytes unchanged and renders no job resources.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub durable_work: Option<crate::durable_work::DurableWorkTopology>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub realtime: Option<RealtimeDeployment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2370,7 +2363,6 @@ mod tests {
             }],
             queues: Vec::new(),
             triggers: Vec::new(),
-            durable_work: None,
             scheduled_wakeups: Vec::new(),
             uses_nat_gateway: false,
             allowed_origins: vec!["https://app.example.invalid".into()],

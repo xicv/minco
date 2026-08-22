@@ -1,19 +1,27 @@
 //! Job services: submission modes, the due-publication dispatcher and the
 //! lease-based executor that connects a delivery to one typed handler.
 //!
-//! Nothing here schedules itself. Dispatch is explicit and bounded; retries
-//! are durable; permanent failure is persisted before acknowledgement.
+//! The durable record is authoritative: after an atomic claim the executor
+//! runs the claimed record's envelope, and a delivery whose semantic
+//! fingerprint differs from the record's fails closed as an inspectable
+//! transport-integrity failure. Every mutation is fenced by the claim's
+//! opaque lease identity, and retries commit their state and their next
+//! publication generation in one store transaction. Nothing here schedules
+//! itself: dispatch is explicit and bounded, and permanent failure is
+//! persisted before acknowledgement.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use uuid::Uuid;
 
 use crate::envelope::JobEnvelope;
+use crate::envelope::semantic_fingerprint;
 use crate::memory::{FakeJobDispatcher, MemoryJobStore};
 use crate::policy::JobClock;
 use crate::ports::{
-    EnqueueOutcome, JobDispatcher, JobError, JobPublicationStore, JobStatus, JobStore,
+    EnqueueOutcome, JobDelivery, JobDispatcher, JobError, JobPublicationStore, JobStatus, JobStore,
     OverlapLockStore,
 };
 use crate::registry::{JobContext, JobExecutionFailure, JobHandlerRegistry, failure_codes};
@@ -31,7 +39,8 @@ pub const DEFAULT_EXECUTION_TIMEOUT: TimeDelta = TimeDelta::seconds(300);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DurableSubmission {
     Inserted(Uuid),
-    /// An identical dedupe-keyed job already exists; nothing was written.
+    /// A semantically identical dedupe-keyed job already exists; nothing
+    /// was written.
     Duplicate(Uuid),
 }
 
@@ -67,16 +76,21 @@ pub enum JobExecutionDisposition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JobSkipReason {
-    /// The durable record no longer exists.
+    /// The durable record does not exist. Durable workers never fall back
+    /// to inline execution; the delivery follows the queue's poison path.
     Missing,
-    /// The job is terminal or leased by another live worker.
+    /// The job is terminal or leased by another live claim.
     NotExecutable(JobStatus),
     /// The job is pending but its availability time has not arrived.
     NotYetAvailable,
 }
 
-/// Executes one job delivery: claim, dedupe, deadline, resolve, overlap,
-/// timeout, and the durable transition before acknowledgement.
+/// Executes one job delivery to a durable disposition.
+///
+/// Claim, transport-integrity check, deadline, resolve, overlap, timeout,
+/// and the durable transition before acknowledgement. Every mutation
+/// presents the claim's lease identity, so a stale invocation cannot alter
+/// a newer claim's state.
 #[derive(Debug, Clone)]
 pub struct JobExecutor {
     pub registry: Arc<JobHandlerRegistry>,
@@ -96,21 +110,26 @@ impl JobExecutor {
         }
     }
 
-    /// Run one delivery to a durable disposition. Store and publication
-    /// transitions happen before the disposition is returned, so callers can
-    /// safely acknowledge the transport.
+    /// Run one delivery to a durable disposition.
+    ///
+    /// `worker_execution_id` must be unique per invocation (derive it from
+    /// the transport message identity, not a static worker name). Store
+    /// transitions happen before the disposition is returned, so callers
+    /// can safely acknowledge the transport. The clock is read again after
+    /// handler completion for completion, retry and failure timestamps.
     pub async fn run(
         &self,
-        envelope: &JobEnvelope,
-        worker_id: &str,
-        now: DateTime<Utc>,
+        delivery_envelope: &JobEnvelope,
+        worker_execution_id: &str,
+        clock: &dyn JobClock,
         store: &dyn JobStore,
-        publications: &dyn JobPublicationStore,
+        _publications: &dyn JobPublicationStore,
         locks: &dyn OverlapLockStore,
     ) -> Result<JobRunDisposition, JobError> {
-        let job_id = envelope.job_id;
-        let Some(record) = store
-            .claim_execution(job_id, worker_id, now + self.execution_lease, now)
+        let now = clock.now();
+        let job_id = delivery_envelope.job_id;
+        let Some(claim) = store
+            .claim_execution(job_id, worker_execution_id, now + self.execution_lease, now)
             .await?
         else {
             let reason = match store.get(job_id).await? {
@@ -123,49 +142,61 @@ impl JobExecutor {
             return Ok(JobRunDisposition::Skipped(reason));
         };
 
-        if envelope.deadline.is_some_and(|deadline| deadline <= now) {
+        // The durable record is authoritative. The transport copy only
+        // locates the job: a semantic mismatch is a forged or stale
+        // delivery and fails closed as an inspectable permanent failure
+        // without executing the handler.
+        let authoritative = claim.record.envelope.clone();
+        if semantic_fingerprint(delivery_envelope) != semantic_fingerprint(&authoritative) {
             store
-                .fail_permanently(job_id, worker_id, failure_codes::DEADLINE_EXPIRED, now)
+                .fail_permanently(&claim, failure_codes::TRANSPORT_INTEGRITY, now)
                 .await?;
-            return Ok(disp_failed(failure_codes::DEADLINE_EXPIRED));
+            return Ok(disp_failed(failure_codes::TRANSPORT_INTEGRITY));
         }
+
+        // Effective timeout respects a remaining deadline; a handler is
+        // never started when no positive budget remains.
+        let effective_timeout = match authoritative.deadline {
+            Some(deadline) if deadline <= now => {
+                store
+                    .fail_permanently(&claim, failure_codes::DEADLINE_EXPIRED, now)
+                    .await?;
+                return Ok(disp_failed(failure_codes::DEADLINE_EXPIRED));
+            }
+            Some(deadline) => self.execution_timeout.min(deadline - now),
+            None => self.execution_timeout,
+        };
 
         let resolved = match self
             .registry
-            .resolve(&envelope.job_name, envelope.job_version)
+            .resolve(&authoritative.job_name, authoritative.job_version)
         {
             Ok(resolved) => resolved,
             Err(JobError::UnknownJob(_)) => {
                 store
-                    .fail_permanently(job_id, worker_id, failure_codes::UNKNOWN_JOB, now)
+                    .fail_permanently(&claim, failure_codes::UNKNOWN_JOB, now)
                     .await?;
                 return Ok(disp_failed(failure_codes::UNKNOWN_JOB));
             }
             Err(JobError::UnsupportedJobVersion { .. }) => {
                 store
-                    .fail_permanently(job_id, worker_id, failure_codes::UNSUPPORTED_VERSION, now)
+                    .fail_permanently(&claim, failure_codes::UNSUPPORTED_VERSION, now)
                     .await?;
                 return Ok(disp_failed(failure_codes::UNSUPPORTED_VERSION));
             }
             Err(error) => return Err(error),
         };
 
-        if let Some(overlap_key) = envelope.overlap_key.as_deref() {
+        if let Some(overlap_key) = authoritative.overlap_key.as_deref() {
             let acquired = locks
-                .acquire(overlap_key, worker_id, now + self.execution_lease, now)
+                .acquire(overlap_key, claim.lease_id, now + self.execution_lease, now)
                 .await?;
             if !acquired {
                 let retry_at = now + self.overlap_retry_delay;
+                locks.release(overlap_key, claim.lease_id).await.ok();
                 store
-                    .schedule_retry(
-                        job_id,
-                        worker_id,
-                        failure_codes::OVERLAP_BUSY,
-                        retry_at,
-                        now,
-                    )
+                    .schedule_retry_and_publish(&claim, failure_codes::OVERLAP_BUSY, retry_at, now)
                     .await?;
-                publications.republish(job_id, worker_id, retry_at).await?;
                 return Ok(JobRunDisposition::Executed(
                     JobExecutionDisposition::RetryScheduled {
                         code: failure_codes::OVERLAP_BUSY.to_owned(),
@@ -174,30 +205,34 @@ impl JobExecutor {
                 ));
             }
         }
+        let overlap_key = authoritative.overlap_key.clone();
 
         let context = JobContext {
             job_id,
-            correlation_id: envelope.correlation_id,
-            causation_id: envelope.causation_id,
-            attempt: record.attempt_count.max(1),
-            maximum_attempts: envelope.maximum_attempts,
-            deadline: envelope.deadline,
-            partition: envelope.partition.clone(),
-            metadata: envelope.metadata.clone(),
+            correlation_id: authoritative.correlation_id,
+            causation_id: authoritative.causation_id,
+            attempt: claim.record.attempt_count.max(1),
+            maximum_attempts: authoritative.maximum_attempts,
+            deadline: authoritative.deadline,
+            partition: authoritative.partition.clone(),
+            metadata: authoritative.metadata.clone(),
         };
         let outcome = tokio::time::timeout(
-            self.execution_timeout.to_std().map_err(|error| {
+            effective_timeout.to_std().map_err(|error| {
                 JobError::InvalidJob(format!("execution timeout is out of range: {error}"))
             })?,
-            resolved.execute(envelope.payload.clone(), context),
+            resolved.execute(authoritative.payload.clone(), context),
         )
         .await;
 
+        // Fresh time after execution governs completion, retry and failure
+        // timestamps and the next retry calculation.
+        let finished_at = clock.now();
         let failure = match outcome {
             Ok(Ok(())) => {
-                store.complete(job_id, worker_id, now).await?;
-                if let Some(overlap_key) = envelope.overlap_key.as_deref() {
-                    locks.release(overlap_key, worker_id).await?;
+                store.complete(&claim, finished_at).await?;
+                if let Some(overlap_key) = overlap_key.as_deref() {
+                    locks.release(overlap_key, claim.lease_id).await?;
                 }
                 return Ok(JobRunDisposition::Executed(
                     JobExecutionDisposition::Succeeded,
@@ -209,43 +244,48 @@ impl JobExecutor {
 
         if failure.is_permanent() {
             store
-                .fail_permanently(job_id, worker_id, failure.code(), now)
+                .fail_permanently(&claim, failure.code(), finished_at)
                 .await?;
-            if let Some(overlap_key) = envelope.overlap_key.as_deref() {
-                locks.release(overlap_key, worker_id).await?;
+            if let Some(overlap_key) = overlap_key.as_deref() {
+                locks.release(overlap_key, claim.lease_id).await?;
             }
             return Ok(disp_failed(failure.code()));
         }
 
-        let attempt = record.attempt_count.max(1);
-        if attempt >= envelope.maximum_attempts {
+        let attempt = claim.record.attempt_count.max(1);
+        if attempt >= authoritative.maximum_attempts {
             store
-                .fail_permanently(job_id, worker_id, failure_codes::RETRIES_EXHAUSTED, now)
+                .fail_permanently(&claim, failure_codes::RETRIES_EXHAUSTED, finished_at)
                 .await?;
-            if let Some(overlap_key) = envelope.overlap_key.as_deref() {
-                locks.release(overlap_key, worker_id).await?;
+            if let Some(overlap_key) = overlap_key.as_deref() {
+                locks.release(overlap_key, claim.lease_id).await?;
             }
             return Ok(disp_failed(failure_codes::RETRIES_EXHAUSTED));
         }
 
-        let policy = envelope.effective_retry();
-        let retry_at = now + policy.delay_for_attempt(attempt);
-        if envelope
+        let policy = authoritative.effective_retry();
+        let retry_at = finished_at + policy.delay_for_attempt(attempt);
+        if authoritative
             .deadline
             .is_some_and(|deadline| retry_at >= deadline)
         {
             store
-                .fail_permanently(job_id, worker_id, failure_codes::DEADLINE_EXPIRED, now)
+                .fail_permanently(&claim, failure_codes::DEADLINE_EXPIRED, finished_at)
                 .await?;
-            if let Some(overlap_key) = envelope.overlap_key.as_deref() {
-                locks.release(overlap_key, worker_id).await?;
+            if let Some(overlap_key) = overlap_key.as_deref() {
+                locks.release(overlap_key, claim.lease_id).await?;
             }
             return Ok(disp_failed(failure_codes::DEADLINE_EXPIRED));
         }
+        // Release the overlap boundary before the retry so the next
+        // attempt is not blocked until TTL; the release is idempotent and
+        // a crash between the two operations is covered by lease recovery.
+        if let Some(overlap_key) = overlap_key.as_deref() {
+            locks.release(overlap_key, claim.lease_id).await?;
+        }
         store
-            .schedule_retry(job_id, worker_id, failure.code(), retry_at, now)
+            .schedule_retry_and_publish(&claim, failure.code(), retry_at, finished_at)
             .await?;
-        publications.republish(job_id, worker_id, retry_at).await?;
         Ok(JobRunDisposition::Executed(
             JobExecutionDisposition::RetryScheduled {
                 code: failure.code().to_owned(),
@@ -255,7 +295,8 @@ impl JobExecutor {
     }
 
     /// Inline execution in the current process for explicit use and tests.
-    /// No durable state is created or required.
+    /// No durable state is created or required; it is never a hidden
+    /// fallback for durable infrastructure failures.
     pub async fn run_inline(
         &self,
         envelope: &JobEnvelope,
@@ -295,8 +336,12 @@ impl JobExecutor {
             partition: envelope.partition.clone(),
             metadata: envelope.metadata.clone(),
         };
+        let effective_timeout = match envelope.deadline {
+            Some(deadline) => self.execution_timeout.min(deadline - now),
+            None => self.execution_timeout,
+        };
         tokio::time::timeout(
-            self.execution_timeout
+            effective_timeout
                 .to_std()
                 .map_err(|_| JobExecutionFailure::permanent("jobs-invalid-timeout"))?,
             resolved.execute(envelope.payload.clone(), context),
@@ -376,9 +421,9 @@ impl JobsServices {
         )
     }
 
-    /// Submit durably: one atomic job-plus-intent write outside any caller
-    /// transaction. Use the SQL adapters' `enqueue_in` to share the caller's
-    /// transaction.
+    /// Submit durably: one atomic job-plus-first-generation write outside
+    /// any caller transaction. Use the SQL adapters' `enqueue_in` to share
+    /// the caller's transaction.
     pub async fn submit_durable(
         &self,
         envelope: JobEnvelope,
@@ -394,10 +439,16 @@ impl JobsServices {
     }
 
     /// Submit queued: serialize and publish directly with no durable row.
-    /// Delivery is at least once and effects must be idempotent.
+    /// Delivery is at least once and effects must be idempotent. The
+    /// publication identity is minted here and scopes the FIFO
+    /// deduplication identity.
     pub async fn submit_queued(&self, envelope: JobEnvelope) -> Result<(), JobError> {
         envelope.validate()?;
-        self.dispatcher.dispatch(&envelope, self.clock.now()).await
+        let delivery = JobDelivery {
+            envelope,
+            publication_id: Uuid::now_v7(),
+        };
+        self.dispatcher.dispatch(&delivery, self.clock.now()).await
     }
 
     /// Submit inline: execute in the current process for explicit use and
@@ -406,34 +457,39 @@ impl JobsServices {
         self.executor.run_inline(&envelope, self.clock.now()).await
     }
 
-    /// One explicit, bounded dispatch pass over due publications. Publication
-    /// failures retry after [`PUBLICATION_RETRY_DELAY`]; terminal jobs are
-    /// acknowledged without delivery. Never scheduled by this crate.
+    /// One explicit, bounded dispatch pass over due publications. This is
+    /// the real publication driver: call it request-assisted after a
+    /// commit, from an explicit publisher worker, or from an operator
+    /// recovery command — never from a hidden timer. A failed send leaves
+    /// the publication safely pending for later recovery.
     pub async fn dispatch_due_once(
         &self,
-        worker_id: &str,
+        worker_execution_id: &str,
         limit: usize,
         lease: TimeDelta,
     ) -> Result<DispatchReport, JobError> {
         let now = self.clock.now();
-        crate::ports::validate_worker_claim(worker_id, limit, now + lease, now)?;
+        crate::ports::validate_worker_claim(worker_execution_id, limit, now + lease, now)?;
         self.publications.recover_expired_claims(now).await?;
         let claimed = self
             .publications
-            .claim_due(worker_id, limit, now + lease, now)
+            .claim_due(worker_execution_id, limit, now + lease, now)
             .await?;
         let mut report = DispatchReport {
             claimed: claimed.len(),
             ..DispatchReport::default()
         };
         for publication in claimed {
-            let job_id = publication.job_id;
-            let Some(record) = self.store.get(job_id).await? else {
+            let publication_id = publication.publication_id;
+            let lease_id = publication
+                .lease_id
+                .expect("claimed publications carry a lease identity");
+            let Some(record) = self.store.get(publication.job_id).await? else {
                 self.publications
                     .mark_failed(
-                        job_id,
-                        worker_id,
-                        "job record missing",
+                        publication_id,
+                        lease_id,
+                        "JOBS-MISSING-JOB: job record missing",
                         now + PUBLICATION_RETRY_DELAY,
                     )
                     .await?;
@@ -441,23 +497,31 @@ impl JobsServices {
                 continue;
             };
             if record.status.is_terminal() {
-                self.publications.mark_published(job_id, worker_id).await?;
+                self.publications
+                    .mark_published(publication_id, lease_id)
+                    .await?;
                 report.skipped_terminal += 1;
                 continue;
             }
             let mut envelope = record.envelope.clone();
             envelope.attempt = record.attempt_count.max(1);
-            match self.dispatcher.dispatch(&envelope, now).await {
+            let delivery = JobDelivery {
+                envelope,
+                publication_id,
+            };
+            match self.dispatcher.dispatch(&delivery, now).await {
                 Ok(()) => {
-                    self.publications.mark_published(job_id, worker_id).await?;
+                    self.publications
+                        .mark_published(publication_id, lease_id)
+                        .await?;
                     report.dispatched += 1;
                 }
                 Err(error) => {
                     self.publications
                         .mark_failed(
-                            job_id,
-                            worker_id,
-                            &format!("{}: {error}", error.stable_code()),
+                            publication_id,
+                            lease_id,
+                            error.stable_code(),
                             now + PUBLICATION_RETRY_DELAY,
                         )
                         .await?;
@@ -466,6 +530,53 @@ impl JobsServices {
             }
         }
         Ok(report)
+    }
+}
+
+/// Routes dispatch by worker profile: one explicit, validated route per
+/// profile. An unknown profile fails before any provider contact, and one
+/// profile can never dispatch through another profile's route.
+#[derive(Debug, Default)]
+pub struct ProfileRoutedDispatcher {
+    routes: BTreeMap<String, Arc<dyn JobDispatcher>>,
+}
+
+impl ProfileRoutedDispatcher {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Bind one profile to one dispatcher. Registering a profile twice
+    /// fails closed.
+    pub fn route(
+        &mut self,
+        worker_profile: &str,
+        dispatcher: Arc<dyn JobDispatcher>,
+    ) -> Result<(), JobError> {
+        crate::envelope::validate_worker_profile(worker_profile)?;
+        // Check before inserting: a rejected duplicate registration must
+        // leave the existing route untouched, never replace it.
+        if self.routes.contains_key(worker_profile) {
+            return Err(JobError::InvalidJob(format!(
+                "worker profile '{worker_profile}' already has a dispatch route"
+            )));
+        }
+        self.routes.insert(worker_profile.to_owned(), dispatcher);
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl JobDispatcher for ProfileRoutedDispatcher {
+    async fn dispatch(&self, delivery: &JobDelivery, now: DateTime<Utc>) -> Result<(), JobError> {
+        let route = self
+            .routes
+            .get(&delivery.envelope.worker_profile)
+            .ok_or_else(|| {
+                JobError::UnknownWorkerProfile(delivery.envelope.worker_profile.clone())
+            })?;
+        route.dispatch(delivery, now).await
     }
 }
 

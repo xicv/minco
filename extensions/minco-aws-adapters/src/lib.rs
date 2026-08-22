@@ -6,6 +6,8 @@ pub mod appsync_events;
 #[cfg(feature = "cognito")]
 pub mod cognito;
 pub mod iam;
+#[cfg(all(feature = "jobs", feature = "sqs"))]
+pub mod jobs_sqs;
 #[cfg(any(feature = "ses", feature = "webhook"))]
 pub mod notification;
 pub mod plugin;
@@ -15,8 +17,6 @@ pub mod s3;
 pub mod s3_storage;
 #[cfg(feature = "ses")]
 pub mod ses;
-#[cfg(all(feature = "jobs", feature = "sqs"))]
-pub mod jobs_sqs;
 #[cfg(feature = "sqs")]
 pub mod sqs;
 #[cfg(feature = "static-site")]

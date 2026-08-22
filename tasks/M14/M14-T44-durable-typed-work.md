@@ -125,32 +125,52 @@ governed by ADR-0048.
 
 ## Progress evidence
 
-Verified green at the time of writing, each against the exact working tree:
+Repaired and re-verified against the exact corrected tree (all PASS):
 
-- `cargo test -p minco-plugin-jobs --all-features --locked`: 34 passed
-  (envelope limits/redaction/closed shape, registry duplicates/upcasters,
-  retry arithmetic, executor lifecycle, memory store claims, dedupe,
-  overlap, deadlines, dispatch backoff).
-- `MINCO_TEST_POSTGRES_URL=postgres://minco:minco@127.0.0.1:55432/minco_orders
-  cargo test -p minco-sqlx-postgres --locked jobs -- --test-threads=1`:
-  9 passed against real PostgreSQL, including rollback-with-business-mutation,
-  commit-with-exactly-one-recoverable-intent, single-owner concurrent claims,
-  stale-owner protection, dedupe determinism, revision-guarded operator
-  transitions, one-authoritative concurrent retry, disjoint publication
-  claims, and retry-through-republish round trip.
-- `cargo test -p minco-sqlx-sqlite --locked jobs -- --test-threads=1`: 8
-  always-on TempDir tests pass, including both atomicity proofs and the
-  bounded attempt history.
-- `cargo test -p minco-aws-adapters --features jobs --locked`: 12 passed
-  (shared queue-target validation, delay range, FIFO delay rejection,
-  deterministic groups/dedup identity, error redaction).
-- `cargo test -p minco-aws-worker --all-features --locked`: 13 passed
-  (durable execute-and-ack, duplicate suppression without re-execution,
-  poison-envelope policy, unknown-job permanence before ack, durable retry
-  reschedule, queued inline mode, standard-batch partial failure).
-- `cargo clippy` with `-D warnings` and changed-file `rustfmt --check` pass
-  for `minco-plugin-jobs`, `minco-sqlx-postgres`, `minco-sqlx-sqlite`,
-  `minco-aws-adapters` (`jobs`) and `minco-aws-worker` (`jobs`).
+- `cargo test` full workspace (`--all-targets --all-features --locked`,
+  inside `scripts/quality.sh`): the complete gate passed with exit 0.
+- `MINCO_TEST_POSTGRES_URL=… cargo test -p minco-sqlx-postgres --locked
+  jobs -- --test-threads=1`: 11 passed on real PostgreSQL, now including
+  stale-claim fencing under one reused worker name, atomic
+  retry-plus-generation-2 commit, publication-claim fencing, stale overlap
+  owners, fingerprint dedupe and occurrence ingestion with no pending
+  publication.
+- `cargo test -p minco-sqlx-sqlite --locked jobs`: 11 passed with the same
+  fenced contracts on SQLite.
+- `cargo test -p minco-plugin-jobs --all-features --locked`: 30 passed
+  including altered-transport fail-closed, missing-row no-inline-fallback,
+  stale-claim fencing, retry/generation atomicity, occurrence identity
+  (`schedule_id + scheduled_time`), overlap release on every exit and
+  profile routing fail-closed.
+- `cargo test -p minco-aws-worker --all-features --locked`: 15 passed
+  including provider-retry convergence on one occurrence, distinct
+  execution per new scheduled time and missing-durable-record poison.
+- `cargo test -p orders-adapters --features sqlite --locked`: 11 passed
+  including the request-assisted publication driver delivering the
+  committed generation through the real dispatcher path.
+- `cargo clippy` (workspace `--all-targets --all-features --locked --
+  -D warnings`) and `cargo fmt --all -- --check`: 0 findings.
+- `cargo minco task verify M14-T44 --json`: 15/15; `plugin validate`:
+  0 findings; `plugin test jobs`: passed; `generate-reference.sh --check`:
+  current.
+- Rustack conformance (`scripts/dev/rustack-smoke.sh`): PASS including
+  the `SqsJobDispatcher` round-trip through standard SDK endpoints.
+- `sam validate --template target/minco/durable-work-template.yaml
+  --region ap-southeast-2 --lint`: valid SAM template; 12 structural
+  assertions (Scheduler Target nesting, role ARN, target queue ARN,
+  scheduler trust, least-privilege SendMessage, occurrence identity
+  tokens, ESM partial batch, state, timezone).
+- `cargo semver-checks` vs published 1.11.0 for `minco-plan`,
+  `minco-sqlx-postgres`, `minco-sqlx-sqlite`, `minco-aws-adapters`,
+  `minco-aws-worker`, `minco`: no semver update required (the public
+  `DeploymentPlan`/`DeploymentConfig`/`RuntimeCostEstimate` shapes are
+  untouched; durable work is an explicit sidecar parameter).
+- `cargo package -p minco-plugin-jobs --locked --allow-dirty`: packaged;
+  the unpacked archive passes 30 tests on the pinned 1.97.1 toolchain.
+- `cargo deny check`, `cargo audit`, `npm audit`, `gitleaks`: clean
+  (inside the aggregate gate).
+- Documentation: snippets (363 blocks), build, links (2599 internal) and
+  browser suites (40 passed) all green.
 
 ## Non-goals
 
@@ -202,14 +222,19 @@ request, deployment or production mutation is performed by this task.
   feature variants; dispatch binds `SqsJobDispatcher` when `JOBS_QUEUE_URL`
   is set and `FailClosedDispatcher` otherwise.
 
+## Aggregate gates
+
+- `MINCO_QUALITY_TOOL_ROOT="$HOME/.cargo" ./scripts/ci/local-release.sh`:
+  PASS (exit 0) on the exact pushed source — full quality, ephemeral
+  assurance, AppSync local proof, candidate recovery/load, 37-package
+  archive dry-runs, Plan/SAM validation, native Lambda and worker builds,
+  owned PostgreSQL and Rustack runtime qualification, and Orders E2E.
+  No provider, publication or deployment claim was made.
+
 ## Not run
 
-- `cargo minco jobs` operator plan/apply CLI commands are not implemented;
-  the store methods (`cancel`, `retry_failed`, `recover_expired_leases`,
-  `list_failed`) are implemented, tested and revision-guarded, but no CLI
-  surface wraps them yet.
-- `scripts/quality.sh`, `scripts/ci/local-release.sh`, the Rustack SQS
-  integration run, `sam validate` against a generated durable-work template,
-  `cargo package`/semver checks, docs build/browser tests and the independent
-  review pass were not run for this candidate; the focused gates above are
-  the qualification boundary reached.
+- The operator CLI (`cargo minco jobs …`) remains unimplemented; the
+  revision-guarded store methods are tested without a CLI wrapper.
+- Hosted Linux, real AWS, deployment and crates.io publication remain
+  separate release-evidence states for the 1.12.0 release task.
+

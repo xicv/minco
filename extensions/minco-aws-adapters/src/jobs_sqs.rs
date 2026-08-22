@@ -6,7 +6,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use minco_plugin_jobs::{JobDispatcher, JobEnvelope, JobError};
+use minco_plugin_jobs::{JobDelivery, JobDispatcher, JobEnvelope, JobError};
 
 /// Per-message delays (`DelaySeconds`) are capped at fifteen minutes and are
 /// unsupported on FIFO queues; longer waits belong to durable publication.
@@ -118,7 +118,8 @@ pub fn job_message_group(envelope: &JobEnvelope) -> String {
 
 #[async_trait]
 impl JobDispatcher for SqsJobDispatcher {
-    async fn dispatch(&self, envelope: &JobEnvelope, now: DateTime<Utc>) -> Result<(), JobError> {
+    async fn dispatch(&self, delivery: &JobDelivery, now: DateTime<Utc>) -> Result<(), JobError> {
+        let envelope = &delivery.envelope;
         Self::validate_target(envelope)?;
         let delay = delayed_dispatch_seconds(envelope, now, self.fifo)?;
         let mut request = self
@@ -133,9 +134,11 @@ impl JobDispatcher for SqsJobDispatcher {
             request = request.message_group_id(job_message_group(envelope));
         }
         if self.fifo {
-            // The job identity is the deterministic deduplication identity:
-            // one logical delivery per job, per the five-minute FIFO window.
-            request = request.message_deduplication_id(envelope.job_id.to_string());
+            // The publication identity — never the job identity — is the
+            // FIFO deduplication identity: an ambiguous resend of one send
+            // is suppressed by the provider, while a new retry generation
+            // of the same job is not.
+            request = request.message_deduplication_id(delivery.publication_id.to_string());
         }
         request.send().await.map_err(|error| {
             JobError::Infrastructure(format!("SQS SendMessage failed: {error}"))
@@ -270,8 +273,12 @@ mod tests {
         )
         .expect("dispatcher");
         let envelope = envelope();
+        let delivery = minco_plugin_jobs::JobDelivery {
+            envelope,
+            publication_id: uuid::Uuid::now_v7(),
+        };
         let error = dispatcher
-            .dispatch(&envelope, Utc::now())
+            .dispatch(&delivery, Utc::now())
             .await
             .expect_err("inert client cannot send");
         let rendered = format!("{error}");

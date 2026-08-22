@@ -6,9 +6,9 @@
   },
   "documentation": {
     "next_route": true,
-    "release_file_sha256": "137d018d6580cc1d5e47dc8125c95558cf88c9f96d78868c6a9af60b007f60c9",
+    "release_file_sha256": "f1d82ad479e2ce01d84b6e2c594916913695b7df5e38be2678a484bf323ceab0",
     "stable": "1.11.0",
-    "state": "published",
+    "state": "candidate",
     "versioned_routes": [
       "0.5.0",
       "0.6.0",
@@ -16,6 +16,7 @@
       "1.1.0",
       "1.10.0",
       "1.11.0",
+      "1.12.0",
       "1.2.0",
       "1.2.1",
       "1.2.2",
@@ -28,20 +29,20 @@
       "1.9.0"
     ],
     "versions_page_sha256": "ccda74c320dbdc9a9b40c519c990fe4cb1ce4349a425413763d9680db708e622",
-    "workspace": "1.11.0"
+    "workspace": "1.12.0"
   },
   "inputs": [
     {
       "path": "Cargo.toml",
-      "sha256": "ea0f9c5f71bd815beab350ca8e73e19a61eb7ac4c5a3940f428d89b0fa2ece29"
+      "sha256": "75e8bb46028aac47a15a9a789dbd87479c1469efea81e29431a3a86ab2790c26"
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "cf67a6471c1b060ba5a44b62ead186033e8e94e1bd833b720101682012b20c72"
+      "sha256": "1cb3c2d8b1ad6c0cf613e6ea497355e74aa09a57e44bb9203731d98296a14c73"
     },
     {
       "path": "docs-site/release.json",
-      "sha256": "137d018d6580cc1d5e47dc8125c95558cf88c9f96d78868c6a9af60b007f60c9"
+      "sha256": "f1d82ad479e2ce01d84b6e2c594916913695b7df5e38be2678a484bf323ceab0"
     },
     {
       "path": "docs-site/versions.md",
@@ -49,11 +50,11 @@
     },
     {
       "path": "plugins/catalog.toml",
-      "sha256": "f7093851c8657e3a540ec5a436d760981240702fbd63eb0b359471d0142c7134"
+      "sha256": "793fab176b0de55a792158775717a8dbb0cb529a8180eeb085d624cbcc5d9f12"
     },
     {
       "path": "verification/repository-truth.toml",
-      "sha256": "c92ab00f20355233772bae971fc1e1074aaff97d73f2eec563e6c697bf1dd7d8"
+      "sha256": "4e61bcf1ebf42603a3ef371a1858c6db26a9c6896b54875d6f00c7e5a8922356"
     }
   ],
   "kind": "minco.release-identity.v1",
@@ -72,7 +73,7 @@
     },
     {
       "manifest_path": "crates/minco/Cargo.toml",
-      "manifest_sha256": "fc806b2112c441f6481345b5c0be66b0fdb82f145b524519b07c880cf71c14a6",
+      "manifest_sha256": "440190de560ffaab261bf67a2128a85f37638148ee8cb540c2a0e81f4b0b072d",
       "name": "minco",
       "version": {
         "workspace": true
@@ -80,7 +81,7 @@
     },
     {
       "manifest_path": "extensions/minco-aws-adapters/Cargo.toml",
-      "manifest_sha256": "661a64aa111dad616cf8aa2ffd4b85fccebbedf640deb283e7175f2829f60560",
+      "manifest_sha256": "d5a027fff37db2e400053598094a5fbe19987846fc8103c23d7ffbac9c25a2b9",
       "name": "minco-aws-adapters",
       "version": {
         "workspace": true
@@ -104,7 +105,7 @@
     },
     {
       "manifest_path": "extensions/minco-aws-worker/Cargo.toml",
-      "manifest_sha256": "09362884e42bda10f7154f75d204ba5bed31dd07b457b66f86dec1d7ff312923",
+      "manifest_sha256": "9acb1b6e45113d6d1f75336ca98b4cfe2c94be6a9f5c5556424dc5dfc875d85f",
       "name": "minco-aws-worker",
       "version": {
         "workspace": true
@@ -239,6 +240,14 @@
       }
     },
     {
+      "manifest_path": "plugins/minco-plugin-jobs/Cargo.toml",
+      "manifest_sha256": "9db8238c60debb3def2ca78f646d42dba39fcbb8646e1588d5f7df8eeac686f1",
+      "name": "minco-plugin-jobs",
+      "version": {
+        "workspace": true
+      }
+    },
+    {
       "manifest_path": "plugins/minco-plugin-notifications/Cargo.toml",
       "manifest_sha256": "bf3dc116e15a6fc93258c5bd41e0d0aa3ba9868e6fd268041d2a8e6af7de48a2",
       "name": "minco-plugin-notifications",
@@ -320,7 +329,7 @@
     },
     {
       "manifest_path": "extensions/minco-sqlx-postgres/Cargo.toml",
-      "manifest_sha256": "80f801d0e8fc87356e9de79d2f782704e723ae3a73e891541620a976a0fce0da",
+      "manifest_sha256": "21aca9ab5a439b47a5ac46937ad7a9fbc3c86c94a3dec59797b26be798a0a845",
       "name": "minco-sqlx-postgres",
       "version": {
         "workspace": true
@@ -328,7 +337,7 @@
     },
     {
       "manifest_path": "extensions/minco-sqlx-sqlite/Cargo.toml",
-      "manifest_sha256": "db95d781cc540f18682659bf194c37679e45962bd06d6b906e00610003e5ee05",
+      "manifest_sha256": "0a14d3af9e07b733f5420c44765dad9b0de6de84f3bde1e0591d0c5150b548a3",
       "name": "minco-sqlx-sqlite",
       "version": {
         "workspace": true
@@ -353,217 +362,227 @@
   ],
   "plugins": [
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-audit",
       "descriptor_path": "plugins/minco-plugin-audit/minco-plugin.json",
-      "descriptor_sha256": "814f9d5a145017a7838292cf73b4b40ae5c931404aed95dac08971a768643f63",
+      "descriptor_sha256": "80bd2aaa7e1954de8cd382bf76eebbe9bf72230befa29954a0c1d7079a3ad09b",
       "id": "audit",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-aws-adapters",
       "descriptor_path": "extensions/minco-aws-adapters/minco-plugin.json",
-      "descriptor_sha256": "1103f996bbe2714f62c3056c5bbd88776e112c2e9dab31b21dffe01cd85226e7",
+      "descriptor_sha256": "a5bbc454a82555fbd4bdf129c1332b4c69eb9e8ff67f716f9744935491631394",
       "id": "aws-adapters",
       "kind": "adapter",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-aws-dynamodb",
       "descriptor_path": "extensions/minco-aws-dynamodb/minco-plugin.json",
-      "descriptor_sha256": "2e9d930640b59217824c0fb6e3081bf93eb14621d8195948760295966f967822",
+      "descriptor_sha256": "34d78cf4f903fc28aa80197582cfb394f37ba981dcb1067fa369675bd02b14e2",
       "id": "aws-dynamodb",
       "kind": "adapter",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-aws-lambda",
       "descriptor_path": "extensions/minco-aws-lambda/minco-plugin.json",
-      "descriptor_sha256": "9fdd5afef2a7b0a679db9facabfdb9f37718c5ddb93ba3a36d3b9f4acac3136b",
+      "descriptor_sha256": "ebcc11d6c6ce25e1d4fce5266247180dd3ec4513f87b7e9ea2dceb2ac3fdcf17",
       "id": "aws-lambda",
       "kind": "runtime",
       "plugin_version": "0.7.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-aws-worker",
       "descriptor_path": "extensions/minco-aws-worker/minco-plugin.json",
-      "descriptor_sha256": "50d5a75ab48dd03d1bf92a2e24bdf3d05729d48e339fa509282765c49b9121ec",
+      "descriptor_sha256": "f9df18bad87bb848cbcef6edfa510738796b2db3dc730e726ba18e2299e24d64",
       "id": "aws-worker",
       "kind": "runtime",
       "plugin_version": "0.7.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-events",
       "descriptor_path": "plugins/minco-plugin-events/minco-plugin.json",
-      "descriptor_sha256": "24f5b76fcedee6e61955fde6c85af5b6361caa217fe6ca3d72437b19b4560c11",
+      "descriptor_sha256": "2c4a0f7c2738216bca6e4288b71cf8269ebcf6e3a535ae81f2152d6e0a3ac92a",
       "id": "events",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-feedback",
       "descriptor_path": "plugins/minco-plugin-feedback/minco-plugin.json",
-      "descriptor_sha256": "d8f8401d68f64fd1fa9dc1588f2c60baaaca617849d727c7c088a9e35fd64074",
+      "descriptor_sha256": "61591de033eee2f7e38e32becc6ac7d92a14ee816f6db98dfa248db546227e82",
       "id": "feedback",
       "kind": "plugin",
       "plugin_version": "0.1.0",
       "stability": "stable"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-health",
       "descriptor_path": "plugins/minco-plugin-health/minco-plugin.json",
-      "descriptor_sha256": "c457ee86786059507e1dd47def4e4314764bb2fb22d77d4b7646b13a92fe3e57",
+      "descriptor_sha256": "9085bf583143e32045149dfacb8d9bd1d9f0a80aefa789ae6019ef7afd005673",
       "id": "health",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "stable"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-idempotency",
       "descriptor_path": "plugins/minco-plugin-idempotency/minco-plugin.json",
-      "descriptor_sha256": "84b02a801df873cd7d5718a1fe756edb7c848776a4ea415b95ed2ede581d9727",
+      "descriptor_sha256": "8f6ffd7b056ae4ed81a68c7f0092aaa5d20cf698f15e2acf3f12d86ffa0f81f7",
       "id": "idempotency",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "stable"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-identity",
       "descriptor_path": "plugins/minco-plugin-identity/minco-plugin.json",
-      "descriptor_sha256": "8c1ac1fc88ed463c5953b2a8beeed041a51633031da93f552d894728b8af8bb4",
+      "descriptor_sha256": "292bb03c85baa8128946229d822af8cd916ced63acf833a8eb506bbb747bd6ac",
       "id": "identity",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
+      "crate": "minco-plugin-jobs",
+      "descriptor_path": "plugins/minco-plugin-jobs/minco-plugin.json",
+      "descriptor_sha256": "f5545db14824f37c3b1f639d6436fdfa7a8506260ac140d23c416af506c34506",
+      "id": "jobs",
+      "kind": "plugin",
+      "plugin_version": "1.0.0",
+      "stability": "beta"
+    },
+    {
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-notifications",
       "descriptor_path": "plugins/minco-plugin-notifications/minco-plugin.json",
-      "descriptor_sha256": "950f4dcd6778e17fa7da636e565d26a662c2af40c60a8076a2467f23c53ffef1",
+      "descriptor_sha256": "aa77ae51e6f49965bf0e0956b550d8036801b88abe8d9fa49cb9b9a9f7dc3535",
       "id": "notifications",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-object-storage",
       "descriptor_path": "plugins/minco-plugin-object-storage/minco-plugin.json",
-      "descriptor_sha256": "99bf9899e710baab3d93ea59eede7f7d39db603dd5a8dc16bf843a78eafa26c6",
+      "descriptor_sha256": "ca03d29da4ad4429b972713074e0b32d2839870b71496d8b93a74162a5eddea4",
       "id": "object-storage",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-observability",
       "descriptor_path": "plugins/minco-plugin-observability/minco-plugin.json",
-      "descriptor_sha256": "3bb04e01bdf691f0348901e07ed3e7dc01d4d692969e97ca69c9374d603ee611",
+      "descriptor_sha256": "e8e9e1d97f003a8368d78ebe5e926d1b33d49938159ef89259cd6285cac1cc76",
       "id": "observability",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "stable"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-payments-waffo",
       "descriptor_path": "plugins/minco-plugin-payments-waffo/minco-plugin.json",
-      "descriptor_sha256": "eb08607c6ed52c8c0a7cf9b8340ecad9ebd4760e7879732e693354fc534d4d6c",
+      "descriptor_sha256": "e408e100c3f867cc44509ae8743731b6ea8e326150f6cb5643a1d48a2658f898",
       "id": "payments-waffo",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-realtime",
       "descriptor_path": "plugins/minco-plugin-realtime/minco-plugin.json",
-      "descriptor_sha256": "8b6504d8a41fe6f910858ce8dc1f0fce19f6313d0a4c98c48299313a552230fd",
+      "descriptor_sha256": "c8e4298de04539ccf4587ec9360d9ffb3321e3ce6f7f13fcc855f583e96491e2",
       "id": "realtime",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-sessions",
       "descriptor_path": "plugins/minco-plugin-sessions/minco-plugin.json",
-      "descriptor_sha256": "d6714a90a6ee6f799e1dab05b7e8cedfc380c3a59bdc3101e9b55e7be32fba49",
+      "descriptor_sha256": "94b623ffa2e7923b31e0cb78367fc20323c8e72eed2b0bb35196ebbd4cf42f56",
       "id": "sessions",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-sqlx-postgres",
       "descriptor_path": "extensions/minco-sqlx-postgres/minco-plugin.json",
-      "descriptor_sha256": "4f0ff725cda3322e5e7e9fe682be4fddb3d765d85912fec2211f7e6a59f731fe",
+      "descriptor_sha256": "364644ee03e1ec17a18a8014fa057f1bf7e34c0fbb9d33157840309066a4cc8f",
       "id": "sqlx-postgres",
       "kind": "adapter",
       "plugin_version": "0.7.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-sqlx-sqlite",
       "descriptor_path": "extensions/minco-sqlx-sqlite/minco-plugin.json",
-      "descriptor_sha256": "aeeb776e287ee55953e913c7060a32465bd7c39c6524db0744e3572b4b98aae7",
+      "descriptor_sha256": "4d657f73cfedfc489fd5ee7d0c100f2632c1dca020578dd8636d5b13db1dbda9",
       "id": "sqlx-sqlite",
       "kind": "adapter",
       "plugin_version": "0.7.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-static-site",
       "descriptor_path": "plugins/minco-plugin-static-site/minco-plugin.json",
-      "descriptor_sha256": "eff5967b85d433b09f9f51b09a8f88e1d2ee9f39a52c43386b08048ff00de1c2",
+      "descriptor_sha256": "a79eb6b3d3060cb0e03d580a38ade5c6b3159880b6dbb333a63f1493108e1153",
       "id": "static-site",
       "kind": "plugin",
       "plugin_version": "1.0.0",
       "stability": "beta"
     },
     {
-      "core_compatibility": "^1.11.0",
+      "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-ticketing",
       "descriptor_path": "plugins/minco-plugin-ticketing/minco-plugin.json",
-      "descriptor_sha256": "2e268a6af22799cf2bf4a37f97087a4838059268c8af479f7a7da18fbe15fa64",
+      "descriptor_sha256": "08ced11bb1666909821ac46b911c8ac0dce8976f8a30c2567bb4a6a4c15ff732",
       "id": "ticketing",
       "kind": "plugin",
       "plugin_version": "0.1.0",
       "stability": "beta"
     }
   ],
-  "projection_sha256": "9f9a78e9f8538328ae9a5cc37290ca357159e3ad66cf558be082e60f6f583d43",
+  "projection_sha256": "2009725b9b3a6f9aeeb9955a524f7336627aaa07b2e3d041797c0a842fb82d49",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
-    "sha256": "c92ab00f20355233772bae971fc1e1074aaff97d73f2eec563e6c697bf1dd7d8"
+    "sha256": "4e61bcf1ebf42603a3ef371a1858c6db26a9c6896b54875d6f00c7e5a8922356"
   },
   "schema_version": 1,
   "workspace": {
     "published_baseline": "1.11.0",
     "published_release_commit": "81640a6b25924be115ceb11cdec1fd2a42a71381",
-    "release_state": "published",
+    "release_state": "candidate",
     "rust_version": "1.97.1",
-    "version": "1.11.0"
+    "version": "1.12.0"
   }
 }

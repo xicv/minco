@@ -80,7 +80,7 @@ pub use cost::{
     CostClass, CostComponent, CostEvidence, DatabaseCostEstimate, PricingConfidence,
     QueueCostDimension, RealtimeCostDimension, RuntimeCostEstimate, ScheduleCostDimension,
     SqsMappingCostDimension, WorkerCostDimension, estimate_database_cost,
-    estimate_deployment_database_cost, estimate_runtime_cost,
+    estimate_deployment_database_cost, estimate_runtime_cost, monthly_schedule_invocations,
 };
 pub use model::{
     AuthPlan, CostPolicy, DatabaseDeployment, DeploymentConfig, DeploymentPlan,

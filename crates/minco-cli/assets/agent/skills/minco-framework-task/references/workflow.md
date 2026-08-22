@@ -42,3 +42,7 @@ request-reachable analysis, deterministic generation, typed extraction,
 authorization policy, middleware provenance, in-process contract tests,
 versioned documentation and compatibility evidence together. Keep application
 business policy and provider topology outside that delivery-boundary change.
+
+## Durable typed work
+
+- Durable typed work: jobs are typed commands whose durable row owns execution; use `plugin-jobs` for at-least-once dispatch with fenced claims and explicit schedules.

@@ -24,6 +24,7 @@ pub mod worker_failure_codes {
     pub const STORE_UNAVAILABLE: &str = "jobs-store-unavailable";
     pub const QUEUED_FAILURE: &str = "jobs-queued-failure";
     pub const INVALID_SCHEDULED_TRIGGER: &str = "jobs-invalid-scheduled-trigger";
+    pub const MISSING_DURABLE_RECORD: &str = "jobs-missing-durable-record";
 }
 
 /// A Scheduler `scheduled_trigger` delivery.
@@ -31,7 +32,7 @@ pub mod worker_failure_codes {
 /// The two context attributes are substituted by `EventBridge Scheduler`
 /// on every invocation, so each recurrence carries a fresh `execution_id`
 /// and no static job identity exists.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScheduledJobTrigger {
     pub schema_version: u16,
@@ -43,6 +44,23 @@ pub struct ScheduledJobTrigger {
     pub payload: serde_json::Value,
     pub execution_id: String,
     pub scheduled_time: String,
+}
+
+impl std::fmt::Debug for ScheduledJobTrigger {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The payload never appears in diagnostics.
+        f.debug_struct("ScheduledJobTrigger")
+            .field("schema_version", &self.schema_version)
+            .field("kind", &self.kind)
+            .field("schedule_id", &self.schedule_id)
+            .field("job_name", &self.job_name)
+            .field("job_version", &self.job_version)
+            .field("worker_profile", &self.worker_profile)
+            .field("payload_bytes", &self.payload.to_string().len())
+            .field("execution_id", &self.execution_id)
+            .field("scheduled_time", &self.scheduled_time)
+            .finish()
+    }
 }
 
 impl ScheduledJobTrigger {
@@ -64,11 +82,25 @@ impl ScheduledJobTrigger {
         Ok(())
     }
 
-    /// Mint the durable job for this recurrence: a fresh identity, deduped
-    /// on `schedule_id:execution_id` so a Scheduler retry of the same
-    /// invocation cannot execute twice.
+    /// The stable occurrence identity: `schedule_id + scheduled_time`.
+    ///
+    /// The provider guarantees one `scheduled_time` per occurrence, so
+    /// provider retries of one occurrence — with fresh `execution_id`
+    /// values — converge on one durable job, while the next occurrence
+    /// produces a different identity. `execution_id` and the attempt
+    /// number stay diagnostic metadata only.
+    fn occurrence_id(&self) -> String {
+        format!("{}:{}", self.schedule_id, self.scheduled_time)
+    }
+
+    /// Mint the durable job for this occurrence: a fresh identity deduped
+    /// on the occurrence identity. The occurrence context lives in the
+    /// dedupe key alone so two mints of one occurrence carry identical
+    /// semantic fingerprints; the execution ID is transport diagnostics
+    /// only and never enters the durable envelope.
     fn into_envelope(self) -> Result<JobEnvelope, JobError> {
         self.validate()?;
+        let occurrence = self.occurrence_id();
         let correlation = uuid::Uuid::now_v7();
         let mut envelope = JobEnvelope::for_parts(
             self.job_name,
@@ -77,15 +109,7 @@ impl ScheduledJobTrigger {
             self.worker_profile,
             correlation,
         )?;
-        envelope.metadata.insert(
-            "schedule-id".into(),
-            self.schedule_id.chars().take(64).collect(),
-        );
-        envelope.metadata.insert(
-            "scheduled-time".into(),
-            self.scheduled_time.chars().take(64).collect(),
-        );
-        envelope.dedupe_key = Some(format!("{}:{}", self.schedule_id, self.execution_id));
+        envelope.dedupe_key = Some(occurrence);
         Ok(envelope)
     }
 }
@@ -184,18 +208,22 @@ impl MessageHandler for JobMessageHandler {
                     );
                     WorkerFailure::new(worker_failure_codes::INVALID_SCHEDULED_TRIGGER)
                 })?;
-                // A durable worker records the minted job so the store's
-                // dedupe key neutralizes Scheduler retries of the same
-                // invocation; a queued worker executes inline without one.
+                // A Scheduler trigger is already present on the transport:
+                // ingest it as an existing delivery so the publication is
+                // recorded as delivered and no pending generation is left
+                // behind. A queued worker executes inline without a record.
                 if let Some(services) = &self.durable {
-                    let minted = envelope.clone();
-                    match services.submit_durable(minted).await {
-                        Ok(minco_plugin_jobs::DurableSubmission::Inserted(_)) => envelope,
-                        // The dedupe key already exists: continue with the
-                        // existing job's identity so its durable state
-                        // governs duplicate suppression.
-                        Ok(minco_plugin_jobs::DurableSubmission::Duplicate(existing)) => {
-                            match services.store.get(existing).await {
+                    let ingested = minco_plugin_jobs::pending_record(envelope.clone());
+                    match services.store.ingest_existing_delivery(ingested).await {
+                        // Both arms converge on the authoritative stored
+                        // envelope so its durable identity governs
+                        // duplicate suppression and execution.
+                        Ok(outcome) => {
+                            let job_id = match outcome {
+                                minco_plugin_jobs::IngestOutcome::Ingested(job_id) => job_id,
+                                minco_plugin_jobs::IngestOutcome::Duplicate(existing) => existing,
+                            };
+                            match services.store.get(job_id).await {
                                 Ok(Some(record)) => record.envelope,
                                 Ok(None) | Err(JobError::Infrastructure(_)) => {
                                     return Err(WorkerFailure::new(
@@ -223,20 +251,25 @@ impl MessageHandler for JobMessageHandler {
                 }
             }
         };
-        let now = chrono::Utc::now();
         let Some(services) = &self.durable else {
+            // Queued mode is the explicit inline executor; it never
+            // pretends to hold durable claims.
             return self
                 .executor
-                .run_inline(&envelope, now)
+                .run_inline(&envelope, chrono::Utc::now())
                 .await
                 .map_err(|failure| Self::inline_failure(&failure));
         };
+        // The worker execution identity is unique per invocation, derived
+        // from the transport message identity rather than a static worker
+        // name; the claim's opaque lease remains the mutation authority.
+        let worker_execution_id = format!("{}:{}", self.worker_id, message.message_id);
         match self
             .executor
             .run(
                 &envelope,
-                &self.worker_id,
-                now,
+                &worker_execution_id,
+                services.clock.as_ref(),
                 services.store.as_ref(),
                 services.publications.as_ref(),
                 services.locks.as_ref(),
@@ -254,13 +287,17 @@ impl MessageHandler for JobMessageHandler {
                 ),
             ) => Ok(()),
             Ok(JobRunDisposition::Skipped(JobSkipReason::Missing)) => {
-                // The envelope has no durable row here: execute it inline so
-                // a queued submission is never silently dropped. Effects
-                // must be idempotent under at-least-once delivery.
-                self.executor
-                    .run_inline(&envelope, now)
-                    .await
-                    .map_err(|failure| Self::inline_failure(&failure))
+                // A durable delivery with no durable row is never executed
+                // inline: the delivery follows the queue's poison path so
+                // the missing state is visible instead of silently masked.
+                tracing::warn!(
+                    job_id = %envelope.job_id,
+                    code = worker_failure_codes::MISSING_DURABLE_RECORD,
+                    "durable delivery has no durable record; queue redrive owns it"
+                );
+                Err(WorkerFailure::new(
+                    worker_failure_codes::MISSING_DURABLE_RECORD,
+                ))
             }
             Err(JobError::Infrastructure(_)) => {
                 tracing::warn!(
@@ -287,7 +324,8 @@ impl MessageHandler for JobMessageHandler {
 mod tests {
     use super::*;
     use minco_plugin_jobs::{
-        Job, JobExecutionFailure as Failure, JobHandlerRegistry, JobOptions, JobStatus, RetryPolicy,
+        Job, JobExecutionFailure as Failure, JobHandlerRegistry, JobOptions, JobStatus, JobStore,
+        RetryPolicy,
     };
     use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
@@ -507,18 +545,28 @@ mod tests {
     async fn standard_batch_reports_only_failed_ids_with_the_jobs_handler() {
         let registry = registry(|_: Confirmation, _| Box::pin(async { Ok(()) }));
         let services = minco_plugin_jobs::JobsServices::memory(registry).0;
+        let mut bodies = Vec::new();
+        for order in ["a", "b"] {
+            let envelope = minco_plugin_jobs::JobEnvelope::for_parts(
+                "orders.send-confirmation",
+                1,
+                serde_json::json!({ "order_id": order }),
+                "orders-notifications",
+                uuid::Uuid::now_v7(),
+            )
+            .expect("valid envelope");
+            services
+                .submit_durable(envelope.clone())
+                .await
+                .expect("submit");
+            bodies.push(String::from_utf8(envelope.to_json_bytes().unwrap()).unwrap());
+        }
         let handler = Arc::new(JobMessageHandler::durable("worker-1", services));
         let mut batch = aws_lambda_events::event::sqs::SqsEvent::default();
         batch.records = vec![
-            record(
-                "m-1",
-                &envelope_bytes(serde_json::json!({ "order_id": "a" })),
-            ),
+            record("m-1", &bodies[0]),
             record("m-2", "poison"),
-            record(
-                "m-3",
-                &envelope_bytes(serde_json::json!({ "order_id": "b" })),
-            ),
+            record("m-3", &bodies[1]),
         ];
         let event = crate::process_sqs_event(batch, handler, crate::WorkerConfig::default())
             .await
@@ -545,9 +593,9 @@ mod tests {
                 Ok(())
             })
         });
-        let services = minco_plugin_jobs::JobsServices::memory(registry).0;
+        let (services, store, _dispatcher) = minco_plugin_jobs::JobsServices::memory(registry);
         let handler = JobMessageHandler::durable("worker-1", services.clone());
-        let body = |execution_id: &str| {
+        let body = |execution_id: &str, scheduled_time: &str| {
             serde_json::json!({
                 "schema_version": 1,
                 "kind": "scheduled_trigger",
@@ -557,32 +605,52 @@ mod tests {
                 "worker_profile": "orders-notifications",
                 "payload": { "order_id": "o-1" },
                 "execution_id": execution_id,
-                "scheduled_time": "2026-08-21T13:00:00Z",
+                "scheduled_time": scheduled_time,
             })
             .to_string()
         };
+        // One occurrence: provider retries carry fresh execution IDs but
+        // the same scheduled time, so they converge on one durable job.
         handler
-            .handle(message(body("exec-1")))
+            .handle(message(body("exec-1", "2026-08-21T13:00:00Z")))
             .await
             .expect("first recurrence ack");
         handler
-            .handle(message(body("exec-2")))
+            .handle(message(body("exec-2", "2026-08-21T13:00:00Z")))
             .await
-            .expect("second recurrence ack");
-        assert_eq!(runs.load(Ordering::SeqCst), 2, "each recurrence executes");
-        // A Scheduler retry of the SAME invocation is deduped by the store.
+            .expect("provider retry of the same occurrence ack");
+        assert_eq!(
+            runs.load(Ordering::SeqCst),
+            1,
+            "provider retries of one occurrence execute once"
+        );
+        // The next scheduled time is a different occurrence.
         handler
-            .handle(message(body("exec-1")))
+            .handle(message(body("exec-3", "2026-08-22T13:00:00Z")))
             .await
-            .expect("duplicate invocation ack");
+            .expect("next occurrence ack");
         assert_eq!(
             runs.load(Ordering::SeqCst),
             2,
-            "duplicate invocation does not re-execute"
+            "each new occurrence executes"
         );
-        let store = services.store;
         let failed = store.list_failed(10).await.unwrap();
         assert!(failed.is_empty());
+        // Scheduler ingestion never leaves a pending publication: exactly
+        // one publication exists per occurrence and it is recorded as
+        // delivered, so later dispatch passes see nothing to resend.
+        let publications = store.publication_records();
+        assert_eq!(
+            publications.len(),
+            2,
+            "one publication per occurrence, no redundant generations"
+        );
+        assert!(
+            publications.iter().all(|publication| {
+                publication.status == minco_plugin_jobs::PublicationStatus::Published
+            }),
+            "every scheduler-ingested publication is published: {publications:?}"
+        );
     }
 
     #[tokio::test]
