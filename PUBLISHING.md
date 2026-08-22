@@ -2,30 +2,45 @@
 
 The authoritative crate-family release procedure is
 [`docs/development/publishing.md`](docs/development/publishing.md).
-The current published boundary is the complete 34-package lock-step `1.9.0`
-family from immutable tag `v1.9.0` at
-`8922aab5c9ed6770d8df7f5d906f768152d3e06c`. Source/package qualification,
+The current published boundary is the complete 36-package lock-step `1.11.0`
+family from immutable tag `v1.11.0` at
+`81640a6b25924be115ceb11cdec1fd2a42a71381`. Source/package qualification,
 merge, tag, upload, registry verification, docs.rs and documentation deployment
 remain separate states for every release.
 
-The workspace is an unpublished `1.10.0` candidate with 36 publishable
-packages. `minco-interaction` and `minco-plugin-ticketing` are new
-first-publication candidates; neither crates.io ownership nor trusted
-publishing is claimed. The published `1.9.0` family remains the installable
-baseline. Local review does not authorize a tag, upload, release, deployment,
-provider request, or production mutation.
+The workspace is the published additive `1.11.0` source with the same 36
+publishable packages and no new ownership boundary. Exact-main hosted run
+`32489926320`, authentication-only run `32490523716` and guarded publication
+run `32490558619` passed for the immutable tag. Independent registry validation
+found all 36 exact versions present and non-yanked. Stable-documentation PR
+#184 and exact-commit Pages run `32497158350` passed, and the public root plus
+frozen `1.11.0` manual are current. docs.rs remains separate: all 36 exact jobs
+were visible at priority `-1` on 2026-08-21, but no exact rustdoc-route pass is
+recorded yet.
 
-The release keeps all nine AI skills current and retains cumulative
+The release keeps all nine AI skills current for the 1.11 request boundary and retains cumulative
 changelog-to-skill coverage plus the deterministic workflow receipt as
 mandatory release gates. Those checks do not invoke a model or measure human
 review effort.
 
-For the published 1.8.0 baseline, exact release source passed PR-head
-clean-Linux run `31774750512` and merged-main run `31775061737`. Authentication
-run `31775371863` proved the exact OIDC boundary without upload. Publication run
-`31775399279` passed archive and consumer checks before dependency-ordered
-upload, and independent validation found all 34 exact versions present and
-non-yanked. That publication is not live provider, AWS, application deployment or
+For the published 1.11.0 baseline, the exact release source passed the complete
+local qualification from source-tree digest
+`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`.
+PR #183 merged the exact reviewed tree as
+`81640a6b25924be115ceb11cdec1fd2a42a71381`, followed by the exact-main,
+authentication, publication and registry checks above. The GitHub release is
+published at <https://github.com/xicv/minco/releases/tag/v1.11.0>. That
+publication is not live provider, AWS, application deployment or production
+evidence.
+
+For the published 1.10.0 release, the exact release source passed the complete
+local qualification before PR #180 merged as
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`; exact-main clean-Linux run
+`32392228228` then passed. Manual authenticated publication passed archive and
+consumer checks, uploaded the dependency-ordered family, and resumed only the
+independently proven missing packages after two crates.io rate limits.
+Independent validation found all 36 exact versions present and non-yanked.
+That publication is not live provider, AWS, application deployment or
 production evidence.
 
 The safe default performs no upload. It requires the pinned Rust toolchain and a

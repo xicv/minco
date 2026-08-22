@@ -1,8 +1,56 @@
 # Review status
 
+## Released M14-T43 Minco 1.11.0 request-boundary
+
+Minco `1.11.0` is the current published baseline from immutable tag `v1.11.0`
+at `81640a6b25924be115ceb11cdec1fd2a42a71381`.
+
+The published additive `1.11.0` release keeps OpenAPI authoritative, rejects
+unsupported request-reachable shapes before generation, preserves
+missing-versus-null semantics, bounds errors and adversarial work, extracts
+typed requests once, enforces exact coarse permission/scope policy before the
+use case, and leaves business authorization in the application layer.
+
+The release also keeps request IDs safe before tracing/reflection and uses
+explicit streamed-limit/timeout provenance without rewriting application-owned
+responses. Independent review reported no findings for source digest
+`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`.
+PR #183 merged the exact tree as
+`81640a6b25924be115ceb11cdec1fd2a42a71381`; hosted run `32489926320`,
+authentication run `32490523716`, publication run `32490558619`, immutable tag
+`v1.11.0`, all 36 exact non-yanked versions and the GitHub release passed as
+separate gates. Stable-documentation PR #184 merged as
+`6e2e4b655e0110929102d2aa6b1460f1a38c0fbd`, and exact-commit Pages run
+`32497158350` passed; both the root and frozen `1.11.0` manual returned HTTP
+200 with the release marked latest stable. docs.rs is not claimed green: at
+`2026-08-21T15:26:11Z` all 36 exact jobs were queued at priority `-1`, and
+0/36 rustdoc routes were available while docs.rs warned that its queue could
+take up to a couple of days. No AWS application or provider operation is
+authorized by this release work.
+
+## Released M14-T41 Minco 1.10.0 Ticketing support entry
+
+Minco `1.10.0` was published from immutable tag `v1.10.0`
+at `2075b60b8fe86c04d3c8289d71eb8293a39fc378`. Review preserved all existing
+Feedback public names while extracting provider-neutral Interaction services,
+proved Ticketing authorization, privacy, idempotency and atomic handoffs, and
+kept the plugin opt-in with no portal host, mailbox poller, schedule, fixed
+compute or provider default. The full local release matrix, 36-package archive
+and external-consumer checks, exact-main hosted run `32392228228`, immutable
+tag, registry-proven partial-upload recovery, all 36 exact non-yanked versions,
+and the GitHub release passed as separate evidence lanes.
+
+The stable 1.10 documentation and all nine packaged AI skills are current in
+source. The two newly claimed crates have exactly one reviewed future
+trusted-publisher entry each for `xicv/minco`, `publish-crates.yml` and the
+`crates-io` environment. Merged-main Pages run `32476082843`, the stable
+versioned site and all 36 exact docs.rs routes passed independently.
+Live-provider, AWS deployment, hosted-performance and production runtime remain
+separate evidence states.
+
 ## Completed M14-T39 Minco 1.9.0 traffic and compression release
 
-Minco `1.9.0` is the current published baseline from immutable tag `v1.9.0` at
+Minco `1.9.0` was published from immutable tag `v1.9.0` at
 `8922aab5c9ed6770d8df7f5d906f768152d3e06c`. Review proved the additive traffic
 policy fails closed on unknown operations, repeated operation IDs, duplicate
 route keys, invalid budgets and ambiguous stage markers, and that compression

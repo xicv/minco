@@ -5,14 +5,40 @@ Semantic Versioning once public releases begin.
 
 ## [Unreleased]
 
-No changes beyond the unpublished `1.10.0` candidate.
+## [1.11.0] - 2026-08-21
+
+This additive lock-step minor makes reviewed OpenAPI request assertions an
+executable, bounded Rust delivery boundary. It preserves application-owned
+business authorization and invariants, adds no provider resource, and keeps
+contracts without the opt-in profile unchanged.
+
+### Added
+
+- Added opt-in OpenAPI-derived request validation with bounded direct generated
+  checks, single-pass typed Axum extractors, separate coarse authorization
+  policies, exact identity scope mapping and Orders place/update integration.
+
+### Fixed
+
+- Hardened request IDs before tracing and final Problem reflection, and replaced
+  ambiguous timeout/body-limit response inference with explicit Minco-owned
+  streamed-limit and timeout boundaries that preserve application responses.
+
+### Compatibility and cost
+
+- Preserved published public struct fields, constructors, serialized Problems
+  and non-opted generated DTO behavior. Added no AWS resource, wake source,
+  fixed compute, schedule, hosted service, deployment or provider operation.
+- Advanced all 36 publishable packages and official plugin descriptors in
+  lock-step to the additive `1.11.0` release line, with a frozen manual and
+  version-matched nine-skill Codex/Claude bundle.
 
 ## [1.10.0] - 2026-08-20
 
-This additive candidate introduces a portal-first Ticketing support boundary
+This additive release introduces a portal-first Ticketing support boundary
 without changing existing Feedback public names or enabling a runtime,
-database, provider, schedule, or fixed compute by default. It is unpublished;
-package ownership, trusted publishing, release, deployment, and production
+database, provider, schedule, or fixed compute by default. All 36 exact package
+versions are published; future trusted publishing, deployment, and production
 remain separate evidence states.
 
 ### Added
@@ -32,9 +58,8 @@ remain separate evidence states.
 - Moved provider-neutral transcription primitives out of Feedback while
   preserving every existing Feedback public name and Cargo feature through
   compatibility re-exports.
-- Opened the 36-package `1.10.0` candidate family with
-  `minco-interaction` and `minco-plugin-ticketing` explicitly recorded as
-  unowned first-publication candidates.
+- Published the 36-package `1.10.0` family with `minco-interaction` and
+  `minco-plugin-ticketing` crossing their first-publication ownership boundary.
 
 ### Compatibility and evidence
 

@@ -8,6 +8,36 @@ pub fn generated_contract_digest(source: &str) -> String {
 }
 
 pub fn generate_rust(document: &ContractDocument) -> String {
+    let generated_request_validation = document
+        .raw
+        .get("x-minco-request-validation")
+        .and_then(Value::as_str)
+        == Some("generated");
+    let request_schemas = if generated_request_validation {
+        generated_request_schema_names(document)
+    } else {
+        BTreeSet::new()
+    };
+    let generated_authorization_alternatives = document.operations.iter().any(|operation| {
+        let method = operation.method.as_str().to_ascii_lowercase();
+        let operation_value = document
+            .raw
+            .pointer(&format!(
+                "/paths/{}/{method}",
+                escape_json_pointer(&operation.path)
+            ))
+            .and_then(Value::as_object);
+        operation_value
+            .and_then(|operation| operation.get("security"))
+            .or_else(|| document.raw.get("security"))
+            .and_then(Value::as_array)
+            .is_some_and(|requirements| {
+                requirements
+                    .iter()
+                    .filter_map(Value::as_object)
+                    .any(|requirement| !requirement.is_empty())
+            })
+    });
     let mut output = String::new();
     writeln!(
         output,
@@ -19,7 +49,18 @@ pub fn generate_rust(document: &ContractDocument) -> String {
         .expect("writing to String cannot fail");
     output.push_str("// Do not edit manually; run `minco contract sync`.\n\n");
     output.push_str("#[allow(unused_imports)]\nuse chrono::{DateTime, Utc};\n");
-    output.push_str("use minco_contract::{ContractOperation, HttpMethod};\n");
+    if generated_authorization_alternatives {
+        output.push_str("use minco_contract::ContractAuthorizationAlternative;\n");
+    }
+    if generated_request_validation {
+        output.push_str(
+            "use minco_contract::{\n    ContractAuthorizationPolicy, ContractOperation, ContractValidate, ContractValidationErrors,\n    HttpMethod, deserialize_optional_non_null,\n};\n",
+        );
+    } else {
+        output.push_str(
+            "use minco_contract::{ContractAuthorizationPolicy, ContractOperation, HttpMethod};\n",
+        );
+    }
     output.push_str("use serde::{Deserialize, Serialize};\n");
     output.push_str("#[allow(unused_imports)]\nuse uuid::Uuid;\n\n");
     if let Some(schemas) = document
@@ -30,7 +71,12 @@ pub fn generate_rust(document: &ContractDocument) -> String {
         let mut names: Vec<_> = schemas.keys().collect();
         names.sort();
         for name in names {
-            output.push_str(&render_schema(name, &schemas[name]));
+            output.push_str(&render_schema(
+                name,
+                &schemas[name],
+                schemas,
+                request_schemas.contains(name),
+            ));
             output.push('\n');
         }
     }
@@ -38,7 +84,7 @@ pub fn generate_rust(document: &ContractDocument) -> String {
         let constant = screaming_snake(&operation.operation_id);
         write!(
             output,
-            "#[rustfmt::skip]\npub const {constant}: ContractOperation = ContractOperation::new(\n    \"{}\",\n    HttpMethod::{},\n    \"{}\",\n    {},\n    {},\n);\n\n",
+            "#[rustfmt::skip]\npub const {constant}: ContractOperation = ContractOperation::new(\n    {:?},\n    HttpMethod::{},\n    {:?},\n    {},\n    {},\n);\n\n",
             operation.operation_id,
             method_variant(operation.method),
             operation.path,
@@ -46,6 +92,7 @@ pub fn generate_rust(document: &ContractDocument) -> String {
             operation.idempotent,
         )
         .expect("writing to String cannot fail");
+        output.push_str(&render_authorization_policy(document, operation));
     }
     output.push_str("#[rustfmt::skip]\npub static OPERATIONS: &[ContractOperation] = &[\n");
     for operation in &document.operations {
@@ -56,13 +103,106 @@ pub fn generate_rust(document: &ContractDocument) -> String {
     output
 }
 
-fn render_schema(name: &str, schema: &Value) -> String {
+fn render_authorization_policy(
+    document: &ContractDocument,
+    operation: &crate::OwnedOperation,
+) -> String {
+    let method = operation.method.as_str().to_ascii_lowercase();
+    let operation_value = document
+        .raw
+        .pointer(&format!(
+            "/paths/{}/{method}",
+            escape_json_pointer(&operation.path)
+        ))
+        .and_then(Value::as_object);
+    let security = operation_value
+        .and_then(|operation| operation.get("security"))
+        .or_else(|| document.raw.get("security"));
+    let mut anonymous = security.is_none();
+    let mut alternatives = Vec::new();
+    if let Some(requirements) = security.and_then(Value::as_array) {
+        anonymous |= requirements.is_empty();
+        for requirement in requirements.iter().filter_map(Value::as_object) {
+            if requirement.is_empty() {
+                anonymous = true;
+                continue;
+            }
+            let mut scopes = requirement
+                .values()
+                .filter_map(Value::as_array)
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>();
+            scopes.sort_unstable();
+            scopes.dedup();
+            alternatives.push(scopes);
+        }
+    }
+    alternatives.sort();
+    alternatives.dedup();
+
+    let mut permissions = operation_value
+        .and_then(|operation| operation.get("x-minco-auth"))
+        .and_then(Value::as_object)
+        .and_then(|policy| policy.get("permissions"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    permissions.sort_unstable();
+    permissions.dedup();
+
+    let mut output = format!(
+        "#[rustfmt::skip]\npub const {}_AUTHORIZATION: ContractAuthorizationPolicy = ContractAuthorizationPolicy::new(\n    {:?},\n    {anonymous},\n    &[{}],\n    &[\n",
+        screaming_snake(&operation.operation_id),
+        operation.operation_id,
+        permissions
+            .iter()
+            .map(|permission| format!("{permission:?}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    for scopes in alternatives {
+        writeln!(
+            output,
+            "        ContractAuthorizationAlternative::new(&[{}]),",
+            scopes
+                .iter()
+                .map(|scope| format!("{scope:?}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+        .expect("writing to String cannot fail");
+    }
+    output.push_str("    ],\n);\n\n");
+    output
+}
+
+fn escape_json_pointer(value: &str) -> String {
+    value.replace('~', "~0").replace('/', "~1")
+}
+
+fn render_schema(
+    name: &str,
+    schema: &Value,
+    schemas: &serde_json::Map<String, Value>,
+    request_reachable: bool,
+) -> String {
     if schema.get("type").and_then(Value::as_str) == Some("string") && schema.get("enum").is_some()
     {
-        return render_enum(name, schema);
+        let mut output = render_enum(name, schema);
+        if request_reachable {
+            output.push_str(&render_empty_validation(name));
+        }
+        return output;
     }
     if schema.get("type").and_then(Value::as_str) == Some("object") {
-        return render_struct(name, schema);
+        let mut output = render_struct(name, schema, request_reachable);
+        if request_reachable {
+            output.push_str(&render_object_validation(name, schema, schemas));
+        }
+        return output;
     }
     format!("pub type {name} = {};\n", rust_type(schema, false))
 }
@@ -80,7 +220,7 @@ fn render_enum(name: &str, schema: &Value) -> String {
         if let Some(value) = value.as_str() {
             writeln!(
                 output,
-                "    #[serde(rename = \"{value}\")]\n    {},",
+                "    #[serde(rename = {value:?})]\n    {},",
                 pascal_case(value)
             )
             .expect("writing to String cannot fail");
@@ -90,7 +230,7 @@ fn render_enum(name: &str, schema: &Value) -> String {
     output
 }
 
-fn render_struct(name: &str, schema: &Value) -> String {
+fn render_struct(name: &str, schema: &Value, generated_request_validation: bool) -> String {
     let required: BTreeSet<_> = schema
         .get("required")
         .and_then(Value::as_array)
@@ -110,11 +250,23 @@ fn render_struct(name: &str, schema: &Value) -> String {
         for property_name in names {
             let rust_name = rust_field_name(property_name);
             if rust_name != *property_name {
-                writeln!(output, "    #[serde(rename = \"{property_name}\")]")
+                writeln!(output, "    #[serde(rename = {property_name:?})]")
                     .expect("writing to String cannot fail");
             }
             let is_required = required.contains(property_name.as_str());
-            if !is_required {
+            if is_required {
+                if generated_request_validation && schema_is_nullable(&properties[property_name]) {
+                    output.push_str(
+                        "    #[serde(deserialize_with = \"minco_contract::deserialize_required_nullable\")]\n",
+                    );
+                }
+            } else if generated_request_validation
+                && !schema_is_nullable(&properties[property_name])
+            {
+                output.push_str(
+                    "    #[serde(\n        default,\n        deserialize_with = \"deserialize_optional_non_null\",\n        skip_serializing_if = \"Option::is_none\"\n    )]\n",
+                );
+            } else {
                 output
                     .push_str("    #[serde(default, skip_serializing_if = \"Option::is_none\")]\n");
             }
@@ -128,6 +280,465 @@ fn render_struct(name: &str, schema: &Value) -> String {
     }
     output.push_str("}\n");
     output
+}
+
+fn schema_is_nullable(schema: &Value) -> bool {
+    schema
+        .get("type")
+        .and_then(Value::as_array)
+        .is_some_and(|types| types.iter().any(|value| value.as_str() == Some("null")))
+}
+
+fn generated_request_schema_names(document: &ContractDocument) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    let Some(paths) = document.raw.get("paths").and_then(Value::as_object) else {
+        return names;
+    };
+    for path_item in paths.values().filter_map(Value::as_object) {
+        collect_parameter_schema_names(&document.raw, path_item.get("parameters"), &mut names);
+        for method in [
+            "get", "put", "post", "delete", "options", "head", "patch", "trace",
+        ] {
+            let Some(operation) = path_item.get(method).and_then(Value::as_object) else {
+                continue;
+            };
+            collect_parameter_schema_names(&document.raw, operation.get("parameters"), &mut names);
+            let Some(request_body) = operation.get("requestBody") else {
+                continue;
+            };
+            let request_body =
+                resolve_generation_reference(&document.raw, request_body).unwrap_or(request_body);
+            let Some(content) = request_body.get("content").and_then(Value::as_object) else {
+                continue;
+            };
+            for (media_type, media) in content {
+                if (media_type == "application/json" || media_type.ends_with("+json"))
+                    && let Some(schema) = media.get("schema")
+                {
+                    collect_schema_names(&document.raw, schema, &mut names);
+                }
+            }
+        }
+    }
+    names
+}
+
+fn collect_parameter_schema_names(
+    document: &Value,
+    parameters: Option<&Value>,
+    names: &mut BTreeSet<String>,
+) {
+    let Some(parameters) = parameters.and_then(Value::as_array) else {
+        return;
+    };
+    for parameter in parameters {
+        let parameter = resolve_generation_reference(document, parameter).unwrap_or(parameter);
+        if matches!(
+            parameter.get("in").and_then(Value::as_str),
+            Some("path" | "query")
+        ) && let Some(schema) = parameter.get("schema")
+        {
+            collect_schema_names(document, schema, names);
+        }
+    }
+}
+
+fn collect_schema_names(document: &Value, schema: &Value, names: &mut BTreeSet<String>) {
+    let Some(schema) = schema.as_object() else {
+        return;
+    };
+    if let Some(reference) = schema.get("$ref").and_then(Value::as_str)
+        && let Some(name) = reference.strip_prefix("#/components/schemas/")
+        && names.insert(name.to_owned())
+        && let Some(target) = document.pointer(&reference[1..])
+    {
+        collect_schema_names(document, target, names);
+    }
+    if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+        for property in properties.values() {
+            collect_schema_names(document, property, names);
+        }
+    }
+    if let Some(items) = schema.get("items") {
+        collect_schema_names(document, items, names);
+    }
+}
+
+fn resolve_generation_reference<'a>(document: &'a Value, value: &'a Value) -> Option<&'a Value> {
+    let reference = value.get("$ref")?.as_str()?;
+    reference
+        .strip_prefix('#')
+        .and_then(|pointer| document.pointer(pointer))
+}
+
+fn render_empty_validation(name: &str) -> String {
+    format!(
+        "\nimpl ContractValidate for {name} {{\n    fn validate_contract(&self, _errors: &mut ContractValidationErrors) {{}}\n}}\n"
+    )
+}
+
+fn render_object_validation(
+    name: &str,
+    schema: &Value,
+    schemas: &serde_json::Map<String, Value>,
+) -> String {
+    let required = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect::<BTreeSet<_>>();
+    let mut output = format!(
+        "\nimpl ContractValidate for {name} {{\n    fn validate_contract(&self, errors: &mut ContractValidationErrors) {{\n"
+    );
+    if schema.get("minProperties").is_some() || schema.get("maxProperties").is_some() {
+        let required_count = required.len();
+        let mut terms = Vec::new();
+        if required_count > 0 {
+            terms.push(required_count.to_string());
+        }
+        if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+            let mut names = properties.keys().collect::<Vec<_>>();
+            names.sort();
+            for property_name in names {
+                if !required.contains(property_name.as_str()) {
+                    terms.push(format!(
+                        "usize::from(self.{}.is_some())",
+                        rust_field_name(property_name)
+                    ));
+                }
+            }
+        }
+        let expression = if terms.is_empty() {
+            "0".to_owned()
+        } else {
+            terms.join(" + ")
+        };
+        if expression.len() + "        let property_count = ;".len() > 100 {
+            writeln!(
+                output,
+                "        let property_count =\n            {expression};"
+            )
+            .expect("writing to String cannot fail");
+        } else {
+            writeln!(output, "        let property_count = {expression};")
+                .expect("writing to String cannot fail");
+        }
+        if let Some(minimum) = schema.get("minProperties").and_then(Value::as_u64) {
+            writeln!(
+                output,
+                "        if property_count < {minimum} {{\n            errors.add(\"must contain at least {minimum} properties\");\n        }}"
+            )
+            .expect("writing to String cannot fail");
+        }
+        if let Some(maximum) = schema.get("maxProperties").and_then(Value::as_u64) {
+            writeln!(
+                output,
+                "        if property_count > {maximum} {{\n            errors.add(\"must contain no more than {maximum} properties\");\n        }}"
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+    if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+        let mut names = properties.keys().collect::<Vec<_>>();
+        names.sort();
+        for property_name in names {
+            let property = &properties[property_name];
+            let rust_name = rust_field_name(property_name);
+            let optional = !required.contains(property_name.as_str());
+            let nullable = schema_is_nullable(property);
+            if optional || nullable {
+                writeln!(
+                    output,
+                    "        if let Some(value) = &self.{rust_name} {{\n            errors.at_field({property_name:?}, |errors| {{"
+                )
+                .expect("writing to String cannot fail");
+                render_value_validation(&mut output, property, "value", schemas, 16);
+                output.push_str("            });\n        }");
+                if null_is_disallowed_by_value_assertions(property) {
+                    writeln!(
+                        output,
+                        " else {{\n            errors.at_field({property_name:?}, |errors| errors.add(\"must not be null\"));\n        }}"
+                    )
+                    .expect("writing to String cannot fail");
+                } else {
+                    output.push('\n');
+                }
+            } else {
+                writeln!(
+                    output,
+                    "        errors.at_field({property_name:?}, |errors| {{\n            let value = &self.{rust_name};"
+                )
+                .expect("writing to String cannot fail");
+                render_value_validation(&mut output, property, "value", schemas, 12);
+                output.push_str("        });\n");
+            }
+        }
+    }
+    output.push_str("    }\n}\n");
+    output
+}
+
+fn render_value_validation(
+    output: &mut String,
+    schema: &Value,
+    value: &str,
+    schemas: &serde_json::Map<String, Value>,
+    indent: usize,
+) {
+    let Some(schema) = schema.as_object() else {
+        return;
+    };
+    let padding = " ".repeat(indent);
+    if let Some(reference) = schema.get("$ref").and_then(Value::as_str)
+        && let Some(name) = reference.strip_prefix("#/components/schemas/")
+        && let Some(target) = schemas.get(name)
+    {
+        if target.get("type").and_then(Value::as_str) == Some("object") {
+            writeln!(output, "{padding}{value}.validate_contract(errors);")
+                .expect("writing to String cannot fail");
+        } else if !(target.get("type").and_then(Value::as_str) == Some("string")
+            && target.get("enum").is_some())
+        {
+            render_value_validation(output, target, value, schemas, indent);
+        }
+    }
+
+    if schema_type(schema) == Some("string") {
+        let minimum = schema.get("minLength").and_then(Value::as_u64);
+        let maximum = schema.get("maxLength").and_then(Value::as_u64);
+        if minimum.is_some() || maximum.is_some() {
+            writeln!(
+                output,
+                "{padding}let character_count = {value}.chars().count();"
+            )
+            .expect("writing to String cannot fail");
+        }
+        if let Some(minimum) = minimum {
+            writeln!(
+                output,
+                "{padding}if character_count < {minimum} {{\n{padding}    errors.add(\"must contain at least {minimum} characters\");\n{padding}}}"
+            )
+            .expect("writing to String cannot fail");
+        }
+        if let Some(maximum) = maximum {
+            writeln!(
+                output,
+                "{padding}if character_count > {maximum} {{\n{padding}    errors.add(\"must contain no more than {maximum} characters\");\n{padding}}}"
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+    if schema_type(schema) == Some("array") {
+        if let Some(minimum) = schema.get("minItems").and_then(Value::as_u64) {
+            if minimum == 1 {
+                writeln!(
+                    output,
+                    "{padding}if {value}.is_empty() {{\n{padding}    errors.add(\"must contain at least 1 item\");\n{padding}}}"
+                )
+                .expect("writing to String cannot fail");
+            } else {
+                writeln!(
+                    output,
+                    "{padding}if {value}.len() < {minimum} {{\n{padding}    errors.add(\"must contain at least {minimum} items\");\n{padding}}}"
+                )
+                .expect("writing to String cannot fail");
+            }
+        }
+        if let Some(maximum) = schema.get("maxItems").and_then(Value::as_u64) {
+            writeln!(
+                output,
+                "{padding}if {value}.len() > {maximum} {{\n{padding}    errors.add(\"must contain no more than {maximum} items\");\n{padding}}}"
+            )
+            .expect("writing to String cannot fail");
+        }
+        if let Some(items) = schema.get("items") {
+            let iterator = schema.get("maxItems").and_then(Value::as_u64).map_or_else(
+                || format!("{value}.iter().enumerate()"),
+                |maximum| format!("{value}.iter().take({maximum}).enumerate()"),
+            );
+            writeln!(
+                output,
+                "{padding}for (index, item) in {iterator} {{\n{padding}    if errors.is_truncated() {{\n{padding}        break;\n{padding}    }}\n{padding}    errors.at_index(index, |errors| {{"
+            )
+            .expect("writing to String cannot fail");
+            render_value_validation(output, items, "item", schemas, indent + 8);
+            writeln!(output, "{padding}    }});\n{padding}}}")
+                .expect("writing to String cannot fail");
+        }
+    }
+    render_numeric_validation(output, schema, value, &padding);
+    render_scalar_value_validation(output, schema, value, &padding);
+}
+
+fn schema_type(schema: &serde_json::Map<String, Value>) -> Option<&str> {
+    match schema.get("type") {
+        Some(Value::String(value)) => Some(value),
+        Some(Value::Array(values)) => values
+            .iter()
+            .filter_map(Value::as_str)
+            .find(|v| *v != "null"),
+        _ => None,
+    }
+}
+
+fn render_numeric_validation(
+    output: &mut String,
+    schema: &serde_json::Map<String, Value>,
+    value: &str,
+    padding: &str,
+) {
+    let Some(numeric_type @ ("integer" | "number")) = schema_type(schema) else {
+        return;
+    };
+    for (keyword, operator, message) in [
+        ("minimum", "<", "must be greater than or equal to"),
+        ("maximum", ">", "must be less than or equal to"),
+        ("exclusiveMinimum", "<=", "must be greater than"),
+        ("exclusiveMaximum", ">=", "must be less than"),
+    ] {
+        if let Some(bound) = schema.get(keyword).and_then(Value::as_number) {
+            if numeric_type == "integer" {
+                match integer_bound_check(schema, keyword, value, bound) {
+                    IntegerBoundCheck::AlwaysFails => {
+                        writeln!(output, "{padding}errors.add(\"{message} {bound}\");")
+                            .expect("writing to String cannot fail");
+                    }
+                    IntegerBoundCheck::NeverFails => {}
+                    IntegerBoundCheck::Comparison(condition) => {
+                        writeln!(
+                            output,
+                            "{padding}if {condition} {{\n{padding}    errors.add(\"{message} {bound}\");\n{padding}}}"
+                        )
+                        .expect("writing to String cannot fail");
+                    }
+                }
+            } else {
+                writeln!(
+                    output,
+                    "{padding}if *{value} {operator} {bound} {{\n{padding}    errors.add(\"{message} {bound}\");\n{padding}}}"
+                )
+                .expect("writing to String cannot fail");
+            }
+        }
+    }
+}
+
+enum IntegerBoundCheck {
+    AlwaysFails,
+    NeverFails,
+    Comparison(String),
+}
+
+fn integer_bound_check(
+    schema: &serde_json::Map<String, Value>,
+    keyword: &str,
+    value: &str,
+    bound: &serde_json::Number,
+) -> IntegerBoundCheck {
+    let rounded = if let Some(value) = bound.as_i64() {
+        i128::from(value)
+    } else if let Some(value) = bound.as_u64() {
+        i128::from(value)
+    } else {
+        unreachable!("generated integer bounds are validated as whole 64-bit values")
+    };
+    let (minimum, maximum) = if schema.get("format").and_then(Value::as_str) == Some("int32") {
+        (i128::from(i32::MIN), i128::from(i32::MAX))
+    } else {
+        (i128::from(i64::MIN), i128::from(i64::MAX))
+    };
+    let operator = match keyword {
+        "minimum" => "<",
+        "maximum" => ">",
+        "exclusiveMinimum" => "<=",
+        "exclusiveMaximum" => ">=",
+        _ => unreachable!("validated numeric keyword"),
+    };
+    let always_fails = match operator {
+        "<" => rounded > maximum,
+        ">" => rounded < minimum,
+        "<=" => rounded >= maximum,
+        ">=" => rounded <= minimum,
+        _ => unreachable!("validated integer comparison"),
+    };
+    if always_fails {
+        return IntegerBoundCheck::AlwaysFails;
+    }
+    let never_fails = match operator {
+        "<" => rounded <= minimum,
+        ">" => rounded >= maximum,
+        "<=" => rounded < minimum,
+        ">=" => rounded > maximum,
+        _ => unreachable!("validated integer comparison"),
+    };
+    if never_fails {
+        return IntegerBoundCheck::NeverFails;
+    }
+    IntegerBoundCheck::Comparison(format!("i128::from(*{value}) {operator} {rounded}"))
+}
+
+fn render_scalar_value_validation(
+    output: &mut String,
+    schema: &serde_json::Map<String, Value>,
+    value: &str,
+    padding: &str,
+) {
+    if let Some(values) = schema.get("enum").and_then(Value::as_array) {
+        let comparisons = values
+            .iter()
+            .filter(|candidate| !candidate.is_null())
+            .map(|candidate| scalar_comparison(schema_type(schema), value, candidate))
+            .collect::<Vec<_>>();
+        if comparisons.is_empty() {
+            writeln!(output, "{padding}errors.add(\"must be an allowed value\");")
+                .expect("writing to String cannot fail");
+        } else {
+            writeln!(
+                output,
+                "{padding}if !({}) {{\n{padding}    errors.add(\"must be an allowed value\");\n{padding}}}",
+                comparisons.join(" || ")
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+    if let Some(constant) = schema.get("const") {
+        if constant.is_null() {
+            writeln!(
+                output,
+                "{padding}errors.add(\"must equal the required value\");"
+            )
+            .expect("writing to String cannot fail");
+        } else {
+            writeln!(
+                output,
+                "{padding}if !({}) {{\n{padding}    errors.add(\"must equal the required value\");\n{padding}}}",
+                scalar_comparison(schema_type(schema), value, constant)
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+}
+
+fn scalar_comparison(schema_type: Option<&str>, value: &str, candidate: &Value) -> String {
+    match (schema_type, candidate) {
+        (Some("string"), Value::String(candidate)) => {
+            format!("{value}.as_str() == {candidate:?}")
+        }
+        (_, candidate) => format!("*{value} == {candidate}"),
+    }
+}
+
+fn null_is_disallowed_by_value_assertions(schema: &Value) -> bool {
+    if !schema_is_nullable(schema) {
+        return false;
+    }
+    schema
+        .get("enum")
+        .and_then(Value::as_array)
+        .is_some_and(|values| !values.iter().any(Value::is_null))
+        || schema.get("const").is_some_and(|value| !value.is_null())
 }
 
 fn rust_type(schema: &Value, optional: bool) -> String {
@@ -261,6 +872,9 @@ fn pascal_case(value: &str) -> String {
     if output.is_empty() {
         output.push_str("Value");
     } else if output.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        output.insert_str(0, "Value");
+    }
+    if is_rust_keyword(&output) {
         output.insert_str(0, "Value");
     }
     output

@@ -1,6 +1,6 @@
 schema = 1
-published_baseline = "1.9.0"
-reviewed_release_commit = "8922aab5c9ed6770d8df7f5d906f768152d3e06c"
+published_baseline = "1.11.0"
+reviewed_release_commit = "81640a6b25924be115ceb11cdec1fd2a42a71381"
 default_profile = "aws-http-api-lambda"
 
 [policy]
@@ -54,8 +54,8 @@ documentation_paths = [
 ]
 test_commands = [
   "cargo test -p minco-plan --locked",
-  "scripts/release/candidate-load.sh --output verification/1.10-candidate-load.json",
-  "scripts/release/candidate-recovery.sh --output verification/1.10-candidate-recovery.json",
+  "scripts/release/candidate-load.sh --output verification/1.11-candidate-load.json",
+  "scripts/release/candidate-recovery.sh --output verification/1.11-candidate-recovery.json",
 ]
 decision = "The default AWS web profile remains API Gateway HTTP API plus native ARM64 Lambda because it preserves zero provisioned compute while retaining JWT authorizers, exact CORS, candidate-stage verification, and guarded alias promotion."
 blockers = []

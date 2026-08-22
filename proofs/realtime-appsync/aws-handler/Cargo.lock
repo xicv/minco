@@ -1302,7 +1302,7 @@ dependencies = [
 
 [[package]]
 name = "minco-aws-adapters"
-version = "1.8.0"
+version = "1.11.0"
 dependencies = [
  "async-trait",
  "aws-credential-types",
@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "minco-core"
-version = "1.8.0"
+version = "1.11.0"
 dependencies = [
  "semver",
  "serde",
@@ -1334,7 +1334,7 @@ dependencies = [
 
 [[package]]
 name = "minco-plugin-realtime"
-version = "1.8.0"
+version = "1.11.0"
 dependencies = [
  "async-trait",
  "minco-core",

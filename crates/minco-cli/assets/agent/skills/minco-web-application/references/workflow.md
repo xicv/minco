@@ -58,3 +58,9 @@ reflect credentials into compressed bodies.
 At the 1.10 Ticketing support-entry boundary, pass only bounded untrusted page
 context, use fragment-only handoffs, validate the exact portal origin and
 message shape, and keep modal focus and tab fallback behavior accessible.
+
+At the 1.11 contract-enforced request boundary, keep the OpenAPI document as
+the request-shape authority. Opt in explicitly, regenerate rather than editing
+generated DTOs, use the Minco typed extractors once, and call generated coarse
+authorization before the application use case. Business authorization,
+tenancy, resource ownership and persistence checks remain application work.

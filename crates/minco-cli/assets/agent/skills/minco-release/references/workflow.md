@@ -45,3 +45,27 @@ At the 1.8 resumable object transfer boundary, qualify the maximum multipart
 manifest, range/cache validators, quarantine and structural cost claims against
 the immutable 1.7 baseline. Keep local, hosted, registry, provider, deployment
 and production evidence as separate states.
+
+At the 1.9 API Gateway traffic policy boundary, qualify managed-stage and
+operation-specific limits against canonical operation IDs and fail closed on
+ambiguous routes or stages without claiming a request-path limiter.
+
+At the 1.9 negotiated response compression boundary, verify the threshold,
+exclusions, no-recompression rule and Lambda binary response path without
+promoting local fixtures to hosted performance evidence.
+
+At the 1.10 Ticketing support-entry boundary, qualify the complete 36-package
+family, frozen Ticketing manual and cumulative nine-skill projection. Treat
+`minco-interaction` and `minco-plugin-ticketing` as first-publication crates:
+publish the complete family through the documented short-lived manual
+credential path, verify every exact registry record independently, and only
+then configure their future trusted publishers. This publication does not
+prove a hosted portal, mailbox, provider, deployment or production workflow.
+
+At the 1.11 contract-enforced request boundary, qualify the additive public
+surface against immutable 1.10.0, freeze the generated-validation and HTTP
+boundary documentation, and require cumulative skill coverage for structural
+`400`, semantic `422`, coarse authorization, request-ID, streamed-limit and
+timeout behavior. The release adds no crate ownership boundary or provider
+resource; local, hosted Linux, registry, docs.rs, Pages, deployment and runtime
+states remain independent.

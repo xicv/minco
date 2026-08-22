@@ -1,24 +1,57 @@
-# Minco 1.10.0 Ticketing candidate handoff
+# Minco 1.11.0 release handoff
 
-Date: 2026-08-19
-Published baseline: `1.9.0`
-Current workspace version: `1.10.0`
-Workspace release state: `candidate`
-Published `1.9.0` source: `8922aab5c9ed6770d8df7f5d906f768152d3e06c`
-Published source-tree digest: `b91dce1243c5e74ffbf3c11b168c8ed0689de397`
-Published release task: `M14-T39`
-Latest release task: `M14-T39` (`complete`)
-Active candidate task: `M14-T40`
+Date: 2026-08-22
+Published baseline: `1.11.0`
+Current workspace version: `1.11.0`
+Workspace release state: `published`
+Published `1.11.0` source: `81640a6b25924be115ceb11cdec1fd2a42a71381`
+Published source-tree digest: `85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`
+Published release task: `M14-T43`
+Latest release task: `M14-T43` (`active`)
+Completed candidate task: `M14-T42`
 Active evidence tasks: `M14-T10`, `M14-T20`
 
-## Active 1.10.0 Ticketing candidate
+## Published 1.11.0 request-boundary release
 
-M14-T40 introduces the public `minco-interaction` and
-`minco-plugin-ticketing` packages, preserves Feedback compatibility, and adds
-the portal-first launcher plus atomic handoff/persistence slice. The candidate
-family contains 36 publishable packages; the two new package names remain
-unowned and unpublished. No tag, registry upload, release, deployment, provider
-request, or production mutation is implied.
+M14-T43 advanced the existing 36-package family to `1.11.0`, froze the manual
+under `docs-site/1.11.0/`, and updated all nine packaged Codex/Claude skills for
+the opt-in generated request-validation boundary. The uninterrupted local
+release matrix passed for source digest
+`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`,
+independent review found no issues, and PR #183 merged the exact reviewed tree
+as `81640a6b25924be115ceb11cdec1fd2a42a71381`.
+
+Exact-main hosted run `32489926320`, authentication-only run `32490523716` and
+guarded publication run `32490558619` passed. Immutable tag `v1.11.0`, all 36
+exact non-yanked registry versions and the GitHub release are independently
+verified. Stable documentation PR #184 merged as
+`6e2e4b655e0110929102d2aa6b1460f1a38c0fbd` with exact reviewed-tree equality;
+Pages run `32497158350` passed on that exact commit, and the root plus frozen
+`1.11.0` manual returned HTTP 200 with `1.11.0` marked latest stable. docs.rs
+remains a separate queued state: at `2026-08-21T15:26:11Z` all 36 exact jobs
+were present in the overloaded build queue at priority `-1`, while 0/36 exact
+rustdoc routes were available. No AWS, application-provider, deployment,
+database or production mutation is implied.
+
+## Published 1.10.0 Ticketing release
+
+PR #180 merged the exact locally qualified candidate as
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`; its Git tree is identical to
+candidate commit `fcf0cf88d541bb1f93e1b89300fe0c2de0020f27`. Exact-main hosted run
+`32392228228` passed before immutable tag `v1.10.0` was created. Manual
+authenticated publication crossed the two new-name ownership boundaries and,
+after two crates.io 429 responses, resumed only the independently proven
+missing packages. All 36 exact versions are present and non-yanked, and the
+GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.10.0>.
+
+The stable 1.10 manual and repository truth are published. Exactly one reviewed
+future trusted-publisher entry was created and read back for each new crate:
+repository `xicv/minco`, workflow `publish-crates.yml`, environment
+`crates-io`. Exact merged-main Pages run `32476082843`, the stable versioned
+site and all 36 exact docs.rs routes passed independently. No AWS or live
+application-provider request, application deployment or production mutation is
+implied.
 
 ## Completed 1.9.0 traffic and compression release
 

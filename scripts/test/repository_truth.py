@@ -113,6 +113,17 @@ class RepositoryTruthTests(unittest.TestCase):
         validator.validate_agent_release_features()
         return {finding.code for finding in validator.findings}
 
+    def deployment_codes(self) -> set[str]:
+        validator = Validator(self.root)
+        validator.validate_contract()
+        validator.validate_deployment_artifacts()
+        return {finding.code for finding in validator.findings}
+
+    def data_codes(self) -> set[str]:
+        validator = Validator(self.root)
+        validator.validate_data_files()
+        return {finding.code for finding in validator.findings}
+
     def make_unpublished_candidate(self) -> None:
         if RELEASE_STATE == "candidate":
             return
@@ -618,6 +629,29 @@ class RepositoryTruthTests(unittest.TestCase):
             / "proofs/realtime-pusher/appsync-plan/generated/template.yaml"
         )
         self.assertFalse(SOURCE_MANIFEST.included(self.root, generated_template))
+
+    def test_deployment_template_duplicate_route_key_is_rejected(self) -> None:
+        template = self.root / "infra/aws/generated/template.yaml"
+        source = template.read_text()
+        route = "          '/orders':\n"
+        template.write_text(source.replace(route, route + route, 1))
+        self.assertIn("STATIC-DATA-001", self.data_codes())
+
+    def test_deployment_template_route_inventory_has_a_stable_code(self) -> None:
+        template = self.root / "infra/aws/generated/template.yaml"
+        template.write_text(
+            template.read_text().replace(
+                "operationId: 'deleteOrder'",
+                "operationId: 'wrongDeleteOrder'",
+                1,
+            )
+        )
+        self.assertIn("STATIC-SAM-006", self.deployment_codes())
+
+    def test_deployment_template_exposed_headers_have_a_stable_code(self) -> None:
+        template = self.root / "infra/aws/generated/template.yaml"
+        template.write_text(template.read_text().replace("          - 'etag'\n", "", 1))
+        self.assertIn("STATIC-SAM-007", self.deployment_codes())
 
     def test_source_manifest_excludes_release_bound_generated_evidence(self) -> None:
         generated = [

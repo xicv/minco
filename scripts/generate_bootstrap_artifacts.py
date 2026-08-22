@@ -16,6 +16,16 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 HTTP_METHODS = ("get", "post", "put", "patch", "delete", "options", "head")
+DEFAULT_EXPOSED_HEADERS = [
+    "deprecation",
+    "etag",
+    "link",
+    "location",
+    "retry-after",
+    "sunset",
+    "www-authenticate",
+    "x-request-id",
+]
 
 
 def allows_anonymous(security: object) -> bool:
@@ -46,6 +56,7 @@ def main() -> None:
             )
     routes.sort(key=lambda route: route["operation_id"])
     plan = dict(config)
+    plan.setdefault("exposed_headers", DEFAULT_EXPOSED_HEADERS.copy())
     plan["routes"] = routes
     output = ROOT / "infra/aws/generated/plan.json"
     if output.is_file():
@@ -153,6 +164,8 @@ def render_sam(plan: dict, audit_enabled: bool = False) -> str:
         ]
     )
     lines.extend(f"          - {quote(header)}" for header in plan["allowed_headers"])
+    lines.append("        ExposeHeaders:")
+    lines.extend(f"          - {quote(header)}" for header in plan["exposed_headers"])
     lines.append("        AllowOrigins:")
     lines.extend(f"          - {quote(origin)}" for origin in plan["allowed_origins"])
     auth = plan["auth"]
@@ -179,10 +192,14 @@ def render_sam(plan: dict, audit_enabled: bool = False) -> str:
             "        paths:",
         ]
     )
+    routes_by_path: dict[str, list[dict]] = {}
     for route in plan["routes"]:
-        lines.extend(
-            [
-                f"          {quote(route['path'])}:",
+        routes_by_path.setdefault(route["path"], []).append(route)
+    for path in sorted(routes_by_path):
+        lines.append(f"          {quote(path)}:")
+        for route in routes_by_path[path]:
+            lines.extend(
+                [
                 f"            {route['method'].lower()}:",
                 f"              operationId: {quote(route['operation_id'])}",
                 "              responses:",
@@ -193,18 +210,18 @@ def render_sam(plan: dict, audit_enabled: bool = False) -> str:
                 "                payloadFormatVersion: '2.0'",
                 "                type: aws_proxy",
                 "                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunction}:${!stageVariables.lambdaAlias}/invocations'",
-            ]
-        )
-        if auth["kind"] == "jwt":
-            if route["authenticated"]:
-                lines.extend(
-                    [
-                        "              security:",
-                        "                - JwtAuthorizer: []",
-                    ]
-                )
-            else:
-                lines.append("              security: []")
+                ]
+            )
+            if auth["kind"] == "jwt":
+                if route["authenticated"]:
+                    lines.extend(
+                        [
+                            "              security:",
+                            "                - JwtAuthorizer: []",
+                        ]
+                    )
+                else:
+                    lines.append("              security: []")
     lines.extend(
         [
             "  ApiFunction:",

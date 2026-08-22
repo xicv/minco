@@ -57,7 +57,7 @@
       "minco-plugin-payments-waffo",
       "minco-plugin-ticketing"
     ],
-    "workspace_version": "1.10.0",
+    "workspace_version": "1.11.0",
     "workspace_packages": 41,
     "publishable_packages": 36,
     "private_packages": 5,

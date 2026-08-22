@@ -80,6 +80,29 @@ test('published stable and next expose browser and native client guidance', asyn
   ).toBeVisible()
 })
 
+test('candidate and next expose the contract-enforced request boundary', async ({
+  page
+}) => {
+  for (const [path, marker] of [
+    ['./next/guides/contract-request-validation', 'ValidatedJson'],
+    [`${workspacePath}guides/contract-request-validation`, 'ValidatedJson'],
+    ['./next/reference/http-request-boundary', 'validation_failed'],
+    [`${workspacePath}reference/http-request-boundary`, 'validation_failed']
+  ]) {
+    await page.goto(path)
+    await waitForHydration(page)
+    await expect(page.locator('main')).toContainText(marker)
+  }
+
+  await page.goto(`${workspacePath}reference/documentation-map`)
+  await expect(
+    page.getByRole('link', { name: 'Enforce request contracts' }).first()
+  ).toBeVisible()
+  await expect(
+    page.getByRole('link', { name: 'HTTP request boundary' }).first()
+  ).toBeVisible()
+})
+
 test('search includes current troubleshooting language and excludes frozen manuals', async ({
   page
 }) => {
@@ -91,31 +114,29 @@ test('search includes current troubleshooting language and excludes frozen manua
   await search.fill('stale ETag')
 
   const results = page.locator('.VPLocalSearchBox')
+  const resultLinkTo = (path: string) =>
+    results.locator(`[role="option"] > a[href*="${path}"]`)
   const currentSearchSegment = release.state === 'candidate' ? 'next' : release.stable
   await expect(
-    results.locator(`a[href*="/${currentSearchSegment}/guides/troubleshooting"]`).first()
+    resultLinkTo(`/${currentSearchSegment}/guides/troubleshooting`).first()
   ).toBeVisible()
 
   await search.fill('login')
   await expect(
-    results
-      .locator(`a[href*="/${currentSearchSegment}/guides/identity-and-sessions"]`)
-      .first()
+    resultLinkTo(`/${currentSearchSegment}/guides/identity-and-sessions`).first()
   ).toBeVisible()
 
   await search.fill('direct upload')
   await expect(
-    results
-      .locator(`a[href*="/${currentSearchSegment}/guides/files-and-static-sites"]`)
-      .first()
+    resultLinkTo(`/${currentSearchSegment}/guides/files-and-static-sites`).first()
   ).toBeVisible()
 
-  await expect(results.locator('a[href*="/0.5.0/"]')).toHaveCount(0)
-  await expect(results.locator('a[href*="/0.6.0/"]')).toHaveCount(0)
-  await expect(results.locator('a[href*="/1.0.0/"]')).toHaveCount(0)
+  await expect(resultLinkTo('/0.5.0/')).toHaveCount(0)
+  await expect(resultLinkTo('/0.6.0/')).toHaveCount(0)
+  await expect(resultLinkTo('/1.0.0/')).toHaveCount(0)
   if (release.state === 'candidate') {
-    await expect(results.locator(`a[href*="/${release.workspace}/"]`)).toHaveCount(0)
-    await expect(results.locator(`a[href*="/${release.stable}/"]`)).toHaveCount(0)
+    await expect(resultLinkTo(`/${release.workspace}/`)).toHaveCount(0)
+    await expect(resultLinkTo(`/${release.stable}/`)).toHaveCount(0)
   }
 })
 

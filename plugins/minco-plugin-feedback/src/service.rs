@@ -529,8 +529,12 @@ impl FeedbackService {
             input.context.environment = Some(binding.environment.clone());
         }
 
+        let interaction_uploads = uploads
+            .iter()
+            .map(minco_interaction::AttachmentUpload::from)
+            .collect::<Vec<_>>();
         self.attachment_policy()?
-            .validate_batch(&uploads)
+            .validate_batch(&interaction_uploads)
             .map_err(feedback_attachment_error)?;
 
         let mut thread = FeedbackThread::create(input)?;
@@ -825,8 +829,14 @@ impl FeedbackService {
             ),
         ]);
         attributes.insert("project_id".into(), self.config.project_id.clone());
+        let interaction_upload = minco_interaction::AttachmentUpload::from(&upload);
         let metadata = AttachmentService::new(self.objects.clone(), self.attachment_policy()?)
-            .store_small("feedback", &feedback_id.to_string(), &upload, attributes)
+            .store_small(
+                "feedback",
+                &feedback_id.to_string(),
+                &interaction_upload,
+                attributes,
+            )
             .await
             .map_err(feedback_attachment_error)?;
         let mut warnings = Vec::new();
@@ -894,7 +904,7 @@ impl FeedbackService {
             _ => {}
         }
         self.attachment_policy()?
-            .validate_upload(upload)
+            .validate_upload(&minco_interaction::AttachmentUpload::from(upload))
             .map_err(feedback_attachment_error)
     }
 
@@ -908,30 +918,30 @@ impl FeedbackService {
                 aggregate_bytes: self.config.max_http_body_bytes as u64,
             },
             [
-                (FeedbackAttachmentKind::Screenshot, "image/png"),
-                (FeedbackAttachmentKind::Screenshot, "image/jpeg"),
-                (FeedbackAttachmentKind::Screenshot, "image/gif"),
-                (FeedbackAttachmentKind::Screenshot, "image/webp"),
-                (FeedbackAttachmentKind::Screenshot, "image/avif"),
-                (FeedbackAttachmentKind::Audio, "audio/webm"),
-                (FeedbackAttachmentKind::Audio, "audio/mpeg"),
-                (FeedbackAttachmentKind::Audio, "audio/mp3"),
-                (FeedbackAttachmentKind::Audio, "audio/mp4"),
-                (FeedbackAttachmentKind::Audio, "audio/x-m4a"),
-                (FeedbackAttachmentKind::Audio, "audio/ogg"),
-                (FeedbackAttachmentKind::Audio, "audio/wav"),
-                (FeedbackAttachmentKind::Audio, "audio/x-wav"),
-                (FeedbackAttachmentKind::File, "application/pdf"),
-                (FeedbackAttachmentKind::File, "text/plain"),
-                (FeedbackAttachmentKind::File, "text/csv"),
-                (FeedbackAttachmentKind::File, "application/json"),
-                (FeedbackAttachmentKind::File, "application/zip"),
+                (minco_interaction::AttachmentKind::Screenshot, "image/png"),
+                (minco_interaction::AttachmentKind::Screenshot, "image/jpeg"),
+                (minco_interaction::AttachmentKind::Screenshot, "image/gif"),
+                (minco_interaction::AttachmentKind::Screenshot, "image/webp"),
+                (minco_interaction::AttachmentKind::Screenshot, "image/avif"),
+                (minco_interaction::AttachmentKind::Audio, "audio/webm"),
+                (minco_interaction::AttachmentKind::Audio, "audio/mpeg"),
+                (minco_interaction::AttachmentKind::Audio, "audio/mp3"),
+                (minco_interaction::AttachmentKind::Audio, "audio/mp4"),
+                (minco_interaction::AttachmentKind::Audio, "audio/x-m4a"),
+                (minco_interaction::AttachmentKind::Audio, "audio/ogg"),
+                (minco_interaction::AttachmentKind::Audio, "audio/wav"),
+                (minco_interaction::AttachmentKind::Audio, "audio/x-wav"),
+                (minco_interaction::AttachmentKind::File, "application/pdf"),
+                (minco_interaction::AttachmentKind::File, "text/plain"),
+                (minco_interaction::AttachmentKind::File, "text/csv"),
+                (minco_interaction::AttachmentKind::File, "application/json"),
+                (minco_interaction::AttachmentKind::File, "application/zip"),
                 (
-                    FeedbackAttachmentKind::File,
+                    minco_interaction::AttachmentKind::File,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 ),
                 (
-                    FeedbackAttachmentKind::File,
+                    minco_interaction::AttachmentKind::File,
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 ),
             ],
@@ -1187,7 +1197,7 @@ fn feedback_attachment_error(error: AttachmentError) -> FeedbackServiceError {
             actual,
             maximum,
         } => FeedbackServiceError::AttachmentTooLarge {
-            kind,
+            kind: kind.into(),
             actual: usize::try_from(actual).unwrap_or(usize::MAX),
             maximum: usize::try_from(maximum).unwrap_or(usize::MAX),
         },

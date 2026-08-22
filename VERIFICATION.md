@@ -1,23 +1,95 @@
 # Minco verification and release evidence
 
-Date: 2026-08-19
-Current workspace version: `1.10.0`
-Published baseline: `1.9.0`
-Workspace release state: `candidate`
+Date: 2026-08-22
+Current workspace version: `1.11.0`
+Published baseline: `1.11.0`
+Workspace release state: `published`
 Purpose: retain exact release evidence and distinguish source, hosted,
 registry, documentation and live-deployment proof.
 
+## M14-T43 `1.11.0` contract-enforced request release
+
+Release preparation started from merged main
+`fc6483ccb42f86a7247dd65e1500716ed7132313` after PR #170 and the 1.10
+publication-evidence closure merged with exact-tree proof. The release
+advances the same 36-package family and official descriptors in lock-step,
+freezes the contract-validation and HTTP request-boundary manual, and updates
+the cumulative nine-skill Codex/Claude bundle.
+
+The feature remains opt-in through
+`x-minco-request-validation: generated`. Generated typed extraction and coarse
+permission/scope policy do not replace application-owned tenancy, resource
+ownership, stored-state authorization or business invariants. No new crate,
+ownership boundary, workflow, AWS resource, provider request, deployment,
+database mutation or production operation is part of this release.
+The uninterrupted `scripts/ci/local-release.sh` qualification passed for
+source-tree digest
+`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`,
+including documentation, deterministic nine-skill workflows, SemVer, load and
+recovery, all 36 archives and consumers, Plan/SAM/Lambda artifacts, isolated
+PostgreSQL/Rustack and Orders E2E. Independent review reported no findings. PR
+#183 merged the exact reviewed tree as
+`81640a6b25924be115ceb11cdec1fd2a42a71381`; exact-main clean-Linux run
+`32489926320` passed.
+
+Immutable tag `v1.11.0` resolves to that main SHA. Authentication-only OIDC run
+`32490523716` and guarded publication run `32490558619` passed. The retained
+registry receipt reports all 36 exact versions present and non-yanked with no
+findings, and the GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.11.0>. Stable-documentation PR
+#184 merged as `6e2e4b655e0110929102d2aa6b1460f1a38c0fbd`; its Git tree equals the
+reviewed head tree `6b9e08d63264b4be1c997b6c565956c2c3d4d89a`. Exact-commit Pages run
+`32497158350` passed, and the root plus frozen `1.11.0` manual returned HTTP
+200 with `1.11.0` marked latest stable.
+
+docs.rs remains an explicitly separate external state. At
+`2026-08-21T15:26:11Z`, all 36 exact `1.11.0` jobs appeared in its overloaded
+build queue at priority `-1`; the service warned that queued builds could take
+up to a couple of days, and 0/36 exact rustdoc routes returned HTTP 200. That
+is queued propagation, not a documentation pass. No live provider request,
+AWS application deployment, database mutation or production operation
+occurred.
+
+## M14-T41 `1.10.0` Ticketing release
+
+The exact candidate source digest
+`258cb3c4e31138b7aa9b269ad9e198799ab1c9e63dc6b6f5b51c1b92f97e67c0`
+passed the uninterrupted full local release command with measured assurance,
+all 36 package archives and external consumers, SemVer checks for 34
+established packages plus the two-new-package boundary, deterministic
+Plan/SAM/Lambda artifacts, isolated PostgreSQL/Rustack, and Orders E2E. PR #180
+merged the same Git tree as
+`2075b60b8fe86c04d3c8289d71eb8293a39fc378`; hosted clean-Linux run
+`32392228228` passed on that exact `main` SHA.
+
+Immutable tag `v1.10.0` resolves to that merge commit. Manual authenticated
+publication uploaded 32 packages before crates.io rate-limited
+`minco-plugin-feedback`; independent registry proof identified exactly four
+missing packages. The first partial resume published Feedback, the new
+Ticketing crate, and `minco` before a second rate limit; a final one-package
+resume published `cargo-minco`. The retained
+`verification/1.10-published-release-validation.json` reports status `ok`, zero
+errors and warnings, and all 36 exact versions present and non-yanked. The
+GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.10.0>.
+
+The two new crate names are owned. An authenticated, read-before-write crates.io
+API reconciliation found no trusted-publisher entry for either new crate, then
+created and read back IDs `17250` (`minco-interaction`) and `17251`
+(`minco-plugin-ticketing`) with repository `xicv/minco`, workflow
+`publish-crates.yml` and environment `crates-io`; the credential was not
+printed or committed. Exact merged-main Pages run `32476082843` passed on
+`9e9013bca378716c8131c23b4d547883231f7f1c`, the stable versioned site returned
+HTTP 200, and all 36 exact docs.rs library routes independently returned HTTP
+200. No live application-provider request, AWS application deployment or
+production mutation occurred.
+
 ## M14-T40 `1.10.0` Ticketing candidate
 
-The candidate adds `minco-interaction` and `minco-plugin-ticketing` as the 35th
-and 36th publishable packages. Their crates.io ownership and trusted-publisher
-configuration are not established or claimed. Local qualification covers the
-provider-neutral interaction boundary, Feedback compatibility, the Ticketing
-domain and HTTP contract, atomic memory/SQLite handoff consumption, idempotent
-external ingress, plugin conformance, and the packaged browser launcher.
-
-No registry upload, tag, GitHub release, hosted run, provider request,
-deployment, or production mutation is part of this candidate task.
+M14-T40 prepared the provider-neutral interaction boundary, Feedback
+compatibility, Ticketing domain and HTTP contract, atomic memory/SQLite handoff
+consumption, idempotent external ingress, plugin conformance, and packaged
+browser launcher that M14-T41 subsequently released.
 
 ## M14-T39 `1.9.0` traffic and compression release
 

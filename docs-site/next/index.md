@@ -7,7 +7,7 @@ description: Unreleased Minco documentation for contract-to-cloud Rust applicati
 
 <p class="doc-kicker">Current development manual</p>
 
-<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.9.0/">1.9.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
+<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.11.0/">1.11.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
 
 The 1.8 release added [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,
@@ -15,8 +15,13 @@ quarantine, immutable updates, private caching and explicit cost boundaries.
 The 1.9 release added [gateway traffic protection](./guides/traffic-policy)
 and [negotiated response compression](./guides/http-compression) with the same
 additive, minimal-topology boundaries.
-The current candidate adds a [portal-first Ticketing support entry](./guides/ticketing)
+The 1.10 release adds a [portal-first Ticketing support entry](./guides/ticketing)
 with atomic one-time handoffs and requester-safe projections.
+The 1.11 release adds [contract-enforced request validation](./guides/contract-request-validation)
+with direct generated checks, one-pass typed extractors, separate coarse
+authorization policy, safe request IDs and explicit body-limit/timeout
+provenance. Application use cases still own tenancy, resource ownership,
+stored-state authorization and business invariants.
 
 ## Start with the outcome
 

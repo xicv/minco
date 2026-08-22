@@ -36,6 +36,9 @@ function workspaceSidebar(root: string) {
         { text: 'Project view, MCP, and workbench', link: link('guides/project-view') },
         { text: 'Build a resource API', link: link('guides/resource-api') },
         ...(root === '/next/' || root === workspace
+          ? [{ text: 'Enforce request contracts', link: link('guides/contract-request-validation') }]
+          : []),
+        ...(root === '/next/' || root === workspace
           ? [{ text: 'Browser and native clients', link: link('guides/mobile-api') }]
           : []),
         { text: 'Migrations and seeders', link: link('guides/database-lifecycle') },
@@ -97,6 +100,9 @@ function workspaceSidebar(root: string) {
         { text: 'CLI commands', link: link('reference/cli') },
         { text: 'Cargo feature flags', link: link('reference/feature-flags') },
         { text: 'Resource API', link: link('reference/resource-api') },
+        ...(root === '/next/' || root === workspace
+          ? [{ text: 'HTTP request boundary', link: link('reference/http-request-boundary') }]
+          : []),
         { text: 'Plugin conformance', link: link('reference/plugin-conformance') },
         { text: 'Testing and evidence', link: link('reference/testing') },
         { text: `Stable ${release.stable}`, link: stable }

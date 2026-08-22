@@ -207,9 +207,35 @@ def load_policy(path: Path = ROOT / POLICY_RELATIVE) -> dict[str, Any]:
     for identifier, version in tools.items():
         if not isinstance(version, str) or EXACT_VERSION.fullmatch(version) is None:
             raise ValueError(f"ASSURANCE-POLICY-003: {identifier} lacks an exact version")
-    baseline_tag = policy.get("semver", {}).get("baseline_tag")
+    semver = policy.get("semver", {})
+    baseline_tag = semver.get("baseline_tag")
     if not isinstance(baseline_tag, str) or re.fullmatch(r"v\d+\.\d+\.\d+", baseline_tag) is None:
         raise ValueError("ASSURANCE-POLICY-004: SemVer baseline must be an exact release tag")
+    baseline_commit = semver.get("baseline_commit")
+    package_count = semver.get("package_count")
+    baseline_package_count = semver.get("baseline_package_count")
+    new_packages = semver.get("new_packages")
+    if (
+        not isinstance(baseline_commit, str)
+        or re.fullmatch(r"[0-9a-f]{40}", baseline_commit) is None
+        or semver.get("packages") != "publishable_workspace"
+        or not isinstance(package_count, int)
+        or isinstance(package_count, bool)
+        or package_count <= 0
+        or not isinstance(baseline_package_count, int)
+        or isinstance(baseline_package_count, bool)
+        or baseline_package_count < 0
+        or not isinstance(new_packages, list)
+        or new_packages != sorted(set(new_packages))
+        or not all(
+            isinstance(package, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]*", package)
+            for package in new_packages
+        )
+        or baseline_package_count + len(new_packages) != package_count
+    ):
+        raise ValueError(
+            "ASSURANCE-POLICY-005: SemVer package boundary is incomplete or ambiguous"
+        )
     return policy
 
 
@@ -397,7 +423,12 @@ def validate_receipt(receipt: dict[str, Any], policy: dict[str, Any]) -> None:
         semver = gates["semver"]
         if (
             semver.get("baseline_tag") != policy["semver"].get("baseline_tag")
+            or semver.get("baseline_commit")
+            != policy["semver"].get("baseline_commit")
             or semver.get("package_count") != policy["semver"].get("package_count")
+            or semver.get("checked_package_count")
+            != policy["semver"].get("baseline_package_count")
+            or semver.get("new_packages") != policy["semver"].get("new_packages")
         ):
             raise ValueError("ASSURANCE-SEMVER-001: SemVer evidence differs from policy")
         performance = gates["local_performance"]
@@ -644,6 +675,55 @@ def publishable_packages(root: Path = ROOT) -> list[str]:
     return sorted(packages)
 
 
+def baseline_package_names(
+    revision: str,
+    environment: dict[str, str],
+    root: Path = ROOT,
+) -> set[str]:
+    """Read package names from one immutable Git revision without checking it out."""
+
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", revision],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if listing.returncode != 0:
+        raise RuntimeError(
+            "ASSURANCE-SEMVER-003: immutable baseline tag moved or is missing"
+        )
+    packages: set[str] = set()
+    for manifest_path in sorted(
+        path for path in listing.stdout.splitlines() if path.endswith("Cargo.toml")
+    ):
+        manifest = subprocess.run(
+            ["git", "show", f"{revision}:{manifest_path}"],
+            cwd=root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if manifest.returncode != 0:
+            raise RuntimeError(
+                "ASSURANCE-SEMVER-004: baseline package inventory is unreadable"
+            )
+        try:
+            package = tomllib.loads(manifest.stdout).get("package", {})
+        except tomllib.TOMLDecodeError as error:
+            raise RuntimeError(
+                "ASSURANCE-SEMVER-004: baseline package inventory is unreadable"
+            ) from error
+        name = package.get("name") if isinstance(package, dict) else None
+        if isinstance(name, str):
+            packages.add(name)
+    return packages
+
+
 def nextest_gate(
     policy: dict[str, Any], commands: list[dict[str, Any]], root: Path = ROOT
 ) -> dict[str, Any]:
@@ -865,7 +945,13 @@ def semver_gate(
 ) -> dict[str, Any]:
     settings = policy["semver"]
     packages = publishable_packages(root)
-    if len(packages) != settings["package_count"]:
+    new_packages = list(settings["new_packages"])
+    checked_packages = [package for package in packages if package not in new_packages]
+    if (
+        len(packages) != settings["package_count"]
+        or any(package not in packages for package in new_packages)
+        or len(checked_packages) != settings["baseline_package_count"]
+    ):
         raise RuntimeError(
             "ASSURANCE-SEMVER-001: publishable package inventory differs from policy"
         )
@@ -883,12 +969,22 @@ def semver_gate(
     )
     if git.returncode != 0 or git.stdout.strip() != settings["baseline_commit"]:
         raise RuntimeError("ASSURANCE-SEMVER-003: immutable baseline tag moved or is missing")
+    baseline_packages = baseline_package_names(
+        settings["baseline_tag"], environment, root
+    )
+    if (
+        any(package not in baseline_packages for package in checked_packages)
+        or any(package in baseline_packages for package in new_packages)
+    ):
+        raise RuntimeError(
+            "ASSURANCE-SEMVER-004: reviewed new-package boundary differs from the baseline"
+        )
     _, result = run_command(
         "semver",
         [
             "cargo",
             "semver-checks",
-            *package_arguments(packages),
+            *package_arguments(checked_packages),
             "--baseline-rev",
             settings["baseline_tag"],
             "--all-features",
@@ -905,7 +1001,10 @@ def semver_gate(
         "baseline_tag": settings["baseline_tag"],
         "baseline_commit": settings["baseline_commit"],
         "package_count": len(packages),
+        "checked_package_count": len(checked_packages),
         "packages": packages,
+        "checked_packages": checked_packages,
+        "new_packages": new_packages,
     }
 
 

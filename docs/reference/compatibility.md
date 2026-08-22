@@ -2,17 +2,16 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.9.0`
+Published release: `1.11.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.10.0` unpublished candidate
+Current workspace: `1.11.0` published
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1 through published 1.9.0 release lines and the additive 1.10.0
-candidate. Merge, tag,
+the 1.1 through published 1.11.0 release lines. Merge, tag,
 registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.
@@ -53,6 +52,16 @@ lock-step to `^1.7.0`; see the
 The `1.9.0` release adds the API Gateway traffic policy and hardened
 negotiated response compression as additive, opt-in APIs; see the
 [1.8.0-to-1.9.0 guide](../adoption/1.8.0-to-1.9.0.md).
+
+The `1.10.0` release adds the provider-neutral Interaction crate and the beta
+Ticketing plugin while preserving existing Feedback public names; see the
+[1.9.0-to-1.10.0 guide](../adoption/1.9.0-to-1.10.0.md).
+
+The `1.11.0` release adds an opt-in generated request-validation profile,
+typed Axum extraction, separate coarse authorization policy and hardened
+request middleware without changing non-opted DTO behavior or application-owned
+business policy; see the
+[1.10.0-to-1.11.0 guide](../adoption/1.10.0-to-1.11.0.md).
 
 The 1.8.0 release adds opt-in streaming, multipart, private range-download,
 conditional metadata and HTTP lifecycle contracts to object storage. Existing
