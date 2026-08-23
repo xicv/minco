@@ -2,7 +2,7 @@ use crate::{
     ConsumeHandoffRequest, ConsumedHandoff, CreateTicketInput, ExternalMessageIdentity,
     IngestExternalMessageRequest, RequesterTicket, Ticket, TicketActivityIntent, TicketAiContext,
     TicketAttachment, TicketFromHandoffInput, TicketId, TicketListFilter, TicketPriority,
-    TicketStatus, TicketStoreError, TicketingStoreService,
+    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStoreService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use minco_interaction::{
@@ -68,6 +68,45 @@ impl TicketingConfig {
             allowed_return_paths: self.allowed_return_paths.clone(),
         }
     }
+}
+
+/// Truthful, permission-derived agent console capabilities. Every field maps
+/// to a real operation the console calls; nothing is claimed that the
+/// authenticated principal cannot do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+// A capability set is one boolean per real operation; grouping them in a
+// nested struct would not improve honesty or readability.
+#[allow(clippy::struct_excessive_bools)]
+pub struct AgentConsoleCapabilities {
+    pub create: bool,
+    pub reply: bool,
+    pub internal_note: bool,
+    pub manage: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentConsoleBootstrap {
+    pub schema_version: u16,
+    pub project_id: String,
+    pub brand: String,
+    pub label: String,
+    pub subject: String,
+    pub capabilities: AgentConsoleCapabilities,
+}
+
+/// One atomic agent management decision. Absent fields stay unchanged;
+/// `clear_assignee` unassigns. Validation covers the complete change set
+/// before any persistence happens.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AgentManagementInput {
+    pub priority: Option<TicketPriority>,
+    pub assignee_subject: Option<String>,
+    pub clear_assignee: bool,
+    pub queue_id: Option<String>,
+    pub status: Option<TicketStatus>,
+    pub resolution: Option<String>,
+    pub close_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,7 +220,10 @@ impl TicketingService {
             return Err(TicketingServiceError::RequesterMismatch);
         }
         let id = Uuid::now_v7();
-        let display_reference = format!("TKT-{}", &id.simple().to_string()[..12]);
+        // The full v7 suffix is required: the leading 12 hex characters are
+        // only the millisecond timestamp, so two tickets created within the
+        // same millisecond would collide on the display reference.
+        let display_reference = format!("TKT-{}", id.simple());
         let ticket = Ticket::create(input, display_reference, now)?;
         let intent = activity(&ticket, "ticketing.created", correlation_id, now);
         self.store.create(ticket.clone(), intent).await?;
@@ -546,6 +588,88 @@ impl TicketingService {
         Ok(self.load(project_id, id).await?.export_ai_context())
     }
 
+    pub fn agent_bootstrap(
+        &self,
+        principal: &Identity,
+    ) -> Result<AgentConsoleBootstrap, TicketingServiceError> {
+        authorize(principal, "ticketing.agent-console")?;
+        Ok(AgentConsoleBootstrap {
+            schema_version: 1,
+            project_id: self.config.project_id.clone(),
+            brand: self.config.support_brand.clone(),
+            label: self.config.support_label.clone(),
+            subject: principal.subject.clone(),
+            capabilities: AgentConsoleCapabilities {
+                create: principal.has_permission("ticketing.create"),
+                reply: principal.has_permission("ticketing.reply"),
+                internal_note: principal.has_permission("ticketing.manage"),
+                manage: principal.has_permission("ticketing.agent.manage"),
+            },
+        })
+    }
+
+    pub async fn list_ticket_summaries(
+        &self,
+        principal: &Identity,
+        filter: TicketSummaryFilter,
+    ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        self.require_project(&filter.project_id)?;
+        Ok(self.store.list_summaries(filter).await?)
+    }
+
+    pub async fn get_agent_ticket(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+    ) -> Result<Ticket, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        self.load(project_id, id).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn manage_ticket(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+        input: AgentManagementInput,
+        expected_revision: u64,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<TicketingMutationResult, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.manage")?;
+        let mut ticket = self.load(project_id, id).await?;
+        require_revision(&ticket, expected_revision)?;
+        if input.assignee_subject.is_some() && input.clear_assignee {
+            return Err(TicketingServiceError::InvalidManagementRequest);
+        }
+        if let Some(priority) = input.priority {
+            ticket.change_priority(priority, now);
+        }
+        if input.clear_assignee {
+            ticket.assign(None, now)?;
+        } else if let Some(assignee) = input.assignee_subject {
+            ticket.assign(Some(assignee), now)?;
+        }
+        if let Some(queue_id) = input.queue_id {
+            ticket.transfer_queue(queue_id, now)?;
+        }
+        if let Some(status) = input.status {
+            ticket.change_status(status, input.resolution, input.close_reason, now)?;
+        }
+        self.save(
+            ticket.clone(),
+            expected_revision,
+            "ticketing.agent_managed",
+            correlation_id,
+            now,
+        )
+        .await?;
+        Ok(result(ticket))
+    }
+
     pub async fn ready(&self) -> Result<(), TicketingServiceError> {
         Ok(self.store.ready().await?)
     }
@@ -682,6 +806,8 @@ pub enum TicketingServiceError {
     InvalidExternalIdentity,
     #[error("invalid ticketing configuration: {0}")]
     Configuration(String),
+    #[error("agent management request fields are mutually exclusive")]
+    InvalidManagementRequest,
     #[error(transparent)]
     SupportEntry(#[from] minco_interaction::SupportEntryError),
     #[error(transparent)]
@@ -840,5 +966,223 @@ mod tests {
             .unwrap();
 
         assert_eq!(replay.ticket, first.ticket);
+    }
+
+    fn create_input(subject: &str) -> CreateTicketInput {
+        CreateTicketInput {
+            project_id: "project-a".into(),
+            subject: subject.into(),
+            description: "It broke".into(),
+            requester: TicketRequester {
+                subject: "user-a".into(),
+                display_name: None,
+                email: None,
+            },
+            channel: TicketChannel::Api,
+            priority: TicketPriority::Normal,
+            resource_references: Vec::new(),
+        }
+    }
+
+    async fn created_ticket(service: &TicketingService) -> Ticket {
+        service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("Help"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket
+    }
+
+    #[tokio::test]
+    async fn agent_use_cases_require_agent_capabilities_and_isolate_projects() {
+        let service = service();
+        let ticket = created_ticket(&service).await;
+
+        assert!(matches!(
+            service.agent_bootstrap(&identity("agent", &["ticketing.read"])),
+            Err(TicketingServiceError::PermissionDenied(_))
+        ));
+        assert!(service.agent_bootstrap(&identity("agent", &[])).is_err());
+        let mut filter = TicketSummaryFilter {
+            project_id: "project-a".into(),
+            limit: 10,
+            ..TicketSummaryFilter::default()
+        };
+        assert!(
+            service
+                .list_ticket_summaries(
+                    &identity("agent", &["ticketing.agent.read"]),
+                    filter.clone()
+                )
+                .await
+                .is_ok()
+        );
+        assert!(
+            service
+                .list_ticket_summaries(&identity("agent", &["ticketing.read"]), filter.clone())
+                .await
+                .is_err()
+        );
+        filter.project_id = "project-b".into();
+        assert!(matches!(
+            service
+                .list_ticket_summaries(&identity("agent", &["ticketing.agent.read"]), filter)
+                .await,
+            Err(TicketingServiceError::ProjectDenied)
+        ));
+        assert!(
+            service
+                .get_agent_ticket(
+                    &identity("agent", &["ticketing.agent.read"]),
+                    "project-a",
+                    ticket.id
+                )
+                .await
+                .is_ok()
+        );
+        assert!(
+            service
+                .manage_ticket(
+                    &identity("agent", &["ticketing.agent.read"]),
+                    "project-a",
+                    ticket.id,
+                    AgentManagementInput::default(),
+                    ticket.revision,
+                    Uuid::now_v7(),
+                    Utc::now(),
+                )
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_bootstrap_reports_only_enforced_capabilities() {
+        let service = service();
+        let full = service
+            .agent_bootstrap(&identity(
+                "agent-1",
+                &[
+                    "ticketing.agent-console",
+                    "ticketing.create",
+                    "ticketing.reply",
+                    "ticketing.manage",
+                    "ticketing.agent.manage",
+                ],
+            ))
+            .unwrap();
+        assert_eq!(full.subject, "agent-1");
+        assert_eq!(
+            full.capabilities,
+            AgentConsoleCapabilities {
+                create: true,
+                reply: true,
+                internal_note: true,
+                manage: true
+            }
+        );
+        let minimal = service
+            .agent_bootstrap(&identity("agent-2", &["ticketing.agent-console"]))
+            .unwrap();
+        assert_eq!(
+            minimal.capabilities,
+            AgentConsoleCapabilities {
+                create: false,
+                reply: false,
+                internal_note: false,
+                manage: false
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn management_is_atomic_and_one_save() {
+        let service = service();
+        let ticket = created_ticket(&service).await;
+        let now = Utc::now();
+
+        // Complete valid change set applies together in one revision bump.
+        let managed = service
+            .manage_ticket(
+                &identity(
+                    "agent",
+                    &["ticketing.agent-console", "ticketing.agent.manage"],
+                ),
+                "project-a",
+                ticket.id,
+                AgentManagementInput {
+                    priority: Some(TicketPriority::High),
+                    assignee_subject: Some("agent-2".into()),
+                    queue_id: Some("tier-2".into()),
+                    status: Some(TicketStatus::PendingRequester),
+                    ..AgentManagementInput::default()
+                },
+                ticket.revision,
+                Uuid::now_v7(),
+                now,
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(managed.priority, TicketPriority::High);
+        assert_eq!(managed.assignee_subject.as_deref(), Some("agent-2"));
+        assert_eq!(managed.queue_id.as_deref(), Some("tier-2"));
+        assert_eq!(managed.status, TicketStatus::PendingRequester);
+        // Each applied field advances the domain revision; one save commits
+        // the complete change set as a single atomic mutation.
+        assert_eq!(managed.revision, ticket.revision + 4);
+
+        // A late validation failure rejects the whole request: the valid
+        // priority change must not commit when the status transition fails.
+        let invalid = service
+            .manage_ticket(
+                &identity("agent", &["ticketing.agent.manage"]),
+                "project-a",
+                managed.id,
+                AgentManagementInput {
+                    priority: Some(TicketPriority::Urgent),
+                    status: Some(TicketStatus::Closed),
+                    ..AgentManagementInput::default()
+                },
+                managed.revision,
+                Uuid::now_v7(),
+                now,
+            )
+            .await;
+        assert!(invalid.is_err());
+        let unchanged = service
+            .get_agent_ticket(
+                &identity("agent", &["ticketing.agent.read"]),
+                "project-a",
+                managed.id,
+            )
+            .await
+            .unwrap();
+        assert_eq!(unchanged.priority, TicketPriority::High);
+        assert_eq!(unchanged.revision, managed.revision);
+
+        // Contradictory assignee instructions fail closed before any load.
+        assert!(matches!(
+            service
+                .manage_ticket(
+                    &identity("agent", &["ticketing.agent.manage"]),
+                    "project-a",
+                    managed.id,
+                    AgentManagementInput {
+                        assignee_subject: Some("agent-3".into()),
+                        clear_assignee: true,
+                        ..AgentManagementInput::default()
+                    },
+                    unchanged.revision,
+                    Uuid::now_v7(),
+                    now,
+                )
+                .await,
+            Err(TicketingServiceError::InvalidManagementRequest)
+        ));
     }
 }

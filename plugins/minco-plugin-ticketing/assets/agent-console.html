@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support console</title>
+<link rel="stylesheet" href="/_minco/ticketing/agent/console.css">
+<script src="/_minco/ticketing/agent/console.js" defer></script>
+</head>
+<body>
+<header>
+  <h1 id="brand" data-console="brand">Support</h1>
+  <nav aria-label="Ticket views" data-console="views">
+    <button type="button" data-view="active" aria-pressed="true">Active</button>
+    <button type="button" data-view="mine" aria-pressed="false">Mine</button>
+    <button type="button" data-view="waiting" aria-pressed="false">Waiting</button>
+    <button type="button" data-view="resolved" aria-pressed="false">Resolved</button>
+    <button type="button" data-view="all" aria-pressed="false">All</button>
+  </nav>
+  <div class="tools">
+    <label for="console-search">Search this page</label>
+    <input id="console-search" type="search" autocomplete="off"
+           placeholder="Search this page" data-console="search">
+    <button type="button" data-console="refresh">Refresh</button>
+    <button type="button" data-console="create">New ticket</button>
+  </div>
+  <p role="status" data-console="status" aria-live="polite"></p>
+</header>
+<main>
+  <section aria-label="Ticket list" data-console="list-panel">
+    <table>
+      <caption class="sr-only">Tickets, newest first</caption>
+      <thead>
+        <tr>
+          <th scope="col">Ref</th><th scope="col">Subject</th><th scope="col">Status</th>
+          <th scope="col">Priority</th><th scope="col">Assignee</th><th scope="col">Updated</th>
+        </tr>
+      </thead>
+      <tbody data-console="list"></tbody>
+    </table>
+    <p data-console="empty" hidden>No tickets in this view.</p>
+    <button type="button" data-console="next" hidden>Next page</button>
+  </section>
+  <section aria-label="Ticket detail" data-console="detail-panel" hidden>
+    <h2 data-console="detail-title"></h2>
+    <dl data-console="detail-meta"></dl>
+    <ol data-console="detail-messages" aria-label="Conversation"></ol>
+    <form data-console="reply-form">
+      <label for="reply-body">Public reply</label>
+      <textarea id="reply-body" name="body" required maxlength="20000"></textarea>
+      <button type="submit" data-console="reply-submit">Send reply</button>
+    </form>
+    <form data-console="note-form">
+      <label for="note-body">Internal note</label>
+      <textarea id="note-body" name="body" required maxlength="20000"></textarea>
+      <button type="submit" data-console="note-submit">Add internal note</button>
+    </form>
+    <form data-console="manage-form">
+      <fieldset>
+        <legend>Manage</legend>
+        <label for="manage-status">Status</label>
+        <select id="manage-status" name="status">
+          <option value="">Unchanged</option>
+          <option value="open">Open</option>
+          <option value="pending_requester">Waiting for requester</option>
+          <option value="pending_internal">Pending internal</option>
+          <option value="on_hold">On hold</option>
+          <option value="resolved">Resolved</option>
+          <option value="closed">Closed</option>
+        </select>
+        <label for="manage-priority">Priority</label>
+        <select id="manage-priority" name="priority">
+          <option value="">Unchanged</option>
+          <option value="low">Low</option>
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+        <label for="manage-assignee">Assignee</label>
+        <input id="manage-assignee" name="assignee_subject" autocomplete="off">
+        <label for="manage-queue">Queue</label>
+        <input id="manage-queue" name="queue_id" autocomplete="off">
+        <label for="manage-resolution">Resolution (required to resolve or close)</label>
+        <textarea id="manage-resolution" name="resolution"></textarea>
+        <label for="manage-close-reason">Close reason (required to close)</label>
+        <input id="manage-close-reason" name="close_reason" autocomplete="off">
+        <button type="submit">Save management</button>
+      </fieldset>
+    </form>
+    <button type="button" data-console="close-detail">Close detail</button>
+  </section>
+</main>
+</body>
+</html>

@@ -1,6 +1,6 @@
 use crate::{
     CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketFromHandoffInput, TicketId,
-    TicketRequester, TicketStatus, TicketValidationError,
+    TicketRequester, TicketStatus, TicketSummary, TicketValidationError,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -49,6 +49,20 @@ impl TicketActivityIntent {
             created_at,
         }
     }
+}
+
+/// Newest-first compact summary filter. `before_*` is the exclusive pagination
+/// cursor: only tickets strictly after (older than) the cursor pair match.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TicketSummaryFilter {
+    pub project_id: String,
+    pub statuses: BTreeSet<TicketStatus>,
+    pub queue_id: Option<String>,
+    pub assignee_subject: Option<String>,
+    pub requester_subject: Option<String>,
+    pub before_updated_at: Option<DateTime<Utc>>,
+    pub before_id: Option<TicketId>,
+    pub limit: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -166,6 +180,11 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
 
     async fn list(&self, filter: TicketListFilter) -> Result<Vec<Ticket>, TicketStoreError>;
 
+    async fn list_summaries(
+        &self,
+        filter: TicketSummaryFilter,
+    ) -> Result<Vec<TicketSummary>, TicketStoreError>;
+
     async fn save(
         &self,
         ticket: Ticket,
@@ -222,6 +241,13 @@ impl TicketingStoreService {
 
     pub async fn list(&self, filter: TicketListFilter) -> Result<Vec<Ticket>, TicketStoreError> {
         self.0.list(filter).await
+    }
+
+    pub async fn list_summaries(
+        &self,
+        filter: TicketSummaryFilter,
+    ) -> Result<Vec<TicketSummary>, TicketStoreError> {
+        self.0.list_summaries(filter).await
     }
 
     pub async fn save(
@@ -381,6 +407,55 @@ impl TicketingStore for MemoryTicketingStore {
         values.sort_by_key(|ticket| (ticket.updated_at, ticket.id));
         values.truncate(filter.limit);
         Ok(values)
+    }
+
+    async fn list_summaries(
+        &self,
+        filter: TicketSummaryFilter,
+    ) -> Result<Vec<TicketSummary>, TicketStoreError> {
+        if !(1..=MAX_TICKET_LIST_FETCH_LIMIT).contains(&filter.limit) {
+            return Err(TicketStoreError::InvalidListLimit);
+        }
+        if filter.before_updated_at.is_some() != filter.before_id.is_some() {
+            return Err(TicketStoreError::InvalidListCursor);
+        }
+        let mut summaries = self
+            .state
+            .lock()
+            .await
+            .tickets
+            .values()
+            .filter(|ticket| ticket.project_id == filter.project_id)
+            .filter(|ticket| filter.statuses.is_empty() || filter.statuses.contains(&ticket.status))
+            .filter(|ticket| {
+                filter
+                    .queue_id
+                    .as_ref()
+                    .is_none_or(|value| ticket.queue_id.as_ref() == Some(value))
+            })
+            .filter(|ticket| {
+                filter
+                    .assignee_subject
+                    .as_ref()
+                    .is_none_or(|value| ticket.assignee_subject.as_ref() == Some(value))
+            })
+            .filter(|ticket| {
+                filter
+                    .requester_subject
+                    .as_ref()
+                    .is_none_or(|value| &ticket.requester.subject == value)
+            })
+            .filter(
+                |ticket| match (filter.before_updated_at, filter.before_id) {
+                    (Some(updated), Some(id)) => (ticket.updated_at, ticket.id) < (updated, id),
+                    _ => true,
+                },
+            )
+            .map(Ticket::agent_summary)
+            .collect::<Vec<_>>();
+        summaries.sort_by_key(|summary| std::cmp::Reverse((summary.updated_at, summary.id)));
+        summaries.truncate(filter.limit);
+        Ok(summaries)
     }
 
     async fn save(
@@ -924,5 +999,140 @@ mod tests {
             store.save(changed, 1, intent).await,
             Err(TicketStoreError::StaleRevision { .. })
         ));
+    }
+
+    fn ticket_at(instant: DateTime<Utc>, reference: &str) -> Ticket {
+        let mut ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: format!("Help {reference}"),
+                description: "Broken".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: TicketChannel::Api,
+                priority: TicketPriority::Normal,
+                resource_references: Vec::new(),
+            },
+            reference,
+            instant,
+        )
+        .unwrap();
+        ticket.updated_at = instant;
+        ticket
+    }
+
+    async fn seeded_summary_store() -> MemoryTicketingStore {
+        let store = MemoryTicketingStore::default();
+        let base = DateTime::from_timestamp(1_777_000_000, 0).unwrap();
+        let tied = base + chrono::TimeDelta::seconds(10);
+        let mut tickets: Vec<Ticket> = Vec::new();
+        for (index, (instant, reference)) in [
+            (base, "TKT-OLD"),
+            (base + chrono::TimeDelta::seconds(5), "TKT-MID"),
+            (tied, "TKT-TIE-A"),
+            (tied, "TKT-TIE-B"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut ticket = ticket_at(instant, reference);
+            ticket.id = TicketId(
+                Uuid::parse_str(&format!("00000000-0000-0000-0000-00000000000{index}")).unwrap(),
+            );
+            tickets.push(ticket);
+        }
+        for ticket in tickets {
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                Uuid::now_v7(),
+                serde_json::json!({}),
+                ticket.created_at,
+            );
+            store.create(ticket, intent).await.unwrap();
+        }
+        store
+    }
+
+    fn summary_filter(limit: usize) -> TicketSummaryFilter {
+        TicketSummaryFilter {
+            project_id: "project-a".into(),
+            limit,
+            ..TicketSummaryFilter::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn summaries_are_newest_first_with_id_tiebreak_and_cursor_excludes_seen() {
+        let store = seeded_summary_store().await;
+        let first_page = store.list_summaries(summary_filter(2)).await.unwrap();
+        assert_eq!(
+            first_page
+                .iter()
+                .map(|summary| summary.display_reference.clone())
+                .collect::<Vec<_>>(),
+            vec!["TKT-TIE-B", "TKT-TIE-A"]
+        );
+        let cursor = (first_page[1].updated_at, first_page[1].id);
+        let mut filter = summary_filter(10);
+        filter.before_updated_at = Some(cursor.0);
+        filter.before_id = Some(cursor.1);
+        let rest = store.list_summaries(filter).await.unwrap();
+        assert_eq!(
+            rest.iter()
+                .map(|summary| summary.display_reference.clone())
+                .collect::<Vec<_>>(),
+            vec!["TKT-MID", "TKT-OLD"]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_store_rejects_invalid_limit_and_half_cursor() {
+        let store = seeded_summary_store().await;
+        assert!(matches!(
+            store.list_summaries(summary_filter(0)).await,
+            Err(TicketStoreError::InvalidListLimit)
+        ));
+        assert!(matches!(
+            store.list_summaries(summary_filter(202)).await,
+            Err(TicketStoreError::InvalidListLimit)
+        ));
+        let mut filter = summary_filter(10);
+        filter.before_id = Some(TicketId::new());
+        assert!(matches!(
+            store.list_summaries(filter).await,
+            Err(TicketStoreError::InvalidListCursor)
+        ));
+    }
+
+    #[tokio::test]
+    async fn summary_excludes_private_payload_and_project_is_isolated() {
+        let store = seeded_summary_store().await;
+        let mut ticket = ticket_at(Utc::now(), "TKT-PRIVATE");
+        ticket
+            .add_internal_note("agent", "private note body", Utc::now())
+            .unwrap();
+        ticket.description = "very long private description".into();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            ticket.created_at,
+        );
+        store.create(ticket, intent).await.unwrap();
+        let summaries = store.list_summaries(summary_filter(10)).await.unwrap();
+        let encoded = serde_json::to_string(&summaries).unwrap();
+        assert!(!encoded.contains("private note body"));
+        assert!(!encoded.contains("very long private description"));
+
+        let mut other = summary_filter(10);
+        other.project_id = "project-b".into();
+        assert!(store.list_summaries(other).await.unwrap().is_empty());
     }
 }

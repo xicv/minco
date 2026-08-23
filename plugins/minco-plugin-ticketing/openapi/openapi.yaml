@@ -307,6 +307,122 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/TicketAiContext'}
         default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent:
+    get:
+      operationId: getTicketingAgentConsole
+      summary: Get the dependency-free agent console page
+      security: []
+      responses:
+        '200':
+          description: Agent console HTML document
+          content:
+            text/html:
+              schema: {type: string}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/console.js:
+    get:
+      operationId: getTicketingAgentConsoleScript
+      summary: Get the agent console script
+      security: []
+      responses:
+        '200':
+          description: Agent console JavaScript source
+          content:
+            application/javascript:
+              schema: {type: string}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/console.css:
+    get:
+      operationId: getTicketingAgentConsoleStyles
+      summary: Get the agent console stylesheet
+      security: []
+      responses:
+        '200':
+          description: Agent console CSS source
+          content:
+            text/css:
+              schema: {type: string}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/bootstrap:
+    get:
+      operationId: getTicketingAgentBootstrap
+      summary: Get truthful permission-derived agent console configuration
+      responses:
+        '200':
+          description: Agent console bootstrap without secrets
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AgentBootstrap'}
+              examples:
+                default:
+                  value:
+                    schema_version: 1
+                    project_id: example
+                    brand: Support
+                    label: Get support
+                    subject: agent-1
+                    capabilities: {create: true, reply: true, internal_note: true, manage: true}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/tickets:
+    get:
+      operationId: listTicketingAgentTickets
+      summary: List compact newest-first ticket summaries for agents
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageAfter'}
+        - in: query
+          name: filter[status]
+          schema:
+            type: array
+            items: {$ref: '#/components/schemas/TicketStatus'}
+        - in: query
+          name: filter[queue_id]
+          schema: {type: string, maxLength: 200}
+        - in: query
+          name: filter[assignee_subject]
+          schema: {type: string, maxLength: 300}
+        - in: query
+          name: filter[requester_subject]
+          schema: {type: string, maxLength: 300}
+      responses:
+        '200':
+          description: Compact ticket summaries ordered updated_at DESC, id DESC
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TicketSummaryCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/tickets/{ticketId}:
+    get:
+      operationId: getTicketingAgentTicket
+      summary: Get one full ticket for the agent detail view
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+      responses:
+        '200': {$ref: '#/components/responses/Ticket'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/tickets/{ticketId}/management:
+    patch:
+      operationId: manageTicketingAgentTicket
+      summary: Apply one complete atomic management decision to a ticket
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AgentManagement'}
+            examples:
+              resolve-and-assign:
+                value:
+                  priority: high
+                  assignee_subject: agent-2
+                  queue_id: tier-2
+                  status: resolved
+                  resolution: Replaced the failing part and confirmed with the requester.
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}

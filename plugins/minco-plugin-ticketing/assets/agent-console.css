@@ -1,0 +1,79 @@
+/* Minco Ticketing agent console. System fonts only, no remote resources. */
+:root {
+  color-scheme: light dark;
+  --line: #d4d4d8;
+  --bg: #ffffff;
+  --fg: #18181b;
+  --muted: #71717a;
+  --accent: #2563eb;
+  --note: #fef3c7;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --line: #3f3f46;
+    --bg: #18181b;
+    --fg: #fafafa;
+    --muted: #a1a1aa;
+    --accent: #60a5fa;
+    --note: #451a03;
+  }
+}
+* { box-sizing: border-box; }
+html { font-size: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+header, main {
+  padding: 0.75rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+nav { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.5rem; }
+.tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.tools label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+input, select, textarea, button {
+  font: inherit;
+  color: inherit;
+  background: inherit;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  padding: 0.375rem 0.5rem;
+}
+button { cursor: pointer; }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, tr:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+[role="status"] { min-height: 1.5rem; color: var(--muted); margin: 0.25rem 0; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr[role="button"] { cursor: pointer; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0.5rem 0; }
+dt { color: var(--muted); }
+dd { margin: 0; }
+ol[data-console="detail-messages"] { list-style: none; padding: 0; }
+ol[data-console="detail-messages"] li {
+  padding: 0.5rem; border: 1px solid var(--line); border-radius: 0.25rem; margin-bottom: 0.5rem;
+  overflow-wrap: anywhere;
+}
+li.internal_note { background: var(--note); }
+li.system_event { color: var(--muted); }
+form { margin: 0.75rem 0; display: grid; gap: 0.375rem; max-width: 40rem; }
+fieldset { border: 1px solid var(--line); border-radius: 0.25rem; display: grid; gap: 0.375rem; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+}
+@media (max-width: 40rem) {
+  table, thead, tbody, tr, th, td { display: block; }
+  thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  tr { border-bottom: 2px solid var(--line); padding: 0.25rem 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+}

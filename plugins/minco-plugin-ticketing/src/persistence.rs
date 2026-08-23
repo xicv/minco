@@ -1,11 +1,13 @@
 use crate::{
     ConsumeHandoffRequest, ConsumedHandoff, CreateTicketInput, ExternalMessageIngestResult,
     IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketActivityIntent,
-    TicketId, TicketListFilter, TicketRequester, TicketStoreError, TicketingStore,
+    TicketId, TicketListFilter, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
+    TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
 use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use uuid::Uuid;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations/sqlite");
 
@@ -116,6 +118,113 @@ impl TicketingStore for SqliteTicketingStore {
         .map_err(infrastructure)?;
         rows.into_iter()
             .map(|row| decode_ticket(row.get::<String, _>("ticket_json")))
+            .collect::<Result<Vec<_>, _>>()
+    }
+
+    async fn list_summaries(
+        &self,
+        filter: TicketSummaryFilter,
+    ) -> Result<Vec<TicketSummary>, TicketStoreError> {
+        if !(1..=MAX_TICKET_LIST_FETCH_LIMIT).contains(&filter.limit) {
+            return Err(TicketStoreError::InvalidListLimit);
+        }
+        if filter.before_updated_at.is_some() != filter.before_id.is_some() {
+            return Err(TicketStoreError::InvalidListCursor);
+        }
+        let statuses = filter
+            .statuses
+            .iter()
+            .map(enum_json)
+            .collect::<Result<Vec<_>, _>>()?;
+        let no_status_filter = statuses.is_empty();
+        let status = |index: usize| statuses.get(index).map(String::as_str);
+        let before_updated_at = filter.before_updated_at.map(|value| value.to_rfc3339());
+        let before_id = filter.before_id.map(|value| value.to_string());
+        // Compact projection: projection columns and child-table counts only;
+        // this query must never read ticket_json.
+        let rows = sqlx::query(
+            "SELECT t.id, t.display_reference, t.subject, t.status, t.priority, t.queue_id,
+                    t.assignee_subject, t.requester_subject, t.created_at, t.updated_at, t.revision,
+                    (SELECT COUNT(*) FROM ticketing_messages m
+                      WHERE m.project_id = t.project_id AND m.ticket_id = t.id) AS message_count,
+                    (SELECT COUNT(*) FROM ticketing_attachments a
+                      WHERE a.project_id = t.project_id AND a.ticket_id = t.id) AS attachment_count,
+                    (SELECT MAX(m.created_at) FROM ticketing_messages m
+                      WHERE m.project_id = t.project_id AND m.ticket_id = t.id) AS last_activity_at
+             FROM ticketing_tickets t
+             WHERE t.project_id = ?
+               AND (? OR t.status IN (?, ?, ?, ?, ?, ?, ?))
+               AND (? IS NULL OR t.queue_id = ?)
+               AND (? IS NULL OR t.assignee_subject = ?)
+               AND (? IS NULL OR t.requester_subject = ?)
+               AND (? IS NULL OR t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))
+             ORDER BY t.updated_at DESC, t.id DESC
+             LIMIT ?",
+        )
+        .bind(&filter.project_id)
+        .bind(no_status_filter)
+        .bind(status(0))
+        .bind(status(1))
+        .bind(status(2))
+        .bind(status(3))
+        .bind(status(4))
+        .bind(status(5))
+        .bind(status(6))
+        .bind(filter.queue_id.as_deref())
+        .bind(filter.queue_id.as_deref())
+        .bind(filter.assignee_subject.as_deref())
+        .bind(filter.assignee_subject.as_deref())
+        .bind(filter.requester_subject.as_deref())
+        .bind(filter.requester_subject.as_deref())
+        .bind(before_updated_at.as_deref())
+        .bind(before_updated_at.as_deref())
+        .bind(before_updated_at.as_deref())
+        .bind(before_id.as_deref())
+        .bind(i64::try_from(filter.limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|row| {
+                let status = parse_enum("status", row.get::<String, _>("status"))?;
+                let priority = parse_enum("priority", row.get::<String, _>("priority"))?;
+                let updated_at = parse_timestamp(&row.get::<String, _>("updated_at"))?;
+                let created_at = parse_timestamp(&row.get::<String, _>("created_at"))?;
+                Ok(TicketSummary {
+                    id: TicketId(Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+                        TicketStoreError::Infrastructure("ticket id is not a UUID".into())
+                    })?),
+                    project_id: filter.project_id.clone(),
+                    display_reference: row.get("display_reference"),
+                    subject: row.get("subject"),
+                    requester_subject: row.get("requester_subject"),
+                    status,
+                    clock_state: status.clock_state(),
+                    priority,
+                    queue_id: row.get("queue_id"),
+                    assignee_subject: row.get("assignee_subject"),
+                    message_count: usize::try_from(row.get::<i64, _>("message_count")).map_err(
+                        |_| TicketStoreError::Infrastructure("message count overflow".into()),
+                    )?,
+                    attachment_count: usize::try_from(row.get::<i64, _>("attachment_count"))
+                        .map_err(|_| {
+                            TicketStoreError::Infrastructure("attachment count overflow".into())
+                        })?,
+                    last_activity_at: row
+                        .get::<Option<String>, _>("last_activity_at")
+                        .map(|value| parse_timestamp(&value))
+                        .transpose()?,
+                    needs_attention: matches!(
+                        status,
+                        TicketStatus::New | TicketStatus::PendingInternal
+                    ),
+                    created_at,
+                    updated_at,
+                    revision: u64::try_from(row.get::<i64, _>("revision")).map_err(|_| {
+                        TicketStoreError::Infrastructure("revision overflow".into())
+                    })?,
+                })
+            })
             .collect::<Result<Vec<_>, _>>()
     }
 
@@ -383,15 +492,18 @@ async fn insert_ticket(
     ticket: &Ticket,
 ) -> Result<(), TicketStoreError> {
     sqlx::query(
-        "INSERT INTO ticketing_tickets (project_id, id, display_reference, status, queue_id, assignee_subject, requester_subject, updated_at, revision, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO ticketing_tickets (project_id, id, display_reference, subject, priority, status, queue_id, assignee_subject, requester_subject, created_at, updated_at, revision, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&ticket.project_id)
     .bind(ticket.id.to_string())
     .bind(&ticket.display_reference)
+    .bind(&ticket.subject)
+    .bind(enum_json(&ticket.priority)?)
     .bind(enum_json(&ticket.status)?)
     .bind(&ticket.queue_id)
     .bind(&ticket.assignee_subject)
     .bind(&ticket.requester.subject)
+    .bind(ticket.created_at.to_rfc3339())
     .bind(ticket.updated_at.to_rfc3339())
     .bind(i64::try_from(ticket.revision).map_err(|_| TicketStoreError::Infrastructure("revision exceeds SQLite integer".into()))?)
     .bind(serde_json::to_string(ticket).map_err(encoding)?)
@@ -413,12 +525,15 @@ async fn update_ticket(
         });
     }
     let result = sqlx::query(
-        "UPDATE ticketing_tickets SET status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, updated_at = ?, revision = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
+        "UPDATE ticketing_tickets SET subject = ?, priority = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, created_at = ?, updated_at = ?, revision = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
     )
+    .bind(&ticket.subject)
+    .bind(enum_json(&ticket.priority)?)
     .bind(enum_json(&ticket.status)?)
     .bind(&ticket.queue_id)
     .bind(&ticket.assignee_subject)
     .bind(&ticket.requester.subject)
+    .bind(ticket.created_at.to_rfc3339())
     .bind(ticket.updated_at.to_rfc3339())
     .bind(i64::try_from(ticket.revision).map_err(|_| TicketStoreError::Infrastructure("revision exceeds SQLite integer".into()))?)
     .bind(serde_json::to_string(ticket).map_err(encoding)?)
@@ -561,6 +676,21 @@ fn enum_json<T: serde::Serialize>(value: &T) -> Result<String, TicketStoreError>
     serde_json::to_string(value)
         .map(|value| value.trim_matches('"').to_owned())
         .map_err(encoding)
+}
+
+fn parse_enum<T: serde::de::DeserializeOwned>(
+    field: &'static str,
+    value: String,
+) -> Result<T, TicketStoreError> {
+    serde_json::from_value(serde_json::Value::String(value)).map_err(|_| {
+        TicketStoreError::Infrastructure(format!("stored {field} is not a valid enum value"))
+    })
+}
+
+fn parse_timestamp(value: &str) -> Result<chrono::DateTime<chrono::Utc>, TicketStoreError> {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .map(|value| value.with_timezone(&chrono::Utc))
+        .map_err(|_| TicketStoreError::Infrastructure("stored timestamp is not RFC 3339".into()))
 }
 
 fn infrastructure(error: impl std::fmt::Display) -> TicketStoreError {
@@ -952,5 +1082,88 @@ mod tests {
 
         assert_eq!(tickets.len(), 1);
         assert_eq!(tickets[0].id, expected_id.unwrap());
+    }
+
+    #[tokio::test]
+    async fn summary_list_matches_memory_projection_newest_first() {
+        let (_directory, sqlite) = store().await;
+        let memory = crate::MemoryTicketingStore::default();
+        let base = chrono::DateTime::from_timestamp(1_778_000_000, 0).unwrap();
+        let tied = base + TimeDelta::seconds(10);
+        for (index, (instant, reference)) in
+            [(base, "TKT-OLD"), (tied, "TKT-TIE-A"), (tied, "TKT-TIE-B")]
+                .into_iter()
+                .enumerate()
+        {
+            let mut ticket = crate::Ticket::create(
+                crate::CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: format!("Help {reference}"),
+                    description: "Broken".into(),
+                    requester: crate::TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    priority: if index == 1 {
+                        TicketPriority::High
+                    } else {
+                        TicketPriority::Normal
+                    },
+                    resource_references: Vec::new(),
+                },
+                reference,
+                instant,
+            )
+            .unwrap();
+            ticket.updated_at = instant;
+            if index == 2 {
+                ticket
+                    .add_internal_note("agent", "private note", instant + TimeDelta::seconds(1))
+                    .unwrap();
+            }
+            let intent = crate::TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                Uuid::now_v7(),
+                serde_json::json!({}),
+                instant,
+            );
+            sqlite.create(ticket.clone(), intent.clone()).await.unwrap();
+            memory.create(ticket, intent).await.unwrap();
+        }
+
+        let filter = |limit: usize| crate::TicketSummaryFilter {
+            project_id: "project-a".into(),
+            limit,
+            ..crate::TicketSummaryFilter::default()
+        };
+        let from_sqlite = sqlite.list_summaries(filter(10)).await.unwrap();
+        let from_memory = memory.list_summaries(filter(10)).await.unwrap();
+        assert_eq!(from_sqlite, from_memory);
+        assert_eq!(
+            from_sqlite
+                .iter()
+                .map(|summary| summary.display_reference.clone())
+                .collect::<Vec<_>>(),
+            vec!["TKT-TIE-B", "TKT-TIE-A", "TKT-OLD"]
+        );
+        assert_eq!(from_sqlite[0].message_count, 2);
+        assert!(from_sqlite[0].needs_attention);
+        assert_eq!(from_sqlite[0].status, TicketStatus::New);
+        assert!(from_sqlite[0].last_activity_at.is_some());
+
+        let mut paged = filter(10);
+        paged.before_updated_at = Some(from_sqlite[0].updated_at);
+        paged.before_id = Some(from_sqlite[0].id);
+        let rest = sqlite.list_summaries(paged).await.unwrap();
+        assert_eq!(
+            rest.iter()
+                .map(|summary| summary.display_reference.clone())
+                .collect::<Vec<_>>(),
+            vec!["TKT-TIE-A", "TKT-OLD"]
+        );
     }
 }

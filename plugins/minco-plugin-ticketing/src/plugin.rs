@@ -127,6 +127,9 @@ impl Plugin for TicketingPlugin {
                 "ticketing.attachments",
                 "ticketing.ai-context",
                 "ticketing.support-entry",
+                "ticketing.agent-console",
+                "ticketing.agent.read",
+                "ticketing.agent.manage",
             ]
             .into_iter()
             .map(provision),
@@ -324,6 +327,48 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             "getTicketAiContext",
             "GET",
             "/_minco/ticketing/tickets/{ticketId}/ai-context",
+            false,
+        ),
+        (
+            "getTicketingAgentConsole",
+            "GET",
+            "/_minco/ticketing/agent",
+            true,
+        ),
+        (
+            "getTicketingAgentConsoleScript",
+            "GET",
+            "/_minco/ticketing/agent/console.js",
+            true,
+        ),
+        (
+            "getTicketingAgentConsoleStyles",
+            "GET",
+            "/_minco/ticketing/agent/console.css",
+            true,
+        ),
+        (
+            "getTicketingAgentBootstrap",
+            "GET",
+            "/_minco/ticketing/agent/bootstrap",
+            false,
+        ),
+        (
+            "listTicketingAgentTickets",
+            "GET",
+            "/_minco/ticketing/agent/tickets",
+            false,
+        ),
+        (
+            "getTicketingAgentTicket",
+            "GET",
+            "/_minco/ticketing/agent/tickets/{ticketId}",
+            false,
+        ),
+        (
+            "manageTicketingAgentTicket",
+            "PATCH",
+            "/_minco/ticketing/agent/tickets/{ticketId}/management",
             false,
         ),
     ]

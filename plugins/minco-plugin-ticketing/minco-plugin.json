@@ -38,7 +38,10 @@
     {"name": "ticketing.ingest", "version": "1.0.0"},
     {"name": "ticketing.attachments", "version": "1.0.0"},
     {"name": "ticketing.ai-context", "version": "1.0.0"},
-    {"name": "ticketing.support-entry", "version": "1.0.0"}
+    {"name": "ticketing.support-entry", "version": "1.0.0"},
+    {"name": "ticketing.agent-console", "version": "1.0.0"},
+    {"name": "ticketing.agent.read", "version": "1.0.0"},
+    {"name": "ticketing.agent.manage", "version": "1.0.0"}
   ],
   "configuration": [
     {"key": "project_id", "kind": "string", "required": true, "secret": false, "description": "Stable application project identifier"},
@@ -66,7 +69,14 @@
     {"operation_id":"changeTicketPriority","method":"PATCH","path":"/_minco/ticketing/tickets/{ticketId}/priority","public":false,"idempotent":false,"headers":["If-Match"]},
     {"operation_id":"changeTicketStatus","method":"PATCH","path":"/_minco/ticketing/tickets/{ticketId}/status","public":false,"idempotent":false,"headers":["If-Match"]},
     {"operation_id":"ingestTicketExternalMessage","method":"POST","path":"/_minco/ticketing/ingress/messages","public":false,"idempotent":false},
-    {"operation_id":"getTicketAiContext","method":"GET","path":"/_minco/ticketing/tickets/{ticketId}/ai-context","public":false,"idempotent":false}
+    {"operation_id":"getTicketAiContext","method":"GET","path":"/_minco/ticketing/tickets/{ticketId}/ai-context","public":false,"idempotent":false},
+    {"operation_id":"getTicketingAgentConsole","method":"GET","path":"/_minco/ticketing/agent","public":true,"idempotent":false},
+    {"operation_id":"getTicketingAgentConsoleScript","method":"GET","path":"/_minco/ticketing/agent/console.js","public":true,"idempotent":false},
+    {"operation_id":"getTicketingAgentConsoleStyles","method":"GET","path":"/_minco/ticketing/agent/console.css","public":true,"idempotent":false},
+    {"operation_id":"getTicketingAgentBootstrap","method":"GET","path":"/_minco/ticketing/agent/bootstrap","public":false,"idempotent":false},
+    {"operation_id":"listTicketingAgentTickets","method":"GET","path":"/_minco/ticketing/agent/tickets","public":false,"idempotent":false},
+    {"operation_id":"getTicketingAgentTicket","method":"GET","path":"/_minco/ticketing/agent/tickets/{ticketId}","public":false,"idempotent":false},
+    {"operation_id":"manageTicketingAgentTicket","method":"PATCH","path":"/_minco/ticketing/agent/tickets/{ticketId}/management","public":false,"idempotent":false,"headers":["If-Match"]}
   ],
   "migrations": [{"id":"ticketing-sqlite-v1","database":"sqlite","path":"migrations/sqlite"}],
   "health_checks": [{"id":"ticketing-store","critical":true}],

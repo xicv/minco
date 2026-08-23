@@ -608,6 +608,65 @@ pub struct RequesterTicket {
     pub revision: u64,
 }
 
+/// Compact agent-facing ticket summary. Deliberately excludes descriptions,
+/// message bodies, object keys, digests, audit, AI context and provider data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TicketSummary {
+    pub id: TicketId,
+    pub project_id: String,
+    pub display_reference: String,
+    pub subject: String,
+    pub requester_subject: String,
+    pub status: TicketStatus,
+    pub clock_state: TicketClockState,
+    pub priority: TicketPriority,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assignee_subject: Option<String>,
+    pub message_count: usize,
+    pub attachment_count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_activity_at: Option<DateTime<Utc>>,
+    pub needs_attention: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub revision: u64,
+}
+
+impl Ticket {
+    #[must_use]
+    pub const fn needs_attention(&self) -> bool {
+        matches!(
+            self.status,
+            TicketStatus::New | TicketStatus::PendingInternal
+        )
+    }
+
+    #[must_use]
+    pub fn agent_summary(&self) -> TicketSummary {
+        TicketSummary {
+            id: self.id,
+            project_id: self.project_id.clone(),
+            display_reference: self.display_reference.clone(),
+            subject: self.subject.clone(),
+            requester_subject: self.requester.subject.clone(),
+            status: self.status,
+            clock_state: self.clock_state,
+            priority: self.priority,
+            queue_id: self.queue_id.clone(),
+            assignee_subject: self.assignee_subject.clone(),
+            message_count: self.messages.len(),
+            attachment_count: self.attachments.len(),
+            last_activity_at: self.messages.last().map(|message| message.created_at),
+            needs_attention: self.needs_attention(),
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            revision: self.revision,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TicketAiContext {
     pub schema_version: u32,

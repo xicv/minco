@@ -1,8 +1,8 @@
 use crate::{
-    CreateTicketInput, ExternalMessageIdentity, IssueTicketingHandoffInput, RequesterTicket,
-    Ticket, TicketChannel, TicketFromHandoffInput, TicketId, TicketListFilter, TicketPriority,
-    TicketStatus, TicketStoreError, TicketingMutationResult, TicketingService,
-    TicketingServiceError,
+    AgentManagementInput, CreateTicketInput, ExternalMessageIdentity, IssueTicketingHandoffInput,
+    RequesterTicket, Ticket, TicketChannel, TicketFromHandoffInput, TicketId, TicketListFilter,
+    TicketPriority, TicketStatus, TicketStoreError, TicketSummary, TicketingMutationResult,
+    TicketingService, TicketingServiceError,
 };
 use axum::{
     Json, Router,
@@ -25,6 +25,9 @@ use uuid::Uuid;
 pub const TICKETING_BASE_PATH: &str = "/_minco/ticketing";
 pub const HANDOFF_HEADER: &str = "x-minco-ticketing-handoff";
 const SUPPORT_ENTRY_SOURCE: &str = include_str!("../assets/support-entry.js");
+const AGENT_CONSOLE_PAGE: &str = include_str!("../assets/agent-console.html");
+const AGENT_CONSOLE_SCRIPT: &str = include_str!("../assets/agent-console.js");
+const AGENT_CONSOLE_STYLES: &str = include_str!("../assets/agent-console.css");
 const MAX_JSON_BODY_BYTES: usize = 256 * 1024;
 
 #[derive(Debug, Clone)]
@@ -110,6 +113,16 @@ pub fn ticketing_router(service: TicketingService) -> Router {
         .route("/tickets/{ticketId}/status", patch(change_status))
         .route("/ingress/messages", post(ingest_external_message))
         .route("/tickets/{ticketId}/ai-context", get(ai_context))
+        .route("/agent", get(agent_console_page))
+        .route("/agent/console.js", get(agent_console_script))
+        .route("/agent/console.css", get(agent_console_styles))
+        .route("/agent/bootstrap", get(agent_bootstrap))
+        .route("/agent/tickets", get(agent_tickets))
+        .route("/agent/tickets/{ticketId}", get(agent_ticket))
+        .route(
+            "/agent/tickets/{ticketId}/management",
+            patch(manage_agent_ticket),
+        )
         .layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
         .with_state(TicketingHttpState { service });
     Router::new().nest(TICKETING_BASE_PATH, routes)
@@ -658,6 +671,249 @@ async fn ai_context(
         .map_err(|error| map_error(error, &request_id))
 }
 
+fn hardened_asset(mut response: Response, content_type: &'static str) -> Response {
+    let headers = response.headers_mut();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=300"),
+    );
+    headers.insert(
+        http::header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        http::header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    response
+}
+
+async fn agent_console_page() -> Response {
+    let mut response = AGENT_CONSOLE_PAGE.into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    let headers = response.headers_mut();
+    headers.insert(
+        http::header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(
+            "default-src 'none'; script-src 'self'; style-src 'self'; \
+             connect-src 'self'; img-src 'self' data:; base-uri 'none'; \
+             form-action 'none'; frame-ancestors 'none'",
+        ),
+    );
+    headers.insert(
+        http::header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        http::header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    response
+}
+
+async fn agent_console_script() -> Response {
+    hardened_asset(
+        AGENT_CONSOLE_SCRIPT.into_response(),
+        "application/javascript; charset=utf-8",
+    )
+}
+
+async fn agent_console_styles() -> Response {
+    hardened_asset(
+        AGENT_CONSOLE_STYLES.into_response(),
+        "text/css; charset=utf-8",
+    )
+}
+
+async fn agent_bootstrap(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+) -> Result<Json<crate::AgentConsoleBootstrap>, ApiFailure> {
+    state
+        .service
+        .agent_bootstrap(&principal)
+        .map(Json)
+        .map_err(|error| map_error(error, "agent-bootstrap"))
+}
+
+#[derive(Debug, Default)]
+struct AgentListQuery {
+    limit: usize,
+    before: Option<(DateTime<Utc>, TicketId)>,
+    statuses: BTreeSet<TicketStatus>,
+    queue_id: Option<String>,
+    assignee_subject: Option<String>,
+    requester_subject: Option<String>,
+}
+
+fn parse_agent_list_query(
+    raw: Option<&str>,
+    request_id: &str,
+) -> Result<AgentListQuery, ApiFailure> {
+    let mut query = AgentListQuery {
+        limit: 50,
+        ..AgentListQuery::default()
+    };
+    let mut seen = BTreeSet::new();
+    for (name, value) in url::form_urlencoded::parse(raw.unwrap_or_default().as_bytes()) {
+        let name = name.into_owned();
+        let value = value.into_owned();
+        if !seen.insert(name.clone()) {
+            return Err(ApiFailure::validation(
+                "agent ticket list query repeats a parameter",
+                request_id,
+            ));
+        }
+        match name.as_str() {
+            "page[limit]" => {
+                query.limit = value
+                    .parse()
+                    .ok()
+                    .filter(|value| (1..=200).contains(value))
+                    .ok_or_else(|| {
+                        ApiFailure::validation("page limit must be between 1 and 200", request_id)
+                    })?;
+            }
+            "page[after]" => {
+                if value.len() > 512 {
+                    return Err(ApiFailure::validation("page cursor is invalid", request_id));
+                }
+                query.before =
+                    Some(decode_cursor(&value).ok_or_else(|| {
+                        ApiFailure::validation("page cursor is invalid", request_id)
+                    })?);
+            }
+            "filter[status]" => {
+                let status: TicketStatus = serde_json::from_value(serde_json::Value::String(value))
+                    .map_err(|_| ApiFailure::validation("status filter is invalid", request_id))?;
+                query.statuses.insert(status);
+            }
+            "filter[queue_id]" => {
+                query.queue_id = Some(bounded_query_value(value, 200, request_id)?);
+            }
+            "filter[assignee_subject]" => {
+                query.assignee_subject = Some(bounded_query_value(value, 300, request_id)?);
+            }
+            "filter[requester_subject]" => {
+                query.requester_subject = Some(bounded_query_value(value, 300, request_id)?);
+            }
+            _ => {
+                return Err(ApiFailure::validation(
+                    "agent ticket list query contains an unsupported parameter",
+                    request_id,
+                ));
+            }
+        }
+    }
+    Ok(query)
+}
+
+async fn agent_tickets(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    RawQuery(raw): RawQuery,
+    headers: HeaderMap,
+) -> Result<Json<ResourceCollection<TicketSummary>>, ApiFailure> {
+    let request_id = request_id(&headers);
+    let query = parse_agent_list_query(raw.as_deref(), &request_id)?;
+    let mut summaries = state
+        .service
+        .list_ticket_summaries(
+            &principal,
+            crate::TicketSummaryFilter {
+                project_id: state.service.config().project_id.clone(),
+                statuses: query.statuses,
+                queue_id: query.queue_id,
+                assignee_subject: query.assignee_subject,
+                requester_subject: query.requester_subject,
+                before_updated_at: query.before.map(|value| value.0),
+                before_id: query.before.map(|value| value.1),
+                limit: query.limit + 1,
+            },
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    let has_more = summaries.len() > query.limit;
+    summaries.truncate(query.limit);
+    let next = if has_more {
+        summaries
+            .last()
+            .map(|summary| Cursor::new(encode_summary_cursor(summary)))
+            .transpose()
+            .map_err(|_| ApiFailure::internal(&request_id))?
+    } else {
+        None
+    };
+    Ok(Json(ResourceCollection::new(summaries, next)))
+}
+
+async fn agent_ticket(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let ticket = state
+        .service
+        .get_agent_ticket(&principal, &state.service.config().project_id, id)
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    ticket_response(StatusCode::OK, &ticket)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentManagementBody {
+    priority: Option<TicketPriority>,
+    assignee_subject: Option<String>,
+    #[serde(default)]
+    clear_assignee: bool,
+    queue_id: Option<String>,
+    status: Option<TicketStatus>,
+    resolution: Option<String>,
+    close_reason: Option<String>,
+}
+
+async fn manage_agent_ticket(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+    ApiJson(body): ApiJson<AgentManagementBody>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let revision = expected_revision(&headers, id, &request_id)?;
+    let result = state
+        .service
+        .manage_ticket(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            AgentManagementInput {
+                priority: body.priority,
+                assignee_subject: body.assignee_subject,
+                clear_assignee: body.clear_assignee,
+                queue_id: body.queue_id,
+                status: body.status,
+                resolution: body.resolution,
+                close_reason: body.close_reason,
+            },
+            revision,
+            request_uuid(&request_id),
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    mutation_response(StatusCode::OK, result)
+}
+
 #[derive(Debug)]
 struct ListQuery {
     limit: usize,
@@ -752,20 +1008,31 @@ fn bounded_query_value(
 }
 
 fn encode_cursor(ticket: &Ticket) -> String {
+    encode_cursor_parts(ticket.updated_at, ticket.id)
+}
+
+fn encode_summary_cursor(summary: &TicketSummary) -> String {
+    encode_cursor_parts(summary.updated_at, summary.id)
+}
+
+/// `minco_http::Cursor` accepts only `[A-Za-z0-9_-]`, so the composite
+/// `(updated_at, id)` cursor joins seconds and nanoseconds without a `.`.
+fn encode_cursor_parts(updated_at: DateTime<Utc>, id: TicketId) -> String {
     format!(
-        "{}.{:09}_{}",
-        ticket.updated_at.timestamp(),
-        ticket.updated_at.timestamp_subsec_nanos(),
-        ticket.id.0.simple()
+        "{}{:09}_{}",
+        updated_at.timestamp(),
+        updated_at.timestamp_subsec_nanos(),
+        id.0.simple()
     )
 }
 
 fn decode_cursor(value: &str) -> Option<(DateTime<Utc>, TicketId)> {
     let (timestamp, id) = value.split_once('_')?;
-    let (seconds, nanos) = timestamp.split_once('.')?;
-    if nanos.len() != 9 {
+    if timestamp.len() < 10 || !timestamp.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
+    let seconds = &timestamp[..timestamp.len() - 9];
+    let nanos = &timestamp[timestamp.len() - 9..];
     let updated = DateTime::from_timestamp(seconds.parse().ok()?, nanos.parse().ok()?)?;
     Some((updated, TicketId(Uuid::parse_str(id).ok()?)))
 }
@@ -951,6 +1218,9 @@ fn map_error(error: TicketingServiceError, request_id: &str) -> ApiFailure {
             ApiFailure::precondition_failed(request_id)
         }
         TicketingServiceError::Validation(error) => {
+            ApiFailure::validation(error.to_string(), request_id)
+        }
+        TicketingServiceError::InvalidManagementRequest => {
             ApiFailure::validation(error.to_string(), request_id)
         }
         value @ (TicketingServiceError::SupportEntry(_)
@@ -1214,5 +1484,390 @@ mod tests {
             decode_cursor(&encode_cursor(&ticket)),
             Some((now, ticket.id))
         );
+    }
+
+    #[test]
+    fn cursor_encoding_only_uses_characters_minco_cursor_accepts() {
+        let now = DateTime::from_timestamp(1_777_777_777, 123_456_789).unwrap();
+        let encoded = encode_cursor_parts(now, TicketId::new());
+        assert!(Cursor::new(encoded.clone()).is_ok(), "{encoded}");
+        assert!(
+            encoded
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        );
+        assert!(Cursor::new(String::from("1777777777.123456789_not-accepted")).is_err());
+    }
+
+    fn agent_principal() -> minco_http::Principal {
+        minco_http::Principal {
+            subject: "agent-1".into(),
+            permissions: [
+                "ticketing.agent-console",
+                "ticketing.agent.read",
+                "ticketing.agent.manage",
+                "ticketing.create",
+                "ticketing.reply",
+                "ticketing.manage",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+            claims: BTreeMap::new(),
+        }
+    }
+
+    async fn create_tickets_through_api(app: &Router, count: usize) -> Vec<serde_json::Value> {
+        let mut created = Vec::new();
+        for index in 0..count {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post("/_minco/ticketing/tickets")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .extension(agent_principal())
+                        .body(Body::from(
+                            serde_json::json!({
+                                "project_id": "project-a",
+                                "subject": format!("Ticket {index}"),
+                                "description": "It broke and needs an agent.",
+                                "requester": {"subject": "user-a"},
+                                "channel": "api"
+                            })
+                            .to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let debug_status = response.status();
+            let debug_body = to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap()
+                .to_vec();
+            assert_eq!(
+                debug_status,
+                StatusCode::CREATED,
+                "{}",
+                String::from_utf8_lossy(&debug_body)
+            );
+            let value: serde_json::Value = serde_json::from_slice(&debug_body).unwrap();
+            created.push(value["ticket"].clone());
+        }
+        created
+    }
+
+    #[tokio::test]
+    async fn agent_console_assets_are_hardened_public_and_credential_free() {
+        let app = ticketing_router(service());
+        let page = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.status(), StatusCode::OK);
+        assert_eq!(
+            page.headers()[header::CONTENT_TYPE],
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(
+            page.headers()["content-security-policy"],
+            "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        );
+        assert_eq!(page.headers()["x-content-type-options"], "nosniff");
+        assert_eq!(page.headers()["referrer-policy"], "no-referrer");
+        let body = to_bytes(page.into_body(), usize::MAX).await.unwrap();
+        let html = String::from_utf8_lossy(&body);
+        assert!(!html.contains("token"));
+        assert!(!html.contains("secret"));
+
+        let script = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/console.js")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(script.status(), StatusCode::OK);
+        assert_eq!(
+            script.headers()[header::CONTENT_TYPE],
+            "application/javascript; charset=utf-8"
+        );
+        assert_eq!(script.headers()["x-content-type-options"], "nosniff");
+        let styles = app
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/console.css")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(styles.status(), StatusCode::OK);
+        assert_eq!(
+            styles.headers()[header::CONTENT_TYPE],
+            "text/css; charset=utf-8"
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_bootstrap_requires_identity_and_agent_console_permission() {
+        let app = ticketing_router(service());
+        let unauthenticated = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/bootstrap")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
+
+        let mut wrong_permission = agent_principal();
+        wrong_permission.permissions = std::iter::once("ticketing.read".into()).collect();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/bootstrap")
+                    .extension(wrong_permission)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let response = app
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/bootstrap")
+                    .extension(agent_principal())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bootstrap: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(bootstrap["subject"], "agent-1");
+        assert_eq!(bootstrap["capabilities"]["manage"], true);
+        assert!(bootstrap.get("token").is_none());
+    }
+
+    #[tokio::test]
+    async fn agent_ticket_list_paginates_without_gaps_and_rejects_invalid_cursors() {
+        let app = ticketing_router(service()).layer(axum::Extension(agent_principal()));
+        create_tickets_through_api(&app, 5).await;
+
+        let mut seen = Vec::new();
+        let mut cursor: Option<String> = None;
+        loop {
+            let mut path = String::from("/_minco/ticketing/agent/tickets?page[limit]=2");
+            if let Some(value) = cursor.as_deref() {
+                path.push_str("&page[after]=");
+                path.push_str(value);
+            }
+            let response = app
+                .clone()
+                .oneshot(Request::get(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let page: serde_json::Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                    .unwrap();
+            let has_more = page["page"]["hasMore"].as_bool().unwrap();
+            for summary in page["data"].as_array().unwrap() {
+                seen.push(summary["id"].as_str().unwrap().to_owned());
+            }
+            if !has_more {
+                break;
+            }
+            cursor = page["page"]["nextCursor"].as_str().map(str::to_owned);
+        }
+        assert_eq!(seen.len(), 5);
+        assert_eq!(seen.iter().collect::<BTreeSet<_>>().len(), 5);
+
+        let invalid = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/tickets?page[after]=not.a.cursor")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn agent_summary_excludes_private_payload_and_update_moves_ticket_to_first_page() {
+        let app = ticketing_router(service()).layer(axum::Extension(agent_principal()));
+        let tickets = create_tickets_through_api(&app, 3).await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/tickets?page[limit]=3")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let encoded = serde_json::to_string(&page).unwrap();
+        assert!(!encoded.contains("It broke and needs an agent."));
+        assert!(!encoded.contains("description"));
+        assert!(!encoded.contains("object_key"));
+        assert!(page["data"][0].get("subject").is_some());
+        assert_eq!(page["data"][0]["message_count"], 1);
+
+        // Reply to the ticket currently last; it must move to the top.
+        let last_id = page["data"][2]["id"].as_str().unwrap();
+        let etag = page["data"][2]["revision"].as_u64().unwrap() + 1;
+        let reply = app
+            .clone()
+            .oneshot(
+                Request::post(format!("/_minco/ticketing/tickets/{last_id}/agent-replies"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::IF_MATCH, format!("\"ticket:{last_id}:{etag}\""))
+                    .body(Body::from(
+                        serde_json::json!({"body": "Working on it."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(reply.status(), StatusCode::OK);
+        let refreshed = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/tickets?page[limit]=3")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let page_two: serde_json::Value =
+            serde_json::from_slice(&to_bytes(refreshed.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(page_two["data"][0]["id"].as_str().unwrap(), last_id);
+        let _ = tickets;
+    }
+
+    #[tokio::test]
+    async fn management_patch_is_atomic_with_problem_details_and_etag() {
+        let app = ticketing_router(service()).layer(axum::Extension(agent_principal()));
+        let tickets = create_tickets_through_api(&app, 1).await;
+        let id = tickets[0]["id"].as_str().unwrap();
+
+        let missing_if_match = app
+            .clone()
+            .oneshot(
+                Request::patch(format!("/_minco/ticketing/agent/tickets/{id}/management"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({"priority": "high"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing_if_match.status(), StatusCode::PRECONDITION_REQUIRED);
+
+        let revision = tickets[0]["revision"].as_u64().unwrap() + 1;
+        let stale = app
+            .clone()
+            .oneshot(
+                Request::patch(format!("/_minco/ticketing/agent/tickets/{id}/management"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::IF_MATCH, format!("\"ticket:{id}:5\""))
+                    .body(Body::from(
+                        serde_json::json!({"priority": "high"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(stale.status(), StatusCode::PRECONDITION_FAILED);
+
+        let invalid = app
+            .clone()
+            .oneshot(
+                Request::patch(format!("/_minco/ticketing/agent/tickets/{id}/management"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::IF_MATCH, format!("\"ticket:{id}:{revision}\""))
+                    .body(Body::from(
+                        serde_json::json!({"priority": "urgent", "status": "closed"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            invalid.headers()[header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+
+        let valid = app
+            .clone()
+            .oneshot(
+                Request::patch(format!("/_minco/ticketing/agent/tickets/{id}/management"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::IF_MATCH, format!("\"ticket:{id}:{revision}\""))
+                    .body(Body::from(
+                        serde_json::json!({
+                            "priority": "urgent",
+                            "assignee_subject": "agent-1",
+                            "queue_id": "tier-1",
+                            "status": "pending_requester"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(valid.status(), StatusCode::OK);
+        let etag = valid.headers()[header::ETAG].to_str().unwrap().to_owned();
+        let managed: serde_json::Value =
+            serde_json::from_slice(&to_bytes(valid.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(
+            etag,
+            format!(
+                "\"ticket:{id}:{}\"",
+                managed["ticket"]["revision"].as_u64().unwrap() + 1
+            )
+        );
+        assert_eq!(managed["ticket"]["priority"], "urgent");
+        assert_eq!(managed["ticket"]["assignee_subject"], "agent-1");
+        assert_eq!(managed["ticket"]["queue_id"], "tier-1");
+        assert_eq!(managed["ticket"]["status"], "pending_requester");
+
+        // The rejected atomic request must not have partially applied.
+        let detail = app
+            .oneshot(
+                Request::get(format!("/_minco/ticketing/agent/tickets/{id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let ticket: serde_json::Value =
+            serde_json::from_slice(&to_bytes(detail.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(ticket["priority"], "urgent");
+        assert_eq!(ticket["revision"], managed["ticket"]["revision"]);
     }
 }
