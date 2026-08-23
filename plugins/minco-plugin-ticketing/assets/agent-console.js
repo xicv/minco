@@ -111,8 +111,9 @@
     return fetchJson(BASE + "/agent/tickets?" + listQuery()).then(function (result) {
       state.page = result.body.data;
       renderList(state.page);
-      el("next").hidden = !result.body.page.has_more;
-      state.cursor = result.body.page.has_more ? result.body.page.next_cursor : null;
+      // ResourceCollection page info serializes as camelCase.
+      el("next").hidden = !result.body.page.hasMore;
+      state.cursor = result.body.page.hasMore ? result.body.page.nextCursor : null;
       setStatus("");
     }, function (error) {
       setStatus(error.status === 403 ? "Console access is forbidden." :
@@ -167,8 +168,12 @@
       loadPage(true);
     }, function (error) {
       if (error.status === 412) {
-        setStatus("The ticket changed while you were working. Reloading the latest version.");
-        if (state.selected) { selectTicket(state.selected.id); }
+        var reload = state.selected
+          ? selectTicket(state.selected.id)
+          : Promise.resolve();
+        reload.then(function () {
+          setStatus("The ticket changed while you were working. Showing the latest version.");
+        });
       } else {
         setStatus("The operation was rejected. " + error.message);
       }

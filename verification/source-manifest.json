@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1842,
+  "file_count": 1847,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -6223,6 +6223,26 @@
       "size_bytes": 6634
     },
     {
+      "path": "examples/ticketing-agent-console/package-lock.json",
+      "sha256": "29cda5835d60445e148c28aa66015608abeac67c1caf6cad708e303a1fbf9937",
+      "size_bytes": 2234
+    },
+    {
+      "path": "examples/ticketing-agent-console/package.json",
+      "sha256": "bbe2d644ce6a9f7f1ba219a901fc3fbd405d286fa7ff256eff5336dac56c3ed9",
+      "size_bytes": 336
+    },
+    {
+      "path": "examples/ticketing-agent-console/playwright.config.cjs",
+      "sha256": "93e1f1c6c532f45f5705c9dae75305ea1380359fa8e7addac37cb2b5c455ef5d",
+      "size_bytes": 933
+    },
+    {
+      "path": "examples/ticketing-agent-console/tests/browser/agent-console.spec.cjs",
+      "sha256": "02fd385e27501b3a2c02172bae4d50cb0b22460bbf9b3c30261190e7fc481bfe",
+      "size_bytes": 16344
+    },
+    {
       "path": "examples/ticketing-entry/.gitignore",
       "sha256": "a305958521f5e61b8274ed12814e86b9028f06fab15092ed08e355d1845684bc",
       "size_bytes": 47
@@ -7494,8 +7514,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/assets/agent-console.js",
-      "sha256": "af0c484425621538bbe5771aa97e4b3bbb84f4a7e64f12a98cd7afef6cdc54ef",
-      "size_bytes": 10453
+      "sha256": "67e335fe9ec8f192761ee6b44ec8f4527785f25b31b375897f323379eb9a032e",
+      "size_bytes": 10605
     },
     {
       "path": "plugins/minco-plugin-ticketing/assets/support-entry.js",
@@ -8818,6 +8838,11 @@
       "size_bytes": 3200
     },
     {
+      "path": "tasks/M14/M14-T47-agent-console-browser-qualification.md",
+      "sha256": "8210820acd24f582304f245d2f9f8189f8fa2d6bb9d8b663df9e49460cdbdbf0",
+      "size_bytes": 3652
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9269,7 +9294,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "54b14ff30507ee8a8a3dcfb740755fdcce53369e78aa19877804ddc3cf3d956d",
-  "total_size_bytes": 13654326,
+  "source_tree_sha256": "d6987f07792ea062a6428547e0a4009761b265248795bea350ce57fba403b4be",
+  "total_size_bytes": 13677977,
   "version": "1.12.0"
 }
