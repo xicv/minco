@@ -1,8 +1,9 @@
 use crate::{
     ConsumeHandoffRequest, ConsumedHandoff, CreateTicketInput, ExternalMessageIdentity,
-    IngestExternalMessageRequest, RequesterTicket, Ticket, TicketActivityIntent, TicketAiContext,
-    TicketAttachment, TicketFromHandoffInput, TicketId, TicketListFilter, TicketPriority,
-    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStoreService,
+    IngestExternalMessageRequest, PublicTicketSummary, RequesterTicket, Ticket,
+    TicketActivityIntent, TicketAiContext, TicketAttachment, TicketFromHandoffInput, TicketId,
+    TicketListFilter, TicketPriority, TicketStatus, TicketStoreError, TicketSummary,
+    TicketSummaryFilter, TicketingStoreService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use minco_interaction::{
@@ -618,6 +619,30 @@ impl TicketingService {
         Ok(self.store.list_summaries(filter).await?)
     }
 
+    /// Requester-scoped own-ticket list. The subject filter is forcibly the
+    /// authenticated subject; client-supplied requester filters are ignored,
+    /// so a requester can never enumerate another requester's tickets.
+    pub async fn list_requester_summaries(
+        &self,
+        principal: &Identity,
+        filter: TicketSummaryFilter,
+    ) -> Result<Vec<PublicTicketSummary>, TicketingServiceError> {
+        authorize(principal, "ticketing.read")?;
+        let own = TicketSummaryFilter {
+            requester_subject: Some(principal.subject.clone()),
+            assignee_subject: None,
+            ..filter
+        };
+        self.require_project(&own.project_id)?;
+        Ok(self
+            .store
+            .list_summaries(own)
+            .await?
+            .iter()
+            .map(PublicTicketSummary::from)
+            .collect())
+    }
+
     pub async fn get_agent_ticket(
         &self,
         principal: &Identity,
@@ -1183,6 +1208,60 @@ mod tests {
                 )
                 .await,
             Err(TicketingServiceError::InvalidManagementRequest)
+        ));
+    }
+
+    #[tokio::test]
+    async fn requester_list_is_forcibly_isolated_to_the_authenticated_subject() {
+        let service = service();
+        for subject in ["user-a", "user-b"] {
+            service
+                .create_ticket(
+                    &identity(subject, &["ticketing.create"]),
+                    CreateTicketInput {
+                        requester: TicketRequester {
+                            subject: subject.into(),
+                            display_name: None,
+                            email: None,
+                        },
+                        ..create_input(subject)
+                    },
+                    Uuid::now_v7(),
+                    Utc::now(),
+                )
+                .await
+                .unwrap();
+        }
+        // Even a caller-injected requester filter is overridden.
+        let summaries = service
+            .list_requester_summaries(
+                &identity("user-a", &["ticketing.read"]),
+                TicketSummaryFilter {
+                    project_id: "project-a".into(),
+                    requester_subject: Some("user-b".into()),
+                    limit: 10,
+                    ..TicketSummaryFilter::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].subject, "user-a");
+        assert_eq!(summaries[0].status, crate::PublicTicketStatus::Open);
+
+        // A requester without ticketing.read is refused.
+        assert!(matches!(
+            service
+                .list_requester_summaries(
+                    &identity("user-a", &[]),
+                    TicketSummaryFilter {
+                        project_id: "project-a".into(),
+                        limit: 10,
+                        ..TicketSummaryFilter::default()
+                    },
+                )
+                .await,
+            Err(TicketingServiceError::PermissionDenied(_))
         ));
     }
 }

@@ -20,12 +20,12 @@
     }
   ],
   "inputs": {
-    "verification/1.9-performance-baseline.json": "ef2a913268a06fe278c3e084b74d2aa7d0f3475f6e2fbdd7afe391e0ac9392da",
+    "verification/1.9-performance-baseline.json": "b6084a8e3ffd7d3a1b3fe3456cbdec12329cc82a4a7638e6b9a45961519a9e1c",
     "verification/aws-capability-candidates.toml": "204c3573941ddd62f6764777ccc8667b523eba53d442be6ed6c72e4a3c5fae64",
     "verification/performance-policy.toml": "f73611985227c3daf63bf85cd863706a1005da57714c8093585ef59f62d8b6a3",
     "verification/provider-evidence.toml": "d8e02e72c142a05a1d71f140c5332223940731a01faa5cea4bb83c53e5dabdc0",
     "verification/repository-truth.toml": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1",
-    "verification/source-manifest.json": "69ccf30274010fb00ce2b3fb8017807f232bbcf7b4a478d80c6523b696a63f8b"
+    "verification/source-manifest.json": "6452a2a1ff6bbe336cbbad220371e847598c7f8b6b403d4b0c8cd8303cfcf2ee"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -34,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "aad7a18f1b7ec6f7d602b093d07ce07db921d06bed9cc4ed8a1f5cbb63d8f1ae",
+  "receipt_digest": "7916a46fba646ccd8cbd25acafa3a4d46a730c3f03d862d5b454b67e9c2977bf",
   "schema_version": 1,
-  "source_tree_sha256": "d6987f07792ea062a6428547e0a4009761b265248795bea350ce57fba403b4be",
+  "source_tree_sha256": "dac8fa03d8d1a4f8bfceb97991748d1b670042392848db69f5cc50f780d3a475",
   "status": "PASS"
 }

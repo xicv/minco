@@ -76,7 +76,10 @@
     {"operation_id":"getTicketingAgentBootstrap","method":"GET","path":"/_minco/ticketing/agent/bootstrap","public":false,"idempotent":false},
     {"operation_id":"listTicketingAgentTickets","method":"GET","path":"/_minco/ticketing/agent/tickets","public":false,"idempotent":false},
     {"operation_id":"getTicketingAgentTicket","method":"GET","path":"/_minco/ticketing/agent/tickets/{ticketId}","public":false,"idempotent":false},
-    {"operation_id":"manageTicketingAgentTicket","method":"PATCH","path":"/_minco/ticketing/agent/tickets/{ticketId}/management","public":false,"idempotent":false,"headers":["If-Match"]}
+    {"operation_id":"manageTicketingAgentTicket","method":"PATCH","path":"/_minco/ticketing/agent/tickets/{ticketId}/management","public":false,"idempotent":false,"headers":["If-Match"]},
+    {"operation_id":"listTicketingRequesterTickets","method":"GET","path":"/_minco/ticketing/requester/tickets","public":false,"idempotent":false},
+    {"operation_id":"getTicketingRequesterTicket","method":"GET","path":"/_minco/ticketing/requester/tickets/{ticketId}","public":false,"idempotent":false},
+    {"operation_id":"replyToTicketingRequesterTicket","method":"POST","path":"/_minco/ticketing/requester/tickets/{ticketId}/replies","public":false,"idempotent":false,"headers":["If-Match"]}
   ],
   "migrations": [{"id":"ticketing-sqlite-v1","database":"sqlite","path":"migrations/sqlite"}],
   "health_checks": [{"id":"ticketing-store","critical":true}],

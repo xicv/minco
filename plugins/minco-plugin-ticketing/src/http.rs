@@ -123,6 +123,12 @@ pub fn ticketing_router(service: TicketingService) -> Router {
             "/agent/tickets/{ticketId}/management",
             patch(manage_agent_ticket),
         )
+        .route("/requester/tickets", get(requester_tickets))
+        .route("/requester/tickets/{ticketId}", get(requester_ticket))
+        .route(
+            "/requester/tickets/{ticketId}/replies",
+            post(requester_reply),
+        )
         .layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
         .with_state(TicketingHttpState { service });
     Router::new().nest(TICKETING_BASE_PATH, routes)
@@ -912,6 +918,127 @@ async fn manage_agent_ticket(
         .await
         .map_err(|error| map_error(error, &request_id))?;
     mutation_response(StatusCode::OK, result)
+}
+
+async fn requester_tickets(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    RawQuery(raw): RawQuery,
+    headers: HeaderMap,
+) -> Result<Json<ResourceCollection<crate::PublicTicketSummary>>, ApiFailure> {
+    let request_id = request_id(&headers);
+    let mut limit = 50usize;
+    let mut before: Option<(DateTime<Utc>, TicketId)> = None;
+    let mut statuses = BTreeSet::new();
+    let mut seen = BTreeSet::new();
+    for (name, value) in url::form_urlencoded::parse(raw.unwrap_or_default().as_bytes()) {
+        let name = name.into_owned();
+        let value = value.into_owned();
+        if !seen.insert(name.clone()) {
+            return Err(ApiFailure::validation(
+                "requester ticket list query repeats a parameter",
+                &request_id,
+            ));
+        }
+        match name.as_str() {
+            "page[limit]" => {
+                limit = value
+                    .parse()
+                    .ok()
+                    .filter(|value| (1..=200).contains(value))
+                    .ok_or_else(|| {
+                        ApiFailure::validation("page limit must be between 1 and 200", &request_id)
+                    })?;
+            }
+            "page[after]" => {
+                if value.len() > 512 {
+                    return Err(ApiFailure::validation(
+                        "page cursor is invalid",
+                        &request_id,
+                    ));
+                }
+                before = Some(decode_cursor(&value).ok_or_else(|| {
+                    ApiFailure::validation("page cursor is invalid", &request_id)
+                })?);
+            }
+            "filter[status]" => {
+                let public: crate::PublicTicketStatus =
+                    serde_json::from_value(serde_json::Value::String(value)).map_err(|_| {
+                        ApiFailure::validation("status filter is invalid", &request_id)
+                    })?;
+                let internal: Vec<TicketStatus> = match public {
+                    crate::PublicTicketStatus::Open => {
+                        vec![TicketStatus::New, TicketStatus::Open]
+                    }
+                    crate::PublicTicketStatus::InProgress => vec![TicketStatus::PendingInternal],
+                    crate::PublicTicketStatus::WaitingForYou => {
+                        vec![TicketStatus::PendingRequester]
+                    }
+                    crate::PublicTicketStatus::OnHold => vec![TicketStatus::OnHold],
+                    crate::PublicTicketStatus::Resolved => vec![TicketStatus::Resolved],
+                    crate::PublicTicketStatus::Closed => vec![TicketStatus::Closed],
+                };
+                statuses.extend(internal);
+            }
+            _ => {
+                return Err(ApiFailure::validation(
+                    "requester ticket list query contains an unsupported parameter",
+                    &request_id,
+                ));
+            }
+        }
+    }
+    let mut summaries = state
+        .service
+        .list_requester_summaries(
+            &principal,
+            crate::TicketSummaryFilter {
+                project_id: state.service.config().project_id.clone(),
+                statuses,
+                queue_id: None,
+                assignee_subject: None,
+                requester_subject: None,
+                before_updated_at: before.map(|value| value.0),
+                before_id: before.map(|value| value.1),
+                limit: limit + 1,
+            },
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    let has_more = summaries.len() > limit;
+    summaries.truncate(limit);
+    let next = if has_more {
+        summaries
+            .last()
+            .map(|summary| Cursor::new(encode_cursor_parts(summary.updated_at, summary.id)))
+            .transpose()
+            .map_err(|_| ApiFailure::internal(&request_id))?
+    } else {
+        None
+    };
+    Ok(Json(ResourceCollection::new(summaries, next)))
+}
+
+async fn requester_ticket(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let ticket = state
+        .service
+        .get_ticket_for_requester(&principal, &state.service.config().project_id, id)
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    let tag = StrongEntityTag::for_resource("ticket", &ticket.id.to_string(), ticket.revision + 1)
+        .map_err(|_| ApiFailure::internal(&request_id))?;
+    let mut response = Json(ticket).into_response();
+    response
+        .headers_mut()
+        .insert(header::ETAG, tag.to_header_value());
+    Ok(response)
 }
 
 #[derive(Debug)]
@@ -1869,5 +1996,172 @@ mod tests {
                 .unwrap();
         assert_eq!(ticket["priority"], "urgent");
         assert_eq!(ticket["revision"], managed["ticket"]["revision"]);
+    }
+
+    fn requester_principal(subject: &str) -> minco_http::Principal {
+        minco_http::Principal {
+            subject: subject.into(),
+            permissions: ["ticketing.create", "ticketing.read", "ticketing.reply"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+            claims: BTreeMap::new(),
+        }
+    }
+
+    async fn create_requester_ticket(
+        app: &Router,
+        subject: &str,
+        reference: &str,
+    ) -> serde_json::Value {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/tickets")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .extension(requester_principal(subject))
+                    .body(Body::from(
+                        serde_json::json!({
+                            "project_id": "project-a",
+                            "subject": reference,
+                            "description": "It broke and the requester needs help.",
+                            "requester": {"subject": subject},
+                            "channel": "portal"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn requester_surface_lists_only_own_tickets_with_public_shapes() {
+        let app = ticketing_router(service());
+        let ticket_a = create_requester_ticket(&app, "user-a", "Own ticket").await;
+        create_requester_ticket(&app, "user-b", "Foreign ticket").await;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .extension(requester_principal("user-a"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let encoded = serde_json::to_string(&page).unwrap();
+        assert_eq!(page["data"].as_array().unwrap().len(), 1);
+        assert_eq!(page["data"][0]["subject"], "Own ticket");
+        assert_eq!(page["data"][0]["status"], "open");
+        assert!(!encoded.contains("Foreign ticket"));
+        assert!(!encoded.contains("assignee_subject"));
+        assert!(!encoded.contains("requester_subject"));
+        assert!(page["page"]["hasMore"].is_boolean());
+
+        let foreign_id = ticket_a["ticket"]["id"].as_str().unwrap();
+        let foreign = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/_minco/ticketing/requester/tickets/{foreign_id}"))
+                    .extension(requester_principal("user-b"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(foreign.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn requester_detail_is_public_and_reply_alias_round_trips() {
+        let app = ticketing_router(service()).layer(axum::Extension(requester_principal("user-a")));
+        let created = create_requester_ticket(&app, "user-a", "Own ticket").await;
+        let id = created["ticket"]["id"].as_str().unwrap();
+        let revision = created["ticket"]["revision"].as_u64().unwrap();
+
+        let detail = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/_minco/ticketing/requester/tickets/{id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(detail.status(), StatusCode::OK);
+        assert_eq!(
+            detail.headers()[header::ETAG],
+            format!("\"ticket:{id}:{}\"", revision + 1)
+        );
+        let projection: serde_json::Value =
+            serde_json::from_slice(&to_bytes(detail.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let encoded = serde_json::to_string(&projection).unwrap();
+        assert!(!encoded.contains("author_subject"));
+        assert_eq!(projection["status"], "open");
+        assert_eq!(projection["messages"][0]["author"], "requester");
+
+        let reply = app
+            .clone()
+            .oneshot(
+                Request::post(format!("/_minco/ticketing/requester/tickets/{id}/replies"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(
+                        header::IF_MATCH,
+                        format!("\"ticket:{id}:{}\"", revision + 1),
+                    )
+                    .body(Body::from(
+                        serde_json::json!({"body": "Here is more detail."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(reply.status(), StatusCode::OK);
+        let answered: serde_json::Value =
+            serde_json::from_slice(&to_bytes(reply.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(answered["ticket"]["messages"].as_array().unwrap().len(), 2);
+        assert_eq!(answered["ticket"]["messages"][1]["author"], "requester");
+    }
+
+    #[tokio::test]
+    async fn requester_public_status_filter_maps_to_internal_statuses() {
+        let app = ticketing_router(service()).layer(axum::Extension(requester_principal("user-a")));
+        create_requester_ticket(&app, "user-a", "Own ticket").await;
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets?filter[status]=waiting_for_you")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(page["data"].as_array().unwrap().len(), 0);
+
+        let invalid = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets?filter[status]=pending_internal")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 }

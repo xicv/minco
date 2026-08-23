@@ -423,6 +423,72 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/TicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/tickets:
+    get:
+      operationId: listTicketingRequesterTickets
+      summary: List the authenticated requester's own tickets as public summaries
+      description: >-
+        Newest-first compact public summaries of the requester's own tickets.
+        The requester filter is forcibly the authenticated subject.
+      parameters:
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageAfter'}
+        - in: query
+          name: filter[status]
+          schema:
+            type: array
+            items: {$ref: '#/components/schemas/RequesterStatus'}
+      responses:
+        '200':
+          description: Public ticket summaries ordered updated_at DESC, id DESC
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data, page]
+                properties:
+                  data: {type: array, items: {$ref: '#/components/schemas/RequesterTicketSummary'}}
+                  page:
+                    type: object
+                    additionalProperties: false
+                    required: [hasMore, nextCursor]
+                    properties:
+                      hasMore: {type: boolean}
+                      nextCursor: {type: [string, 'null']}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/tickets/{ticketId}:
+    get:
+      operationId: getTicketingRequesterTicket
+      summary: Get one public ticket projection for its own requester
+      parameters: [{$ref: '#/components/parameters/TicketId'}]
+      responses:
+        '200':
+          description: Public ticket projection without internal data
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RequesterTicket'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/tickets/{ticketId}/replies:
+    post:
+      operationId: replyToTicketingRequesterTicket
+      summary: Reply to the requester's own ticket through the requester surface
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [body]
+              properties:
+                body: {type: string, minLength: 1, maxLength: 20000}
+      responses:
+        '200': {$ref: '#/components/responses/RequesterTicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
@@ -706,14 +772,29 @@ components:
     RequesterMessage:
       type: object
       additionalProperties: false
-      required: [id, kind, direction, body, created_at]
+      required: [id, author, kind, body, created_at]
       properties:
         id: {type: string, format: uuid}
-        kind: {type: string, enum: [public_reply, system_event, voice_transcript]}
-        direction: {$ref: '#/components/schemas/TicketMessageDirection'}
-        author_subject: {type: [string, 'null']}
+        author: {type: string, enum: [requester, support, system]}
+        kind: {type: string, enum: [reply, status]}
         body: {type: string, maxLength: 20000}
         created_at: {type: string, format: date-time}
+    RequesterStatus:
+      type: string
+      enum: [open, in_progress, waiting_for_you, on_hold, resolved, closed]
+    RequesterTicketSummary:
+      type: object
+      additionalProperties: false
+      required: [id, display_reference, subject, status, message_count, needs_attention, updated_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        display_reference: {type: string}
+        subject: {type: string}
+        status: {$ref: '#/components/schemas/RequesterStatus'}
+        message_count: {type: integer, minimum: 0}
+        needs_attention: {type: boolean}
+        updated_at: {type: string, format: date-time}
+        revision: {type: integer, minimum: 0}
     RequesterAttachment:
       type: object
       additionalProperties: false
@@ -738,7 +819,7 @@ components:
         requester: {$ref: '#/components/schemas/TicketRequester'}
         channel: {$ref: '#/components/schemas/TicketChannel'}
         priority: {$ref: '#/components/schemas/TicketPriority'}
-        status: {$ref: '#/components/schemas/TicketStatus'}
+        status: {$ref: '#/components/schemas/RequesterStatus'}
         messages: {type: array, items: {$ref: '#/components/schemas/RequesterMessage'}}
         attachments: {type: array, items: {$ref: '#/components/schemas/RequesterAttachment'}}
         created_at: {type: string, format: date-time}

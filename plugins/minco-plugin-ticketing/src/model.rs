@@ -532,12 +532,30 @@ impl Ticket {
             requester: self.requester.clone(),
             channel: self.channel.clone(),
             priority: self.priority,
-            status: self.status,
+            status: self.status.into(),
             messages: self
                 .messages
                 .iter()
                 .filter(|message| message.kind != TicketMessageKind::InternalNote)
-                .cloned()
+                .map(|message| PublicTicketMessage {
+                    id: message.id,
+                    author: match &message.author_subject {
+                        None => PublicMessageAuthor::System,
+                        Some(subject) if *subject == self.requester.subject => {
+                            PublicMessageAuthor::Requester
+                        }
+                        Some(_) => PublicMessageAuthor::Support,
+                    },
+                    kind: match message.kind {
+                        TicketMessageKind::SystemEvent => PublicMessageKind::Status,
+                        TicketMessageKind::PublicReply | TicketMessageKind::VoiceTranscript => {
+                            PublicMessageKind::Reply
+                        }
+                        TicketMessageKind::InternalNote => PublicMessageKind::Reply,
+                    },
+                    body: Self::public_message_body(message),
+                    created_at: message.created_at,
+                })
                 .collect(),
             attachments: self
                 .attachments
@@ -547,6 +565,33 @@ impl Ticket {
             created_at: self.created_at,
             updated_at: self.updated_at,
             revision: self.revision,
+        }
+    }
+
+    /// System-event bodies record internal status vocabulary; requesters see
+    /// the public label only.
+    fn public_message_body(message: &TicketMessage) -> String {
+        if message.kind != TicketMessageKind::SystemEvent {
+            return message.body.clone();
+        }
+        let internal = message
+            .body
+            .rsplit(' ')
+            .next()
+            .map(|word| word.replace('_', ""))
+            .and_then(|word| match word.as_str() {
+                "new" => Some(TicketStatus::New),
+                "open" => Some(TicketStatus::Open),
+                "pendingrequester" => Some(TicketStatus::PendingRequester),
+                "pendinginternal" => Some(TicketStatus::PendingInternal),
+                "onhold" => Some(TicketStatus::OnHold),
+                "resolved" => Some(TicketStatus::Resolved),
+                "closed" => Some(TicketStatus::Closed),
+                _ => None,
+            });
+        match internal {
+            Some(status) => format!("status changed to {}", PublicTicketStatus::from(status)),
+            None => "status updated".into(),
         }
     }
 
@@ -590,6 +635,71 @@ impl From<&TicketAttachment> for RequesterTicketAttachment {
     }
 }
 
+/// Public requester-facing message author. The internal actor subject is
+/// never serialized across the requester boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicMessageAuthor {
+    Requester,
+    Support,
+    System,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicMessageKind {
+    Reply,
+    Status,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicTicketMessage {
+    pub id: TicketMessageId,
+    pub author: PublicMessageAuthor,
+    pub kind: PublicMessageKind,
+    pub body: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Public requester-facing status vocabulary. Internal workflow statuses
+/// never cross the requester boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicTicketStatus {
+    Open,
+    InProgress,
+    WaitingForYou,
+    OnHold,
+    Resolved,
+    Closed,
+}
+
+impl fmt::Display for PublicTicketStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Open => "open",
+            Self::InProgress => "in_progress",
+            Self::WaitingForYou => "waiting_for_you",
+            Self::OnHold => "on_hold",
+            Self::Resolved => "resolved",
+            Self::Closed => "closed",
+        })
+    }
+}
+
+impl From<TicketStatus> for PublicTicketStatus {
+    fn from(value: TicketStatus) -> Self {
+        match value {
+            TicketStatus::New | TicketStatus::Open => Self::Open,
+            TicketStatus::PendingInternal => Self::InProgress,
+            TicketStatus::PendingRequester => Self::WaitingForYou,
+            TicketStatus::OnHold => Self::OnHold,
+            TicketStatus::Resolved => Self::Resolved,
+            TicketStatus::Closed => Self::Closed,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RequesterTicket {
     pub id: TicketId,
@@ -600,12 +710,40 @@ pub struct RequesterTicket {
     pub requester: TicketRequester,
     pub channel: TicketChannel,
     pub priority: TicketPriority,
-    pub status: TicketStatus,
-    pub messages: Vec<TicketMessage>,
+    pub status: PublicTicketStatus,
+    pub messages: Vec<PublicTicketMessage>,
     pub attachments: Vec<RequesterTicketAttachment>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub revision: u64,
+}
+
+/// Compact requester-facing ticket summary of the requester's own ticket.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicTicketSummary {
+    pub id: TicketId,
+    pub display_reference: String,
+    pub subject: String,
+    pub status: PublicTicketStatus,
+    pub message_count: usize,
+    pub needs_attention: bool,
+    pub updated_at: DateTime<Utc>,
+    pub revision: u64,
+}
+
+impl From<&TicketSummary> for PublicTicketSummary {
+    fn from(value: &TicketSummary) -> Self {
+        Self {
+            id: value.id,
+            display_reference: value.display_reference.clone(),
+            subject: value.subject.clone(),
+            status: value.status.into(),
+            message_count: value.message_count,
+            needs_attention: value.needs_attention,
+            updated_at: value.updated_at,
+            revision: value.revision,
+        }
+    }
 }
 
 /// Compact agent-facing ticket summary. Deliberately excludes descriptions,
@@ -819,5 +957,71 @@ mod tests {
         ticket.reply_as_requester("regressed", resolved).unwrap();
         assert_eq!(ticket.status, TicketStatus::Open);
         assert!(ticket.closed_at.is_none());
+    }
+
+    #[test]
+    fn requester_projection_never_serializes_internal_identity_or_vocabulary() {
+        let mut ticket = ticket();
+        let now = ticket.created_at + TimeDelta::minutes(1);
+        ticket
+            .reply_as_agent("agent-internal-subject", "We are checking.", now)
+            .unwrap();
+        ticket
+            .add_internal_note("agent-internal-subject", "secret internal note", now)
+            .unwrap();
+        ticket
+            .change_status(TicketStatus::PendingInternal, None, None, now)
+            .unwrap();
+
+        let projection = ticket.requester_projection();
+        assert_eq!(projection.status, PublicTicketStatus::InProgress);
+        let encoded = serde_json::to_string(&projection).unwrap();
+        assert!(!encoded.contains("agent-internal-subject"));
+        assert!(!encoded.contains("author_subject"));
+        assert!(!encoded.contains("secret internal note"));
+        assert!(!encoded.contains("pending_internal"));
+        assert!(encoded.contains("in_progress"));
+        assert!(encoded.contains("\"system\""));
+        assert!(encoded.contains("status changed to in_progress"));
+
+        let authors = projection
+            .messages
+            .iter()
+            .map(|message| message.author)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            authors,
+            vec![
+                PublicMessageAuthor::Requester,
+                PublicMessageAuthor::Support,
+                PublicMessageAuthor::System
+            ]
+        );
+    }
+
+    #[test]
+    fn public_status_mapping_is_total_and_deterministic() {
+        let mapped = [
+            TicketStatus::New,
+            TicketStatus::Open,
+            TicketStatus::PendingInternal,
+            TicketStatus::PendingRequester,
+            TicketStatus::OnHold,
+            TicketStatus::Resolved,
+            TicketStatus::Closed,
+        ]
+        .map(PublicTicketStatus::from);
+        assert_eq!(
+            mapped,
+            [
+                PublicTicketStatus::Open,
+                PublicTicketStatus::Open,
+                PublicTicketStatus::InProgress,
+                PublicTicketStatus::WaitingForYou,
+                PublicTicketStatus::OnHold,
+                PublicTicketStatus::Resolved,
+                PublicTicketStatus::Closed
+            ]
+        );
     }
 }

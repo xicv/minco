@@ -371,6 +371,24 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             "/_minco/ticketing/agent/tickets/{ticketId}/management",
             false,
         ),
+        (
+            "listTicketingRequesterTickets",
+            "GET",
+            "/_minco/ticketing/requester/tickets",
+            false,
+        ),
+        (
+            "getTicketingRequesterTicket",
+            "GET",
+            "/_minco/ticketing/requester/tickets/{ticketId}",
+            false,
+        ),
+        (
+            "replyToTicketingRequesterTicket",
+            "POST",
+            "/_minco/ticketing/requester/tickets/{ticketId}/replies",
+            false,
+        ),
     ]
     .into_iter()
     .map(|(operation_id, method, path, public)| OperationDescriptor {

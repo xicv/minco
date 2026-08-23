@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1847,
+  "file_count": 1849,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "23eb21be2624ac4fba0581cd79cff1cf69e962250caa2294d118eb5442b638f3",
-      "size_bytes": 9017
+      "sha256": "c96097eee0d7e71503c6ef5910bc7e300950c5beac1aa1882b5055275d65ffad",
+      "size_bytes": 9282
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2103,6 +2103,11 @@
       "size_bytes": 6565
     },
     {
+      "path": "docs/adrs/0050-requester-safe-public-projections.md",
+      "sha256": "1112b787bba0284c972c0d6275ceef1078ccb8354c6249dd052330f7da8e39cd",
+      "size_bytes": 3672
+    },
+    {
       "path": "docs/architecture/adoption-readiness-review.md",
       "sha256": "822329315f8554ffe5429bac7d31124e4cba2e8ddb0a818a106a0c6ebddd91d3",
       "size_bytes": 5091
@@ -2429,7 +2434,7 @@
     },
     {
       "path": "docs/reference/generated/plugins.md",
-      "sha256": "cbb0c9b289f25d69ed0f99fd36b09ac70b72ea328649062295800d4612821c76",
+      "sha256": "9f95b7ba2ecaa1ad59c629301ef3d76ddc01c2a84102d2209c44c3a9bfd5490d",
       "size_bytes": 7235
     },
     {
@@ -7534,18 +7539,18 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/minco-plugin.json",
-      "sha256": "cc031e626a2ff568a088782809b5e1c88f97949ca76a19793b509973d4991000",
-      "size_bytes": 7146
+      "sha256": "7c7a1dde1dc49698c53e793deefd9ff633736308383accfdfcc7169e2c216e38",
+      "size_bytes": 7644
     },
     {
       "path": "plugins/minco-plugin-ticketing/openapi/openapi.yaml",
-      "sha256": "b2a74e6563a981eded77e993838b2227fd64029ff4ff3ea545c0f7963bfe3576",
-      "size_bytes": 33244
+      "sha256": "3d01ee373bdd8b5dbce63426e880b2d725c8084ef4eb6507143610db914a316f",
+      "size_bytes": 36551
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/http.rs",
-      "sha256": "83358d96fa2b9ce4b63ed37e5ff524ba6b934f754bbb94dd1ed666ff489a63a8",
-      "size_bytes": 65223
+      "sha256": "d2de05e7cd1a223d39b59b61f8cc703871a02803f22d6c49aa4506bb21e50081",
+      "size_bytes": 77102
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/lib.rs",
@@ -7554,8 +7559,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/model.rs",
-      "sha256": "fba4119a8df5d5f81c74d85b5f8002ce62103cf2ab2135a87eab9cd1b1ff8b88",
-      "size_bytes": 27022
+      "sha256": "80ea4ee3222556947e229095a1d662b6c4b6269097e4aacd2d65fc23d14fb900",
+      "size_bytes": 34337
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
@@ -7564,13 +7569,13 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/plugin.rs",
-      "sha256": "02d1b5356cc02b27fe7914e1603021d0d8cdd2c3073e1c458212c599137729a0",
-      "size_bytes": 16924
+      "sha256": "b0e034423688b7fd88b470e5272e10154e30fa5a7ede436a92e6f71751543cbb",
+      "size_bytes": 17420
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
-      "sha256": "07a7475c655689e4d47c65b8c14f10536ecb3546d6c4804c7673bd8530415fbb",
-      "size_bytes": 38814
+      "sha256": "1e4b8c1f0d0bae819ec59aba10d22314077c7b6195f0463934db15c72893380e",
+      "size_bytes": 41684
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
@@ -8843,6 +8848,11 @@
       "size_bytes": 3652
     },
     {
+      "path": "tasks/M14/M14-T48-requester-safe-projections.md",
+      "sha256": "423bacf29398cba972f6625786554da9038131079392a72aed9ea91f1f3f8d06",
+      "size_bytes": 4301
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9294,7 +9304,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "d6987f07792ea062a6428547e0a4009761b265248795bea350ce57fba403b4be",
-  "total_size_bytes": 13677977,
+  "source_tree_sha256": "dac8fa03d8d1a4f8bfceb97991748d1b670042392848db69f5cc50f780d3a475",
+  "total_size_bytes": 13712580,
   "version": "1.12.0"
 }
