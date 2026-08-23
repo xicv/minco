@@ -1,14 +1,18 @@
 ---
 title: Minco 1.12.0
-description: Unreleased Minco 1.12.0 candidate documentation for durable typed work.
+description: Published Minco 1.12.0 documentation for durable typed work.
 ---
 
 # Minco 1.12.0
 
-<p class="doc-kicker">Unpublished candidate manual</p>
+<p class="doc-kicker">Published stable manual</p>
 
-<p class="doc-lead">This frozen manual describes the unpublished 1.12.0 candidate source while keeping source, hosted qualification, registry, documentation and provider evidence visibly separate.</p>
+<p class="doc-lead">This frozen manual describes the published 1.12.0 source while keeping source, hosted qualification, registry, documentation and provider evidence visibly separate.</p>
 
+<div class="version-banner">
+  <span><strong>Latest stable release.</strong> These pages target Minco 1.12.0 and Rust 1.97.1.</span>
+  <a href="../versions">View all versions</a>
+</div>
 
 The 1.8 release added [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,
