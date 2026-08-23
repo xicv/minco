@@ -34,9 +34,11 @@ minco-interaction.workspace = true
 minco-plugin-audit.workspace = true
 minco-plugin-events.workspace = true
 minco-plugin-health = { workspace = true, optional = true }
+minco-plugin-idempotency.workspace = true
 minco-plugin-identity.workspace = true
 minco-plugin-notifications.workspace = true
 minco-plugin-object-storage.workspace = true
+minco-plugin-sessions.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true

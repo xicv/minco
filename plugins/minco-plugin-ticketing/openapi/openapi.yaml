@@ -489,6 +489,60 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/RequesterTicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/sessions:
+    post:
+      operationId: createTicketingRequesterSession
+      summary: Atomically exchange a one-time handoff for a durable requester session
+      description: >-
+        Consumes the one-time handoff from the sensitive header, mints a
+        requester portal session bound to the requester subject, project and
+        portal origin, and sets a host-only Secure HttpOnly SameSite=Lax
+        session cookie. Identical replays answer with the original grant.
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/Handoff'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [portal_origin]
+              properties:
+                portal_origin: {type: string}
+            examples:
+              browser:
+                value:
+                  portal_origin: https://support.example.test
+      responses:
+        '200':
+          description: Identical replay of the original session grant
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionGrant'}
+        '201':
+          description: Session issued; the bearer cookie is set exactly once
+          headers:
+            Set-Cookie:
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionGrant'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/logout:
+    post:
+      operationId: endTicketingRequesterSession
+      summary: Revoke the requester portal session
+      parameters:
+        - in: header
+          name: X-Minco-CSRF
+          required: true
+          schema: {type: string}
+      responses:
+        '204':
+          description: Session revoked
+        default: {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
@@ -883,3 +937,10 @@ components:
         priority: {$ref: '#/components/schemas/TicketPriority'}
         resource_references: {type: array, items: {$ref: '#/components/schemas/ResourceReference'}}
         messages: {type: array, items: {$ref: '#/components/schemas/TicketMessage'}}
+    SessionGrant:
+      type: object
+      additionalProperties: false
+      required: [expires_at, csrf_token]
+      properties:
+        expires_at: {type: string, format: date-time}
+        csrf_token: {type: string}

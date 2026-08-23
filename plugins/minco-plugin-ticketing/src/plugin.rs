@@ -169,8 +169,25 @@ impl Plugin for TicketingPlugin {
             let _audit = services.get::<AuditService>()?;
             let _events = services.get::<EventServices>()?;
         }
+        // Sessions, CSRF and idempotency are optional portal services
+        // (ADR-0051): the base plugin works without all of them.
+        let portal = {
+            let services = context.services();
+            crate::TicketingPortalServices {
+                sessions: services
+                    .get_optional::<minco_plugin_sessions::SessionService>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
+                csrf: services
+                    .get_optional::<minco_plugin_sessions::CsrfService>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
+                idempotency: services
+                    .get_optional::<minco_plugin_idempotency::IdempotencyService>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
+            }
+        };
         let service = TicketingService::new(self.store.clone(), config)
-            .map_err(|error| PluginError::Installation(error.to_string()))?;
+            .map_err(|error| PluginError::Installation(error.to_string()))?
+            .with_portal_services(portal);
         context.services().insert(Arc::new(self.store.clone()))?;
         context.services().insert(Arc::new(service.clone()))?;
         context
@@ -180,6 +197,9 @@ impl Plugin for TicketingPlugin {
         header_policy
             .allow_request_header_name(crate::HANDOFF_HEADER)
             .and_then(|()| header_policy.mark_request_header_name_sensitive(crate::HANDOFF_HEADER))
+            .and_then(|()| header_policy.allow_request_header_name("cookie"))
+            .and_then(|()| header_policy.mark_request_header_name_sensitive("cookie"))
+            .and_then(|()| header_policy.enable_cookie_csrf())
             .map_err(|error| PluginError::Installation(error.to_string()))?;
         HttpModule::new(context.plugin_id().clone(), ticketing_router(service))
             .with_operations(
@@ -194,8 +214,14 @@ impl Plugin for TicketingPlugin {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct TicketingHealthCheck(TicketingService);
+
+impl std::fmt::Debug for TicketingHealthCheck {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("TicketingHealthCheck").finish()
+    }
+}
 
 #[async_trait]
 impl HealthCheck for TicketingHealthCheck {
@@ -389,6 +415,18 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             "/_minco/ticketing/requester/tickets/{ticketId}/replies",
             false,
         ),
+        (
+            "createTicketingRequesterSession",
+            "POST",
+            "/_minco/ticketing/requester/sessions",
+            true,
+        ),
+        (
+            "endTicketingRequesterSession",
+            "POST",
+            "/_minco/ticketing/requester/logout",
+            false,
+        ),
     ]
     .into_iter()
     .map(|(operation_id, method, path, public)| OperationDescriptor {
@@ -453,6 +491,13 @@ fn configuration_fields() -> Vec<ConfigurationField> {
                 "Share only information needed to resolve this request."
             )),
             "Browser-safe privacy notice",
+        ),
+        field(
+            "requester_session_ttl_seconds",
+            ConfigurationValueKind::Integer,
+            false,
+            Some(serde_json::json!(3600)),
+            "Requester portal session lifetime, at most 86400 seconds",
         ),
     ]
 }

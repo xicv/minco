@@ -138,6 +138,25 @@ pub struct ConsumedHandoff {
     pub repeated: bool,
 }
 
+/// One-time handoff consumption that establishes a requester identity
+/// without creating a ticket. Each handoff can be consumed for a session
+/// exactly once; an identical replay returns the same identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConsumeSessionRequest {
+    pub token: SupportHandoffToken,
+    pub project_id: String,
+    pub portal_origin: String,
+    pub request_fingerprint: String,
+    pub now: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConsumedSessionIdentity {
+    pub requester_subject: String,
+    pub requester_permissions: Vec<String>,
+    pub correlation_id: Uuid,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExternalMessageIdentity {
     pub project_id: String,
@@ -198,6 +217,11 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         &self,
         request: ConsumeHandoffRequest,
     ) -> Result<ConsumedHandoff, TicketStoreError>;
+
+    async fn consume_handoff_identity(
+        &self,
+        request: ConsumeSessionRequest,
+    ) -> Result<(ConsumedSessionIdentity, bool), TicketStoreError>;
 
     async fn ingest_external_message(
         &self,
@@ -270,6 +294,13 @@ impl TicketingStoreService {
         self.0.consume_and_create_ticket(request).await
     }
 
+    pub async fn consume_handoff_identity(
+        &self,
+        request: ConsumeSessionRequest,
+    ) -> Result<(ConsumedSessionIdentity, bool), TicketStoreError> {
+        self.0.consume_handoff_identity(request).await
+    }
+
     pub async fn ingest_external_message(
         &self,
         request: IngestExternalMessageRequest,
@@ -286,6 +317,7 @@ impl TicketingStoreService {
 struct MemoryHandoff {
     handoff: SupportHandoff,
     completed_fingerprint: Option<String>,
+    consumed_identity: Option<(String, ConsumedSessionIdentity)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -492,6 +524,7 @@ impl TicketingStore for MemoryTicketingStore {
             MemoryHandoff {
                 handoff,
                 completed_fingerprint: None,
+                consumed_identity: None,
             },
         );
         drop(state);
@@ -606,6 +639,60 @@ impl TicketingStore for MemoryTicketingStore {
             result,
             repeated: false,
         })
+    }
+
+    async fn consume_handoff_identity(
+        &self,
+        request: ConsumeSessionRequest,
+    ) -> Result<(ConsumedSessionIdentity, bool), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let digest = request.token.digest();
+        let matched_digest = state
+            .handoffs
+            .keys()
+            .find(|candidate| {
+                candidate
+                    .as_str()
+                    .as_bytes()
+                    .ct_eq(digest.as_str().as_bytes())
+                    .into()
+            })
+            .cloned()
+            .ok_or(TicketStoreError::UnknownHandoff)?;
+        let entry = state
+            .handoffs
+            .get(&matched_digest)
+            .expect("matched key exists");
+        if !entry.handoff.digest.matches_token(&request.token) {
+            return Err(TicketStoreError::UnknownHandoff);
+        }
+        if entry.handoff.project_id != request.project_id {
+            return Err(TicketStoreError::WrongHandoffProject);
+        }
+        if entry.handoff.portal_origin != request.portal_origin {
+            return Err(TicketStoreError::WrongHandoffPortal);
+        }
+        let identity = ConsumedSessionIdentity {
+            requester_subject: entry.handoff.requester_subject.clone(),
+            requester_permissions: entry.handoff.requester_permissions.clone(),
+            correlation_id: entry.handoff.correlation_id,
+        };
+        if let Some((fingerprint, existing)) = entry.consumed_identity.clone() {
+            if fingerprint != request.request_fingerprint {
+                return Err(TicketStoreError::HandoffAlreadyConsumed);
+            }
+            return Ok((existing, true));
+        }
+        if entry.handoff.expires_at <= request.now {
+            return Err(TicketStoreError::ExpiredHandoff);
+        }
+        let entry = state
+            .handoffs
+            .get_mut(&matched_digest)
+            .expect("matched key exists");
+        entry.consumed_identity = Some((request.request_fingerprint, identity.clone()));
+        drop(state);
+        Ok((identity, false))
     }
 
     async fn ingest_external_message(
@@ -1134,5 +1221,63 @@ mod tests {
         let mut other = summary_filter(10);
         other.project_id = "project-b".into();
         assert!(store.list_summaries(other).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn session_handoff_identity_is_one_time_replayable_and_fail_closed() {
+        let store = MemoryTicketingStore::default();
+        let now = Utc::now();
+        let (handoff, token) = issue(now);
+        store.insert_handoff(handoff).await.unwrap();
+
+        let request = |fingerprint: &str, portal: &str| ConsumeSessionRequest {
+            token: token.clone(),
+            project_id: "project-a".into(),
+            portal_origin: portal.into(),
+            request_fingerprint: fingerprint.into(),
+            now,
+        };
+
+        let (first, repeated_flag) = store
+            .consume_handoff_identity(request("fingerprint-1", "https://support.example.test"))
+            .await
+            .unwrap();
+        assert!(!repeated_flag);
+        assert_eq!(first.requester_subject, "user-1");
+        assert_eq!(first.requester_permissions, vec!["ticketing.create"]);
+
+        let (repeated, replayed) = store
+            .consume_handoff_identity(request("fingerprint-1", "https://support.example.test"))
+            .await
+            .unwrap();
+        assert!(replayed);
+        assert_eq!(repeated, first);
+
+        assert!(matches!(
+            store
+                .consume_handoff_identity(request("fingerprint-2", "https://support.example.test"))
+                .await,
+            Err(TicketStoreError::HandoffAlreadyConsumed)
+        ));
+        assert!(matches!(
+            store
+                .consume_handoff_identity(request("fingerprint-1", "https://other.example.test"))
+                .await,
+            Err(TicketStoreError::WrongHandoffPortal)
+        ));
+
+        // Ticket creation consumption is independent of session consumption:
+        // after a session exchange the handoff can still create its ticket
+        // exactly once, and the identical ticket exchange replays.
+        let created = store
+            .consume_and_create_ticket(consume(token.clone(), now))
+            .await
+            .unwrap();
+        assert!(!created.repeated);
+        let replayed = store
+            .consume_and_create_ticket(consume(token, now))
+            .await
+            .unwrap();
+        assert!(replayed.repeated);
     }
 }

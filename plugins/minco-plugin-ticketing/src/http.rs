@@ -30,7 +30,7 @@ const AGENT_CONSOLE_SCRIPT: &str = include_str!("../assets/agent-console.js");
 const AGENT_CONSOLE_STYLES: &str = include_str!("../assets/agent-console.css");
 const MAX_JSON_BODY_BYTES: usize = 256 * 1024;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct TicketingHttpState {
     service: TicketingService,
 }
@@ -55,6 +55,85 @@ where
             .ok_or_else(|| identity_required(&request_id))?;
         Ok(Self(identity(principal)))
     }
+}
+
+pub const REQUESTER_SESSION_COOKIE: &str = "minco_ticketing_session";
+const REQUESTER_SESSION_COOKIE_PATH: &str = "/_minco/ticketing";
+
+/// Requester identity: a host-injected principal wins (API/BFF callers keep
+/// their authority); otherwise a valid session cookie resolves to an
+/// identity whose permissions are exactly the handoff-granted set.
+struct RequesterIdentity {
+    identity: Identity,
+    session: Option<minco_plugin_sessions::SessionRecord>,
+}
+
+impl FromRequestParts<TicketingHttpState> for RequesterIdentity {
+    type Rejection = ApiFailure;
+
+    async fn from_request_parts(
+        parts: &mut http::request::Parts,
+        state: &TicketingHttpState,
+    ) -> Result<Self, Self::Rejection> {
+        if let Some(principal) = parts.extensions.get::<minco_http::Principal>().cloned() {
+            return Ok(Self {
+                identity: identity(principal),
+                session: None,
+            });
+        }
+        let request_id = request_id(&parts.headers);
+        let token = session_cookie(parts.headers.get(header::COOKIE))
+            .ok_or_else(|| identity_required(&request_id))?;
+        let (record, identity) = state
+            .service
+            .resolve_requester_session(&token)
+            .await
+            .map_err(|error| map_error(error, &request_id))?;
+        Ok(Self {
+            identity,
+            session: Some(record),
+        })
+    }
+}
+
+fn session_cookie(header: Option<&HeaderValue>) -> Option<minco_plugin_sessions::SessionToken> {
+    let header = header?.to_str().ok()?;
+    let value = header.split(';').map(str::trim).find_map(|part| {
+        part.split_once('=')
+            .filter(|(name, _)| name.trim() == REQUESTER_SESSION_COOKIE)
+            .map(|(_, value)| value.trim().to_owned())
+    })?;
+    minco_plugin_sessions::SessionToken::parse(value).ok()
+}
+
+/// Session-sourced mutations must present the CSRF token bound to the
+/// session; injected principals are not CSRF-checked.
+fn require_session_csrf(
+    state: &TicketingHttpState,
+    requester: &RequesterIdentity,
+    headers: &HeaderMap,
+    request_id: &str,
+) -> Result<(), ApiFailure> {
+    let Some(record) = requester.session.as_ref() else {
+        return Ok(());
+    };
+    let token = headers
+        .get("x-minco-csrf")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| minco_plugin_sessions::CsrfToken::parse(value).ok())
+        .ok_or_else(|| {
+            ApiFailure::new(
+                StatusCode::FORBIDDEN,
+                "ticketing_csrf_required",
+                "CSRF token required",
+                "Supply the session CSRF token in X-Minco-CSRF.",
+                request_id,
+            )
+        })?;
+    state
+        .service
+        .verify_session_csrf(record.id, &token)
+        .map_err(|error| map_error(error, request_id))
 }
 
 struct SensitiveHandoff(SupportHandoffToken);
@@ -129,6 +208,8 @@ pub fn ticketing_router(service: TicketingService) -> Router {
             "/requester/tickets/{ticketId}/replies",
             post(requester_reply),
         )
+        .route("/requester/sessions", post(requester_session_exchange))
+        .route("/requester/logout", post(requester_logout))
         .layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
         .with_state(TicketingHttpState { service });
     Router::new().nest(TICKETING_BASE_PATH, routes)
@@ -358,28 +439,224 @@ struct ReplyBody {
 
 async fn requester_reply(
     State(state): State<TicketingHttpState>,
-    RequiredIdentity(principal): RequiredIdentity,
+    requester: RequesterIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
     ApiJson(body): ApiJson<ReplyBody>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
+    require_session_csrf(&state, &requester, &headers, &request_id)?;
+    let principal = requester.identity;
     let id = parse_ticket_id(&ticket_id, &request_id)?;
     let revision = expected_revision(&headers, id, &request_id)?;
-    let result = state
+
+    let idempotency = state
+        .service
+        .portal_services()
+        .idempotency
+        .clone()
+        .filter(|_| headers.contains_key("idempotency-key"));
+    if let Some(service) = idempotency {
+        let key = minco_plugin_idempotency::IdempotencyKey::parse(
+            headers
+                .get("idempotency-key")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default(),
+        )
+        .map_err(|_| {
+            ApiFailure::validation(
+                "idempotency key must be 1-200 visible characters",
+                &request_id,
+            )
+        })?;
+        let fingerprint = minco_plugin_idempotency::RequestFingerprint::from_serializable(
+            &serde_json::json!({"ticket_id": id.to_string(), "body": body.body, "expected_revision": revision}),
+        )
+        .map_err(|_| ApiFailure::internal(&request_id))?;
+        return match service.begin(key, fingerprint).await {
+            Ok(minco_plugin_idempotency::BeginOutcome::Replay(record)) => {
+                Ok((StatusCode::OK, Json(record.response)).into_response())
+            }
+            Ok(minco_plugin_idempotency::BeginOutcome::Conflict) => Err(ApiFailure::new(
+                StatusCode::CONFLICT,
+                "ticketing_idempotency_conflict",
+                "Idempotency conflict",
+                "This key was used with a different request.",
+                &request_id,
+            )),
+            Ok(minco_plugin_idempotency::BeginOutcome::InProgress { .. }) => Err(ApiFailure::new(
+                StatusCode::TOO_EARLY,
+                "ticketing_idempotency_in_progress",
+                "Request already in progress",
+                "A request with this key is still being processed.",
+                &request_id,
+            )),
+            Ok(minco_plugin_idempotency::BeginOutcome::Started(lease)) => {
+                match perform_requester_reply(
+                    &state,
+                    &principal,
+                    id,
+                    body.body.clone(),
+                    revision,
+                    &request_id,
+                )
+                .await
+                {
+                    Ok(result) => {
+                        if let Ok(value) = serde_json::to_value(&result) {
+                            let _ = service.complete(lease, value).await;
+                        }
+                        requester_response(StatusCode::OK, result)
+                    }
+                    Err(error) => {
+                        let _ = service.abort(&lease).await;
+                        Err(error)
+                    }
+                }
+            }
+            Err(_) => Err(ApiFailure::internal(&request_id)),
+        };
+    }
+
+    let result =
+        perform_requester_reply(&state, &principal, id, body.body, revision, &request_id).await?;
+    requester_response(StatusCode::OK, result)
+}
+
+async fn perform_requester_reply(
+    state: &TicketingHttpState,
+    principal: &Identity,
+    id: TicketId,
+    body: String,
+    revision: u64,
+    request_id: &str,
+) -> Result<crate::RequesterTicketResult, ApiFailure> {
+    state
         .service
         .reply_as_requester(
-            &principal,
+            principal,
             &state.service.config().project_id,
             id,
-            body.body,
+            body,
             revision,
-            request_uuid(&request_id),
+            request_uuid(request_id),
             Utc::now(),
         )
         .await
+        .map_err(|error| map_error(error, request_id))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SessionExchangeBody {
+    portal_origin: String,
+}
+
+fn sessions_unavailable(request_id: &str) -> ApiFailure {
+    ApiFailure::new(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "ticketing_sessions_unavailable",
+        "Sessions unavailable",
+        "This application has not registered the sessions, CSRF and idempotency plugins.",
+        request_id,
+    )
+}
+
+async fn requester_session_exchange(
+    State(state): State<TicketingHttpState>,
+    SensitiveHandoff(token): SensitiveHandoff,
+    headers: HeaderMap,
+    ApiJson(body): ApiJson<SessionExchangeBody>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let portal = state.service.portal_services();
+    let Some(idempotency) = portal.idempotency.clone() else {
+        return Err(sessions_unavailable(&request_id));
+    };
+
+    // The exchange is keyed by the handoff digest, so a browser retry
+    // replays the original grant instead of minting a second session.
+    let key = minco_plugin_idempotency::IdempotencyKey::parse(format!(
+        "ticketing.session.{}",
+        token.digest().as_str()
+    ))
+    .map_err(|_| ApiFailure::validation("handoff digest is invalid", &request_id))?;
+    let fingerprint = minco_plugin_idempotency::RequestFingerprint::from_serializable(
+        &serde_json::json!({ "portal_origin": body.portal_origin }),
+    )
+    .map_err(|_| ApiFailure::internal(&request_id))?;
+    let lease = match idempotency.begin(key, fingerprint.clone()).await {
+        Ok(minco_plugin_idempotency::BeginOutcome::Replay(record)) => {
+            return Ok((StatusCode::OK, Json(record.response)).into_response());
+        }
+        Ok(minco_plugin_idempotency::BeginOutcome::Conflict) => {
+            return Err(ApiFailure::new(
+                StatusCode::CONFLICT,
+                "ticketing_idempotency_conflict",
+                "Idempotency conflict",
+                "This handoff was exchanged with a different request.",
+                &request_id,
+            ));
+        }
+        Ok(minco_plugin_idempotency::BeginOutcome::InProgress { .. }) => {
+            return Err(ApiFailure::new(
+                StatusCode::TOO_EARLY,
+                "ticketing_idempotency_in_progress",
+                "Exchange already in progress",
+                "This handoff exchange is still being processed.",
+                &request_id,
+            ));
+        }
+        Ok(minco_plugin_idempotency::BeginOutcome::Started(lease)) => lease,
+        Err(_) => return Err(ApiFailure::internal(&request_id)),
+    };
+
+    match state
+        .service
+        .exchange_requester_session(token, &body.portal_origin, fingerprint.as_str(), Utc::now())
+        .await
+    {
+        Ok(grant) => {
+            let snapshot = serde_json::json!({
+                "expires_at": grant.expires_at.to_rfc3339(),
+                "csrf_token": grant.csrf_token.expose(),
+            });
+            let _ = idempotency.complete(lease, snapshot.clone()).await;
+            let mut response = (StatusCode::CREATED, Json(snapshot)).into_response();
+            response.headers_mut().insert(
+                header::SET_COOKIE,
+                HeaderValue::from_str(&format!(
+                    "{REQUESTER_SESSION_COOKIE}={}; Secure; HttpOnly; SameSite=Lax; Path={REQUESTER_SESSION_COOKIE_PATH}",
+                    grant.token.expose()
+                ))
+                .map_err(|_| ApiFailure::internal(&request_id))?,
+            );
+            Ok(response)
+        }
+        Err(error) => {
+            let _ = idempotency.abort(&lease).await;
+            Err(map_error(error, &request_id))
+        }
+    }
+}
+
+async fn requester_logout(
+    State(state): State<TicketingHttpState>,
+    requester: RequesterIdentity,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiFailure> {
+    let request_id = request_id(&headers);
+    let session = requester
+        .session
+        .as_ref()
+        .ok_or_else(|| identity_required(&request_id))?;
+    require_session_csrf(&state, &requester, &headers, &request_id)?;
+    state
+        .service
+        .revoke_requester_session(session.id)
+        .await
         .map_err(|error| map_error(error, &request_id))?;
-    requester_response(StatusCode::OK, result)
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn agent_reply(
@@ -922,10 +1199,11 @@ async fn manage_agent_ticket(
 
 async fn requester_tickets(
     State(state): State<TicketingHttpState>,
-    RequiredIdentity(principal): RequiredIdentity,
+    requester: RequesterIdentity,
     RawQuery(raw): RawQuery,
     headers: HeaderMap,
 ) -> Result<Json<ResourceCollection<crate::PublicTicketSummary>>, ApiFailure> {
+    let principal = requester.identity;
     let request_id = request_id(&headers);
     let mut limit = 50usize;
     let mut before: Option<(DateTime<Utc>, TicketId)> = None;
@@ -1021,10 +1299,11 @@ async fn requester_tickets(
 
 async fn requester_ticket(
     State(state): State<TicketingHttpState>,
-    RequiredIdentity(principal): RequiredIdentity,
+    requester: RequesterIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, ApiFailure> {
+    let principal = requester.identity;
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
     let ticket = state
@@ -1375,6 +1654,27 @@ fn map_error(error: TicketingServiceError, request_id: &str) -> ApiFailure {
             request_id,
         ),
         TicketingServiceError::Configuration(_) => ApiFailure::internal(request_id),
+        TicketingServiceError::SessionsUnavailable => ApiFailure::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "ticketing_sessions_unavailable",
+            "Sessions unavailable",
+            "This application has not registered the sessions, CSRF and idempotency plugins.",
+            request_id,
+        ),
+        TicketingServiceError::SessionUnauthenticated => ApiFailure::new(
+            StatusCode::UNAUTHORIZED,
+            "ticketing_session_unauthenticated",
+            "Session required",
+            "The requester session is unknown, expired or revoked.",
+            request_id,
+        ),
+        TicketingServiceError::CsrfRejected => ApiFailure::new(
+            StatusCode::FORBIDDEN,
+            "ticketing_csrf_invalid",
+            "CSRF token invalid",
+            "The session CSRF token did not match this session.",
+            request_id,
+        ),
         TicketingServiceError::Store(_) => ApiFailure::new(
             StatusCode::SERVICE_UNAVAILABLE,
             "ticketing_unavailable",
@@ -2163,5 +2463,327 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    async fn portal_app() -> (Router, SupportHandoffToken) {
+        use minco_plugin_idempotency::{IdempotencyService, MemoryIdempotencyStore};
+        use minco_plugin_sessions::{CsrfService, MemorySessionStore, SessionService};
+        let store = Arc::new(MemoryTicketingStore::default());
+        let service = TicketingService::new(
+            TicketingStoreService::new(store.clone()),
+            TicketingConfig {
+                project_id: "project-a".into(),
+                portal_origin: "https://support.example.test".into(),
+                allowed_return_paths: BTreeMap::from([(
+                    "https://app.example.test".into(),
+                    vec!["/orders".into()],
+                )]),
+                ..TicketingConfig::default()
+            },
+        )
+        .unwrap()
+        .with_portal_services(crate::TicketingPortalServices {
+            sessions: Some(Arc::new(SessionService::new(Arc::new(
+                MemorySessionStore::default(),
+            )))),
+            csrf: Some(Arc::new(
+                CsrfService::new(b"test-csrf-secret-0123456789abcdef".to_vec()).unwrap(),
+            )),
+            idempotency: Some(Arc::new(
+                IdempotencyService::new(
+                    Arc::new(MemoryIdempotencyStore::default()),
+                    chrono::TimeDelta::seconds(300),
+                )
+                .unwrap(),
+            )),
+        });
+        let integration = identity(minco_http::Principal {
+            subject: "integration".into(),
+            permissions: std::iter::once("ticketing.integrate".into()).collect(),
+            claims: BTreeMap::new(),
+        });
+        let now = Utc::now();
+        let grant = service
+            .issue_ticketing_handoff(
+                &integration,
+                IssueTicketingHandoffInput {
+                    project_id: "project-a".into(),
+                    requester_subject: "user-1".into(),
+                    requester_permissions: vec!["ticketing.read".into(), "ticketing.reply".into()],
+                    surface: minco_interaction::SupportSurface::Portal,
+                    context: minco_interaction::SupportContext {
+                        page_url: "https://app.example.test/orders/1".into(),
+                        ..minco_interaction::SupportContext::default()
+                    },
+                    return_location: "https://app.example.test/orders/1".into(),
+                    correlation_id: Uuid::now_v7(),
+                },
+                now,
+            )
+            .await
+            .unwrap();
+        // The requester's own ticket exists before the session starts.
+        service
+            .create_ticket(
+                &identity(minco_http::Principal {
+                    subject: "user-1".into(),
+                    permissions: std::iter::once("ticketing.create".into()).collect(),
+                    claims: BTreeMap::new(),
+                }),
+                CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "Own ticket".into(),
+                    description: "It broke and the requester needs help.".into(),
+                    requester: crate::TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: crate::TicketChannel::Portal,
+                    priority: crate::TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                Uuid::now_v7(),
+                now,
+            )
+            .await
+            .unwrap();
+        (ticketing_router(service), grant.token)
+    }
+
+    #[tokio::test]
+    async fn session_exchange_issues_cookie_and_replays_identically() {
+        let (app, token) = portal_app().await;
+        let exchange = |app: &Router, token: &SupportHandoffToken, origin: &str| {
+            app.clone().oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({ "portal_origin": origin }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+        };
+
+        let created = exchange(&app, &token, "https://support.example.test")
+            .await
+            .unwrap();
+        assert_eq!(created.status(), StatusCode::CREATED);
+        let cookie = created
+            .headers()
+            .get(header::SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .expect("session cookie is set")
+            .to_owned();
+        assert!(cookie.starts_with("minco_ticketing_session="));
+        assert!(cookie.contains("Secure"));
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(cookie.contains("Path=/_minco/ticketing"));
+        let grant: serde_json::Value =
+            serde_json::from_slice(&to_bytes(created.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert!(grant["csrf_token"].as_str().is_some_and(|v| !v.is_empty()));
+        assert!(grant["expires_at"].as_str().is_some());
+
+        let replay = exchange(&app, &token, "https://support.example.test")
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        let replayed: serde_json::Value =
+            serde_json::from_slice(&to_bytes(replay.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(replayed, grant);
+
+        let conflict = exchange(&app, &token, "https://other.example.test")
+            .await
+            .unwrap();
+        assert_eq!(conflict.status(), StatusCode::CONFLICT);
+
+        // The cookie authenticates the requester list with own isolation.
+        let session_value = cookie
+            .split(';')
+            .next()
+            .and_then(|pair| pair.split_once('='))
+            .map(|(_, value)| value.to_owned())
+            .unwrap();
+        let listed = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(
+                        header::COOKIE,
+                        format!("minco_ticketing_session={session_value}"),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(listed.status(), StatusCode::OK);
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(listed.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(page["data"].as_array().unwrap().len(), 1);
+        assert_eq!(page["data"][0]["subject"], "Own ticket");
+    }
+
+    #[tokio::test]
+    async fn session_mutations_require_csrf_and_logout_revokes() {
+        let (app, token) = portal_app().await;
+        let created = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({ "portal_origin": "https://support.example.test" })
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(created.status(), StatusCode::CREATED);
+        let cookie_header = created.headers()[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        let session_value = cookie_header
+            .split(';')
+            .next()
+            .and_then(|pair| pair.split_once('='))
+            .map(|(_, value)| value.to_owned())
+            .unwrap();
+        let grant: serde_json::Value =
+            serde_json::from_slice(&to_bytes(created.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let csrf = grant["csrf_token"].as_str().unwrap().to_owned();
+
+        let detail = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(
+                        header::COOKIE,
+                        format!("minco_ticketing_session={session_value}"),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(detail.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let ticket_id = page["data"][0]["id"].as_str().unwrap().to_owned();
+        let etag = page["data"][0]["revision"].as_u64().unwrap() + 1;
+
+        let reply_path = format!("/_minco/ticketing/requester/tickets/{ticket_id}/replies");
+        let missing_csrf = app
+            .clone()
+            .oneshot(
+                Request::post(&reply_path)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(
+                        header::COOKIE,
+                        format!("minco_ticketing_session={session_value}"),
+                    )
+                    .header(header::IF_MATCH, format!("\"ticket:{ticket_id}:{etag}\""))
+                    .body(Body::from(
+                        serde_json::json!({"body": "More detail."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(missing_csrf.status(), StatusCode::FORBIDDEN);
+
+        let replied = app
+            .clone()
+            .oneshot(
+                Request::post(&reply_path)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(
+                        header::COOKIE,
+                        format!("minco_ticketing_session={session_value}"),
+                    )
+                    .header("x-minco-csrf", &csrf)
+                    .header(header::IF_MATCH, format!("\"ticket:{ticket_id}:{etag}\""))
+                    .body(Body::from(
+                        serde_json::json!({"body": "More detail."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replied.status(), StatusCode::OK);
+
+        let logout_no_csrf = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/logout")
+                    .header(
+                        header::COOKIE,
+                        format!("minco_ticketing_session={session_value}"),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(logout_no_csrf.status(), StatusCode::FORBIDDEN);
+
+        let logout = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/logout")
+                    .header(
+                        header::COOKIE,
+                        format!("minco_ticketing_session={session_value}"),
+                    )
+                    .header("x-minco-csrf", &csrf)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(logout.status(), StatusCode::NO_CONTENT);
+
+        let after_logout = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(
+                        header::COOKIE,
+                        format!("minco_ticketing_session={session_value}"),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(after_logout.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn without_portal_services_the_exchange_fails_closed() {
+        let app = ticketing_router(service());
+        let response = app
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, "a".repeat(64))
+                    .body(Body::from(
+                        serde_json::json!({ "portal_origin": "https://support.example.test" })
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 }

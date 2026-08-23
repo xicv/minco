@@ -1,20 +1,48 @@
 use crate::{
-    ConsumeHandoffRequest, ConsumedHandoff, CreateTicketInput, ExternalMessageIdentity,
-    IngestExternalMessageRequest, PublicTicketSummary, RequesterTicket, Ticket,
-    TicketActivityIntent, TicketAiContext, TicketAttachment, TicketFromHandoffInput, TicketId,
-    TicketListFilter, TicketPriority, TicketStatus, TicketStoreError, TicketSummary,
+    ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff, CreateTicketInput,
+    ExternalMessageIdentity, IngestExternalMessageRequest, PublicTicketSummary, RequesterTicket,
+    Ticket, TicketActivityIntent, TicketAiContext, TicketAttachment, TicketFromHandoffInput,
+    TicketId, TicketListFilter, TicketPriority, TicketStatus, TicketStoreError, TicketSummary,
     TicketSummaryFilter, TicketingStoreService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use minco_interaction::{
-    AttachmentMetadata, SupportContext, SupportHandoffGrant, SupportLocationPolicy, SupportSurface,
-    issue_support_handoff,
+    AttachmentMetadata, SupportContext, SupportHandoffGrant, SupportHandoffToken,
+    SupportLocationPolicy, SupportSurface, issue_support_handoff,
 };
 use minco_plugin_identity::Identity;
+use minco_plugin_sessions::{
+    CsrfService, CsrfToken, SessionId, SessionRecord, SessionService, SessionToken,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    sync::Arc,
+};
 use uuid::Uuid;
+
+/// Optional portal services resolved from the service registry at install;
+/// the base plugin works without all of them.
+#[derive(Clone, Default)]
+pub struct TicketingPortalServices {
+    pub sessions: Option<Arc<SessionService>>,
+    pub csrf: Option<Arc<CsrfService>>,
+    pub idempotency: Option<Arc<minco_plugin_idempotency::IdempotencyService>>,
+}
+
+impl fmt::Debug for TicketingPortalServices {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Redacted: these services hold session and idempotency state.
+        formatter
+            .debug_struct("TicketingPortalServices")
+            .field("sessions", &self.sessions.is_some())
+            .field("csrf", &self.csrf.is_some())
+            .field("idempotency", &self.idempotency.is_some())
+            .finish()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -31,6 +59,8 @@ pub struct TicketingConfig {
     pub support_brand: String,
     #[serde(default = "default_privacy_notice")]
     pub privacy_notice: String,
+    #[serde(default = "default_requester_session_ttl_seconds")]
+    pub requester_session_ttl_seconds: i64,
 }
 
 impl Default for TicketingConfig {
@@ -43,6 +73,7 @@ impl Default for TicketingConfig {
             support_label: default_support_label(),
             support_brand: default_support_brand(),
             privacy_notice: default_privacy_notice(),
+            requester_session_ttl_seconds: default_requester_session_ttl_seconds(),
         }
     }
 }
@@ -56,6 +87,11 @@ impl TicketingConfig {
         if !(1..=900).contains(&self.handoff_ttl_seconds) {
             return Err(TicketingServiceError::Configuration(
                 "handoff_ttl_seconds must be between 1 and 900".into(),
+            ));
+        }
+        if !(1..=86_400).contains(&self.requester_session_ttl_seconds) {
+            return Err(TicketingServiceError::Configuration(
+                "requester_session_ttl_seconds must be between 1 and 86400".into(),
             ));
         }
         self.location_policy().validate()?;
@@ -94,6 +130,26 @@ pub struct AgentConsoleBootstrap {
     pub label: String,
     pub subject: String,
     pub capabilities: AgentConsoleCapabilities,
+}
+
+/// One-time requester session grant. The bearer token is serialized exactly
+/// once, in the exchange response; the sessions crate redacts it from Debug.
+pub struct RequesterSessionGrant {
+    pub token: SessionToken,
+    pub expires_at: DateTime<Utc>,
+    pub csrf_token: CsrfToken,
+}
+
+impl fmt::Debug for RequesterSessionGrant {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The bearer and CSRF token are redacted from Debug output.
+        formatter
+            .debug_struct("RequesterSessionGrant")
+            .field("token", &"[REDACTED]")
+            .field("expires_at", &self.expires_at)
+            .field("csrf_token", &"[REDACTED]")
+            .finish()
+    }
 }
 
 /// One atomic agent management decision. Absent fields stay unchanged;
@@ -141,10 +197,21 @@ pub struct RequesterTicketResult {
     pub warnings: Vec<TicketingWarning>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TicketingService {
     store: TicketingStoreService,
     config: TicketingConfig,
+    portal: TicketingPortalServices,
+}
+
+impl fmt::Debug for TicketingService {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TicketingService")
+            .field("config", &self.config)
+            .field("portal", &self.portal)
+            .finish_non_exhaustive()
+    }
 }
 
 impl TicketingService {
@@ -153,7 +220,22 @@ impl TicketingService {
         config: TicketingConfig,
     ) -> Result<Self, TicketingServiceError> {
         config.validate()?;
-        Ok(Self { store, config })
+        Ok(Self {
+            store,
+            config,
+            portal: TicketingPortalServices::default(),
+        })
+    }
+
+    #[must_use]
+    pub fn with_portal_services(mut self, portal: TicketingPortalServices) -> Self {
+        self.portal = portal;
+        self
+    }
+
+    #[must_use]
+    pub const fn portal_services(&self) -> &TicketingPortalServices {
+        &self.portal
     }
 
     #[must_use]
@@ -699,6 +781,132 @@ impl TicketingService {
         Ok(self.store.ready().await?)
     }
 
+    /// Resolve a session token to the bound requester identity. Permissions
+    /// are exactly the handoff-granted set recorded in session attributes.
+    pub async fn resolve_requester_session(
+        &self,
+        token: &SessionToken,
+    ) -> Result<(SessionRecord, Identity), TicketingServiceError> {
+        let sessions = self
+            .portal
+            .sessions
+            .as_ref()
+            .ok_or(TicketingServiceError::SessionsUnavailable)?;
+        let record = sessions
+            .resolve(token)
+            .await
+            .map_err(|_| TicketingServiceError::SessionUnauthenticated)?;
+        let bound_project = record
+            .attributes
+            .get("ticketing.project")
+            .ok_or(TicketingServiceError::SessionUnauthenticated)?;
+        if bound_project != &self.config.project_id {
+            return Err(TicketingServiceError::SessionUnauthenticated);
+        }
+        let permissions = record
+            .attributes
+            .get("ticketing.permissions")
+            .map(|value| {
+                value
+                    .split(',')
+                    .filter(|part| !part.is_empty())
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let identity = Identity {
+            subject: record.subject.clone(),
+            permissions,
+            scopes: BTreeSet::default(),
+            claims: BTreeMap::new(),
+        };
+        Ok((record, identity))
+    }
+
+    pub fn verify_session_csrf(
+        &self,
+        session_id: SessionId,
+        token: &CsrfToken,
+    ) -> Result<(), TicketingServiceError> {
+        let csrf = self
+            .portal
+            .csrf
+            .as_ref()
+            .ok_or(TicketingServiceError::SessionsUnavailable)?;
+        csrf.verify(session_id, token)
+            .map_err(|_| TicketingServiceError::CsrfRejected)
+    }
+
+    pub async fn revoke_requester_session(
+        &self,
+        session_id: SessionId,
+    ) -> Result<bool, TicketingServiceError> {
+        let sessions = self
+            .portal
+            .sessions
+            .as_ref()
+            .ok_or(TicketingServiceError::SessionsUnavailable)?;
+        sessions.revoke(session_id).await.map_err(|error| {
+            TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
+        })
+    }
+
+    /// One-time handoff consumption that mints a durable requester portal
+    /// session. Requires the sessions and CSRF services; identical replay is
+    /// answered by the shared idempotency layer before this is reached.
+    pub async fn exchange_requester_session(
+        &self,
+        token: SupportHandoffToken,
+        portal_origin: &str,
+        request_fingerprint: &str,
+        now: DateTime<Utc>,
+    ) -> Result<RequesterSessionGrant, TicketingServiceError> {
+        let sessions = self
+            .portal
+            .sessions
+            .as_ref()
+            .ok_or(TicketingServiceError::SessionsUnavailable)?;
+        let csrf = self
+            .portal
+            .csrf
+            .as_ref()
+            .ok_or(TicketingServiceError::SessionsUnavailable)?;
+        let project_id = self.config.project_id.clone();
+        let (identity, _repeated) = self
+            .store
+            .consume_handoff_identity(ConsumeSessionRequest {
+                token,
+                project_id: project_id.clone(),
+                portal_origin: portal_origin.to_owned(),
+                request_fingerprint: request_fingerprint.to_owned(),
+                now,
+            })
+            .await?;
+        let issued = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: identity.requester_subject.clone(),
+                ttl: TimeDelta::seconds(self.config.requester_session_ttl_seconds),
+                attributes: BTreeMap::from([
+                    ("ticketing.project".into(), project_id),
+                    ("ticketing.portal_origin".into(), portal_origin.to_owned()),
+                    (
+                        "ticketing.permissions".into(),
+                        identity.requester_permissions.join(","),
+                    ),
+                ]),
+            })
+            .await
+            .map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
+            })?;
+        let csrf_token = csrf.issue(issued.session.id);
+        Ok(RequesterSessionGrant {
+            token: issued.token,
+            expires_at: issued.session.expires_at,
+            csrf_token,
+        })
+    }
+
     async fn load(&self, project_id: &str, id: TicketId) -> Result<Ticket, TicketingServiceError> {
         self.require_project(project_id)?;
         self.store
@@ -809,6 +1017,9 @@ fn default_support_label() -> String {
 fn default_support_brand() -> String {
     "Support".into()
 }
+const fn default_requester_session_ttl_seconds() -> i64 {
+    3600
+}
 fn default_privacy_notice() -> String {
     "Share only information needed to resolve this request.".into()
 }
@@ -833,6 +1044,12 @@ pub enum TicketingServiceError {
     Configuration(String),
     #[error("agent management request fields are mutually exclusive")]
     InvalidManagementRequest,
+    #[error("requester portal sessions are not configured for this application")]
+    SessionsUnavailable,
+    #[error("the requester session is unknown, expired or revoked")]
+    SessionUnauthenticated,
+    #[error("the request did not carry a valid session CSRF token")]
+    CsrfRejected,
     #[error(transparent)]
     SupportEntry(#[from] minco_interaction::SupportEntryError),
     #[error(transparent)]

@@ -1,8 +1,9 @@
 use crate::{
-    ConsumeHandoffRequest, ConsumedHandoff, CreateTicketInput, ExternalMessageIngestResult,
-    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketActivityIntent,
-    TicketId, TicketListFilter, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
-    TicketSummaryFilter, TicketingStore,
+    ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity,
+    CreateTicketInput, ExternalMessageIngestResult, IngestExternalMessageRequest,
+    MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
+    TicketRequester, TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter,
+    TicketingStore,
 };
 use async_trait::async_trait;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
@@ -382,6 +383,80 @@ impl TicketingStore for SqliteTicketingStore {
             result,
             repeated: false,
         })
+    }
+
+    async fn consume_handoff_identity(
+        &self,
+        request: ConsumeSessionRequest,
+    ) -> Result<(ConsumedSessionIdentity, bool), TicketStoreError> {
+        let digest = request.token.digest();
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let claimed = sqlx::query(
+            "UPDATE ticketing_handoffs SET completed_identity_fingerprint = ? WHERE digest = ? AND consumed_identity_json IS NULL AND completed_identity_fingerprint IS NULL",
+        )
+        .bind(&request.request_fingerprint)
+        .bind(digest.as_str())
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let row = sqlx::query(
+            "SELECT handoff_json, consumed_identity_json, completed_identity_fingerprint FROM ticketing_handoffs WHERE digest = ?",
+        )
+        .bind(digest.as_str())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?
+        .ok_or(TicketStoreError::UnknownHandoff)?;
+        let handoff: SupportHandoff =
+            serde_json::from_str(&row.get::<String, _>("handoff_json")).map_err(encoding)?;
+        if !handoff.digest.matches_token(&request.token) {
+            return Err(TicketStoreError::UnknownHandoff);
+        }
+        if handoff.project_id != request.project_id {
+            return Err(TicketStoreError::WrongHandoffProject);
+        }
+        if handoff.portal_origin != request.portal_origin {
+            return Err(TicketStoreError::WrongHandoffPortal);
+        }
+        let identity = ConsumedSessionIdentity {
+            requester_subject: handoff.requester_subject.clone(),
+            requester_permissions: handoff.requester_permissions.clone(),
+            correlation_id: handoff.correlation_id,
+        };
+        let consumed: Option<String> = row.get("consumed_identity_json");
+        let completed_fingerprint: Option<String> = row.get("completed_identity_fingerprint");
+        if let Some(consumed) = consumed {
+            if completed_fingerprint.as_deref() != Some(&request.request_fingerprint) {
+                return Err(TicketStoreError::HandoffAlreadyConsumed);
+            }
+            let identity: ConsumedSessionIdentity =
+                serde_json::from_str(&consumed).map_err(encoding)?;
+            return Ok((identity, true));
+        }
+        if claimed.rows_affected() == 0 {
+            return Err(TicketStoreError::Infrastructure(
+                "session handoff claim completed without an authoritative identity".into(),
+            ));
+        }
+        if handoff.expires_at <= request.now {
+            return Err(TicketStoreError::ExpiredHandoff);
+        }
+        let completed = sqlx::query(
+            "UPDATE ticketing_handoffs SET consumed_identity_json = ? WHERE digest = ? AND completed_identity_fingerprint = ? AND consumed_identity_json IS NULL",
+        )
+        .bind(serde_json::to_string(&identity).map_err(encoding)?)
+        .bind(digest.as_str())
+        .bind(&request.request_fingerprint)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        if completed.rows_affected() != 1 {
+            return Err(TicketStoreError::Infrastructure(
+                "session handoff completion lost its atomic claim".into(),
+            ));
+        }
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok((identity, false))
     }
 
     async fn ingest_external_message(
@@ -1165,5 +1240,45 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["TKT-TIE-A", "TKT-OLD"]
         );
+    }
+
+    #[tokio::test]
+    async fn sqlite_session_handoff_identity_is_atomic_one_time_and_replayable() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let (handoff, token) = handoff(now);
+        sqlite.insert_handoff(handoff).await.unwrap();
+
+        let request = |fingerprint: &str| ConsumeSessionRequest {
+            token: token.clone(),
+            project_id: "project-a".into(),
+            portal_origin: "https://support.example.test".into(),
+            request_fingerprint: fingerprint.into(),
+            now,
+        };
+
+        let (first, repeated_flag) = sqlite
+            .consume_handoff_identity(request("fp-1"))
+            .await
+            .unwrap();
+        assert!(!repeated_flag);
+        assert_eq!(first.requester_subject, "user-1");
+        let (replayed, replay_flag) = sqlite
+            .consume_handoff_identity(request("fp-1"))
+            .await
+            .unwrap();
+        assert!(replay_flag);
+        assert_eq!(replayed, first);
+        assert!(matches!(
+            sqlite.consume_handoff_identity(request("fp-2")).await,
+            Err(TicketStoreError::HandoffAlreadyConsumed)
+        ));
+
+        // Ticket creation remains independently consumable exactly once.
+        let created = sqlite
+            .consume_and_create_ticket(consume(token, now))
+            .await
+            .unwrap();
+        assert!(!created.repeated);
     }
 }

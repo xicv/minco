@@ -94,6 +94,7 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | `plugins.ticketing.portal_origin` | `string` | yes | no | — | Exact HTTPS portal origin |
 | `plugins.ticketing.privacy_notice` | `string` | no | no | Share only information needed to resolve this request. | Browser-safe privacy notice |
 | `plugins.ticketing.project_id` | `string` | yes | no | — | Stable application project identifier |
+| `plugins.ticketing.requester_session_ttl_seconds` | `integer` | no | no | 3600 | Requester portal session lifetime, at most 86400 seconds |
 | `plugins.ticketing.support_brand` | `string` | no | no | Support | Browser-safe support brand |
 | `plugins.ticketing.support_label` | `string` | no | no | Get support | Accessible launcher label |
 | `runtime.log_level` | `string` | yes | no | info | Default structured logging filter |
