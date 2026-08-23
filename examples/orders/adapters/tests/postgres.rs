@@ -71,6 +71,7 @@ fn transaction(key: &str, fingerprint: &str) -> PlaceOrderTransaction {
         idempotency_key: key.into(),
         request_fingerprint: fingerprint.into(),
         audit: None,
+        confirmation_job: None,
     }
 }
 

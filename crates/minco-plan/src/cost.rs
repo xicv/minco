@@ -394,7 +394,7 @@ pub fn estimate_runtime_cost(plan: &DeploymentPlan) -> RuntimeCostEstimate {
     }
 }
 
-fn monthly_schedule_invocations(expression: &str) -> Option<u64> {
+pub fn monthly_schedule_invocations(expression: &str) -> Option<u64> {
     if expression.starts_with("at(") && expression.ends_with(')') {
         return Some(1);
     }

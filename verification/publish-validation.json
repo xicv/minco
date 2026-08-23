@@ -26,6 +26,7 @@
       "minco-plugin-identity",
       "minco-plugin-object-storage",
       "minco-plugin-events",
+      "minco-plugin-jobs",
       "minco-plugin-notifications",
       "minco-plugin-audit",
       "minco-interaction",
@@ -44,6 +45,7 @@
     ],
     "package_test_packages": [
       "minco-config",
+      "minco-plugin-jobs",
       "minco-contract",
       "minco-db",
       "minco-deploy-aws",
@@ -57,9 +59,9 @@
       "minco-plugin-payments-waffo",
       "minco-plugin-ticketing"
     ],
-    "workspace_version": "1.11.0",
-    "workspace_packages": 41,
-    "publishable_packages": 36,
+    "workspace_version": "1.12.0",
+    "workspace_packages": 42,
+    "publishable_packages": 37,
     "private_packages": 5,
     "publishable_names": [
       "cargo-minco",
@@ -84,6 +86,7 @@
       "minco-plugin-health",
       "minco-plugin-idempotency",
       "minco-plugin-identity",
+      "minco-plugin-jobs",
       "minco-plugin-notifications",
       "minco-plugin-object-storage",
       "minco-plugin-observability",

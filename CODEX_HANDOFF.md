@@ -2,8 +2,8 @@
 
 Date: 2026-08-22
 Published baseline: `1.11.0`
-Current workspace version: `1.11.0`
-Workspace release state: `published`
+Current workspace version: `1.12.0`
+Workspace release state: `candidate`
 Published `1.11.0` source: `81640a6b25924be115ceb11cdec1fd2a42a71381`
 Published source-tree digest: `85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`
 Published release task: `M14-T43`

@@ -13,6 +13,9 @@ use std::{
 use thiserror::Error;
 use tokio::sync::Mutex;
 
+#[cfg(feature = "jobs")]
+pub mod jobs;
+
 const MAX_BATCH_SIZE: usize = 10_000;
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 const MESSAGE_GROUP_ID: &str = "MessageGroupId";

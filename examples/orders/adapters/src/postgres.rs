@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use minco_plugin_audit::AuditJournalEntry;
-use minco_sqlx_postgres::{PostgresError, PostgresPoolConfig, audit_v2::PostgresAuditJournal};
+use minco_sqlx_postgres::{
+    PostgresError, PostgresPoolConfig, audit_v2::PostgresAuditJournal, jobs::PostgresJobStore,
+};
 use orders_application::{
     ConditionalResult, DeleteOrderPort, GetOrderPort, ListOrdersPort, ListOrdersQuery,
     OrderAuditIntent, OrderCursor, OrderPage, OrderReadiness, OrderSortField, OrderSortTerm,
@@ -16,6 +18,7 @@ use uuid::Uuid;
 pub struct PostgresOrderStore {
     pool: PgPool,
     audit_journal: PostgresAuditJournal,
+    job_store: PostgresJobStore,
 }
 
 impl PostgresOrderStore {
@@ -23,6 +26,7 @@ impl PostgresOrderStore {
     pub fn new(pool: PgPool) -> Self {
         Self {
             audit_journal: PostgresAuditJournal::new(pool.clone()),
+            job_store: PostgresJobStore::new(pool.clone()),
             pool,
         }
     }
@@ -136,6 +140,15 @@ impl PlaceOrderPort for PostgresOrderStore {
                     .enqueue_in(&mut db, audit)
                     .await
                     .map_err(crate::audit::audit_error)?;
+            }
+            if let Some(confirmation) = &transaction.confirmation_job {
+                let envelope = crate::jobs::confirmation_envelope(confirmation)
+                    .map_err(|error| StoreError::Internal(error.to_string()))?;
+                let record = minco_plugin_jobs::pending_record(envelope);
+                self.job_store
+                    .enqueue_in(&mut db, record)
+                    .await
+                    .map_err(|error| StoreError::Internal(error.to_string()))?;
             }
             db.commit().await.map_err(|error| database_error(&error))?;
             return Ok(PlaceOrderResult {

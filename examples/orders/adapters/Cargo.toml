@@ -10,7 +10,7 @@ publish = false
 default = ["memory"]
 memory = []
 postgres = ["dep:minco-sqlx-postgres", "dep:sqlx", "sqlx/postgres"]
-sqlite = ["dep:minco-sqlx-sqlite", "dep:sqlx", "sqlx/sqlite"]
+sqlite = ["dep:minco-sqlx-sqlite", "dep:sqlx", "sqlx/sqlite", "dep:minco-aws-worker", "minco-aws-worker/jobs"]
 dynamodb = ["dep:aws-sdk-dynamodb", "dep:minco-aws-dynamodb", "dep:sha2", "dep:tokio"]
 all-databases = ["dynamodb", "postgres", "sqlite"]
 
@@ -22,6 +22,10 @@ futures.workspace = true
 minco-aws-dynamodb = { workspace = true, optional = true }
 minco-core.workspace = true
 minco-plugin-audit.workspace = true
+minco-aws-worker = { workspace = true, optional = true }
+minco-plugin-jobs.workspace = true
+serde.workspace = true
+thiserror.workspace = true
 minco-sqlx-postgres = { workspace = true, optional = true }
 minco-sqlx-sqlite = { workspace = true, optional = true }
 orders-application.workspace = true

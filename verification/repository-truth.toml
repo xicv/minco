@@ -1,8 +1,8 @@
 schema = 1
-workspace_version = "1.11.0"
+workspace_version = "1.12.0"
 published_baseline = "1.11.0"
 published_release_commit = "81640a6b25924be115ceb11cdec1fd2a42a71381"
-workspace_release_state = "published"
+workspace_release_state = "candidate"
 operational_evidence_effective_date = "2026-08-12"
 published_package_count = 36
 adoption_gate_task = "M6-T07"
@@ -12,7 +12,7 @@ qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-
 post_candidate_tasks = ["M6-T01", "M12-T07"]
 published_release_task = "M14-T43"
 published_source_tree_sha256 = "85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835"
-release_candidate_task = "M14-T42"
+release_candidate_task = "M14-T44"
 
 # The published 1.11.0 baseline is the complete 36-package family from immutable
 # tag v1.11.0. It adds an opt-in contract-enforced request boundary without a
@@ -20,8 +20,13 @@ release_candidate_task = "M14-T42"
 # exact-commit Pages passed separately; all 36 docs.rs jobs were queued at
 # closure observation, but no exact rustdoc-route pass is recorded. Provider and
 # application-runtime evidence remain separate evidence lanes.
-publishable_package_count = 36
-new_publishable_packages = []
+#
+# The published 1.11.0 baseline is the complete 36-package family from immutable
+# tag v1.11.0. The unpublished 1.12.0 candidate adds one public package;
+# the name has not crossed the crates.io ownership or trusted-publisher
+# boundary.
+publishable_package_count = 37
+new_publishable_packages = ["minco-plugin-jobs"]
 
 [budgets]
 native_lambda_zip_max_bytes = 10485760
