@@ -1,10 +1,10 @@
 # Incrementally adopting Minco
 
-Published baseline: `1.11.0`
-Current workspace version: `1.11.0`
+Published baseline: `1.12.0`
+Current workspace version: `1.12.0`
 Workspace release state: `published`
 
-Use exact published `1.11.0` dependencies for applications. Follow the
+Use exact published `1.12.0` dependencies for applications. Follow the
 [1.5.0-to-1.6.0 guide](1.5.0-to-1.6.0.md) before adopting durable auditing,
 then use the [1.6.0-to-1.7.0 guide](1.6.0-to-1.7.0.md) for Apple-first fresh
 local-service selection. The [1.7.0-to-1.8.0 guide](1.7.0-to-1.8.0.md) covers

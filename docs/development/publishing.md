@@ -6,20 +6,21 @@ applications that need a narrower dependency graph.
 
 ## Published baseline and release inventory
 
-The published `1.11.0` release contains the complete lock-step 36-package
+The published `1.12.0` release contains the complete lock-step 37-package
 inventory. A workspace version or source tag is not registry proof: release
 status is verified independently against the exact crates.io records. The
 package inventory is derived from `[workspace.metadata.minco.release]` and
 checked against every publishable workspace member by
 `scripts/validate_publish.py`.
 
-The workspace is the published additive `1.11.0` source with the same 36
-publishable packages. `minco-interaction` and `minco-plugin-ticketing` are
-already owned on crates.io and their future trusted-publisher entries were
-independently reconciled on 2026-08-21 for repository `xicv/minco`, workflow
-`publish-crates.yml` and environment `crates-io`. `new_publishable_packages`
-remains empty. Source, hosted compatibility, tag, OIDC authentication, upload,
-registry, docs.rs and Pages evidence remain separate.
+The workspace is the published additive `1.12.0` source with 37 publishable
+packages. The new `minco-plugin-jobs` crate crossed the crates.io ownership
+boundary with a manual authenticated first publication on 2026-08-23 (1.3.0
+Waffo precedent), then its trusted publisher was configured for repository
+`xicv/minco`, workflow `publish-crates.yml` and environment `crates-io`, so
+`new_publishable_packages` is empty again. Source, hosted compatibility, tag,
+OIDC authentication, upload, registry, docs.rs and Pages evidence remain
+separate.
 
 The 1.0 release added `minco-plugin-realtime`, `minco-project-view`,
 `minco-mcp`, `minco-workbench` and `minco-aws-dynamodb`; the 1.1 release added
@@ -31,18 +32,20 @@ release changes only fresh automatic local dependency-runtime selection. The
 1.8 release adds object-transfer contracts without changing ownership. The
 1.10 release adds the shared Interaction and beta Ticketing packages. The 1.11
 release adds the contract-enforced request boundary without changing package
-ownership. All 36 packages in the published 1.11.0 baseline have crates.io
-ownership. Source qualification or merge still must not be described as
+ownership. The 1.12 release adds the `minco-plugin-jobs` durable-work crate as
+the family's first new package since 1.10. All 37 packages in the published
+1.12.0 baseline have crates.io ownership. Source qualification or merge still must not be described as
 registry publication.
 
-The exact published source is immutable tag `v1.11.0` at
-`81640a6b25924be115ceb11cdec1fd2a42a71381`, with source-tree digest
-`85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`.
-The uninterrupted local release qualification and exact-main clean-Linux run
-`32489926320` passed before authentication-only run `32490523716` and guarded
-publication run `32490558619`. Archive and external-consumer checks passed
-before all 36 dependency-ordered uploads. Independent registry validation found
-every exact 1.11.0 version present and non-yanked. Later source qualification
+The exact published source is immutable tag `v1.12.0` at
+`8b02db96d8459ada2d0ed9f53c55500ce8f8e050`, whose tree is byte-identical to
+the locally qualified head, with source-tree digest
+`ef7b03cb2446cba73897b5045c9b309d74b7d7c469d9c822a24ec13770841154`. The
+uninterrupted local release qualification passed before authentication-only
+OIDC run `32613766059` and the guarded local publication. A crates.io rate
+limit interrupted the dependency-ordered upload at 32/37; an audited resume
+published only the registry-absent five. Independent registry validation found
+every exact 1.12.0 version present and non-yanked. Later source qualification
 must use its own exact source and must not be described as registry, tag or
 deployment proof.
 
@@ -78,6 +81,7 @@ verification, docs.rs and Pages deployment remain separate states.
 | `minco-plugin-notifications` | Notification contracts and bounded delivery providers. |
 | `minco-plugin-audit` | Durable audit contracts and adapters. |
 | `minco-interaction` | Provider-neutral support context, attachment, transcription, transition, and activity contracts. |
+| `minco-plugin-jobs` | Durable typed jobs with lease-based execution, explicit scheduling and at-least-once dispatch. |
 | `minco-plugin-feedback` | Feedback capture, persistence, administration, and widget contract. |
 | `minco-plugin-ticketing` | Project-scoped Ticketing, atomic handoffs, requester-safe projections, and explicit persistence. |
 | `minco-plugin-static-site` | Static-site runtime integration. |
@@ -234,7 +238,7 @@ remaining packages with explicit `--package` arguments.
 
 The first version of a new crate additionally requires a manual authenticated
 publish because trusted publishing can only be configured after ownership
-exists. The complete published 36-package family has crossed that ownership
+exists. The complete published 37-package family has crossed that ownership
 boundary.
 Before 1.1.0 publication, trusted-publisher configuration was independently
 reconciled for all packages. The 1.2.0 upload used a short-lived OIDC token only

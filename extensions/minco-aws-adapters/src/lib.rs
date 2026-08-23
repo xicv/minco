@@ -6,6 +6,8 @@ pub mod appsync_events;
 #[cfg(feature = "cognito")]
 pub mod cognito;
 pub mod iam;
+#[cfg(all(feature = "jobs", feature = "sqs"))]
+pub mod jobs_sqs;
 #[cfg(any(feature = "ses", feature = "webhook"))]
 pub mod notification;
 pub mod plugin;

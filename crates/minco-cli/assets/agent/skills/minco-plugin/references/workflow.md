@@ -45,3 +45,7 @@ into content-safety claims.
 At the 1.10 Ticketing support-entry boundary, keep Ticketing statically
 selected with explicit storage and HTTP capabilities. Feedback compatibility
 does not authorize a hidden provider, portal, mailbox poller or scheduler.
+
+## Durable typed work
+
+- Durable typed work: jobs are typed commands whose durable row owns execution; use `plugin-jobs` for at-least-once dispatch with fenced claims and explicit schedules.

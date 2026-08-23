@@ -4,6 +4,7 @@
 pub mod audit;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
+pub mod jobs;
 mod memory;
 #[cfg(feature = "postgres")]
 mod postgres;

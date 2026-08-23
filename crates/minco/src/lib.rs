@@ -83,6 +83,10 @@ pub use minco_plugin_object_storage as plugin_object_storage;
 /// Official domain-event and explicit outbox plugin.
 pub use minco_plugin_events as plugin_events;
 
+#[cfg(feature = "plugin-jobs")]
+/// Official durable typed work plugin.
+pub use minco_plugin_jobs as plugin_jobs;
+
 #[cfg(feature = "plugin-notifications")]
 /// Official provider-neutral notification plugin.
 pub use minco_plugin_notifications as plugin_notifications;
@@ -197,6 +201,14 @@ fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), cor
 
     #[cfg(feature = "plugin-events")]
     manager.register(plugin_events::EventsPlugin::memory().0)?;
+
+    #[cfg(feature = "plugin-jobs")]
+    manager.register(
+        plugin_jobs::JobsPlugin::memory(
+            std::sync::Arc::new(plugin_jobs::JobHandlerRegistry::new()),
+        )
+        .0,
+    )?;
 
     #[cfg(feature = "plugin-notifications")]
     manager.register(plugin_notifications::NotificationsPlugin::memory().0)?;

@@ -10,7 +10,8 @@ is retained as a stable reference; `next` is allowed to change.
 
 | Version | Status | Rust | Documentation |
 |---|---|---|---|
-| 1.11.0 | Latest stable | 1.97.1 | [Open 1.11.0 docs](/1.11.0/) |
+| 1.12.0 | Latest stable | 1.97.1 | [Open 1.12.0 docs](/1.12.0/) |
+| 1.11.0 | Previous stable | 1.97.1 | [Open 1.11.0 docs](/1.11.0/) |
 | 1.10.0 | Previous stable | 1.97.1 | [Open 1.10.0 docs](/1.10.0/) |
 | 1.9.0 | Previous stable | 1.97.1 | [Open 1.9.0 docs](/1.9.0/) |
 | 1.8.0 | Previous stable | 1.97.1 | [Open 1.8.0 docs](/1.8.0/) |
@@ -28,10 +29,10 @@ is retained as a stable reference; `next` is allowed to change.
 | 0.5.0 | Previous stable | 1.97.1 | [Open 0.5.0 docs](/0.5.0/) |
 | Next | Unreleased | Repository-pinned | [Preview next](/next/) |
 
-The 1.11.0 source, uninterrupted local qualification, exact-main hosted check,
-immutable tag, guarded OIDC publication, 36 exact non-yanked registry records
-and GitHub release are independently verified. Exact-commit Pages run
-`32497158350` passed, and the root plus frozen manual serve `1.11.0` as latest
-stable. docs.rs remains a separate evidence lane: all 36 jobs were present in
-its queue at closure observation, but no exact rustdoc-route pass is recorded
-yet. No live application provider, deployment, or production proof is implied.
+The 1.12.0 source, uninterrupted local qualification, immutable tag, guarded
+publication with an audited rate-limit resume, 37 exact non-yanked registry
+records and GitHub release are independently verified. `minco-plugin-jobs`
+crossed its ownership boundary with a manual first publication and now has its
+trusted publisher configured. GitHub Pages deployment and docs.rs propagation
+are observed separately and are not claimed as closed. No live application
+provider, deployment, or production proof is implied.

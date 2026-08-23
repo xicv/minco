@@ -2,16 +2,16 @@
 
 Freeze reviewed: 2026-08-05
 
-Published release: `1.11.0`
+Published release: `1.12.0`
 
 Published comparison baseline: `1.5.0`
 
-Current workspace: `1.11.0` published
+Current workspace: `1.12.0` published
 
 MSRV: Rust `1.97.1`
 
 This page retains the public boundary frozen at Minco `1.0.0` and applies it to
-the 1.1 through published 1.11.0 release lines. Merge, tag,
+the 1.1 through published 1.12.0 release lines. Merge, tag,
 registry, GitHub release and
 versioned documentation are independently verified. Deployment and proof in a
 consuming application remain separate release gates.

@@ -1,26 +1,28 @@
 schema = 1
-workspace_version = "1.11.0"
-published_baseline = "1.11.0"
-published_release_commit = "81640a6b25924be115ceb11cdec1fd2a42a71381"
+workspace_version = "1.12.0"
+published_baseline = "1.12.0"
+published_release_commit = "8b02db96d8459ada2d0ed9f53c55500ce8f8e050"
 workspace_release_state = "published"
 operational_evidence_effective_date = "2026-08-12"
-published_package_count = 36
+published_package_count = 37
 adoption_gate_task = "M6-T07"
 qualified_candidate_task = "M12-T06"
 qualified_candidate_source_tree_sha256 = "a678ebf52b4c7a9f60ae9adb43221984b5f5884d44f5d0400e14781a5bf28554"
 qualified_candidate_new_publishable_packages = ["minco-plugin-realtime", "minco-project-view", "minco-mcp", "minco-workbench"]
 post_candidate_tasks = ["M6-T01", "M12-T07"]
-published_release_task = "M14-T43"
-published_source_tree_sha256 = "85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835"
-release_candidate_task = "M14-T42"
+published_release_task = "M14-T44"
+published_source_tree_sha256 = "ef7b03cb2446cba73897b5045c9b309d74b7d7c469d9c822a24ec13770841154"
+release_candidate_task = "M14-T44"
 
-# The published 1.11.0 baseline is the complete 36-package family from immutable
-# tag v1.11.0. It adds an opt-in contract-enforced request boundary without a
-# new package or ownership boundary. Authentication and registry passed;
-# exact-commit Pages passed separately; all 36 docs.rs jobs were queued at
-# closure observation, but no exact rustdoc-route pass is recorded. Provider and
-# application-runtime evidence remain separate evidence lanes.
-publishable_package_count = 36
+# The published 1.12.0 baseline is the complete 37-package family from
+# immutable tag v1.12.0. It adds the opt-in durable typed work boundary and the
+# new minco-plugin-jobs crate, which crossed the crates.io ownership boundary
+# with a manual authenticated first publication on 2026-08-23; its trusted
+# publisher is now configured, so new_publishable_packages is empty again.
+# Registry validation is closed for all 37 exact versions; Pages and docs.rs
+# are observed separately. Provider and application-runtime evidence remain
+# separate evidence lanes.
+publishable_package_count = 37
 new_publishable_packages = []
 
 [budgets]

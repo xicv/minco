@@ -7,7 +7,7 @@ description: Unreleased Minco documentation for contract-to-cloud Rust applicati
 
 <p class="doc-kicker">Current development manual</p>
 
-<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.11.0/">1.11.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
+<p class="doc-lead">This manual describes the source on <code>main</code>. It develops the same contract-to-cloud model as the frozen <a href="../1.12.0/">1.12.0 stable manual</a>, while making later unreleased behavior visibly separate from stable guidance.</p>
 
 The 1.8 release added [direct, resumable object transfers](./guides/files-and-static-sites)
 for browser and native clients while retaining application-owned authorization,

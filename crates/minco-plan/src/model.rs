@@ -299,7 +299,7 @@ impl StaticSiteDeployment {
     }
 }
 
-fn local_aws_services(
+pub fn local_aws_services(
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,
     graph: &ApplicationGraph,
@@ -1553,7 +1553,7 @@ fn redrive_cycle_start<'a>(
     None
 }
 
-fn is_stable_id(value: &str) -> bool {
+pub fn is_stable_id(value: &str) -> bool {
     let mut characters = value.chars();
     matches!(characters.next(), Some(first) if first.is_ascii_lowercase())
         && characters.all(|character| {
@@ -1561,7 +1561,7 @@ fn is_stable_id(value: &str) -> bool {
         })
 }
 
-fn is_schedule_expression(value: &str) -> bool {
+pub fn is_schedule_expression(value: &str) -> bool {
     (1..=256).contains(&value.len())
         && !value.contains(['\r', '\n'])
         && value.ends_with(')')
@@ -2045,7 +2045,7 @@ pub enum IamResource {
     Function { function_id: String },
 }
 
-fn derive_iam_intents(
+pub fn derive_iam_intents(
     schema_version: u32,
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,

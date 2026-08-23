@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "jobs",
+  "kind": "plugin",
+  "plugin_version": "1.0.0",
+  "core_compatibility": "^1.12.0",
+  "stability": "beta",
+  "default_enabled": false,
+  "feature": "plugin-jobs",
+  "runtimes": ["native"],
+  "provides": [
+    { "name": "jobs.submit", "version": "1.0.0" },
+    { "name": "jobs.dispatch", "version": "1.0.0" },
+    { "name": "jobs.execution", "version": "1.0.0" }
+  ],
+  "data_classes": ["internal", "customer_provided"],
+  "retention": "application_defined",
+  "failure_policy": {
+    "mode": "fail_closed",
+    "description": "Job enqueue, dispatch and execution failures remain explicit application errors; the plugin never creates a hidden retry schedule, daemon or poller."
+  },
+  "documentation": { "reference": "https://docs.rs/minco-plugin-jobs" },
+  "conformance": {
+    "profile": "minco-plugin-v1",
+    "evidence": ["cargo test -p minco-plugin-jobs --all-features --locked"]
+  }
+}

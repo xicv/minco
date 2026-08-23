@@ -34,6 +34,7 @@ fs2 = "0.4.3"
 minco-db.workspace = true
 minco-plugin-audit.workspace = true
 minco-plugin-idempotency.workspace = true
+minco-plugin-jobs.workspace = true
 minco-plugin-sessions.workspace = true
 serde.workspace = true
 serde_json.workspace = true
