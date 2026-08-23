@@ -1,15 +1,39 @@
-# Minco 1.11.0 release handoff
+# Minco 1.12.0 release handoff
 
-Date: 2026-08-22
-Published baseline: `1.11.0`
+Date: 2026-08-23
+Published baseline: `1.12.0`
 Current workspace version: `1.12.0`
-Workspace release state: `candidate`
-Published `1.11.0` source: `81640a6b25924be115ceb11cdec1fd2a42a71381`
-Published source-tree digest: `85b5529ff162296684c123f1d4040faa78a2cd4b65844bad20000f7bb3edd835`
-Published release task: `M14-T43`
-Latest release task: `M14-T43` (`active`)
+Workspace release state: `published`
+Published `1.12.0` source: `8b02db96d8459ada2d0ed9f53c55500ce8f8e050`
+Published source-tree digest: `ef7b03cb2446cba73897b5045c9b309d74b7d7c469d9c822a24ec13770841154`
+Published release task: `M14-T44`
+Latest release task: `M14-T44` (`active`)
 Completed candidate task: `M14-T42`
 Active evidence tasks: `M14-T10`, `M14-T20`
+
+## Published 1.12.0 durable typed work release
+
+M14-T44 advanced the family to `1.12.0` with the new `minco-plugin-jobs`
+crate, froze the manual under `docs-site/1.12.0/`, and kept the nine packaged
+Codex/Claude skills current. The uninterrupted local release matrix passed for
+source-tree digest
+`ef7b03cb2446cba73897b5045c9b309d74b7d7c469d9c822a24ec13770841154`.
+
+Immutable tag `v1.12.0` resolves to merge commit
+`8b02db96d8459ada2d0ed9f53c55500ce8f8e050`, whose tree is byte-identical to
+the locally qualified head. Authentication-only OIDC run `32613766059` passed.
+Publication was performed by guarded local `scripts/release/publish.sh
+--execute` from the tagged extraction; a crates.io rate limit interrupted the
+run at 32/37, and an audited resume of the registry-absent five
+(`cargo-minco`, `minco`, `minco-plugin-feedback`, `minco-plugin-ticketing`,
+`minco-workbench`) completed the family. `minco-plugin-jobs` crossed the
+ownership boundary with a manual authenticated first publication on 2026-08-23,
+then its trusted publisher was configured for repository `xicv/minco`,
+workflow `publish-crates.yml` and environment `crates-io`. Independent
+registry validation confirmed all 37 exact 1.12.0 versions present and
+non-yanked. GitHub Pages deployment and docs.rs propagation are observed
+separately and are not claimed as closed. No AWS, application-provider,
+deployment, database or production mutation is implied.
 
 ## Published 1.11.0 request-boundary release
 

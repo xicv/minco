@@ -1,8 +1,30 @@
 # Review status
 
+## Released M14-T44 Minco 1.12.0 durable typed work
+
+Minco `1.12.0` is the current published baseline from immutable tag `v1.12.0`
+at `8b02db96d8459ada2d0ed9f53c55500ce8f8e050`, whose tree is byte-identical to
+the locally qualified head, with source-tree digest
+`ef7b03cb2446cba73897b5045c9b309d74b7d7c469d9c822a24ec13770841154`.
+
+The published additive `1.12.0` release adds opt-in durable typed work through
+the new `minco-plugin-jobs` crate while keeping OpenAPI authoritative,
+application-owned business authorization, explicit scheduling and no new
+provider default, fixed compute or AWS resource class. Authentication-only
+OIDC run `32613766059`, guarded local publication from the tagged extraction,
+the audited rate-limit resume of the registry-absent five, immutable tag
+`v1.12.0`, all 37 exact non-yanked versions and the GitHub release passed as
+separate gates. `minco-plugin-jobs` crossed the ownership boundary with a
+manual authenticated first publication on 2026-08-23, then its trusted
+publisher was configured for repository `xicv/minco`, workflow
+`publish-crates.yml` and environment `crates-io`, so `new_publishable_packages`
+is empty again. GitHub Pages deployment and docs.rs propagation are observed
+separately and are not claimed as closed. No AWS application or provider
+operation is authorized by this release work.
+
 ## Released M14-T43 Minco 1.11.0 request-boundary
 
-Minco `1.11.0` is the current published baseline from immutable tag `v1.11.0`
+Minco `1.11.0` was published from immutable tag `v1.11.0`
 at `81640a6b25924be115ceb11cdec1fd2a42a71381`.
 
 The published additive `1.11.0` release keeps OpenAPI authoritative, rejects

@@ -235,6 +235,36 @@ request, deployment or production mutation is performed by this task.
 
 - The operator CLI (`cargo minco jobs …`) remains unimplemented; the
   revision-guarded store methods are tested without a CLI wrapper.
-- Hosted Linux, real AWS, deployment and crates.io publication remain
-  separate release-evidence states for the 1.12.0 release task.
+- Hosted Linux, real AWS and deployment remain separate release-evidence
+  states; crates.io publication is closed by the release-closure evidence
+  above.
 
+
+## Release-closure evidence
+
+The uninterrupted clean-source `scripts/ci/local-release.sh` qualification
+passed for source-tree digest
+`ef7b03cb2446cba73897b5045c9b309d74b7d7c469d9c822a24ec13770841154` over the
+complete 37-package family, including the new `minco-plugin-jobs` crate,
+37-package archive dry-runs, deterministic nine-skill workflow receipt,
+candidate load/recovery, Plan/SAM/Lambda artifacts, isolated
+PostgreSQL/Rustack and Orders E2E.
+
+Immutable tag `v1.12.0` resolves to merge commit
+`8b02db96d8459ada2d0ed9f53c55500ce8f8e050`, whose Git tree is byte-identical
+to the locally qualified head `5a30ff593aa5470b371b195e0dceb9b162a14e4d`.
+Authentication-only OIDC run `32613766059` passed. Publication was performed
+by guarded local `scripts/release/publish.sh --execute` from the tagged
+extraction; a crates.io rate limit interrupted the dependency-ordered upload at
+32/37, and an audited resume of the registry-absent five (`cargo-minco`,
+`minco`, `minco-plugin-feedback`, `minco-plugin-ticketing`, `minco-workbench`)
+completed the family. `minco-plugin-jobs` crossed the ownership boundary with a
+manual authenticated first publication on 2026-08-23 (1.3.0 Waffo precedent),
+then its trusted publisher was configured for repository `xicv/minco`,
+workflow `publish-crates.yml` and environment `crates-io`. Independent
+registry validation confirmed all 37 exact 1.12.0 versions present and
+non-yanked. The GitHub release is published at
+<https://github.com/xicv/minco/releases/tag/v1.12.0>. GitHub Pages deployment
+and docs.rs propagation are observed separately and will be recorded only
+after their exact public states are verified. No provider request, AWS
+application deployment, database mutation or production operation occurred.
