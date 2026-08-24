@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1871,
+  "file_count": 1874,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "e269a55f3ff3a80c7c2a5dafd61e966c90202ba4fe88db2690411e2dd6c98fd8",
-      "size_bytes": 119494
+      "sha256": "d78399db52246431dc843e671f34bd338cf031e9edb1b8250e79085d569e2cd9",
+      "size_bytes": 119603
     },
     {
       "path": "Cargo.toml",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "8aada892070840cb39f29450f4691ac9db869a37902c7e941a5a3d95554e5494",
-      "size_bytes": 11483
+      "sha256": "11bd47456222e2bf4c1eddc64741bb7f0a34b79e93202980564f22be2d3cf9a3",
+      "size_bytes": 11722
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2151,6 +2151,11 @@
       "path": "docs/adrs/0059-inbound-wake-use-case.md",
       "sha256": "4dac94a2b9c1e50c188f1c1aaf0ad40bb9b9d45ffa20d46a4e38d6f1c5238ff8",
       "size_bytes": 2389
+    },
+    {
+      "path": "docs/adrs/0060-s3-wake-event-translation.md",
+      "sha256": "33a6d32a3bf234e9de24c464786ede2ed487b87413c51163dae6dd6f52a7b890",
+      "size_bytes": 2735
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -6534,8 +6539,8 @@
     },
     {
       "path": "extensions/minco-aws-worker/Cargo.toml",
-      "sha256": "9acb1b6e45113d6d1f75336ca98b4cfe2c94be6a9f5c5556424dc5dfc875d85f",
-      "size_bytes": 1461
+      "sha256": "0b804d4a22d33af745e0878f14a098d9d30f86cb63536cbe76ea9cedbf563dfb",
+      "size_bytes": 1828
     },
     {
       "path": "extensions/minco-aws-worker/LICENSE-APACHE",
@@ -6569,8 +6574,13 @@
     },
     {
       "path": "extensions/minco-aws-worker/src/lib.rs",
-      "sha256": "e3d7ce558b0be2ad92e9207fb827f40d33968640cf163ff966a5f725d443def2",
-      "size_bytes": 19456
+      "sha256": "298b56793c597af6da1faaecf1b8541faa90de8fbefa630282a48868bb8a4f7d",
+      "size_bytes": 19515
+    },
+    {
+      "path": "extensions/minco-aws-worker/src/ticketing_wake.rs",
+      "sha256": "a59f1a38634aeb4aca332ae8cf7447cd6e821afa91a6fb5847ee9f3b81b0e416",
+      "size_bytes": 14836
     },
     {
       "path": "extensions/minco-aws-worker/tests/typed_fake.rs",
@@ -8963,6 +8973,11 @@
       "size_bytes": 3831
     },
     {
+      "path": "tasks/M14/M14-T58-s3-wake-event-translation.md",
+      "sha256": "fa99a0bcde6d96ec5fa83cf3f632e0343d4e192e214ad57844ab99fa0a5a4867",
+      "size_bytes": 3772
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9414,7 +9429,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "10453693be3e388f39fa0c0a7fb11839f591600eb483cd87e4ebee8e64b91a8e",
-  "total_size_bytes": 14025234,
+  "source_tree_sha256": "b3979ad5e41409651dbf30df9f3be34cdf9e36707f659f05e6283f2268314f3a",
+  "total_size_bytes": 14047351,
   "version": "1.12.0"
 }
