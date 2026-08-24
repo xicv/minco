@@ -5,6 +5,7 @@ info:
   description: >-
     Project-scoped support entry, one-time handoff exchange, requester and agent
     ticket conversations, managed workflow, external ingress, and AI context.
+x-minco-request-validation: generated
 servers:
   - url: /
 security:
@@ -215,12 +216,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [assignee_subject]
-              properties:
-                assignee_subject: {type: [string, 'null'], maxLength: 300}
+            schema: {$ref: '#/components/schemas/TicketAssignment'}
       responses:
         '200': {$ref: '#/components/responses/TicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
@@ -235,11 +231,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [queue_id]
-              properties: {queue_id: {type: string, minLength: 1, maxLength: 200}}
+            schema: {$ref: '#/components/schemas/TicketQueueTransfer'}
       responses:
         '200': {$ref: '#/components/responses/TicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
@@ -254,11 +246,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [priority]
-              properties: {priority: {$ref: '#/components/schemas/TicketPriority'}}
+            schema: {$ref: '#/components/schemas/TicketPriorityChange'}
       responses:
         '200': {$ref: '#/components/responses/TicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
@@ -273,14 +261,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [status]
-              properties:
-                status: {$ref: '#/components/schemas/TicketStatus'}
-                resolution: {type: [string, 'null'], maxLength: 20000}
-                close_reason: {type: [string, 'null'], maxLength: 500}
+            schema: {$ref: '#/components/schemas/TicketStatusChange'}
       responses:
         '200': {$ref: '#/components/responses/TicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
@@ -481,12 +462,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [body]
-              properties:
-                body: {type: string, minLength: 1, maxLength: 20000}
+            schema: {$ref: '#/components/schemas/TicketReply'}
       responses:
         '200': {$ref: '#/components/responses/RequesterTicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
@@ -537,12 +513,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [portal_origin]
-              properties:
-                portal_origin: {type: string}
+            schema: {$ref: '#/components/schemas/SessionExchange'}
             examples:
               browser:
                 value:
@@ -608,11 +579,7 @@ components:
       required: true
       content:
         application/json:
-          schema:
-            type: object
-            additionalProperties: false
-            required: [body]
-            properties: {body: {type: string, minLength: 1, maxLength: 20000}}
+          schema: {$ref: '#/components/schemas/TicketReply'}
   responses:
     Problem:
       description: RFC 9457-style problem response with request ID
@@ -741,7 +708,7 @@ components:
         optional_request_id: {type: [string, 'null'], maxLength: 2000}
         optional_locale: {type: [string, 'null'], maxLength: 40}
         optional_timezone: {type: [string, 'null'], maxLength: 100}
-        optional_viewport: {type: [string, 'null'], maxLength: 32, pattern: '^[0-9]{1,6}x[0-9]{1,6}$'}
+        optional_viewport: {type: [string, 'null'], maxLength: 15}
         optional_selected_text: {type: [string, 'null'], maxLength: 2000}
         resource_references: {type: array, maxItems: 8, items: {$ref: '#/components/schemas/ResourceReference'}}
     IssueHandoff:
@@ -960,7 +927,7 @@ components:
         provider: {type: string, maxLength: 100}
         mailbox_scope: {type: string, maxLength: 300}
         external_message_id: {type: string, maxLength: 500}
-        content_sha256: {type: string, pattern: '^[0-9a-fA-F]{64}$'}
+        content_sha256: {type: string, minLength: 64, maxLength: 64}
         raw_message_object_key: {type: [string, 'null'], maxLength: 1000}
         internet_message_id: {type: [string, 'null'], maxLength: 1000}
         in_reply_to: {type: [string, 'null'], maxLength: 1000}
@@ -990,3 +957,52 @@ components:
       properties:
         expires_at: {type: string, format: date-time}
         csrf_token: {type: string}
+    TicketReply:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: {type: string, minLength: 1, maxLength: 20000}
+    TicketAssignment:
+      type: object
+      additionalProperties: false
+      required: [assignee_subject]
+      properties:
+        assignee_subject: {type: [string, 'null'], maxLength: 300}
+    TicketQueueTransfer:
+      type: object
+      additionalProperties: false
+      required: [queue_id]
+      properties:
+        queue_id: {type: string, minLength: 1, maxLength: 200}
+    TicketPriorityChange:
+      type: object
+      additionalProperties: false
+      required: [priority]
+      properties:
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+    TicketStatusChange:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/TicketStatus'}
+        resolution: {type: [string, 'null'], maxLength: 20000}
+        close_reason: {type: [string, 'null'], maxLength: 500}
+    SessionExchange:
+      type: object
+      additionalProperties: false
+      required: [portal_origin]
+      properties:
+        portal_origin: {type: string, minLength: 1, maxLength: 300}
+    AgentManagement:
+      type: object
+      additionalProperties: false
+      properties:
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+        assignee_subject: {type: string, maxLength: 300}
+        clear_assignee: {type: boolean, default: false}
+        queue_id: {type: string, maxLength: 200}
+        status: {$ref: '#/components/schemas/TicketStatus'}
+        resolution: {type: string, maxLength: 20000}
+        close_reason: {type: string, maxLength: 500}

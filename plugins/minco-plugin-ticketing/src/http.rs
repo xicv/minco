@@ -1,24 +1,24 @@
 use crate::{
     AgentManagementInput, CreateTicketInput, ExternalMessageIdentity, IssueTicketingHandoffInput,
-    RequesterTicket, Ticket, TicketChannel, TicketFromHandoffInput, TicketId, TicketListFilter,
-    TicketPriority, TicketStatus, TicketStoreError, TicketSummary, TicketingMutationResult,
-    TicketingService, TicketingServiceError,
+    RequesterTicket, Ticket, TicketId, TicketListFilter, TicketStatus, TicketStoreError,
+    TicketSummary, TicketingMutationResult, TicketingService, TicketingServiceError,
 };
 use axum::{
     Json, Router,
-    extract::{DefaultBodyLimit, FromRequest, FromRequestParts, Path, RawQuery, Request, State},
+    extract::{DefaultBodyLimit, FromRequestParts, Path, RawQuery, State},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
 };
 use chrono::{DateTime, Utc};
 use http::{HeaderMap, HeaderValue, StatusCode, header};
-use minco_http::{ApiFailure, Cursor, ResourceCollection, StrongEntityTag, parse_if_match};
+use minco_http::{
+    ApiFailure, Cursor, ResourceCollection, StrongEntityTag, ValidatedJson, parse_if_match,
+};
 use minco_interaction::{
-    AttachmentLimits, SupportBootstrap, SupportContext, SupportHandoffResult, SupportHandoffToken,
-    SupportSurface,
+    AttachmentLimits, SupportBootstrap, SupportHandoffResult, SupportHandoffToken, SupportSurface,
 };
 use minco_plugin_identity::Identity;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::Serialize;
 use std::{collections::BTreeSet, str::FromStr};
 use uuid::Uuid;
 
@@ -153,24 +153,6 @@ where
     }
 }
 
-struct ApiJson<T>(T);
-
-impl<S, T> FromRequest<S> for ApiJson<T>
-where
-    S: Send + Sync,
-    T: DeserializeOwned,
-{
-    type Rejection = ApiFailure;
-
-    async fn from_request(request: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let request_id = request_id(request.headers());
-        Json::<T>::from_request(request, state)
-            .await
-            .map(|Json(value)| Self(value))
-            .map_err(|rejection| json_rejection(rejection.status(), &request_id))
-    }
-}
-
 pub fn ticketing_router(service: TicketingService) -> Router {
     let routes = Router::new()
         .route("/support-entry.js", get(support_entry_source))
@@ -275,16 +257,101 @@ async fn bootstrap(State(state): State<TicketingHttpState>) -> Json<TicketingBoo
     })
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct IssueHandoffBody {
-    project_id: String,
-    requester_subject: String,
-    #[serde(default)]
-    requester_permissions: Vec<String>,
-    surface: SupportSurface,
-    context: SupportContext,
-    return_location: String,
+/// Contract-derived wire mappings (ADR-0057): generated DTOs map
+/// field-for-field onto the application inputs; handlers stay logic-free.
+mod wire {
+    use crate::generated as wire;
+    use crate::{
+        TicketChannel, TicketFromHandoffInput, TicketPriority, TicketRequester, TicketStatus,
+    };
+    use minco_interaction::{SupportContext, SupportResourceReference, SupportSurface};
+
+    pub(super) const fn channel(value: wire::TicketChannel) -> TicketChannel {
+        match value {
+            wire::TicketChannel::Portal => TicketChannel::Portal,
+            wire::TicketChannel::Email => TicketChannel::Email,
+            wire::TicketChannel::Api => TicketChannel::Api,
+            wire::TicketChannel::Voice => TicketChannel::Voice,
+            wire::TicketChannel::Internal => TicketChannel::Internal,
+            wire::TicketChannel::Other => TicketChannel::Other,
+        }
+    }
+
+    pub(super) const fn priority(value: wire::TicketPriority) -> TicketPriority {
+        match value {
+            wire::TicketPriority::Low => TicketPriority::Low,
+            wire::TicketPriority::Normal => TicketPriority::Normal,
+            wire::TicketPriority::High => TicketPriority::High,
+            wire::TicketPriority::Urgent => TicketPriority::Urgent,
+        }
+    }
+
+    pub(super) const fn status(value: wire::TicketStatus) -> TicketStatus {
+        match value {
+            wire::TicketStatus::New => TicketStatus::New,
+            wire::TicketStatus::Open => TicketStatus::Open,
+            wire::TicketStatus::PendingRequester => TicketStatus::PendingRequester,
+            wire::TicketStatus::PendingInternal => TicketStatus::PendingInternal,
+            wire::TicketStatus::OnHold => TicketStatus::OnHold,
+            wire::TicketStatus::Resolved => TicketStatus::Resolved,
+            wire::TicketStatus::Closed => TicketStatus::Closed,
+        }
+    }
+
+    pub(super) const fn surface(value: wire::SupportSurface) -> SupportSurface {
+        match value {
+            wire::SupportSurface::Widget => SupportSurface::Widget,
+            wire::SupportSurface::Portal => SupportSurface::Portal,
+            wire::SupportSurface::Extension => SupportSurface::Extension,
+            wire::SupportSurface::Api => SupportSurface::Api,
+            wire::SupportSurface::Mobile => SupportSurface::Mobile,
+        }
+    }
+
+    pub(super) fn requester(value: wire::TicketRequester) -> TicketRequester {
+        TicketRequester {
+            subject: value.subject,
+            display_name: value.display_name,
+            email: value.email,
+        }
+    }
+
+    pub(super) fn resource_reference(value: wire::ResourceReference) -> SupportResourceReference {
+        SupportResourceReference {
+            system: value.system,
+            resource_type: value.resource_type,
+            resource_id: value.resource_id,
+        }
+    }
+
+    pub(super) fn context(value: wire::SupportContext) -> SupportContext {
+        SupportContext {
+            page_url: value.page_url,
+            optional_page_title: value.optional_page_title,
+            optional_route_name: value.optional_route_name,
+            optional_release_id: value.optional_release_id,
+            optional_request_id: value.optional_request_id,
+            optional_locale: value.optional_locale,
+            optional_timezone: value.optional_timezone,
+            optional_viewport: value.optional_viewport,
+            optional_selected_text: value.optional_selected_text,
+            resource_references: value
+                .resource_references
+                .unwrap_or_default()
+                .into_iter()
+                .map(resource_reference)
+                .collect(),
+        }
+    }
+
+    pub(super) fn from_handoff(value: wire::ExchangeHandoff) -> TicketFromHandoffInput {
+        TicketFromHandoffInput {
+            subject: value.subject,
+            description: value.description,
+            channel: channel(value.channel),
+            priority: priority(value.priority),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -297,7 +364,7 @@ async fn issue_handoff(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(identity): RequiredIdentity,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<IssueHandoffBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::IssueHandoff>,
 ) -> Result<Json<IssuedHandoffResponse>, ApiFailure> {
     let request_id = request_id(&headers);
     let grant = state
@@ -308,8 +375,8 @@ async fn issue_handoff(
                 project_id: body.project_id,
                 requester_subject: body.requester_subject,
                 requester_permissions: body.requester_permissions,
-                surface: body.surface,
-                context: body.context,
+                surface: wire::surface(body.surface),
+                context: wire::context(body.context),
                 return_location: body.return_location,
                 correlation_id: request_uuid(&request_id),
             },
@@ -323,18 +390,6 @@ async fn issue_handoff(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ExchangeHandoffBody {
-    project_id: String,
-    portal_origin: String,
-    subject: String,
-    description: String,
-    channel: TicketChannel,
-    #[serde(default)]
-    priority: TicketPriority,
-}
-
 #[derive(Debug, Serialize)]
 struct ConsumedHandoffResponse {
     ticket: RequesterTicket,
@@ -346,21 +401,18 @@ async fn exchange_handoff(
     State(state): State<TicketingHttpState>,
     SensitiveHandoff(token): SensitiveHandoff,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<ExchangeHandoffBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::ExchangeHandoff>,
 ) -> Result<(StatusCode, Json<ConsumedHandoffResponse>), ApiFailure> {
     let request_id = request_id(&headers);
+    let project_id = body.project_id.clone();
+    let portal_origin = body.portal_origin.clone();
     let result = state
         .service
         .create_ticket_from_handoff(
             token,
-            &body.project_id,
-            &body.portal_origin,
-            TicketFromHandoffInput {
-                subject: body.subject,
-                description: body.description,
-                channel: body.channel,
-                priority: body.priority,
-            },
+            &project_id,
+            &portal_origin,
+            wire::from_handoff(body),
             Utc::now(),
         )
         .await
@@ -384,9 +436,25 @@ async fn create_ticket(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
     headers: HeaderMap,
-    ApiJson(input): ApiJson<CreateTicketInput>,
+    ValidatedJson(input): ValidatedJson<crate::generated::CreateTicket>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
+    let input = CreateTicketInput {
+        project_id: input.project_id,
+        subject: input.subject,
+        description: input.description,
+        requester: wire::requester(input.requester),
+        channel: wire::channel(input.channel),
+        priority: input
+            .priority
+            .map_or(crate::TicketPriority::Normal, wire::priority),
+        resource_references: input
+            .resource_references
+            .unwrap_or_default()
+            .into_iter()
+            .map(wire::resource_reference)
+            .collect(),
+    };
     let result = state
         .service
         .create_ticket(&principal, input, request_uuid(&request_id), Utc::now())
@@ -450,18 +518,12 @@ async fn list_tickets(
     Ok(Json(ResourceCollection::new(tickets, next)))
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ReplyBody {
-    body: String,
-}
-
 async fn requester_reply(
     State(state): State<TicketingHttpState>,
     requester: RequesterIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<ReplyBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::TicketReply>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     require_session_csrf(&state, &requester, &headers, &request_id)?;
@@ -565,12 +627,6 @@ async fn perform_requester_reply(
         .map_err(|error| map_error(error, request_id))
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SessionExchangeBody {
-    portal_origin: String,
-}
-
 fn sessions_unavailable(request_id: &str) -> ApiFailure {
     ApiFailure::new(
         StatusCode::SERVICE_UNAVAILABLE,
@@ -585,7 +641,7 @@ async fn requester_session_exchange(
     State(state): State<TicketingHttpState>,
     SensitiveHandoff(token): SensitiveHandoff,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<SessionExchangeBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::SessionExchange>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let portal = state.service.portal_services();
@@ -683,7 +739,7 @@ async fn agent_reply(
     RequiredIdentity(principal): RequiredIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<ReplyBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::TicketReply>,
 ) -> Result<Response, ApiFailure> {
     mutation_with_body(
         &state,
@@ -701,7 +757,7 @@ async fn internal_note(
     RequiredIdentity(principal): RequiredIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<ReplyBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::TicketReply>,
 ) -> Result<Response, ApiFailure> {
     mutation_with_body(
         &state,
@@ -764,18 +820,12 @@ async fn mutation_with_body(
     mutation_response(StatusCode::OK, result)
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AssignmentBody {
-    assignee_subject: Option<String>,
-}
-
 async fn change_assignment(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<AssignmentBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::TicketAssignment>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
@@ -810,17 +860,12 @@ async fn change_assignment(
     mutation_response(StatusCode::OK, result)
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct QueueBody {
-    queue_id: String,
-}
 async fn change_queue(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<QueueBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::TicketQueueTransfer>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
@@ -841,18 +886,14 @@ async fn change_queue(
     mutation_response(StatusCode::OK, result)
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PriorityBody {
-    priority: TicketPriority,
-}
 async fn change_priority(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<PriorityBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::TicketPriorityChange>,
 ) -> Result<Response, ApiFailure> {
+    let priority = wire::priority(body.priority);
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
     let revision = expected_revision(&headers, id, &request_id)?;
@@ -862,7 +903,7 @@ async fn change_priority(
             &principal,
             &state.service.config().project_id,
             id,
-            body.priority,
+            priority,
             revision,
             request_uuid(&request_id),
             Utc::now(),
@@ -872,19 +913,12 @@ async fn change_priority(
     mutation_response(StatusCode::OK, result)
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StatusBody {
-    status: TicketStatus,
-    resolution: Option<String>,
-    close_reason: Option<String>,
-}
 async fn change_status(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<StatusBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::TicketStatusChange>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
@@ -895,7 +929,7 @@ async fn change_status(
             &principal,
             &state.service.config().project_id,
             id,
-            body.status,
+            wire::status(body.status),
             body.resolution,
             body.close_reason,
             revision,
@@ -907,27 +941,11 @@ async fn change_status(
     mutation_response(StatusCode::OK, result)
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct IngressBody {
-    provider: String,
-    mailbox_scope: String,
-    external_message_id: String,
-    content_sha256: String,
-    raw_message_object_key: Option<String>,
-    internet_message_id: Option<String>,
-    in_reply_to: Option<String>,
-    #[serde(default)]
-    references: Vec<String>,
-    ticket_id: TicketId,
-    body: String,
-    expected_revision: u64,
-}
 async fn ingest_external_message(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<IngressBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::IngressMessage>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let identity_record = ExternalMessageIdentity {
@@ -939,16 +957,18 @@ async fn ingest_external_message(
         raw_message_object_key: body.raw_message_object_key,
         internet_message_id: body.internet_message_id,
         in_reply_to: body.in_reply_to,
-        references: body.references,
+        references: body.references.unwrap_or_default(),
     };
     let result = state
         .service
         .ingest_external_message(
             &principal,
             identity_record,
-            body.ticket_id,
+            TicketId(body.ticket_id),
             body.body,
-            body.expected_revision,
+            u64::try_from(body.expected_revision).map_err(|_| {
+                ApiFailure::validation("expected_revision must be non-negative", &request_id)
+            })?,
             request_uuid(&request_id),
             Utc::now(),
         )
@@ -1169,25 +1189,12 @@ async fn agent_ticket(
     ticket_response(StatusCode::OK, &ticket)
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AgentManagementBody {
-    priority: Option<TicketPriority>,
-    assignee_subject: Option<String>,
-    #[serde(default)]
-    clear_assignee: bool,
-    queue_id: Option<String>,
-    status: Option<TicketStatus>,
-    resolution: Option<String>,
-    close_reason: Option<String>,
-}
-
 async fn manage_agent_ticket(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
     Path(ticket_id): Path<String>,
     headers: HeaderMap,
-    ApiJson(body): ApiJson<AgentManagementBody>,
+    ValidatedJson(body): ValidatedJson<crate::generated::AgentManagement>,
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
@@ -1199,11 +1206,11 @@ async fn manage_agent_ticket(
             &state.service.config().project_id,
             id,
             AgentManagementInput {
-                priority: body.priority,
+                priority: body.priority.map(wire::priority),
                 assignee_subject: body.assignee_subject,
-                clear_assignee: body.clear_assignee,
+                clear_assignee: body.clear_assignee.unwrap_or(false),
                 queue_id: body.queue_id,
-                status: body.status,
+                status: body.status.map(wire::status),
                 resolution: body.resolution,
                 close_reason: body.close_reason,
             },
@@ -1639,37 +1646,6 @@ fn identity_required(request_id: &str) -> ApiFailure {
     )
 }
 
-fn json_rejection(status: StatusCode, request_id: &str) -> ApiFailure {
-    match status {
-        StatusCode::PAYLOAD_TOO_LARGE => ApiFailure::new(
-            status,
-            "ticketing_body_too_large",
-            "Request body too large",
-            "The JSON request body exceeds the 256 KiB limit.",
-            request_id,
-        ),
-        StatusCode::UNSUPPORTED_MEDIA_TYPE => ApiFailure::new(
-            status,
-            "ticketing_json_required",
-            "JSON required",
-            "Use Content-Type application/json for this operation.",
-            request_id,
-        ),
-        StatusCode::UNPROCESSABLE_ENTITY => ApiFailure::validation(
-            "The JSON request body does not match the operation schema.",
-            request_id,
-        ),
-        StatusCode::BAD_REQUEST => ApiFailure::new(
-            status,
-            "ticketing_json_invalid",
-            "Invalid JSON",
-            "The request body is not valid JSON.",
-            request_id,
-        ),
-        _ => ApiFailure::internal(request_id),
-    }
-}
-
 fn identity(principal: minco_http::Principal) -> Identity {
     Identity {
         subject: principal.subject,
@@ -1938,7 +1914,9 @@ mod tests {
         let problem: serde_json::Value =
             serde_json::from_slice(&to_bytes(malformed.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
-        assert_eq!(problem["code"], "ticketing_json_invalid");
+        // The generated boundary (ADR-0057) answers with the standard
+        // contract problem code for malformed JSON.
+        assert_eq!(problem["code"], "invalid_json");
         assert_eq!(problem["requestId"], "req-malformed");
         assert!(problem.get("request_id").is_none());
     }

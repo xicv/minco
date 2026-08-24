@@ -2,6 +2,8 @@
 // Contract SHA-256: 231a11a35589d84cb3047e7e40c182f57fef1e1726c8a97eb04f266294dd09a8
 // Do not edit manually; run `minco contract sync`.
 
+#![cfg_attr(rustfmt, rustfmt_skip)]
+#![allow(unused_variables, clippy::struct_excessive_bools)]
 #[allow(unused_imports)]
 use chrono::{DateTime, Utc};
 use minco_contract::ContractAuthorizationAlternative;

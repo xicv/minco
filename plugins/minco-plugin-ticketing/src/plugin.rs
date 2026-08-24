@@ -568,6 +568,25 @@ mod tests {
     }
 
     #[test]
+    fn generated_request_boundary_is_current() {
+        let contract_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("openapi/openapi.yaml");
+        let report = minco_contract::load_contract(&contract_path).unwrap();
+        assert!(report.is_valid(), "{:?}", report.findings);
+        let generated_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/generated.rs");
+        let expected = minco_contract::generate_rust(&report.document);
+        if std::env::var_os("UPDATE_MINCO_GENERATED").is_some_and(|value| value == "1") {
+            std::fs::write(&generated_path, &expected).unwrap();
+        }
+        let committed = std::fs::read_to_string(&generated_path).unwrap();
+        assert_eq!(
+            committed, expected,
+            "src/generated.rs is stale; run UPDATE_MINCO_GENERATED=1 cargo test -p minco-plugin-ticketing generated_request_boundary_is_current"
+        );
+    }
+
+    #[test]
     fn openapi_and_descriptor_operation_inventories_match() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("openapi/openapi.yaml");
         let report = minco_contract::load_contract(path).unwrap();

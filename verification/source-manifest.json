@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1864,
+  "file_count": 1867,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -849,8 +849,8 @@
     },
     {
       "path": "crates/minco-contract/src/generate.rs",
-      "sha256": "da12d4b2865b9e733efd6682c7a0874fcf2341352ddf9b3cc3e1da66fede7a7b",
-      "size_bytes": 34442
+      "sha256": "7d6cb732f2da4586a9189f0a60176a76e73231f6e0dd687e6286616fd744bfe2",
+      "size_bytes": 34984
     },
     {
       "path": "crates/minco-contract/src/lib.rs",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "9945b09d0d7ef480a09ac476f98a041b00b3da76fb4e989a8ff7488d1a2c607b",
-      "size_bytes": 10735
+      "sha256": "3055cd4397791ad5e8f87196e364d41a7577359bb86fe8750829f9b940a3cfec",
+      "size_bytes": 10988
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2138,6 +2138,11 @@
       "size_bytes": 2663
     },
     {
+      "path": "docs/adrs/0057-ticketing-generated-request-boundary.md",
+      "sha256": "eaba1c400d3cec0e6561fea069c24ba36733fb73fdf2a7459b6180b3c15c8fc8",
+      "size_bytes": 2462
+    },
+    {
       "path": "docs/architecture/adoption-readiness-review.md",
       "sha256": "822329315f8554ffe5429bac7d31124e4cba2e8ddb0a818a106a0c6ebddd91d3",
       "size_bytes": 5091
@@ -2444,7 +2449,7 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "55383aac8e918f3018cf822d2aef561d441f9ba2603f2ca7202f3a34fa2c398a",
+      "sha256": "9c46b8fad03bb332838070480514152fd6d4adb1db6a82c713d4543649f21d9b",
       "size_bytes": 52686
     },
     {
@@ -6014,8 +6019,8 @@
     },
     {
       "path": "examples/orders/api/src/generated.rs",
-      "sha256": "c35ab18dded991e2b97630dcb6153bb1c23d2e4004fa5949a1531b79bfae234d",
-      "size_bytes": 12189
+      "sha256": "3e7dc77f8a7b2f83254998fc07d280b5fc97f8a170b09710d4a7b77748b59179",
+      "size_bytes": 12285
     },
     {
       "path": "examples/orders/api/src/lib.rs",
@@ -7519,8 +7524,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/Cargo.toml",
-      "sha256": "919e24a7aee2e4efa8d1c1fd8444012f1d4f307bee12616822ec58eb65aadf66",
-      "size_bytes": 2299
+      "sha256": "b244433fd13146692453ac9e9fa9f3498e86586ff7ae304c1ae4a63130d8ef93",
+      "size_bytes": 2331
     },
     {
       "path": "plugins/minco-plugin-ticketing/LICENSE-APACHE",
@@ -7584,13 +7589,18 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/openapi/openapi.yaml",
-      "sha256": "b96c9893afa29c474078ec1e15c6f8a1c6764f6a4156f9ddc80e01a922b49f62",
-      "size_bytes": 40797
+      "sha256": "a766710815e16f48a2c1b8a4c11ddd4db25b8d31e0578413af5978b8fd6a279e",
+      "size_bytes": 41381
+    },
+    {
+      "path": "plugins/minco-plugin-ticketing/src/generated.rs",
+      "sha256": "549a2f4a1a3e328f04108fe11a9fd982bdccd8f556692c201b00dc954dc20056",
+      "size_bytes": 53638
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/http.rs",
-      "sha256": "7cd8fef8e18743e8dfc3ab8f2f5b32c9e24f7e11aa5661a842baa894aa81b48a",
-      "size_bytes": 112154
+      "sha256": "104f67e3e66948a7892a467f7e5f169a4fdda324789fcdaa285c05270417fe52",
+      "size_bytes": 113705
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/jobs.rs",
@@ -7599,8 +7609,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/lib.rs",
-      "sha256": "c7bf1057ec34443129cb67ae5082a7cdc3e5a60e9749be21fa842d085753394d",
-      "size_bytes": 574
+      "sha256": "067517048d1c6d6cca9a66606e9d1fe7aac3281348b1c5ac72e1d258ea0dc7e5",
+      "size_bytes": 774
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/model.rs",
@@ -7614,8 +7624,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/plugin.rs",
-      "sha256": "f781539c3373ef443c9ddf17c3165fb4db5e77540f95c186f1fdfa3f5c97665b",
-      "size_bytes": 20570
+      "sha256": "647a55ad7c16350e76d30f621a368aef32f462942e1f047cc859c1cdae23aecc",
+      "size_bytes": 21532
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
@@ -8928,6 +8938,11 @@
       "size_bytes": 3456
     },
     {
+      "path": "tasks/M14/M14-T55-generated-request-boundary.md",
+      "sha256": "e6ba34b89cb1513949ab5d7bc0715fae8c64b0fdb3f3430566c01e854ff8a2b2",
+      "size_bytes": 4661
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9379,7 +9394,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "9151c63cc6745196b86140689b9e04c6b3d9ae2fd96f6b60efb8654fc8be9429",
-  "total_size_bytes": 13919050,
+  "source_tree_sha256": "f417bb94647e8ffdeded4c35ed3267fddec7916f3e50a534276d81a1474cf615",
+  "total_size_bytes": 13984031,
   "version": "1.12.0"
 }

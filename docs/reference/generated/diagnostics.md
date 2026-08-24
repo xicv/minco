@@ -590,7 +590,7 @@ Declared codes: `589`.
 | `operation.structure_changed` | operation | `crates/minco-contract/src/compatibility.rs:158` | 2 |
 | `package.include` | package | `crates/minco-test/src/plugin_conformance.rs:212` | 0 |
 | `package.metadata.minco.plugin` | package | `crates/minco-test/src/plugin_conformance.rs:176` | 1 |
-| `request.id` | request | `crates/minco-contract/src/generate.rs:948` | 0 |
+| `request.id` | request | `crates/minco-contract/src/generate.rs:956` | 0 |
 | `resource.yaml` | resource | `crates/minco-contract/tests/contract_policy.rs:101` | 0 |
 | `schema.added` | schema | `crates/minco-contract/src/compatibility.rs:203` | 2 |
 | `schema.constraint_changed` | schema | `crates/minco-contract/src/compatibility.rs:465` | 1 |

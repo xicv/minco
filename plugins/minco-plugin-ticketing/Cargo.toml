@@ -30,6 +30,7 @@ async-trait.workspace = true
 chrono.workspace = true
 hex.workspace = true
 minco-core.workspace = true
+minco-contract.workspace = true
 minco-http = { workspace = true, optional = true }
 minco-interaction.workspace = true
 minco-plugin-audit.workspace = true
