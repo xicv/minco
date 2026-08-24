@@ -42,9 +42,10 @@ paths:
                     label: Get support
                     brand: Support
                     enabled_surfaces: [widget, portal, api]
-                    screenshot_enabled: true
-                    voice_enabled: true
-                    file_enabled: true
+                    screenshot_enabled: false
+                    voice_enabled: false
+                    file_enabled: false
+                    capabilities: {portal_sessions: false, history: true, files: false, screenshots: false, voice: false, knowledge: false, email: false, automation: false}
                     attachment_limits: {count: 8, screenshot_bytes: 4194304, audio_bytes: 5242880, file_bytes: 5242880, aggregate_bytes: 8388608}
                     recording_limit: 90
                     privacy_notice: Share only information needed to resolve this request.
@@ -698,6 +699,20 @@ components:
         attachment_limits: {$ref: '#/components/schemas/AttachmentLimits'}
         recording_limit: {type: integer, minimum: 1}
         privacy_notice: {type: string, maxLength: 2000}
+        capabilities: {$ref: '#/components/schemas/SupportCapabilities'}
+    SupportCapabilities:
+      type: object
+      additionalProperties: false
+      required: [portal_sessions, history, files, screenshots, voice, knowledge, email, automation]
+      properties:
+        portal_sessions: {type: boolean}
+        history: {type: boolean}
+        files: {type: boolean}
+        screenshots: {type: boolean}
+        voice: {type: boolean}
+        knowledge: {type: boolean}
+        email: {type: boolean}
+        automation: {type: boolean}
     ResourceReference:
       type: object
       additionalProperties: false

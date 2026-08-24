@@ -70,11 +70,10 @@ impl TicketingPlugin {
     }
 }
 
-impl Default for TicketingPlugin {
-    fn default() -> Self {
-        Self::memory()
-    }
-}
+// No `Default` (ADR-0053): store selection must be explicit — `memory()`
+// for the deterministic test profile, `sqlite(pool)` or `new(store)` for
+// durable profiles — so non-durable storage can never be selected
+// silently.
 
 impl Plugin for TicketingPlugin {
     fn descriptor(&self) -> PluginDescriptor {

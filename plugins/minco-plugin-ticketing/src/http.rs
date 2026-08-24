@@ -232,31 +232,46 @@ async fn support_entry_source() -> Response {
     response
 }
 
-async fn bootstrap(State(state): State<TicketingHttpState>) -> Json<SupportBootstrap> {
+/// Bootstrap response: the interaction crate's wire shape plus the
+/// ticketing-owned additive capability truth (ADR-0053). Keeping the
+/// extension local means the plugin never depends on an unpublished
+/// interaction change.
+#[derive(Debug, Serialize)]
+struct TicketingBootstrapResponse {
+    #[serde(flatten)]
+    support: SupportBootstrap,
+    capabilities: crate::SupportCapabilities,
+}
+
+async fn bootstrap(State(state): State<TicketingHttpState>) -> Json<TicketingBootstrapResponse> {
     let config = state.service.config();
-    Json(SupportBootstrap {
-        schema_version: 1,
-        project_id: config.project_id.clone(),
-        portal_origin: config.portal_origin.clone(),
-        label: config.support_label.clone(),
-        brand: config.support_brand.clone(),
-        enabled_surfaces: vec![
-            SupportSurface::Widget,
-            SupportSurface::Portal,
-            SupportSurface::Api,
-        ],
-        screenshot_enabled: true,
-        voice_enabled: true,
-        file_enabled: true,
-        attachment_limits: AttachmentLimits {
-            count: 8,
-            screenshot_bytes: 4 * 1024 * 1024,
-            audio_bytes: 5 * 1024 * 1024,
-            file_bytes: 5 * 1024 * 1024,
-            aggregate_bytes: 8 * 1024 * 1024,
+    Json(TicketingBootstrapResponse {
+        support: SupportBootstrap {
+            schema_version: 1,
+            project_id: config.project_id.clone(),
+            portal_origin: config.portal_origin.clone(),
+            label: config.support_label.clone(),
+            brand: config.support_brand.clone(),
+            enabled_surfaces: vec![
+                SupportSurface::Widget,
+                SupportSurface::Portal,
+                SupportSurface::Api,
+            ],
+            // Truthful (ADR-0053): no capture operation exists yet.
+            screenshot_enabled: false,
+            voice_enabled: false,
+            file_enabled: false,
+            attachment_limits: AttachmentLimits {
+                count: 8,
+                screenshot_bytes: 4 * 1024 * 1024,
+                audio_bytes: 5 * 1024 * 1024,
+                file_bytes: 5 * 1024 * 1024,
+                aggregate_bytes: 8 * 1024 * 1024,
+            },
+            recording_limit: 90,
+            privacy_notice: config.privacy_notice.clone(),
         },
-        recording_limit: 90,
-        privacy_notice: config.privacy_notice.clone(),
+        capabilities: state.service.support_capabilities(),
     })
 }
 
@@ -2990,5 +3005,47 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(foreign.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_is_truthful_about_capabilities_and_portal_sessions() {
+        let app = ticketing_router(service());
+        let response = app
+            .oneshot(
+                Request::get("/_minco/ticketing/bootstrap")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bootstrap: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(bootstrap["screenshot_enabled"], false);
+        assert_eq!(bootstrap["voice_enabled"], false);
+        assert_eq!(bootstrap["file_enabled"], false);
+        assert_eq!(bootstrap["capabilities"]["portal_sessions"], false);
+        assert_eq!(bootstrap["capabilities"]["history"], true);
+        assert_eq!(bootstrap["capabilities"]["files"], false);
+        assert_eq!(bootstrap["capabilities"]["email"], false);
+        assert_eq!(bootstrap["capabilities"]["automation"], false);
+
+        // With the sessions/CSRF services registered the portal-session
+        // capability flips to true and nothing else changes.
+        let (portal_app, _token) = portal_app().await;
+        let response = portal_app
+            .oneshot(
+                Request::get("/_minco/ticketing/bootstrap")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bootstrap: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(bootstrap["capabilities"]["portal_sessions"], true);
+        assert_eq!(bootstrap["capabilities"]["files"], false);
     }
 }

@@ -108,6 +108,23 @@ impl TicketingConfig {
     }
 }
 
+/// Per-feature implemented-and-enabled truth for the support bootstrap.
+/// Every field defaults to `false`; the service sets exactly what is
+/// implemented and registered (ADR-0053).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+// A capability set is one boolean per real feature.
+#[allow(clippy::struct_excessive_bools)]
+pub struct SupportCapabilities {
+    pub portal_sessions: bool,
+    pub history: bool,
+    pub files: bool,
+    pub screenshots: bool,
+    pub voice: bool,
+    pub knowledge: bool,
+    pub email: bool,
+    pub automation: bool,
+}
+
 /// Truthful, permission-derived agent console capabilities. Every field maps
 /// to a real operation the console calls; nothing is claimed that the
 /// authenticated principal cannot do.
@@ -242,6 +259,22 @@ impl TicketingService {
     #[must_use]
     pub const fn config(&self) -> &TicketingConfig {
         &self.config
+    }
+
+    /// Per-feature implemented-and-enabled truth (ADR-0053): computed from
+    /// registered services and implemented operations, never hard-coded.
+    #[must_use]
+    pub const fn support_capabilities(&self) -> crate::SupportCapabilities {
+        crate::SupportCapabilities {
+            portal_sessions: self.portal.sessions.is_some() && self.portal.csrf.is_some(),
+            history: true,
+            files: false,
+            screenshots: false,
+            voice: false,
+            knowledge: false,
+            email: false,
+            automation: false,
+        }
     }
 
     pub async fn issue_ticketing_handoff(
