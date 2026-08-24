@@ -687,6 +687,69 @@ impl TicketingStore for SqliteTicketingStore {
         })
     }
 
+    async fn pending_activity_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, ticket_id, kind, correlation_id, payload_json, created_at
+               FROM ticketing_activity_intents
+              WHERE project_id = ? AND published_at IS NULL
+              ORDER BY created_at, id
+              LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(TicketActivityIntent {
+                    id: Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+                        TicketStoreError::Infrastructure("stored intent id is not a UUID".into())
+                    })?,
+                    project_id: row.get("project_id"),
+                    ticket_id: TicketId(
+                        Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                            TicketStoreError::Infrastructure(
+                                "stored intent ticket id is not a UUID".into(),
+                            )
+                        })?,
+                    ),
+                    kind: row.get("kind"),
+                    correlation_id: Uuid::parse_str(&row.get::<String, _>("correlation_id"))
+                        .map_err(|_| {
+                            TicketStoreError::Infrastructure(
+                                "stored correlation id is not a UUID".into(),
+                            )
+                        })?,
+                    payload: serde_json::from_str(&row.get::<String, _>("payload_json"))
+                        .map_err(encoding)?,
+                    created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+                })
+            })
+            .collect()
+    }
+
+    async fn mark_activity_published(
+        &self,
+        intent_id: Uuid,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_activity_intents SET published_at = ?
+              WHERE id = ? AND published_at IS NULL",
+        )
+        .bind(at.to_rfc3339())
+        .bind(intent_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(result.rows_affected() == 1)
+    }
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         sqlx::query("SELECT 1 FROM ticketing_tickets LIMIT 1")
             .execute(&self.pool)
@@ -2091,5 +2154,74 @@ mod tests {
                     if detail.contains("TicketingJobEnqueue")
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn activity_intents_dispatch_lifecycle_matches_memory() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Events".into(),
+                description: "It broke and needs an agent.".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: TicketChannel::Api,
+                priority: TicketPriority::Normal,
+                resource_references: Vec::new(),
+            },
+            "TKT-EVENTS",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "ticketing.created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({ "ticket_id": ticket.id.to_string() }),
+            now,
+        );
+        sqlite.create(ticket, intent).await.unwrap();
+
+        let pending = sqlite
+            .pending_activity_intents("project-a", 10)
+            .await
+            .unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].kind, "ticketing.created");
+
+        assert!(
+            sqlite
+                .mark_activity_published(pending[0].id, now)
+                .await
+                .unwrap()
+        );
+        // Idempotent mark: a second mark reports false.
+        assert!(
+            !sqlite
+                .mark_activity_published(pending[0].id, now)
+                .await
+                .unwrap()
+        );
+        assert!(
+            sqlite
+                .pending_activity_intents("project-a", 10)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+
+        let unpublished_row: Option<String> =
+            sqlx::query_scalar("SELECT published_at FROM ticketing_activity_intents WHERE id = ?")
+                .bind(pending[0].id.to_string())
+                .fetch_one(sqlite.pool())
+                .await
+                .unwrap();
+        assert!(unpublished_row.is_some(), "published_at is now recorded");
     }
 }

@@ -31,6 +31,7 @@ pub struct TicketingPortalServices {
     pub sessions: Option<Arc<SessionService>>,
     pub csrf: Option<Arc<CsrfService>>,
     pub idempotency: Option<Arc<minco_plugin_idempotency::IdempotencyService>>,
+    pub events: Option<Arc<minco_plugin_events::EventServices>>,
 }
 
 impl fmt::Debug for TicketingPortalServices {
@@ -41,6 +42,7 @@ impl fmt::Debug for TicketingPortalServices {
             .field("sessions", &self.sessions.is_some())
             .field("csrf", &self.csrf.is_some())
             .field("idempotency", &self.idempotency.is_some())
+            .field("events", &self.events.is_some())
             .finish()
     }
 }
@@ -851,6 +853,56 @@ impl TicketingService {
         Ok(self.store.ready().await?)
     }
 
+    /// One bounded, explicit dispatch pass (ADR-0056): publishes
+    /// transactionally-committed activity intents as domain events through
+    /// the events service, marking each published only after its
+    /// publication succeeded. Never scheduled implicitly. Returns the
+    /// number of intents published in this pass.
+    pub async fn dispatch_pending_activity(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<usize, TicketingServiceError> {
+        let events = self
+            .portal
+            .events
+            .as_ref()
+            .ok_or(TicketingServiceError::EventsUnavailable)?;
+        self.require_project(project_id)?;
+        if !(1..=100).contains(&limit) {
+            return Err(TicketingServiceError::Configuration(
+                "activity dispatch limit must be between 1 and 100".into(),
+            ));
+        }
+        let pending = self
+            .store
+            .pending_activity_intents(project_id, limit)
+            .await?;
+        let mut published = 0;
+        for intent in pending {
+            let event = minco_plugin_events::DomainEvent::new(
+                intent.kind.clone(),
+                "ticketing.ticket",
+                intent.ticket_id.to_string(),
+                intent.correlation_id,
+                intent.payload.clone(),
+            );
+            events.publisher.publish(&event).await.map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
+            })?;
+            if !self
+                .store
+                .mark_activity_published(intent.id, Utc::now())
+                .await?
+            {
+                // Already published by a concurrent pass; at-least-once
+                // delivery tolerates the duplicate.
+            }
+            published += 1;
+        }
+        Ok(published)
+    }
+
     /// Resolve a session token to the bound requester identity. Permissions
     /// are exactly the handoff-granted set recorded in session attributes.
     pub async fn resolve_requester_session(
@@ -1244,6 +1296,8 @@ pub enum TicketingServiceError {
     SessionUnauthenticated,
     #[error("the request did not carry a valid session CSRF token")]
     CsrfRejected,
+    #[error("the events service is not registered for this application")]
+    EventsUnavailable,
     #[error(transparent)]
     SupportEntry(#[from] minco_interaction::SupportEntryError),
     #[error(transparent)]
@@ -1767,5 +1821,79 @@ mod tests {
             .await
             .unwrap();
         assert!(quiet.enqueued_job_records().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn activity_intents_dispatch_once_as_domain_events() {
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let (_plugin, bus) = minco_plugin_events::EventsPlugin::memory();
+        let events = minco_plugin_events::EventServices {
+            publisher: bus.clone(),
+            outbox: bus.clone(),
+        };
+        let service =
+            TicketingService::new(TicketingStoreService::new(memory.clone()), test_config())
+                .unwrap()
+                .with_portal_services(TicketingPortalServices {
+                    events: Some(Arc::new(events)),
+                    ..TicketingPortalServices::default()
+                });
+        let created = service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("user-a"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        service
+            .reply_as_agent(
+                &identity("agent-1", &["ticketing.reply"]),
+                "project-a",
+                created.id,
+                "Answer.".into(),
+                created.revision,
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+
+        let published = service
+            .dispatch_pending_activity("project-a", 10)
+            .await
+            .unwrap();
+        assert_eq!(published, 2);
+        let events = bus.published().await;
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].event_type, "ticketing.created");
+        assert_eq!(events[1].event_type, "ticketing.agent_replied");
+        assert_eq!(events[0].aggregate_type, "ticketing.ticket");
+        assert_eq!(events[0].aggregate_id, created.id.to_string());
+        assert!(!events[0].correlation_id.is_nil());
+
+        // Second pass publishes nothing: intents are marked published.
+        assert_eq!(
+            service
+                .dispatch_pending_activity("project-a", 10)
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(bus.published().await.len(), 2);
+        assert_eq!(memory.published_intent_ids().await.len(), 2);
+
+        // Without the events service the pass fails closed.
+        let bare = TicketingService::new(
+            TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+            test_config(),
+        )
+        .unwrap();
+        assert!(matches!(
+            bare.dispatch_pending_activity("project-a", 10).await,
+            Err(TicketingServiceError::EventsUnavailable)
+        ));
     }
 }

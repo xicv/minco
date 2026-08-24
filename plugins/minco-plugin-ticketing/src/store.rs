@@ -272,6 +272,22 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         request: IngestExternalMessageRequest,
     ) -> Result<ExternalMessageIngestResult, TicketStoreError>;
 
+    /// Oldest-first unpublished activity intents for one project
+    /// (ADR-0056), bounded by `limit`.
+    async fn pending_activity_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
+
+    /// Marks one intent published; `false` when it was already published
+    /// or is unknown.
+    async fn mark_activity_published(
+        &self,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError>;
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         Ok(())
     }
@@ -369,6 +385,22 @@ impl TicketingStoreService {
     pub async fn ready(&self) -> Result<(), TicketStoreError> {
         self.0.ready().await
     }
+
+    pub async fn pending_activity_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        self.0.pending_activity_intents(project_id, limit).await
+    }
+
+    pub async fn mark_activity_published(
+        &self,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.0.mark_activity_published(intent_id, at).await
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -386,6 +418,7 @@ struct MemoryState {
     external_messages:
         BTreeMap<(String, String, String, String), (ExternalMessageIdentity, TicketId)>,
     activity_intents: Vec<TicketActivityIntent>,
+    published_intents: BTreeSet<Uuid>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -399,6 +432,10 @@ pub struct MemoryTicketingStore {
 impl MemoryTicketingStore {
     pub async fn activity_intents(&self) -> Vec<TicketActivityIntent> {
         self.state.lock().await.activity_intents.clone()
+    }
+
+    pub async fn published_intent_ids(&self) -> BTreeSet<Uuid> {
+        self.state.lock().await.published_intents.clone()
     }
 
     /// Job records committed transactionally with ticket mutations
@@ -902,6 +939,30 @@ impl TicketingStore for MemoryTicketingStore {
             ticket,
             repeated: false,
         })
+    }
+
+    async fn pending_activity_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        let state = self.state.lock().await;
+        Ok(state
+            .activity_intents
+            .iter()
+            .filter(|intent| intent.project_id == project_id)
+            .filter(|intent| !state.published_intents.contains(&intent.id))
+            .take(limit)
+            .cloned()
+            .collect())
+    }
+
+    async fn mark_activity_published(
+        &self,
+        intent_id: Uuid,
+        _at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        Ok(self.state.lock().await.published_intents.insert(intent_id))
     }
 }
 

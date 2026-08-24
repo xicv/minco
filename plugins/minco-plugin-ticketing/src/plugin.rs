@@ -173,7 +173,9 @@ impl Plugin for TicketingPlugin {
             let _events = services.get::<EventServices>()?;
         }
         // Sessions, CSRF and idempotency are optional portal services
-        // (ADR-0051): the base plugin works without all of them.
+        // (ADR-0051): the base plugin works without all of them. Events
+        // are a required capability (ADR-0056) and become a used
+        // dependency through activity-intent dispatch.
         let portal = {
             let services = context.services();
             crate::TicketingPortalServices {
@@ -186,6 +188,11 @@ impl Plugin for TicketingPlugin {
                 idempotency: services
                     .get_optional::<minco_plugin_idempotency::IdempotencyService>()
                     .map_err(|error| PluginError::Installation(error.to_string()))?,
+                events: Some(
+                    services
+                        .get::<EventServices>()
+                        .map_err(|error| PluginError::Installation(error.to_string()))?,
+                ),
             }
         };
         let service = TicketingService::new(self.store.clone(), config)

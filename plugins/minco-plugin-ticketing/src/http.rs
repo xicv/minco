@@ -1775,6 +1775,13 @@ fn map_error(error: TicketingServiceError, request_id: &str) -> ApiFailure {
             "The session CSRF token did not match this session.",
             request_id,
         ),
+        TicketingServiceError::EventsUnavailable => ApiFailure::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "ticketing_events_unavailable",
+            "Events unavailable",
+            "This application has not registered the events plugin.",
+            request_id,
+        ),
         TicketingServiceError::Store(_) => ApiFailure::new(
             StatusCode::SERVICE_UNAVAILABLE,
             "ticketing_unavailable",
@@ -2596,6 +2603,7 @@ mod tests {
                 )
                 .unwrap(),
             )),
+            events: None,
         });
         let integration = identity(minco_http::Principal {
             subject: "integration".into(),
