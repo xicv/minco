@@ -757,6 +757,7 @@ checksum = "d02c123e89527e7b424f74f52d11be0d17ef2887819323a42dcae1c7630ca53d"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "chrono",
  "http 1.5.0",
  "http-body 1.1.0",
  "http-serde",

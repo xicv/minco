@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1874,
+  "file_count": 1876,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,13 +64,13 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "d78399db52246431dc843e671f34bd338cf031e9edb1b8250e79085d569e2cd9",
-      "size_bytes": 119603
+      "sha256": "ec5ba164a10eadf183567c654179819c73de4083b0bd2d583430979774b66956",
+      "size_bytes": 119614
     },
     {
       "path": "Cargo.toml",
-      "sha256": "75e8bb46028aac47a15a9a789dbd87479c1469efea81e29431a3a86ab2790c26",
-      "size_bytes": 11220
+      "sha256": "d00b5de22b0a282752f282b7af87f5c475306f8e302ca7e2610096ae3e8f032c",
+      "size_bytes": 11226
     },
     {
       "path": "FEEDBACK_REVIEW_STATUS.md",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "11bd47456222e2bf4c1eddc64741bb7f0a34b79e93202980564f22be2d3cf9a3",
-      "size_bytes": 11722
+      "sha256": "971fe5a03ff57e18bc78e9a2cb92eee1f179519a4fc0ec086a41aa6d69551bf9",
+      "size_bytes": 11977
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2156,6 +2156,11 @@
       "path": "docs/adrs/0060-s3-wake-event-translation.md",
       "sha256": "33a6d32a3bf234e9de24c464786ede2ed487b87413c51163dae6dd6f52a7b890",
       "size_bytes": 2735
+    },
+    {
+      "path": "docs/adrs/0061-real-s3-wake-envelope.md",
+      "sha256": "c473f76b0f59ae9bdb6166e376be859806b34db2ddad5a0999b692bd7e48f753",
+      "size_bytes": 2308
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -6579,8 +6584,8 @@
     },
     {
       "path": "extensions/minco-aws-worker/src/ticketing_wake.rs",
-      "sha256": "a59f1a38634aeb4aca332ae8cf7447cd6e821afa91a6fb5847ee9f3b81b0e416",
-      "size_bytes": 14836
+      "sha256": "411855dc25917e284143f6cf2b66f4673e4bdc9046bc0ee8335a30eb74dbadd5",
+      "size_bytes": 19079
     },
     {
       "path": "extensions/minco-aws-worker/tests/typed_fake.rs",
@@ -8978,6 +8983,11 @@
       "size_bytes": 3772
     },
     {
+      "path": "tasks/M14/M14-T59-real-s3-envelope.md",
+      "sha256": "3b7f7503a3f0f6e3620c12d6af868ef57f2bb70a000877aef0e74d9ea770848f",
+      "size_bytes": 3280
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9429,7 +9439,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "b3979ad5e41409651dbf30df9f3be34cdf9e36707f659f05e6283f2268314f3a",
-  "total_size_bytes": 14047351,
+  "source_tree_sha256": "8c3d1ee205e80f56c2cbbe67aad9e6c3b24dc1930a4ec5e33100a2e55ca19709",
+  "total_size_bytes": 14057454,
   "version": "1.12.0"
 }

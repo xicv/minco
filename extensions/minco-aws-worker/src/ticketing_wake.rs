@@ -1,34 +1,29 @@
-//! S3 `ObjectCreated` → ticketing inbound wake translation (ADR-0060).
+//! S3 `ObjectCreated` → ticketing inbound wake translation
+//! (ADR-0060, ADR-0061).
 //!
-//! One bounded notification record becomes exactly one
-//! [`TicketingService::wake_inbound_email`] call. The queue message is
-//! delivery, never truth: classified failures return stable worker codes
-//! and SQS redelivery decides retry.
+//! One bounded notification record from the real S3 `Records` envelope
+//! becomes exactly one [`TicketingService::wake_inbound_email`] call.
+//! The queue message is delivery, never truth: classified failures
+//! return stable worker codes and SQS redelivery decides retry.
 
 use crate::{MessageHandler, WorkerFailure, WorkerMessage};
-use chrono::{DateTime, Utc};
+use aws_lambda_events::event::s3::S3Event;
+use chrono::Utc;
 use minco_plugin_ticketing::TicketingService;
-use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 /// Maximum accepted notification body; S3 records are small by design.
 pub const MAX_WAKE_EVENT_BYTES: usize = 64 * 1024;
-/// Maximum records per message body before failing closed.
-pub const MAX_WAKE_RECORDS: usize = 10;
 
-/// Bounded parse of one S3 notification record (ADR-0060). Unknown
-/// fields are rejected; nothing beyond these bounded identifiers is
-/// ever accepted from the queue.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// The one wake-relevant view of a validated S3 notification record.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TicketingMailWakeEvent {
     pub bucket: String,
+    /// URL-decoded object key when S3 provided one, else the raw key.
     pub key: String,
-    pub event_time: String,
+    pub event_time: chrono::DateTime<Utc>,
     pub sequencer: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ses_receipt_id: Option<String>,
 }
 
 /// Explicit worker configuration: the ticketing service and the fixed
@@ -49,19 +44,75 @@ impl TicketingMailWakeHandler {
         }
     }
 
-    /// Bounded external identity for the durable dedupe key: the SES
-    /// receipt id when the notification carries one, otherwise a digest
-    /// of the bucket and key — never message content.
-    fn external_id(event: &TicketingMailWakeEvent) -> String {
-        use sha2::{Digest, Sha256};
-        if let Some(receipt) = event
-            .ses_receipt_id
+    /// Parse the real S3 `Records` envelope (ADR-0061) into exactly one
+    /// wake event. Non-S3 sources, non-ObjectCreated events, zero or
+    /// multiple records, and missing bounded fields fail closed with
+    /// stable codes; nothing is guessed.
+    fn parse_event(body: &str) -> Result<TicketingMailWakeEvent, WorkerFailure> {
+        let event: S3Event = serde_json::from_str(body)
+            .map_err(|_| WorkerFailure::new("ticketing.wake_body_invalid"))?;
+        if event.records.len() != 1 {
+            return Err(WorkerFailure::new("ticketing.wake_record_count_invalid"));
+        }
+        let record = &event.records[0];
+        if record.event_source.as_deref() != Some("aws:s3") {
+            return Err(WorkerFailure::new("ticketing.wake_source_invalid"));
+        }
+        if !record
+            .event_name
+            .as_deref()
+            .is_some_and(|name| name.starts_with("ObjectCreated:"))
+        {
+            return Err(WorkerFailure::new("ticketing.wake_event_kind_invalid"));
+        }
+        let bucket = record
+            .s3
+            .bucket
+            .name
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-        {
-            return receipt.to_owned();
+            .ok_or_else(|| WorkerFailure::new("ticketing.wake_field_invalid"))?;
+        let raw_key = record
+            .s3
+            .object
+            .key
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| WorkerFailure::new("ticketing.wake_field_invalid"))?;
+        let key = record
+            .s3
+            .object
+            .url_decoded_key
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(raw_key);
+        let sequencer = record
+            .s3
+            .object
+            .sequencer
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| WorkerFailure::new("ticketing.wake_field_invalid"))?;
+        if !is_bounded(bucket, 128) || !is_bounded(key, 1024) || !is_bounded(sequencer, 64) {
+            return Err(WorkerFailure::new("ticketing.wake_field_invalid"));
         }
+        Ok(TicketingMailWakeEvent {
+            bucket: bucket.to_owned(),
+            key: key.to_owned(),
+            event_time: record.event_time,
+            sequencer: sequencer.to_owned(),
+        })
+    }
+
+    /// Bounded external identity for the durable dedupe key: a digest of
+    /// the bucket and key — never message content. SES receipt-id
+    /// attribution through message attributes is a slice-3b concern.
+    fn external_id(event: &TicketingMailWakeEvent) -> String {
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(event.bucket.as_bytes());
         hasher.update(event.key.as_bytes());
@@ -84,31 +135,16 @@ impl MessageHandler for TicketingMailWakeHandler {
         if message.body.len() > MAX_WAKE_EVENT_BYTES {
             return Err(WorkerFailure::new("ticketing.wake_body_too_large"));
         }
-        let events: Vec<TicketingMailWakeEvent> = serde_json::from_str(&message.body)
-            .map_err(|_| WorkerFailure::new("ticketing.wake_body_invalid"))?;
-        if events.len() != 1 {
-            return Err(WorkerFailure::new("ticketing.wake_record_count_invalid"));
-        }
-        // One queue message carries one notification record in practice;
-        // extra records would silently drop, so only the first is
-        // accepted and any excess fails the count check above.
-        let event = &events[0];
-        if !is_bounded(&event.bucket, 128) || !is_bounded(&event.key, 1024) {
-            return Err(WorkerFailure::new("ticketing.wake_field_invalid"));
-        }
-        let arrived_at: DateTime<Utc> = event
-            .event_time
-            .parse()
-            .map_err(|_| WorkerFailure::new("ticketing.wake_time_invalid"))?;
+        let event = Self::parse_event(&message.body)?;
         let failure_code = match self
             .service
             .wake_inbound_email(
                 "ses",
                 &self.mailbox_scope,
-                &Self::external_id(event),
+                &Self::external_id(&event),
                 &event.key,
                 Uuid::new_v4(),
-                arrived_at,
+                event.event_time,
             )
             .await
         {
@@ -199,14 +235,50 @@ mod tests {
         (service, store, objects, identity)
     }
 
-    fn worker_message_body(key: &str) -> String {
-        serde_json::json!([{
-            "bucket": "minco-mail",
-            "key": key,
-            "event_time": "2026-08-25T10:00:00Z",
-            "sequencer": "0062",
-        }])
+    /// Byte-accurate real S3 notification envelope for one `ObjectCreated`
+    /// Put of the given key (percent-encoded as S3 delivers keys).
+    fn real_envelope(raw_key: &str, url_decoded_key: Option<&str>) -> String {
+        let mut object = serde_json::json!({
+            "key": raw_key,
+            "sequencer": "0062FB4BD93640D5",
+        });
+        if let Some(decoded) = url_decoded_key {
+            object["urlDecodedKey"] = serde_json::Value::String(decoded.into());
+        }
+        serde_json::json!({
+            "Records": [{
+                "eventVersion": "2.2",
+                "eventSource": "aws:s3",
+                "awsRegion": "us-east-1",
+                "eventTime": "2026-08-25T10:00:00.000Z",
+                "eventName": "ObjectCreated:Put",
+                "userIdentity": {"principalId": "AWS:SES"},
+                "requestParameters": {"sourceIPAddress": "10.0.0.1"},
+                "responseElements": {},
+                "s3": {
+                    "s3SchemaVersion": "1.0",
+                    "configurationId": "ses-receiving-drop",
+                    "bucket": {"name": "minco-mail"},
+                    "object": object,
+                },
+            }],
+        })
         .to_string()
+    }
+
+    fn full_record(key: &str) -> serde_json::Value {
+        serde_json::json!({
+            "eventSource": "aws:s3", "eventName": "ObjectCreated:Put",
+            "eventTime": "2026-08-25T10:00:00Z",
+            "userIdentity": {"principalId": "AWS:SES"},
+            "requestParameters": {"sourceIPAddress": "10.0.0.1"},
+            "responseElements": {},
+            "s3": {"bucket": {"name": "b"}, "object": {"key": key, "sequencer": "1"}},
+        })
+    }
+
+    fn worker_message_body(key: &str) -> String {
+        real_envelope(key, None)
     }
 
     #[tokio::test]
@@ -221,46 +293,62 @@ mod tests {
                 .code(),
             "ticketing.wake_body_invalid"
         );
-        assert_eq!(
-            handler.handle(message("[]")).await.unwrap_err().code(),
-            "ticketing.wake_record_count_invalid"
-        );
-        let too_many = serde_json::to_string(
-            &(0..=MAX_WAKE_RECORDS)
-                .map(|index| {
-                    serde_json::json!({
-                        "bucket": "b", "key": format!("k{index}"),
-                        "event_time": "2026-08-25T10:00:00Z", "sequencer": "1",
-                    })
-                })
-                .collect::<Vec<_>>(),
-        )
-        .unwrap();
-        assert_eq!(
-            handler.handle(message(&too_many)).await.unwrap_err().code(),
-            "ticketing.wake_record_count_invalid"
-        );
-        let unknown_field = serde_json::json!([{
-            "bucket": "b", "key": "k",
-            "event_time": "2026-08-25T10:00:00Z", "sequencer": "1",
-            "injected": "value",
-        }])
-        .to_string();
+        // Empty record list fails the count check.
         assert_eq!(
             handler
-                .handle(message(&unknown_field))
+                .handle(message(r#"{"Records":[]}"#))
                 .await
                 .unwrap_err()
                 .code(),
-            "ticketing.wake_body_invalid"
+            "ticketing.wake_record_count_invalid"
         );
-        let bad_time = serde_json::json!([{
-            "bucket": "b", "key": "k", "event_time": "not-a-time", "sequencer": "1",
-        }])
+        // Two records would silently drop one; fail closed instead.
+        let two = serde_json::json!({
+            "Records": [full_record("k1"), full_record("k2")],
+        })
         .to_string();
         assert_eq!(
+            handler.handle(message(&two)).await.unwrap_err().code(),
+            "ticketing.wake_record_count_invalid"
+        );
+        // Non-S3 source is rejected.
+        let mut foreign_record = full_record("k");
+        foreign_record["eventSource"] = serde_json::Value::String("aws:sns".into());
+        let foreign = serde_json::json!({"Records": [foreign_record]}).to_string();
+        assert_eq!(
+            handler.handle(message(&foreign)).await.unwrap_err().code(),
+            "ticketing.wake_source_invalid"
+        );
+        // Non-ObjectCreated events (e.g. ObjectRemoved) are rejected.
+        let mut removed_record = full_record("k");
+        removed_record["eventName"] = serde_json::Value::String("ObjectRemoved:Delete".into());
+        let removed = serde_json::json!({"Records": [removed_record]}).to_string();
+        assert_eq!(
+            handler.handle(message(&removed)).await.unwrap_err().code(),
+            "ticketing.wake_event_kind_invalid"
+        );
+        // Missing bucket / key / sequencer fail the field check.
+        let mut missing_key_record = full_record("k");
+        missing_key_record["s3"]["object"]
+            .as_object_mut()
+            .unwrap()
+            .remove("key");
+        let missing_key = serde_json::json!({"Records": [missing_key_record]}).to_string();
+        assert_eq!(
+            handler
+                .handle(message(&missing_key))
+                .await
+                .unwrap_err()
+                .code(),
+            "ticketing.wake_field_invalid"
+        );
+        // Malformed eventTime fails envelope deserialization up front.
+        let mut bad_time_record = full_record("k");
+        bad_time_record["eventTime"] = serde_json::Value::String("not-a-time".into());
+        let bad_time = serde_json::json!({"Records": [bad_time_record]}).to_string();
+        assert_eq!(
             handler.handle(message(&bad_time)).await.unwrap_err().code(),
-            "ticketing.wake_time_invalid"
+            "ticketing.wake_body_invalid"
         );
     }
 
@@ -374,23 +462,33 @@ mod tests {
     }
 
     #[test]
-    fn external_id_prefers_the_ses_receipt_and_digests_otherwise() {
-        let with_receipt = TicketingMailWakeEvent {
+    fn parse_event_is_url_decoded_key_aware() {
+        // Percent-encoded key with a urlDecodedKey companion: the decoded
+        // key wins.
+        let decoded = TicketingMailWakeHandler::parse_event(&real_envelope(
+            "mail/project-a/reply+w%40v1",
+            Some("mail/project-a/reply+w@v1"),
+        ))
+        .unwrap();
+        assert_eq!(decoded.key, "mail/project-a/reply+w@v1");
+        assert_eq!(decoded.bucket, "minco-mail");
+        assert_eq!(decoded.sequencer, "0062FB4BD93640D5");
+        // Without urlDecodedKey the raw key is used, bounded as before.
+        let raw =
+            TicketingMailWakeHandler::parse_event(&real_envelope("mail/project-a/plain", None))
+                .unwrap();
+        assert_eq!(raw.key, "mail/project-a/plain");
+    }
+
+    #[test]
+    fn external_id_digests_bucket_and_key() {
+        let event = TicketingMailWakeEvent {
             bucket: "b".into(),
             key: "k".into(),
-            event_time: "2026-08-25T10:00:00Z".into(),
+            event_time: Utc::now(),
             sequencer: "1".into(),
-            ses_receipt_id: Some("receipt-1".into()),
         };
-        assert_eq!(
-            TicketingMailWakeHandler::external_id(&with_receipt),
-            "receipt-1"
-        );
-        let without = TicketingMailWakeEvent {
-            ses_receipt_id: None,
-            ..with_receipt
-        };
-        let derived = TicketingMailWakeHandler::external_id(&without);
+        let derived = TicketingMailWakeHandler::external_id(&event);
         assert!(derived.starts_with("s3-") && derived.len() == "s3-".len() + 64);
     }
 }
