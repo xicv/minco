@@ -32,18 +32,23 @@ pub struct TicketingPortalServices {
     pub csrf: Option<Arc<CsrfService>>,
     pub idempotency: Option<Arc<minco_plugin_idempotency::IdempotencyService>>,
     pub events: Option<Arc<minco_plugin_events::EventServices>>,
+    /// Durable job submission handle (ADR-0058); present when the jobs
+    /// feature is enabled and the application registered the jobs plugin.
+    #[cfg(feature = "jobs")]
+    pub jobs: Option<Arc<minco_plugin_jobs::JobsServices>>,
 }
 
 impl fmt::Debug for TicketingPortalServices {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Redacted: these services hold session and idempotency state.
+        let _ = self;
         formatter
             .debug_struct("TicketingPortalServices")
             .field("sessions", &self.sessions.is_some())
             .field("csrf", &self.csrf.is_some())
             .field("idempotency", &self.idempotency.is_some())
             .field("events", &self.events.is_some())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -853,6 +858,85 @@ impl TicketingService {
         Ok(self.store.ready().await?)
     }
 
+    /// Verified-reference inbound submission (ADR-0058): resolve the
+    /// target ticket strictly by `In-Reply-To`/`References` against
+    /// previously ingested external identities, then durably submit the
+    /// `ticketing.process-inbound-email` job with the ticket's current
+    /// revision. Unresolved threading fails closed; no ticket is guessed.
+    #[cfg(feature = "jobs")]
+    #[allow(clippy::too_many_arguments)]
+    pub async fn submit_inbound_email(
+        &self,
+        provider: &str,
+        mailbox_scope: &str,
+        external_id: &str,
+        content_sha256: &str,
+        raw_object_key: &str,
+        in_reply_to: Option<&str>,
+        references: &[String],
+        correlation_id: Uuid,
+        arrived_at: DateTime<Utc>,
+    ) -> Result<Uuid, TicketingServiceError> {
+        let jobs = self
+            .portal
+            .jobs
+            .as_ref()
+            .ok_or(TicketingServiceError::JobsUnavailable)?;
+        let project_id = self.config.project_id.clone();
+        let mut candidates: Vec<String> = Vec::with_capacity(1 + references.len());
+        if let Some(value) = in_reply_to {
+            candidates.push(value.to_owned());
+        }
+        candidates.extend(references.iter().rev().cloned());
+        if candidates.len() > 65 {
+            return Err(TicketingServiceError::Configuration(
+                "inbound threading candidates exceed the bounded set".into(),
+            ));
+        }
+        let mut resolved = None;
+        for candidate in candidates {
+            if let Some(found) = self
+                .store
+                .find_ticket_by_message_identity(&project_id, provider, &candidate)
+                .await?
+            {
+                resolved = Some(found);
+                break;
+            }
+        }
+        let (ticket_id, revision) =
+            resolved.ok_or(TicketingServiceError::InboundThreadUnresolved)?;
+        let envelope = crate::inbound_email_envelope(
+            &crate::ProcessInboundEmail {
+                project_id: project_id.clone(),
+                provider: provider.to_owned(),
+                mailbox_scope: mailbox_scope.to_owned(),
+                external_id: external_id.to_owned(),
+                content_sha256: content_sha256.to_ascii_lowercase(),
+                raw_object_key: raw_object_key.to_owned(),
+                ticket_id,
+                expected_revision: revision,
+                internet_message_id: None,
+                in_reply_to: in_reply_to.map(str::to_owned),
+                references: references.to_vec(),
+            },
+            correlation_id,
+            arrived_at,
+        )
+        .map_err(|error| {
+            TicketingServiceError::Configuration(format!(
+                "inbound email envelope could not be built: {error}"
+            ))
+        })?;
+        let submission = jobs.submit_durable(envelope).await.map_err(|error| {
+            TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
+        })?;
+        Ok(match submission {
+            minco_plugin_jobs::DurableSubmission::Inserted(job_id)
+            | minco_plugin_jobs::DurableSubmission::Duplicate(job_id) => job_id,
+        })
+    }
+
     /// One bounded, explicit dispatch pass (ADR-0056): publishes
     /// transactionally-committed activity intents as domain events through
     /// the events service, marking each published only after its
@@ -1298,6 +1382,10 @@ pub enum TicketingServiceError {
     CsrfRejected,
     #[error("the events service is not registered for this application")]
     EventsUnavailable,
+    #[error("the durable jobs service is not registered for this application")]
+    JobsUnavailable,
+    #[error("inbound threading does not reference a known ticket")]
+    InboundThreadUnresolved,
     #[error(transparent)]
     SupportEntry(#[from] minco_interaction::SupportEntryError),
     #[error(transparent)]
@@ -1895,5 +1983,199 @@ mod tests {
             bare.dispatch_pending_activity("project-a", 10).await,
             Err(TicketingServiceError::EventsUnavailable)
         ));
+    }
+
+    #[cfg(feature = "jobs")]
+    mod inbound_routing {
+        use super::*;
+        use crate::ExternalMessageIdentity;
+
+        fn ingress_identity() -> Identity {
+            Identity {
+                subject: "ingress".into(),
+                permissions: std::iter::once("ticketing.ingest".into()).collect(),
+                scopes: BTreeSet::default(),
+                claims: BTreeMap::new(),
+            }
+        }
+
+        async fn routed_service() -> (
+            TicketingService,
+            Arc<minco_plugin_jobs::MemoryJobStore>,
+            TicketId,
+        ) {
+            let memory = Arc::new(MemoryTicketingStore::default());
+            let registry = Arc::new(minco_plugin_jobs::JobHandlerRegistry::new());
+            let (jobs, store, _dispatcher) = minco_plugin_jobs::JobsServices::memory(registry);
+            let service =
+                TicketingService::new(TicketingStoreService::new(memory.clone()), test_config())
+                    .unwrap()
+                    .with_portal_services(TicketingPortalServices {
+                        jobs: Some(Arc::new(jobs)),
+                        ..TicketingPortalServices::default()
+                    });
+            let created = service
+                .create_ticket(
+                    &identity("user-a", &["ticketing.create"]),
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now(),
+                )
+                .await
+                .unwrap()
+                .ticket;
+            // One previously ingested external message carries the
+            // internet message id that replies thread against.
+            let identity_record = ExternalMessageIdentity {
+                project_id: "project-a".into(),
+                provider: "ses".into(),
+                mailbox_scope: "support@example.test".into(),
+                external_id: "original-1".into(),
+                content_sha256: "a".repeat(64),
+                raw_message_object_key: None,
+                internet_message_id: Some("<original-1@example.test>".into()),
+                in_reply_to: None,
+                references: Vec::new(),
+            };
+            service
+                .ingest_external_message(
+                    &ingress_identity(),
+                    identity_record,
+                    created.id,
+                    "Original external reply".into(),
+                    created.revision,
+                    Uuid::now_v7(),
+                    Utc::now(),
+                )
+                .await
+                .unwrap();
+            (service, store, created.id)
+        }
+
+        #[tokio::test]
+        async fn inbound_email_routes_by_threading_and_submits_durably() {
+            let (service, store, ticket_id) = routed_service().await;
+            let arrival = Utc::now();
+            let digest = "b".repeat(64);
+            let job_id = service
+                .submit_inbound_email(
+                    "ses",
+                    "support@example.test",
+                    "reply-1",
+                    &digest,
+                    "mail/project-a/reply-1",
+                    Some("<original-1@example.test>"),
+                    &[],
+                    Uuid::now_v7(),
+                    arrival,
+                )
+                .await
+                .unwrap();
+            let record = store
+                .records()
+                .into_iter()
+                .find(|record| record.envelope.job_id == job_id)
+                .expect("job recorded");
+            assert_eq!(record.envelope.job_name, "ticketing.process-inbound-email");
+            {
+                use sha2::Digest;
+                let mut hasher = sha2::Sha256::new();
+                for part in ["ses", "support@example.test", "reply-1"] {
+                    hasher.update((part.len() as u64).to_le_bytes());
+                    hasher.update(part.as_bytes());
+                }
+                let expected = format!("mail:{}", hex::encode(hasher.finalize()));
+                assert_eq!(
+                    record.envelope.dedupe_key.as_deref(),
+                    Some(expected.as_str())
+                );
+            }
+            let payload = serde_json::from_value::<crate::ProcessInboundEmail>(
+                record.envelope.payload.clone(),
+            )
+            .unwrap();
+            assert_eq!(payload.ticket_id, ticket_id);
+            assert_eq!(payload.expected_revision, 1);
+
+            // References chain resolves when In-Reply-To is absent.
+            let chained_job_id = service
+                .submit_inbound_email(
+                    "ses",
+                    "support@example.test",
+                    "reply-2",
+                    &digest,
+                    "mail/project-a/reply-2",
+                    None,
+                    &[
+                        "<unrelated@example.test>".into(),
+                        "<original-1@example.test>".into(),
+                    ],
+                    Uuid::now_v7(),
+                    arrival,
+                )
+                .await
+                .unwrap();
+            assert!(!chained_job_id.is_nil());
+
+            // Same external identity resubmits to the same durable job.
+            let again = service
+                .submit_inbound_email(
+                    "ses",
+                    "support@example.test",
+                    "reply-1",
+                    &digest,
+                    "mail/project-a/reply-1",
+                    Some("<original-1@example.test>"),
+                    &[],
+                    Uuid::now_v7(),
+                    arrival,
+                )
+                .await
+                .unwrap();
+            assert_eq!(again, job_id);
+        }
+
+        #[tokio::test]
+        async fn unresolved_threading_fails_closed_and_jobs_handle_is_required() {
+            let (service, _store, _ticket_id) = routed_service().await;
+            assert!(matches!(
+                service
+                    .submit_inbound_email(
+                        "ses",
+                        "support@example.test",
+                        "orphan-1",
+                        &"c".repeat(64),
+                        "mail/project-a/orphan-1",
+                        Some("<unknown@example.test>"),
+                        &[],
+                        Uuid::now_v7(),
+                        Utc::now(),
+                    )
+                    .await,
+                Err(TicketingServiceError::InboundThreadUnresolved)
+            ));
+
+            // Without the jobs handle nothing is submitted.
+            let bare = TicketingService::new(
+                TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+                test_config(),
+            )
+            .unwrap();
+            assert!(matches!(
+                bare.submit_inbound_email(
+                    "ses",
+                    "support@example.test",
+                    "x",
+                    &"c".repeat(64),
+                    "k",
+                    None,
+                    &[],
+                    Uuid::now_v7(),
+                    Utc::now(),
+                )
+                .await,
+                Err(TicketingServiceError::JobsUnavailable)
+            ));
+        }
     }
 }

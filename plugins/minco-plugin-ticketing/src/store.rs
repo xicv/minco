@@ -288,6 +288,16 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
 
+    /// Resolves a ticket (and its current revision) from a previously
+    /// ingested external message's `internet_message_id` (ADR-0058).
+    /// Subject heuristics are never used.
+    async fn find_ticket_by_message_identity(
+        &self,
+        project_id: &str,
+        provider: &str,
+        internet_message_id: &str,
+    ) -> Result<Option<(TicketId, u64)>, TicketStoreError>;
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         Ok(())
     }
@@ -400,6 +410,17 @@ impl TicketingStoreService {
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
         self.0.mark_activity_published(intent_id, at).await
+    }
+
+    pub async fn find_ticket_by_message_identity(
+        &self,
+        project_id: &str,
+        provider: &str,
+        internet_message_id: &str,
+    ) -> Result<Option<(TicketId, u64)>, TicketStoreError> {
+        self.0
+            .find_ticket_by_message_identity(project_id, provider, internet_message_id)
+            .await
     }
 }
 
@@ -963,6 +984,26 @@ impl TicketingStore for MemoryTicketingStore {
         _at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
         Ok(self.state.lock().await.published_intents.insert(intent_id))
+    }
+
+    async fn find_ticket_by_message_identity(
+        &self,
+        project_id: &str,
+        provider: &str,
+        internet_message_id: &str,
+    ) -> Result<Option<(TicketId, u64)>, TicketStoreError> {
+        let state = self.state.lock().await;
+        let Some((_, ticket_id)) = state.external_messages.values().find(|(identity, _)| {
+            identity.project_id == project_id
+                && identity.provider == provider
+                && identity.internet_message_id.as_deref() == Some(internet_message_id)
+        }) else {
+            return Ok(None);
+        };
+        Ok(state
+            .tickets
+            .get(&(project_id.to_owned(), *ticket_id))
+            .map(|ticket| (*ticket_id, ticket.revision)))
     }
 }
 

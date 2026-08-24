@@ -193,6 +193,10 @@ impl Plugin for TicketingPlugin {
                         .get::<EventServices>()
                         .map_err(|error| PluginError::Installation(error.to_string()))?,
                 ),
+                #[cfg(feature = "jobs")]
+                jobs: services
+                    .get_optional::<minco_plugin_jobs::JobsServices>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
             }
         };
         let service = TicketingService::new(self.store.clone(), config)

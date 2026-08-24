@@ -750,6 +750,43 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(result.rows_affected() == 1)
     }
 
+    async fn find_ticket_by_message_identity(
+        &self,
+        project_id: &str,
+        provider: &str,
+        internet_message_id: &str,
+    ) -> Result<Option<(TicketId, u64)>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT m.ticket_id, t.revision
+               FROM ticketing_external_messages m
+               JOIN ticketing_tickets t
+                 ON t.project_id = m.project_id AND t.id = m.ticket_id
+              WHERE m.project_id = ? AND m.provider = ?
+                AND json_extract(m.identity_json, '$.internet_message_id') = ?
+              LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(provider)
+        .bind(internet_message_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| {
+            Ok((
+                TicketId(
+                    Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                        TicketStoreError::Infrastructure(
+                            "stored external ticket id is not a UUID".into(),
+                        )
+                    })?,
+                ),
+                u64::try_from(row.get::<i64, _>("revision"))
+                    .map_err(|_| TicketStoreError::Infrastructure("revision overflow".into()))?,
+            ))
+        })
+        .transpose()
+    }
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         sqlx::query("SELECT 1 FROM ticketing_tickets LIMIT 1")
             .execute(&self.pool)
@@ -2223,5 +2260,88 @@ mod tests {
                 .await
                 .unwrap();
         assert!(unpublished_row.is_some(), "published_at is now recorded");
+    }
+
+    #[tokio::test]
+    async fn message_identity_resolution_matches_memory_semantics() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Thread".into(),
+                description: "It broke and needs an agent.".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: TicketChannel::Email,
+                priority: TicketPriority::Normal,
+                resource_references: Vec::new(),
+            },
+            "TKT-THREAD",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let request = IngestExternalMessageRequest {
+            identity: crate::ExternalMessageIdentity {
+                project_id: "project-a".into(),
+                provider: "ses".into(),
+                mailbox_scope: "support@example.test".into(),
+                external_id: "original-1".into(),
+                content_sha256: "a".repeat(64),
+                raw_message_object_key: None,
+                internet_message_id: Some("<original-1@example.test>".into()),
+                in_reply_to: None,
+                references: Vec::new(),
+            },
+            ticket_id: ticket.id,
+            body: "Original external reply".into(),
+            expected_revision: 0,
+            correlation_id: uuid::Uuid::now_v7(),
+            now,
+        };
+        sqlite.ingest_external_message(request).await.unwrap();
+
+        let resolved = sqlite
+            .find_ticket_by_message_identity("project-a", "ses", "<original-1@example.test>")
+            .await
+            .unwrap()
+            .expect("threading identity resolves");
+        assert_eq!(resolved.0, ticket.id);
+        assert_eq!(resolved.1, 1);
+
+        // Unknown identity, foreign provider and foreign project all miss.
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity("project-a", "ses", "<unknown@example.test>")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity("project-a", "mail", "<original-1@example.test>")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity("project-b", "ses", "<original-1@example.test>")
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }
