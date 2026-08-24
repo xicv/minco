@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1860,
+  "file_count": 1862,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "5a3d1ff08bc9adbad1e23a0782f12526e406140e8a0f94151197a937539b2fd7",
-      "size_bytes": 119478
+      "sha256": "e269a55f3ff3a80c7c2a5dafd61e966c90202ba4fe88db2690411e2dd6c98fd8",
+      "size_bytes": 119494
     },
     {
       "path": "Cargo.toml",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "6f8402a83fcc71438c534a1324d023e6f151089011d924728f3637f661ba8f35",
-      "size_bytes": 10256
+      "sha256": "c738a8e78b7512feb1216120b14ecd33e6c641efd80cf4075da52632cb69f764",
+      "size_bytes": 10503
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2126,6 +2126,11 @@
       "path": "docs/adrs/0054-optional-ticketing-jobs-bridge.md",
       "sha256": "2988eaf30a8b5fb05431d6975d620d178cf24cbad0d1d3fb3bf7b86a83717453",
       "size_bytes": 4527
+    },
+    {
+      "path": "docs/adrs/0055-verified-inbound-email-command.md",
+      "sha256": "57ca876a54dc4a45672323dfa5010dc7c0d517f4aba5b8c12f5ec85aa6d49217",
+      "size_bytes": 3174
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -7509,8 +7514,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/Cargo.toml",
-      "sha256": "38a14b67aabbf69e72bcf99fb70064c73c26633874dbcd59820f6716509e5080",
-      "size_bytes": 2226
+      "sha256": "919e24a7aee2e4efa8d1c1fd8444012f1d4f307bee12616822ec58eb65aadf66",
+      "size_bytes": 2299
     },
     {
       "path": "plugins/minco-plugin-ticketing/LICENSE-APACHE",
@@ -7584,8 +7589,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/jobs.rs",
-      "sha256": "28ba4294bf564e049a7bfc4617eb0a88e589e43045fd4b4546d778f961f077e4",
-      "size_bytes": 12465
+      "sha256": "efe516af6911b956b3be50e8d8ee350a3d76d02bb263ee75dfe1dd89014bcf2e",
+      "size_bytes": 31518
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/lib.rs",
@@ -8908,6 +8913,11 @@
       "size_bytes": 5239
     },
     {
+      "path": "tasks/M14/M14-T53-inbound-email-command.md",
+      "sha256": "4246121c75b51450dbc7e797353cb3bc9568947a56a40bce987f01ae85b7d9ca",
+      "size_bytes": 4198
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9359,7 +9369,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "e98c0ec27ca63b52af3c02564191a266365e0dea64c9beac80e6322564aa669b",
-  "total_size_bytes": 13873832,
+  "source_tree_sha256": "6bdaff65c48d35aaa19b1d0484b7265d8dd4ced0777073467630a4bb186eba63",
+  "total_size_bytes": 13900593,
   "version": "1.12.0"
 }

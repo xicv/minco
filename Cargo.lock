@@ -2928,6 +2928,7 @@ dependencies = [
  "chrono",
  "hex",
  "http 1.5.0",
+ "mail-parser",
  "minco-contract",
  "minco-core",
  "minco-http",
