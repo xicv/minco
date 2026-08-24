@@ -1,8 +1,9 @@
 use crate::{
-    ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff, CreateTicketInput,
-    ExternalMessageIdentity, IngestExternalMessageRequest, PublicTicketSummary, RequesterTicket,
-    Ticket, TicketActivityIntent, TicketAiContext, TicketAttachment, TicketFromHandoffInput,
-    TicketId, TicketListFilter, TicketPriority, TicketStatus, TicketStoreError, TicketSummary,
+    AppendTicketMessageRequest, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
+    CreateTicketInput, ExternalMessageIdentity, IngestExternalMessageRequest, MessageListFilter,
+    PublicTicketMessage, PublicTicketSummary, RequesterTicket, Ticket, TicketActivityIntent,
+    TicketAiContext, TicketAttachment, TicketFromHandoffInput, TicketId, TicketListFilter,
+    TicketMessage, TicketMessageId, TicketPriority, TicketStatus, TicketStoreError, TicketSummary,
     TicketSummaryFilter, TicketingStoreService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
@@ -366,11 +367,12 @@ impl TicketingService {
             return Err(TicketingServiceError::RequesterMismatch);
         }
         require_revision(&ticket, expected_revision)?;
-        ticket.reply_as_requester(body, now)?;
-        self.save(
-            ticket.clone(),
-            expected_revision,
+        let message = ticket.reply_as_requester_message(body, now)?;
+        self.append_message(
+            &ticket,
+            message,
             "ticketing.requester_replied",
+            expected_revision,
             correlation_id,
             now,
         )
@@ -395,11 +397,12 @@ impl TicketingService {
         authorize(principal, "ticketing.reply")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
-        ticket.reply_as_agent(principal.subject.clone(), body, now)?;
-        self.save(
-            ticket.clone(),
-            expected_revision,
+        let message = ticket.reply_as_agent_message(&principal.subject, body, now)?;
+        self.append_message(
+            &ticket,
+            message,
             "ticketing.agent_replied",
+            expected_revision,
             correlation_id,
             now,
         )
@@ -421,11 +424,12 @@ impl TicketingService {
         authorize(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
-        ticket.add_internal_note(principal.subject.clone(), body, now)?;
-        self.save(
-            ticket.clone(),
-            expected_revision,
+        let message = ticket.internal_note_message(&principal.subject, body, now)?;
+        self.append_message(
+            &ticket,
+            message,
             "ticketing.internal_note_added",
+            expected_revision,
             correlation_id,
             now,
         )
@@ -925,6 +929,71 @@ impl TicketingService {
     ) -> Result<(), TicketingServiceError> {
         let intent = activity(&ticket, kind, correlation_id, now);
         Ok(self.store.save(ticket, expected_revision, intent).await?)
+    }
+
+    /// Commits one message append atomically without rewriting the
+    /// conversation (ADR-0052). `ticket` is the post-mutation in-memory
+    /// aggregate; the store updates only the projection columns it lists.
+    async fn append_message(
+        &self,
+        ticket: &Ticket,
+        message: TicketMessage,
+        kind: &str,
+        expected_revision: u64,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<(), TicketingServiceError> {
+        let intent = activity(ticket, kind, correlation_id, now);
+        Ok(self
+            .store
+            .append_ticket_message(AppendTicketMessageRequest {
+                project_id: ticket.project_id.clone(),
+                ticket_id: ticket.id,
+                message,
+                status: ticket.status,
+                first_public_response_at: ticket.first_public_response_at,
+                waiting_since: ticket.waiting_since,
+                resolved_at: ticket.resolved_at,
+                updated_at: ticket.updated_at,
+                expected_revision,
+                intent,
+            })
+            .await?)
+    }
+
+    /// Paginated public conversation of one ticket for its own requester.
+    /// Memory and `SQLite` both read through the message port, never the
+    /// whole aggregate.
+    pub async fn list_requester_messages(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        ticket_id: TicketId,
+        before: Option<(DateTime<Utc>, TicketMessageId)>,
+        limit: usize,
+    ) -> Result<Vec<PublicTicketMessage>, TicketingServiceError> {
+        authorize(principal, "ticketing.read")?;
+        let ticket = self.load(project_id, ticket_id).await?;
+        if ticket.requester.subject != principal.subject
+            && !principal.has_permission("ticketing.manage")
+        {
+            return Err(TicketingServiceError::RequesterMismatch);
+        }
+        let requester_subject = ticket.requester.subject.clone();
+        Ok(self
+            .store
+            .list_ticket_messages(MessageListFilter {
+                project_id: project_id.to_owned(),
+                ticket_id,
+                include_internal: false,
+                before_created_at: before.map(|value| value.0),
+                before_id: before.map(|value| value.1),
+                limit,
+            })
+            .await?
+            .iter()
+            .map(|message| Ticket::public_message(message, &requester_subject))
+            .collect())
     }
 
     fn require_project(&self, project_id: &str) -> Result<(), TicketingServiceError> {

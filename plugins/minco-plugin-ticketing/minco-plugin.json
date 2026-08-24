@@ -397,6 +397,13 @@
       ]
     },
     {
+      "operation_id": "listTicketingRequesterMessages",
+      "method": "GET",
+      "path": "/_minco/ticketing/requester/tickets/{ticketId}/messages",
+      "public": false,
+      "idempotent": false
+    },
+    {
       "operation_id": "createTicketingRequesterSession",
       "method": "POST",
       "path": "/_minco/ticketing/requester/sessions",

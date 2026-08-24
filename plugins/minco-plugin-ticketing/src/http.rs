@@ -208,6 +208,10 @@ pub fn ticketing_router(service: TicketingService) -> Router {
             "/requester/tickets/{ticketId}/replies",
             post(requester_reply),
         )
+        .route(
+            "/requester/tickets/{ticketId}/messages",
+            get(requester_messages),
+        )
         .route("/requester/sessions", post(requester_session_exchange))
         .route("/requester/logout", post(requester_logout))
         .layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
@@ -1318,6 +1322,87 @@ async fn requester_ticket(
         .headers_mut()
         .insert(header::ETAG, tag.to_header_value());
     Ok(response)
+}
+
+async fn requester_messages(
+    State(state): State<TicketingHttpState>,
+    requester: RequesterIdentity,
+    Path(ticket_id): Path<String>,
+    RawQuery(raw): RawQuery,
+    headers: HeaderMap,
+) -> Result<Json<ResourceCollection<crate::PublicTicketMessage>>, ApiFailure> {
+    let principal = requester.identity;
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let mut limit = 50usize;
+    let mut before: Option<(DateTime<Utc>, crate::TicketMessageId)> = None;
+    let mut seen = BTreeSet::new();
+    for (name, value) in url::form_urlencoded::parse(raw.unwrap_or_default().as_bytes()) {
+        let name = name.into_owned();
+        let value = value.into_owned();
+        if !seen.insert(name.clone()) {
+            return Err(ApiFailure::validation(
+                "message list query repeats a parameter",
+                &request_id,
+            ));
+        }
+        match name.as_str() {
+            "page[limit]" => {
+                limit = value
+                    .parse()
+                    .ok()
+                    .filter(|value| (1..=200).contains(value))
+                    .ok_or_else(|| {
+                        ApiFailure::validation("page limit must be between 1 and 200", &request_id)
+                    })?;
+            }
+            "page[after]" => {
+                if value.len() > 512 {
+                    return Err(ApiFailure::validation(
+                        "page cursor is invalid",
+                        &request_id,
+                    ));
+                }
+                let (created, message_id) = decode_cursor(&value)
+                    .ok_or_else(|| ApiFailure::validation("page cursor is invalid", &request_id))?;
+                before = Some((created, crate::TicketMessageId(message_id.0)));
+            }
+            _ => {
+                return Err(ApiFailure::validation(
+                    "message list query contains an unsupported parameter",
+                    &request_id,
+                ));
+            }
+        }
+    }
+    let mut messages = state
+        .service
+        .list_requester_messages(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            before,
+            limit + 1,
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    let has_more = messages.len() > limit;
+    messages.truncate(limit);
+    let next = if has_more {
+        messages
+            .last()
+            .map(|message| {
+                Cursor::new(encode_cursor_parts(
+                    message.created_at,
+                    TicketId(message.id.0),
+                ))
+            })
+            .transpose()
+            .map_err(|_| ApiFailure::internal(&request_id))?
+    } else {
+        None
+    };
+    Ok(Json(ResourceCollection::new(messages, next)))
 }
 
 #[derive(Debug)]
@@ -2785,5 +2870,125 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn requester_messages_paginate_newest_first_without_internal_notes() {
+        let shared = service();
+        let app =
+            ticketing_router(shared.clone()).layer(axum::Extension(requester_principal("user-a")));
+        let created = create_requester_ticket(&app, "user-a", "Own ticket").await;
+        let id = created["ticket"]["id"].as_str().unwrap().to_owned();
+
+        let mut revision = created["ticket"]["revision"].as_u64().unwrap();
+        for body in ["first reply", "second reply"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post(format!("/_minco/ticketing/tickets/{id}/requester-replies"))
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .header(
+                            header::IF_MATCH,
+                            format!("\"ticket:{id}:{}\"", revision + 1),
+                        )
+                        .body(Body::from(serde_json::json!({"body": body}).to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            revision += 1;
+        }
+        // An agent note that must never appear on the requester surface.
+        let mut agent = requester_principal("user-a");
+        agent.permissions = std::iter::once("ticketing.manage".to_owned()).collect();
+        let agent_app = ticketing_router(shared.clone()).layer(axum::Extension(agent));
+        let note = agent_app
+            .oneshot(
+                Request::post(format!("/_minco/ticketing/tickets/{id}/internal-notes"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(
+                        header::IF_MATCH,
+                        format!("\"ticket:{id}:{}\"", revision + 1),
+                    )
+                    .body(Body::from(
+                        serde_json::json!({"body": "secret internal note"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(note.status(), StatusCode::OK);
+
+        let page = app
+            .clone()
+            .oneshot(
+                Request::get(format!(
+                    "/_minco/ticketing/requester/tickets/{id}/messages?page[limit]=2"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(page.into_body(), usize::MAX).await.unwrap()).unwrap();
+        let encoded = serde_json::to_string(&body).unwrap();
+        assert!(!encoded.contains("secret internal note"));
+        assert!(!encoded.contains("author_subject"));
+        assert_eq!(body["data"].as_array().unwrap().len(), 2);
+        assert_eq!(body["data"][0]["body"], "second reply");
+        assert_eq!(body["data"][0]["author"], "requester");
+        assert_eq!(body["page"]["hasMore"], true);
+        let cursor = body["page"]["nextCursor"].as_str().unwrap().to_owned();
+
+        let next = app
+            .clone()
+            .oneshot(
+                Request::get(format!(
+                    "/_minco/ticketing/requester/tickets/{id}/messages?page[limit]=2&page[after]={cursor}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(next.status(), StatusCode::OK);
+        let rest: serde_json::Value =
+            serde_json::from_slice(&to_bytes(next.into_body(), usize::MAX).await.unwrap()).unwrap();
+        let mut seen = body["data"].as_array().unwrap().clone();
+        seen.extend(rest["data"].as_array().unwrap().iter().cloned());
+        assert_eq!(seen.len(), 3);
+        let unique: BTreeSet<_> = seen
+            .iter()
+            .map(|message| message["id"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(unique.len(), 3);
+
+        let invalid = app
+            .clone()
+            .oneshot(
+                Request::get(format!(
+                    "/_minco/ticketing/requester/tickets/{id}/messages?page[after]=bad.cursor"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let foreign_app =
+            ticketing_router(shared.clone()).layer(axum::Extension(requester_principal("user-b")));
+        let foreign = foreign_app
+            .oneshot(
+                Request::get(format!("/_minco/ticketing/requester/tickets/{id}/messages"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(foreign.status(), StatusCode::NOT_FOUND);
     }
 }

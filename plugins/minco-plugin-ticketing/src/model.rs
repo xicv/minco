@@ -339,6 +339,16 @@ impl Ticket {
         body: impl Into<String>,
         now: DateTime<Utc>,
     ) -> Result<(), TicketValidationError> {
+        self.reply_as_requester_message(body, now).map(|_| ())
+    }
+
+    /// Applies the requester-reply domain mutation and returns the appended
+    /// message so persistence can commit a single-row append (ADR-0052).
+    pub fn reply_as_requester_message(
+        &mut self,
+        body: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> Result<TicketMessage, TicketValidationError> {
         let body = body.into();
         validate_text("body", &body, 20_000)?;
         if matches!(
@@ -347,16 +357,17 @@ impl Ticket {
         ) {
             self.apply_status(TicketStatus::Open, None, None, now)?;
         }
-        self.messages.push(TicketMessage {
+        let message = TicketMessage {
             id: TicketMessageId::new(),
             kind: TicketMessageKind::PublicReply,
             direction: TicketMessageDirection::Inbound,
             author_subject: Some(self.requester.subject.clone()),
             body,
             created_at: now,
-        });
+        };
+        self.messages.push(message.clone());
         self.touch(now);
-        Ok(())
+        Ok(message)
     }
 
     pub fn reply_as_agent(
@@ -366,6 +377,19 @@ impl Ticket {
         now: DateTime<Utc>,
     ) -> Result<(), TicketValidationError> {
         let actor_subject = actor_subject.into();
+        self.reply_as_agent_message(&actor_subject, body, now)
+            .map(|_| ())
+    }
+
+    /// Applies the agent-reply domain mutation and returns the appended
+    /// message for a single-row append commit.
+    pub fn reply_as_agent_message(
+        &mut self,
+        actor_subject: &str,
+        body: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> Result<TicketMessage, TicketValidationError> {
+        let actor_subject = actor_subject.to_owned();
         let body = body.into();
         validate_text("actor_subject", &actor_subject, 300)?;
         validate_text("body", &body, 20_000)?;
@@ -373,16 +397,17 @@ impl Ticket {
         if self.status == TicketStatus::New {
             self.apply_status(TicketStatus::Open, None, None, now)?;
         }
-        self.messages.push(TicketMessage {
+        let message = TicketMessage {
             id: TicketMessageId::new(),
             kind: TicketMessageKind::PublicReply,
             direction: TicketMessageDirection::Outbound,
             author_subject: Some(actor_subject),
             body,
             created_at: now,
-        });
+        };
+        self.messages.push(message.clone());
         self.touch(now);
-        Ok(())
+        Ok(message)
     }
 
     pub fn add_internal_note(
@@ -392,19 +417,33 @@ impl Ticket {
         now: DateTime<Utc>,
     ) -> Result<(), TicketValidationError> {
         let actor_subject = actor_subject.into();
+        self.internal_note_message(&actor_subject, body, now)
+            .map(|_| ())
+    }
+
+    /// Applies the internal-note domain mutation and returns the appended
+    /// message for a single-row append commit.
+    pub fn internal_note_message(
+        &mut self,
+        actor_subject: &str,
+        body: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> Result<TicketMessage, TicketValidationError> {
+        let actor_subject = actor_subject.to_owned();
         let body = body.into();
         validate_text("actor_subject", &actor_subject, 300)?;
         validate_text("body", &body, 20_000)?;
-        self.messages.push(TicketMessage {
+        let message = TicketMessage {
             id: TicketMessageId::new(),
             kind: TicketMessageKind::InternalNote,
             direction: TicketMessageDirection::Internal,
             author_subject: Some(actor_subject),
             body,
             created_at: now,
-        });
+        };
+        self.messages.push(message.clone());
         self.touch(now);
-        Ok(())
+        Ok(message)
     }
 
     pub fn change_status(
@@ -537,25 +576,7 @@ impl Ticket {
                 .messages
                 .iter()
                 .filter(|message| message.kind != TicketMessageKind::InternalNote)
-                .map(|message| PublicTicketMessage {
-                    id: message.id,
-                    author: match &message.author_subject {
-                        None => PublicMessageAuthor::System,
-                        Some(subject) if *subject == self.requester.subject => {
-                            PublicMessageAuthor::Requester
-                        }
-                        Some(_) => PublicMessageAuthor::Support,
-                    },
-                    kind: match message.kind {
-                        TicketMessageKind::SystemEvent => PublicMessageKind::Status,
-                        TicketMessageKind::PublicReply | TicketMessageKind::VoiceTranscript => {
-                            PublicMessageKind::Reply
-                        }
-                        TicketMessageKind::InternalNote => PublicMessageKind::Reply,
-                    },
-                    body: Self::public_message_body(message),
-                    created_at: message.created_at,
-                })
+                .map(|message| Self::public_message(message, &self.requester.subject))
                 .collect(),
             attachments: self
                 .attachments
@@ -570,6 +591,29 @@ impl Ticket {
 
     /// System-event bodies record internal status vocabulary; requesters see
     /// the public label only.
+    /// Public projection of one message; the internal actor subject never
+    /// crosses the requester boundary.
+    #[must_use]
+    pub fn public_message(message: &TicketMessage, requester_subject: &str) -> PublicTicketMessage {
+        PublicTicketMessage {
+            id: message.id,
+            author: match &message.author_subject {
+                None => PublicMessageAuthor::System,
+                Some(subject) if *subject == requester_subject => PublicMessageAuthor::Requester,
+                Some(_) => PublicMessageAuthor::Support,
+            },
+            kind: match message.kind {
+                TicketMessageKind::SystemEvent => PublicMessageKind::Status,
+                TicketMessageKind::PublicReply | TicketMessageKind::VoiceTranscript => {
+                    PublicMessageKind::Reply
+                }
+                TicketMessageKind::InternalNote => PublicMessageKind::Reply,
+            },
+            body: Self::public_message_body(message),
+            created_at: message.created_at,
+        }
+    }
+
     fn public_message_body(message: &TicketMessage) -> String {
         if message.kind != TicketMessageKind::SystemEvent {
             return message.body.clone();

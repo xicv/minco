@@ -186,6 +186,34 @@ pub struct ExternalMessageIngestResult {
     pub repeated: bool,
 }
 
+/// One message append committed without rewriting the conversation
+/// (ADR-0052). The projection snapshot is the complete post-append ticket
+/// row state; only the listed columns are updated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppendTicketMessageRequest {
+    pub project_id: String,
+    pub ticket_id: TicketId,
+    pub message: crate::TicketMessage,
+    pub status: crate::TicketStatus,
+    pub first_public_response_at: Option<DateTime<Utc>>,
+    pub waiting_since: Option<DateTime<Utc>>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
+    pub expected_revision: u64,
+    pub intent: TicketActivityIntent,
+}
+
+/// Newest-first bounded message pagination over one ticket's conversation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MessageListFilter {
+    pub project_id: String,
+    pub ticket_id: TicketId,
+    pub include_internal: bool,
+    pub before_created_at: Option<DateTime<Utc>>,
+    pub before_id: Option<crate::TicketMessageId>,
+    pub limit: usize,
+}
+
 #[async_trait]
 pub trait TicketingStore: Send + Sync + fmt::Debug {
     async fn create(
@@ -203,6 +231,16 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         &self,
         filter: TicketSummaryFilter,
     ) -> Result<Vec<TicketSummary>, TicketStoreError>;
+
+    async fn append_ticket_message(
+        &self,
+        request: AppendTicketMessageRequest,
+    ) -> Result<(), TicketStoreError>;
+
+    async fn list_ticket_messages(
+        &self,
+        filter: MessageListFilter,
+    ) -> Result<Vec<crate::TicketMessage>, TicketStoreError>;
 
     async fn save(
         &self,
@@ -272,6 +310,20 @@ impl TicketingStoreService {
         filter: TicketSummaryFilter,
     ) -> Result<Vec<TicketSummary>, TicketStoreError> {
         self.0.list_summaries(filter).await
+    }
+
+    pub async fn append_ticket_message(
+        &self,
+        request: AppendTicketMessageRequest,
+    ) -> Result<(), TicketStoreError> {
+        self.0.append_ticket_message(request).await
+    }
+
+    pub async fn list_ticket_messages(
+        &self,
+        filter: MessageListFilter,
+    ) -> Result<Vec<crate::TicketMessage>, TicketStoreError> {
+        self.0.list_ticket_messages(filter).await
     }
 
     pub async fn save(
@@ -488,6 +540,77 @@ impl TicketingStore for MemoryTicketingStore {
         summaries.sort_by_key(|summary| std::cmp::Reverse((summary.updated_at, summary.id)));
         summaries.truncate(filter.limit);
         Ok(summaries)
+    }
+
+    async fn append_ticket_message(
+        &self,
+        request: AppendTicketMessageRequest,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let key = (request.project_id.clone(), request.ticket_id);
+        let ticket = state
+            .tickets
+            .get_mut(&key)
+            .ok_or(TicketStoreError::NotFound(request.ticket_id))?;
+        if ticket.revision != request.expected_revision {
+            return Err(TicketStoreError::StaleRevision {
+                expected: request.expected_revision,
+                actual: ticket.revision,
+            });
+        }
+        ticket.messages.push(request.message);
+        ticket.status = request.status;
+        ticket.first_public_response_at = request.first_public_response_at;
+        ticket.waiting_since = request.waiting_since;
+        ticket.resolved_at = request.resolved_at;
+        ticket.updated_at = request.updated_at;
+        ticket.revision = request.expected_revision + 1;
+        state.activity_intents.push(request.intent);
+        drop(state);
+        Ok(())
+    }
+
+    // The guard is already scoped to the snapshot block; the collect makes
+    // the lint over-approximate its live range.
+    #[allow(clippy::significant_drop_tightening)]
+    async fn list_ticket_messages(
+        &self,
+        filter: MessageListFilter,
+    ) -> Result<Vec<crate::TicketMessage>, TicketStoreError> {
+        if !(1..=MAX_TICKET_LIST_FETCH_LIMIT).contains(&filter.limit) {
+            return Err(TicketStoreError::InvalidListLimit);
+        }
+        if filter.before_created_at.is_some() != filter.before_id.is_some() {
+            return Err(TicketStoreError::InvalidListCursor);
+        }
+        let mut messages;
+        {
+            let state = self.state.lock().await;
+            let ticket = state
+                .tickets
+                .get(&(filter.project_id.clone(), filter.ticket_id))
+                .ok_or(TicketStoreError::NotFound(filter.ticket_id))?;
+            messages = ticket
+                .messages
+                .iter()
+                .filter(|message| {
+                    filter.include_internal
+                        || message.kind != crate::TicketMessageKind::InternalNote
+                })
+                .filter(
+                    |message| match (filter.before_created_at, filter.before_id) {
+                        (Some(created), Some(id)) => {
+                            (message.created_at, message.id) < (created, id)
+                        }
+                        _ => true,
+                    },
+                )
+                .cloned()
+                .collect::<Vec<_>>();
+        }
+        messages.sort_by_key(|message| std::cmp::Reverse((message.created_at, message.id)));
+        messages.truncate(filter.limit);
+        Ok(messages)
     }
 
     async fn save(

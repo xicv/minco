@@ -416,6 +416,12 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             false,
         ),
         (
+            "listTicketingRequesterMessages",
+            "GET",
+            "/_minco/ticketing/requester/tickets/{ticketId}/messages",
+            false,
+        ),
+        (
             "createTicketingRequesterSession",
             "POST",
             "/_minco/ticketing/requester/sessions",

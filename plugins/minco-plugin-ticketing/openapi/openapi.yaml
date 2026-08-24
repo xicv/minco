@@ -489,6 +489,37 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/RequesterTicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/tickets/{ticketId}/messages:
+    get:
+      operationId: listTicketingRequesterMessages
+      summary: Paginate the requester's public conversation newest-first
+      description: >-
+        Independent message pagination over the public projection; internal
+        notes are never visible. Ordered created_at DESC, id DESC with the
+        standard cursor.
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageAfter'}
+      responses:
+        '200':
+          description: Public messages ordered created_at DESC, id DESC
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data, page]
+                properties:
+                  data: {type: array, items: {$ref: '#/components/schemas/RequesterMessage'}}
+                  page:
+                    type: object
+                    additionalProperties: false
+                    required: [hasMore, nextCursor]
+                    properties:
+                      hasMore: {type: boolean}
+                      nextCursor: {type: [string, 'null']}
+        default: {$ref: '#/components/responses/Problem'}
   /_minco/ticketing/requester/sessions:
     post:
       operationId: createTicketingRequesterSession

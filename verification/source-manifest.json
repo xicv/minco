@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1852,
+  "file_count": 1855,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "152b4465bfd23990d6b26d1410e7e11be1429cf6b4238cd57e2b9328fc36eda8",
-      "size_bytes": 9524
+      "sha256": "b58e1dcb55a6e2fa6a61b6f9fa37b43f3dcd4f566ce32c194beb83f94a2ee7b8",
+      "size_bytes": 9750
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2113,6 +2113,11 @@
       "size_bytes": 3927
     },
     {
+      "path": "docs/adrs/0052-append-oriented-ticket-persistence.md",
+      "sha256": "104f860a3344c8b2eb5ef36222b31e391efce257dd543c059e06f473f80dc1ce",
+      "size_bytes": 2810
+    },
+    {
       "path": "docs/architecture/adoption-readiness-review.md",
       "sha256": "822329315f8554ffe5429bac7d31124e4cba2e8ddb0a818a106a0c6ebddd91d3",
       "size_bytes": 5091
@@ -2439,7 +2444,7 @@
     },
     {
       "path": "docs/reference/generated/plugins.md",
-      "sha256": "033043916185b68c5180794665a61b69946bb5542006fea55ee98078a367c7bb",
+      "sha256": "a53506114f8c1bbd9c1dc6430121486357b59eaf86b40dff109d8a24edf17a0d",
       "size_bytes": 7235
     },
     {
@@ -7548,19 +7553,24 @@
       "size_bytes": 383
     },
     {
+      "path": "plugins/minco-plugin-ticketing/migrations/sqlite/0004_ticketing_columnar_authority.sql",
+      "sha256": "fedb09a1aa77e71f5fd6298560b4fb44c16973b6d64cff6618e5431b4582a9ac",
+      "size_bytes": 1614
+    },
+    {
       "path": "plugins/minco-plugin-ticketing/minco-plugin.json",
-      "sha256": "8be0f5d93e424d48fa23d420fc86e7cd17079b041a79cff5a45b5211b6d39cdb",
-      "size_bytes": 10619
+      "sha256": "eb07e29ba31af55eab8c18a50b8c9224e5ff51173ab1c6d5e53f3700ba23612d",
+      "size_bytes": 10833
     },
     {
       "path": "plugins/minco-plugin-ticketing/openapi/openapi.yaml",
-      "sha256": "307f2e9b05576b9c3b8b382edeaef0d3c08c1cf2618832e0f7ecbc9991ebb0fe",
-      "size_bytes": 38747
+      "sha256": "3e9ad14a62e0c847c0b2b6cd1059af8766bd57f843e303b201b7e4f2e2477c5f",
+      "size_bytes": 40077
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/http.rs",
-      "sha256": "9d0a145aab1de6e0aa7689252214591a19241c093fb91cc413aacd8dcb20d072",
-      "size_bytes": 101320
+      "sha256": "ab1276c804ff9e3af15f9f012ff72394ac14c08a0a281f366d067823d5f18edf",
+      "size_bytes": 109304
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/lib.rs",
@@ -7569,28 +7579,28 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/model.rs",
-      "sha256": "80ea4ee3222556947e229095a1d662b6c4b6269097e4aacd2d65fc23d14fb900",
-      "size_bytes": 34337
+      "sha256": "a149744ac31783c19cd1411d79195d10fb77ec4034c1ea824c632489f0369c67",
+      "size_bytes": 35919
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "sha256": "1016894cf075fbace471801ee9174e3f5cfa564fbd299e088657733c97dfbdb3",
-      "size_bytes": 51553
+      "sha256": "403203863a8c3feda1cc0c9ce63d51d84ad38ce72a10b12fde8fd0a339998402",
+      "size_bytes": 73252
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/plugin.rs",
-      "sha256": "f1438b11358c00cd5bfcf6ca485eb814158730e96694a2c509a124c6dddf8461",
-      "size_bytes": 19317
+      "sha256": "24dc3346fcb6237913dfc8a8aca05c2fce9f9b8c29a6bb249496fc9fd0ca7dfe",
+      "size_bytes": 19493
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
-      "sha256": "190b684516d4ac6a2e27fa0e2427a9c1545b15c0180972c6df61658ef57cb134",
-      "size_bytes": 49501
+      "sha256": "a29beed6143a39dd658d0f8af5105db4f86723e400169691662556ae19d88287",
+      "size_bytes": 52206
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
-      "sha256": "9606892e839821099d07c5d28c309063b75da595db434b3ba6af76b208662035",
-      "size_bytes": 44411
+      "sha256": "d1c8ee34b531707c2ea8c77b9529d59ba1a887f363bc7334eec3a04d83aa3227",
+      "size_bytes": 48967
     },
     {
       "path": "pricing/catalog.toml",
@@ -8868,6 +8878,11 @@
       "size_bytes": 4918
     },
     {
+      "path": "tasks/M14/M14-T50-append-oriented-persistence.md",
+      "sha256": "2922a50fff86fdcf8d74762b8a22fc652153584ca977017dc94619b7abe83ce4",
+      "size_bytes": 3859
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9319,7 +9334,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "e265077e56b19c14ffad4e1b3504e83a88819451dcff270d92403df7536d1d31",
-  "total_size_bytes": 13771770,
+  "source_tree_sha256": "fe1a80a15104a5f66b3ecbfd4113985b0b517986ab2343de1ec27ea581d78244",
+  "total_size_bytes": 13820525,
   "version": "1.12.0"
 }
