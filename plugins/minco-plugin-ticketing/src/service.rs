@@ -62,6 +62,12 @@ pub struct TicketingConfig {
     pub privacy_notice: String,
     #[serde(default = "default_requester_session_ttl_seconds")]
     pub requester_session_ttl_seconds: i64,
+    /// When true (and the `jobs` feature is enabled and an enqueue adapter
+    /// is configured), a public agent reply also enqueues a
+    /// `ticketing.deliver-public-notification` job in the same transaction
+    /// (ADR-0054). Default false: no application gets a queue by surprise.
+    #[serde(default)]
+    pub notify_requester_on_public_reply: bool,
 }
 
 impl Default for TicketingConfig {
@@ -75,6 +81,7 @@ impl Default for TicketingConfig {
             support_brand: default_support_brand(),
             privacy_notice: default_privacy_notice(),
             requester_session_ttl_seconds: default_requester_session_ttl_seconds(),
+            notify_requester_on_public_reply: false,
         }
     }
 }
@@ -431,16 +438,42 @@ impl TicketingService {
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         let message = ticket.reply_as_agent_message(&principal.subject, body, now)?;
-        self.append_message(
-            &ticket,
-            message,
-            "ticketing.agent_replied",
-            expected_revision,
-            correlation_id,
-            now,
-        )
-        .await?;
-        Ok(result(ticket))
+        #[cfg(feature = "jobs")]
+        let job_records = self.notification_records(&ticket, &message, correlation_id, now)?;
+        #[cfg(not(feature = "jobs"))]
+        if self.config.notify_requester_on_public_reply {
+            // The configuration requests notifications but this build has no
+            // jobs bridge; fail closed instead of silently skipping.
+            return Err(TicketingServiceError::Configuration(
+                "notify_requester_on_public_reply requires the jobs feature".into(),
+            ));
+        }
+        #[cfg(feature = "jobs")]
+        return self
+            .append_message_with_jobs(
+                &ticket,
+                message,
+                "ticketing.agent_replied",
+                expected_revision,
+                correlation_id,
+                now,
+                job_records,
+            )
+            .await
+            .map(|()| result(ticket));
+        #[cfg(not(feature = "jobs"))]
+        {
+            self.append_message(
+                &ticket,
+                message,
+                "ticketing.agent_replied",
+                expected_revision,
+                correlation_id,
+                now,
+            )
+            .await?;
+            Ok(result(ticket))
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -976,6 +1009,63 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<(), TicketingServiceError> {
+        self.append_message_with_jobs(
+            ticket,
+            message,
+            kind,
+            expected_revision,
+            correlation_id,
+            now,
+            #[cfg(feature = "jobs")]
+            Vec::new(),
+        )
+        .await
+    }
+
+    /// Notification job records for a public agent reply when the
+    /// configuration enables them (ADR-0054); identifiers only.
+    #[cfg(feature = "jobs")]
+    fn notification_records(
+        &self,
+        ticket: &Ticket,
+        message: &TicketMessage,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<minco_plugin_jobs::JobRecord>, TicketingServiceError> {
+        if !self.config.notify_requester_on_public_reply
+            || message.kind != crate::TicketMessageKind::PublicReply
+        {
+            return Ok(Vec::new());
+        }
+        crate::notification_record_for_reply(
+            &ticket.project_id,
+            ticket.id,
+            message.id,
+            correlation_id,
+            now,
+        )
+        .map(Option::into_iter)
+        .map(Iterator::collect)
+        .map_err(|error| {
+            TicketingServiceError::Configuration(format!(
+                "notification job could not be built: {error}"
+            ))
+        })
+    }
+
+    /// Like `append_message`, committing bounded job records in the same
+    /// transaction (ADR-0054).
+    #[allow(clippy::too_many_arguments)]
+    async fn append_message_with_jobs(
+        &self,
+        ticket: &Ticket,
+        message: TicketMessage,
+        kind: &str,
+        expected_revision: u64,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+        #[cfg(feature = "jobs")] job_records: Vec<minco_plugin_jobs::JobRecord>,
+    ) -> Result<(), TicketingServiceError> {
         let intent = activity(ticket, kind, correlation_id, now);
         Ok(self
             .store
@@ -990,6 +1080,8 @@ impl TicketingService {
                 updated_at: ticket.updated_at,
                 expected_revision,
                 intent,
+                #[cfg(feature = "jobs")]
+                job_records,
             })
             .await?)
     }
@@ -1186,17 +1278,21 @@ mod tests {
     fn service() -> TicketingService {
         TicketingService::new(
             TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
-            TicketingConfig {
-                project_id: "project-a".into(),
-                portal_origin: "https://support.example.test".into(),
-                allowed_return_paths: BTreeMap::from([(
-                    "https://app.example.test".into(),
-                    vec!["/orders".into()],
-                )]),
-                ..TicketingConfig::default()
-            },
+            test_config(),
         )
         .unwrap()
+    }
+
+    fn test_config() -> TicketingConfig {
+        TicketingConfig {
+            project_id: "project-a".into(),
+            portal_origin: "https://support.example.test".into(),
+            allowed_return_paths: BTreeMap::from([(
+                "https://app.example.test".into(),
+                vec!["/orders".into()],
+            )]),
+            ..TicketingConfig::default()
+        }
     }
 
     #[tokio::test]
@@ -1582,5 +1678,94 @@ mod tests {
                 .await,
             Err(TicketingServiceError::PermissionDenied(_))
         ));
+    }
+
+    #[cfg(feature = "jobs")]
+    #[tokio::test]
+    async fn public_reply_couples_a_notification_job_only_when_configured() {
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let mut config = test_config();
+        config.notify_requester_on_public_reply = true;
+        let service =
+            TicketingService::new(TicketingStoreService::new(memory.clone()), config).unwrap();
+        let created = service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("user-a"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        service
+            .reply_as_agent(
+                &identity("agent-1", &["ticketing.reply"]),
+                "project-a",
+                created.id,
+                "Public answer.".into(),
+                created.revision,
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        let records = memory.enqueued_job_records().await;
+        assert_eq!(records.len(), 1);
+        assert_eq!(
+            records[0].envelope.job_name,
+            "ticketing.deliver-public-notification"
+        );
+        // Internal notes never notify.
+        let after = service
+            .get_agent_ticket(
+                &identity("agent-1", &["ticketing.agent.read"]),
+                "project-a",
+                created.id,
+            )
+            .await
+            .unwrap();
+        service
+            .add_internal_note(
+                &identity("agent-1", &["ticketing.manage"]),
+                "project-a",
+                created.id,
+                "private".into(),
+                after.revision,
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(memory.enqueued_job_records().await.len(), 1);
+
+        // Default configuration attaches nothing.
+        let quiet = Arc::new(MemoryTicketingStore::default());
+        let service =
+            TicketingService::new(TicketingStoreService::new(quiet.clone()), test_config())
+                .unwrap();
+        let created = service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("user-a"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        service
+            .reply_as_agent(
+                &identity("agent-1", &["ticketing.reply"]),
+                "project-a",
+                created.id,
+                "Public answer.".into(),
+                created.revision,
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        assert!(quiet.enqueued_job_records().await.is_empty());
     }
 }

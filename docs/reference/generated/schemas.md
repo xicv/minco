@@ -91,6 +91,7 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | `plugins.static-site.spa_fallback` | `boolean` | no | no | yes | Rewrite missing browser routes to the index document |
 | `plugins.ticketing.allowed_return_paths` | `object` | yes | no | — | Exact application origins mapped to allowed path prefixes |
 | `plugins.ticketing.handoff_ttl_seconds` | `integer` | no | no | 120 | One-time handoff lifetime, at most 900 seconds |
+| `plugins.ticketing.notify_requester_on_public_reply` | `boolean` | no | no | no | Requires the jobs feature and an enqueue adapter: enqueue a notification job with each public agent reply |
 | `plugins.ticketing.portal_origin` | `string` | yes | no | — | Exact HTTPS portal origin |
 | `plugins.ticketing.privacy_notice` | `string` | no | no | Share only information needed to resolve this request. | Browser-safe privacy notice |
 | `plugins.ticketing.project_id` | `string` | yes | no | — | Stable application project identifier |

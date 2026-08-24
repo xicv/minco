@@ -22,7 +22,8 @@ plugin = "minco-plugin.json"
 default = ["http"]
 http = ["dep:axum", "dep:http", "dep:minco-http", "dep:minco-plugin-health"]
 sqlite = ["dep:sqlx", "sqlx/sqlite"]
-full = ["http", "sqlite"]
+jobs = ["dep:minco-plugin-jobs"]
+full = ["http", "sqlite", "jobs"]
 
 [dependencies]
 async-trait.workspace = true
@@ -35,6 +36,7 @@ minco-plugin-audit.workspace = true
 minco-plugin-events.workspace = true
 minco-plugin-health = { workspace = true, optional = true }
 minco-plugin-idempotency.workspace = true
+minco-plugin-jobs = { workspace = true, optional = true }
 minco-plugin-identity.workspace = true
 minco-plugin-notifications.workspace = true
 minco-plugin-object-storage.workspace = true
@@ -57,6 +59,7 @@ http = { workspace = true, optional = true }
 [dev-dependencies]
 minco-test.workspace = true
 minco-contract.workspace = true
+minco-sqlx-sqlite.workspace = true
 tempfile.workspace = true
 tower.workspace = true
 

@@ -5,6 +5,8 @@ pub(crate) const MAX_TICKET_LIST_FETCH_LIMIT: usize = 201;
 
 #[cfg(feature = "http")]
 mod http;
+#[cfg(feature = "jobs")]
+mod jobs;
 mod model;
 #[cfg(feature = "sqlite")]
 mod persistence;
@@ -15,6 +17,8 @@ mod store;
 
 #[cfg(feature = "http")]
 pub use http::*;
+#[cfg(feature = "jobs")]
+pub use jobs::*;
 pub use model::*;
 #[cfg(feature = "sqlite")]
 pub use persistence::*;

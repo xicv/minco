@@ -187,8 +187,12 @@ pub struct ExternalMessageIngestResult {
 }
 
 /// One message append committed without rewriting the conversation
-/// (ADR-0052). The projection snapshot is the complete post-append ticket
-/// row state; only the listed columns are updated.
+/// (ADR-0052, ADR-0054).
+///
+/// The projection snapshot is the complete post-append ticket row state;
+/// only the listed columns are updated. Under the optional `jobs` feature,
+/// `job_records` are enqueued in the same transaction; they are bounded
+/// and carry identifiers only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppendTicketMessageRequest {
     pub project_id: String,
@@ -201,6 +205,8 @@ pub struct AppendTicketMessageRequest {
     pub updated_at: DateTime<Utc>,
     pub expected_revision: u64,
     pub intent: TicketActivityIntent,
+    #[cfg(feature = "jobs")]
+    pub job_records: Vec<minco_plugin_jobs::JobRecord>,
 }
 
 /// Newest-first bounded message pagination over one ticket's conversation.
@@ -380,6 +386,8 @@ struct MemoryState {
     external_messages:
         BTreeMap<(String, String, String, String), (ExternalMessageIdentity, TicketId)>,
     activity_intents: Vec<TicketActivityIntent>,
+    #[cfg(feature = "jobs")]
+    enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
 }
 
@@ -391,6 +399,13 @@ pub struct MemoryTicketingStore {
 impl MemoryTicketingStore {
     pub async fn activity_intents(&self) -> Vec<TicketActivityIntent> {
         self.state.lock().await.activity_intents.clone()
+    }
+
+    /// Job records committed transactionally with ticket mutations
+    /// (ADR-0054); the memory profile records them for inspection.
+    #[cfg(feature = "jobs")]
+    pub async fn enqueued_job_records(&self) -> Vec<minco_plugin_jobs::JobRecord> {
+        self.state.lock().await.enqueued_job_records.clone()
     }
 
     pub async fn fail_next_handoff_commit(&self) {
@@ -558,6 +573,10 @@ impl TicketingStore for MemoryTicketingStore {
                 actual: ticket.revision,
             });
         }
+        #[cfg(feature = "jobs")]
+        if request.job_records.len() > crate::MAX_JOB_RECORDS_PER_MUTATION {
+            return Err(TicketStoreError::InvalidJobRecords);
+        }
         ticket.messages.push(request.message);
         ticket.status = request.status;
         ticket.first_public_response_at = request.first_public_response_at;
@@ -566,6 +585,10 @@ impl TicketingStore for MemoryTicketingStore {
         ticket.updated_at = request.updated_at;
         ticket.revision = request.expected_revision + 1;
         state.activity_intents.push(request.intent);
+        #[cfg(feature = "jobs")]
+        state
+            .enqueued_job_records
+            .extend(request.job_records.iter().cloned());
         drop(state);
         Ok(())
     }
@@ -914,6 +937,8 @@ pub enum TicketStoreError {
     ExternalIdentityConflict,
     #[error("ticketing storage failed: {0}")]
     Infrastructure(String),
+    #[error("a ticketing mutation may carry at most 8 job records")]
+    InvalidJobRecords,
 }
 
 #[cfg(test)]

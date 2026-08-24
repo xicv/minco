@@ -8,6 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
 use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use std::sync::Arc;
 use uuid::Uuid;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations/sqlite");
@@ -15,12 +16,27 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations/sqlite")
 #[derive(Debug, Clone)]
 pub struct SqliteTicketingStore {
     pool: SqlitePool,
+    #[cfg(feature = "jobs")]
+    job_enqueue: Option<Arc<dyn crate::TicketingJobEnqueue>>,
 }
 
 impl SqliteTicketingStore {
     #[must_use]
     pub const fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            #[cfg(feature = "jobs")]
+            job_enqueue: None,
+        }
+    }
+
+    /// Pattern A (ADR-0054): with an enqueue adapter sharing this pool,
+    /// job records attached to a mutation commit in its transaction.
+    #[must_use]
+    #[cfg(feature = "jobs")]
+    pub fn with_job_enqueue(mut self, enqueue: Arc<dyn crate::TicketingJobEnqueue>) -> Self {
+        self.job_enqueue = Some(enqueue);
+        self
     }
 
     pub async fn migrate(&self) -> Result<(), TicketStoreError> {
@@ -237,6 +253,10 @@ impl TicketingStore for SqliteTicketingStore {
         &self,
         request: crate::AppendTicketMessageRequest,
     ) -> Result<(), TicketStoreError> {
+        #[cfg(feature = "jobs")]
+        if request.job_records.len() > crate::MAX_JOB_RECORDS_PER_MUTATION {
+            return Err(TicketStoreError::InvalidJobRecords);
+        }
         let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
         let updated = sqlx::query(
             "UPDATE ticketing_tickets
@@ -291,6 +311,17 @@ impl TicketingStore for SqliteTicketingStore {
         .await
         .map_err(infrastructure)?;
         insert_activity(&mut transaction, &request.intent).await?;
+        #[cfg(feature = "jobs")]
+        if !request.job_records.is_empty() {
+            let sink = self.job_enqueue.as_ref().ok_or_else(|| {
+                TicketStoreError::Infrastructure(
+                    "job records require a configured TicketingJobEnqueue adapter".into(),
+                )
+            })?;
+            for record in &request.job_records {
+                sink.enqueue_in(&mut transaction, record.clone()).await?;
+            }
+        }
         transaction.commit().await.map_err(infrastructure)
     }
 
@@ -1602,6 +1633,8 @@ mod tests {
                     updated_at: ticket.updated_at,
                     expected_revision: ticket.revision - 1,
                     intent,
+                    #[cfg(feature = "jobs")]
+                    job_records: Vec::new(),
                 })
                 .await
                 .unwrap();
@@ -1729,6 +1762,8 @@ mod tests {
                 serde_json::json!({}),
                 now,
             ),
+            #[cfg(feature = "jobs")]
+            job_records: Vec::new(),
         };
         assert!(matches!(
             sqlite.append_ticket_message(stale.clone()).await,
@@ -1830,5 +1865,231 @@ mod tests {
                 .await,
             Err(TicketStoreError::InvalidListCursor)
         ));
+    }
+
+    #[cfg(all(feature = "jobs", feature = "sqlite"))]
+    mod jobs_bridge {
+        use super::*;
+        use crate::{
+            AppendTicketMessageRequest, MAX_JOB_RECORDS_PER_MUTATION, TicketActivityIntent,
+            TicketingJobEnqueue,
+        };
+        use async_trait::async_trait;
+        use minco_plugin_jobs::{JobEnvelope, JobRecord, pending_record};
+        use std::sync::Arc;
+
+        /// The real Pattern A adapter an application writes at the
+        /// composition root: the released `SqliteJobStore` behind the
+        /// ticketing-owned port, sharing one pool.
+        #[derive(Debug)]
+        struct SharedPoolEnqueue(Arc<minco_sqlx_sqlite::jobs::SqliteJobStore>);
+
+        #[async_trait]
+        impl TicketingJobEnqueue for SharedPoolEnqueue {
+            async fn enqueue_in(
+                &self,
+                transaction: &mut Transaction<'_, Sqlite>,
+                record: JobRecord,
+            ) -> Result<(), TicketStoreError> {
+                self.0
+                    .enqueue_in(transaction, record)
+                    .await
+                    .map(|_| ())
+                    .map_err(|error| TicketStoreError::Infrastructure(error.to_string()))
+            }
+        }
+
+        fn notification_record(project: &str, ticket_id: TicketId) -> JobRecord {
+            pending_record(
+                JobEnvelope::for_parts(
+                    "ticketing.deliver-public-notification",
+                    1,
+                    serde_json::json!({
+                        "project_id": project,
+                        "ticket_id": ticket_id.to_string(),
+                        "message_id": uuid::Uuid::new_v4().to_string(),
+                    }),
+                    "ticketing-mail",
+                    uuid::Uuid::now_v7(),
+                )
+                .unwrap(),
+            )
+        }
+
+        async fn bridged_store() -> (tempfile::TempDir, SqliteTicketingStore) {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().join("ticketing.sqlite");
+            let options = sqlx::sqlite::SqliteConnectOptions::from_str(path.to_str().unwrap())
+                .unwrap()
+                .create_if_missing(true)
+                .foreign_keys(true)
+                .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+            let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                .connect_with(options)
+                .await
+                .unwrap();
+            let ticketing = SqliteTicketingStore::new(pool.clone());
+            ticketing.migrate().await.unwrap();
+            minco_sqlx_sqlite::plugin_adapters::migrate_plugin_storage(&pool)
+                .await
+                .unwrap();
+            let jobs = Arc::new(minco_sqlx_sqlite::jobs::SqliteJobStore::new(pool.clone()));
+            let store = ticketing.with_job_enqueue(Arc::new(SharedPoolEnqueue(jobs)));
+            (directory, store)
+        }
+
+        fn append_request(
+            ticket: &mut Ticket,
+            body: &str,
+            jobs: Vec<JobRecord>,
+        ) -> AppendTicketMessageRequest {
+            let message = ticket
+                .reply_as_agent_message("agent-1", body, Utc::now())
+                .unwrap();
+            AppendTicketMessageRequest {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                message,
+                status: ticket.status,
+                first_public_response_at: ticket.first_public_response_at,
+                waiting_since: ticket.waiting_since,
+                resolved_at: ticket.resolved_at,
+                updated_at: ticket.updated_at,
+                expected_revision: ticket.revision - 1,
+                intent: TicketActivityIntent::new(
+                    "project-a",
+                    ticket.id,
+                    "appended",
+                    uuid::Uuid::now_v7(),
+                    serde_json::json!({}),
+                    Utc::now(),
+                ),
+                job_records: jobs,
+            }
+        }
+
+        #[tokio::test]
+        async fn job_records_commit_and_roll_back_with_the_ticket_mutation() {
+            let (_directory, store) = bridged_store().await;
+            let now = Utc::now();
+            let mut ticket = crate::Ticket::create(
+                crate::CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "Jobs".into(),
+                    description: "It broke and needs an agent.".into(),
+                    requester: crate::TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    priority: TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                "TKT-JOBS",
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            store.create(ticket.clone(), intent).await.unwrap();
+
+            // Successful append enqueues its job record in the same commit.
+            let first_jobs = vec![notification_record("project-a", ticket.id)];
+            store
+                .append_ticket_message(append_request(&mut ticket, "first reply", first_jobs))
+                .await
+                .unwrap();
+            let jobs: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM minco_jobs WHERE json_extract(envelope, '$.job_name') = 'ticketing.deliver-public-notification'",
+            )
+            .fetch_one(store.pool())
+            .await
+            .unwrap();
+            assert_eq!(jobs, 1, "the job row committed with the mutation");
+
+            // A stale append rolls the whole transaction back: no second
+            // job row, no second message.
+            let stale_jobs = vec![notification_record("project-a", ticket.id)];
+            let mut stale = append_request(&mut ticket, "stale reply", Vec::new());
+            stale.expected_revision += 10;
+            stale.job_records = stale_jobs;
+            assert!(matches!(
+                store.append_ticket_message(stale).await,
+                Err(TicketStoreError::StaleRevision { .. })
+            ));
+            let jobs: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM minco_jobs WHERE json_extract(envelope, '$.job_name') = 'ticketing.deliver-public-notification'",
+            )
+            .fetch_one(store.pool())
+            .await
+            .unwrap();
+            assert_eq!(jobs, 1, "the rolled-back append left no job row");
+
+            // Over the bound fails closed before anything commits.
+            let mut ticket = store
+                .get("project-a", ticket.id)
+                .await
+                .unwrap()
+                .expect("ticket survives the rolled-back attempt");
+            let over_ticket_id = ticket.id;
+            let over: Vec<JobRecord> = (0..=MAX_JOB_RECORDS_PER_MUTATION)
+                .map(|_| notification_record("project-a", over_ticket_id))
+                .collect();
+            assert!(matches!(
+                store
+                    .append_ticket_message(append_request(&mut ticket, "too many", over))
+                    .await,
+                Err(TicketStoreError::InvalidJobRecords)
+            ));
+        }
+
+        #[tokio::test]
+        async fn job_records_without_a_sink_fail_closed() {
+            let (_directory, pool_store) = store().await;
+            // `store()` builds a sink-less sqlite store on a fresh pool.
+            let now = Utc::now();
+            let mut ticket = crate::Ticket::create(
+                crate::CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "No sink".into(),
+                    description: "It broke and needs an agent.".into(),
+                    requester: crate::TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    priority: TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                "TKT-NOSINK",
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            pool_store.create(ticket.clone(), intent).await.unwrap();
+            let reply_jobs = vec![notification_record("project-a", ticket.id)];
+            let request = append_request(&mut ticket, "reply", reply_jobs);
+            let error = pool_store.append_ticket_message(request).await;
+            assert!(matches!(
+                error,
+                Err(TicketStoreError::Infrastructure(ref detail))
+                    if detail.contains("TicketingJobEnqueue")
+            ));
+        }
     }
 }

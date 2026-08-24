@@ -171,6 +171,14 @@
       "secret": false,
       "default": 3600,
       "description": "Requester portal session lifetime, at most 86400 seconds"
+    },
+    {
+      "key": "notify_requester_on_public_reply",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "default": false,
+      "description": "Requires the jobs feature and an enqueue adapter: enqueue a notification job with each public agent reply"
     }
   ],
   "operations": [

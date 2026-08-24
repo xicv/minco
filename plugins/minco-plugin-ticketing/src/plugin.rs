@@ -133,6 +133,10 @@ impl Plugin for TicketingPlugin {
             .into_iter()
             .map(provision),
         );
+        // No `ticketing.jobs` capability is declared: the descriptor and
+        // the distribution manifest must match exactly, and neither can
+        // express feature-conditional capabilities (ADR-0054). The Cargo
+        // feature and the notify configuration are the opt-in truth.
         descriptor.operations.extend(ticketing_operations());
         match self.storage_profile {
             StorageProfile::Memory => {}
@@ -503,6 +507,13 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             false,
             Some(serde_json::json!(3600)),
             "Requester portal session lifetime, at most 86400 seconds",
+        ),
+        field(
+            "notify_requester_on_public_reply",
+            ConfigurationValueKind::Boolean,
+            false,
+            Some(serde_json::json!(false)),
+            "Requires the jobs feature and an enqueue adapter: enqueue a notification job with each public agent reply",
         ),
     ]
 }
