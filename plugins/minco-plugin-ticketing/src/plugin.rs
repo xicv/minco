@@ -197,6 +197,11 @@ impl Plugin for TicketingPlugin {
                 jobs: services
                     .get_optional::<minco_plugin_jobs::JobsServices>()
                     .map_err(|error| PluginError::Installation(error.to_string()))?,
+                objects: Some(
+                    services
+                        .get::<ObjectStoreService>()
+                        .map_err(|error| PluginError::Installation(error.to_string()))?,
+                ),
             }
         };
         let service = TicketingService::new(self.store.clone(), config)

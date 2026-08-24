@@ -36,6 +36,9 @@ pub struct TicketingPortalServices {
     /// feature is enabled and the application registered the jobs plugin.
     #[cfg(feature = "jobs")]
     pub jobs: Option<Arc<minco_plugin_jobs::JobsServices>>,
+    /// Object-storage handle (ADR-0059); a required install dependency
+    /// that the inbound wake use case consumes.
+    pub objects: Option<Arc<minco_plugin_object_storage::ObjectStoreService>>,
 }
 
 impl fmt::Debug for TicketingPortalServices {
@@ -858,6 +861,72 @@ impl TicketingService {
         Ok(self.store.ready().await?)
     }
 
+    /// Engine-neutral inbound wake (ADR-0059): read the raw object through
+    /// the object-storage port, extract routing facts (digest,
+    /// `Message-ID`, `In-Reply-To`, bounded `References`) from the
+    /// authoritative bytes, and submit through the routing use case. The
+    /// durable job remains the verification and ingestion authority.
+    #[cfg(feature = "jobs")]
+    pub async fn wake_inbound_email(
+        &self,
+        provider: &str,
+        mailbox_scope: &str,
+        external_id: &str,
+        object_key: &str,
+        correlation_id: Uuid,
+        arrived_at: DateTime<Utc>,
+    ) -> Result<Uuid, TicketingServiceError> {
+        let objects = self
+            .portal
+            .objects
+            .as_ref()
+            .ok_or(TicketingServiceError::ObjectsUnavailable)?;
+        let key = minco_plugin_object_storage::ObjectKey::parse(object_key.to_owned())
+            .map_err(|_| TicketingServiceError::InboundObjectMissing)?;
+        let stored = objects
+            .0
+            .get(&key)
+            .await
+            .map_err(|_| TicketingServiceError::InboundObjectMissing)?
+            .ok_or(TicketingServiceError::InboundObjectMissing)?;
+        let digest = external_content_sha256(&stored.bytes);
+        let message = mail_parser::MessageParser::default()
+            .parse(&stored.bytes)
+            .ok_or(TicketingServiceError::InboundMimeInvalid)?;
+        let header_text = |name: mail_parser::HeaderName<'_>| -> Option<String> {
+            message
+                .header_raw(name)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+        };
+        let internet_message_id = header_text(mail_parser::HeaderName::MessageId);
+        let in_reply_to = header_text(mail_parser::HeaderName::InReplyTo);
+        let references = header_text(mail_parser::HeaderName::References)
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .take(64)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let in_reply_ref = in_reply_to.as_deref();
+        self.submit_inbound_email(
+            provider,
+            mailbox_scope,
+            external_id,
+            &digest,
+            object_key,
+            internet_message_id.as_deref(),
+            in_reply_ref,
+            &references,
+            correlation_id,
+            arrived_at,
+        )
+        .await
+    }
+
     /// Verified-reference inbound submission (ADR-0058): resolve the
     /// target ticket strictly by `In-Reply-To`/`References` against
     /// previously ingested external identities, then durably submit the
@@ -872,6 +941,7 @@ impl TicketingService {
         external_id: &str,
         content_sha256: &str,
         raw_object_key: &str,
+        internet_message_id: Option<&str>,
         in_reply_to: Option<&str>,
         references: &[String],
         correlation_id: Uuid,
@@ -916,7 +986,7 @@ impl TicketingService {
                 raw_object_key: raw_object_key.to_owned(),
                 ticket_id,
                 expected_revision: revision,
-                internet_message_id: None,
+                internet_message_id: internet_message_id.map(str::to_owned),
                 in_reply_to: in_reply_to.map(str::to_owned),
                 references: references.to_vec(),
             },
@@ -1386,6 +1456,12 @@ pub enum TicketingServiceError {
     JobsUnavailable,
     #[error("inbound threading does not reference a known ticket")]
     InboundThreadUnresolved,
+    #[error("the inbound raw object is missing or unreadable")]
+    InboundObjectMissing,
+    #[error("the inbound raw object is not parseable MIME")]
+    InboundMimeInvalid,
+    #[error("the object-storage service is not registered for this application")]
+    ObjectsUnavailable,
     #[error(transparent)]
     SupportEntry(#[from] minco_interaction::SupportEntryError),
     #[error(transparent)]
@@ -2004,6 +2080,19 @@ mod tests {
             Arc<minco_plugin_jobs::MemoryJobStore>,
             TicketId,
         ) {
+            routed_service_with_objects(Arc::new(
+                minco_plugin_object_storage::MemoryObjectStore::default(),
+            ))
+            .await
+        }
+
+        async fn routed_service_with_objects(
+            objects: Arc<minco_plugin_object_storage::MemoryObjectStore>,
+        ) -> (
+            TicketingService,
+            Arc<minco_plugin_jobs::MemoryJobStore>,
+            TicketId,
+        ) {
             let memory = Arc::new(MemoryTicketingStore::default());
             let registry = Arc::new(minco_plugin_jobs::JobHandlerRegistry::new());
             let (jobs, store, _dispatcher) = minco_plugin_jobs::JobsServices::memory(registry);
@@ -2012,6 +2101,9 @@ mod tests {
                     .unwrap()
                     .with_portal_services(TicketingPortalServices {
                         jobs: Some(Arc::new(jobs)),
+                        objects: Some(Arc::new(
+                            minco_plugin_object_storage::ObjectStoreService::new(objects),
+                        )),
                         ..TicketingPortalServices::default()
                     });
             let created = service
@@ -2064,6 +2156,7 @@ mod tests {
                     "reply-1",
                     &digest,
                     "mail/project-a/reply-1",
+                    None,
                     Some("<original-1@example.test>"),
                     &[],
                     Uuid::now_v7(),
@@ -2106,6 +2199,7 @@ mod tests {
                     &digest,
                     "mail/project-a/reply-2",
                     None,
+                    None,
                     &[
                         "<unrelated@example.test>".into(),
                         "<original-1@example.test>".into(),
@@ -2125,6 +2219,7 @@ mod tests {
                     "reply-1",
                     &digest,
                     "mail/project-a/reply-1",
+                    None,
                     Some("<original-1@example.test>"),
                     &[],
                     Uuid::now_v7(),
@@ -2146,6 +2241,7 @@ mod tests {
                         "orphan-1",
                         &"c".repeat(64),
                         "mail/project-a/orphan-1",
+                        None,
                         Some("<unknown@example.test>"),
                         &[],
                         Uuid::now_v7(),
@@ -2169,12 +2265,155 @@ mod tests {
                     &"c".repeat(64),
                     "k",
                     None,
+                    None,
                     &[],
                     Uuid::now_v7(),
                     Utc::now(),
                 )
                 .await,
                 Err(TicketingServiceError::JobsUnavailable)
+            ));
+        }
+
+        const REPLY_EMAIL: &str = "From: user-1@example.test\r\n\
+            To: support@example.test\r\n\
+            Subject: Re: Help\r\n\
+            Message-ID: <reply-9@example.test>\r\n\
+            In-Reply-To: <original-1@example.test>\r\n\
+            References: <older@example.test> <original-1@example.test>\r\n\
+            MIME-Version: 1.0\r\n\
+            Content-Type: text/plain; charset=utf-8\r\n\
+            \r\n\
+            A threaded reply.\r\n";
+
+        #[tokio::test]
+        async fn wake_extracts_routing_facts_and_submits_the_durable_job() {
+            use minco_plugin_object_storage::{ObjectStore as _, PutObject};
+            let objects = Arc::new(minco_plugin_object_storage::MemoryObjectStore::default());
+            objects
+                .put(PutObject {
+                    key: minco_plugin_object_storage::ObjectKey::parse("mail/project-a/reply-9")
+                        .unwrap(),
+                    bytes: REPLY_EMAIL.as_bytes().to_vec(),
+                    content_type: "message/rfc822".into(),
+                    attributes: BTreeMap::new(),
+                })
+                .await
+                .unwrap();
+            let (service, store, ticket_id) = routed_service_with_objects(objects).await;
+            let arrival = Utc::now();
+            let job_id = service
+                .wake_inbound_email(
+                    "ses",
+                    "support@example.test",
+                    "wake-reply-9",
+                    "mail/project-a/reply-9",
+                    Uuid::now_v7(),
+                    arrival,
+                )
+                .await
+                .unwrap();
+            let record = store
+                .records()
+                .into_iter()
+                .find(|record| record.envelope.job_id == job_id)
+                .expect("durable job recorded");
+            let payload = serde_json::from_value::<crate::ProcessInboundEmail>(
+                record.envelope.payload.clone(),
+            )
+            .unwrap();
+            assert_eq!(payload.ticket_id, ticket_id);
+            assert_eq!(
+                payload.content_sha256,
+                crate::external_content_sha256(REPLY_EMAIL.as_bytes())
+            );
+            assert_eq!(
+                payload.internet_message_id.as_deref(),
+                Some("<reply-9@example.test>")
+            );
+            assert_eq!(
+                payload.in_reply_to.as_deref(),
+                Some("<original-1@example.test>")
+            );
+            assert_eq!(payload.references.len(), 2);
+            // Same wake replays to the same durable job (stable fingerprint).
+            let again = service
+                .wake_inbound_email(
+                    "ses",
+                    "support@example.test",
+                    "wake-reply-9",
+                    "mail/project-a/reply-9",
+                    Uuid::now_v7(),
+                    arrival,
+                )
+                .await
+                .unwrap();
+            assert_eq!(again, job_id);
+        }
+
+        #[tokio::test]
+        async fn wake_fails_closed_for_missing_object_and_garbage_mime() {
+            use minco_plugin_object_storage::{ObjectStore as _, PutObject};
+            let objects = Arc::new(minco_plugin_object_storage::MemoryObjectStore::default());
+            let (service, _store, _ticket_id) = routed_service_with_objects(objects.clone()).await;
+            assert!(matches!(
+                service
+                    .wake_inbound_email(
+                        "ses",
+                        "support@example.test",
+                        "wake-missing",
+                        "mail/project-a/missing",
+                        Uuid::now_v7(),
+                        Utc::now(),
+                    )
+                    .await,
+                Err(TicketingServiceError::InboundObjectMissing)
+            ));
+            objects
+                .put(PutObject {
+                    key: minco_plugin_object_storage::ObjectKey::parse("mail/project-a/garbage")
+                        .unwrap(),
+                    bytes: b"\x00\x01 garbage \xff".to_vec(),
+                    content_type: "application/octet-stream".into(),
+                    attributes: BTreeMap::new(),
+                })
+                .await
+                .unwrap();
+            // mail-parser is deliberately lenient: headerless garbage parses
+            // as an empty single part, so the wake fails closed one step
+            // later, at threading resolution — never at ingestion.
+            assert!(matches!(
+                service
+                    .wake_inbound_email(
+                        "ses",
+                        "support@example.test",
+                        "wake-garbage",
+                        "mail/project-a/garbage",
+                        Uuid::now_v7(),
+                        Utc::now(),
+                    )
+                    .await,
+                Err(TicketingServiceError::InboundMimeInvalid
+                    | TicketingServiceError::InboundThreadUnresolved)
+            ));
+
+            // Without the object handle the wake fails closed.
+            let bare = TicketingService::new(
+                TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+                test_config(),
+            )
+            .unwrap();
+            assert!(matches!(
+                bare.wake_inbound_email(
+                    "ses",
+                    "support@example.test",
+                    "x",
+                    "k",
+                    Uuid::now_v7(),
+                    Utc::now(),
+                )
+                .await,
+                Err(TicketingServiceError::ObjectsUnavailable)
             ));
         }
     }

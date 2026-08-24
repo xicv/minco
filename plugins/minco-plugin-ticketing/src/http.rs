@@ -1769,6 +1769,19 @@ fn map_error(error: TicketingServiceError, request_id: &str) -> ApiFailure {
             "inbound threading does not reference a known ticket",
             request_id,
         ),
+        TicketingServiceError::InboundObjectMissing | TicketingServiceError::InboundMimeInvalid => {
+            ApiFailure::validation(
+                "the inbound raw object is missing or not parseable MIME",
+                request_id,
+            )
+        }
+        TicketingServiceError::ObjectsUnavailable => ApiFailure::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "ticketing_objects_unavailable",
+            "Object storage unavailable",
+            "This application has not registered the object-storage plugin.",
+            request_id,
+        ),
         TicketingServiceError::Store(_) => ApiFailure::new(
             StatusCode::SERVICE_UNAVAILABLE,
             "ticketing_unavailable",
@@ -2595,6 +2608,7 @@ mod tests {
             events: None,
             #[cfg(feature = "jobs")]
             jobs: None,
+            objects: None,
         });
         let integration = identity(minco_http::Principal {
             subject: "integration".into(),
