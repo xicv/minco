@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1881,
+  "file_count": 1885,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "ec5ba164a10eadf183567c654179819c73de4083b0bd2d583430979774b66956",
-      "size_bytes": 119614
+      "sha256": "83133b4979edda60dc019aee42da5140ff09e7fa84845d4abc03fee3b42695ce",
+      "size_bytes": 119739
     },
     {
       "path": "Cargo.toml",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "117e2a5104455cf945e4275ec8b26149425d93574f90ea9e4b1c433559724681",
-      "size_bytes": 12568
+      "sha256": "141e8b2f0286a4fa44d580cea3bf98ad4124919fc64a5bae8aafd5a48f9e2655",
+      "size_bytes": 12841
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2171,6 +2171,11 @@
       "path": "docs/adrs/0063-outbound-delivery-evidence.md",
       "sha256": "55754748f07dee062bc835b388670ff576cb0f03d72d72e78e72f2098457f928",
       "size_bytes": 3168
+    },
+    {
+      "path": "docs/adrs/0064-rustack-inbound-mail-seam.md",
+      "sha256": "a0f8550a78e92f1431e457071af2b385b90447248f47786b28bbd0ce3ed49292",
+      "size_bytes": 2325
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -6429,8 +6434,8 @@
     },
     {
       "path": "extensions/minco-aws-adapters/src/s3.rs",
-      "sha256": "8befdde196c2af840e9e31d717a729b56f0d628b4ad5db8435a9568d97030247",
-      "size_bytes": 56190
+      "sha256": "95c227726d48a904e6c767ce5ae87b35570dbd3f93a0064d2886278f8cef9bdd",
+      "size_bytes": 56311
     },
     {
       "path": "extensions/minco-aws-adapters/src/s3_storage.rs",
@@ -6554,8 +6559,8 @@
     },
     {
       "path": "extensions/minco-aws-worker/Cargo.toml",
-      "sha256": "0b804d4a22d33af745e0878f14a098d9d30f86cb63536cbe76ea9cedbf563dfb",
-      "size_bytes": 1828
+      "sha256": "ae2fd87d11794b242c18a8408ec0296da9cac12b12b81414499e30c60d15122b",
+      "size_bytes": 2301
     },
     {
       "path": "extensions/minco-aws-worker/LICENSE-APACHE",
@@ -6576,6 +6581,11 @@
       "path": "extensions/minco-aws-worker/examples/sqs_worker.rs",
       "sha256": "f10379d7a88e6a7a8ff8f3db362179e18f2eaa5c251cc1fc2938387dce301f0a",
       "size_bytes": 591
+    },
+    {
+      "path": "extensions/minco-aws-worker/examples/ticketing_mail_seam.rs",
+      "sha256": "a53fc94f55e8401765770a906fbdddcc2946efef42336625fb35e6cbace420a3",
+      "size_bytes": 10672
     },
     {
       "path": "extensions/minco-aws-worker/minco-plugin.json",
@@ -8203,6 +8213,11 @@
       "size_bytes": 13669
     },
     {
+      "path": "scripts/dev/ticketing-mail-seam.sh",
+      "sha256": "6f020093cf3656c80da5ed4b5b4b4c43bffce18c57c1ac63d2721fca5fa5bb50",
+      "size_bytes": 5829
+    },
+    {
       "path": "scripts/dev/topology.py",
       "sha256": "cc6801cd683a7a8dd96c183536756e27a2a20618497f5bec586c873589e3274d",
       "size_bytes": 3883
@@ -9013,6 +9028,11 @@
       "size_bytes": 4054
     },
     {
+      "path": "tasks/M14/M14-T62-rustack-inbound-mail-seam.md",
+      "sha256": "a75a19d86d7bb3d881d02945e38625c05968a31fdcf2129f143a861d6fa1065b",
+      "size_bytes": 3539
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9464,7 +9484,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "771b6667cd515c5d2a3705c9a36f8b3175b60d464ac82ed909a9ca78b6ab7136",
-  "total_size_bytes": 14113535,
+  "source_tree_sha256": "163276364b2d0e49573af71b3917581832cf407599bd1457ccebc428c328dd69",
+  "total_size_bytes": 14136892,
   "version": "1.12.0"
 }

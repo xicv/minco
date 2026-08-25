@@ -57,8 +57,23 @@ tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+aws-config.workspace = true
+aws-credential-types.workspace = true
+aws-sdk-s3.workspace = true
+aws-sdk-sqs.workspace = true
+chrono.workspace = true
+minco-aws-adapters = { workspace = true, features = ["s3"] }
 minco-plugin-identity.workspace = true
 minco-plugin-object-storage.workspace = true
+minco-plugin-ticketing = { workspace = true, features = ["sqlite", "jobs"] }
+minco-sqlx-sqlite.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+
+[[example]]
+name = "ticketing_mail_seam"
+required-features = ["ticketing-wake"]
 
 [package.metadata.docs.rs]
 all-features = true
