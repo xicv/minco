@@ -1111,6 +1111,12 @@ fn render_worker_function(
             TriggerPlan::Sqs { function_id, .. } if function_id == &function.name
         )
     });
+    let mail_buckets = plan
+        .inbound_mail
+        .iter()
+        .filter(|binding| binding.worker_function_id == function.name)
+        .map(|binding| sam_logical_id(&binding.id))
+        .collect::<Vec<_>>();
     let uses_dynamodb = plan
         .database
         .dynamodb_table()
@@ -1118,7 +1124,11 @@ fn render_worker_function(
         || plan
             .dynamodb_audit_table()
             .is_some_and(|table| table.function_id == function.name);
-    if function.database_connections_per_instance > 0 || uses_dynamodb || has_sqs_trigger {
+    if function.database_connections_per_instance > 0
+        || uses_dynamodb
+        || has_sqs_trigger
+        || !mail_buckets.is_empty()
+    {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
         if function.database_connections_per_instance > 0 {
@@ -1161,6 +1171,18 @@ fn render_worker_function(
             )
             .expect("writing to String cannot fail");
         }
+    }
+    // Inbound-mail consumers read raw MIME objects (ADR-0065); write
+    // access is deliberately absent — SES is the only writer.
+    for bucket in &mail_buckets {
+        output.push_str("            - Effect: Allow\n");
+        output.push_str("              Action:\n");
+        output.push_str("                - s3:GetObject\n");
+        writeln!(
+            output,
+            "              Resource: !Sub '${{{bucket}RawMailBucket.Arn}}/*'"
+        )
+        .expect("writing to String cannot fail");
     }
     let triggers =
         plan.triggers
@@ -1322,6 +1344,7 @@ mod tests {
             }],
             queues: Vec::new(),
             triggers: Vec::new(),
+            inbound_mail: Vec::new(),
             iam_intents: Vec::new(),
             routes: vec![
                 RoutePlan {

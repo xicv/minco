@@ -948,6 +948,7 @@ mod tests {
             }],
             queues: Vec::new(),
             triggers: Vec::new(),
+            inbound_mail: Vec::new(),
             iam_intents: Vec::new(),
             routes: Vec::new(),
             application_graph: minco_core::ApplicationGraph::default(),

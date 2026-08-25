@@ -13,7 +13,7 @@ Authorities:
 
 Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify byte-for-byte freshness.
 
-Plan model source SHA-256: `8376735a1f7325fc871aa79adb90fde203a1e929d90d31c9535448900098a25b`.
+Plan model source SHA-256: `5457e39919234be00aa2b6ca4caa2f8aa1c1d6ed104e2960e30d272501e5c2ff`.
 
 ## Composed configuration schema
 
@@ -117,6 +117,7 @@ Rust types are shown exactly as declared. Serde attributes may omit empty or opt
 | `functions` | `Vec<FunctionPlan>` | yes |
 | `queues` | `Vec<QueuePlan>` | no |
 | `triggers` | `Vec<TriggerPlan>` | no |
+| `inbound_mail` | `Vec<InboundMailBinding>` | no |
 | `iam_intents` | `Vec<IamIntent>` | no |
 | `routes` | `Vec<RoutePlan>` | yes |
 | `application_graph` | `ApplicationGraph` | yes |
