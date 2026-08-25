@@ -15,7 +15,7 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `589`.
+Declared codes: `590`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
@@ -176,40 +176,41 @@ Declared codes: `589`.
 | `MINCO-AWS-002` | aws | `crates/minco-plan/src/model.rs:1349` | 1 |
 | `MINCO-CONTRACT-001` | contract | `crates/minco-contract/src/validate.rs:64` | 0 |
 | `MINCO-CONTRACT-002` | contract | `crates/minco-contract/src/validate.rs:72` | 0 |
-| `MINCO-CONTRACT-003` | contract | `crates/minco-contract/src/validate.rs:84` | 0 |
-| `MINCO-CONTRACT-004` | contract | `crates/minco-contract/src/validate.rs:98` | 0 |
-| `MINCO-CONTRACT-005` | contract | `crates/minco-contract/src/validate.rs:111` | 0 |
-| `MINCO-CONTRACT-006` | contract | `crates/minco-contract/src/validate.rs:120` | 0 |
-| `MINCO-CONTRACT-007` | contract | `crates/minco-contract/src/validate.rs:152` | 0 |
-| `MINCO-CONTRACT-008` | contract | `crates/minco-contract/src/validate.rs:196` | 0 |
-| `MINCO-CONTRACT-009` | contract | `crates/minco-contract/src/validate.rs:2291` | 1 |
-| `MINCO-CONTRACT-010` | contract | `crates/minco-contract/src/validate.rs:808` | 0 |
-| `MINCO-CONTRACT-011` | contract | `crates/minco-contract/src/validate.rs:817` | 0 |
-| `MINCO-CONTRACT-012` | contract | `crates/minco-contract/src/validate.rs:828` | 0 |
-| `MINCO-CONTRACT-013` | contract | `crates/minco-contract/src/validate.rs:213` | 0 |
-| `MINCO-CONTRACT-014` | contract | `crates/minco-contract/src/validate.rs:136` | 0 |
-| `MINCO-CONTRACT-015` | contract | `crates/minco-contract/src/validate.rs:160` | 1 |
-| `MINCO-CONTRACT-016` | contract | `crates/minco-contract/src/validate.rs:905` | 4 |
-| `MINCO-CONTRACT-017` | contract | `crates/minco-contract/src/validate.rs:839` | 1 |
-| `MINCO-CONTRACT-018` | contract | `crates/minco-contract/src/validate.rs:876` | 1 |
-| `MINCO-CONTRACT-019` | contract | `crates/minco-contract/src/validate.rs:2273` | 0 |
-| `MINCO-CONTRACT-020` | contract | `crates/minco-contract/src/validate.rs:1000` | 3 |
-| `MINCO-CONTRACT-021` | contract | `crates/minco-contract/src/validate.rs:2382` | 2 |
-| `MINCO-CONTRACT-022` | contract | `crates/minco-contract/src/validate.rs:355` | 1 |
-| `MINCO-CONTRACT-023` | contract | `crates/minco-contract/src/validate.rs:400` | 1 |
-| `MINCO-CONTRACT-024` | contract | `crates/minco-contract/src/validate.rs:424` | 1 |
-| `MINCO-CONTRACT-025` | contract | `crates/minco-contract/src/validate.rs:456` | 4 |
-| `MINCO-CONTRACT-026` | contract | `crates/minco-contract/src/validate.rs:382` | 2 |
-| `MINCO-CONTRACT-027` | contract | `crates/minco-contract/src/validate.rs:412` | 1 |
-| `MINCO-CONTRACT-028` | contract | `crates/minco-contract/src/validate.rs:269` | 2 |
-| `MINCO-CONTRACT-029` | contract | `crates/minco-contract/src/validate.rs:1082` | 1 |
-| `MINCO-CONTRACT-030` | contract | `crates/minco-contract/src/validate.rs:1611` | 3 |
-| `MINCO-CONTRACT-031` | contract | `crates/minco-contract/src/validate.rs:1340` | 11 |
-| `MINCO-CONTRACT-032` | contract | `crates/minco-contract/src/validate.rs:1297` | 3 |
-| `MINCO-CONTRACT-033` | contract | `crates/minco-contract/src/validate.rs:1308` | 9 |
-| `MINCO-CONTRACT-034` | contract | `crates/minco-contract/src/validate.rs:1870` | 8 |
-| `MINCO-CONTRACT-035` | contract | `crates/minco-contract/src/validate.rs:1143` | 18 |
-| `MINCO-CONTRACT-036` | contract | `crates/minco-contract/src/validate.rs:983` | 0 |
+| `MINCO-CONTRACT-003` | contract | `crates/minco-contract/src/validate.rs:85` | 0 |
+| `MINCO-CONTRACT-004` | contract | `crates/minco-contract/src/validate.rs:99` | 0 |
+| `MINCO-CONTRACT-005` | contract | `crates/minco-contract/src/validate.rs:112` | 0 |
+| `MINCO-CONTRACT-006` | contract | `crates/minco-contract/src/validate.rs:121` | 0 |
+| `MINCO-CONTRACT-007` | contract | `crates/minco-contract/src/validate.rs:153` | 0 |
+| `MINCO-CONTRACT-008` | contract | `crates/minco-contract/src/validate.rs:197` | 0 |
+| `MINCO-CONTRACT-009` | contract | `crates/minco-contract/src/validate.rs:2292` | 1 |
+| `MINCO-CONTRACT-010` | contract | `crates/minco-contract/src/validate.rs:809` | 0 |
+| `MINCO-CONTRACT-011` | contract | `crates/minco-contract/src/validate.rs:818` | 0 |
+| `MINCO-CONTRACT-012` | contract | `crates/minco-contract/src/validate.rs:829` | 0 |
+| `MINCO-CONTRACT-013` | contract | `crates/minco-contract/src/validate.rs:214` | 0 |
+| `MINCO-CONTRACT-014` | contract | `crates/minco-contract/src/validate.rs:137` | 0 |
+| `MINCO-CONTRACT-015` | contract | `crates/minco-contract/src/validate.rs:161` | 1 |
+| `MINCO-CONTRACT-016` | contract | `crates/minco-contract/src/validate.rs:906` | 4 |
+| `MINCO-CONTRACT-017` | contract | `crates/minco-contract/src/validate.rs:840` | 1 |
+| `MINCO-CONTRACT-018` | contract | `crates/minco-contract/src/validate.rs:877` | 1 |
+| `MINCO-CONTRACT-019` | contract | `crates/minco-contract/src/validate.rs:2274` | 0 |
+| `MINCO-CONTRACT-020` | contract | `crates/minco-contract/src/validate.rs:1001` | 3 |
+| `MINCO-CONTRACT-021` | contract | `crates/minco-contract/src/validate.rs:2383` | 2 |
+| `MINCO-CONTRACT-022` | contract | `crates/minco-contract/src/validate.rs:356` | 1 |
+| `MINCO-CONTRACT-023` | contract | `crates/minco-contract/src/validate.rs:401` | 1 |
+| `MINCO-CONTRACT-024` | contract | `crates/minco-contract/src/validate.rs:425` | 1 |
+| `MINCO-CONTRACT-025` | contract | `crates/minco-contract/src/validate.rs:457` | 4 |
+| `MINCO-CONTRACT-026` | contract | `crates/minco-contract/src/validate.rs:383` | 2 |
+| `MINCO-CONTRACT-027` | contract | `crates/minco-contract/src/validate.rs:413` | 1 |
+| `MINCO-CONTRACT-028` | contract | `crates/minco-contract/src/validate.rs:270` | 2 |
+| `MINCO-CONTRACT-029` | contract | `crates/minco-contract/src/validate.rs:1083` | 1 |
+| `MINCO-CONTRACT-030` | contract | `crates/minco-contract/src/validate.rs:1612` | 3 |
+| `MINCO-CONTRACT-031` | contract | `crates/minco-contract/src/validate.rs:1341` | 11 |
+| `MINCO-CONTRACT-032` | contract | `crates/minco-contract/src/validate.rs:1298` | 3 |
+| `MINCO-CONTRACT-033` | contract | `crates/minco-contract/src/validate.rs:1309` | 9 |
+| `MINCO-CONTRACT-034` | contract | `crates/minco-contract/src/validate.rs:1871` | 8 |
+| `MINCO-CONTRACT-035` | contract | `crates/minco-contract/src/validate.rs:1144` | 18 |
+| `MINCO-CONTRACT-036` | contract | `crates/minco-contract/src/validate.rs:984` | 0 |
+| `MINCO-CONTRACT-037` | contract | `crates/minco-contract/src/validate.rs:2461` | 2 |
 | `MINCO-COST-001` | cost | `crates/minco-plan/src/model.rs:661` | 0 |
 | `MINCO-COST-002` | cost | `crates/minco-plan/src/model.rs:675` | 1 |
 | `MINCO-COST-003` | cost | `crates/minco-plan/src/model.rs:741` | 0 |

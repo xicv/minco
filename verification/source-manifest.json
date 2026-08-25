@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1876,
+  "file_count": 1878,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -869,8 +869,8 @@
     },
     {
       "path": "crates/minco-contract/src/validate.rs",
-      "sha256": "244b0d13deb841f7dc8e08664cf4d23139c2c7a2144bc3b106e805202f5ed918",
-      "size_bytes": 85680
+      "sha256": "a33855c10b3e3962e7c6611568dab1eeeb8a86dd969d52b3db0c28c12a4f9464",
+      "size_bytes": 90240
     },
     {
       "path": "crates/minco-contract/tests/compatibility.rs",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "971fe5a03ff57e18bc78e9a2cb92eee1f179519a4fc0ec086a41aa6d69551bf9",
-      "size_bytes": 11977
+      "sha256": "97061a3b73680d1e6549a3338924c6144b213a72bb5677ab442a4694ed23a4b2",
+      "size_bytes": 12250
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2163,6 +2163,11 @@
       "size_bytes": 2308
     },
     {
+      "path": "docs/adrs/0062-contract-reference-integrity.md",
+      "sha256": "4f1ea8bc75eb16db7e6d8eb4d6c6d08182004c702efe3496e7568a1ce78d4692",
+      "size_bytes": 2753
+    },
+    {
       "path": "docs/architecture/adoption-readiness-review.md",
       "sha256": "822329315f8554ffe5429bac7d31124e4cba2e8ddb0a818a106a0c6ebddd91d3",
       "size_bytes": 5091
@@ -2469,8 +2474,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "9c46b8fad03bb332838070480514152fd6d4adb1db6a82c713d4543649f21d9b",
-      "size_bytes": 52686
+      "sha256": "5aa211dead52a02ddf6dd0ac27a83dc1c635bafaf0377fb60f625b75ef1e33ef",
+      "size_bytes": 52773
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -7614,13 +7619,13 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/openapi/openapi.yaml",
-      "sha256": "a766710815e16f48a2c1b8a4c11ddd4db25b8d31e0578413af5978b8fd6a279e",
-      "size_bytes": 41381
+      "sha256": "f9edb3bcdf094b1d5ac7466149caf0ead2d08885c9b4cc9cd748e76ab96f8267",
+      "size_bytes": 43885
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/generated.rs",
-      "sha256": "549a2f4a1a3e328f04108fe11a9fd982bdccd8f556692c201b00dc954dc20056",
-      "size_bytes": 53638
+      "sha256": "66d9728558dd6363459873b7104f1ba129ba07d8a11bf1dad23e3a11798f660b",
+      "size_bytes": 54995
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/http.rs",
@@ -8988,6 +8993,11 @@
       "size_bytes": 3280
     },
     {
+      "path": "tasks/M14/M14-T60-contract-reference-integrity.md",
+      "sha256": "db2af26ec9799231d9abbe05c763bfd03aa9d5d04feb7f42b94b1f029a8a8de6",
+      "size_bytes": 4193
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9439,7 +9449,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "8c3d1ee205e80f56c2cbbe67aad9e6c3b24dc1930a4ec5e33100a2e55ca19709",
-  "total_size_bytes": 14057454,
+  "source_tree_sha256": "ce61c97786ec2f98e41aa985a67468363ecc6cb4a73abed24df5451127c856ee",
+  "total_size_bytes": 14073181,
   "version": "1.12.0"
 }

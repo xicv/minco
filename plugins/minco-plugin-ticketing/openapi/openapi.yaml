@@ -995,6 +995,63 @@ components:
       required: [portal_origin]
       properties:
         portal_origin: {type: string, minLength: 1, maxLength: 300}
+    AgentBootstrap:
+      type: object
+      description: Truthful permission-derived agent console configuration without secrets.
+      additionalProperties: false
+      required: [schema_version, project_id, brand, label, subject, capabilities]
+      properties:
+        schema_version: {type: integer, const: 1}
+        project_id: {type: string}
+        brand: {type: string}
+        label: {type: string}
+        subject: {type: string}
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [create, reply, internal_note, manage]
+          properties:
+            create: {type: boolean}
+            reply: {type: boolean}
+            internal_note: {type: boolean}
+            manage: {type: boolean}
+    TicketSummary:
+      type: object
+      description: Compact newest-first agent summary of one ticket.
+      additionalProperties: false
+      required: [id, project_id, display_reference, subject, requester_subject, status, clock_state, priority, message_count, attachment_count, needs_attention, created_at, updated_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        project_id: {type: string}
+        display_reference: {type: string}
+        subject: {type: string}
+        requester_subject: {type: string}
+        status: {$ref: '#/components/schemas/TicketStatus'}
+        clock_state: {$ref: '#/components/schemas/TicketClockState'}
+        priority: {$ref: '#/components/schemas/TicketPriority'}
+        queue_id: {type: [string, 'null'], maxLength: 200}
+        assignee_subject: {type: [string, 'null'], maxLength: 300}
+        message_count: {type: integer, minimum: 0}
+        attachment_count: {type: integer, minimum: 0}
+        last_activity_at: {type: [string, 'null'], format: date-time}
+        needs_attention: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        revision: {type: integer, minimum: 0}
+    TicketSummaryCollection:
+      type: object
+      description: Compact ticket summaries ordered updated_at DESC, id DESC.
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/TicketSummary'}}
+        page:
+          type: object
+          additionalProperties: false
+          required: [hasMore, nextCursor]
+          properties:
+            hasMore: {type: boolean}
+            nextCursor: {type: [string, 'null']}
     AgentManagement:
       type: object
       additionalProperties: false
