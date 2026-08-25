@@ -1,9 +1,10 @@
 use crate::{
     ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity,
-    CreateTicketInput, ExternalMessageIngestResult, IngestExternalMessageRequest,
-    MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
-    TicketRequester, TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter,
-    TicketingStore,
+    CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIngestResult,
+    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OutboundDeliveryEvidence,
+    OutboundEvidenceKind, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
+    TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
+    TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
@@ -785,6 +786,69 @@ impl TicketingStore for SqliteTicketingStore {
             ))
         })
         .transpose()
+    }
+
+    async fn append_outbound_evidence(
+        &self,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<(), TicketStoreError> {
+        let kind = match evidence.kind {
+            OutboundEvidenceKind::Accepted => "accepted",
+            OutboundEvidenceKind::Ambiguous => "ambiguous",
+            OutboundEvidenceKind::PermanentFailure => "permanent_failure",
+            OutboundEvidenceKind::Feedback => "feedback",
+        };
+        let feedback = evidence.feedback.map(|feedback| match feedback {
+            DeliveryFeedbackKind::Bounce => "bounce",
+            DeliveryFeedbackKind::Complaint => "complaint",
+            DeliveryFeedbackKind::Delay => "delay",
+        });
+        sqlx::query(
+            "INSERT INTO ticketing_delivery_evidence
+                 (project_id, ticket_id, message_id, kind, provider, provider_message_id,
+                  feedback, failure_kind, recorded_at, evidence_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT (project_id, ticket_id, message_id, recorded_at, kind, provider_message_id)
+                 DO NOTHING",
+        )
+        .bind(&evidence.project_id)
+        .bind(evidence.ticket_id.to_string())
+        .bind(evidence.message_id.to_string())
+        .bind(kind)
+        .bind(&evidence.provider)
+        .bind(&evidence.provider_message_id)
+        .bind(feedback)
+        .bind(&evidence.failure_kind)
+        .bind(evidence.recorded_at.to_rfc3339())
+        .bind(serde_json::to_string(&evidence).map_err(encoding)?)
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn outbound_evidence(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+    ) -> Result<Vec<OutboundDeliveryEvidence>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT evidence_json FROM ticketing_delivery_evidence
+              WHERE project_id = ? AND ticket_id = ? AND message_id = ?
+              ORDER BY recorded_at, kind, provider_message_id",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .bind(message_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|row| {
+                serde_json::from_str(&row.get::<String, _>("evidence_json")).map_err(encoding)
+            })
+            .collect()
     }
 
     async fn ready(&self) -> Result<(), TicketStoreError> {
@@ -1739,6 +1803,72 @@ mod tests {
                 .await
                 .unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn delivery_evidence_round_trips_and_reconciles_through_sqlite() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = seeded_conversation_ticket(now);
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let message_id = TicketMessageId::new();
+        sqlite
+            .append_outbound_evidence(OutboundDeliveryEvidence {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                message_id,
+                kind: OutboundEvidenceKind::Ambiguous,
+                provider: "scripted".into(),
+                provider_message_id: String::new(),
+                feedback: None,
+                failure_kind: Some("ambiguous".into()),
+                recorded_at: now,
+            })
+            .await
+            .unwrap();
+        let accepted = OutboundDeliveryEvidence {
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            message_id,
+            kind: OutboundEvidenceKind::Accepted,
+            provider: "scripted".into(),
+            provider_message_id: "provider-1".into(),
+            feedback: None,
+            failure_kind: None,
+            recorded_at: now + TimeDelta::seconds(1),
+        };
+        sqlite
+            .append_outbound_evidence(accepted.clone())
+            .await
+            .unwrap();
+        // The natural key makes a redelivered acceptance append idempotent.
+        sqlite.append_outbound_evidence(accepted).await.unwrap();
+
+        let rows = sqlite
+            .outbound_evidence("project-a", ticket.id, message_id)
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].kind, OutboundEvidenceKind::Ambiguous);
+        assert_eq!(rows[0].failure_kind.as_deref(), Some("ambiguous"));
+        assert_eq!(rows[1].kind, OutboundEvidenceKind::Accepted);
+        assert_eq!(rows[1].provider_message_id, "provider-1");
+        // Evidence is scoped to the exact message.
+        assert!(
+            sqlite
+                .outbound_evidence("project-a", ticket.id, TicketMessageId::new())
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

@@ -127,6 +127,15 @@ impl NotificationsPlugin {
         }
     }
 
+    /// The observable mail path when mail delivery is configured
+    /// (`with_mail_service`/`with_legacy_mail`); composition roots hand
+    /// this to consumers that need acceptance receipts and ambiguity
+    /// classification instead of fire-and-forget sends.
+    #[must_use]
+    pub const fn mail_service(&self) -> Option<&MailService> {
+        self.mail_service.as_ref()
+    }
+
     pub fn with_mail_service(mut self, mail_service: MailService) -> Self {
         self.mail_service = Some(mail_service);
         self

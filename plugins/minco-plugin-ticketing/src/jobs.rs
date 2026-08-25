@@ -1,14 +1,18 @@
-//! Optional Ticketing-to-Jobs bridge (ADR-0054, ADR-0055).
+//! Optional Ticketing-to-Jobs bridge (ADR-0054, ADR-0055, ADR-0063).
 //!
 //! Two typed commands ship: `ticketing.deliver-public-notification` v1
-//! (real delivery through the notifications port) and
+//! (email delivery through the observable mail path with reconciliation
+//! and ambiguity recovery, in-app through the notifications port) and
 //! `ticketing.process-inbound-email` v1 (verified raw-object ingress).
 //! The bridge owns no queue, lease, retry or scheduling machinery — all of
 //! that is the released jobs plugin (ADR-0048).
 
 #[cfg(feature = "sqlite")]
 use crate::TicketStoreError;
-use crate::{TicketId, TicketMessageId, TicketingService, TicketingStoreService};
+use crate::{
+    OutboundDeliveryEvidence, OutboundEvidenceKind, TicketId, TicketMessageId, TicketingService,
+    TicketingStoreService,
+};
 #[cfg(feature = "sqlite")]
 use async_trait::async_trait;
 use chrono::{TimeDelta, Utc};
@@ -16,7 +20,10 @@ use minco_plugin_jobs::{
     Job, JobEnvelope, JobError, JobExecutionFailure, JobHandlerRegistry, JobOptions, RetryPolicy,
     pending_record,
 };
-use minco_plugin_notifications::{Notification, NotificationChannel, NotificationService};
+use minco_plugin_notifications::{
+    MailAddress, MailError, MailRetryAdvice, MailService, Notification, NotificationChannel,
+    NotificationService,
+};
 #[cfg(test)]
 use minco_plugin_object_storage::ObjectStore as _;
 use minco_plugin_object_storage::ObjectStoreService;
@@ -139,6 +146,10 @@ pub fn public_notification_envelope(
 pub struct TicketingJobsDeps {
     pub service: TicketingService,
     pub notifications: Arc<NotificationService>,
+    /// Observable mail path for email-channel public replies (ADR-0063).
+    /// When absent, email notifications fail closed as a permanent
+    /// configuration defect instead of silently downgrading the channel.
+    pub mail: Option<Arc<MailService>>,
     pub objects: Arc<ObjectStoreService>,
     pub worker: minco_plugin_identity::Identity,
 }
@@ -166,10 +177,14 @@ pub fn register_ticketing_jobs(
 ) -> Result<(), JobError> {
     let notification_store = store.clone();
     let notification_sink = deps.notifications.clone();
+    let notification_mail = deps.mail.clone();
     registry.register_typed::<DeliverPublicNotification, _, _>(move |command, _context| {
         let store = notification_store.clone();
         let notifications = notification_sink.clone();
-        async move { deliver_public_notification(&store, &notifications, &command).await }
+        let mail = notification_mail.clone();
+        async move {
+            deliver_public_notification(&store, &notifications, mail.as_ref(), &command).await
+        }
     })?;
     let inbound_service = deps.service.clone();
     let inbound_objects = deps.objects.clone();
@@ -278,6 +293,7 @@ async fn process_inbound_email(
 async fn deliver_public_notification(
     store: &TicketingStoreService,
     notifications: &NotificationService,
+    mail: Option<&Arc<MailService>>,
     command: &DeliverPublicNotification,
 ) -> Result<(), JobExecutionFailure> {
     let ticket = store
@@ -297,29 +313,148 @@ async fn deliver_public_notification(
             "ticketing.notification_target_missing",
         ));
     }
-    let recipient = ticket
-        .requester
-        .email
-        .clone()
-        .unwrap_or_else(|| ticket.requester.subject.clone());
-    notifications
-        .send(Notification {
-            id: Uuid::now_v7(),
-            topic: "ticketing.public-notification".into(),
-            channel: if ticket.requester.email.is_some() {
-                NotificationChannel::Email
-            } else {
-                NotificationChannel::InApp
-            },
-            recipient,
-            title: format!("{} — {}", ticket.display_reference, ticket.subject),
-            body: message.body.clone(),
-            link: None,
-            metadata: std::collections::BTreeMap::default(),
-            created_at: Utc::now(),
-        })
+    if ticket.requester.email.is_none() {
+        // In-app channel: no outbound email, no delivery evidence —
+        // the notifications port is the whole story (ADR-0054).
+        return notifications
+            .send(Notification {
+                id: Uuid::now_v7(),
+                topic: "ticketing.public-notification".into(),
+                channel: NotificationChannel::InApp,
+                recipient: ticket.requester.subject.clone(),
+                title: format!("{} — {}", ticket.display_reference, ticket.subject),
+                body: message.body.clone(),
+                link: None,
+                metadata: std::collections::BTreeMap::default(),
+                created_at: Utc::now(),
+            })
+            .await
+            .map_err(|_| JobExecutionFailure::retryable("ticketing.notification_send_failed"));
+    }
+    let Some(mail) = mail else {
+        // Email channel without a configured mail service is a permanent
+        // configuration defect; silently downgrading the channel would
+        // hide mail the requester was promised.
+        return Err(JobExecutionFailure::permanent(
+            "ticketing.notification_mail_unconfigured",
+        ));
+    };
+    deliver_public_reply_by_mail(store, mail, command, &ticket, message).await
+}
+
+/// Email-channel delivery with reconciliation and ambiguity recovery
+/// (ADR-0063). Provider acceptance is recorded as evidence and never
+/// claimed as delivery; an ambiguous transport result records evidence and
+/// retries only after reconciliation against it.
+async fn deliver_public_reply_by_mail(
+    store: &TicketingStoreService,
+    mail: &MailService,
+    command: &DeliverPublicNotification,
+    ticket: &crate::Ticket,
+    message: &crate::TicketMessage,
+) -> Result<(), JobExecutionFailure> {
+    let email =
+        ticket.requester.email.as_deref().ok_or_else(|| {
+            JobExecutionFailure::permanent("ticketing.notification_target_missing")
+        })?;
+    let message_id = message.id;
+    // Reconcile before any send: a recorded acceptance suppresses the
+    // resend, so job redelivery and ambiguous retries cannot duplicate
+    // outbound mail.
+    let evidence = store
+        .outbound_evidence(&command.project_id, command.ticket_id, message_id)
         .await
-        .map_err(|_| JobExecutionFailure::retryable("ticketing.notification_send_failed"))
+        .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
+    if evidence
+        .iter()
+        .any(|row| row.kind == OutboundEvidenceKind::Accepted)
+    {
+        return Ok(());
+    }
+    let address = MailAddress::new(email)
+        .map_err(|_| JobExecutionFailure::permanent("ticketing.notification_recipient_invalid"))?;
+    let message = minco_plugin_notifications::MailMessage::builder(
+        "ticketing.public-notification",
+        format!("{} — {}", ticket.display_reference, ticket.subject),
+    )
+    .to(address)
+    .text(message.body.clone())
+    .build()
+    .map_err(|_| JobExecutionFailure::permanent("ticketing.notification_message_invalid"))?;
+    let now = Utc::now();
+    match mail.send(message).await {
+        Ok(receipt) => {
+            store
+                .append_outbound_evidence(OutboundDeliveryEvidence {
+                    project_id: command.project_id.clone(),
+                    ticket_id: command.ticket_id,
+                    message_id,
+                    kind: OutboundEvidenceKind::Accepted,
+                    provider: receipt.transport.clone(),
+                    provider_message_id: receipt.provider_message_id.clone(),
+                    feedback: None,
+                    failure_kind: None,
+                    recorded_at: now,
+                })
+                .await
+                .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
+            Ok(())
+        }
+        Err(error) => match error.retry_advice() {
+            MailRetryAdvice::SafeAfterBackoff => Err(JobExecutionFailure::retryable(
+                "ticketing.notification_transport_retryable",
+            )),
+            MailRetryAdvice::ReconcileBeforeRetry => {
+                // Ambiguous result: record the fact, then fail retryably.
+                // The next attempt reconciles against recorded evidence
+                // before resending — never a blind retry.
+                store
+                    .append_outbound_evidence(OutboundDeliveryEvidence {
+                        project_id: command.project_id.clone(),
+                        ticket_id: command.ticket_id,
+                        message_id,
+                        kind: OutboundEvidenceKind::Ambiguous,
+                        provider: error.transport.clone(),
+                        provider_message_id: String::new(),
+                        feedback: None,
+                        failure_kind: Some(mail_failure_kind_name(&error)),
+                        recorded_at: now,
+                    })
+                    .await
+                    .map_err(|_| {
+                        JobExecutionFailure::retryable("ticketing.evidence_unavailable")
+                    })?;
+                Err(JobExecutionFailure::retryable(
+                    "ticketing.notification_ambiguous",
+                ))
+            }
+            MailRetryAdvice::Never => {
+                store
+                    .append_outbound_evidence(OutboundDeliveryEvidence {
+                        project_id: command.project_id.clone(),
+                        ticket_id: command.ticket_id,
+                        message_id,
+                        kind: OutboundEvidenceKind::PermanentFailure,
+                        provider: error.transport.clone(),
+                        provider_message_id: String::new(),
+                        feedback: None,
+                        failure_kind: Some(mail_failure_kind_name(&error)),
+                        recorded_at: now,
+                    })
+                    .await
+                    .map_err(|_| {
+                        JobExecutionFailure::retryable("ticketing.evidence_unavailable")
+                    })?;
+                Err(JobExecutionFailure::permanent(
+                    "ticketing.notification_permanent",
+                ))
+            }
+        },
+    }
+}
+
+fn mail_failure_kind_name(error: &MailError) -> String {
+    format!("{:?}", error.kind).to_lowercase()
 }
 
 /// Pattern A enqueue port (ADR-0054).
@@ -394,15 +529,6 @@ mod tests {
         .unwrap()
     }
 
-    fn identity() -> minco_plugin_identity::Identity {
-        minco_plugin_identity::Identity {
-            subject: "agent-1".into(),
-            permissions: BTreeSet::from(["ticketing.reply".into()]),
-            scopes: BTreeSet::new(),
-            claims: BTreeMap::new(),
-        }
-    }
-
     fn worker_identity() -> minco_plugin_identity::Identity {
         minco_plugin_identity::Identity {
             subject: "ticketing-mail-worker".into(),
@@ -412,7 +538,10 @@ mod tests {
         }
     }
 
-    fn notification_deps(notifications: Arc<NotificationService>) -> TicketingJobsDeps {
+    fn notification_deps(
+        notifications: Arc<NotificationService>,
+        mail: Option<Arc<MailService>>,
+    ) -> TicketingJobsDeps {
         let store = Arc::new(MemoryTicketingStore::default());
         let service = crate::TicketingService::new(
             TicketingStoreService::new(store),
@@ -428,6 +557,7 @@ mod tests {
         TicketingJobsDeps {
             service,
             notifications,
+            mail,
             objects,
             worker: worker_identity(),
         }
@@ -477,9 +607,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handler_delivers_the_public_message_through_the_notifications_port() {
+    async fn in_app_reply_goes_through_the_notifications_port_unchanged() {
         let now = Utc::now();
         let mut ticket = ticket(now);
+        ticket.requester.email = None;
         let message = ticket
             .reply_as_agent_message("agent-1", "Your fix is live.", now)
             .unwrap();
@@ -499,13 +630,11 @@ mod tests {
         let registry = Arc::new(JobHandlerRegistry::new());
         register_ticketing_jobs(
             &registry,
-            &TicketingStoreService::new(store),
-            notification_deps(notifications),
+            &TicketingStoreService::new(store.clone()),
+            notification_deps(notifications, None),
         )
         .unwrap();
 
-        // Execute through the released inline path: a real handler run,
-        // not a mocked assertion.
         let services = minco_plugin_jobs::JobsServices::memory(registry).0;
         let correlation = Uuid::now_v7();
         let envelope = public_notification_envelope(
@@ -521,11 +650,278 @@ mod tests {
         services.submit_inline(envelope).await.unwrap();
         let sent = sink.all().await;
         assert_eq!(sent.len(), 1);
-        assert_eq!(sent[0].topic, "ticketing.public-notification");
-        assert_eq!(sent[0].recipient, "user-1@example.test");
+        assert_eq!(sent[0].channel, NotificationChannel::InApp);
+        assert_eq!(sent[0].recipient, "user-1");
         assert_eq!(sent[0].body, "Your fix is live.");
-        assert!(sent[0].title.contains("TKT-JOB"));
-        let _ = identity();
+        // In-app delivery records no outbound evidence: nothing was mailed.
+        assert!(store.all_outbound_evidence().await.is_empty());
+    }
+
+    /// Scriptable mail transport: pops one scripted result per attempt and
+    /// records every submitted message.
+    type ScriptedResult = Result<minco_plugin_notifications::MailReceipt, MailError>;
+
+    struct ScriptedMailTransport {
+        script: tokio::sync::Mutex<Vec<ScriptedResult>>,
+        submitted: tokio::sync::Mutex<Vec<minco_plugin_notifications::MailMessage>>,
+    }
+
+    impl ScriptedMailTransport {
+        fn new(script: Vec<ScriptedResult>) -> Arc<Self> {
+            Arc::new(Self {
+                script: tokio::sync::Mutex::new(script),
+                submitted: tokio::sync::Mutex::new(Vec::new()),
+            })
+        }
+
+        async fn submit_count(&self) -> usize {
+            self.submitted.lock().await.len()
+        }
+    }
+
+    impl std::fmt::Debug for ScriptedMailTransport {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.debug_struct("ScriptedMailTransport").finish()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl minco_plugin_notifications::MailTransport for ScriptedMailTransport {
+        fn name(&self) -> &'static str {
+            "scripted"
+        }
+
+        async fn send(
+            &self,
+            message: &minco_plugin_notifications::MailMessage,
+            attempt: u32,
+        ) -> ScriptedResult {
+            self.submitted.lock().await.push(message.clone());
+            self.script.lock().await.pop().unwrap_or_else(|| {
+                Ok(minco_plugin_notifications::MailReceipt {
+                    message_id: message.id,
+                    transport: "scripted".into(),
+                    provider_message_id: format!("provider-{attempt}"),
+                    accepted_at: Utc::now(),
+                    attempt,
+                })
+            })
+        }
+    }
+
+    fn mail_error(kind: minco_plugin_notifications::MailErrorKind) -> MailError {
+        MailError::new(kind, "scripted", "scripted failure")
+    }
+
+    async fn mail_setup(
+        script: Vec<ScriptedResult>,
+    ) -> (
+        minco_plugin_jobs::JobsServices,
+        Arc<ScriptedMailTransport>,
+        Arc<MemoryTicketingStore>,
+        crate::Ticket,
+        crate::TicketMessage,
+    ) {
+        let now = Utc::now();
+        let mut ticket = ticket(now);
+        let message = ticket
+            .reply_as_agent_message("agent-1", "Your fix is live.", now)
+            .unwrap();
+        let store = Arc::new(MemoryTicketingStore::default());
+        let intent = crate::TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        store.create(ticket.clone(), intent).await.unwrap();
+        let transport = ScriptedMailTransport::new(script);
+        let mail = Arc::new(
+            MailService::single(
+                transport.clone(),
+                Arc::new(minco_plugin_notifications::NoopMailObserver),
+            )
+            .unwrap(),
+        );
+        let sink = Arc::new(MemoryNotificationSink::default());
+        let notifications = Arc::new(NotificationService::new(sink));
+        let registry = Arc::new(JobHandlerRegistry::new());
+        register_ticketing_jobs(
+            &registry,
+            &TicketingStoreService::new(store.clone()),
+            notification_deps(notifications, Some(mail)),
+        )
+        .unwrap();
+        (
+            minco_plugin_jobs::JobsServices::memory(registry).0,
+            transport,
+            store,
+            ticket,
+            message,
+        )
+    }
+
+    fn deliver_envelope(
+        ticket: &crate::Ticket,
+        message: &crate::TicketMessage,
+    ) -> minco_plugin_jobs::JobEnvelope {
+        public_notification_envelope(
+            &DeliverPublicNotification {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                message_id: message.id,
+            },
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn email_reply_records_acceptance_and_never_claims_delivery() {
+        let (services, transport, store, ticket, message) = mail_setup(vec![]).await;
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 1);
+        let evidence = store.all_outbound_evidence().await;
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(evidence[0].kind, OutboundEvidenceKind::Accepted);
+        assert_eq!(evidence[0].provider, "scripted");
+        assert_eq!(evidence[0].provider_message_id, "provider-1");
+        assert_eq!(evidence[0].message_id, message.id);
+    }
+
+    #[tokio::test]
+    async fn redelivery_after_acceptance_never_resends() {
+        let (services, transport, store, ticket, message) = mail_setup(vec![]).await;
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        // Redelivery (at-least-once) reconciles against recorded
+        // acceptance and suppresses the duplicate send.
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 1);
+        assert_eq!(store.all_outbound_evidence().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn ambiguous_result_records_evidence_and_resends_only_after_reconciliation() {
+        // First attempt: the transport result is ambiguous (was the mail
+        // accepted or not?). Evidence records the ambiguity; the job fails
+        // retryably — never a blind resend.
+        let (services, transport, store, ticket, message) = mail_setup(vec![Err(mail_error(
+            minco_plugin_notifications::MailErrorKind::Ambiguous,
+        ))])
+        .await;
+        let failure = services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap_err();
+        assert_eq!(failure.code(), "ticketing.notification_ambiguous");
+        assert!(!failure.is_permanent());
+        let evidence = store.all_outbound_evidence().await;
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(evidence[0].kind, OutboundEvidenceKind::Ambiguous);
+        assert_eq!(evidence[0].failure_kind.as_deref(), Some("ambiguous"));
+        // Retry: reconciliation finds no acceptance, so the resend is
+        // justified; it lands and records acceptance.
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 2);
+        let kinds = store
+            .all_outbound_evidence()
+            .await
+            .into_iter()
+            .map(|row| row.kind)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kinds,
+            vec![
+                OutboundEvidenceKind::Ambiguous,
+                OutboundEvidenceKind::Accepted
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn permanent_transport_failure_records_evidence_and_fails_permanently() {
+        let (services, _transport, store, ticket, message) = mail_setup(vec![Err(mail_error(
+            minco_plugin_notifications::MailErrorKind::Rejected,
+        ))])
+        .await;
+        let failure = services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap_err();
+        assert_eq!(failure.code(), "ticketing.notification_permanent");
+        assert!(failure.is_permanent());
+        let evidence = store.all_outbound_evidence().await;
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(evidence[0].kind, OutboundEvidenceKind::PermanentFailure);
+        assert_eq!(evidence[0].failure_kind.as_deref(), Some("rejected"));
+    }
+
+    #[tokio::test]
+    async fn retryable_transport_failure_records_no_evidence() {
+        // Transient attempts are the mail observer's story, not decision
+        // evidence: nothing is recorded until a terminal fact exists.
+        let (services, _transport, store, ticket, message) = mail_setup(vec![Err(mail_error(
+            minco_plugin_notifications::MailErrorKind::Throttled,
+        ))])
+        .await;
+        let failure = services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap_err();
+        assert_eq!(failure.code(), "ticketing.notification_transport_retryable");
+        assert!(!failure.is_permanent());
+        assert!(store.all_outbound_evidence().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn email_channel_without_mail_service_fails_closed() {
+        let now = Utc::now();
+        let mut ticket = ticket(now);
+        let message = ticket
+            .reply_as_agent_message("agent-1", "Your fix is live.", now)
+            .unwrap();
+        let store = Arc::new(MemoryTicketingStore::default());
+        let intent = crate::TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        store.create(ticket.clone(), intent).await.unwrap();
+        let sink = Arc::new(MemoryNotificationSink::default());
+        let registry = Arc::new(JobHandlerRegistry::new());
+        register_ticketing_jobs(
+            &registry,
+            &TicketingStoreService::new(store.clone()),
+            notification_deps(Arc::new(NotificationService::new(sink.clone())), None),
+        )
+        .unwrap();
+        let services = minco_plugin_jobs::JobsServices::memory(registry).0;
+        let failure = services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap_err();
+        assert_eq!(failure.code(), "ticketing.notification_mail_unconfigured");
+        assert!(failure.is_permanent());
+        assert!(sink.all().await.is_empty());
+        assert!(store.all_outbound_evidence().await.is_empty());
     }
 
     #[tokio::test]
@@ -537,7 +933,7 @@ mod tests {
         register_ticketing_jobs(
             &registry,
             &TicketingStoreService::new(store),
-            notification_deps(notifications),
+            notification_deps(notifications, None),
         )
         .unwrap();
         let services = minco_plugin_jobs::JobsServices::memory(registry).0;
@@ -630,6 +1026,7 @@ mod tests {
                 notifications: Arc::new(NotificationService::new(Arc::new(
                     MemoryNotificationSink::default(),
                 ))),
+                mail: None,
                 objects: Arc::new(ObjectStoreService::new(objects.clone())),
                 worker: worker_identity(),
             },

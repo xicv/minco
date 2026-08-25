@@ -1707,7 +1707,8 @@ fn map_error(error: TicketingServiceError, request_id: &str) -> ApiFailure {
         }
         value @ (TicketingServiceError::SupportEntry(_)
         | TicketingServiceError::InvalidContentDigest
-        | TicketingServiceError::InvalidExternalIdentity) => {
+        | TicketingServiceError::InvalidExternalIdentity
+        | TicketingServiceError::InvalidDeliveryFeedback) => {
             ApiFailure::validation(value.to_string(), request_id)
         }
         TicketingServiceError::Store(

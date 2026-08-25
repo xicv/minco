@@ -1,6 +1,6 @@
 use crate::{
     CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketFromHandoffInput, TicketId,
-    TicketRequester, TicketStatus, TicketSummary, TicketValidationError,
+    TicketMessageId, TicketRequester, TicketStatus, TicketSummary, TicketValidationError,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -27,6 +27,52 @@ pub struct TicketActivityIntent {
     pub correlation_id: Uuid,
     pub payload: serde_json::Value,
     pub created_at: DateTime<Utc>,
+}
+
+/// Fact kinds recorded for one outbound public reply (ADR-0063).
+///
+/// `Accepted` is provider acceptance only — it is never a delivery claim;
+/// delivery is disproven or indicated by `Feedback` rows, never asserted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutboundEvidenceKind {
+    Accepted,
+    Ambiguous,
+    PermanentFailure,
+    Feedback,
+}
+
+/// Provider feedback about a previously accepted outbound message
+/// (bounce, complaint or delay evidence).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeliveryFeedbackKind {
+    Bounce,
+    Complaint,
+    Delay,
+}
+
+/// One append-only outbound delivery-evidence row. Reconciliation reads
+/// these rows existentially (an `Accepted` row suppresses any resend);
+/// rows are never rewritten.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutboundDeliveryEvidence {
+    pub project_id: String,
+    pub ticket_id: TicketId,
+    pub message_id: TicketMessageId,
+    pub kind: OutboundEvidenceKind,
+    /// Bounded transport/provider identifier (at most 100 characters).
+    pub provider: String,
+    /// Provider's message identifier when known; empty otherwise
+    /// (at most 500 characters).
+    pub provider_message_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<DeliveryFeedbackKind>,
+    /// Mail error kind name recorded for `ambiguous` and
+    /// `permanent_failure` rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_kind: Option<String>,
+    pub recorded_at: DateTime<Utc>,
 }
 
 impl TicketActivityIntent {
@@ -298,6 +344,21 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         internet_message_id: &str,
     ) -> Result<Option<(TicketId, u64)>, TicketStoreError>;
 
+    /// Appends one append-only outbound delivery-evidence row
+    /// (ADR-0063).
+    async fn append_outbound_evidence(
+        &self,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<(), TicketStoreError>;
+
+    /// Chronological outbound delivery evidence for one ticket message.
+    async fn outbound_evidence(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+    ) -> Result<Vec<OutboundDeliveryEvidence>, TicketStoreError>;
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         Ok(())
     }
@@ -422,6 +483,24 @@ impl TicketingStoreService {
             .find_ticket_by_message_identity(project_id, provider, internet_message_id)
             .await
     }
+
+    pub async fn append_outbound_evidence(
+        &self,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<(), TicketStoreError> {
+        self.0.append_outbound_evidence(evidence).await
+    }
+
+    pub async fn outbound_evidence(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+    ) -> Result<Vec<OutboundDeliveryEvidence>, TicketStoreError> {
+        self.0
+            .outbound_evidence(project_id, ticket_id, message_id)
+            .await
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -440,6 +519,7 @@ struct MemoryState {
         BTreeMap<(String, String, String, String), (ExternalMessageIdentity, TicketId)>,
     activity_intents: Vec<TicketActivityIntent>,
     published_intents: BTreeSet<Uuid>,
+    outbound_evidence: Vec<OutboundDeliveryEvidence>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -457,6 +537,12 @@ impl MemoryTicketingStore {
 
     pub async fn published_intent_ids(&self) -> BTreeSet<Uuid> {
         self.state.lock().await.published_intents.clone()
+    }
+
+    /// Every recorded outbound delivery-evidence row (memory inspection
+    /// for tests and local runs).
+    pub async fn all_outbound_evidence(&self) -> Vec<OutboundDeliveryEvidence> {
+        self.state.lock().await.outbound_evidence.clone()
     }
 
     /// Job records committed transactionally with ticket mutations
@@ -1004,6 +1090,35 @@ impl TicketingStore for MemoryTicketingStore {
             .tickets
             .get(&(project_id.to_owned(), *ticket_id))
             .map(|ticket| (*ticket_id, ticket.revision)))
+    }
+
+    async fn append_outbound_evidence(
+        &self,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<(), TicketStoreError> {
+        self.state.lock().await.outbound_evidence.push(evidence);
+        Ok(())
+    }
+
+    async fn outbound_evidence(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+    ) -> Result<Vec<OutboundDeliveryEvidence>, TicketStoreError> {
+        Ok(self
+            .state
+            .lock()
+            .await
+            .outbound_evidence
+            .iter()
+            .filter(|row| {
+                row.project_id == project_id
+                    && row.ticket_id == ticket_id
+                    && row.message_id == message_id
+            })
+            .cloned()
+            .collect())
     }
 }
 

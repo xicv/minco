@@ -1,10 +1,11 @@
 use crate::{
     AppendTicketMessageRequest, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
-    CreateTicketInput, ExternalMessageIdentity, IngestExternalMessageRequest, MessageListFilter,
-    PublicTicketMessage, PublicTicketSummary, RequesterTicket, Ticket, TicketActivityIntent,
-    TicketAiContext, TicketAttachment, TicketFromHandoffInput, TicketId, TicketListFilter,
-    TicketMessage, TicketMessageId, TicketPriority, TicketStatus, TicketStoreError, TicketSummary,
-    TicketSummaryFilter, TicketingStoreService,
+    CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity, IngestExternalMessageRequest,
+    MessageListFilter, OutboundDeliveryEvidence, OutboundEvidenceKind, PublicTicketMessage,
+    PublicTicketSummary, RequesterTicket, Ticket, TicketActivityIntent, TicketAiContext,
+    TicketAttachment, TicketFromHandoffInput, TicketId, TicketListFilter, TicketMessage,
+    TicketMessageId, TicketMessageKind, TicketPriority, TicketStatus, TicketStoreError,
+    TicketSummary, TicketSummaryFilter, TicketingStoreService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use minco_interaction::{
@@ -741,6 +742,52 @@ impl TicketingService {
         Ok(result(outcome.ticket))
     }
 
+    /// Records provider delivery feedback (bounce, complaint or delay) as
+    /// append-only evidence for one outbound public reply (ADR-0063).
+    /// Feedback must reference an existing public reply; orphan or
+    /// misattributed feedback fails closed without persisting anything.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn record_delivery_feedback(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+        feedback: DeliveryFeedbackKind,
+        provider: &str,
+        provider_message_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<(), TicketingServiceError> {
+        authorize(principal, "ticketing.ingest")?;
+        self.require_project(project_id)?;
+        if !valid_external_text(provider, 100)
+            || !valid_external_text(provider_message_id, 500)
+            || provider_message_id.trim().is_empty()
+        {
+            return Err(TicketingServiceError::InvalidDeliveryFeedback);
+        }
+        let ticket = self.load(project_id, ticket_id).await?;
+        if !ticket.messages.iter().any(|message| {
+            message.id == message_id && message.kind == TicketMessageKind::PublicReply
+        }) {
+            return Err(TicketingServiceError::InvalidDeliveryFeedback);
+        }
+        self.store
+            .append_outbound_evidence(OutboundDeliveryEvidence {
+                project_id: project_id.to_owned(),
+                ticket_id,
+                message_id,
+                kind: OutboundEvidenceKind::Feedback,
+                provider: provider.to_owned(),
+                provider_message_id: provider_message_id.to_owned(),
+                feedback: Some(feedback),
+                failure_kind: None,
+                recorded_at: now,
+            })
+            .await?;
+        Ok(())
+    }
+
     pub async fn export_ai_context(
         &self,
         principal: &Identity,
@@ -1456,6 +1503,8 @@ pub enum TicketingServiceError {
     JobsUnavailable,
     #[error("inbound threading does not reference a known ticket")]
     InboundThreadUnresolved,
+    #[error("delivery feedback fields are invalid or reference an unknown outbound message")]
+    InvalidDeliveryFeedback,
     #[error("the inbound raw object is missing or unreadable")]
     InboundObjectMissing,
     #[error("the inbound raw object is not parseable MIME")]
@@ -1624,6 +1673,152 @@ mod tests {
             .unwrap();
 
         assert_eq!(replay.ticket, first.ticket);
+    }
+
+    async fn feedback_fixture() -> (
+        TicketingService,
+        Arc<MemoryTicketingStore>,
+        crate::Ticket,
+        crate::TicketMessage,
+    ) {
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let service =
+            TicketingService::new(TicketingStoreService::new(memory.clone()), test_config())
+                .unwrap();
+        let now = Utc::now();
+        let mut ticket = Ticket::create(create_input("Help"), "TKT-FB", now).unwrap();
+        let message = ticket
+            .reply_as_agent_message("agent-1", "Shipped.", now)
+            .unwrap();
+        TicketingStoreService::new(memory.clone())
+            .create(
+                ticket.clone(),
+                TicketActivityIntent::new(
+                    "project-a",
+                    ticket.id,
+                    "created",
+                    Uuid::now_v7(),
+                    serde_json::json!({}),
+                    now,
+                ),
+            )
+            .await
+            .unwrap();
+        (service, memory, ticket, message)
+    }
+
+    #[tokio::test]
+    async fn delivery_feedback_requires_the_ingest_permission() {
+        let (service, memory, ticket, message) = feedback_fixture().await;
+        let error = service
+            .record_delivery_feedback(
+                &identity("web", &["ticketing.read"]),
+                "project-a",
+                ticket.id,
+                message.id,
+                DeliveryFeedbackKind::Bounce,
+                "ses",
+                "ses-1",
+                Utc::now(),
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(error, TicketingServiceError::PermissionDenied(_)));
+        // Fail before persistence: no evidence row exists.
+        assert!(memory.all_outbound_evidence().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn delivery_feedback_rejects_invalid_and_unknown_targets() {
+        let (service, memory, ticket, message) = feedback_fixture().await;
+        let now = Utc::now();
+        let principal = identity("ingress", &["ticketing.ingest"]);
+        // Unknown message id: orphan feedback fails closed.
+        let error = service
+            .record_delivery_feedback(
+                &principal,
+                "project-a",
+                ticket.id,
+                TicketMessageId::new(),
+                DeliveryFeedbackKind::Complaint,
+                "ses",
+                "ses-1",
+                now,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            TicketingServiceError::InvalidDeliveryFeedback
+        ));
+        // Empty provider message id: not attributable, refused.
+        let error = service
+            .record_delivery_feedback(
+                &principal,
+                "project-a",
+                ticket.id,
+                message.id,
+                DeliveryFeedbackKind::Delay,
+                "ses",
+                "  ",
+                now,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            TicketingServiceError::InvalidDeliveryFeedback
+        ));
+        assert!(memory.all_outbound_evidence().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn delivery_feedback_records_bounce_and_complaint_evidence() {
+        let (service, memory, ticket, message) = feedback_fixture().await;
+        let now = Utc::now();
+        let principal = identity("ingress", &["ticketing.ingest"]);
+        service
+            .record_delivery_feedback(
+                &principal,
+                "project-a",
+                ticket.id,
+                message.id,
+                DeliveryFeedbackKind::Bounce,
+                "ses",
+                "ses-out-1",
+                now,
+            )
+            .await
+            .unwrap();
+        service
+            .record_delivery_feedback(
+                &principal,
+                "project-a",
+                ticket.id,
+                message.id,
+                DeliveryFeedbackKind::Complaint,
+                "ses",
+                "ses-out-1",
+                now,
+            )
+            .await
+            .unwrap();
+        let rows = memory.all_outbound_evidence().await;
+        assert_eq!(rows.len(), 2);
+        assert!(
+            rows.iter()
+                .all(|row| row.kind == OutboundEvidenceKind::Feedback
+                    && row.provider == "ses"
+                    && row.provider_message_id == "ses-out-1")
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.feedback == Some(DeliveryFeedbackKind::Bounce))
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.feedback == Some(DeliveryFeedbackKind::Complaint))
+        );
     }
 
     fn create_input(subject: &str) -> CreateTicketInput {

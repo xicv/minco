@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1878,
+  "file_count": 1881,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1734,8 +1734,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "97061a3b73680d1e6549a3338924c6144b213a72bb5677ab442a4694ed23a4b2",
-      "size_bytes": 12250
+      "sha256": "117e2a5104455cf945e4275ec8b26149425d93574f90ea9e4b1c433559724681",
+      "size_bytes": 12568
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2166,6 +2166,11 @@
       "path": "docs/adrs/0062-contract-reference-integrity.md",
       "sha256": "4f1ea8bc75eb16db7e6d8eb4d6c6d08182004c702efe3496e7568a1ce78d4692",
       "size_bytes": 2753
+    },
+    {
+      "path": "docs/adrs/0063-outbound-delivery-evidence.md",
+      "sha256": "55754748f07dee062bc835b388670ff576cb0f03d72d72e78e72f2098457f928",
+      "size_bytes": 3168
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -7199,8 +7204,8 @@
     },
     {
       "path": "plugins/minco-plugin-notifications/src/lib.rs",
-      "sha256": "f6f9aa2952e8d293853a507438c5eb399fb678f32b08a61944f22fb89b1c360e",
-      "size_bytes": 8060
+      "sha256": "5947aa9d7987d3741335fa04f6fda65d039730f4de90bdf8603c2e36a071da2e",
+      "size_bytes": 8447
     },
     {
       "path": "plugins/minco-plugin-notifications/src/mail.rs",
@@ -7613,6 +7618,11 @@
       "size_bytes": 1614
     },
     {
+      "path": "plugins/minco-plugin-ticketing/migrations/sqlite/0005_ticketing_delivery_evidence.sql",
+      "sha256": "6f7f9193b89bac6f1569a4e7821746785c64461f6031c3e1580d63579dc280bb",
+      "size_bytes": 737
+    },
+    {
       "path": "plugins/minco-plugin-ticketing/minco-plugin.json",
       "sha256": "833174eac43e9a994caa59dc1f4d9c9f8a6d48cc29d764a56909a8994886e16a",
       "size_bytes": 11121
@@ -7629,13 +7639,13 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/http.rs",
-      "sha256": "d34b848316dde3778ec0c03c37d30a27cd7391a1b15f1156a95374f59dc46d76",
-      "size_bytes": 114845
+      "sha256": "ad184c0a9369eaa1c872218b7d9a0cedebfe291516e3c8d1d800e8a85115efdd",
+      "size_bytes": 114902
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/jobs.rs",
-      "sha256": "efe516af6911b956b3be50e8d8ee350a3d76d02bb263ee75dfe1dd89014bcf2e",
-      "size_bytes": 31518
+      "sha256": "44fd0457f73aa9ca40ca3098ff5385b1a539dd251bf353a77c594055ce5788d6",
+      "size_bytes": 47445
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/lib.rs",
@@ -7649,8 +7659,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "sha256": "45d478f2d3de11551d849f4add6e9bb32a65f9a5f43fe289bb318faa5ce6b3e4",
-      "size_bytes": 93059
+      "sha256": "41bc6128fe9c16478207fcecad5decb5f67c48e3505b1e3496cc228fa84f4216",
+      "size_bytes": 98063
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/plugin.rs",
@@ -7659,13 +7669,13 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
-      "sha256": "76a942826b0755f0a1bbc68459467df14625a2c2a8adfae52a7ffb62d067e58b",
-      "size_bytes": 84867
+      "sha256": "380e81d167ec7aa36e18fcfa55ad1cd6a86c631481a704050c4aabe9767aa369",
+      "size_bytes": 91723
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
-      "sha256": "74d31529680b2192386e7069832d7b93b1f30f0b4824435abdbea4ceda80b907",
-      "size_bytes": 53365
+      "sha256": "9db7cd6580ad643a12b7010a3a701e3167e0c425da2905c232cd9c4f790426b8",
+      "size_bytes": 57211
     },
     {
       "path": "pricing/catalog.toml",
@@ -8998,6 +9008,11 @@
       "size_bytes": 4193
     },
     {
+      "path": "tasks/M14/M14-T61-outbound-delivery-evidence.md",
+      "sha256": "fd7c78b1b5ba78476ec3d79d8b1b9abfe6a4743fdbfde2c5031e3742e08cf292",
+      "size_bytes": 4054
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9449,7 +9464,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "ce61c97786ec2f98e41aa985a67468363ecc6cb4a73abed24df5451127c856ee",
-  "total_size_bytes": 14073181,
+  "source_tree_sha256": "771b6667cd515c5d2a3705c9a36f8b3175b60d464ac82ed909a9ca78b6ab7136",
+  "total_size_bytes": 14113535,
   "version": "1.12.0"
 }
