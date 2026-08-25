@@ -353,6 +353,22 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         evidence: OutboundDeliveryEvidence,
     ) -> Result<(), TicketStoreError>;
 
+    /// Atomically advances the project's round-robin cursor and returns
+    /// the index to use for a pool of `pool_len` members (ADR-0068).
+    async fn advance_assignment_cursor(
+        &self,
+        project_id: &str,
+        pool_len: usize,
+    ) -> Result<usize, TicketStoreError>;
+
+    /// Open (not resolved, not closed) ticket counts per requested
+    /// subject (ADR-0068); missing subjects report zero.
+    async fn assignee_workload(
+        &self,
+        project_id: &str,
+        subjects: &[String],
+    ) -> Result<BTreeMap<String, u64>, TicketStoreError>;
+
     /// Records that one agent viewed one ticket (advisory collision
     /// indication, ADR-0067); upserts the viewer's timestamp.
     async fn record_ticket_view(
@@ -532,6 +548,22 @@ impl TicketingStoreService {
             .await
     }
 
+    pub async fn advance_assignment_cursor(
+        &self,
+        project_id: &str,
+        pool_len: usize,
+    ) -> Result<usize, TicketStoreError> {
+        self.0.advance_assignment_cursor(project_id, pool_len).await
+    }
+
+    pub async fn assignee_workload(
+        &self,
+        project_id: &str,
+        subjects: &[String],
+    ) -> Result<BTreeMap<String, u64>, TicketStoreError> {
+        self.0.assignee_workload(project_id, subjects).await
+    }
+
     pub async fn record_ticket_view(
         &self,
         project_id: &str,
@@ -622,6 +654,7 @@ struct MemoryState {
     outbound_evidence: Vec<OutboundDeliveryEvidence>,
     ticket_views: BTreeMap<(String, TicketId), BTreeMap<String, DateTime<Utc>>>,
     macros: BTreeMap<(String, Uuid), AgentMacro>,
+    assignment_cursor: BTreeMap<String, u64>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -674,6 +707,56 @@ impl MemoryTicketingStore {
 
 #[async_trait]
 impl TicketingStore for MemoryTicketingStore {
+    #[allow(clippy::significant_drop_tightening)]
+    async fn advance_assignment_cursor(
+        &self,
+        project_id: &str,
+        pool_len: usize,
+    ) -> Result<usize, TicketStoreError> {
+        if pool_len == 0 {
+            return Err(TicketStoreError::Infrastructure(
+                "assignment pool is empty".into(),
+            ));
+        }
+        let mut state = self.state.lock().await;
+        let next = state
+            .assignment_cursor
+            .entry(project_id.to_owned())
+            .or_insert(0);
+        let divisor = u64::try_from(pool_len)
+            .map_err(|_| TicketStoreError::Infrastructure("pool too large".into()))?;
+        let index = usize::try_from(*next % divisor)
+            .map_err(|_| TicketStoreError::Infrastructure("cursor index overflow".into()))?;
+        *next = (*next + 1) % divisor;
+        Ok(index)
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn assignee_workload(
+        &self,
+        project_id: &str,
+        subjects: &[String],
+    ) -> Result<BTreeMap<String, u64>, TicketStoreError> {
+        let state = self.state.lock().await;
+        let mut workload = subjects
+            .iter()
+            .map(|subject| (subject.clone(), 0u64))
+            .collect::<BTreeMap<_, _>>();
+        for ticket in state.tickets.values() {
+            if ticket.project_id != project_id
+                || !matches!(ticket.status, TicketStatus::Resolved | TicketStatus::Closed)
+            {
+                continue;
+            }
+            if let Some(assignee) = &ticket.assignee_subject
+                && let Some(count) = workload.get_mut(assignee)
+            {
+                *count += 1;
+            }
+        }
+        Ok(workload)
+    }
+
     async fn create(
         &self,
         ticket: Ticket,
@@ -1000,7 +1083,11 @@ impl TicketingStore for MemoryTicketingStore {
             },
             format!("TKT-{counter:06}"),
             request.now,
-        )?;
+        )?
+        .with_deadlines(
+            request.input.first_response_deadline,
+            request.input.resolution_deadline,
+        );
         let result = SupportHandoffResult {
             ticket_id: ticket.id.0,
             requester_session_id: Uuid::now_v7(),
@@ -1423,6 +1510,9 @@ mod tests {
                 priority: TicketPriority::Normal,
                 ticket_type: crate::TicketType::default(),
                 form_answers: Vec::new(),
+
+                first_response_deadline: None,
+                resolution_deadline: None,
             },
             now,
         )

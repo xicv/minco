@@ -386,6 +386,8 @@ mod wire {
                 .into_iter()
                 .map(form_answer)
                 .collect(),
+            first_response_deadline: None,
+            resolution_deadline: None,
         }
     }
 }
@@ -875,33 +877,27 @@ async fn change_assignment(
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
     let revision = expected_revision(&headers, id, &request_id)?;
-    let result = if let Some(assignee) = body.assignee_subject {
-        state
-            .service
-            .assign_ticket(
-                &principal,
-                &state.service.config().project_id,
-                id,
-                assignee,
-                revision,
-                request_uuid(&request_id),
-                Utc::now(),
-            )
-            .await
-    } else {
-        state
-            .service
-            .unassign_ticket(
-                &principal,
-                &state.service.config().project_id,
-                id,
-                revision,
-                request_uuid(&request_id),
-                Utc::now(),
-            )
-            .await
-    }
-    .map_err(|error| map_error(error, &request_id))?;
+    let mode = match body.mode {
+        crate::generated::TicketAssignmentMode::Manual => crate::AssignmentMode::Manual,
+        crate::generated::TicketAssignmentMode::RoundRobin => crate::AssignmentMode::RoundRobin,
+        crate::generated::TicketAssignmentMode::LeastWorkload => {
+            crate::AssignmentMode::LeastWorkload
+        }
+    };
+    let result = state
+        .service
+        .assign_ticket_by_mode(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            mode,
+            body.assignee_subject,
+            revision,
+            request_uuid(&request_id),
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
     mutation_response(StatusCode::OK, result)
 }
 
@@ -2701,6 +2697,46 @@ mod tests {
         assert_eq!(ticket["priority"], "urgent");
         assert_eq!(ticket["revision"], managed["ticket"]["revision"]);
         assert!(detail_value["other_recent_viewers"].is_array());
+    }
+
+    #[tokio::test]
+    async fn assignment_modes_and_sla_deadlines_surface_through_the_api() {
+        let service = crate::TicketingService::new(
+            crate::TicketingStoreService::new(Arc::new(crate::MemoryTicketingStore::default())),
+            crate::TicketingConfig {
+                project_id: "project-a".into(),
+                assignment_pool: vec!["agent-a".into(), "agent-b".into()],
+                sla: Some(crate::TicketSlaConfig {
+                    first_response_hours: 4,
+                    resolution_hours: 48,
+                }),
+                ..crate::TicketingConfig::default()
+            },
+        )
+        .unwrap();
+        let app = ticketing_router(service).layer(axum::Extension(agent_principal()));
+        let created = create_tickets_through_api(&app, 1).await;
+        let id = created[0]["id"].as_str().unwrap().to_owned();
+        assert!(created[0]["first_response_deadline"].is_string());
+        assert!(created[0]["resolution_deadline"].is_string());
+
+        let assigned = app
+            .oneshot(
+                Request::patch(format!("/_minco/ticketing/tickets/{id}/assignment"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::IF_MATCH, format!("\"ticket:{id}:1\""))
+                    .body(Body::from(
+                        serde_json::json!({"mode": "round_robin"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(assigned.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(assigned.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(body["ticket"]["assignee_subject"], "agent-a");
     }
 
     #[tokio::test]

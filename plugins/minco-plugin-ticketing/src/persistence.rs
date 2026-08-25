@@ -9,6 +9,7 @@ use crate::{
 use async_trait::async_trait;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
 use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -165,7 +166,7 @@ impl TicketingStore for SqliteTicketingStore {
         // Compact projection: projection columns and child-table counts only;
         // this query must never read ticket_json.
         let rows = sqlx::query(
-            "SELECT t.id, t.display_reference, t.subject, t.status, t.priority, t.ticket_type, t.queue_id,
+            "SELECT t.id, t.display_reference, t.subject, t.status, t.priority, t.ticket_type, t.first_response_deadline, t.resolution_deadline, t.queue_id,
                     t.assignee_subject, t.requester_subject, t.created_at, t.updated_at, t.revision,
                     (SELECT COUNT(*) FROM ticketing_messages m
                       WHERE m.project_id = t.project_id AND m.ticket_id = t.id) AS message_count,
@@ -223,6 +224,14 @@ impl TicketingStore for SqliteTicketingStore {
                     subject: row.get("subject"),
                     requester_subject: row.get("requester_subject"),
                     ticket_type: parse_enum("ticket_type", row.get::<String, _>("ticket_type"))?,
+                    first_response_deadline: row
+                        .get::<Option<String>, _>("first_response_deadline")
+                        .map(|value| parse_timestamp(&value))
+                        .transpose()?,
+                    resolution_deadline: row
+                        .get::<Option<String>, _>("resolution_deadline")
+                        .map(|value| parse_timestamp(&value))
+                        .transpose()?,
                     status,
                     clock_state: status.clock_state(),
                     priority,
@@ -485,6 +494,10 @@ impl TicketingStore for SqliteTicketingStore {
             format!("TKT-{}", &ticket_uuid.simple().to_string()[..12]),
             request.now,
         )?;
+        let ticket = ticket.with_deadlines(
+            request.input.first_response_deadline,
+            request.input.resolution_deadline,
+        );
         let result = SupportHandoffResult {
             ticket_id: ticket.id.0,
             requester_session_id: uuid::Uuid::now_v7(),
@@ -1023,6 +1036,78 @@ impl TicketingStore for SqliteTicketingStore {
         })
     }
 
+    #[allow(clippy::significant_drop_tightening)]
+    async fn advance_assignment_cursor(
+        &self,
+        project_id: &str,
+        pool_len: usize,
+    ) -> Result<usize, TicketStoreError> {
+        if pool_len == 0 {
+            return Err(TicketStoreError::Infrastructure(
+                "assignment pool is empty".into(),
+            ));
+        }
+        let pool_len = i64::try_from(pool_len)
+            .map_err(|_| TicketStoreError::Infrastructure("overflow".into()))?;
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let row: Option<(i64,)> = sqlx::query_as(
+            "SELECT next_index FROM ticketing_assignment_cursor WHERE project_id = ?",
+        )
+        .bind(project_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let next = row.map_or(0, |(value,)| value);
+        let index = next % pool_len;
+        sqlx::query(
+            "INSERT INTO ticketing_assignment_cursor (project_id, next_index)
+             VALUES (?, ( ? + 1 ) % ?)
+             ON CONFLICT (project_id) DO UPDATE SET next_index = ( ? + 1 ) % ?",
+        )
+        .bind(project_id)
+        .bind(next)
+        .bind(pool_len)
+        .bind(next)
+        .bind(pool_len)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(usize::try_from(index)
+            .map_err(|_| TicketStoreError::Infrastructure("cursor index is negative".into()))?)
+    }
+
+    async fn assignee_workload(
+        &self,
+        project_id: &str,
+        subjects: &[String],
+    ) -> Result<BTreeMap<String, u64>, TicketStoreError> {
+        let mut workload = subjects
+            .iter()
+            .map(|subject| (subject.clone(), 0u64))
+            .collect::<BTreeMap<_, _>>();
+        if subjects.is_empty() {
+            return Ok(workload);
+        }
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT assignee_subject, COUNT(*) FROM ticketing_tickets
+              WHERE project_id = ?
+                AND assignee_subject IS NOT NULL
+                AND status NOT IN ('resolved', 'closed')
+              GROUP BY assignee_subject",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        for (subject, count) in rows {
+            if let Some(entry) = workload.get_mut(&subject) {
+                *entry = u64::try_from(count).unwrap_or(0);
+            }
+        }
+        Ok(workload)
+    }
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         sqlx::query("SELECT 1 FROM ticketing_tickets LIMIT 1")
             .execute(&self.pool)
@@ -1037,7 +1122,7 @@ async fn insert_ticket(
     ticket: &Ticket,
 ) -> Result<(), TicketStoreError> {
     sqlx::query(
-        "INSERT INTO ticketing_tickets (project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, waiting_since, resolved_at, closed_at, resolution, close_reason, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO ticketing_tickets (project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, first_response_deadline, resolution_deadline, waiting_since, resolved_at, closed_at, resolution, close_reason, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&ticket.project_id)
     .bind(ticket.id.to_string())
@@ -1058,6 +1143,8 @@ async fn insert_ticket(
     .bind(ticket.updated_at.to_rfc3339())
     .bind(i64::try_from(ticket.revision).map_err(|_| TicketStoreError::Infrastructure("revision exceeds SQLite integer".into()))?)
     .bind(ticket.first_public_response_at.map(|v| v.to_rfc3339()))
+    .bind(ticket.first_response_deadline.map(|v| v.to_rfc3339()))
+    .bind(ticket.resolution_deadline.map(|v| v.to_rfc3339()))
     .bind(ticket.waiting_since.map(|v| v.to_rfc3339()))
     .bind(ticket.resolved_at.map(|v| v.to_rfc3339()))
     .bind(ticket.closed_at.map(|v| v.to_rfc3339()))
@@ -1082,7 +1169,7 @@ async fn update_ticket(
         });
     }
     let result = sqlx::query(
-        "UPDATE ticketing_tickets SET subject = ?, description = ?, channel = ?, priority = ?, ticket_type = ?, form_answers_json = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, requester_display_name = ?, requester_email = ?, created_at = ?, updated_at = ?, revision = ?, first_public_response_at = ?, waiting_since = ?, resolved_at = ?, closed_at = ?, resolution = ?, close_reason = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
+        "UPDATE ticketing_tickets SET subject = ?, description = ?, channel = ?, priority = ?, ticket_type = ?, form_answers_json = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, requester_display_name = ?, requester_email = ?, created_at = ?, updated_at = ?, revision = ?, first_public_response_at = ?, first_response_deadline = ?, resolution_deadline = ?, waiting_since = ?, resolved_at = ?, closed_at = ?, resolution = ?, close_reason = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
     )
     .bind(&ticket.subject)
     .bind(&ticket.description)
@@ -1100,6 +1187,8 @@ async fn update_ticket(
     .bind(ticket.updated_at.to_rfc3339())
     .bind(i64::try_from(ticket.revision).map_err(|_| TicketStoreError::Infrastructure("revision exceeds SQLite integer".into()))?)
     .bind(ticket.first_public_response_at.map(|v| v.to_rfc3339()))
+    .bind(ticket.first_response_deadline.map(|v| v.to_rfc3339()))
+    .bind(ticket.resolution_deadline.map(|v| v.to_rfc3339()))
     .bind(ticket.waiting_since.map(|v| v.to_rfc3339()))
     .bind(ticket.resolved_at.map(|v| v.to_rfc3339()))
     .bind(ticket.closed_at.map(|v| v.to_rfc3339()))
@@ -1237,7 +1326,7 @@ async fn load_ticket_row(
     id: &str,
 ) -> Result<Option<Ticket>, TicketStoreError> {
     let Some(row) = sqlx::query(
-        "SELECT project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, waiting_since, resolved_at, closed_at, resolution, close_reason FROM ticketing_tickets WHERE project_id = ? AND id = ?",
+        "SELECT project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, first_response_deadline, resolution_deadline, waiting_since, resolved_at, closed_at, resolution, close_reason FROM ticketing_tickets WHERE project_id = ? AND id = ?",
     )
     .bind(project_id)
     .bind(id)
@@ -1370,6 +1459,8 @@ async fn load_ticket_row(
         created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
         updated_at: parse_timestamp(&row.get::<String, _>("updated_at"))?,
         first_public_response_at: optional_timestamp("first_public_response_at")?,
+        first_response_deadline: optional_timestamp("first_response_deadline")?,
+        resolution_deadline: optional_timestamp("resolution_deadline")?,
         waiting_since: optional_timestamp("waiting_since")?,
         resolved_at: optional_timestamp("resolved_at")?,
         closed_at: optional_timestamp("closed_at")?,
@@ -1491,6 +1582,9 @@ mod tests {
                 priority: TicketPriority::Normal,
                 ticket_type: crate::TicketType::default(),
                 form_answers: Vec::new(),
+
+                first_response_deadline: None,
+                resolution_deadline: None,
             },
             now,
         )

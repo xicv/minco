@@ -56,6 +56,14 @@ impl fmt::Debug for TicketingPortalServices {
     }
 }
 
+/// Explicit SLA bounds (ADR-0068): hours from creation; `0` disables
+/// that deadline while keeping the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TicketSlaConfig {
+    pub first_response_hours: u32,
+    pub resolution_hours: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TicketingConfig {
@@ -73,6 +81,14 @@ pub struct TicketingConfig {
     pub privacy_notice: String,
     #[serde(default = "default_requester_session_ttl_seconds")]
     pub requester_session_ttl_seconds: i64,
+    /// Explicit assignment pool for the round-robin and least-workload
+    /// modes (ADR-0068): bounded, unique agent subjects.
+    #[serde(default)]
+    pub assignment_pool: Vec<String>,
+    /// Optional SLA: when configured, ticket creation snapshots
+    /// first-response and resolution deadlines (ADR-0068).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sla: Option<TicketSlaConfig>,
     /// When true (and the `jobs` feature is enabled and an enqueue adapter
     /// is configured), a public agent reply also enqueues a
     /// `ticketing.deliver-public-notification` job in the same transaction
@@ -92,6 +108,8 @@ impl Default for TicketingConfig {
             support_brand: default_support_brand(),
             privacy_notice: default_privacy_notice(),
             requester_session_ttl_seconds: default_requester_session_ttl_seconds(),
+            assignment_pool: Vec::new(),
+            sla: None,
             notify_requester_on_public_reply: false,
         }
     }
@@ -100,6 +118,34 @@ impl Default for TicketingConfig {
 impl TicketingConfig {
     pub fn validate(&self) -> Result<(), TicketingServiceError> {
         validate_text("project_id", &self.project_id, 100)?;
+        if self.assignment_pool.len() > 32
+            || self
+                .assignment_pool
+                .iter()
+                .any(|subject| subject.trim().is_empty() || subject.chars().count() > 300)
+            || self.assignment_pool.iter().collect::<BTreeSet<_>>().len()
+                != self.assignment_pool.len()
+        {
+            return Err(TicketingServiceError::Configuration(
+                "assignment_pool must contain at most 32 unique non-empty subjects".into(),
+            ));
+        }
+        if let Some(sla) = &self.sla
+            && !(1..=8_760).contains(&sla.first_response_hours)
+            && sla.first_response_hours != 0
+        {
+            return Err(TicketingServiceError::Configuration(
+                "sla.first_response_hours must be 0..=8760".into(),
+            ));
+        }
+        if let Some(sla) = &self.sla
+            && !(1..=87_600).contains(&sla.resolution_hours)
+            && sla.resolution_hours != 0
+        {
+            return Err(TicketingServiceError::Configuration(
+                "sla.resolution_hours must be 0..=87600".into(),
+            ));
+        }
         validate_text("support_label", &self.support_label, 80)?;
         validate_text("support_brand", &self.support_brand, 80)?;
         validate_text("privacy_notice", &self.privacy_notice, 2_000)?;
@@ -328,6 +374,17 @@ impl TicketingService {
         now: DateTime<Utc>,
     ) -> Result<ConsumedHandoff, TicketingServiceError> {
         self.require_project(project_id)?;
+        let mut input = input;
+        if let Some(sla) = self.config.sla {
+            if sla.first_response_hours > 0 {
+                input.first_response_deadline =
+                    Some(now + TimeDelta::hours(i64::from(sla.first_response_hours)));
+            }
+            if sla.resolution_hours > 0 {
+                input.resolution_deadline =
+                    Some(now + TimeDelta::hours(i64::from(sla.resolution_hours)));
+            }
+        }
         Ok(self
             .store
             .consume_and_create_ticket(ConsumeHandoffRequest::new(
@@ -360,6 +417,7 @@ impl TicketingService {
         // same millisecond would collide on the display reference.
         let display_reference = format!("TKT-{}", id.simple());
         let ticket = Ticket::create(input, display_reference, now)?;
+        let ticket = self.apply_sla(ticket);
         let intent = activity(&ticket, "ticketing.created", correlation_id, now);
         self.store.create(ticket.clone(), intent).await?;
         Ok(result(ticket))
@@ -551,6 +609,80 @@ impl TicketingService {
             project_id,
             id,
             None,
+            expected_revision,
+            correlation_id,
+            now,
+        )
+        .await
+    }
+
+    #[must_use]
+    fn apply_sla(&self, ticket: Ticket) -> Ticket {
+        match self.config.sla {
+            Some(sla) => ticket.with_sla_snapshots(sla),
+            None => ticket,
+        }
+    }
+
+    /// One assignment decision (ADR-0068): manual carries (or clears)
+    /// the subject; the pool modes pick from the configured assignment
+    /// pool — round-robin through a durable cursor, least-workload by
+    /// the fewest open tickets with a lexicographic tie-break.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn assign_ticket_by_mode(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+        mode: crate::AssignmentMode,
+        manual: Option<String>,
+        expected_revision: u64,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<TicketingMutationResult, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        self.require_project(project_id)?;
+        let assignee = match mode {
+            crate::AssignmentMode::Manual => manual,
+            crate::AssignmentMode::RoundRobin => {
+                let pool = self.config.assignment_pool.clone();
+                if pool.is_empty() {
+                    return Err(TicketingServiceError::Configuration(
+                        "assignment_pool is not configured".into(),
+                    ));
+                }
+                let index = self
+                    .store
+                    .advance_assignment_cursor(project_id, pool.len())
+                    .await?;
+                // The cursor index is bounded by the pool length by
+                // construction; unwrap_or_else keeps this total.
+                Some(pool.get(index).cloned().unwrap_or_default())
+            }
+            crate::AssignmentMode::LeastWorkload => {
+                let pool = self.config.assignment_pool.clone();
+                if pool.is_empty() {
+                    return Err(TicketingServiceError::Configuration(
+                        "assignment_pool is not configured".into(),
+                    ));
+                }
+                let workload = self.store.assignee_workload(project_id, &pool).await?;
+                Some(
+                    pool.iter()
+                        .min_by_key(|subject| {
+                            (workload.get(*subject).copied().unwrap_or(0), *subject)
+                        })
+                        .cloned()
+                        // A non-empty pool always has a minimum.
+                        .unwrap_or_default(),
+                )
+            }
+        };
+        self.change_assignment(
+            principal,
+            project_id,
+            id,
+            assignee,
             expected_revision,
             correlation_id,
             now,
@@ -1842,6 +1974,163 @@ mod tests {
             .await
             .unwrap();
         (service, memory, ticket, message)
+    }
+
+    fn manager_identity() -> Identity {
+        identity("manager", &["ticketing.create", "ticketing.manage"])
+    }
+
+    fn sla_pool_service() -> TicketingService {
+        let memory = Arc::new(MemoryTicketingStore::default());
+        TicketingService::new(
+            TicketingStoreService::new(memory),
+            TicketingConfig {
+                project_id: "project-a".into(),
+                assignment_pool: vec!["agent-a".into(), "agent-b".into()],
+                sla: Some(TicketSlaConfig {
+                    first_response_hours: 4,
+                    resolution_hours: 48,
+                }),
+                ..test_config()
+            },
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn creation_snapshots_sla_deadlines() {
+        let service = sla_pool_service();
+        let identity = manager_identity();
+        let created = service
+            .create_ticket(&identity, create_input("Help"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        let deadline = created
+            .first_response_deadline
+            .expect("first response deadline snapshot");
+        assert!(deadline > created.created_at);
+        assert!(created.resolution_deadline.is_some());
+    }
+
+    #[tokio::test]
+    async fn assignment_modes_pick_from_the_pool_deterministically() {
+        let service = sla_pool_service();
+        let identity = manager_identity();
+        let first = service
+            .create_ticket(&identity, create_input("One"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        let second = service
+            .create_ticket(&identity, create_input("Two"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        let now = Utc::now();
+
+        // Round-robin advances: first pick a, second pick b.
+        let assigned = service
+            .assign_ticket_by_mode(
+                &identity,
+                "project-a",
+                first.id,
+                crate::AssignmentMode::RoundRobin,
+                None,
+                first.revision,
+                Uuid::new_v4(),
+                now,
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(assigned.assignee_subject.as_deref(), Some("agent-a"));
+        let assigned = service
+            .assign_ticket_by_mode(
+                &identity,
+                "project-a",
+                second.id,
+                crate::AssignmentMode::RoundRobin,
+                None,
+                second.revision,
+                Uuid::new_v4(),
+                now,
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(assigned.assignee_subject.as_deref(), Some("agent-b"));
+
+        // Least-workload picks the member with the fewest open tickets;
+        // agent-a holds one, agent-b holds one, so the tie breaks
+        // lexicographically to agent-a.
+        let third = service
+            .create_ticket(&identity, create_input("Three"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        let assigned = service
+            .assign_ticket_by_mode(
+                &identity,
+                "project-a",
+                third.id,
+                crate::AssignmentMode::LeastWorkload,
+                None,
+                third.revision,
+                Uuid::new_v4(),
+                now,
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(assigned.assignee_subject.as_deref(), Some("agent-a"));
+
+        // Manual still sets and clears explicitly.
+        let assigned = service
+            .assign_ticket_by_mode(
+                &identity,
+                "project-a",
+                third.id,
+                crate::AssignmentMode::Manual,
+                Some("agent-b".into()),
+                assigned.revision,
+                Uuid::new_v4(),
+                now,
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(assigned.assignee_subject.as_deref(), Some("agent-b"));
+    }
+
+    #[tokio::test]
+    async fn pool_modes_fail_closed_without_a_pool() {
+        let service = sla_pool_service();
+        let identity = manager_identity();
+        let ticket = service
+            .create_ticket(&identity, create_input("Help"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        let bare = TicketingService::new(
+            TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+            test_config(),
+        )
+        .unwrap();
+        let error = bare
+            .assign_ticket_by_mode(
+                &identity,
+                "project-a",
+                ticket.id,
+                crate::AssignmentMode::RoundRobin,
+                None,
+                ticket.revision,
+                Uuid::new_v4(),
+                Utc::now(),
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(error, TicketingServiceError::Configuration(_)));
     }
 
     #[tokio::test]

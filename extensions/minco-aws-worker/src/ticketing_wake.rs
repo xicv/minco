@@ -237,6 +237,18 @@ mod tests {
 
     /// Byte-accurate real S3 notification envelope for one `ObjectCreated`
     /// Put of the given key (percent-encoded as S3 delivers keys).
+    /// One eventTime stamp per test process: the semantic fingerprint
+    /// anchors on the arrival time, so a redelivery pair must share it,
+    /// and it must move with the wall clock so the six-hour deadline
+    /// window never expires under the test.
+    fn envelope_event_time() -> String {
+        use std::sync::OnceLock;
+        static STAMP: OnceLock<String> = OnceLock::new();
+        STAMP
+            .get_or_init(|| chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+            .clone()
+    }
+
     fn real_envelope(raw_key: &str, url_decoded_key: Option<&str>) -> String {
         let mut object = serde_json::json!({
             "key": raw_key,
@@ -250,7 +262,7 @@ mod tests {
                 "eventVersion": "2.2",
                 "eventSource": "aws:s3",
                 "awsRegion": "us-east-1",
-                "eventTime": "2026-08-25T10:00:00.000Z",
+                "eventTime": envelope_event_time(),
                 "eventName": "ObjectCreated:Put",
                 "userIdentity": {"principalId": "AWS:SES"},
                 "requestParameters": {"sourceIPAddress": "10.0.0.1"},
@@ -269,7 +281,7 @@ mod tests {
     fn full_record(key: &str) -> serde_json::Value {
         serde_json::json!({
             "eventSource": "aws:s3", "eventName": "ObjectCreated:Put",
-            "eventTime": "2026-08-25T10:00:00Z",
+            "eventTime": envelope_event_time(),
             "userIdentity": {"principalId": "AWS:SES"},
             "requestParameters": {"sourceIPAddress": "10.0.0.1"},
             "responseElements": {},

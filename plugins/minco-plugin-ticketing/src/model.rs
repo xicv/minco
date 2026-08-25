@@ -366,6 +366,12 @@ pub struct Ticket {
     pub updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_public_response_at: Option<DateTime<Utc>>,
+    /// SLA snapshots (ADR-0068): fixed at creation when an SLA is
+    /// configured; never recomputed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_response_deadline: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution_deadline: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waiting_since: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -393,6 +399,17 @@ pub struct CreateTicketInput {
     pub form_answers: Vec<TicketFormAnswer>,
     #[serde(default)]
     pub resource_references: Vec<SupportResourceReference>,
+}
+
+/// How an assignment decision picks its agent (ADR-0068): manual
+/// carries the subject; the pool modes select from the configured
+/// assignment pool deterministically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssignmentMode {
+    Manual,
+    RoundRobin,
+    LeastWorkload,
 }
 
 /// The closed set of curated agent views (ADR-0067). Server-defined
@@ -541,6 +558,8 @@ impl Ticket {
             created_at: now,
             updated_at: now,
             first_public_response_at: None,
+            first_response_deadline: None,
+            resolution_deadline: None,
             waiting_since: None,
             resolved_at: None,
             closed_at: None,
@@ -1043,6 +1062,10 @@ pub struct TicketSummary {
     pub attachment_count: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_activity_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_response_deadline: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution_deadline: Option<DateTime<Utc>>,
     pub needs_attention: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -1050,6 +1073,35 @@ pub struct TicketSummary {
 }
 
 impl Ticket {
+    /// Snapshots the SLA deadlines from the creation time (ADR-0068);
+    /// `0` hours disables that single deadline.
+    #[must_use]
+    pub fn with_sla_snapshots(mut self, sla: crate::TicketSlaConfig) -> Self {
+        let created = self.created_at;
+        if sla.first_response_hours > 0 {
+            self.first_response_deadline =
+                Some(created + chrono::TimeDelta::hours(i64::from(sla.first_response_hours)));
+        }
+        if sla.resolution_hours > 0 {
+            self.resolution_deadline =
+                Some(created + chrono::TimeDelta::hours(i64::from(sla.resolution_hours)));
+        }
+        self
+    }
+
+    /// Sets precomputed SLA snapshots (ADR-0068) on handoff-created
+    /// tickets; creation-time snapshots come from `with_sla_snapshots`.
+    #[must_use]
+    pub const fn with_deadlines(
+        mut self,
+        first_response_deadline: Option<DateTime<Utc>>,
+        resolution_deadline: Option<DateTime<Utc>>,
+    ) -> Self {
+        self.first_response_deadline = first_response_deadline;
+        self.resolution_deadline = resolution_deadline;
+        self
+    }
+
     #[must_use]
     pub const fn needs_attention(&self) -> bool {
         matches!(
@@ -1075,6 +1127,8 @@ impl Ticket {
             message_count: self.messages.len(),
             attachment_count: self.attachments.len(),
             last_activity_at: self.messages.last().map(|message| message.created_at),
+            first_response_deadline: self.first_response_deadline,
+            resolution_deadline: self.resolution_deadline,
             needs_attention: self.needs_attention(),
             created_at: self.created_at,
             updated_at: self.updated_at,
@@ -1105,6 +1159,10 @@ pub struct TicketFromHandoffInput {
     pub priority: TicketPriority,
     pub ticket_type: TicketType,
     pub form_answers: Vec<TicketFormAnswer>,
+    /// SLA snapshots (ADR-0068) computed by the service from config;
+    /// `None` when no SLA is configured.
+    pub first_response_deadline: Option<DateTime<Utc>>,
+    pub resolution_deadline: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
