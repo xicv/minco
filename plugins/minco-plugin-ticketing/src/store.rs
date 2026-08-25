@@ -1,6 +1,6 @@
 use crate::{
-    CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketFromHandoffInput, TicketId,
-    TicketMessageId, TicketRequester, TicketStatus, TicketSummary, TicketValidationError,
+    AgentMacro, CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketFromHandoffInput,
+    TicketId, TicketMessageId, TicketRequester, TicketStatus, TicketSummary, TicketValidationError,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -105,6 +105,8 @@ pub struct TicketSummaryFilter {
     pub statuses: BTreeSet<TicketStatus>,
     pub queue_id: Option<String>,
     pub assignee_subject: Option<String>,
+    /// Only tickets with no assignee (curated `new-unassigned` view).
+    pub unassigned: bool,
     pub requester_subject: Option<String>,
     pub before_updated_at: Option<DateTime<Utc>>,
     pub before_id: Option<TicketId>,
@@ -351,6 +353,52 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         evidence: OutboundDeliveryEvidence,
     ) -> Result<(), TicketStoreError>;
 
+    /// Records that one agent viewed one ticket (advisory collision
+    /// indication, ADR-0067); upserts the viewer's timestamp.
+    async fn record_ticket_view(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        subject: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), TicketStoreError>;
+
+    /// Other agents who viewed the ticket inside the window, newest
+    /// first, bounded by `limit`, excluding `subject`.
+    async fn recent_ticket_viewers(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        excluding: &str,
+        within: chrono::TimeDelta,
+        now: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<String>, TicketStoreError>;
+
+    /// All shared saved replies, ordered by title.
+    async fn list_macros(&self, project_id: &str) -> Result<Vec<AgentMacro>, TicketStoreError>;
+
+    /// Inserts a new macro into the project's shared library; a
+    /// duplicate title in the project is refused.
+    async fn insert_macro(
+        &self,
+        project_id: &str,
+        macro_: AgentMacro,
+    ) -> Result<(), TicketStoreError>;
+
+    /// Replaces one macro under the expected revision; stale revisions
+    /// fail with [`TicketStoreError::StaleRevision`].
+    #[allow(clippy::significant_drop_tightening)]
+    async fn update_macro(
+        &self,
+        project_id: &str,
+        id: Uuid,
+        expected_revision: u64,
+        title: &str,
+        body: &str,
+        now: DateTime<Utc>,
+    ) -> Result<AgentMacro, TicketStoreError>;
+
     /// Chronological outbound delivery evidence for one ticket message.
     async fn outbound_evidence(
         &self,
@@ -484,6 +532,58 @@ impl TicketingStoreService {
             .await
     }
 
+    pub async fn record_ticket_view(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        subject: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), TicketStoreError> {
+        self.0
+            .record_ticket_view(project_id, ticket_id, subject, at)
+            .await
+    }
+
+    pub async fn recent_ticket_viewers(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        excluding: &str,
+        within: chrono::TimeDelta,
+        now: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<String>, TicketStoreError> {
+        self.0
+            .recent_ticket_viewers(project_id, ticket_id, excluding, within, now, limit)
+            .await
+    }
+
+    pub async fn list_macros(&self, project_id: &str) -> Result<Vec<AgentMacro>, TicketStoreError> {
+        self.0.list_macros(project_id).await
+    }
+
+    pub async fn insert_macro(
+        &self,
+        project_id: &str,
+        macro_: AgentMacro,
+    ) -> Result<(), TicketStoreError> {
+        self.0.insert_macro(project_id, macro_).await
+    }
+
+    pub async fn update_macro(
+        &self,
+        project_id: &str,
+        id: Uuid,
+        expected_revision: u64,
+        title: &str,
+        body: &str,
+        now: DateTime<Utc>,
+    ) -> Result<AgentMacro, TicketStoreError> {
+        self.0
+            .update_macro(project_id, id, expected_revision, title, body, now)
+            .await
+    }
+
     pub async fn append_outbound_evidence(
         &self,
         evidence: OutboundDeliveryEvidence,
@@ -520,6 +620,8 @@ struct MemoryState {
     activity_intents: Vec<TicketActivityIntent>,
     published_intents: BTreeSet<Uuid>,
     outbound_evidence: Vec<OutboundDeliveryEvidence>,
+    ticket_views: BTreeMap<(String, TicketId), BTreeMap<String, DateTime<Utc>>>,
+    macros: BTreeMap<(String, Uuid), AgentMacro>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -1094,6 +1196,115 @@ impl TicketingStore for MemoryTicketingStore {
             .map(|ticket| (*ticket_id, ticket.revision)))
     }
 
+    #[allow(clippy::significant_drop_tightening)]
+    async fn record_ticket_view(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        subject: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        if !state
+            .tickets
+            .contains_key(&(project_id.to_owned(), ticket_id))
+        {
+            return Err(TicketStoreError::NotFound(ticket_id));
+        }
+        state
+            .ticket_views
+            .entry((project_id.to_owned(), ticket_id))
+            .or_default()
+            .insert(subject.to_owned(), at);
+        Ok(())
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn recent_ticket_viewers(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        excluding: &str,
+        within: chrono::TimeDelta,
+        now: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<String>, TicketStoreError> {
+        let state = self.state.lock().await;
+        let Some(viewers) = state.ticket_views.get(&(project_id.to_owned(), ticket_id)) else {
+            return Ok(Vec::new());
+        };
+        let mut recent: Vec<(DateTime<Utc>, String)> = viewers
+            .iter()
+            .filter(|(subject, viewed_at)| {
+                subject.as_str() != excluding && now - *viewed_at <= within
+            })
+            .map(|(subject, viewed_at)| (*viewed_at, subject.clone()))
+            .collect();
+        recent.sort();
+        recent.reverse();
+        Ok(recent
+            .into_iter()
+            .take(limit)
+            .map(|(_, subject)| subject)
+            .collect())
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn list_macros(&self, project_id: &str) -> Result<Vec<AgentMacro>, TicketStoreError> {
+        let state = self.state.lock().await;
+        let mut macros = state
+            .macros
+            .iter()
+            .filter(|((macro_project, _), _)| macro_project == project_id)
+            .map(|(_, macro_)| macro_.clone())
+            .collect::<Vec<_>>();
+        macros.sort_by(|a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
+        Ok(macros)
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn insert_macro(
+        &self,
+        project_id: &str,
+        macro_: AgentMacro,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let project = project_id.to_owned();
+        if state.macros.iter().any(|((macro_project, _), existing)| {
+            macro_project == &project && existing.title == macro_.title
+        }) {
+            return Err(TicketStoreError::DuplicateMacroTitle);
+        }
+        state.macros.insert((project, macro_.id), macro_);
+        Ok(())
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn update_macro(
+        &self,
+        project_id: &str,
+        id: Uuid,
+        expected_revision: u64,
+        title: &str,
+        body: &str,
+        now: DateTime<Utc>,
+    ) -> Result<AgentMacro, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let key = (project_id.to_owned(), id);
+        let Some(existing) = state.macros.get(&key).cloned() else {
+            return Err(TicketStoreError::MacroNotFound(id));
+        };
+        if existing.revision != expected_revision {
+            return Err(TicketStoreError::StaleRevision {
+                expected: expected_revision,
+                actual: existing.revision,
+            });
+        }
+        let updated = existing.with_next_revision(title, body, now);
+        state.macros.insert(key, updated.clone());
+        Ok(updated)
+    }
+
     async fn append_outbound_evidence(
         &self,
         evidence: OutboundDeliveryEvidence,
@@ -1134,6 +1345,10 @@ pub enum TicketStoreError {
     DuplicateTicket(TicketId),
     #[error("ticket display reference already exists in the project")]
     DuplicateDisplayReference,
+    #[error("a saved reply with this title already exists in the project")]
+    DuplicateMacroTitle,
+    #[error("saved reply was not found: {0}")]
+    MacroNotFound(Uuid),
     #[error("ticket revision is stale: expected {expected}, actual {actual}")]
     StaleRevision { expected: u64, actual: u64 },
     #[error("ticket list fetch limit must be between 1 and 201")]

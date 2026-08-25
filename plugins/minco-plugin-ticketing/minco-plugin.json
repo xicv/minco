@@ -381,6 +381,34 @@
       ]
     },
     {
+      "operation_id": "listTicketingAgentView",
+      "method": "GET",
+      "path": "/_minco/ticketing/agent/views/{viewId}",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "listTicketingAgentMacros",
+      "method": "GET",
+      "path": "/_minco/ticketing/agent/macros",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "createTicketingAgentMacro",
+      "method": "POST",
+      "path": "/_minco/ticketing/agent/macros",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "updateTicketingAgentMacro",
+      "method": "PATCH",
+      "path": "/_minco/ticketing/agent/macros/{macroId}",
+      "public": false,
+      "idempotent": false
+    },
+    {
       "operation_id": "listTicketingRequesterTickets",
       "method": "GET",
       "path": "/_minco/ticketing/requester/tickets",

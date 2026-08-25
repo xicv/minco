@@ -828,6 +828,139 @@ impl TicketingService {
         Ok(self.store.list_summaries(filter).await?)
     }
 
+    /// One curated agent view (ADR-0067): a closed server-defined
+    /// predicate over ticket summaries — never an ad-hoc query surface.
+    pub async fn list_agent_view(
+        &self,
+        principal: &Identity,
+        view: crate::AgentCuratedView,
+        limit: usize,
+        before: Option<(DateTime<Utc>, TicketId)>,
+    ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        let mut statuses = BTreeSet::new();
+        let mut assignee_subject = None;
+        let mut unassigned = false;
+        match view {
+            crate::AgentCuratedView::NewUnassigned => {
+                statuses.insert(crate::TicketStatus::New);
+                unassigned = true;
+            }
+            crate::AgentCuratedView::PendingRequester => {
+                statuses.insert(crate::TicketStatus::PendingRequester);
+            }
+            crate::AgentCuratedView::PendingInternal => {
+                statuses.insert(crate::TicketStatus::PendingInternal);
+            }
+            crate::AgentCuratedView::Mine => {
+                assignee_subject = Some(principal.subject.clone());
+            }
+            crate::AgentCuratedView::RecentlyResolved => {
+                statuses.insert(crate::TicketStatus::Resolved);
+            }
+        }
+        Ok(self
+            .store
+            .list_summaries(TicketSummaryFilter {
+                project_id: self.config().project_id.clone(),
+                statuses,
+                queue_id: None,
+                assignee_subject,
+                unassigned,
+                requester_subject: None,
+                before_updated_at: before.map(|value| value.0),
+                before_id: before.map(|value| value.1),
+                limit,
+            })
+            .await?)
+    }
+
+    /// Agent detail with advisory collision indication (ADR-0067):
+    /// records this view and reports the other recent viewers. If-Match
+    /// on mutations remains the collision authority.
+    pub async fn agent_ticket_with_viewers(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+    ) -> Result<(Ticket, Vec<String>), TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        self.require_project(project_id)?;
+        let ticket = self.load(project_id, id).await?;
+        let now = Utc::now();
+        self.store
+            .record_ticket_view(project_id, id, &principal.subject, now)
+            .await?;
+        let viewers = self
+            .store
+            .recent_ticket_viewers(
+                project_id,
+                id,
+                &principal.subject,
+                crate::TICKET_VIEW_WINDOW,
+                now,
+                crate::MAX_OTHER_VIEWERS,
+            )
+            .await?;
+        Ok((ticket, viewers))
+    }
+
+    /// The project's shared saved replies, ordered by title (ADR-0067).
+    pub async fn list_agent_macros(
+        &self,
+        principal: &Identity,
+    ) -> Result<Vec<crate::AgentMacro>, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        Ok(self
+            .store
+            .list_macros(&self.config().project_id.clone())
+            .await?)
+    }
+
+    /// Creates one shared saved reply (ADR-0067). Managers only: a
+    /// shared library is team vocabulary, not personal scratch.
+    pub async fn create_agent_macro(
+        &self,
+        principal: &Identity,
+        title: &str,
+        body: &str,
+        now: DateTime<Utc>,
+    ) -> Result<crate::AgentMacro, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        let macro_ = crate::AgentMacro::new_decision(Uuid::now_v7(), title, body, now)?;
+        self.store
+            .insert_macro(&self.config().project_id.clone(), macro_.clone())
+            .await?;
+        Ok(macro_)
+    }
+
+    /// Replaces one shared saved reply under the expected revision
+    /// (ADR-0067). Macros stay editable text; revision awareness keeps
+    /// concurrent editors from overwriting each other silently.
+    pub async fn update_agent_macro(
+        &self,
+        principal: &Identity,
+        id: Uuid,
+        expected_revision: u64,
+        title: &str,
+        body: &str,
+        now: DateTime<Utc>,
+    ) -> Result<crate::AgentMacro, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        crate::AgentMacro::validate_decision(title, body)?;
+        Ok(self
+            .store
+            .update_macro(
+                &self.config().project_id.clone(),
+                id,
+                expected_revision,
+                title,
+                body,
+                now,
+            )
+            .await?)
+    }
+
     /// Requester-scoped own-ticket list. The subject filter is forcibly the
     /// authenticated subject; client-supplied requester filters are ignored,
     /// so a requester can never enumerate another requester's tickets.

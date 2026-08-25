@@ -417,6 +417,30 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             false,
         ),
         (
+            "listTicketingAgentView",
+            "GET",
+            "/_minco/ticketing/agent/views/{viewId}",
+            false,
+        ),
+        (
+            "listTicketingAgentMacros",
+            "GET",
+            "/_minco/ticketing/agent/macros",
+            false,
+        ),
+        (
+            "createTicketingAgentMacro",
+            "POST",
+            "/_minco/ticketing/agent/macros",
+            false,
+        ),
+        (
+            "updateTicketingAgentMacro",
+            "PATCH",
+            "/_minco/ticketing/agent/macros/{macroId}",
+            false,
+        ),
+        (
             "listTicketingRequesterTickets",
             "GET",
             "/_minco/ticketing/requester/tickets",

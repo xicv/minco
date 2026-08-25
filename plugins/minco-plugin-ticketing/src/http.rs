@@ -180,6 +180,9 @@ pub fn ticketing_router(service: TicketingService) -> Router {
         .route("/agent/bootstrap", get(agent_bootstrap))
         .route("/agent/tickets", get(agent_tickets))
         .route("/agent/tickets/{ticketId}", get(agent_ticket))
+        .route("/agent/views/{viewId}", get(agent_view))
+        .route("/agent/macros", get(agent_macros).post(create_agent_macro))
+        .route("/agent/macros/{macroId}", patch(update_agent_macro))
         .route(
             "/agent/tickets/{ticketId}/management",
             patch(manage_agent_ticket),
@@ -1193,6 +1196,7 @@ async fn agent_tickets(
                 statuses: query.statuses,
                 queue_id: query.queue_id,
                 assignee_subject: query.assignee_subject,
+                unassigned: false,
                 requester_subject: query.requester_subject,
                 before_updated_at: query.before.map(|value| value.0),
                 before_id: query.before.map(|value| value.1),
@@ -1223,12 +1227,112 @@ async fn agent_ticket(
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
-    let ticket = state
+    let (ticket, other_recent_viewers) = state
         .service
-        .get_agent_ticket(&principal, &state.service.config().project_id, id)
+        .agent_ticket_with_viewers(&principal, &state.service.config().project_id, id)
         .await
         .map_err(|error| map_error(error, &request_id))?;
-    ticket_response(StatusCode::OK, &ticket)
+    let tag = ticket_etag(&ticket)?;
+    let detail = AgentTicketDetail {
+        ticket,
+        other_recent_viewers,
+    };
+    let mut response = (StatusCode::OK, Json(detail)).into_response();
+    response
+        .headers_mut()
+        .insert(header::ETAG, tag.to_header_value());
+    Ok(response)
+}
+
+async fn agent_view(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(view_id): Path<String>,
+    RawQuery(raw): RawQuery,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let view = crate::AgentCuratedView::from_slug(&view_id).ok_or_else(|| {
+        ApiFailure::new(
+            StatusCode::NOT_FOUND,
+            "ticketing_view_unknown",
+            "Unknown curated view",
+            "The curated view set is closed; see the agent bootstrap.",
+            &request_id,
+        )
+    })?;
+    let query = parse_agent_list_query(raw.as_deref(), &request_id)?;
+    let mut summaries = state
+        .service
+        .list_agent_view(&principal, view, query.limit + 1, query.before)
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    let has_more = summaries.len() > query.limit;
+    summaries.truncate(query.limit);
+    let next = if has_more {
+        summaries
+            .last()
+            .map(|summary| Cursor::new(encode_summary_cursor(summary)))
+            .transpose()
+            .map_err(|_| ApiFailure::internal(&request_id))?
+    } else {
+        None
+    };
+    Ok(Json(ResourceCollection::new(summaries, next)).into_response())
+}
+
+async fn agent_macros(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+) -> Result<Json<AgentMacroCollection>, ApiFailure> {
+    Ok(Json(AgentMacroCollection {
+        data: state
+            .service
+            .list_agent_macros(&principal)
+            .await
+            .map_err(|error| map_error(error, "agent-macros"))?,
+    }))
+}
+
+async fn create_agent_macro(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    headers: HeaderMap,
+    ValidatedJson(input): ValidatedJson<crate::generated::CreateAgentMacro>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let macro_ = state
+        .service
+        .create_agent_macro(&principal, &input.title, &input.body, Utc::now())
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    macro_response(StatusCode::CREATED, &macro_)
+}
+
+async fn update_agent_macro(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(macro_id): Path<String>,
+    headers: HeaderMap,
+    ValidatedJson(input): ValidatedJson<crate::generated::UpdateAgentMacro>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = Uuid::parse_str(&macro_id)
+        .map_err(|_| ApiFailure::validation("macro id must be a UUID", &request_id))?;
+    let revision = expected_macro_revision(&headers, id, &request_id)?;
+    let macro_ = state
+        .service
+        .update_agent_macro(
+            &principal,
+            id,
+            revision,
+            &input.title,
+            &input.body,
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    macro_response(StatusCode::OK, &macro_)
 }
 
 async fn manage_agent_ticket(
@@ -1343,6 +1447,7 @@ async fn requester_tickets(
                 statuses,
                 queue_id: None,
                 assignee_subject: None,
+                unassigned: false,
                 requester_subject: None,
                 before_updated_at: before.map(|value| value.0),
                 before_id: before.map(|value| value.1),
@@ -1592,6 +1697,33 @@ fn decode_cursor(value: &str) -> Option<(DateTime<Utc>, TicketId)> {
     Some((updated, TicketId(Uuid::parse_str(id).ok()?)))
 }
 
+#[derive(Debug, Serialize)]
+struct AgentTicketDetail {
+    ticket: Ticket,
+    other_recent_viewers: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AgentMacroCollection {
+    data: Vec<crate::AgentMacro>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+struct MacroEnvelope<'a> {
+    r#macro: &'a crate::AgentMacro,
+}
+
+fn macro_response(status: StatusCode, macro_: &crate::AgentMacro) -> Result<Response, ApiFailure> {
+    let tag = StrongEntityTag::for_resource("macro", &macro_.id.to_string(), macro_.revision + 1)
+        .map_err(|_| ApiFailure::internal("unavailable"))?;
+    let mut response = (status, Json(MacroEnvelope { r#macro: macro_ })).into_response();
+    response
+        .headers_mut()
+        .insert(header::ETAG, tag.to_header_value());
+    Ok(response)
+}
+
 fn ticket_response(status: StatusCode, ticket: &Ticket) -> Result<Response, ApiFailure> {
     let mut response = (status, Json(ticket)).into_response();
     response
@@ -1646,6 +1778,23 @@ fn expected_revision(
         _ => ApiFailure::invalid_if_match(request_id),
     })?;
     tag.resource_revision("ticket", &id.to_string())
+        .map_err(|_| ApiFailure::invalid_if_match(request_id))?
+        .checked_sub(1)
+        .ok_or_else(|| ApiFailure::invalid_if_match(request_id))
+}
+
+fn expected_macro_revision(
+    headers: &HeaderMap,
+    id: Uuid,
+    request_id: &str,
+) -> Result<u64, ApiFailure> {
+    let tag = parse_if_match(headers).map_err(|error| match error {
+        minco_http::EntityTagError::PreconditionRequired => {
+            ApiFailure::precondition_required(request_id)
+        }
+        _ => ApiFailure::invalid_if_match(request_id),
+    })?;
+    tag.resource_revision("macro", &id.to_string())
         .map_err(|_| ApiFailure::invalid_if_match(request_id))?
         .checked_sub(1)
         .ok_or_else(|| ApiFailure::invalid_if_match(request_id))
@@ -1741,6 +1890,20 @@ fn map_error(error: TicketingServiceError, request_id: &str) -> ApiFailure {
         | TicketingServiceError::Store(TicketStoreError::StaleRevision { .. }) => {
             ApiFailure::precondition_failed(request_id)
         }
+        TicketingServiceError::Store(TicketStoreError::MacroNotFound(_)) => ApiFailure::new(
+            StatusCode::NOT_FOUND,
+            "macro_not_found",
+            "Saved reply not found",
+            "The saved reply does not exist in this project.",
+            request_id,
+        ),
+        TicketingServiceError::Store(TicketStoreError::DuplicateMacroTitle) => ApiFailure::new(
+            StatusCode::CONFLICT,
+            "macro_title_taken",
+            "Saved reply title taken",
+            "A saved reply with this title already exists in the project.",
+            request_id,
+        ),
         TicketingServiceError::Validation(error) => {
             ApiFailure::validation(error.to_string(), request_id)
         }
@@ -2521,6 +2684,8 @@ mod tests {
         assert_eq!(managed["ticket"]["status"], "pending_requester");
 
         // The rejected atomic request must not have partially applied.
+        // The agent detail envelope carries the ticket plus advisory
+        // collision viewers (ADR-0067).
         let detail = app
             .oneshot(
                 Request::get(format!("/_minco/ticketing/agent/tickets/{id}"))
@@ -2529,11 +2694,167 @@ mod tests {
             )
             .await
             .unwrap();
-        let ticket: serde_json::Value =
+        let detail_value: serde_json::Value =
             serde_json::from_slice(&to_bytes(detail.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
+        let ticket = &detail_value["ticket"];
         assert_eq!(ticket["priority"], "urgent");
         assert_eq!(ticket["revision"], managed["ticket"]["revision"]);
+        assert!(detail_value["other_recent_viewers"].is_array());
+    }
+
+    #[tokio::test]
+    async fn curated_views_macros_and_collision_indication_work_end_to_end() {
+        let shared = service();
+        let app = ticketing_router(shared.clone()).layer(axum::Extension(agent_principal()));
+        let tickets = create_tickets_through_api(&app, 2).await;
+        let first = tickets[0].clone();
+
+        // Curated views: the closed set answers with filtered summaries;
+        // unknown views are rejected, not guessed.
+        let view = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/views/new-unassigned")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(view.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(view.into_body(), usize::MAX).await.unwrap()).unwrap();
+        let summaries = body["data"].as_array().unwrap();
+        assert!(!summaries.is_empty());
+        assert!(
+            summaries
+                .iter()
+                .all(|summary| summary["status"] == "new" && summary["assignee_subject"].is_null())
+        );
+        let unknown = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/views/everything")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+
+        // Macros: create, list, revision-guarded update, duplicate title.
+        let create = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/agent/macros")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({"title": "Greeting", "body": "Hi there!"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(create.status(), StatusCode::CREATED);
+        let created: serde_json::Value =
+            serde_json::from_slice(&to_bytes(create.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let macro_id = created["macro"]["id"].as_str().unwrap().to_owned();
+        assert_eq!(created["macro"]["revision"], 0);
+
+        let duplicate = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/agent/macros")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({"title": "Greeting", "body": "Other"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+
+        let update = app
+            .clone()
+            .oneshot(
+                Request::patch(format!("/_minco/ticketing/agent/macros/{macro_id}"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::IF_MATCH, format!("\"macro:{macro_id}:1\""))
+                    .body(Body::from(
+                        serde_json::json!({"title": "Greeting", "body": "Hi! Edits welcome."})
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(update.status(), StatusCode::OK);
+        let updated: serde_json::Value =
+            serde_json::from_slice(&to_bytes(update.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(updated["macro"]["revision"], 1);
+
+        let stale = app
+            .clone()
+            .oneshot(
+                Request::patch(format!("/_minco/ticketing/agent/macros/{macro_id}"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::IF_MATCH, format!("\"macro:{macro_id}:1\""))
+                    .body(Body::from(
+                        serde_json::json!({"title": "Greeting", "body": "Overwrite"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(stale.status(), StatusCode::PRECONDITION_FAILED);
+
+        let list = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/macros")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let listed: serde_json::Value =
+            serde_json::from_slice(&to_bytes(list.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(listed["data"].as_array().unwrap().len(), 1);
+
+        // Collision indication: another agent's detail view surfaces for
+        // this agent's next detail fetch, and never the viewer themself.
+        let ticket_id = first["id"].as_str().unwrap().to_owned();
+        let other =
+            ticketing_router(shared.clone()).layer(axum::Extension(minco_http::Principal {
+                subject: "agent-2".into(),
+                permissions: ["ticketing.agent-console", "ticketing.agent.read"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                claims: BTreeMap::new(),
+            }));
+        let _ = other
+            .oneshot(
+                Request::get(format!("/_minco/ticketing/agent/tickets/{ticket_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let mine = app
+            .oneshot(
+                Request::get(format!("/_minco/ticketing/agent/tickets/{ticket_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let detail: serde_json::Value =
+            serde_json::from_slice(&to_bytes(mine.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(detail["other_recent_viewers"][0], "agent-2");
     }
 
     fn requester_principal(subject: &str) -> minco_http::Principal {

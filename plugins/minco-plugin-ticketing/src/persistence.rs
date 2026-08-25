@@ -1,6 +1,6 @@
 use crate::{
-    ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity,
-    CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIngestResult,
+    AgentMacro, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
+    ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIngestResult,
     IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OutboundDeliveryEvidence,
     OutboundEvidenceKind, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
     TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
@@ -179,6 +179,7 @@ impl TicketingStore for SqliteTicketingStore {
                AND (? IS NULL OR t.queue_id = ?)
                AND (? IS NULL OR t.assignee_subject = ?)
                AND (? IS NULL OR t.requester_subject = ?)
+               AND (? = 0 OR t.assignee_subject IS NULL)
                AND (? IS NULL OR t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))
              ORDER BY t.updated_at DESC, t.id DESC
              LIMIT ?",
@@ -198,6 +199,7 @@ impl TicketingStore for SqliteTicketingStore {
         .bind(filter.assignee_subject.as_deref())
         .bind(filter.requester_subject.as_deref())
         .bind(filter.requester_subject.as_deref())
+        .bind(i64::from(filter.unassigned))
         .bind(before_updated_at.as_deref())
         .bind(before_updated_at.as_deref())
         .bind(before_updated_at.as_deref())
@@ -852,6 +854,173 @@ impl TicketingStore for SqliteTicketingStore {
                 serde_json::from_str(&row.get::<String, _>("evidence_json")).map_err(encoding)
             })
             .collect()
+    }
+
+    async fn record_ticket_view(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        subject: &str,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_ticket_views (project_id, ticket_id, subject, viewed_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT (project_id, ticket_id, subject) DO UPDATE SET viewed_at = excluded.viewed_at",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .bind(subject)
+        .bind(at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|_| TicketStoreError::NotFound(ticket_id))?;
+        Ok(())
+    }
+
+    async fn recent_ticket_viewers(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        excluding: &str,
+        within: chrono::TimeDelta,
+        now: chrono::DateTime<chrono::Utc>,
+        limit: usize,
+    ) -> Result<Vec<String>, TicketStoreError> {
+        let cutoff = (now - within).to_rfc3339();
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT subject FROM ticketing_ticket_views
+              WHERE project_id = ? AND ticket_id = ? AND subject != ? AND viewed_at >= ?
+              ORDER BY viewed_at DESC LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .bind(excluding)
+        .bind(cutoff)
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(rows.into_iter().map(|row| row.0).collect())
+    }
+
+    async fn list_macros(&self, project_id: &str) -> Result<Vec<AgentMacro>, TicketStoreError> {
+        let rows: Vec<(String, String, String, String, i64)> = sqlx::query_as(
+            "SELECT id, title, body, updated_at, revision FROM ticketing_macros
+              WHERE project_id = ? ORDER BY title, id",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|(id, title, body, updated_at, revision)| {
+                Ok(AgentMacro {
+                    id: Uuid::parse_str(&id).map_err(|_| {
+                        TicketStoreError::Infrastructure("stored macro id is not a UUID".into())
+                    })?,
+                    title,
+                    body,
+                    updated_at: parse_timestamp(&updated_at)?,
+                    revision: u64::try_from(revision).map_err(|_| {
+                        TicketStoreError::Infrastructure("stored macro revision is negative".into())
+                    })?,
+                })
+            })
+            .collect()
+    }
+
+    async fn insert_macro(
+        &self,
+        project_id: &str,
+        macro_: AgentMacro,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_macros (project_id, id, title, body, updated_at, revision)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(macro_.id.to_string())
+        .bind(&macro_.title)
+        .bind(&macro_.body)
+        .bind(macro_.updated_at.to_rfc3339())
+        .bind(i64::try_from(macro_.revision).map_err(infrastructure)?)
+        .execute(&self.pool)
+        .await
+        .map_err(|error| {
+            if is_unique(&error) {
+                TicketStoreError::DuplicateMacroTitle
+            } else {
+                infrastructure(error)
+            }
+        })?;
+        Ok(())
+    }
+
+    async fn update_macro(
+        &self,
+        project_id: &str,
+        id: Uuid,
+        expected_revision: u64,
+        title: &str,
+        body: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<AgentMacro, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_macros
+                SET title = ?, body = ?, updated_at = ?, revision = revision + 1
+              WHERE project_id = ? AND id = ? AND revision = ?",
+        )
+        .bind(title)
+        .bind(body)
+        .bind(now.to_rfc3339())
+        .bind(project_id)
+        .bind(id.to_string())
+        .bind(i64::try_from(expected_revision).map_err(infrastructure)?)
+        .execute(&self.pool)
+        .await
+        .map_err(|error| {
+            if is_unique(&error) {
+                TicketStoreError::DuplicateMacroTitle
+            } else {
+                infrastructure(error)
+            }
+        })?;
+        if result.rows_affected() == 0 {
+            let existing: Option<(i64,)> = sqlx::query_as(
+                "SELECT revision FROM ticketing_macros WHERE project_id = ? AND id = ?",
+            )
+            .bind(project_id)
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(infrastructure)?;
+            return match existing {
+                None => Err(TicketStoreError::MacroNotFound(id)),
+                Some((revision,)) => Err(TicketStoreError::StaleRevision {
+                    expected: expected_revision,
+                    actual: u64::try_from(revision).unwrap_or(0),
+                }),
+            };
+        }
+        let row: (String, String, String, String, i64) = sqlx::query_as(
+            "SELECT id, title, body, updated_at, revision FROM ticketing_macros
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(project_id)
+        .bind(id.to_string())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(AgentMacro {
+            id,
+            title: row.1,
+            body: row.2,
+            updated_at: parse_timestamp(&row.3)?,
+            revision: u64::try_from(row.4).map_err(|_| {
+                TicketStoreError::Infrastructure("stored macro revision is negative".into())
+            })?,
+        })
     }
 
     async fn ready(&self) -> Result<(), TicketStoreError> {

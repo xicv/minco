@@ -376,11 +376,89 @@ paths:
   /_minco/ticketing/agent/tickets/{ticketId}:
     get:
       operationId: getTicketingAgentTicket
-      summary: Get one full ticket for the agent detail view
+      summary: Get one full ticket for the agent detail view with collision indication
+      description: >-
+        Records this agent's view and returns the ticket together with the
+        other agents who viewed it recently (advisory only; If-Match on
+        mutations remains the collision authority).
       parameters:
         - {$ref: '#/components/parameters/TicketId'}
       responses:
-        '200': {$ref: '#/components/responses/Ticket'}
+        '200': {$ref: '#/components/responses/AgentTicketDetail'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/views/{viewId}:
+    get:
+      operationId: listTicketingAgentView
+      summary: List one of the five curated agent views newest-first
+      description: >-
+        Curated, server-defined views over ticket summaries. The view set
+        is closed: new-unassigned, pending-requester, pending-internal,
+        mine and recently-resolved. No ad-hoc query surface.
+      parameters:
+        - in: path
+          name: viewId
+          required: true
+          schema: {$ref: '#/components/schemas/AgentCuratedView'}
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageAfter'}
+      responses:
+        '200':
+          description: Curated view of compact ticket summaries
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TicketSummaryCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/macros:
+    get:
+      operationId: listTicketingAgentMacros
+      summary: List shared saved replies ordered by title
+      responses:
+        '200':
+          description: Shared saved replies for the project
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AgentMacroCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createTicketingAgentMacro
+      summary: Create one shared saved reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAgentMacro'}
+      responses:
+        '201':
+          description: Created saved reply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AgentMacroMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/macros/{macroId}:
+    patch:
+      operationId: updateTicketingAgentMacro
+      summary: Replace one shared saved reply revision-gated by If-Match
+      description: >-
+        Macros stay plain text the agent can edit before submitting a
+        reply; the library is revision-aware (If-Match) so concurrent
+        editors fail fast instead of overwriting.
+      parameters:
+        - in: path
+          name: macroId
+          required: true
+          schema: {type: string, format: uuid}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateAgentMacro'}
+      responses:
+        '200':
+          description: Updated saved reply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AgentMacroMutation'}
         default: {$ref: '#/components/responses/Problem'}
   /_minco/ticketing/agent/tickets/{ticketId}/management:
     patch:
@@ -598,6 +676,13 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Ticket'}
+    AgentTicketDetail:
+      description: Agent ticket detail with advisory collision indication
+      headers:
+        ETag: {schema: {type: string}}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/AgentTicketDetail'}
     TicketMutation:
       description: Updated ticket
       headers:
@@ -1075,6 +1160,52 @@ components:
           properties:
             hasMore: {type: boolean}
             nextCursor: {type: [string, 'null']}
+    AgentCuratedView: {type: string, enum: [new-unassigned, pending-requester, pending-internal, mine, recently-resolved]}
+    AgentTicketDetail:
+      type: object
+      description: The full ticket plus the other agents who viewed it recently.
+      additionalProperties: false
+      required: [ticket, other_recent_viewers]
+      properties:
+        ticket: {$ref: '#/components/schemas/Ticket'}
+        other_recent_viewers: {type: array, maxItems: 8, items: {type: string, maxLength: 300}}
+    AgentMacro:
+      type: object
+      description: One shared saved reply; plain text the agent can edit before submitting.
+      additionalProperties: false
+      required: [id, title, body, updated_at, revision]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string, minLength: 1, maxLength: 300}
+        body: {type: string, minLength: 1, maxLength: 20000}
+        updated_at: {type: string, format: date-time}
+        revision: {type: integer, minimum: 0}
+    AgentMacroCollection:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/AgentMacro'}}
+    AgentMacroMutation:
+      type: object
+      additionalProperties: false
+      required: [macro]
+      properties:
+        macro: {$ref: '#/components/schemas/AgentMacro'}
+    CreateAgentMacro:
+      type: object
+      additionalProperties: false
+      required: [title, body]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 300}
+        body: {type: string, minLength: 1, maxLength: 20000}
+    UpdateAgentMacro:
+      type: object
+      additionalProperties: false
+      required: [title, body]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 300}
+        body: {type: string, minLength: 1, maxLength: 20000}
     AgentManagement:
       type: object
       additionalProperties: false

@@ -395,6 +395,101 @@ pub struct CreateTicketInput {
     pub resource_references: Vec<SupportResourceReference>,
 }
 
+/// The closed set of curated agent views (ADR-0067). Server-defined
+/// predicates over ticket summaries — never an ad-hoc query surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentCuratedView {
+    NewUnassigned,
+    PendingRequester,
+    PendingInternal,
+    Mine,
+    RecentlyResolved,
+}
+
+impl AgentCuratedView {
+    /// The stable path identifier of the view.
+    #[must_use]
+    pub const fn as_slug(self) -> &'static str {
+        match self {
+            Self::NewUnassigned => "new-unassigned",
+            Self::PendingRequester => "pending-requester",
+            Self::PendingInternal => "pending-internal",
+            Self::Mine => "mine",
+            Self::RecentlyResolved => "recently-resolved",
+        }
+    }
+
+    /// Parse a path identifier; unknown views are rejected, not guessed.
+    #[must_use]
+    pub fn from_slug(value: &str) -> Option<Self> {
+        Some(match value {
+            "new-unassigned" => Self::NewUnassigned,
+            "pending-requester" => Self::PendingRequester,
+            "pending-internal" => Self::PendingInternal,
+            "mine" => Self::Mine,
+            "recently-resolved" => Self::RecentlyResolved,
+            _ => return None,
+        })
+    }
+}
+
+/// How long a ticket view indicates the viewer, for advisory collision
+/// indication (ADR-0067).
+pub const TICKET_VIEW_WINDOW: chrono::TimeDelta = chrono::TimeDelta::minutes(5);
+/// At most this many other viewers are ever surfaced.
+pub const MAX_OTHER_VIEWERS: usize = 8;
+
+/// One shared saved reply (ADR-0067).
+///
+/// Plain text an agent can edit before submitting. The library is
+/// revision-aware; applying a macro to a draft is a client-side text
+/// insertion, never a server submission.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentMacro {
+    pub id: Uuid,
+    pub title: String,
+    pub body: String,
+    pub updated_at: DateTime<Utc>,
+    pub revision: u64,
+}
+
+impl AgentMacro {
+    /// Validates one macro decision's bounds.
+    pub fn validate_decision(title: &str, body: &str) -> Result<(), TicketValidationError> {
+        validate_text("macro.title", title, 300)?;
+        validate_text("macro.body", body, 20_000)
+    }
+
+    /// Validates one macro decision and returns the next revision's
+    /// record; nothing is persisted by the domain.
+    pub fn new_decision(
+        id: Uuid,
+        title: &str,
+        body: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Self, TicketValidationError> {
+        Self::validate_decision(title, body)?;
+        Ok(Self {
+            id,
+            title: title.to_owned(),
+            body: body.to_owned(),
+            updated_at: now,
+            revision: 0,
+        })
+    }
+
+    #[must_use]
+    #[allow(clippy::assigning_clones)]
+    pub fn with_next_revision(mut self, title: &str, body: &str, now: DateTime<Utc>) -> Self {
+        self.title = title.to_owned();
+        self.body = body.to_owned();
+        self.updated_at = now;
+        self.revision += 1;
+        self
+    }
+}
+
 impl Ticket {
     pub fn create(
         input: CreateTicketInput,
