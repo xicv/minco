@@ -1575,6 +1575,8 @@ mod tests {
                 email: None,
             },
             channel: TicketChannel::Api,
+            ticket_type: crate::TicketType::default(),
+            form_answers: Vec::new(),
             priority: TicketPriority::Normal,
             resource_references: Vec::new(),
         };
@@ -1627,6 +1629,8 @@ mod tests {
                         email: None,
                     },
                     channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
                     priority: TicketPriority::Normal,
                     resource_references: Vec::new(),
                 },
@@ -1832,6 +1836,8 @@ mod tests {
                 email: None,
             },
             channel: TicketChannel::Api,
+            ticket_type: crate::TicketType::default(),
+            form_answers: Vec::new(),
             priority: TicketPriority::Normal,
             resource_references: Vec::new(),
         }

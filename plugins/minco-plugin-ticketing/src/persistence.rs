@@ -165,7 +165,7 @@ impl TicketingStore for SqliteTicketingStore {
         // Compact projection: projection columns and child-table counts only;
         // this query must never read ticket_json.
         let rows = sqlx::query(
-            "SELECT t.id, t.display_reference, t.subject, t.status, t.priority, t.queue_id,
+            "SELECT t.id, t.display_reference, t.subject, t.status, t.priority, t.ticket_type, t.queue_id,
                     t.assignee_subject, t.requester_subject, t.created_at, t.updated_at, t.revision,
                     (SELECT COUNT(*) FROM ticketing_messages m
                       WHERE m.project_id = t.project_id AND m.ticket_id = t.id) AS message_count,
@@ -220,6 +220,7 @@ impl TicketingStore for SqliteTicketingStore {
                     display_reference: row.get("display_reference"),
                     subject: row.get("subject"),
                     requester_subject: row.get("requester_subject"),
+                    ticket_type: parse_enum("ticket_type", row.get::<String, _>("ticket_type"))?,
                     status,
                     clock_state: status.clock_state(),
                     priority,
@@ -475,6 +476,8 @@ impl TicketingStore for SqliteTicketingStore {
                 },
                 channel: request.input.channel,
                 priority: request.input.priority,
+                ticket_type: request.input.ticket_type,
+                form_answers: request.input.form_answers.clone(),
                 resource_references: handoff.context.resource_references.clone(),
             },
             format!("TKT-{}", &ticket_uuid.simple().to_string()[..12]),
@@ -865,7 +868,7 @@ async fn insert_ticket(
     ticket: &Ticket,
 ) -> Result<(), TicketStoreError> {
     sqlx::query(
-        "INSERT INTO ticketing_tickets (project_id, id, display_reference, subject, description, channel, priority, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, waiting_since, resolved_at, closed_at, resolution, close_reason, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO ticketing_tickets (project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, waiting_since, resolved_at, closed_at, resolution, close_reason, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&ticket.project_id)
     .bind(ticket.id.to_string())
@@ -874,6 +877,8 @@ async fn insert_ticket(
     .bind(&ticket.description)
     .bind(enum_json(&ticket.channel)?)
     .bind(enum_json(&ticket.priority)?)
+    .bind(enum_json(&ticket.ticket_type)?)
+    .bind(serde_json::to_string(&ticket.form_answers).map_err(encoding)?)
     .bind(enum_json(&ticket.status)?)
     .bind(&ticket.queue_id)
     .bind(&ticket.assignee_subject)
@@ -908,12 +913,14 @@ async fn update_ticket(
         });
     }
     let result = sqlx::query(
-        "UPDATE ticketing_tickets SET subject = ?, description = ?, channel = ?, priority = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, requester_display_name = ?, requester_email = ?, created_at = ?, updated_at = ?, revision = ?, first_public_response_at = ?, waiting_since = ?, resolved_at = ?, closed_at = ?, resolution = ?, close_reason = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
+        "UPDATE ticketing_tickets SET subject = ?, description = ?, channel = ?, priority = ?, ticket_type = ?, form_answers_json = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, requester_display_name = ?, requester_email = ?, created_at = ?, updated_at = ?, revision = ?, first_public_response_at = ?, waiting_since = ?, resolved_at = ?, closed_at = ?, resolution = ?, close_reason = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
     )
     .bind(&ticket.subject)
     .bind(&ticket.description)
     .bind(enum_json(&ticket.channel)?)
     .bind(enum_json(&ticket.priority)?)
+    .bind(enum_json(&ticket.ticket_type)?)
+    .bind(serde_json::to_string(&ticket.form_answers).map_err(encoding)?)
     .bind(enum_json(&ticket.status)?)
     .bind(&ticket.queue_id)
     .bind(&ticket.assignee_subject)
@@ -1061,7 +1068,7 @@ async fn load_ticket_row(
     id: &str,
 ) -> Result<Option<Ticket>, TicketStoreError> {
     let Some(row) = sqlx::query(
-        "SELECT project_id, id, display_reference, subject, description, channel, priority, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, waiting_since, resolved_at, closed_at, resolution, close_reason FROM ticketing_tickets WHERE project_id = ? AND id = ?",
+        "SELECT project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, waiting_since, resolved_at, closed_at, resolution, close_reason FROM ticketing_tickets WHERE project_id = ? AND id = ?",
     )
     .bind(project_id)
     .bind(id)
@@ -1172,6 +1179,14 @@ async fn load_ticket_row(
         },
         channel,
         priority,
+        ticket_type: parse_enum("ticket_type", row.get::<String, _>("ticket_type"))?,
+        form_answers: serde_json::from_str(&row.get::<String, _>("form_answers_json")).map_err(
+            |_| {
+                TicketStoreError::Infrastructure(
+                    "stored ticket form answers are not valid JSON".into(),
+                )
+            },
+        )?,
         status,
         clock_state: status.clock_state(),
         queue_id: row.get("queue_id"),
@@ -1305,6 +1320,8 @@ mod tests {
                 description: "Broken".into(),
                 channel: TicketChannel::Portal,
                 priority: TicketPriority::Normal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
             },
             now,
         )
@@ -1387,6 +1404,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -1428,6 +1447,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -1489,6 +1510,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -1578,6 +1601,8 @@ mod tests {
                         email: None,
                     },
                     channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
                     priority: TicketPriority::Normal,
                     resource_references: Vec::new(),
                 },
@@ -1631,6 +1656,8 @@ mod tests {
                         email: None,
                     },
                     channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
                     priority: if index == 1 {
                         TicketPriority::High
                     } else {
@@ -1744,6 +1771,8 @@ mod tests {
                     email: Some("user-1@example.test".into()),
                 },
                 channel: TicketChannel::Portal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -1868,6 +1897,63 @@ mod tests {
                 .await
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn ticket_type_and_form_answers_round_trip_columnar() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Typed".into(),
+                description: "Typed ticket".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: crate::TicketChannel::Portal,
+                priority: crate::TicketPriority::Normal,
+                ticket_type: crate::TicketType::Problem,
+                form_answers: vec![crate::TicketFormAnswer {
+                    field_id: "order-id".into(),
+                    kind: crate::TicketFormValueKind::Text,
+                    text_value: Some("ord-91".into()),
+                    number_value: None,
+                    boolean_value: None,
+                }],
+                resource_references: Vec::new(),
+            },
+            "TKT-TYPED",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let loaded = sqlite.get("project-a", ticket.id).await.unwrap().unwrap();
+        assert_eq!(loaded.ticket_type, crate::TicketType::Problem);
+        assert_eq!(loaded.form_answers, ticket.form_answers);
+        let summaries = sqlite
+            .list_summaries(crate::TicketSummaryFilter {
+                project_id: "project-a".into(),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(
+            summaries
+                .iter()
+                .all(|summary| summary.ticket_type == crate::TicketType::Problem)
         );
     }
 
@@ -2213,6 +2299,8 @@ mod tests {
                         email: None,
                     },
                     channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
                     priority: TicketPriority::Normal,
                     resource_references: Vec::new(),
                 },
@@ -2296,6 +2384,8 @@ mod tests {
                         email: None,
                     },
                     channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
                     priority: TicketPriority::Normal,
                     resource_references: Vec::new(),
                 },
@@ -2338,6 +2428,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -2407,6 +2499,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Email,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },

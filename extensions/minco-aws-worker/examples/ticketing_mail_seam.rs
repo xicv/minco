@@ -165,6 +165,8 @@ async fn seed() {
                 },
                 channel: TicketChannel::Email,
                 priority: TicketPriority::default(),
+                ticket_type: minco_plugin_ticketing::TicketType::default(),
+                form_answers: Vec::new(),
                 resource_references: Vec::new(),
             },
             Uuid::new_v4(),

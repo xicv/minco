@@ -633,6 +633,19 @@ components:
             rationale: Validation field names are application-defined and each value is a list of public-safe messages.
     TicketPriority: {type: string, enum: [low, normal, high, urgent]}
     TicketChannel: {type: string, enum: [portal, email, api, voice, internal, other]}
+    TicketType: {type: string, enum: [question, incident, problem, task]}
+    TicketFormValueKind: {type: string, enum: [text, number, boolean, date_time]}
+    TicketFormAnswer:
+      type: object
+      description: One typed form answer; `kind` selects the meaningful value slot and exactly one slot may be set.
+      additionalProperties: false
+      required: [field_id, kind]
+      properties:
+        field_id: {type: string, minLength: 1, maxLength: 64}
+        kind: {$ref: '#/components/schemas/TicketFormValueKind'}
+        text_value: {type: [string, 'null'], maxLength: 2000}
+        number_value: {type: [integer, 'null']}
+        boolean_value: {type: [boolean, 'null']}
     TicketStatus: {type: string, enum: [new, open, pending_requester, pending_internal, on_hold, resolved, closed]}
     TicketClockState: {type: string, enum: [open, paused, stopped]}
     TicketMessageKind: {type: string, enum: [public_reply, internal_note, system_event, voice_transcript]}
@@ -740,6 +753,8 @@ components:
         description: {type: string, minLength: 1, maxLength: 20000}
         channel: {$ref: '#/components/schemas/TicketChannel'}
         priority: {$ref: '#/components/schemas/TicketPriority'}
+        ticket_type: {$ref: '#/components/schemas/TicketType'}
+        form_answers: {type: array, maxItems: 16, items: {$ref: '#/components/schemas/TicketFormAnswer'}}
     TicketRequester:
       type: object
       additionalProperties: false
@@ -759,6 +774,8 @@ components:
         requester: {$ref: '#/components/schemas/TicketRequester'}
         channel: {$ref: '#/components/schemas/TicketChannel'}
         priority: {$ref: '#/components/schemas/TicketPriority'}
+        ticket_type: {$ref: '#/components/schemas/TicketType'}
+        form_answers: {type: array, maxItems: 16, items: {$ref: '#/components/schemas/TicketFormAnswer'}}
         resource_references: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/ResourceReference'}}
     TicketMessage:
       type: object
@@ -787,7 +804,7 @@ components:
     Ticket:
       type: object
       additionalProperties: false
-      required: [id, project_id, display_reference, subject, description, requester, channel, priority, status, clock_state, followers, tags, source_references, resource_references, messages, attachments, created_at, updated_at, revision]
+      required: [id, project_id, display_reference, subject, description, requester, channel, priority, ticket_type, form_answers, status, clock_state, followers, tags, source_references, resource_references, messages, attachments, created_at, updated_at, revision]
       properties:
         id: {type: string, format: uuid}
         project_id: {type: string}
@@ -797,6 +814,8 @@ components:
         requester: {$ref: '#/components/schemas/TicketRequester'}
         channel: {$ref: '#/components/schemas/TicketChannel'}
         priority: {$ref: '#/components/schemas/TicketPriority'}
+        ticket_type: {$ref: '#/components/schemas/TicketType'}
+        form_answers: {type: array, maxItems: 16, items: {$ref: '#/components/schemas/TicketFormAnswer'}}
         status: {$ref: '#/components/schemas/TicketStatus'}
         clock_state: {$ref: '#/components/schemas/TicketClockState'}
         queue_id: {type: [string, 'null']}
@@ -852,11 +871,12 @@ components:
     RequesterTicketSummary:
       type: object
       additionalProperties: false
-      required: [id, display_reference, subject, status, message_count, needs_attention, updated_at, revision]
+      required: [id, display_reference, subject, ticket_type, status, message_count, needs_attention, updated_at, revision]
       properties:
         id: {type: string, format: uuid}
         display_reference: {type: string}
         subject: {type: string}
+        ticket_type: {$ref: '#/components/schemas/TicketType'}
         status: {$ref: '#/components/schemas/RequesterStatus'}
         message_count: {type: integer, minimum: 0}
         needs_attention: {type: boolean}
@@ -876,7 +896,7 @@ components:
     RequesterTicket:
       type: object
       additionalProperties: false
-      required: [id, project_id, display_reference, subject, description, requester, channel, priority, status, messages, attachments, created_at, updated_at, revision]
+      required: [id, project_id, display_reference, subject, description, requester, channel, priority, ticket_type, form_answers, status, messages, attachments, created_at, updated_at, revision]
       properties:
         id: {type: string, format: uuid}
         project_id: {type: string}
@@ -886,6 +906,8 @@ components:
         requester: {$ref: '#/components/schemas/TicketRequester'}
         channel: {$ref: '#/components/schemas/TicketChannel'}
         priority: {$ref: '#/components/schemas/TicketPriority'}
+        ticket_type: {$ref: '#/components/schemas/TicketType'}
+        form_answers: {type: array, maxItems: 16, items: {$ref: '#/components/schemas/TicketFormAnswer'}}
         status: {$ref: '#/components/schemas/RequesterStatus'}
         messages: {type: array, items: {$ref: '#/components/schemas/RequesterMessage'}}
         attachments: {type: array, items: {$ref: '#/components/schemas/RequesterAttachment'}}
@@ -1019,13 +1041,14 @@ components:
       type: object
       description: Compact newest-first agent summary of one ticket.
       additionalProperties: false
-      required: [id, project_id, display_reference, subject, requester_subject, status, clock_state, priority, message_count, attachment_count, needs_attention, created_at, updated_at, revision]
+      required: [id, project_id, display_reference, subject, requester_subject, ticket_type, status, clock_state, priority, message_count, attachment_count, needs_attention, created_at, updated_at, revision]
       properties:
         id: {type: string, format: uuid}
         project_id: {type: string}
         display_reference: {type: string}
         subject: {type: string}
         requester_subject: {type: string}
+        ticket_type: {$ref: '#/components/schemas/TicketType'}
         status: {$ref: '#/components/schemas/TicketStatus'}
         clock_state: {$ref: '#/components/schemas/TicketClockState'}
         priority: {$ref: '#/components/schemas/TicketPriority'}

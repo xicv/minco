@@ -266,6 +266,30 @@ mod wire {
     };
     use minco_interaction::{SupportContext, SupportResourceReference, SupportSurface};
 
+    pub(super) const fn ticket_type(value: wire::TicketType) -> crate::TicketType {
+        match value {
+            wire::TicketType::Question => crate::TicketType::Question,
+            wire::TicketType::Incident => crate::TicketType::Incident,
+            wire::TicketType::Problem => crate::TicketType::Problem,
+            wire::TicketType::Task => crate::TicketType::Task,
+        }
+    }
+
+    pub(super) fn form_answer(value: wire::TicketFormAnswer) -> crate::TicketFormAnswer {
+        crate::TicketFormAnswer {
+            field_id: value.field_id,
+            kind: match value.kind {
+                wire::TicketFormValueKind::Text => crate::TicketFormValueKind::Text,
+                wire::TicketFormValueKind::Number => crate::TicketFormValueKind::Number,
+                wire::TicketFormValueKind::Boolean => crate::TicketFormValueKind::Boolean,
+                wire::TicketFormValueKind::DateTime => crate::TicketFormValueKind::DateTime,
+            },
+            text_value: value.text_value,
+            number_value: value.number_value,
+            boolean_value: value.boolean_value,
+        }
+    }
+
     pub(super) const fn channel(value: wire::TicketChannel) -> TicketChannel {
         match value {
             wire::TicketChannel::Portal => TicketChannel::Portal,
@@ -350,6 +374,15 @@ mod wire {
             description: value.description,
             channel: channel(value.channel),
             priority: priority(value.priority),
+            ticket_type: value
+                .ticket_type
+                .map_or_else(crate::TicketType::default, ticket_type),
+            form_answers: value
+                .form_answers
+                .unwrap_or_default()
+                .into_iter()
+                .map(form_answer)
+                .collect(),
         }
     }
 }
@@ -448,6 +481,15 @@ async fn create_ticket(
         priority: input
             .priority
             .map_or(crate::TicketPriority::Normal, wire::priority),
+        ticket_type: input
+            .ticket_type
+            .map_or_else(crate::TicketType::default, wire::ticket_type),
+        form_answers: input
+            .form_answers
+            .unwrap_or_default()
+            .into_iter()
+            .map(wire::form_answer)
+            .collect(),
         resource_references: input
             .resource_references
             .unwrap_or_default()
@@ -1960,6 +2002,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Portal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -2009,6 +2053,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -2092,6 +2138,88 @@ mod tests {
             created.push(value["ticket"].clone());
         }
         created
+    }
+
+    #[tokio::test]
+    async fn typed_tickets_carry_ticket_type_and_form_answers() {
+        let app = ticketing_router(service()).layer(axum::Extension(agent_principal()));
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/tickets")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .extension(agent_principal())
+                    .body(Body::from(
+                        serde_json::json!({
+                            "project_id": "project-a",
+                            "subject": "Checkout fails",
+                            "description": "Payments error after login.",
+                            "requester": {"subject": "user-a"},
+                            "channel": "portal",
+                            "ticket_type": "incident",
+                            "form_answers": [
+                                {"field_id": "order-id", "kind": "text", "text_value": "ord-91"},
+                                {"field_id": "reproduced", "kind": "boolean", "boolean_value": true},
+                                {"field_id": "attempts", "kind": "number", "number_value": 3}
+                            ]
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let ticket = &value["ticket"];
+        assert_eq!(ticket["ticket_type"], "incident");
+        let answers = ticket["form_answers"].as_array().unwrap();
+        assert_eq!(answers.len(), 3);
+        assert!(
+            answers
+                .iter()
+                .any(|answer| answer["field_id"] == "order-id" && answer["text_value"] == "ord-91")
+        );
+        assert!(
+            answers
+                .iter()
+                .any(|answer| answer["field_id"] == "attempts" && answer["number_value"] == 3)
+        );
+
+        // Omitting the type keeps the default taxonomy home.
+        let plain = create_tickets_through_api(&app, 1).await;
+        assert_eq!(plain[0]["ticket_type"], "question");
+        assert_eq!(plain[0]["form_answers"].as_array().unwrap().len(), 0);
+
+        // Two value slots on one answer is a validation failure, not a
+        // silent coercion.
+        let rejected = app
+            .oneshot(
+                Request::post("/_minco/ticketing/tickets")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .extension(agent_principal())
+                    .body(Body::from(
+                        serde_json::json!({
+                            "project_id": "project-a",
+                            "subject": "Bad form",
+                            "description": "Two slots set.",
+                            "requester": {"subject": "user-a"},
+                            "channel": "portal",
+                            "form_answers": [
+                                {"field_id": "both", "kind": "text", "text_value": "a", "boolean_value": true}
+                            ]
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(rejected.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let body = to_bytes(rejected.into_body(), usize::MAX).await.unwrap();
+        let problem: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(problem["status"], 422);
     }
 
     #[tokio::test]
@@ -2654,6 +2782,8 @@ mod tests {
                         email: None,
                     },
                     channel: crate::TicketChannel::Portal,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
                     priority: crate::TicketPriority::Normal,
                     resource_references: Vec::new(),
                 },

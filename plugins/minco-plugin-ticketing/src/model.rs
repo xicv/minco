@@ -162,6 +162,127 @@ pub struct TicketRequester {
     pub email: Option<String>,
 }
 
+/// The bounded helpdesk ticket taxonomy (ADR-0066). `Question` is the
+/// default so existing requesters keep a valid home.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TicketType {
+    #[default]
+    Question,
+    Incident,
+    Problem,
+    Task,
+}
+
+/// Which slot of a [`TicketFormAnswer`] carries the value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TicketFormValueKind {
+    Text,
+    Number,
+    Boolean,
+    DateTime,
+}
+
+/// One typed form answer captured at creation (ADR-0066).
+///
+/// `kind` selects the meaningful slot — exactly one slot is set;
+/// `date_time` answers carry an RFC 3339 string in `text_value`. Numbers
+/// are bounded integers; floating point is deliberately out of contract.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TicketFormAnswer {
+    pub field_id: String,
+    pub kind: TicketFormValueKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub number_value: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boolean_value: Option<bool>,
+}
+
+/// Bound on form answers per ticket; the taxonomy stays small and
+/// reviewable, not an arbitrary form registry.
+pub const MAX_FORM_ANSWERS: usize = 16;
+
+fn validate_form_answers(answers: &[TicketFormAnswer]) -> Result<(), TicketValidationError> {
+    if answers.len() > MAX_FORM_ANSWERS {
+        return Err(TicketValidationError::InvalidField {
+            field: "form_answers",
+            detail: format!("must not contain more than {MAX_FORM_ANSWERS} answers"),
+        });
+    }
+    let mut seen = BTreeSet::new();
+    for answer in answers {
+        if answer.field_id.is_empty()
+            || answer.field_id.len() > 64
+            || !answer.field_id.bytes().all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_' || byte == b'-'
+            })
+        {
+            return Err(TicketValidationError::InvalidField {
+                field: "form_answers.field_id",
+                detail: "must be 1..=64 characters of [a-z0-9_-]".into(),
+            });
+        }
+        if !seen.insert(answer.field_id.clone()) {
+            return Err(TicketValidationError::InvalidField {
+                field: "form_answers.field_id",
+                detail: "must be unique".into(),
+            });
+        }
+        let slots = [
+            answer.text_value.is_some(),
+            answer.number_value.is_some(),
+            answer.boolean_value.is_some(),
+        ]
+        .into_iter()
+        .filter(|set| *set)
+        .count();
+        if slots != 1 {
+            return Err(TicketValidationError::InvalidField {
+                field: "form_answers.value",
+                detail: "exactly one value slot must be set".into(),
+            });
+        }
+        match answer.kind {
+            TicketFormValueKind::Text => {
+                if let Some(text) = answer.text_value.as_deref()
+                    && (text.is_empty() || text.chars().count() > 2_000)
+                {
+                    return Err(TicketValidationError::InvalidField {
+                        field: "form_answers.text_value",
+                        detail: "must be 1..=2000 characters".into(),
+                    });
+                }
+            }
+            TicketFormValueKind::DateTime => {
+                if let Some(text) = answer.text_value.as_deref()
+                    && chrono::DateTime::parse_from_rfc3339(text).is_err()
+                {
+                    return Err(TicketValidationError::InvalidField {
+                        field: "form_answers.text_value",
+                        detail: "date_time answers must be RFC 3339".into(),
+                    });
+                }
+            }
+            TicketFormValueKind::Number => {
+                if !(-9_007_199_254_740_991..=9_007_199_254_740_991)
+                    .contains(&answer.number_value.unwrap_or(0))
+                {
+                    return Err(TicketValidationError::InvalidField {
+                        field: "form_answers.number_value",
+                        detail: "must be within the f64-safe integer range".into(),
+                    });
+                }
+            }
+            TicketFormValueKind::Boolean => {}
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TicketSourceReference {
@@ -218,6 +339,9 @@ pub struct Ticket {
     pub requester: TicketRequester,
     pub channel: TicketChannel,
     pub priority: TicketPriority,
+    pub ticket_type: TicketType,
+    #[serde(default)]
+    pub form_answers: Vec<TicketFormAnswer>,
     pub status: TicketStatus,
     pub clock_state: TicketClockState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -262,8 +386,11 @@ pub struct CreateTicketInput {
     pub description: String,
     pub requester: TicketRequester,
     pub channel: TicketChannel,
-    #[serde(default)]
     pub priority: TicketPriority,
+    #[serde(default)]
+    pub ticket_type: TicketType,
+    #[serde(default)]
+    pub form_answers: Vec<TicketFormAnswer>,
     #[serde(default)]
     pub resource_references: Vec<SupportResourceReference>,
 }
@@ -292,6 +419,7 @@ impl Ticket {
                 detail: "must not contain more than 32 values".into(),
             });
         }
+        validate_form_answers(&input.form_answers)?;
         let id = TicketId::new();
         let mut ticket = Self {
             id,
@@ -302,6 +430,8 @@ impl Ticket {
             requester: input.requester,
             channel: input.channel,
             priority: input.priority,
+            ticket_type: input.ticket_type,
+            form_answers: input.form_answers.clone(),
             status: TicketStatus::New,
             clock_state: TicketClockState::Open,
             queue_id: None,
@@ -571,6 +701,8 @@ impl Ticket {
             requester: self.requester.clone(),
             channel: self.channel.clone(),
             priority: self.priority,
+            ticket_type: self.ticket_type,
+            form_answers: self.form_answers.clone(),
             status: self.status.into(),
             messages: self
                 .messages
@@ -754,6 +886,9 @@ pub struct RequesterTicket {
     pub requester: TicketRequester,
     pub channel: TicketChannel,
     pub priority: TicketPriority,
+    pub ticket_type: TicketType,
+    #[serde(default)]
+    pub form_answers: Vec<TicketFormAnswer>,
     pub status: PublicTicketStatus,
     pub messages: Vec<PublicTicketMessage>,
     pub attachments: Vec<RequesterTicketAttachment>,
@@ -768,6 +903,7 @@ pub struct PublicTicketSummary {
     pub id: TicketId,
     pub display_reference: String,
     pub subject: String,
+    pub ticket_type: TicketType,
     pub status: PublicTicketStatus,
     pub message_count: usize,
     pub needs_attention: bool,
@@ -781,6 +917,7 @@ impl From<&TicketSummary> for PublicTicketSummary {
             id: value.id,
             display_reference: value.display_reference.clone(),
             subject: value.subject.clone(),
+            ticket_type: value.ticket_type,
             status: value.status.into(),
             message_count: value.message_count,
             needs_attention: value.needs_attention,
@@ -799,6 +936,7 @@ pub struct TicketSummary {
     pub display_reference: String,
     pub subject: String,
     pub requester_subject: String,
+    pub ticket_type: TicketType,
     pub status: TicketStatus,
     pub clock_state: TicketClockState,
     pub priority: TicketPriority,
@@ -833,6 +971,7 @@ impl Ticket {
             display_reference: self.display_reference.clone(),
             subject: self.subject.clone(),
             requester_subject: self.requester.subject.clone(),
+            ticket_type: self.ticket_type,
             status: self.status,
             clock_state: self.clock_state,
             priority: self.priority,
@@ -869,6 +1008,8 @@ pub struct TicketFromHandoffInput {
     pub description: String,
     pub channel: TicketChannel,
     pub priority: TicketPriority,
+    pub ticket_type: TicketType,
+    pub form_answers: Vec<TicketFormAnswer>,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -917,6 +1058,115 @@ mod tests {
     use super::*;
     use chrono::TimeDelta;
 
+    fn typed_input() -> CreateTicketInput {
+        CreateTicketInput {
+            ticket_type: TicketType::Incident,
+            form_answers: vec![
+                TicketFormAnswer {
+                    field_id: "order-id".into(),
+                    kind: TicketFormValueKind::Text,
+                    text_value: Some("ord-91".into()),
+                    number_value: None,
+                    boolean_value: None,
+                },
+                TicketFormAnswer {
+                    field_id: "seen-at".into(),
+                    kind: TicketFormValueKind::DateTime,
+                    text_value: Some("2026-08-25T10:00:00Z".into()),
+                    number_value: None,
+                    boolean_value: None,
+                },
+            ],
+            ..ticket_input()
+        }
+    }
+
+    #[test]
+    fn typed_tickets_carry_the_taxonomy_and_answers() {
+        let ticket = Ticket::create(typed_input(), "TKT-T", Utc::now()).unwrap();
+        assert_eq!(ticket.ticket_type, TicketType::Incident);
+        assert_eq!(ticket.form_answers.len(), 2);
+        assert_eq!(ticket.agent_summary().ticket_type, TicketType::Incident);
+        assert_eq!(ticket.requester_projection().form_answers.len(), 2);
+    }
+
+    #[test]
+    fn form_answers_fail_closed_on_broken_shapes() {
+        for broken in [
+            // duplicate field ids
+            vec![answer("a"), answer("a")],
+            // no slot set
+            vec![TicketFormAnswer {
+                field_id: "a".into(),
+                kind: TicketFormValueKind::Text,
+                text_value: None,
+                number_value: None,
+                boolean_value: None,
+            }],
+            // two slots set
+            vec![TicketFormAnswer {
+                field_id: "a".into(),
+                kind: TicketFormValueKind::Text,
+                text_value: Some("x".into()),
+                number_value: Some(1),
+                boolean_value: None,
+            }],
+            // non-RFC3339 date_time
+            vec![TicketFormAnswer {
+                field_id: "a".into(),
+                kind: TicketFormValueKind::DateTime,
+                text_value: Some("yesterday".into()),
+                number_value: None,
+                boolean_value: None,
+            }],
+            // invalid field id charset
+            vec![TicketFormAnswer {
+                field_id: "Not Ok!".into(),
+                kind: TicketFormValueKind::Boolean,
+                text_value: None,
+                number_value: None,
+                boolean_value: Some(true),
+            }],
+        ] {
+            let input = CreateTicketInput {
+                form_answers: broken,
+                ..ticket_input()
+            };
+            assert!(
+                Ticket::create(input, "TKT-T", Utc::now()).is_err(),
+                "broken form answers must fail closed"
+            );
+        }
+    }
+
+    fn ticket_input() -> CreateTicketInput {
+        CreateTicketInput {
+            project_id: "project-a".into(),
+            subject: "Need help".into(),
+            description: "It broke".into(),
+            requester: TicketRequester {
+                subject: "user-1".into(),
+                display_name: None,
+                email: None,
+            },
+            channel: TicketChannel::Portal,
+            priority: TicketPriority::Normal,
+            ticket_type: TicketType::Question,
+            form_answers: Vec::new(),
+            resource_references: Vec::new(),
+        }
+    }
+
+    fn answer(field_id: &str) -> TicketFormAnswer {
+        TicketFormAnswer {
+            field_id: field_id.into(),
+            kind: TicketFormValueKind::Text,
+            text_value: Some("v".into()),
+            number_value: None,
+            boolean_value: None,
+        }
+    }
+
     fn ticket() -> Ticket {
         Ticket::create(
             CreateTicketInput {
@@ -929,6 +1179,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Portal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },

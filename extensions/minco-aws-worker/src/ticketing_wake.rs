@@ -398,6 +398,8 @@ mod tests {
                     },
                     channel: TicketChannel::Email,
                     priority: TicketPriority::Normal,
+                    ticket_type: minco_plugin_ticketing::TicketType::default(),
+                    form_answers: Vec::new(),
                     resource_references: Vec::new(),
                 },
                 Uuid::new_v4(),
