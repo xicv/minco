@@ -7,7 +7,7 @@ use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, FromRequestParts, Path, RawQuery, State},
     response::{IntoResponse, Response},
-    routing::{get, patch, post},
+    routing::{get, patch, post, put},
 };
 use chrono::{DateTime, Utc};
 use http::{HeaderMap, HeaderValue, StatusCode, header};
@@ -181,6 +181,11 @@ pub fn ticketing_router(service: TicketingService) -> Router {
         .route("/agent/tickets", get(agent_tickets))
         .route("/agent/tickets/{ticketId}", get(agent_ticket))
         .route("/agent/views/{viewId}", get(agent_view))
+        .route("/agent/search", get(agent_search))
+        .route(
+            "/agent/tickets/{ticketId}/knowledge-links",
+            put(replace_knowledge_links),
+        )
         .route("/agent/macros", get(agent_macros).post(create_agent_macro))
         .route("/agent/macros/{macroId}", patch(update_agent_macro))
         .route(
@@ -188,6 +193,10 @@ pub fn ticketing_router(service: TicketingService) -> Router {
             patch(manage_agent_ticket),
         )
         .route("/requester/tickets", get(requester_tickets))
+        .route(
+            "/requester/tickets/{ticketId}/csat",
+            post(submit_requester_csat),
+        )
         .route("/requester/tickets/{ticketId}", get(requester_ticket))
         .route(
             "/requester/tickets/{ticketId}/replies",
@@ -1193,6 +1202,7 @@ async fn agent_tickets(
                 queue_id: query.queue_id,
                 assignee_subject: query.assignee_subject,
                 unassigned: false,
+                query: None,
                 requester_subject: query.requester_subject,
                 before_updated_at: query.before.map(|value| value.0),
                 before_id: query.before.map(|value| value.1),
@@ -1275,6 +1285,101 @@ async fn agent_view(
         None
     };
     Ok(Json(ResourceCollection::new(summaries, next)).into_response())
+}
+
+async fn agent_search(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    raw: RawQuery,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let RawQuery(raw_query) = raw;
+    let mut query = parse_agent_list_query(raw_query.as_deref(), &request_id)?;
+    let needle = url::form_urlencoded::parse(raw_query.unwrap_or_default().as_bytes())
+        .find(|(name, _)| name == "q")
+        .map(|(_, value)| value.into_owned())
+        .ok_or_else(|| ApiFailure::validation("q is required", &request_id))?;
+    let mut summaries = state
+        .service
+        .search_tickets(&principal, &needle, query.limit + 1, query.before)
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    let _ = (&query.statuses, &query.queue_id);
+    query.statuses = BTreeSet::new();
+    let has_more = summaries.len() > query.limit;
+    summaries.truncate(query.limit);
+    let next = if has_more {
+        summaries
+            .last()
+            .map(|summary| Cursor::new(encode_summary_cursor(summary)))
+            .transpose()
+            .map_err(|_| ApiFailure::internal(&request_id))?
+    } else {
+        None
+    };
+    Ok(Json(ResourceCollection::new(summaries, next)).into_response())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn replace_knowledge_links(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+    ValidatedJson(body): ValidatedJson<crate::generated::KnowledgeLinks>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let revision = expected_revision(&headers, id, &request_id)?;
+    let links = body
+        .links
+        .into_iter()
+        .map(|link| crate::KnowledgeLink {
+            article_id: link.article_id,
+            title: link.title,
+            url: link.url,
+        })
+        .collect();
+    let outcome = state
+        .service
+        .replace_knowledge_links(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            links,
+            revision,
+            request_uuid(&request_id),
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    mutation_response(StatusCode::OK, outcome)
+}
+
+async fn submit_requester_csat(
+    State(state): State<TicketingHttpState>,
+    requester: RequesterIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+    ValidatedJson(body): ValidatedJson<crate::generated::RequesterCsat>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let outcome = state
+        .service
+        .submit_csat(
+            &requester.identity,
+            &state.service.config().project_id,
+            id,
+            body.score.try_into().unwrap_or(0),
+            body.comment,
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    let requester = outcome.ticket.requester_projection();
+    Ok(Json(serde_json::json!({ "ticket": requester })).into_response())
 }
 
 async fn agent_macros(
@@ -1444,6 +1549,7 @@ async fn requester_tickets(
                 queue_id: None,
                 assignee_subject: None,
                 unassigned: false,
+                query: None,
                 requester_subject: None,
                 before_updated_at: before.map(|value| value.0),
                 before_id: before.map(|value| value.1),

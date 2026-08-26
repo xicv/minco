@@ -107,6 +107,9 @@ pub struct TicketSummaryFilter {
     pub assignee_subject: Option<String>,
     /// Only tickets with no assignee (curated `new-unassigned` view).
     pub unassigned: bool,
+    /// Bounded substring search over subject, display reference and
+    /// description (ADR-0069); None disables the search filter.
+    pub query: Option<String>,
     pub requester_subject: Option<String>,
     pub before_updated_at: Option<DateTime<Utc>>,
     pub before_id: Option<TicketId>,
@@ -854,7 +857,33 @@ impl TicketingStore for MemoryTicketingStore {
             .tickets
             .values()
             .filter(|ticket| ticket.project_id == filter.project_id)
+            .filter(|ticket| match filter.query.as_deref() {
+                None => true,
+                Some(query) => {
+                    let needle = query.to_ascii_lowercase();
+                    [
+                        ticket.subject.as_str(),
+                        ticket.display_reference.as_str(),
+                        ticket.description.as_str(),
+                    ]
+                    .iter()
+                    .any(|haystack| haystack.to_ascii_lowercase().contains(&needle))
+                }
+            })
             .filter(|ticket| filter.statuses.is_empty() || filter.statuses.contains(&ticket.status))
+            .filter(|ticket| match filter.query.as_deref() {
+                None => true,
+                Some(query) => {
+                    let needle = query.to_ascii_lowercase();
+                    [
+                        ticket.subject.as_str(),
+                        ticket.display_reference.as_str(),
+                        ticket.description.as_str(),
+                    ]
+                    .iter()
+                    .any(|haystack| haystack.to_ascii_lowercase().contains(&needle))
+                }
+            })
             .filter(|ticket| {
                 filter
                     .queue_id

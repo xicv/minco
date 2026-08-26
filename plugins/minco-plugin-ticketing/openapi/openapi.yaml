@@ -408,6 +408,57 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/TicketSummaryCollection'}
         default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/search:
+    get:
+      operationId: listTicketingAgentSearch
+      summary: Bounded newest-first ticket search over subject, reference and description
+      description: >-
+        Bounded substring search (2..=200 characters) over subject,
+        display reference and description only — no message bodies, no
+        ranking engine, ordinary summary pagination.
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: {type: string, minLength: 2, maxLength: 200}
+        - {$ref: '#/components/parameters/PageLimit'}
+        - {$ref: '#/components/parameters/PageAfter'}
+      responses:
+        '200':
+          description: Matching compact ticket summaries
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TicketSummaryCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/tickets/{ticketId}/knowledge-links:
+    put:
+      operationId: replaceTicketingKnowledgeLinks
+      summary: Replace one ticket's bounded knowledge links revision-gated by If-Match
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/KnowledgeLinks'}
+      responses:
+        '200': {$ref: '#/components/responses/TicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/tickets/{ticketId}/csat:
+    post:
+      operationId: submitTicketingCsat
+      summary: Submit the requester's satisfaction rating once for a resolved ticket
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RequesterCsat'}
+      responses:
+        '200': {$ref: '#/components/responses/RequesterTicketMutation'}
+        default: {$ref: '#/components/responses/Problem'}
   /_minco/ticketing/agent/macros:
     get:
       operationId: listTicketingAgentMacros
@@ -718,6 +769,37 @@ components:
             rationale: Validation field names are application-defined and each value is a list of public-safe messages.
     TicketPriority: {type: string, enum: [low, normal, high, urgent]}
     TicketChannel: {type: string, enum: [portal, email, api, voice, internal, other]}
+    KnowledgeLink:
+      type: object
+      description: One knowledge-base reference attached to a ticket (ADR-0069).
+      additionalProperties: false
+      required: [article_id, title, url]
+      properties:
+        article_id: {type: string, minLength: 1, maxLength: 200}
+        title: {type: string, minLength: 1, maxLength: 300}
+        url: {type: string, format: uri, minLength: 8, maxLength: 2048}
+    KnowledgeLinks:
+      type: object
+      additionalProperties: false
+      required: [links]
+      properties:
+        links: {type: array, maxItems: 16, items: {$ref: '#/components/schemas/KnowledgeLink'}}
+    TicketCsat:
+      type: [object, 'null']
+      description: The requester's one-shot satisfaction rating (ADR-0069).
+      additionalProperties: false
+      required: [score, submitted_at]
+      properties:
+        score: {type: integer, minimum: 1, maximum: 5}
+        comment: {type: string, maxLength: 2000}
+        submitted_at: {type: string, format: date-time}
+    RequesterCsat:
+      type: object
+      additionalProperties: false
+      required: [score]
+      properties:
+        score: {type: integer, minimum: 1, maximum: 5}
+        comment: {type: string, maxLength: 2000}
     TicketType: {type: string, enum: [question, incident, problem, task]}
     TicketFormValueKind: {type: string, enum: [text, number, boolean, date_time]}
     TicketFormAnswer:
@@ -889,7 +971,7 @@ components:
     Ticket:
       type: object
       additionalProperties: false
-      required: [id, project_id, display_reference, subject, description, requester, channel, priority, ticket_type, form_answers, status, clock_state, followers, tags, source_references, resource_references, messages, attachments, created_at, updated_at, revision]
+      required: [id, project_id, display_reference, subject, description, requester, channel, priority, ticket_type, form_answers, status, clock_state, followers, tags, source_references, resource_references, messages, attachments, knowledge_links, csat, created_at, updated_at, revision]
       properties:
         id: {type: string, format: uuid}
         project_id: {type: string}
@@ -912,6 +994,8 @@ components:
         resource_references: {type: array, items: {$ref: '#/components/schemas/ResourceReference'}}
         messages: {type: array, items: {$ref: '#/components/schemas/TicketMessage'}}
         attachments: {type: array, items: {$ref: '#/components/schemas/TicketAttachment'}}
+        knowledge_links: {type: array, maxItems: 16, items: {$ref: '#/components/schemas/KnowledgeLink'}}
+        csat: {$ref: '#/components/schemas/TicketCsat'}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         first_public_response_at: {type: [string, 'null'], format: date-time}
@@ -983,7 +1067,7 @@ components:
     RequesterTicket:
       type: object
       additionalProperties: false
-      required: [id, project_id, display_reference, subject, description, requester, channel, priority, ticket_type, form_answers, status, messages, attachments, created_at, updated_at, revision]
+      required: [id, project_id, display_reference, subject, description, requester, channel, priority, ticket_type, form_answers, status, messages, attachments, csat, created_at, updated_at, revision]
       properties:
         id: {type: string, format: uuid}
         project_id: {type: string}
@@ -998,6 +1082,7 @@ components:
         status: {$ref: '#/components/schemas/RequesterStatus'}
         messages: {type: array, items: {$ref: '#/components/schemas/RequesterMessage'}}
         attachments: {type: array, items: {$ref: '#/components/schemas/RequesterAttachment'}}
+        csat: {$ref: '#/components/schemas/TicketCsat'}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         revision: {type: integer, minimum: 0}

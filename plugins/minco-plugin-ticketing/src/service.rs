@@ -960,6 +960,98 @@ impl TicketingService {
         Ok(self.store.list_summaries(filter).await?)
     }
 
+    /// Bounded agent search (ADR-0069): substring over subject, display
+    /// reference and description — never message bodies.
+    pub async fn search_tickets(
+        &self,
+        principal: &Identity,
+        query: &str,
+        limit: usize,
+        before: Option<(DateTime<Utc>, TicketId)>,
+    ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        let trimmed = query.trim();
+        if trimmed.chars().count() < 2
+            || trimmed.chars().count() > 200
+            || trimmed.chars().any(char::is_control)
+        {
+            return Err(TicketingServiceError::InvalidManagementRequest);
+        }
+        Ok(self
+            .store
+            .list_summaries(TicketSummaryFilter {
+                project_id: self.config().project_id.clone(),
+                statuses: BTreeSet::new(),
+                queue_id: None,
+                assignee_subject: None,
+                requester_subject: None,
+                unassigned: false,
+                query: Some(trimmed.to_owned()),
+                before_updated_at: before.map(|value| value.0),
+                before_id: before.map(|value| value.1),
+                limit,
+            })
+            .await?)
+    }
+
+    /// Replaces the ticket's bounded knowledge links (ADR-0069) as one
+    /// revision-gated decision.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn replace_knowledge_links(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+        links: Vec<crate::KnowledgeLink>,
+        expected_revision: u64,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<TicketingMutationResult, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        self.require_project(project_id)?;
+        let mut ticket = self.load(project_id, id).await?;
+        require_revision(&ticket, expected_revision)?;
+        ticket.replace_knowledge_links(links, now)?;
+        self.save(
+            ticket.clone(),
+            expected_revision,
+            "ticketing.knowledge_links_replaced",
+            correlation_id,
+            now,
+        )
+        .await?;
+        Ok(result(ticket))
+    }
+
+    /// The requester's one-shot CSAT submission (ADR-0069): only for a
+    /// resolved or closed ticket the requester owns, exactly once.
+    pub async fn submit_csat(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+        score: u8,
+        comment: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<TicketingMutationResult, TicketingServiceError> {
+        authorize(principal, "ticketing.read")?;
+        self.require_project(project_id)?;
+        let mut ticket = self.load(project_id, id).await?;
+        if ticket.requester.subject != principal.subject {
+            return Err(TicketingServiceError::RequesterMismatch);
+        }
+        ticket.submit_csat(score, comment, now)?;
+        self.save(
+            ticket.clone(),
+            ticket.revision - 1,
+            "ticketing.csat_submitted",
+            Uuid::new_v4(),
+            now,
+        )
+        .await?;
+        Ok(result(ticket))
+    }
+
     /// One curated agent view (ADR-0067): a closed server-defined
     /// predicate over ticket summaries — never an ad-hoc query surface.
     pub async fn list_agent_view(
@@ -999,6 +1091,7 @@ impl TicketingService {
                 queue_id: None,
                 assignee_subject,
                 unassigned,
+                query: None,
                 requester_subject: None,
                 before_updated_at: before.map(|value| value.0),
                 before_id: before.map(|value| value.1),
@@ -1977,7 +2070,15 @@ mod tests {
     }
 
     fn manager_identity() -> Identity {
-        identity("manager", &["ticketing.create", "ticketing.manage"])
+        identity(
+            "manager",
+            &[
+                "ticketing.create",
+                "ticketing.manage",
+                "ticketing.agent.read",
+                "ticketing.agent.manage",
+            ],
+        )
     }
 
     fn sla_pool_service() -> TicketingService {
@@ -1995,6 +2096,166 @@ mod tests {
             },
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn bounded_search_matches_subject_reference_and_description() {
+        let service = service();
+        let identity = manager_identity();
+        let mut input = create_input("Checkout fails");
+        input.description = "Payment rejected after login".into();
+        service
+            .create_ticket(&identity, input, Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap();
+        service
+            .create_ticket(
+                &identity,
+                create_input("Unrelated"),
+                Uuid::new_v4(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        for needle in ["checkout", "payment rejected"] {
+            let hits = service
+                .search_tickets(&identity, needle, 10, None)
+                .await
+                .unwrap();
+            assert_eq!(hits.len(), 1, "needle {needle}");
+        }
+        // The display reference matches both tickets.
+        assert_eq!(
+            service
+                .search_tickets(&identity, "TKT-", 10, None)
+                .await
+                .unwrap()
+                .len(),
+            2
+        );
+        // Too-short queries fail closed; message bodies are never searched.
+        assert!(
+            service
+                .search_tickets(&identity, "x", 10, None)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn knowledge_links_replace_atomically() {
+        let service = service();
+        let identity = manager_identity();
+        let ticket = service
+            .create_ticket(&identity, create_input("Help"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        let links = vec![crate::KnowledgeLink {
+            article_id: "kb-1".into(),
+            title: "Fix checkout".into(),
+            url: "https://kb.example.test/checkout".into(),
+        }];
+        let updated = service
+            .replace_knowledge_links(
+                &identity,
+                "project-a",
+                ticket.id,
+                links,
+                ticket.revision,
+                Uuid::new_v4(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(updated.knowledge_links.len(), 1);
+        // Duplicate article ids in one decision fail closed.
+        let mut duplicate = updated.knowledge_links.clone();
+        duplicate.push(crate::KnowledgeLink {
+            article_id: "kb-1".into(),
+            title: "Other".into(),
+            url: "https://kb.example.test/other".into(),
+        });
+        assert!(
+            service
+                .replace_knowledge_links(
+                    &identity,
+                    "project-a",
+                    ticket.id,
+                    duplicate,
+                    updated.revision,
+                    Uuid::new_v4(),
+                    Utc::now(),
+                )
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn csat_is_one_shot_and_only_after_resolution() {
+        let service = service();
+        let requester = identity("user-a", &["ticketing.create", "ticketing.read"]);
+        let ticket = service
+            .create_ticket(&requester, create_input("Help"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        // Open tickets refuse a rating.
+        assert!(
+            service
+                .submit_csat(&requester, "project-a", ticket.id, 5, None, Utc::now())
+                .await
+                .is_err()
+        );
+        // Resolve as the manager.
+        let manager = manager_identity();
+        let resolved = service
+            .manage_ticket(
+                &manager,
+                "project-a",
+                ticket.id,
+                crate::AgentManagementInput {
+                    status: Some(crate::TicketStatus::Resolved),
+                    resolution: Some("Fixed".into()),
+                    ..Default::default()
+                },
+                ticket.revision,
+                Uuid::new_v4(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        let rated = service
+            .submit_csat(
+                &requester,
+                "project-a",
+                ticket.id,
+                4,
+                Some("Thanks".into()),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(rated.csat.as_ref().unwrap().score, 4);
+        // A second submission is refused; another requester cannot rate.
+        assert!(
+            service
+                .submit_csat(&requester, "project-a", ticket.id, 5, None, Utc::now())
+                .await
+                .is_err()
+        );
+        let stranger = identity("user-b", &["ticketing.read"]);
+        assert!(
+            service
+                .submit_csat(&stranger, "project-a", ticket.id, 5, None, Utc::now())
+                .await
+                .is_err()
+        );
+        let _ = resolved;
     }
 
     #[tokio::test]

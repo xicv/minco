@@ -388,6 +388,27 @@
       "idempotent": false
     },
     {
+      "operation_id": "listTicketingAgentSearch",
+      "method": "GET",
+      "path": "/_minco/ticketing/agent/search",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "replaceTicketingKnowledgeLinks",
+      "method": "PUT",
+      "path": "/_minco/ticketing/agent/tickets/{ticketId}/knowledge-links",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "submitTicketingCsat",
+      "method": "POST",
+      "path": "/_minco/ticketing/requester/tickets/{ticketId}/csat",
+      "public": false,
+      "idempotent": false
+    },
+    {
       "operation_id": "listTicketingAgentMacros",
       "method": "GET",
       "path": "/_minco/ticketing/agent/macros",

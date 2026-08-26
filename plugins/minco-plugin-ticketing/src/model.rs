@@ -362,6 +362,10 @@ pub struct Ticket {
     pub messages: Vec<TicketMessage>,
     #[serde(default)]
     pub attachments: Vec<TicketAttachment>,
+    #[serde(default)]
+    pub knowledge_links: Vec<KnowledgeLink>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub csat: Option<TicketCsat>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -399,6 +403,59 @@ pub struct CreateTicketInput {
     pub form_answers: Vec<TicketFormAnswer>,
     #[serde(default)]
     pub resource_references: Vec<SupportResourceReference>,
+}
+
+/// One knowledge-base reference attached to a ticket (ADR-0069):
+/// bounded identifiers and an https URL; unique per ticket.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KnowledgeLink {
+    pub article_id: String,
+    pub title: String,
+    pub url: String,
+}
+
+/// The requester's one-shot satisfaction rating (ADR-0069).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TicketCsat {
+    /// 1 (worst) ..= 5 (best).
+    pub score: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
+    pub submitted_at: DateTime<Utc>,
+}
+
+pub const MAX_KNOWLEDGE_LINKS: usize = 16;
+
+fn validate_knowledge_links(links: &[KnowledgeLink]) -> Result<(), TicketValidationError> {
+    if links.len() > MAX_KNOWLEDGE_LINKS {
+        return Err(TicketValidationError::InvalidField {
+            field: "knowledge_links",
+            detail: format!("must not contain more than {MAX_KNOWLEDGE_LINKS} links"),
+        });
+    }
+    let mut seen = BTreeSet::new();
+    for link in links {
+        validate_text("knowledge_links.article_id", &link.article_id, 200)?;
+        validate_text("knowledge_links.title", &link.title, 300)?;
+        if !link.url.starts_with("https://")
+            || link.url.chars().count() > 2_048
+            || link.url.chars().any(char::is_control)
+        {
+            return Err(TicketValidationError::InvalidField {
+                field: "knowledge_links.url",
+                detail: "must be a bounded https URL".into(),
+            });
+        }
+        if !seen.insert(link.article_id.clone()) {
+            return Err(TicketValidationError::InvalidField {
+                field: "knowledge_links.article_id",
+                detail: "must be unique".into(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// How an assignment decision picks its agent (ADR-0068): manual
@@ -532,6 +589,8 @@ impl Ticket {
             });
         }
         validate_form_answers(&input.form_answers)?;
+        // Knowledge links arrive through their own replacement use case;
+        // creation always starts clean.
         let id = TicketId::new();
         let mut ticket = Self {
             id,
@@ -555,6 +614,8 @@ impl Ticket {
             resource_references: input.resource_references,
             messages: Vec::new(),
             attachments: Vec::new(),
+            knowledge_links: Vec::new(),
+            csat: None,
             created_at: now,
             updated_at: now,
             first_public_response_at: None,
@@ -767,6 +828,53 @@ impl Ticket {
         Ok(())
     }
 
+    /// Replaces the bounded knowledge links (ADR-0069) as one decision.
+    pub fn replace_knowledge_links(
+        &mut self,
+        links: Vec<KnowledgeLink>,
+        now: DateTime<Utc>,
+    ) -> Result<(), TicketValidationError> {
+        validate_knowledge_links(&links)?;
+        self.knowledge_links = links;
+        self.touch(now);
+        Ok(())
+    }
+
+    /// Records the requester's one-shot CSAT (ADR-0069); only a resolved
+    /// or closed ticket accepts it, and only once.
+    pub fn submit_csat(
+        &mut self,
+        score: u8,
+        comment: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<(), TicketValidationError> {
+        if !(1..=5).contains(&score) {
+            return Err(TicketValidationError::InvalidField {
+                field: "csat.score",
+                detail: "must be between 1 and 5".into(),
+            });
+        }
+        if !matches!(self.status, TicketStatus::Resolved | TicketStatus::Closed) {
+            return Err(TicketValidationError::InvalidField {
+                field: "csat",
+                detail: "only resolved or closed tickets accept a rating".into(),
+            });
+        }
+        if self.csat.is_some() {
+            return Err(TicketValidationError::InvalidField {
+                field: "csat",
+                detail: "the rating was already submitted".into(),
+            });
+        }
+        self.csat = Some(TicketCsat {
+            score,
+            comment,
+            submitted_at: now,
+        });
+        self.touch(now);
+        Ok(())
+    }
+
     pub fn assign(
         &mut self,
         subject: Option<String>,
@@ -817,6 +925,7 @@ impl Ticket {
             priority: self.priority,
             ticket_type: self.ticket_type,
             form_answers: self.form_answers.clone(),
+            csat: self.csat.clone(),
             status: self.status.into(),
             messages: self
                 .messages
@@ -1003,6 +1112,8 @@ pub struct RequesterTicket {
     pub ticket_type: TicketType,
     #[serde(default)]
     pub form_answers: Vec<TicketFormAnswer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub csat: Option<TicketCsat>,
     pub status: PublicTicketStatus,
     pub messages: Vec<PublicTicketMessage>,
     pub attachments: Vec<RequesterTicketAttachment>,

@@ -423,6 +423,24 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             false,
         ),
         (
+            "listTicketingAgentSearch",
+            "GET",
+            "/_minco/ticketing/agent/search",
+            false,
+        ),
+        (
+            "replaceTicketingKnowledgeLinks",
+            "PUT",
+            "/_minco/ticketing/agent/tickets/{ticketId}/knowledge-links",
+            false,
+        ),
+        (
+            "submitTicketingCsat",
+            "POST",
+            "/_minco/ticketing/requester/tickets/{ticketId}/csat",
+            false,
+        ),
+        (
             "listTicketingAgentMacros",
             "GET",
             "/_minco/ticketing/agent/macros",

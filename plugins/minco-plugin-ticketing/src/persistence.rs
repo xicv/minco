@@ -181,6 +181,7 @@ impl TicketingStore for SqliteTicketingStore {
                AND (? IS NULL OR t.assignee_subject = ?)
                AND (? IS NULL OR t.requester_subject = ?)
                AND (? = 0 OR t.assignee_subject IS NULL)
+               AND (? IS NULL OR t.subject LIKE ? ESCAPE '\\' OR t.display_reference LIKE ? ESCAPE '\\' OR t.description LIKE ? ESCAPE '\\')
                AND (? IS NULL OR t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))
              ORDER BY t.updated_at DESC, t.id DESC
              LIMIT ?",
@@ -201,6 +202,10 @@ impl TicketingStore for SqliteTicketingStore {
         .bind(filter.requester_subject.as_deref())
         .bind(filter.requester_subject.as_deref())
         .bind(i64::from(filter.unassigned))
+        .bind(filter.query.as_deref())
+        .bind(filter.query.as_deref().map(|value| format!("%{}%", escape_like(value))))
+        .bind(filter.query.as_deref().map(|value| format!("%{}%", escape_like(value))))
+        .bind(filter.query.as_deref().map(|value| format!("%{}%", escape_like(value))))
         .bind(before_updated_at.as_deref())
         .bind(before_updated_at.as_deref())
         .bind(before_updated_at.as_deref())
@@ -1150,6 +1155,11 @@ async fn insert_ticket(
     .bind(ticket.closed_at.map(|v| v.to_rfc3339()))
     .bind(&ticket.resolution)
     .bind(&ticket.close_reason)
+    .bind(serde_json::to_string(&ticket.knowledge_links).map_err(encoding)?)
+    .bind(match &ticket.csat {
+        Some(csat) => Some(serde_json::to_string(csat).map_err(encoding)?),
+        None => None,
+    })
     .bind(serde_json::to_string(ticket).map_err(encoding)?)
     .execute(&mut **transaction)
     .await
@@ -1169,7 +1179,7 @@ async fn update_ticket(
         });
     }
     let result = sqlx::query(
-        "UPDATE ticketing_tickets SET subject = ?, description = ?, channel = ?, priority = ?, ticket_type = ?, form_answers_json = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, requester_display_name = ?, requester_email = ?, created_at = ?, updated_at = ?, revision = ?, first_public_response_at = ?, first_response_deadline = ?, resolution_deadline = ?, waiting_since = ?, resolved_at = ?, closed_at = ?, resolution = ?, close_reason = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
+        "UPDATE ticketing_tickets SET subject = ?, description = ?, channel = ?, priority = ?, ticket_type = ?, form_answers_json = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, requester_display_name = ?, requester_email = ?, created_at = ?, updated_at = ?, revision = ?, first_public_response_at = ?, first_response_deadline = ?, resolution_deadline = ?, waiting_since = ?, resolved_at = ?, closed_at = ?, resolution = ?, close_reason = ?, knowledge_links_json = ?, csat_json = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
     )
     .bind(&ticket.subject)
     .bind(&ticket.description)
@@ -1194,6 +1204,11 @@ async fn update_ticket(
     .bind(ticket.closed_at.map(|v| v.to_rfc3339()))
     .bind(&ticket.resolution)
     .bind(&ticket.close_reason)
+    .bind(serde_json::to_string(&ticket.knowledge_links).map_err(encoding)?)
+    .bind(match &ticket.csat {
+        Some(csat) => Some(serde_json::to_string(csat).map_err(encoding)?),
+        None => None,
+    })
     .bind(serde_json::to_string(ticket).map_err(encoding)?)
     .bind(&ticket.project_id)
     .bind(ticket.id.to_string())
@@ -1326,7 +1341,7 @@ async fn load_ticket_row(
     id: &str,
 ) -> Result<Option<Ticket>, TicketStoreError> {
     let Some(row) = sqlx::query(
-        "SELECT project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, first_response_deadline, resolution_deadline, waiting_since, resolved_at, closed_at, resolution, close_reason FROM ticketing_tickets WHERE project_id = ? AND id = ?",
+        "SELECT project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, first_response_deadline, resolution_deadline, waiting_since, resolved_at, closed_at, resolution, close_reason, knowledge_links_json, csat_json FROM ticketing_tickets WHERE project_id = ? AND id = ?",
     )
     .bind(project_id)
     .bind(id)
@@ -1456,6 +1471,19 @@ async fn load_ticket_row(
         resource_references,
         messages,
         attachments,
+        knowledge_links: serde_json::from_str(&row.get::<String, _>("knowledge_links_json"))
+            .map_err(|_| {
+                TicketStoreError::Infrastructure(
+                    "stored ticket knowledge links are not valid JSON".into(),
+                )
+            })?,
+        csat: row
+            .get::<Option<String>, _>("csat_json")
+            .map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(|_| {
+                TicketStoreError::Infrastructure("stored ticket csat is not valid JSON".into())
+            })?,
         created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
         updated_at: parse_timestamp(&row.get::<String, _>("updated_at"))?,
         first_public_response_at: optional_timestamp("first_public_response_at")?,
@@ -1491,6 +1519,13 @@ fn parse_timestamp(value: &str) -> Result<chrono::DateTime<chrono::Utc>, TicketS
     chrono::DateTime::parse_from_rfc3339(value)
         .map(|value| value.with_timezone(&chrono::Utc))
         .map_err(|_| TicketStoreError::Infrastructure("stored timestamp is not RFC 3339".into()))
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 fn infrastructure(error: impl std::fmt::Display) -> TicketStoreError {
@@ -2217,6 +2252,74 @@ mod tests {
             summaries
                 .iter()
                 .all(|summary| summary.ticket_type == crate::TicketType::Problem)
+        );
+    }
+
+    #[tokio::test]
+    async fn sqlite_search_matches_and_escapes_like_wildcards() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        for (index, (subject, description)) in [
+            ("Checkout fails", "Payment rejected"),
+            ("Unrelated 100%", "Nothing"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let ticket = Ticket::create(
+                CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: subject.into(),
+                    description: description.into(),
+                    requester: TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: crate::TicketChannel::Portal,
+                    priority: crate::TicketPriority::Normal,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    resource_references: Vec::new(),
+                },
+                format!("TKT-SEARCH-{index}"),
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            sqlite.create(ticket, intent).await.unwrap();
+        }
+        for needle in ["checkout", "payment", "unrelated 100%"] {
+            let hits = sqlite
+                .list_summaries(crate::TicketSummaryFilter {
+                    project_id: "project-a".into(),
+                    query: Some(needle.into()),
+                    limit: 10,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(hits.len(), 1, "needle {needle}");
+        }
+        assert_eq!(
+            sqlite
+                .list_summaries(crate::TicketSummaryFilter {
+                    project_id: "project-a".into(),
+                    query: Some("checkout".into()),
+                    limit: 10,
+                    ..Default::default()
+                })
+                .await
+                .unwrap()
+                .len(),
+            1
         );
     }
 
