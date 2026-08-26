@@ -1323,11 +1323,25 @@ async fn agent_search(
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let RawQuery(raw_query) = raw;
-    let mut query = parse_agent_list_query(raw_query.as_deref(), &request_id)?;
-    let needle = url::form_urlencoded::parse(raw_query.unwrap_or_default().as_bytes())
+    let needle = url::form_urlencoded::parse(raw_query.as_deref().unwrap_or_default().as_bytes())
         .find(|(name, _)| name == "q")
         .map(|(_, value)| value.into_owned())
         .ok_or_else(|| ApiFailure::validation("q is required", &request_id))?;
+    // The shared pagination parser rejects unknown parameters, so `q`
+    // is consumed above and every other parameter stays pagination.
+    let pagination_only = raw_query.as_deref().map(|raw| {
+        url::form_urlencoded::parse(raw.as_bytes())
+            .filter(|(name, _)| name != "q")
+            .map(|(name, value)| format!("{name}={value}"))
+            .collect::<Vec<_>>()
+            .join("&")
+    });
+    let pagination_only = if pagination_only.as_deref().is_some_and(str::is_empty) {
+        None
+    } else {
+        pagination_only
+    };
+    let mut query = parse_agent_list_query(pagination_only.as_deref(), &request_id)?;
     let mut summaries = state
         .service
         .search_tickets(&principal, &needle, query.limit + 1, query.before)

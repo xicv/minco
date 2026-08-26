@@ -149,3 +149,18 @@ cost_classes = ["zero_compute", "request_only", "storage_only"]
 wake_sources = ["http_request"]
 checks = ["feedback-review-loop"]
 unsupported_gates = ["Feedback is untrusted input and never authorizes code execution, deployment, or cleanup."]
+
+[[recipe]]
+id = "standalone-desk"
+title = "Run the standalone Minco Desk private-beta example"
+kind = "application"
+example = "examples/minco-desk"
+documentation = "docs/adrs/0072-standalone-desk-example.md"
+features = ["ticketing", "jobs", "identity", "sessions", "idempotency", "objects", "notifications", "audit", "events", "health", "observability"]
+runtime = "local_native"
+database = "sqlite"
+provider_assumptions = ["No provider access: memory objects and notifications, SQLite file database, one native process."]
+cost_classes = ["zero_compute"]
+wake_sources = ["http_request"]
+checks = ["minco-desk-example"]
+unsupported_gates = ["Upgrade, backup/restore, retention, email replay, job recovery, load, accessibility, security review, cost topology and BFF integration are later Stage G slices."]

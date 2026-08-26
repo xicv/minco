@@ -1,0 +1,70 @@
+[package]
+name = "minco-desk-example"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = ["sqlite"]
+sqlite = [
+  "dep:minco-sqlx-sqlite",
+  "minco-plugin-ticketing/sqlite",
+  "dep:minco-plugin-jobs",
+  "minco-plugin-ticketing/jobs",
+  "minco-plugin-ticketing/http",
+  "dep:minco-plugin-object-storage",
+  "dep:minco-plugin-identity",
+  "dep:minco-plugin-notifications",
+]
+
+[lib]
+name = "minco_desk_example"
+path = "src/lib.rs"
+
+[[bin]]
+name = "minco-desk-local"
+path = "src/bin/local.rs"
+
+[[bin]]
+name = "minco-desk-migrate"
+path = "src/bin/migrate.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+http.workspace = true
+minco-core.workspace = true
+minco-http.workspace = true
+minco-plugin-health.workspace = true
+minco-plugin-observability.workspace = true
+minco-plugin-idempotency.workspace = true
+minco-plugin-sessions.workspace = true
+minco-plugin-events.workspace = true
+minco-plugin-audit.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+minco-sqlx-sqlite = { workspace = true, optional = true }
+minco-plugin-ticketing = { workspace = true, optional = true }
+minco-plugin-jobs = { workspace = true, optional = true }
+minco-plugin-object-storage = { workspace = true, optional = true }
+minco-plugin-identity = { workspace = true, optional = true }
+minco-plugin-notifications = { workspace = true, optional = true }
+
+[dev-dependencies]
+http-body-util.workspace = true
+tempfile.workspace = true
+tower.workspace = true
+
+[package.metadata.minco]
+example = "standalone-private-beta"
+
+[lints]
+workspace = true

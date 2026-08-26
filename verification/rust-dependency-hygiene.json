@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "passed",
-  "workspace_packages": 42,
+  "workspace_packages": 43,
   "findings": [],
   "limitations": [
     "This is a conservative lexical check for known crate roots, not Cargo resolution or compilation."

@@ -43,6 +43,7 @@ members = [
   "examples/orders/adapters",
   "examples/orders/api",
   "examples/orders/service",
+  "examples/minco-desk",
 ]
 default-members = [
   "crates/minco",
