@@ -395,6 +395,27 @@
       "idempotent": false
     },
     {
+      "operation_id": "requestTicketingAutomation",
+      "method": "POST",
+      "path": "/_minco/ticketing/agent/tickets/{ticketId}/automation",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "listTicketingAutomationProposals",
+      "method": "GET",
+      "path": "/_minco/ticketing/agent/tickets/{ticketId}/automation-proposals",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "decideTicketingAutomationProposal",
+      "method": "PATCH",
+      "path": "/_minco/ticketing/agent/automation-proposals/{proposalId}",
+      "public": false,
+      "idempotent": false
+    },
+    {
       "operation_id": "replaceTicketingKnowledgeLinks",
       "method": "PUT",
       "path": "/_minco/ticketing/agent/tickets/{ticketId}/knowledge-links",

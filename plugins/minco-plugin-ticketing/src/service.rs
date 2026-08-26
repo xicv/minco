@@ -95,6 +95,10 @@ pub struct TicketingConfig {
     /// (ADR-0054). Default false: no application gets a queue by surprise.
     #[serde(default)]
     pub notify_requester_on_public_reply: bool,
+    /// Private development automation (ADR-0070). Off by default: no
+    /// application gets automation by surprise.
+    #[serde(default)]
+    pub automation: crate::AutomationConfig,
 }
 
 impl Default for TicketingConfig {
@@ -111,6 +115,7 @@ impl Default for TicketingConfig {
             assignment_pool: Vec::new(),
             sla: None,
             notify_requester_on_public_reply: false,
+            automation: crate::AutomationConfig::default(),
         }
     }
 }
@@ -157,6 +162,16 @@ impl TicketingConfig {
         if !(1..=86_400).contains(&self.requester_session_ttl_seconds) {
             return Err(TicketingServiceError::Configuration(
                 "requester_session_ttl_seconds must be between 1 and 86400".into(),
+            ));
+        }
+        if self.automation.profile != crate::AutomationProfile::Off
+            && self.automation.review == crate::AutomationReview::Disabled
+        {
+            // Trusted deterministic verification does not ship in this
+            // slice, so review-disabled automation fails closed (ADR-0070).
+            return Err(TicketingServiceError::Configuration(
+                "automation review may not be disabled: trusted verification is not available"
+                    .into(),
             ));
         }
         self.location_policy().validate()?;
@@ -283,7 +298,7 @@ pub struct RequesterTicketResult {
 pub struct TicketingService {
     store: TicketingStoreService,
     config: TicketingConfig,
-    portal: TicketingPortalServices,
+    pub(crate) portal: TicketingPortalServices,
 }
 
 impl fmt::Debug for TicketingService {
@@ -960,7 +975,91 @@ impl TicketingService {
         Ok(self.store.list_summaries(filter).await?)
     }
 
-    /// Bounded agent search (ADR-0069): substring over subject, display
+    /// Requests one development-automation run (ADR-0070) by submitting
+    /// the durable command. Profile-off fails closed here too: the
+    /// command never queues for an application that has not opted in.
+    pub async fn request_development_automation(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+        now: DateTime<Utc>,
+    ) -> Result<Uuid, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        self.require_project(project_id)?;
+        if self.config().automation.profile == crate::AutomationProfile::Off {
+            return Err(TicketingServiceError::Configuration(
+                "automation is not enabled for this application".into(),
+            ));
+        }
+        #[cfg(feature = "jobs")]
+        {
+            let jobs = self
+                .portal
+                .jobs
+                .as_ref()
+                .ok_or(TicketingServiceError::JobsUnavailable)?;
+            let correlation = Uuid::now_v7();
+            let envelope = crate::development_automation_envelope(
+                &crate::RunDevelopmentAutomation {
+                    project_id: project_id.to_owned(),
+                    ticket_id: id,
+                    requested_by: principal.subject.clone(),
+                },
+                correlation,
+                now,
+            )
+            .map_err(|_| TicketingServiceError::JobsUnavailable)?;
+            jobs.submit_durable(envelope)
+                .await
+                .map_err(|_| TicketingServiceError::JobsUnavailable)?;
+            Ok(correlation)
+        }
+        #[cfg(not(feature = "jobs"))]
+        {
+            Err(TicketingServiceError::JobsUnavailable)
+        }
+    }
+
+    /// Agent-only listing of a ticket's automation proposals (ADR-0070);
+    /// automation state never crosses into requester projections.
+    pub async fn list_automation_proposals(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+    ) -> Result<Vec<crate::AutomationProposal>, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        self.require_project(project_id)?;
+        Ok(self.store.list_automation_proposals(project_id, id).await?)
+    }
+
+    /// Records the human decision on one automation proposal
+    /// (ADR-0070): accepting authorizes the *proposal record only* —
+    /// executing accepted proposals is later, explicit work.
+    pub async fn decide_automation_proposal(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: Uuid,
+        accept: bool,
+        now: DateTime<Utc>,
+    ) -> Result<crate::AutomationProposal, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        self.require_project(project_id)?;
+        let mut proposal = self
+            .store
+            .get_automation_proposal(project_id, id)
+            .await?
+            .ok_or(TicketingServiceError::NotFound(TicketId(id)))?;
+        proposal.decide(accept, now)?;
+        self.store
+            .update_automation_proposal(project_id, proposal.clone())
+            .await?;
+        Ok(proposal)
+    }
+
+    /// Bounded agent search (ADR-0069):    /// Bounded agent search (ADR-0069): substring over subject, display
     /// reference and description — never message bodies.
     pub async fn search_tickets(
         &self,
@@ -2096,6 +2195,138 @@ mod tests {
             },
         )
         .unwrap()
+    }
+
+    fn automation_service(profile: crate::AutomationProfile) -> TicketingService {
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let registry = Arc::new(minco_plugin_jobs::JobHandlerRegistry::new());
+        let (jobs, _store, _dispatcher) = minco_plugin_jobs::JobsServices::memory(registry);
+        TicketingService::new(
+            TicketingStoreService::new(memory),
+            TicketingConfig {
+                project_id: "project-a".into(),
+                automation: crate::AutomationConfig {
+                    profile,
+                    review: crate::AutomationReview::Always,
+                },
+                ..test_config()
+            },
+        )
+        .unwrap()
+        .with_portal_services(TicketingPortalServices {
+            jobs: Some(Arc::new(jobs)),
+            ..TicketingPortalServices::default()
+        })
+    }
+
+    #[tokio::test]
+    async fn automation_fails_closed_when_off_and_review_disabled_is_unconfigurable() {
+        let identity = manager_identity();
+        // Off: the command never queues.
+        let off = automation_service(crate::AutomationProfile::Off);
+        let ticket = off
+            .create_ticket(&identity, create_input("Help"), Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        assert!(matches!(
+            off.request_development_automation(&identity, "project-a", ticket.id, Utc::now())
+                .await
+                .unwrap_err(),
+            TicketingServiceError::Configuration(_)
+        ));
+        // Review disabled with automation on fails config validation.
+        assert!(
+            TicketingService::new(
+                TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+                TicketingConfig {
+                    project_id: "project-a".into(),
+                    automation: crate::AutomationConfig {
+                        profile: crate::AutomationProfile::Assist,
+                        review: crate::AutomationReview::Disabled,
+                    },
+                    ..test_config()
+                },
+            )
+            .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn exclusion_list_refuses_production_authority() {
+        for excluded in [
+            "merge",
+            "release",
+            "publish",
+            "deploy",
+            "production.mutation",
+            "secret.management",
+            "workflow.dispatch",
+        ] {
+            assert!(
+                crate::validate_automation_actions(&[excluded.to_owned()]).is_err(),
+                "`{excluded}` must be excluded"
+            );
+        }
+        assert!(crate::validate_automation_actions(&["summarize".to_owned()]).is_ok());
+    }
+
+    #[tokio::test]
+    async fn proposals_are_decided_once_and_never_reach_requesters() {
+        let service = automation_service(crate::AutomationProfile::Assist);
+        let identity = manager_identity();
+        let ticket = service
+            .create_ticket(
+                &identity,
+                create_input("Automate me"),
+                Uuid::new_v4(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        // A proposal inserted directly stands in for the executed job.
+        let proposal = crate::AutomationProposal::new(
+            ticket.id,
+            "Automation proposal".into(),
+            vec!["summarize".into()],
+            "agent-1",
+            Utc::now(),
+        );
+        service
+            .store
+            .insert_automation_proposal("project-a", proposal.clone())
+            .await
+            .unwrap();
+        let listed = service
+            .list_automation_proposals(&identity, "project-a", ticket.id)
+            .await
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(
+            listed[0].state,
+            crate::AutomationProposalState::AwaitingReview
+        );
+
+        let decided = service
+            .decide_automation_proposal(&identity, "project-a", proposal.id, true, Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(decided.state, crate::AutomationProposalState::Accepted);
+        assert!(decided.decided_at.is_some());
+        // Exactly once: the second decision fails closed.
+        assert!(
+            service
+                .decide_automation_proposal(&identity, "project-a", proposal.id, false, Utc::now())
+                .await
+                .is_err()
+        );
+        // Privacy: the requester projection carries no automation state.
+        let decided_json = serde_json::to_string(&decided).unwrap();
+        assert!(!decided_json.contains("awaiting"));
+        let requester_projection = ticket.requester_projection();
+        let encoded = serde_json::to_string(&requester_projection).unwrap();
+        assert!(!encoded.contains("automation"));
     }
 
     #[tokio::test]

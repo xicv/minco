@@ -1,10 +1,10 @@
 use crate::{
-    AgentMacro, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
-    ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIngestResult,
-    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OutboundDeliveryEvidence,
-    OutboundEvidenceKind, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
-    TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
-    TicketSummaryFilter, TicketingStore,
+    AgentMacro, AutomationProposal, AutomationProposalState, ConsumeHandoffRequest,
+    ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity, CreateTicketInput,
+    DeliveryFeedbackKind, ExternalMessageIngestResult, IngestExternalMessageRequest,
+    MAX_TICKET_LIST_FETCH_LIMIT, OutboundDeliveryEvidence, OutboundEvidenceKind, Ticket,
+    TicketActivityIntent, TicketId, TicketListFilter, TicketMessageId, TicketRequester,
+    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
@@ -1113,6 +1113,99 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(workload)
     }
 
+    async fn insert_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_automation_proposals
+                 (project_id, id, ticket_id, summary, requested_actions_json, created_by, state, created_at, decided_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(proposal.id.to_string())
+        .bind(proposal.ticket_id.to_string())
+        .bind(&proposal.summary)
+        .bind(serde_json::to_string(&proposal.requested_actions).map_err(encoding)?)
+        .bind(&proposal.created_by)
+        .bind(match proposal.state {
+            AutomationProposalState::AwaitingReview => "awaiting_review",
+            AutomationProposalState::Accepted => "accepted",
+            AutomationProposalState::Rejected => "rejected",
+        })
+        .bind(proposal.created_at.to_rfc3339())
+        .bind(proposal.decided_at.map(|value| value.to_rfc3339()))
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn list_automation_proposals(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<AutomationProposal>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, ticket_id, summary, requested_actions_json, created_by, state, created_at, decided_at
+               FROM ticketing_automation_proposals
+              WHERE project_id = ? AND ticket_id = ?
+              ORDER BY created_at",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.iter().map(proposal_from_row).collect()
+    }
+
+    async fn get_automation_proposal(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<AutomationProposal>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT id, ticket_id, summary, requested_actions_json, created_by, state, created_at, decided_at
+               FROM ticketing_automation_proposals
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(project_id)
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.as_ref().map(proposal_from_row).transpose()
+    }
+
+    async fn update_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_automation_proposals
+                SET state = ?, decided_at = ?
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(match proposal.state {
+            AutomationProposalState::AwaitingReview => "awaiting_review",
+            AutomationProposalState::Accepted => "accepted",
+            AutomationProposalState::Rejected => "rejected",
+        })
+        .bind(proposal.decided_at.map(|value| value.to_rfc3339()))
+        .bind(project_id)
+        .bind(proposal.id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        if result.rows_affected() == 0 {
+            return Err(TicketStoreError::MacroNotFound(proposal.id));
+        }
+        Ok(())
+    }
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         sqlx::query("SELECT 1 FROM ticketing_tickets LIMIT 1")
             .execute(&self.pool)
@@ -1526,6 +1619,41 @@ fn escape_like(value: &str) -> String {
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_")
+}
+
+fn proposal_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<AutomationProposal, TicketStoreError> {
+    Ok(AutomationProposal {
+        id: Uuid::parse_str(&row.get::<String, _>("id"))
+            .map_err(|_| TicketStoreError::Infrastructure("proposal id is not a UUID".into()))?,
+        ticket_id: TicketId(
+            Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("proposal ticket id is not a UUID".into())
+            })?,
+        ),
+        summary: row.get("summary"),
+        requested_actions: serde_json::from_str(&row.get::<String, _>("requested_actions_json"))
+            .map_err(|_| {
+                TicketStoreError::Infrastructure("proposal actions are not valid JSON".into())
+            })?,
+        created_by: row.get("created_by"),
+        state: match row.get::<String, _>("state").as_str() {
+            "awaiting_review" => AutomationProposalState::AwaitingReview,
+            "accepted" => AutomationProposalState::Accepted,
+            "rejected" => AutomationProposalState::Rejected,
+            _ => {
+                return Err(TicketStoreError::Infrastructure(
+                    "proposal state is unknown".into(),
+                ));
+            }
+        },
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+        decided_at: row
+            .get::<Option<String>, _>("decided_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+    })
 }
 
 fn infrastructure(error: impl std::fmt::Display) -> TicketStoreError {

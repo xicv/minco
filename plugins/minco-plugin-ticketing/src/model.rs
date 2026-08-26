@@ -458,6 +458,144 @@ fn validate_knowledge_links(links: &[KnowledgeLink]) -> Result<(), TicketValidat
     Ok(())
 }
 
+/// Private development-automation profiles (ADR-0070). `Off` is the
+/// default: no automation exists until explicitly configured.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationProfile {
+    #[default]
+    Off,
+    Assist,
+    Supervised,
+    Autonomous,
+}
+
+/// Human review policy for automation proposals (ADR-0070). When
+/// disabled, trusted deterministic verification remains required before
+/// a proposal can be accepted.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationReview {
+    #[default]
+    Always,
+    RiskBased,
+    Disabled,
+}
+
+/// One private development-automation proposal (ADR-0070). A model's
+/// output is a proposal or result — never authority. Automation state
+/// is agent-only and never crosses into requester projections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationProposalState {
+    AwaitingReview,
+    Accepted,
+    Rejected,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutomationProposal {
+    pub id: Uuid,
+    pub ticket_id: TicketId,
+    /// Bounded machine-readable summary of what the automation proposes.
+    pub summary: String,
+    /// Requested capabilities; anything on the exclusion list is
+    /// refused before the proposal is ever stored.
+    pub requested_actions: Vec<String>,
+    pub created_by: String,
+    pub state: AutomationProposalState,
+    pub created_at: DateTime<Utc>,
+    pub decided_at: Option<DateTime<Utc>>,
+}
+
+/// Capabilities a development-automation worker NEVER holds by default
+/// (ADR-0070): production-affecting authority stays with humans and the
+/// release pipeline, never with ticket automation.
+pub const AUTOMATION_EXCLUDED_ACTIONS: [&str; 7] = [
+    "merge",
+    "release",
+    "publish",
+    "deploy",
+    "production.mutation",
+    "secret.management",
+    "workflow.dispatch",
+];
+
+pub const MAX_AUTOMATION_REQUESTED_ACTIONS: usize = 16;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutomationConfig {
+    #[serde(default)]
+    pub profile: AutomationProfile,
+    #[serde(default)]
+    pub review: AutomationReview,
+}
+
+impl AutomationProposal {
+    #[must_use]
+    pub fn new(
+        ticket_id: TicketId,
+        summary: String,
+        requested_actions: Vec<String>,
+        created_by: &str,
+        now: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            ticket_id,
+            summary,
+            requested_actions,
+            created_by: created_by.to_owned(),
+            state: AutomationProposalState::AwaitingReview,
+            created_at: now,
+            decided_at: None,
+        }
+    }
+
+    /// An awaiting-review proposal can be decided exactly once.
+    pub fn decide(
+        &mut self,
+        accept: bool,
+        now: DateTime<Utc>,
+    ) -> Result<(), crate::TicketValidationError> {
+        if self.state != AutomationProposalState::AwaitingReview {
+            return Err(crate::TicketValidationError::InvalidField {
+                field: "automation_proposal.state",
+                detail: "the proposal was already decided".into(),
+            });
+        }
+        self.state = if accept {
+            AutomationProposalState::Accepted
+        } else {
+            AutomationProposalState::Rejected
+        };
+        self.decided_at = Some(now);
+        Ok(())
+    }
+}
+
+/// Validates requested automation actions against the exclusion list
+/// (ADR-0070) — fail closed before anything is persisted.
+pub fn validate_automation_actions(actions: &[String]) -> Result<(), crate::TicketValidationError> {
+    if actions.len() > MAX_AUTOMATION_REQUESTED_ACTIONS {
+        return Err(crate::TicketValidationError::InvalidField {
+            field: "automation.requested_actions",
+            detail: "must not contain more than 16 actions".into(),
+        });
+    }
+    for action in actions {
+        let normalized = action.to_ascii_lowercase();
+        if AUTOMATION_EXCLUDED_ACTIONS.contains(&normalized.as_str()) {
+            return Err(crate::TicketValidationError::InvalidField {
+                field: "automation.requested_actions",
+                detail: format!("`{action}` is excluded from automation authority by default"),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// How an assignment decision picks its agent (ADR-0068): manual
 /// carries the subject; the pool modes select from the configured
 /// assignment pool deterministically.

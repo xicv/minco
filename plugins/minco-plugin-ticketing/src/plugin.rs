@@ -429,6 +429,24 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             false,
         ),
         (
+            "requestTicketingAutomation",
+            "POST",
+            "/_minco/ticketing/agent/tickets/{ticketId}/automation",
+            false,
+        ),
+        (
+            "listTicketingAutomationProposals",
+            "GET",
+            "/_minco/ticketing/agent/tickets/{ticketId}/automation-proposals",
+            false,
+        ),
+        (
+            "decideTicketingAutomationProposal",
+            "PATCH",
+            "/_minco/ticketing/agent/automation-proposals/{proposalId}",
+            false,
+        ),
+        (
             "replaceTicketingKnowledgeLinks",
             "PUT",
             "/_minco/ticketing/agent/tickets/{ticketId}/knowledge-links",

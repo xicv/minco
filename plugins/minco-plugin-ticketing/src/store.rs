@@ -1,6 +1,7 @@
 use crate::{
-    AgentMacro, CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketFromHandoffInput,
-    TicketId, TicketMessageId, TicketRequester, TicketStatus, TicketSummary, TicketValidationError,
+    AgentMacro, AutomationProposal, CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT, Ticket,
+    TicketFromHandoffInput, TicketId, TicketMessageId, TicketRequester, TicketStatus,
+    TicketSummary, TicketValidationError,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -356,6 +357,34 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         evidence: OutboundDeliveryEvidence,
     ) -> Result<(), TicketStoreError>;
 
+    /// Stores one automation proposal (ADR-0070).
+    async fn insert_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError>;
+
+    /// Automation proposals for one ticket, oldest first.
+    async fn list_automation_proposals(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<AutomationProposal>, TicketStoreError>;
+
+    /// Loads one proposal for a decide decision.
+    async fn get_automation_proposal(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<AutomationProposal>, TicketStoreError>;
+
+    /// Persists a decided proposal (state and `decided_at`).
+    async fn update_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError>;
+
     /// Atomically advances the project's round-robin cursor and returns
     /// the index to use for a pool of `pool_len` members (ADR-0068).
     async fn advance_assignment_cursor(
@@ -551,6 +580,44 @@ impl TicketingStoreService {
             .await
     }
 
+    pub async fn insert_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        self.0
+            .insert_automation_proposal(project_id, proposal)
+            .await
+    }
+
+    pub async fn list_automation_proposals(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<AutomationProposal>, TicketStoreError> {
+        self.0
+            .list_automation_proposals(project_id, ticket_id)
+            .await
+    }
+
+    pub async fn get_automation_proposal(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<AutomationProposal>, TicketStoreError> {
+        self.0.get_automation_proposal(project_id, id).await
+    }
+
+    pub async fn update_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        self.0
+            .update_automation_proposal(project_id, proposal)
+            .await
+    }
+
     pub async fn advance_assignment_cursor(
         &self,
         project_id: &str,
@@ -658,6 +725,7 @@ struct MemoryState {
     ticket_views: BTreeMap<(String, TicketId), BTreeMap<String, DateTime<Utc>>>,
     macros: BTreeMap<(String, Uuid), AgentMacro>,
     assignment_cursor: BTreeMap<String, u64>,
+    automation_proposals: BTreeMap<(String, Uuid), AutomationProposal>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -710,6 +778,67 @@ impl MemoryTicketingStore {
 
 #[async_trait]
 impl TicketingStore for MemoryTicketingStore {
+    #[allow(clippy::significant_drop_tightening)]
+    async fn insert_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        state
+            .automation_proposals
+            .insert((project_id.to_owned(), proposal.id), proposal);
+        Ok(())
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn list_automation_proposals(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<AutomationProposal>, TicketStoreError> {
+        let state = self.state.lock().await;
+        let mut proposals = state
+            .automation_proposals
+            .iter()
+            .filter(|((proposal_project, _), proposal)| {
+                proposal_project == project_id && proposal.ticket_id == ticket_id
+            })
+            .map(|(_, proposal)| proposal.clone())
+            .collect::<Vec<_>>();
+        proposals.sort_by_key(|proposal| proposal.created_at);
+        Ok(proposals)
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn get_automation_proposal(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<AutomationProposal>, TicketStoreError> {
+        Ok(self
+            .state
+            .lock()
+            .await
+            .automation_proposals
+            .get(&(project_id.to_owned(), id))
+            .cloned())
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn update_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let key = (project_id.to_owned(), proposal.id);
+        if state.automation_proposals.contains_key(&key) {
+            state.automation_proposals.insert(key, proposal);
+        }
+        Ok(())
+    }
+
     #[allow(clippy::significant_drop_tightening)]
     async fn advance_assignment_cursor(
         &self,

@@ -459,6 +459,61 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/RequesterTicketMutation'}
         default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/tickets/{ticketId}/automation:
+    post:
+      operationId: requestTicketingAutomation
+      summary: Queue one private development-automation run for the ticket
+      description: >-
+        Profile-gated (ADR-0070): the command fails closed when
+        automation is off. The durable job assembles a deterministic
+        proposal from ticket context; model output is a proposal, never
+        authority. Automation state is agent-only.
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+      responses:
+        '202':
+          description: Automation command accepted for durable execution
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AutomationAccepted'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/tickets/{ticketId}/automation-proposals:
+    get:
+      operationId: listTicketingAutomationProposals
+      summary: List the ticket's automation proposals oldest-first
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+      responses:
+        '200':
+          description: Automation proposals awaiting or carrying decisions
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AutomationProposalCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/automation-proposals/{proposalId}:
+    patch:
+      operationId: decideTicketingAutomationProposal
+      summary: Record the human decision on one automation proposal
+      description: >-
+        Accepting authorizes the proposal record only; execution of
+        accepted proposals is later, explicit work (ADR-0070).
+      parameters:
+        - in: path
+          name: proposalId
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AutomationDecision'}
+      responses:
+        '200':
+          description: The decided proposal
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AutomationProposalMutation'}
+        default: {$ref: '#/components/responses/Problem'}
   /_minco/ticketing/agent/macros:
     get:
       operationId: listTicketingAgentMacros
@@ -769,6 +824,45 @@ components:
             rationale: Validation field names are application-defined and each value is a list of public-safe messages.
     TicketPriority: {type: string, enum: [low, normal, high, urgent]}
     TicketChannel: {type: string, enum: [portal, email, api, voice, internal, other]}
+    AutomationAccepted:
+      type: object
+      additionalProperties: false
+      required: [correlation_id]
+      properties:
+        correlation_id: {type: string, format: uuid}
+    AutomationProposal:
+      type: object
+      description: A model's proposal for one ticket — never authority (ADR-0070); agent-only.
+      additionalProperties: false
+      required: [id, ticket_id, summary, requested_actions, created_by, state, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        ticket_id: {type: string, format: uuid}
+        summary: {type: string, maxLength: 2000}
+        requested_actions: {type: array, maxItems: 16, items: {type: string, maxLength: 100}}
+        created_by: {type: string, maxLength: 300}
+        state: {type: string, enum: [awaiting_review, accepted, rejected]}
+        created_at: {type: string, format: date-time}
+        decided_at: {type: [string, 'null'], format: date-time}
+    AutomationProposalCollection:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/AutomationProposal'}}
+    AutomationProposalMutation:
+      type: object
+      additionalProperties: false
+      required: [proposal]
+      properties:
+        proposal: {$ref: '#/components/schemas/AutomationProposal'}
+    AutomationDecisionKind: {type: string, enum: [accept, reject]}
+    AutomationDecision:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: {$ref: '#/components/schemas/AutomationDecisionKind'}
     KnowledgeLink:
       type: object
       description: One knowledge-base reference attached to a ticket (ADR-0069).

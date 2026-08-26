@@ -186,6 +186,18 @@ pub fn ticketing_router(service: TicketingService) -> Router {
             "/agent/tickets/{ticketId}/knowledge-links",
             put(replace_knowledge_links),
         )
+        .route(
+            "/agent/tickets/{ticketId}/automation",
+            post(request_automation),
+        )
+        .route(
+            "/agent/tickets/{ticketId}/automation-proposals",
+            get(list_automation_proposals),
+        )
+        .route(
+            "/agent/automation-proposals/{proposalId}",
+            patch(decide_automation_proposal),
+        )
         .route("/agent/macros", get(agent_macros).post(create_agent_macro))
         .route("/agent/macros/{macroId}", patch(update_agent_macro))
         .route(
@@ -1382,6 +1394,80 @@ async fn submit_requester_csat(
     Ok(Json(serde_json::json!({ "ticket": requester })).into_response())
 }
 
+async fn request_automation(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let correlation = state
+        .service
+        .request_development_automation(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(AutomationAccepted {
+            correlation_id: correlation,
+        }),
+    )
+        .into_response())
+}
+
+async fn list_automation_proposals(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let proposals = state
+        .service
+        .list_automation_proposals(&principal, &state.service.config().project_id, id)
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    Ok(Json(AutomationProposalCollection { data: proposals }).into_response())
+}
+
+async fn decide_automation_proposal(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(proposal_id): Path<String>,
+    headers: HeaderMap,
+    ValidatedJson(body): ValidatedJson<crate::generated::AutomationDecision>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = Uuid::parse_str(&proposal_id)
+        .map_err(|_| ApiFailure::validation("proposal id must be a UUID", &request_id))?;
+    let accept = matches!(
+        body.decision,
+        crate::generated::AutomationDecisionKind::Accept
+    );
+    let proposal = state
+        .service
+        .decide_automation_proposal(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            accept,
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    Ok(Json(AutomationProposalMutation {
+        proposal: &proposal,
+    })
+    .into_response())
+}
+
 async fn agent_macros(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
@@ -1803,6 +1889,21 @@ fn decode_cursor(value: &str) -> Option<(DateTime<Utc>, TicketId)> {
 struct AgentTicketDetail {
     ticket: Ticket,
     other_recent_viewers: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct AutomationAccepted {
+    correlation_id: Uuid,
+}
+
+#[derive(serde::Serialize)]
+struct AutomationProposalCollection {
+    data: Vec<crate::AutomationProposal>,
+}
+
+#[derive(serde::Serialize)]
+struct AutomationProposalMutation<'a> {
+    proposal: &'a crate::AutomationProposal,
 }
 
 #[derive(Debug, Serialize)]

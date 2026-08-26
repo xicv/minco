@@ -37,7 +37,7 @@ This is pre-link distribution metadata. Enabling remains an explicit Cargo featu
 | `sqlx-postgres` | `minco-sqlx-postgres` | `adapter` | `sqlx-postgres` | no | `beta` | Bounded PostgreSQL pools and explicit migrations. | ["native","aws-lambda"] | ["postgres"] | ["provider_managed"] | [] | `0e05c0b20f69` / `a7d0efd86859` |
 | `sqlx-sqlite` | `minco-sqlx-sqlite` | `adapter` | `sqlx-sqlite` | no | `beta` | SQLite pools with explicit durability constraints. | ["native","aws-lambda"] | ["sqlite"] | ["storage_only"] | [] | `c6764ce095b1` / `89f9c94b1c3c` |
 | `static-site` | `minco-plugin-static-site` | `plugin` | `plugin-static-site` | no | `beta` | Private static assets, CDN caching, SPA fallback, and optional custom-domain deployment intent. | ["native"] | [] | [] | [] | `532190c9fd62` / `0311c68c36c9` |
-| `ticketing` | `minco-plugin-ticketing` | `plugin` | `plugin-ticketing` | no | `beta` | Project-scoped support ticketing with atomic browser handoffs, conversation, and explicit SQLite persistence. | ["native"] | ["sqlite"] | [] | [] | `d0b7f30ad206` / `7407e29c4b49` |
+| `ticketing` | `minco-plugin-ticketing` | `plugin` | `plugin-ticketing` | no | `beta` | Project-scoped support ticketing with atomic browser handoffs, conversation, and explicit SQLite persistence. | ["native"] | ["sqlite"] | [] | [] | `d0b7f30ad206` / `7bfb7d63a61e` |
 
 ## Catalog fields
 

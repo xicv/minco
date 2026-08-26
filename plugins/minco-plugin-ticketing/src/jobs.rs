@@ -72,6 +72,47 @@ impl Job for ProcessInboundEmail {
     const VERSION: u16 = 1;
 }
 
+/// Deferred command: run private development automation for one ticket
+/// (ADR-0070).
+///
+/// The handler assembles a deterministic proposal from ticket context —
+/// model output is a proposal, never authority — and stores it awaiting
+/// human review. The payload carries bounded identifiers only.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RunDevelopmentAutomation {
+    pub project_id: String,
+    pub ticket_id: TicketId,
+    pub requested_by: String,
+}
+
+impl Job for RunDevelopmentAutomation {
+    const NAME: &'static str = "ticketing.run-development-automation";
+    const VERSION: u16 = 1;
+}
+
+/// Envelope policy for the automation command (ADR-0070): dedupe by
+/// ticket and requester, serialize per ticket, partition by project,
+/// bounded retry, one-hour deadline.
+pub fn development_automation_envelope(
+    payload: &RunDevelopmentAutomation,
+    correlation_id: Uuid,
+    now: chrono::DateTime<Utc>,
+) -> Result<JobEnvelope, JobError> {
+    let envelope = JobEnvelope::for_job(payload, TICKETING_MAIL_PROFILE, correlation_id)?.with(
+        JobOptions::default()
+            .with_dedupe_key(format!(
+                "automation:{}:{}",
+                payload.ticket_id, payload.requested_by
+            ))
+            .with_overlap_key(format!("ticket:{}", payload.ticket_id))
+            .with_partition(payload.project_id.clone())
+            .with_retry(RetryPolicy::exponential(5, 5, 900))
+            .with_deadline(now + TimeDelta::seconds(3600))
+            .with_causation(correlation_id),
+    );
+    Ok(envelope)
+}
+
 pub const TICKETING_MAIL_PROFILE: &str = "ticketing-mail";
 pub const NOTIFICATION_DEADLINE_SECONDS: i64 = 3600;
 pub const INBOUND_EMAIL_DEADLINE_SECONDS: i64 = 6 * 3600;
@@ -186,6 +227,13 @@ pub fn register_ticketing_jobs(
             deliver_public_notification(&store, &notifications, mail.as_ref(), &command).await
         }
     })?;
+    let automation_service = deps.service.clone();
+    let automation_store = store.clone();
+    registry.register_typed::<RunDevelopmentAutomation, _, _>(move |command, _context| {
+        let service = automation_service.clone();
+        let store = automation_store.clone();
+        async move { run_development_automation(&service, &store, &command).await }
+    })?;
     let inbound_service = deps.service.clone();
     let inbound_objects = deps.objects.clone();
     let inbound_worker = deps.worker;
@@ -288,6 +336,58 @@ async fn process_inbound_email(
             ))
         }
     }
+}
+
+/// Executes the automation command (ADR-0070): profile-gated, exclusion-
+/// checked, proposal-shaped. Nothing here holds authority.
+async fn run_development_automation(
+    service: &TicketingService,
+    store: &TicketingStoreService,
+    command: &RunDevelopmentAutomation,
+) -> Result<(), JobExecutionFailure> {
+    let config = service.config();
+    if config.automation.profile == crate::AutomationProfile::Off {
+        // Automation is opt-in; a queued command after the profile was
+        // turned off fails closed, not silently.
+        return Err(JobExecutionFailure::permanent(
+            "ticketing.automation_disabled",
+        ));
+    }
+    let ticket = store
+        .get(&command.project_id, command.ticket_id)
+        .await
+        .map_err(|_| JobExecutionFailure::retryable("ticketing.automation_store_unavailable"))?
+        .ok_or_else(|| JobExecutionFailure::permanent("ticketing.automation_target_missing"))?;
+    // Deterministic local model (ADR-0070): a proposal assembled from
+    // ticket context. No external calls, no hidden execution.
+    let requested_actions = match config.automation.profile {
+        crate::AutomationProfile::Assist => vec!["summarize".to_owned()],
+        crate::AutomationProfile::Supervised | crate::AutomationProfile::Autonomous => {
+            vec!["summarize".to_owned(), "draft.reply".to_owned()]
+        }
+        crate::AutomationProfile::Off => unreachable!("checked above"),
+    };
+    crate::validate_automation_actions(&requested_actions)
+        .map_err(|_| JobExecutionFailure::permanent("ticketing.automation_action_excluded"))?;
+    let summary = format!(
+        "Automation proposal for {} ({}): {} typed form answer(s), {} knowledge link(s).",
+        ticket.display_reference,
+        serde_json::to_string(&ticket.ticket_type).unwrap_or_default(),
+        ticket.form_answers.len(),
+        ticket.knowledge_links.len(),
+    );
+    let proposal = crate::AutomationProposal::new(
+        command.ticket_id,
+        summary,
+        requested_actions,
+        &command.requested_by,
+        Utc::now(),
+    );
+    store
+        .insert_automation_proposal(&command.project_id, proposal)
+        .await
+        .map_err(|_| JobExecutionFailure::retryable("ticketing.automation_store_unavailable"))?;
+    Ok(())
 }
 
 async fn deliver_public_notification(
@@ -606,6 +706,88 @@ mod tests {
         let envelope = public_notification_envelope(&payload, Uuid::now_v7(), now).unwrap();
         let debug = format!("{envelope:?}");
         assert!(!debug.contains("project-a"));
+    }
+
+    #[tokio::test]
+    async fn development_automation_executes_durable_and_stores_a_proposal() {
+        let now = Utc::now();
+        let mut ticket = ticket(now);
+        ticket.requester.email = None;
+        let store = Arc::new(MemoryTicketingStore::default());
+        let registry = Arc::new(JobHandlerRegistry::new());
+        let (jobs, _jobs_store, _dispatcher) =
+            minco_plugin_jobs::JobsServices::memory(registry.clone());
+        let service = std::sync::Arc::new(
+            crate::TicketingService::new(
+                TicketingStoreService::new(store.clone()),
+                crate::TicketingConfig {
+                    project_id: "project-a".into(),
+                    automation: crate::AutomationConfig {
+                        profile: crate::AutomationProfile::Supervised,
+                        review: crate::AutomationReview::Always,
+                    },
+                    ..crate::TicketingConfig::default()
+                },
+            )
+            .unwrap()
+            .with_portal_services(crate::TicketingPortalServices {
+                jobs: Some(Arc::new(jobs.clone())),
+                ..crate::TicketingPortalServices::default()
+            }),
+        );
+        let intent = crate::TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        store.create(ticket.clone(), intent).await.unwrap();
+        let notifications = Arc::new(NotificationService::new(Arc::new(
+            MemoryNotificationSink::default(),
+        )));
+        let objects = Arc::new(ObjectStoreService::new(Arc::new(
+            minco_plugin_object_storage::MemoryObjectStore::default(),
+        )));
+        register_ticketing_jobs(
+            &registry,
+            &TicketingStoreService::new(store.clone()),
+            TicketingJobsDeps {
+                service: TicketingService::clone(&service),
+                notifications,
+                mail: None,
+                objects,
+                worker: worker_identity(),
+            },
+        )
+        .unwrap();
+        // Execute through the registered handler via the inline path.
+        let envelope = development_automation_envelope(
+            &RunDevelopmentAutomation {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                requested_by: "agent-1".into(),
+            },
+            Uuid::now_v7(),
+            now,
+        )
+        .unwrap();
+        assert_eq!(
+            service.config().automation.profile,
+            crate::AutomationProfile::Supervised
+        );
+        jobs.submit_inline(envelope).await.unwrap();
+        let proposals = store
+            .list_automation_proposals("project-a", ticket.id)
+            .await
+            .unwrap();
+        assert_eq!(proposals.len(), 1);
+        assert_eq!(
+            proposals[0].state,
+            crate::AutomationProposalState::AwaitingReview
+        );
+        assert!(proposals[0].summary.contains("TKT-JOB"));
     }
 
     #[tokio::test]
