@@ -311,6 +311,14 @@ impl fmt::Debug for TicketingService {
     }
 }
 
+/// One clarification draft decision (ADR-0071).
+#[derive(Debug, Clone)]
+pub struct ClarificationDraftInput {
+    pub reason: crate::ClarificationReason,
+    pub questions: Vec<crate::ClarificationQuestion>,
+    pub checkpoint: String,
+}
+
 impl TicketingService {
     pub fn new(
         store: TicketingStoreService,
@@ -975,7 +983,151 @@ impl TicketingService {
         Ok(self.store.list_summaries(filter).await?)
     }
 
-    /// Requests one development-automation run (ADR-0070) by submitting
+    /// Drafts a clarification (ADR-0071): bounded questions plus the
+    /// resume checkpoint; nothing reaches the requester until sent.
+    pub async fn create_clarification_draft(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        ticket_id: TicketId,
+        draft: ClarificationDraftInput,
+        now: DateTime<Utc>,
+    ) -> Result<crate::Clarification, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        self.require_project(project_id)?;
+        // The ticket must exist: clarifications anchor to a real ticket.
+        let _ = self.load(project_id, ticket_id).await?;
+        let clarification = crate::Clarification::new_draft(
+            ticket_id,
+            draft.reason,
+            draft.questions,
+            &draft.checkpoint,
+            &principal.subject,
+            now,
+        )?;
+        self.store
+            .insert_clarification(project_id, clarification.clone())
+            .await?;
+        Ok(clarification)
+    }
+
+    /// The human send decision (ADR-0071): transitions a draft to sent.
+    /// Automation may draft; only this decision asks the requester.
+    pub async fn send_clarification(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<crate::Clarification, TicketingServiceError> {
+        authorize(principal, "ticketing.manage")?;
+        self.require_project(project_id)?;
+        let mut clarification = self
+            .store
+            .get_clarification(project_id, id)
+            .await?
+            .ok_or(TicketingServiceError::NotFound(TicketId(id)))?;
+        clarification.send(now)?;
+        self.store
+            .update_clarification(project_id, clarification.clone())
+            .await?;
+        Ok(clarification)
+    }
+
+    /// Agent-only listing with full state including checkpoints.
+    pub async fn list_clarifications(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<crate::Clarification>, TicketingServiceError> {
+        authorize(principal, "ticketing.agent.read")?;
+        self.require_project(project_id)?;
+        Ok(self
+            .store
+            .list_clarifications(project_id, ticket_id)
+            .await?)
+    }
+
+    /// The requester's own sent clarifications, projected safely.
+    pub async fn list_requester_clarifications(
+        &self,
+        principal: &Identity,
+    ) -> Result<Vec<crate::RequesterClarification>, TicketingServiceError> {
+        authorize(principal, "ticketing.read")?;
+        let project_id = self.config().project_id.clone();
+        let tickets = self
+            .store
+            .list_summaries(TicketSummaryFilter {
+                project_id: project_id.clone(),
+                requester_subject: Some(principal.subject.clone()),
+                limit: crate::MAX_TICKET_LIST_FETCH_LIMIT,
+                ..TicketSummaryFilter {
+                    project_id: project_id.clone(),
+                    statuses: BTreeSet::new(),
+                    queue_id: None,
+                    assignee_subject: None,
+                    requester_subject: None,
+                    unassigned: false,
+                    query: None,
+                    before_updated_at: None,
+                    before_id: None,
+                    limit: 0,
+                }
+            })
+            .await?;
+        let mut projected = Vec::new();
+        for summary in tickets {
+            let items = self
+                .store
+                .list_clarifications(&project_id, summary.id)
+                .await?;
+            for item in items {
+                if matches!(
+                    item.state,
+                    crate::ClarificationState::Sent | crate::ClarificationState::Answered
+                ) {
+                    projected.push(item.requester_projection());
+                }
+            }
+        }
+        Ok(projected)
+    }
+
+    /// The requester answers exactly once (ADR-0071); answering exposes
+    /// the checkpoint to agents for resuming, never to the requester.
+    pub async fn reply_to_clarification(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: Uuid,
+        answers: Vec<String>,
+        now: DateTime<Utc>,
+    ) -> Result<crate::RequesterClarification, TicketingServiceError> {
+        authorize(principal, "ticketing.read")?;
+        self.require_project(project_id)?;
+        let mut clarification = self
+            .store
+            .get_clarification(project_id, id)
+            .await?
+            .ok_or(TicketingServiceError::NotFound(TicketId(id)))?;
+        let ticket = self.load(project_id, clarification.ticket_id).await?;
+        if ticket.requester.subject != principal.subject {
+            return Err(TicketingServiceError::RequesterMismatch);
+        }
+        if clarification.state == crate::ClarificationState::Draft {
+            // A draft is invisible to requesters: answering one is a
+            // not-found, not a state leak.
+            return Err(TicketingServiceError::NotFound(TicketId(id)));
+        }
+        clarification.reply(answers, now)?;
+        self.store
+            .update_clarification(project_id, clarification.clone())
+            .await?;
+        Ok(clarification.requester_projection())
+    }
+
+    /// Requests one development-automation run (ADR-0070) by submitting    /// Requests one development-automation run (ADR-0070) by submitting
     /// the durable command. Profile-off fails closed here too: the
     /// command never queues for an application that has not opted in.
     pub async fn request_development_automation(
@@ -1017,6 +1169,7 @@ impl TicketingService {
         }
         #[cfg(not(feature = "jobs"))]
         {
+            let _ = (id, now);
             Err(TicketingServiceError::JobsUnavailable)
         }
     }
@@ -2217,6 +2370,148 @@ mod tests {
             jobs: Some(Arc::new(jobs)),
             ..TicketingPortalServices::default()
         })
+    }
+
+    #[tokio::test]
+    async fn clarification_lifecycle_is_gated_sent_once_and_answered_once() {
+        let service = service();
+        let manager = manager_identity();
+        let requester = identity("user-a", &["ticketing.create", "ticketing.read"]);
+        let ticket = service
+            .create_ticket(
+                &requester,
+                create_input("Ambiguous"),
+                Uuid::new_v4(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        let now = Utc::now();
+
+        // A draft is invisible to the requester.
+        let draft = service
+            .create_clarification_draft(
+                &manager,
+                "project-a",
+                ticket.id,
+                ClarificationDraftInput {
+                    reason: crate::ClarificationReason::MissingRequirement,
+                    questions: vec![
+                        crate::ClarificationQuestion {
+                            id: "q1".into(),
+                            text: "Which checkout step fails?".into(),
+                        },
+                        crate::ClarificationQuestion {
+                            id: "q2".into(),
+                            text: "What error do you see?".into(),
+                        },
+                    ],
+                    checkpoint: "automation:step-3".into(),
+                },
+                now,
+            )
+            .await
+            .unwrap();
+        assert_eq!(draft.state, crate::ClarificationState::Draft);
+        let requester_view = service
+            .list_requester_clarifications(&requester)
+            .await
+            .unwrap();
+        assert!(requester_view.is_empty(), "drafts never reach requesters");
+
+        // Drafts cannot be answered; the requester sees not-found.
+        assert!(matches!(
+            service
+                .reply_to_clarification(&requester, "project-a", draft.id, vec!["x".into()], now)
+                .await
+                .unwrap_err(),
+            TicketingServiceError::NotFound(_)
+        ));
+
+        // The human send decision makes it visible.
+        let sent = service
+            .send_clarification(&manager, "project-a", draft.id, now)
+            .await
+            .unwrap();
+        assert_eq!(sent.state, crate::ClarificationState::Sent);
+        let requester_view = service
+            .list_requester_clarifications(&requester)
+            .await
+            .unwrap();
+        assert_eq!(requester_view.len(), 1);
+        // The requester projection never carries the checkpoint.
+        let encoded = serde_json::to_string(&requester_view[0]).unwrap();
+        assert!(!encoded.contains("checkpoint"));
+        assert!(!encoded.contains("automation:step-3"));
+
+        // Sending twice fails; a stranger cannot answer.
+        assert!(
+            service
+                .send_clarification(&manager, "project-a", draft.id, now)
+                .await
+                .is_err()
+        );
+        let stranger = identity("user-b", &["ticketing.read"]);
+        assert!(
+            service
+                .reply_to_clarification(
+                    &stranger,
+                    "project-a",
+                    draft.id,
+                    vec!["a".into(), "b".into()],
+                    now
+                )
+                .await
+                .is_err()
+        );
+
+        // Answers must cover every question exactly once.
+        assert!(
+            service
+                .reply_to_clarification(
+                    &requester,
+                    "project-a",
+                    draft.id,
+                    vec!["only one".into()],
+                    now
+                )
+                .await
+                .is_err()
+        );
+        let answered = service
+            .reply_to_clarification(
+                &requester,
+                "project-a",
+                draft.id,
+                vec!["Payment step".into(), "Card declined".into()],
+                now,
+            )
+            .await
+            .unwrap();
+        assert_eq!(answered.state, crate::ClarificationState::Answered);
+        assert_eq!(answered.answers.as_ref().map(Vec::len), Some(2));
+
+        // Answering twice fails; the agent side now sees the checkpoint
+        // to resume from.
+        assert!(
+            service
+                .reply_to_clarification(
+                    &requester,
+                    "project-a",
+                    draft.id,
+                    vec!["a".into(), "b".into()],
+                    now
+                )
+                .await
+                .is_err()
+        );
+        let agent_view = service
+            .list_clarifications(&manager, "project-a", ticket.id)
+            .await
+            .unwrap();
+        assert_eq!(agent_view[0].checkpoint, "automation:step-3");
+        assert_eq!(agent_view[0].state, crate::ClarificationState::Answered);
     }
 
     #[tokio::test]

@@ -514,6 +514,90 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AutomationProposalMutation'}
         default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/tickets/{ticketId}/clarifications:
+    post:
+      operationId: createTicketingClarification
+      summary: Draft one clarification for missing or contradictory requirements
+      description: >-
+        Stores bounded questions plus a resume checkpoint (ADR-0071).
+        Nothing is sent to the requester until a human sends it.
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateClarification'}
+      responses:
+        '201':
+          description: Drafted clarification
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClarificationMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+    get:
+      operationId: listTicketingClarifications
+      summary: List the ticket's clarifications oldest-first with full state
+      parameters:
+        - {$ref: '#/components/parameters/TicketId'}
+      responses:
+        '200':
+          description: Clarifications across all states
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClarificationCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/agent/clarifications/{clarificationId}/send:
+    post:
+      operationId: sendTicketingClarification
+      summary: Send one drafted clarification to the requester
+      description: >-
+        The human send decision (ADR-0071): transitions a draft to sent.
+        Automation may draft; only this decision asks the requester.
+      parameters:
+        - in: path
+          name: clarificationId
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Sent clarification
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClarificationMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/clarifications:
+    get:
+      operationId: listTicketingRequesterClarifications
+      summary: List the requester's own sent clarifications with their questions
+      responses:
+        '200':
+          description: Sent clarifications awaiting or carrying the requester's answers
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RequesterClarificationCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /_minco/ticketing/requester/clarifications/{clarificationId}/reply:
+    post:
+      operationId: replyTicketingClarification
+      summary: Answer one sent clarification once, resuming from its checkpoint
+      parameters:
+        - in: path
+          name: clarificationId
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReplyClarification'}
+      responses:
+        '200':
+          description: Answered clarification
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RequesterClarificationMutation'}
+        default: {$ref: '#/components/responses/Problem'}
   /_minco/ticketing/agent/macros:
     get:
       operationId: listTicketingAgentMacros
@@ -824,6 +908,83 @@ components:
             rationale: Validation field names are application-defined and each value is a list of public-safe messages.
     TicketPriority: {type: string, enum: [low, normal, high, urgent]}
     TicketChannel: {type: string, enum: [portal, email, api, voice, internal, other]}
+    ClarificationQuestion:
+      type: object
+      description: One bounded question for the requester (ADR-0071).
+      additionalProperties: false
+      required: [id, text]
+      properties:
+        id: {type: string, minLength: 1, maxLength: 64}
+        text: {type: string, minLength: 1, maxLength: 2000}
+    ClarificationState: {type: string, enum: [draft, sent, answered, withdrawn]}
+    Clarification:
+      type: object
+      description: A durable clarification with its resume checkpoint (ADR-0071); agent-only view.
+      additionalProperties: false
+      required: [id, ticket_id, questions, state, created_by, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        ticket_id: {type: string, format: uuid}
+        reason: {type: string, enum: [missing_requirement, contradictory_requirement]}
+        questions: {type: array, minItems: 1, maxItems: 8, items: {$ref: '#/components/schemas/ClarificationQuestion'}}
+        checkpoint: {type: string, minLength: 1, maxLength: 500}
+        created_by: {type: string, maxLength: 300}
+        state: {$ref: '#/components/schemas/ClarificationState'}
+        created_at: {type: string, format: date-time}
+        sent_at: {type: [string, 'null'], format: date-time}
+        answered_at: {type: [string, 'null'], format: date-time}
+        answers: {type: array, maxItems: 8, items: {type: string, maxLength: 4000}}
+    ClarificationCollection:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/Clarification'}}
+    ClarificationMutation:
+      type: object
+      additionalProperties: false
+      required: [clarification]
+      properties:
+        clarification: {$ref: '#/components/schemas/Clarification'}
+    CreateClarification:
+      type: object
+      additionalProperties: false
+      required: [reason, questions, checkpoint]
+      properties:
+        reason: {type: string, enum: [missing_requirement, contradictory_requirement]}
+        questions: {type: array, minItems: 1, maxItems: 8, items: {$ref: '#/components/schemas/ClarificationQuestion'}}
+        checkpoint: {type: string, minLength: 1, maxLength: 500}
+    RequesterClarification:
+      type: object
+      description: The requester-safe projection — questions and the requester's own answers only, never checkpoints or internals.
+      additionalProperties: false
+      required: [id, ticket_id, questions, state, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        ticket_id: {type: string, format: uuid}
+        questions: {type: array, minItems: 1, maxItems: 8, items: {$ref: '#/components/schemas/ClarificationQuestion'}}
+        state: {type: string, enum: [sent, answered]}
+        created_at: {type: string, format: date-time}
+        answered_at: {type: [string, 'null'], format: date-time}
+        answers: {type: array, maxItems: 8, items: {type: string, maxLength: 4000}}
+    RequesterClarificationCollection:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/RequesterClarification'}}
+    RequesterClarificationMutation:
+      type: object
+      additionalProperties: false
+      required: [clarification]
+      properties:
+        clarification: {$ref: '#/components/schemas/RequesterClarification'}
+    ReplyClarification:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers: {type: array, minItems: 1, maxItems: 8, items: {type: string, minLength: 1, maxLength: 4000}}
     AutomationAccepted:
       type: object
       additionalProperties: false

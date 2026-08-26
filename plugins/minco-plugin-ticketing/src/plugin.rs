@@ -435,6 +435,36 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             false,
         ),
         (
+            "createTicketingClarification",
+            "POST",
+            "/_minco/ticketing/agent/tickets/{ticketId}/clarifications",
+            false,
+        ),
+        (
+            "listTicketingClarifications",
+            "GET",
+            "/_minco/ticketing/agent/tickets/{ticketId}/clarifications",
+            false,
+        ),
+        (
+            "sendTicketingClarification",
+            "POST",
+            "/_minco/ticketing/agent/clarifications/{clarificationId}/send",
+            false,
+        ),
+        (
+            "listTicketingRequesterClarifications",
+            "GET",
+            "/_minco/ticketing/requester/clarifications",
+            false,
+        ),
+        (
+            "replyTicketingClarification",
+            "POST",
+            "/_minco/ticketing/requester/clarifications/{clarificationId}/reply",
+            false,
+        ),
+        (
             "listTicketingAutomationProposals",
             "GET",
             "/_minco/ticketing/agent/tickets/{ticketId}/automation-proposals",

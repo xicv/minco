@@ -1,10 +1,11 @@
 use crate::{
-    AgentMacro, AutomationProposal, AutomationProposalState, ConsumeHandoffRequest,
-    ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity, CreateTicketInput,
-    DeliveryFeedbackKind, ExternalMessageIngestResult, IngestExternalMessageRequest,
-    MAX_TICKET_LIST_FETCH_LIMIT, OutboundDeliveryEvidence, OutboundEvidenceKind, Ticket,
-    TicketActivityIntent, TicketId, TicketListFilter, TicketMessageId, TicketRequester,
-    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStore,
+    AgentMacro, AutomationProposal, AutomationProposalState, Clarification, ClarificationReason,
+    ClarificationState, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
+    ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIngestResult,
+    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OutboundDeliveryEvidence,
+    OutboundEvidenceKind, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
+    TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
+    TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
@@ -1206,6 +1207,113 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(())
     }
 
+    async fn insert_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_clarifications
+                 (project_id, id, ticket_id, reason, questions_json, checkpoint, created_by, state, created_at, sent_at, answered_at, answers_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(clarification.id.to_string())
+        .bind(clarification.ticket_id.to_string())
+        .bind(match clarification.reason {
+            ClarificationReason::MissingRequirement => "missing_requirement",
+            ClarificationReason::ContradictoryRequirement => "contradictory_requirement",
+        })
+        .bind(serde_json::to_string(&clarification.questions).map_err(encoding)?)
+        .bind(&clarification.checkpoint)
+        .bind(&clarification.created_by)
+        .bind(clarification_state_column(clarification.state))
+        .bind(clarification.created_at.to_rfc3339())
+        .bind(clarification.sent_at.map(|value| value.to_rfc3339()))
+        .bind(clarification.answered_at.map(|value| value.to_rfc3339()))
+        .bind(
+            clarification
+                .answers
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(encoding)?,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn list_clarifications(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<Clarification>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, ticket_id, reason, questions_json, checkpoint, created_by, state, created_at, sent_at, answered_at, answers_json
+               FROM ticketing_clarifications
+              WHERE project_id = ? AND ticket_id = ?
+              ORDER BY created_at",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.iter().map(clarification_from_row).collect()
+    }
+
+    async fn get_clarification(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<Clarification>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT id, ticket_id, reason, questions_json, checkpoint, created_by, state, created_at, sent_at, answered_at, answers_json
+               FROM ticketing_clarifications
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(project_id)
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.as_ref().map(clarification_from_row).transpose()
+    }
+
+    async fn update_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_clarifications
+                SET state = ?, sent_at = ?, answered_at = ?, answers_json = ?
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(clarification_state_column(clarification.state))
+        .bind(clarification.sent_at.map(|value| value.to_rfc3339()))
+        .bind(clarification.answered_at.map(|value| value.to_rfc3339()))
+        .bind(
+            clarification
+                .answers
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(encoding)?,
+        )
+        .bind(project_id)
+        .bind(clarification.id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        if result.rows_affected() == 0 {
+            return Err(TicketStoreError::MacroNotFound(clarification.id));
+        }
+        Ok(())
+    }
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         sqlx::query("SELECT 1 FROM ticketing_tickets LIMIT 1")
             .execute(&self.pool)
@@ -1653,6 +1761,71 @@ fn proposal_from_row(
             .get::<Option<String>, _>("decided_at")
             .map(|value| parse_timestamp(&value))
             .transpose()?,
+    })
+}
+
+const fn clarification_state_column(state: ClarificationState) -> &'static str {
+    match state {
+        ClarificationState::Draft => "draft",
+        ClarificationState::Sent => "sent",
+        ClarificationState::Answered => "answered",
+        ClarificationState::Withdrawn => "withdrawn",
+    }
+}
+
+fn clarification_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<Clarification, TicketStoreError> {
+    Ok(Clarification {
+        id: Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+            TicketStoreError::Infrastructure("clarification id is not a UUID".into())
+        })?,
+        ticket_id: TicketId(
+            Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("clarification ticket id is not a UUID".into())
+            })?,
+        ),
+        reason: match row.get::<String, _>("reason").as_str() {
+            "missing_requirement" => ClarificationReason::MissingRequirement,
+            "contradictory_requirement" => ClarificationReason::ContradictoryRequirement,
+            _ => {
+                return Err(TicketStoreError::Infrastructure(
+                    "clarification reason is unknown".into(),
+                ));
+            }
+        },
+        questions: serde_json::from_str(&row.get::<String, _>("questions_json")).map_err(|_| {
+            TicketStoreError::Infrastructure("clarification questions are not valid JSON".into())
+        })?,
+        checkpoint: row.get("checkpoint"),
+        created_by: row.get("created_by"),
+        state: match row.get::<String, _>("state").as_str() {
+            "draft" => ClarificationState::Draft,
+            "sent" => ClarificationState::Sent,
+            "answered" => ClarificationState::Answered,
+            "withdrawn" => ClarificationState::Withdrawn,
+            _ => {
+                return Err(TicketStoreError::Infrastructure(
+                    "clarification state is unknown".into(),
+                ));
+            }
+        },
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+        sent_at: row
+            .get::<Option<String>, _>("sent_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+        answered_at: row
+            .get::<Option<String>, _>("answered_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+        answers: row
+            .get::<Option<String>, _>("answers_json")
+            .map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(|_| {
+                TicketStoreError::Infrastructure("clarification answers are not valid JSON".into())
+            })?,
     })
 }
 
@@ -2381,6 +2554,82 @@ mod tests {
                 .iter()
                 .all(|summary| summary.ticket_type == crate::TicketType::Problem)
         );
+    }
+
+    #[tokio::test]
+    async fn clarifications_round_trip_columnar_with_state_transitions() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Ambiguous".into(),
+                description: "Needs clarification".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: crate::TicketChannel::Portal,
+                priority: crate::TicketPriority::Normal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
+                resource_references: Vec::new(),
+            },
+            "TKT-CLARIFY",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let mut clarification = crate::Clarification::new_draft(
+            ticket.id,
+            crate::ClarificationReason::ContradictoryRequirement,
+            vec![crate::ClarificationQuestion {
+                id: "q1".into(),
+                text: "Which is correct?".into(),
+            }],
+            "automation:step-1",
+            "agent-1",
+            now,
+        )
+        .unwrap();
+        sqlite
+            .insert_clarification("project-a", clarification.clone())
+            .await
+            .unwrap();
+        clarification.send(now).unwrap();
+        sqlite
+            .update_clarification("project-a", clarification.clone())
+            .await
+            .unwrap();
+        let mut loaded = sqlite
+            .get_clarification("project-a", clarification.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.state, crate::ClarificationState::Sent);
+        assert_eq!(loaded.questions.len(), 1);
+        assert_eq!(loaded.checkpoint, "automation:step-1");
+        loaded.reply(vec!["The second one".into()], now).unwrap();
+        sqlite
+            .update_clarification("project-a", loaded.clone())
+            .await
+            .unwrap();
+        let listed = sqlite
+            .list_clarifications("project-a", ticket.id)
+            .await
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].state, crate::ClarificationState::Answered);
+        assert_eq!(listed[0].answers.as_ref().map(Vec::len), Some(1));
     }
 
     #[tokio::test]

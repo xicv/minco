@@ -402,6 +402,41 @@
       "idempotent": false
     },
     {
+      "operation_id": "createTicketingClarification",
+      "method": "POST",
+      "path": "/_minco/ticketing/agent/tickets/{ticketId}/clarifications",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "listTicketingClarifications",
+      "method": "GET",
+      "path": "/_minco/ticketing/agent/tickets/{ticketId}/clarifications",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "sendTicketingClarification",
+      "method": "POST",
+      "path": "/_minco/ticketing/agent/clarifications/{clarificationId}/send",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "listTicketingRequesterClarifications",
+      "method": "GET",
+      "path": "/_minco/ticketing/requester/clarifications",
+      "public": false,
+      "idempotent": false
+    },
+    {
+      "operation_id": "replyTicketingClarification",
+      "method": "POST",
+      "path": "/_minco/ticketing/requester/clarifications/{clarificationId}/reply",
+      "public": false,
+      "idempotent": false
+    },
+    {
       "operation_id": "listTicketingAutomationProposals",
       "method": "GET",
       "path": "/_minco/ticketing/agent/tickets/{ticketId}/automation-proposals",

@@ -458,6 +458,189 @@ fn validate_knowledge_links(links: &[KnowledgeLink]) -> Result<(), TicketValidat
     Ok(())
 }
 
+/// Why a clarification exists (ADR-0071).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClarificationReason {
+    MissingRequirement,
+    ContradictoryRequirement,
+}
+
+/// One bounded question for the requester (ADR-0071).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClarificationQuestion {
+    pub id: String,
+    pub text: String,
+}
+
+/// The clarification state machine (ADR-0071): a draft is private to
+/// agents until a human sends it; the requester answers once; either
+/// side can end it early by withdrawal before sending.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClarificationState {
+    Draft,
+    Sent,
+    Answered,
+    Withdrawn,
+}
+
+pub const MAX_CLARIFICATION_QUESTIONS: usize = 8;
+
+/// A durable clarification with its resume checkpoint (ADR-0071). The
+/// checkpoint is agent-only: requesters see questions and their own
+/// answers, never internal resume coordinates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Clarification {
+    pub id: Uuid,
+    pub ticket_id: TicketId,
+    pub reason: ClarificationReason,
+    pub questions: Vec<ClarificationQuestion>,
+    /// Where work resumes once answered — an opaque bounded token the
+    /// creating context (automation or agent) defines.
+    pub checkpoint: String,
+    pub created_by: String,
+    pub state: ClarificationState,
+    pub created_at: DateTime<Utc>,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub answered_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answers: Option<Vec<String>>,
+}
+
+/// The requester-safe projection of a clarification (ADR-0071).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequesterClarification {
+    pub id: Uuid,
+    pub ticket_id: TicketId,
+    pub questions: Vec<ClarificationQuestion>,
+    pub state: ClarificationState,
+    pub created_at: DateTime<Utc>,
+    pub answered_at: Option<DateTime<Utc>>,
+    pub answers: Option<Vec<String>>,
+}
+
+fn validate_clarification_questions(
+    questions: &[ClarificationQuestion],
+) -> Result<(), TicketValidationError> {
+    if questions.is_empty() || questions.len() > MAX_CLARIFICATION_QUESTIONS {
+        return Err(TicketValidationError::InvalidField {
+            field: "clarification.questions",
+            detail: "must contain between 1 and 8 questions".into(),
+        });
+    }
+    let mut seen = BTreeSet::new();
+    for question in questions {
+        validate_text("clarification.questions.id", &question.id, 64)?;
+        validate_text("clarification.questions.text", &question.text, 2_000)?;
+        if !seen.insert(question.id.clone()) {
+            return Err(TicketValidationError::InvalidField {
+                field: "clarification.questions.id",
+                detail: "must be unique".into(),
+            });
+        }
+    }
+    Ok(())
+}
+
+impl Clarification {
+    /// Validates and builds a fresh draft (ADR-0071).
+    pub fn new_draft(
+        ticket_id: TicketId,
+        reason: ClarificationReason,
+        questions: Vec<ClarificationQuestion>,
+        checkpoint: &str,
+        created_by: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Self, TicketValidationError> {
+        validate_clarification_questions(&questions)?;
+        validate_text("clarification.checkpoint", checkpoint, 500)?;
+        validate_text("clarification.created_by", created_by, 300)?;
+        Ok(Self {
+            id: Uuid::now_v7(),
+            ticket_id,
+            reason,
+            questions,
+            checkpoint: checkpoint.to_owned(),
+            created_by: created_by.to_owned(),
+            state: ClarificationState::Draft,
+            created_at: now,
+            sent_at: None,
+            answered_at: None,
+            answers: None,
+        })
+    }
+
+    /// The human send decision (ADR-0071): only a draft can be sent.
+    pub fn send(&mut self, now: DateTime<Utc>) -> Result<(), TicketValidationError> {
+        if self.state != ClarificationState::Draft {
+            return Err(TicketValidationError::InvalidField {
+                field: "clarification.state",
+                detail: "only a draft can be sent".into(),
+            });
+        }
+        self.state = ClarificationState::Sent;
+        self.sent_at = Some(now);
+        Ok(())
+    }
+
+    /// The requester answers exactly once (ADR-0071); one answer per
+    /// question, in order.
+    pub fn reply(
+        &mut self,
+        answers: Vec<String>,
+        now: DateTime<Utc>,
+    ) -> Result<(), TicketValidationError> {
+        if self.state != ClarificationState::Sent {
+            return Err(TicketValidationError::InvalidField {
+                field: "clarification.state",
+                detail: "only a sent clarification can be answered".into(),
+            });
+        }
+        if answers.len() != self.questions.len() {
+            return Err(TicketValidationError::InvalidField {
+                field: "clarification.answers",
+                detail: "must answer every question exactly once".into(),
+            });
+        }
+        for answer in &answers {
+            validate_text("clarification.answers", answer, 4_000)?;
+        }
+        self.state = ClarificationState::Answered;
+        self.answered_at = Some(now);
+        self.answers = Some(answers);
+        Ok(())
+    }
+
+    /// An unsent draft can be withdrawn (ADR-0071).
+    pub fn withdraw(&mut self) -> Result<(), TicketValidationError> {
+        if self.state != ClarificationState::Draft {
+            return Err(TicketValidationError::InvalidField {
+                field: "clarification.state",
+                detail: "only a draft can be withdrawn".into(),
+            });
+        }
+        self.state = ClarificationState::Withdrawn;
+        Ok(())
+    }
+
+    /// The requester-safe projection (ADR-0071): questions and the
+    /// requester's own answers only.
+    #[must_use]
+    pub fn requester_projection(&self) -> RequesterClarification {
+        RequesterClarification {
+            id: self.id,
+            ticket_id: self.ticket_id,
+            questions: self.questions.clone(),
+            state: self.state,
+            created_at: self.created_at,
+            answered_at: self.answered_at,
+            answers: self.answers.clone(),
+        }
+    }
+}
+
 /// Private development-automation profiles (ADR-0070). `Off` is the
 /// default: no automation exists until explicitly configured.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

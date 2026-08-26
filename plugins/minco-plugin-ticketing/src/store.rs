@@ -1,6 +1,6 @@
 use crate::{
-    AgentMacro, AutomationProposal, CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT, Ticket,
-    TicketFromHandoffInput, TicketId, TicketMessageId, TicketRequester, TicketStatus,
+    AgentMacro, AutomationProposal, Clarification, CreateTicketInput, MAX_TICKET_LIST_FETCH_LIMIT,
+    Ticket, TicketFromHandoffInput, TicketId, TicketMessageId, TicketRequester, TicketStatus,
     TicketSummary, TicketValidationError,
 };
 use async_trait::async_trait;
@@ -357,6 +357,34 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         evidence: OutboundDeliveryEvidence,
     ) -> Result<(), TicketStoreError>;
 
+    /// Stores one clarification (ADR-0071).
+    async fn insert_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError>;
+
+    /// Clarifications for one ticket, oldest first.
+    async fn list_clarifications(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<Clarification>, TicketStoreError>;
+
+    /// Loads one clarification for a decision or reply.
+    async fn get_clarification(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<Clarification>, TicketStoreError>;
+
+    /// Persists a state transition (send/reply/withdraw).
+    async fn update_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError>;
+
     /// Stores one automation proposal (ADR-0070).
     async fn insert_automation_proposal(
         &self,
@@ -580,6 +608,38 @@ impl TicketingStoreService {
             .await
     }
 
+    pub async fn insert_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        self.0.insert_clarification(project_id, clarification).await
+    }
+
+    pub async fn list_clarifications(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<Clarification>, TicketStoreError> {
+        self.0.list_clarifications(project_id, ticket_id).await
+    }
+
+    pub async fn get_clarification(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<Clarification>, TicketStoreError> {
+        self.0.get_clarification(project_id, id).await
+    }
+
+    pub async fn update_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        self.0.update_clarification(project_id, clarification).await
+    }
+
     pub async fn insert_automation_proposal(
         &self,
         project_id: &str,
@@ -726,6 +786,7 @@ struct MemoryState {
     macros: BTreeMap<(String, Uuid), AgentMacro>,
     assignment_cursor: BTreeMap<String, u64>,
     automation_proposals: BTreeMap<(String, Uuid), AutomationProposal>,
+    clarifications: BTreeMap<(String, Uuid), Clarification>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -778,6 +839,66 @@ impl MemoryTicketingStore {
 
 #[async_trait]
 impl TicketingStore for MemoryTicketingStore {
+    #[allow(clippy::significant_drop_tightening)]
+    async fn insert_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        state
+            .clarifications
+            .insert((project_id.to_owned(), clarification.id), clarification);
+        Ok(())
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn list_clarifications(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<Clarification>, TicketStoreError> {
+        let state = self.state.lock().await;
+        let mut items = state
+            .clarifications
+            .iter()
+            .filter(|((item_project, _), item)| {
+                item_project == project_id && item.ticket_id == ticket_id
+            })
+            .map(|(_, item)| item.clone())
+            .collect::<Vec<_>>();
+        items.sort_by_key(|item| item.created_at);
+        Ok(items)
+    }
+
+    async fn get_clarification(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<Clarification>, TicketStoreError> {
+        Ok(self
+            .state
+            .lock()
+            .await
+            .clarifications
+            .get(&(project_id.to_owned(), id))
+            .cloned())
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn update_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let key = (project_id.to_owned(), clarification.id);
+        if state.clarifications.contains_key(&key) {
+            state.clarifications.insert(key, clarification);
+        }
+        Ok(())
+    }
+
     #[allow(clippy::significant_drop_tightening)]
     async fn insert_automation_proposal(
         &self,

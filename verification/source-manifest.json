@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1904,
+  "file_count": 1907,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1744,8 +1744,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "0ff47e49e4ec712e6dd00a9c52cecad8960a3708ee29f5cda7c371877a2c4f15",
-      "size_bytes": 14782
+      "sha256": "10b3f8e947096d0e3926b502bbcb33e4f77ee70474572a561bd2a907ec60d2f0",
+      "size_bytes": 15088
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2218,6 +2218,11 @@
       "size_bytes": 2755
     },
     {
+      "path": "docs/adrs/0071-clarification-loop-with-checkpoints.md",
+      "sha256": "120d17c0712b07aec432a35e17612493e53837565331644b53730d04de752415",
+      "size_bytes": 2741
+    },
+    {
       "path": "docs/architecture/adoption-readiness-review.md",
       "sha256": "822329315f8554ffe5429bac7d31124e4cba2e8ddb0a818a106a0c6ebddd91d3",
       "size_bytes": 5091
@@ -2544,7 +2549,7 @@
     },
     {
       "path": "docs/reference/generated/plugins.md",
-      "sha256": "6317548f3e5d71a524248ce7d95fd243a7dc48acdc49ac39851c699559c1d1dd",
+      "sha256": "57151953eff93bb9d8dc8dcf2357dac031ffc1365e6387a3ffd2a71d6b7591b3",
       "size_bytes": 7235
     },
     {
@@ -7698,24 +7703,29 @@
       "size_bytes": 660
     },
     {
+      "path": "plugins/minco-plugin-ticketing/migrations/sqlite/0011_ticketing_clarifications.sql",
+      "sha256": "a622bb84893141bdc1f958f8b5b2cce3727555c55ecfa35bc4efec1ecaf999b3",
+      "size_bytes": 775
+    },
+    {
       "path": "plugins/minco-plugin-ticketing/minco-plugin.json",
-      "sha256": "c1f2f99189d608e17424b20fec895250a809b4e04861be176e6c0106867967b7",
-      "size_bytes": 13128
+      "sha256": "b8f09987c607c2fce5bfef2414c6ef60034edb33913ef799af6e620dcb6e978f",
+      "size_bytes": 14203
     },
     {
       "path": "plugins/minco-plugin-ticketing/openapi/openapi.yaml",
-      "sha256": "98fc28dc411476869e8c1392b03067e203416d10416ebeb633d7fd3d93256f2b",
-      "size_bytes": 58715
+      "sha256": "5e78a7d63c5a266ccf62ece0ae7a03084fab057b9aafcfa598df22e3646d4166",
+      "size_bytes": 65704
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/generated.rs",
-      "sha256": "0cb6f9476e79f72de59f4e6c76506a8c8470ce61cfc18ccd5d3fa6cf82643722",
-      "size_bytes": 74817
+      "sha256": "a031ea029f3d4a629ca8b1e960e82a251da9580a10f5efcf848a43a7476c5833",
+      "size_bytes": 83808
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/http.rs",
-      "sha256": "81f90442959d065a6dcbb6f4c115b1957c814a5b4f74f93f0987257939bdb3bb",
-      "size_bytes": 141355
+      "sha256": "10872c5f77249cd4354b54daea2252188ea1a4e068a5f5c1e7650f282c074a3d",
+      "size_bytes": 146561
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/jobs.rs",
@@ -7729,28 +7739,28 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/model.rs",
-      "sha256": "90da281400540890667e09254102ea07bd5aff356c9e62e4122b56bf28aa9b9a",
-      "size_bytes": 59059
+      "sha256": "c4cb6e34e36c4ee0af0ed486b216d940959fe319d25dc2e6566b86897b53a039",
+      "size_bytes": 65485
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "sha256": "ad87f8cbe35d64af3a382d312e7fa06a89c4b283e2b1bbf824052623c5b56c46",
-      "size_bytes": 121077
+      "sha256": "6f54b34f30bcd1e13381cd69f50cb9314e4393e9b98d6b577d6d4537b25c9947",
+      "size_bytes": 130488
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/plugin.rs",
-      "sha256": "349955d86bfb20f4149fa977909f9f5aa81c2482d6744583c9e831b4dcf43c77",
-      "size_bytes": 23608
+      "sha256": "38c3973f5b9e9bef9e61ea7810d1bed2afc16c5352e67cef3a98c216f5e91976",
+      "size_bytes": 24493
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
-      "sha256": "96e796b6850d89fd6f3870b3029392185f7407eb740f2b69224062989dbc5d4e",
-      "size_bytes": 124537
+      "sha256": "1ac2324c86e70f52e3aea00c31e251a40c1fac02f1431431998625f71f254eaa",
+      "size_bytes": 135166
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
-      "sha256": "a634fbbce063692e11662ec6520bbe5fd0a4d7481e826019cc71a60a2b533f57",
-      "size_bytes": 73018
+      "sha256": "167aeb2428f50a1eeece29753d7964b5a7a67956595348963429980590c00611",
+      "size_bytes": 76655
     },
     {
       "path": "pricing/catalog.toml",
@@ -9128,6 +9138,11 @@
       "size_bytes": 3564
     },
     {
+      "path": "tasks/M14/M14-T69-clarification-loop-checkpoints.md",
+      "sha256": "98bc7562f765d7281e51a35e8596055775062d7d7d10e25e1e6b43a1b9b4253e",
+      "size_bytes": 3459
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9579,7 +9594,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "e1d2d2cc0cb6cd46504592653a2ca9eee230cac3254f849c999fe8c549436675",
-  "total_size_bytes": 14372645,
+  "source_tree_sha256": "e77121a06711c546b56635e786f36ab45d176418672ddd79543fe78d64e3a808",
+  "total_size_bytes": 14433175,
   "version": "1.12.0"
 }

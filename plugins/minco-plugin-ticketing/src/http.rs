@@ -198,6 +198,14 @@ pub fn ticketing_router(service: TicketingService) -> Router {
             "/agent/automation-proposals/{proposalId}",
             patch(decide_automation_proposal),
         )
+        .route(
+            "/agent/tickets/{ticketId}/clarifications",
+            get(list_clarifications).post(create_clarification),
+        )
+        .route(
+            "/agent/clarifications/{clarificationId}/send",
+            post(send_clarification),
+        )
         .route("/agent/macros", get(agent_macros).post(create_agent_macro))
         .route("/agent/macros/{macroId}", patch(update_agent_macro))
         .route(
@@ -208,6 +216,14 @@ pub fn ticketing_router(service: TicketingService) -> Router {
         .route(
             "/requester/tickets/{ticketId}/csat",
             post(submit_requester_csat),
+        )
+        .route(
+            "/requester/clarifications",
+            get(list_requester_clarifications),
+        )
+        .route(
+            "/requester/clarifications/{clarificationId}/reply",
+            post(reply_requester_clarification),
         )
         .route("/requester/tickets/{ticketId}", get(requester_ticket))
         .route(
@@ -1468,6 +1484,129 @@ async fn decide_automation_proposal(
     .into_response())
 }
 
+async fn create_clarification(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+    ValidatedJson(body): ValidatedJson<crate::generated::CreateClarification>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let reason = match body.reason.as_str() {
+        "missing_requirement" => crate::ClarificationReason::MissingRequirement,
+        "contradictory_requirement" => crate::ClarificationReason::ContradictoryRequirement,
+        _ => {
+            return Err(ApiFailure::validation(
+                "reason must be a known clarification reason",
+                &request_id,
+            ));
+        }
+    };
+    let questions = body
+        .questions
+        .into_iter()
+        .map(|question| crate::ClarificationQuestion {
+            id: question.id,
+            text: question.text,
+        })
+        .collect();
+    let clarification = state
+        .service
+        .create_clarification_draft(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            crate::service::ClarificationDraftInput {
+                reason,
+                questions,
+                checkpoint: body.checkpoint,
+            },
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    Ok((
+        StatusCode::CREATED,
+        Json(ClarificationMutation { clarification }),
+    )
+        .into_response())
+}
+
+async fn list_clarifications(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(ticket_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = parse_ticket_id(&ticket_id, &request_id)?;
+    let items = state
+        .service
+        .list_clarifications(&principal, &state.service.config().project_id, id)
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    Ok(Json(ClarificationCollection { data: items }).into_response())
+}
+
+async fn send_clarification(
+    State(state): State<TicketingHttpState>,
+    RequiredIdentity(principal): RequiredIdentity,
+    Path(clarification_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = Uuid::parse_str(&clarification_id)
+        .map_err(|_| ApiFailure::validation("clarification id must be a UUID", &request_id))?;
+    let clarification = state
+        .service
+        .send_clarification(
+            &principal,
+            &state.service.config().project_id,
+            id,
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    Ok(Json(ClarificationMutation { clarification }).into_response())
+}
+
+async fn list_requester_clarifications(
+    State(state): State<TicketingHttpState>,
+    requester: RequesterIdentity,
+) -> Result<Response, ApiFailure> {
+    let items = state
+        .service
+        .list_requester_clarifications(&requester.identity)
+        .await
+        .map_err(|error| map_error(error, "requester-clarifications"))?;
+    Ok(Json(RequesterClarificationCollection { data: items }).into_response())
+}
+
+async fn reply_requester_clarification(
+    State(state): State<TicketingHttpState>,
+    requester: RequesterIdentity,
+    Path(clarification_id): Path<String>,
+    headers: HeaderMap,
+    ValidatedJson(body): ValidatedJson<crate::generated::ReplyClarification>,
+) -> Result<Response, ApiFailure> {
+    let request_id = request_id(&headers);
+    let id = Uuid::parse_str(&clarification_id)
+        .map_err(|_| ApiFailure::validation("clarification id must be a UUID", &request_id))?;
+    let clarification = state
+        .service
+        .reply_to_clarification(
+            &requester.identity,
+            &state.service.config().project_id,
+            id,
+            body.answers,
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
+    Ok(Json(RequesterClarificationMutation { clarification }).into_response())
+}
+
 async fn agent_macros(
     State(state): State<TicketingHttpState>,
     RequiredIdentity(principal): RequiredIdentity,
@@ -1889,6 +2028,26 @@ fn decode_cursor(value: &str) -> Option<(DateTime<Utc>, TicketId)> {
 struct AgentTicketDetail {
     ticket: Ticket,
     other_recent_viewers: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct ClarificationCollection {
+    data: Vec<crate::Clarification>,
+}
+
+#[derive(serde::Serialize)]
+struct ClarificationMutation {
+    clarification: crate::Clarification,
+}
+
+#[derive(serde::Serialize)]
+struct RequesterClarificationCollection {
+    data: Vec<crate::RequesterClarification>,
+}
+
+#[derive(serde::Serialize)]
+struct RequesterClarificationMutation {
+    clarification: crate::RequesterClarification,
 }
 
 #[derive(serde::Serialize)]
