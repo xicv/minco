@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1917,
+  "file_count": 1920,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "35887c1c80f3f1399c2512e32e355358edc8d1dcdbbeed5cd34f36921f82f99e",
-      "size_bytes": 120324
+      "sha256": "811b1d60d1be2e0b78940e5f47367cf55ebc9862220c3955c02753f55216f263",
+      "size_bytes": 120340
     },
     {
       "path": "Cargo.toml",
@@ -1744,8 +1744,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "1be16c187802b06ab6bcfe7e501087cba6e9e6dbbea8235fd0bd534e31b90bcc",
-      "size_bytes": 15696
+      "sha256": "5f67b1d74ab936f4a02a64d2c6df41e7cb9ba2aa37fdccf17535f7347018e5f1",
+      "size_bytes": 16060
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2231,6 +2231,11 @@
       "path": "docs/adrs/0073-desk-data-lifecycle-proofs.md",
       "sha256": "935c794d89070c9fc83c94cb2b8a52bc59f552604d34e2d76615118ed9e4044f",
       "size_bytes": 2346
+    },
+    {
+      "path": "docs/adrs/0074-desk-security-accessibility-upgrade-proofs.md",
+      "sha256": "1dbb3f161abf8fb471d5a40e5f88f7a89772e84d9b9fe87c41a38a6d8bd216bd",
+      "size_bytes": 2433
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -6049,8 +6054,8 @@
     },
     {
       "path": "examples/minco-desk/Cargo.toml",
-      "sha256": "7e9e64d04fbf942ee12049114c5840fa64cd701dc7abf1e3ce906b10f7d80f35",
-      "size_bytes": 1759
+      "sha256": "f1a4c86ff45d4a208fc12e34f938065763cf366c98abe1feb34cf9dc8203af3c",
+      "size_bytes": 1781
     },
     {
       "path": "examples/minco-desk/src/bin/local.rs",
@@ -6071,6 +6076,11 @@
       "path": "examples/minco-desk/tests/data_lifecycle_proofs.rs",
       "sha256": "8bf5aa454bfe7fca4c6545923300c7100ae7e7ce1550c46682a0daf6b3f9e1af",
       "size_bytes": 9713
+    },
+    {
+      "path": "examples/minco-desk/tests/security_accessibility_upgrade_proofs.rs",
+      "sha256": "6e7742a298da1b7bc1cdd761bacfd8aa3f41e9f8704764b65c3cbf5d3c3e3425",
+      "size_bytes": 12274
     },
     {
       "path": "examples/minco-desk/tests/standalone_proof.rs",
@@ -7699,8 +7709,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/migrations/sqlite/0002_ticketing_agent_summary.sql",
-      "sha256": "071df8c3cca906e0ca0b3f1114a495b79c3d817fca86791f1394d96c07d4c6f9",
-      "size_bytes": 730
+      "sha256": "c639d5712ba5551fe789162efc45e0f93804f44f407a1970a1dd8d5f3ec2f64e",
+      "size_bytes": 786
     },
     {
       "path": "plugins/minco-plugin-ticketing/migrations/sqlite/0003_ticketing_session_handoff.sql",
@@ -7709,8 +7719,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/migrations/sqlite/0004_ticketing_columnar_authority.sql",
-      "sha256": "fedb09a1aa77e71f5fd6298560b4fb44c16973b6d64cff6618e5431b4582a9ac",
-      "size_bytes": 1614
+      "sha256": "b23a70b35422c2e7a9a20f879d184d3193b0af25beb212ba87a45e501fba0347",
+      "size_bytes": 1645
     },
     {
       "path": "plugins/minco-plugin-ticketing/migrations/sqlite/0005_ticketing_delivery_evidence.sql",
@@ -7764,8 +7774,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/http.rs",
-      "sha256": "6b5cc3860876cce378c2a59dd7833501ad61320ff82d683f35d1832e1fa3ec87",
-      "size_bytes": 147140
+      "sha256": "f81b47ffe0cca12acd6cac554741e0d9116ce441b43e8b5a892a19994dd38113",
+      "size_bytes": 146910
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/jobs.rs",
@@ -9193,6 +9203,11 @@
       "size_bytes": 2806
     },
     {
+      "path": "tasks/M14/M14-T72-desk-security-accessibility-upgrade-proofs.md",
+      "sha256": "751d978790b77387473ec853091d8778856df679757e3659587ebcef5c873d74",
+      "size_bytes": 3182
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9644,7 +9659,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "a960388212072fc61ea60dd5ce1168b331c6130e3d87793132078a3001607e8e",
-  "total_size_bytes": 14482667,
+  "source_tree_sha256": "7705e1134df9b1cf7f6117068910d0f83a89048058b39e478c6d32a3200ffad4",
+  "total_size_bytes": 14500815,
   "version": "1.12.0"
 }

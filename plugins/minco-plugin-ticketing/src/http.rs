@@ -242,16 +242,10 @@ pub fn ticketing_router(service: TicketingService) -> Router {
 }
 
 async fn support_entry_source() -> Response {
-    let mut response = SUPPORT_ENTRY_SOURCE.into_response();
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/javascript; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=300"),
-    );
-    response
+    hardened_asset(
+        SUPPORT_ENTRY_SOURCE.into_response(),
+        "application/javascript; charset=utf-8",
+    )
 }
 
 /// Bootstrap response: the interaction crate's wire shape plus the

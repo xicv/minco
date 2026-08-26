@@ -15,8 +15,8 @@ ALTER TABLE ticketing_tickets ADD COLUMN resolution TEXT;
 ALTER TABLE ticketing_tickets ADD COLUMN close_reason TEXT;
 
 UPDATE ticketing_tickets
-   SET description = json_extract(ticket_json, '$.description'),
-       channel = json_extract(ticket_json, '$.channel'),
+   SET description = COALESCE(json_extract(ticket_json, '$.description'), ''),
+       channel = COALESCE(json_extract(ticket_json, '$.channel'), 'api'),
        requester_display_name = json_extract(ticket_json, '$.requester.display_name'),
        requester_email = json_extract(ticket_json, '$.requester.email'),
        first_public_response_at = json_extract(ticket_json, '$.first_public_response_at'),
