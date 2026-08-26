@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1914,
+  "file_count": 1917,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1744,8 +1744,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "b93bb23afca37e0190e320fc780fa83bb40a2dda6e3aed237e5546ae78e181be",
-      "size_bytes": 15390
+      "sha256": "1be16c187802b06ab6bcfe7e501087cba6e9e6dbbea8235fd0bd534e31b90bcc",
+      "size_bytes": 15696
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2226,6 +2226,11 @@
       "path": "docs/adrs/0072-standalone-desk-example.md",
       "sha256": "89927dbc7f6b01aef3e550829b6a838f1a902e05c3c99abb2d466b732fcdb75e",
       "size_bytes": 2776
+    },
+    {
+      "path": "docs/adrs/0073-desk-data-lifecycle-proofs.md",
+      "sha256": "935c794d89070c9fc83c94cb2b8a52bc59f552604d34e2d76615118ed9e4044f",
+      "size_bytes": 2346
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -6059,8 +6064,13 @@
     },
     {
       "path": "examples/minco-desk/src/lib.rs",
-      "sha256": "aa9cb8095a8924fdad039d165db317136415cf6a8427920b161c7b84529b4c27",
-      "size_bytes": 11814
+      "sha256": "ccabb6374d2997a28a572118868fb6c1d4239f853cfe91fa75a604812256ab5f",
+      "size_bytes": 12502
+    },
+    {
+      "path": "examples/minco-desk/tests/data_lifecycle_proofs.rs",
+      "sha256": "8bf5aa454bfe7fca4c6545923300c7100ae7e7ce1550c46682a0daf6b3f9e1af",
+      "size_bytes": 9713
     },
     {
       "path": "examples/minco-desk/tests/standalone_proof.rs",
@@ -7774,8 +7784,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "sha256": "6f54b34f30bcd1e13381cd69f50cb9314e4393e9b98d6b577d6d4537b25c9947",
-      "size_bytes": 130488
+      "sha256": "9800bd05c374e13cb3bfd14ebb8117ec17954b2b2edb4798b86c489b34654ab1",
+      "size_bytes": 131650
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/plugin.rs",
@@ -7789,8 +7799,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
-      "sha256": "167aeb2428f50a1eeece29753d7964b5a7a67956595348963429980590c00611",
-      "size_bytes": 76655
+      "sha256": "13f06dd60683c23fe829dc3a00d3fa1b8c6c3008ce78e43318163ed174c9cf2d",
+      "size_bytes": 78537
     },
     {
       "path": "pricing/catalog.toml",
@@ -9178,6 +9188,11 @@
       "size_bytes": 3311
     },
     {
+      "path": "tasks/M14/M14-T71-desk-data-lifecycle-proofs.md",
+      "sha256": "23fdab4ef69a91ababf310795dce3b248cb0e174983807f78e23a6e8b02efa92",
+      "size_bytes": 2806
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9629,7 +9644,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "22e2ed8831fc27102a232687a9d7a0b52c7fd7d65291f83c09f0aa1ad23cee4e",
-  "total_size_bytes": 14463764,
+  "source_tree_sha256": "a960388212072fc61ea60dd5ce1168b331c6130e3d87793132078a3001607e8e",
+  "total_size_bytes": 14482667,
   "version": "1.12.0"
 }

@@ -246,6 +246,24 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     })
 }
 
+/// Retention erasure (ADR-0073): deletes resolved-or-closed tickets
+/// last updated before the cutoff, cascading children; bounded. This is
+/// an explicit operator operation — nothing schedules it implicitly.
+#[cfg(feature = "sqlite")]
+pub async fn erase_resolved_before(
+    config: &DeskConfig,
+    cutoff: chrono::DateTime<chrono::Utc>,
+    limit: usize,
+) -> anyhow::Result<usize> {
+    let pool = migrate(config).await?;
+    let store = minco_plugin_ticketing::TicketingStoreService::new(Arc::new(
+        minco_plugin_ticketing::SqliteTicketingStore::new(pool),
+    ));
+    Ok(store
+        .erase_tickets_resolved_before(&config.project_id, cutoff, limit)
+        .await?)
+}
+
 #[cfg(not(feature = "sqlite"))]
 pub async fn build_desk(_config: &DeskConfig) -> Result<BuiltDesk> {
     bail!("the standalone desk requires the sqlite feature")

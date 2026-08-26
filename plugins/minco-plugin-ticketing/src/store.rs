@@ -357,6 +357,16 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         evidence: OutboundDeliveryEvidence,
     ) -> Result<(), TicketStoreError>;
 
+    /// Retention erasure (ADR-0073): deletes resolved-or-closed tickets
+    /// whose last update precedes the cutoff, cascading every child row;
+    /// returns how many tickets were erased. Bounded by `limit`.
+    async fn erase_tickets_resolved_before(
+        &self,
+        project_id: &str,
+        cutoff: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<usize, TicketStoreError>;
+
     /// Stores one clarification (ADR-0071).
     async fn insert_clarification(
         &self,
@@ -608,6 +618,17 @@ impl TicketingStoreService {
             .await
     }
 
+    pub async fn erase_tickets_resolved_before(
+        &self,
+        project_id: &str,
+        cutoff: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<usize, TicketStoreError> {
+        self.0
+            .erase_tickets_resolved_before(project_id, cutoff, limit)
+            .await
+    }
+
     pub async fn insert_clarification(
         &self,
         project_id: &str,
@@ -839,6 +860,39 @@ impl MemoryTicketingStore {
 
 #[async_trait]
 impl TicketingStore for MemoryTicketingStore {
+    #[allow(clippy::significant_drop_tightening)]
+    async fn erase_tickets_resolved_before(
+        &self,
+        project_id: &str,
+        cutoff: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<usize, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let doomed: Vec<(String, TicketId)> = state
+            .tickets
+            .values()
+            .filter(|ticket| {
+                ticket.project_id == project_id
+                    && matches!(ticket.status, TicketStatus::Resolved | TicketStatus::Closed)
+                    && ticket.updated_at < cutoff
+            })
+            .take(limit)
+            .map(|ticket| (ticket.project_id.clone(), ticket.id))
+            .collect();
+        let erased = doomed.len();
+        for key in doomed {
+            state.tickets.remove(&key);
+            state.ticket_views.remove(&key);
+            state
+                .automation_proposals
+                .retain(|(p, _), proposal| !(p == &key.0 && proposal.ticket_id == key.1));
+            state
+                .clarifications
+                .retain(|(p, _), item| !(p == &key.0 && item.ticket_id == key.1));
+        }
+        Ok(erased)
+    }
+
     #[allow(clippy::significant_drop_tightening)]
     async fn insert_clarification(
         &self,

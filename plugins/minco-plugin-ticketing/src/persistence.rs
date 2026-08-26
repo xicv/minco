@@ -1314,6 +1314,40 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(())
     }
 
+    async fn erase_tickets_resolved_before(
+        &self,
+        project_id: &str,
+        cutoff: chrono::DateTime<chrono::Utc>,
+        limit: usize,
+    ) -> Result<usize, TicketStoreError> {
+        // Child rows cascade via foreign keys; the query only ever
+        // deletes ticket rows it can name first.
+        let doomed: Vec<(String,)> = sqlx::query_as(
+            "SELECT id FROM ticketing_tickets
+              WHERE project_id = ?
+                AND status IN ('resolved', 'closed')
+                AND updated_at < ?
+              ORDER BY updated_at
+              LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(cutoff.to_rfc3339())
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        let erased = doomed.len();
+        for (id,) in &doomed {
+            sqlx::query("DELETE FROM ticketing_tickets WHERE project_id = ? AND id = ?")
+                .bind(project_id)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .map_err(infrastructure)?;
+        }
+        Ok(erased)
+    }
+
     async fn ready(&self) -> Result<(), TicketStoreError> {
         sqlx::query("SELECT 1 FROM ticketing_tickets LIMIT 1")
             .execute(&self.pool)
