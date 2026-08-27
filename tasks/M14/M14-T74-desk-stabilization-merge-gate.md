@@ -111,4 +111,31 @@ and an independent review checklist for the re-review request.
 
 ## Evidence
 
-To be recorded at finish with exact commands and results.
+Blocker 1 (generated dependencies), run 2026-08-27 in the
+`minco-task-m14-t74` workspace on base `4c8683ea`:
+
+- `jj file untrack examples/ticketing-agent-console/node_modules` —
+  189 files / 99,344 lines removed from the diff; directory retained on
+  disk for local browser testing and ignored via a new `node_modules/`
+  rule in `.gitignore`.
+- `uv run --locked python scripts/source_manifest.py` — 1,924 files,
+  tree digest `caeb13c91a8cf80a590cde496b9a6892948f67d95092bc0f46770f1041d9995d`;
+  `--check` PASS (the manifest always excluded `node_modules`, so only
+  the `.gitignore` hash moved the digest).
+- `verification/1.9-performance-baseline.json` re-bound to the new
+  digest (same re-bind flow as `4c8683ea`); status remains the honest
+  `NOT RUN`.
+- `uv run --locked python scripts/validate_operational_evidence.py
+  --output ...` — PASS, 0 errors, 2 known warnings (no live provider
+  evidence; hosted Linux performance NOT RUN — both required by the
+  no-provider-contact policy).
+- `scripts/validate_static.py`, `scripts/validate_publish.py`,
+  `scripts/deep_review.py` regenerated; deep-review status `ok`.
+- `scripts/test/repository_truth.py` — OK (11 prior errors were the
+  missing `cargo-minco` binary in the fresh workspace; fixed by
+  `cargo build -p cargo-minco --locked`, 5m46s).
+- `scripts/test/deep_review_exclusions.py` — passed;
+  `scripts/test/operational_evidence.py` — OK.
+
+Remaining blockers 2–12 and the final-head qualification runs are
+recorded here as they close.

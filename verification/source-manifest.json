@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1923,
+  "file_count": 1924,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -29,8 +29,8 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "4925526356096a3e6f823065e5d39fec5870221411841a25b8f3951e8e3a99b1",
-      "size_bytes": 320
+      "sha256": "cf8658dae5277d638c583bef93df486c3fe5f8fccc300b91f5d4fd5b06f3fb1a",
+      "size_bytes": 334
     },
     {
       "path": ".gitleaks.toml",
@@ -9223,6 +9223,11 @@
       "size_bytes": 2212
     },
     {
+      "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
+      "sha256": "61c88e1ee8af51f0845072a0b29db47cec315c41b105d73896f26d3621730d77",
+      "size_bytes": 5425
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9674,7 +9679,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "e83d2d48a647478a531d68939ea23c3c682e0f29165db8433e6fe599f9091cb8",
-  "total_size_bytes": 14515808,
+  "source_tree_sha256": "caeb13c91a8cf80a590cde496b9a6892948f67d95092bc0f46770f1041d9995d",
+  "total_size_bytes": 14521247,
   "version": "1.12.0"
 }
