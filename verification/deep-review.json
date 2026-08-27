@@ -10,7 +10,7 @@
     "metrics": {
       "toml_files": 104,
       "yaml_files": 40,
-      "json_files": 93,
+      "json_files": 181,
       "workspace_members": 43,
       "contract_sha256": "231a11a35589d84cb3047e7e40c182f57fef1e1726c8a97eb04f266294dd09a8",
       "contract_operations": 8,
@@ -31,7 +31,7 @@
   },
   "metrics": {
     "rust_files": 266,
-    "rust_lines": 157784,
+    "rust_lines": 157785,
     "unsafe_tokens": 21,
     "production_unwrap_expect": 320,
     "sql_files": 33

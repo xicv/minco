@@ -354,8 +354,8 @@
     },
     {
       "path": "crates/minco-cli/src/delivery_evidence.rs",
-      "sha256": "a5b1fd0d3364f820fa5c3b6a0b9888c9a34229b9554a6cd8cbc5261f812b4731",
-      "size_bytes": 53885
+      "sha256": "34fe4ebf0ae58304936741ee9061926e8b6b3ef99bb5bf3ab4b6567747c97a10",
+      "size_bytes": 53900
     },
     {
       "path": "crates/minco-cli/src/feedback_cmd.rs",
@@ -8494,8 +8494,8 @@
     },
     {
       "path": "scripts/source_manifest.py",
-      "sha256": "387242422db52383232741d37da45ae2257b6eb44243181afddb83afdeb37c5b",
-      "size_bytes": 7214
+      "sha256": "d3dc7a5c03176950bd0b972877b7d4afa4495d6949a58df019ffff27d25f40b6",
+      "size_bytes": 7225
     },
     {
       "path": "scripts/test/agent_workflows.py",
@@ -9674,7 +9674,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "a9e59c1fb51b30511e5e4c1b8f57d181376ddb226258ed9a712ab8ca24b61ad9",
-  "total_size_bytes": 14515782,
+  "source_tree_sha256": "e83d2d48a647478a531d68939ea23c3c682e0f29165db8433e6fe599f9091cb8",
+  "total_size_bytes": 14515808,
   "version": "1.12.0"
 }
