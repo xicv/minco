@@ -37,6 +37,9 @@ pub mod inbound_mail_codes {
 /// retention covers operator recovery windows.
 pub const WAKE_VISIBILITY_TIMEOUT_SECONDS: u32 = 300;
 pub const WAKE_RETENTION_SECONDS: u32 = 345_600;
+/// Wake notifications redeliver this many times before the dead-letter
+/// queue takes over (review finding 5).
+pub const WAKE_MAX_RECEIVE_COUNT: u32 = 5;
 /// Raw MIME retention bounds (days).
 pub const MIN_RETENTION_DAYS: u32 = 1;
 pub const MAX_RETENTION_DAYS: u32 = 3_650;
@@ -66,14 +69,27 @@ pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology)
         return next;
     }
     for binding in &topology.bindings {
+        // Every wake queue carries a dead-letter queue (review finding 5):
+        // exhausted notifications must be inspectable, not silently lost.
+        let wake_dlq_id = format!("{}-dlq", binding.queue_id);
+        if !next.queues.iter().any(|queue| queue.id == wake_dlq_id) {
+            next.queues.push(QueuePlan {
+                id: wake_dlq_id.clone(),
+                fifo: false,
+                visibility_timeout_seconds: WAKE_VISIBILITY_TIMEOUT_SECONDS,
+                retention_seconds: WAKE_RETENTION_SECONDS,
+                dead_letter_queue_id: None,
+                max_receive_count: None,
+            });
+        }
         if !next.queues.iter().any(|queue| queue.id == binding.queue_id) {
             next.queues.push(QueuePlan {
                 id: binding.queue_id.clone(),
                 fifo: false,
                 visibility_timeout_seconds: WAKE_VISIBILITY_TIMEOUT_SECONDS,
                 retention_seconds: WAKE_RETENTION_SECONDS,
-                dead_letter_queue_id: None,
-                max_receive_count: None,
+                dead_letter_queue_id: Some(wake_dlq_id),
+                max_receive_count: Some(WAKE_MAX_RECEIVE_COUNT),
             });
         }
         let trigger_id = format!("{}-mail", binding.id);
@@ -321,16 +337,32 @@ pub fn render_sam_with_inbound_mail(
         return Ok(template);
     }
     let mut resources = String::new();
+    // One shared, explicitly named receipt rule set (review finding 5);
+    // activation semantics belong to the operator applying the change set.
+    let shared_rule_set_name = format!(
+        "{}-inbound-mail-ruleset",
+        sam_logical_id(
+            topology
+                .bindings
+                .first()
+                .map(|binding| binding.id.as_str())
+                .unwrap_or_default(),
+        )
+    );
+    write!(
+        resources,
+        "  InboundMailReceiptRuleSet:\n    Type: AWS::SES::ReceiptRuleSet\n    Properties:\n      RuleSetName: {}\n",
+        yaml_quote(&shared_rule_set_name),
+    )
+    .expect("write to String");
     for binding in &topology.bindings {
         let logical = sam_logical_id(&binding.id);
         let bucket_logical = format!("{logical}RawMailBucket");
         let queue_logical = format!("{}Queue", sam_logical_id(&binding.queue_id));
-        let mailbox_local = binding
-            .mailbox_scope
-            .split('@')
-            .next()
-            .unwrap_or_default()
-            .to_owned();
+        // The full mailbox address scopes the SES recipient (review
+        // finding 5): a bare local part would capture every domain's
+        // mail for that local part.
+        let mailbox_recipient = binding.mailbox_scope.trim().to_ascii_lowercase();
         write!(
             resources,
             "  {bucket_logical}:\n    Type: AWS::S3::Bucket\n    Properties:\n      BucketName: {}\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true\n      NotificationConfiguration:\n        QueueConfigurations:\n          - Event: s3:ObjectCreated:*\n            Queue: !GetAtt {queue_logical}.Arn\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: {}\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-raw-mail\n            Status: Enabled\n            Prefix: {}\n            ExpirationInDays: {}\n",
@@ -342,7 +374,7 @@ pub fn render_sam_with_inbound_mail(
         .expect("write to String");
         write!(
             resources,
-            "  {bucket_logical}Policy:\n    Type: AWS::S3::BucketPolicy\n    Properties:\n      Bucket: !Ref {bucket_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowSeSInboundWrite\n            Effect: Allow\n            Principal:\n              Service: ses.amazonaws.com\n            Action: s3:PutObject\n            Resource:\n              - !GetAtt {bucket_logical}.Arn\n              - !Sub '${{{bucket_logical}.Arn}}/*'\n",
+            "  {bucket_logical}Policy:\n    Type: AWS::S3::BucketPolicy\n    Properties:\n      Bucket: !Ref {bucket_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowSeSInboundWrite\n            Effect: Allow\n            Principal:\n              Service: ses.amazonaws.com\n            Action: s3:PutObject\n            Resource:\n              - !GetAtt {bucket_logical}.Arn\n              - !Sub '${{{bucket_logical}.Arn}}/*'\n            Condition:\n              StringEquals:\n                aws:SourceAccount: !Sub '${{AWS::AccountId}}'\n              ArnLike:\n                aws:SourceArn: !Sub 'arn:aws:ses:${{AWS::Region}}:${{AWS::AccountId}}:receipt-rule-set/{shared_rule_set_name}'\n",
         )
         .expect("write to String");
         write!(
@@ -350,16 +382,15 @@ pub fn render_sam_with_inbound_mail(
             "  {logical}MailQueuePolicy:\n    Type: AWS::SQS::QueuePolicy\n    Properties:\n      Queues:\n        - !Ref {queue_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowBucketWakeSend\n            Effect: Allow\n            Principal:\n              Service: s3.amazonaws.com\n            Action: sqs:SendMessage\n            Resource: !GetAtt {queue_logical}.Arn\n            Condition:\n              ArnLike:\n                aws:SourceArn: !GetAtt {bucket_logical}.Arn\n",
         )
         .expect("write to String");
+        // One shared receipt rule set (review finding 5): every binding
+        // adds a rule to the single activated set instead of competing
+        // rule sets; content scanning stays enabled.
         write!(
             resources,
-            "  {logical}ReceiptRuleSet:\n    Type: AWS::SES::ReceiptRuleSet\n",
-        )
-        .expect("write to String");
-        write!(
-            resources,
-            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    Properties:\n      RuleSetName: !Ref {logical}ReceiptRuleSet\n      Rule:\n        Name: {}\n        Enabled: true\n        ScanEnabled: false\n        Recipients:\n          - {}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {}\n",
+            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    Properties:\n      RuleSetName: {}\n      Rule:\n        Name: {}\n        Enabled: true\n        ScanEnabled: true\n        Recipients:\n          - {}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {}\n",
+            yaml_quote(&shared_rule_set_name),
             yaml_quote(&format!("{}-inbound-mail", binding.id)),
-            yaml_quote(&mailbox_local),
+            yaml_quote(&mailbox_recipient),
             yaml_quote(&binding.key_prefix),
         )
         .expect("write to String");

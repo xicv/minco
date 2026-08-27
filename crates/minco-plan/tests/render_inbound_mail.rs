@@ -112,6 +112,28 @@ fn synthesis_adds_wake_queue_trigger_and_binding() {
             .iter()
             .any(|queue| queue.id == "mail-ticketing")
     );
+    // Review finding 5: the wake queue carries a dead-letter queue and a
+    // bounded max-receive count, so exhausted notifications are
+    // inspectable instead of silently lost.
+    let wake = applied
+        .queues
+        .iter()
+        .find(|queue| queue.id == "mail-ticketing")
+        .expect("wake queue");
+    assert_eq!(
+        wake.dead_letter_queue_id.as_deref(),
+        Some("mail-ticketing-dlq")
+    );
+    assert_eq!(
+        wake.max_receive_count,
+        Some(minco_plan::inbound_mail::WAKE_MAX_RECEIVE_COUNT)
+    );
+    assert!(
+        applied
+            .queues
+            .iter()
+            .any(|queue| queue.id == "mail-ticketing-dlq")
+    );
     assert!(applied.triggers.iter().any(|trigger| matches!(
         trigger,
         minco_plan::TriggerPlan::Sqs { id, function_id, queue_id, report_batch_item_failures, .. }
@@ -245,10 +267,16 @@ fn renders_the_full_provider_chain_into_sam() {
         "Service: s3.amazonaws.com",
         "Action: sqs:SendMessage",
         "aws:SourceArn: !GetAtt TicketingRawMailBucket.Arn",
-        "TicketingReceiptRuleSet:\n    Type: AWS::SES::ReceiptRuleSet",
+        "InboundMailReceiptRuleSet:\n    Type: AWS::SES::ReceiptRuleSet",
         "TicketingReceiptRule:\n    Type: AWS::SES::ReceiptRule",
-        "ScanEnabled: false",
+        "ScanEnabled: true",
         "ObjectKeyPrefix: 'mail/'",
+        // Review finding 5: full mailbox recipient, source-account-bound
+        // SES writes, one shared rule set name on every rule.
+        "Recipients:\n          - 'support@example.test'",
+        "aws:SourceAccount: !Sub '${AWS::AccountId}'",
+        "aws:SourceArn: !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/",
+        "RuleSetName: 'Ticketing-inbound-mail-ruleset'",
         // Worker wake policy: SQS receive/delete plus raw-object reads.
         "sqs:ReceiveMessage",
         "- s3:GetObject",

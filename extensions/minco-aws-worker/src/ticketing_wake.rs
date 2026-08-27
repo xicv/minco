@@ -1,10 +1,13 @@
 //! S3 `ObjectCreated` → ticketing inbound wake translation
 //! (ADR-0060, ADR-0061).
 //!
-//! One bounded notification record from the real S3 `Records` envelope
-//! becomes exactly one [`TicketingService::wake_inbound_email`] call.
-//! The queue message is delivery, never truth: classified failures
-//! return stable worker codes and SQS redelivery decides retry.
+//! Every bounded notification record from the real S3 `Records` envelope
+//! becomes exactly one [`TicketingService::wake_inbound_email`] call,
+//! and each record must arrive from the expected bucket under the
+//! expected key prefix (review finding 5). The queue message is
+//! delivery, never truth: classified failures return stable worker
+//! codes and SQS redelivery decides retry; successful records are
+//! idempotent under redelivery through the durable dedupe identity.
 
 use crate::{MessageHandler, WorkerFailure, WorkerMessage};
 use aws_lambda_events::event::s3::S3Event;
@@ -26,35 +29,57 @@ pub struct TicketingMailWakeEvent {
     pub sequencer: String,
 }
 
-/// Explicit worker configuration: the ticketing service and the fixed
-/// mailbox scope this worker serves. No credentials, no identity
-/// assertion, no provider state.
+/// Upper bound on records in one notification batch (review finding 5):
+/// S3 batches are small by design; anything larger is refused outright
+/// instead of half-processed.
+pub const MAX_WAKE_RECORDS: usize = 10;
+
+/// Explicit worker configuration: the ticketing service, the fixed
+/// mailbox scope this worker serves, and the exact bucket and key prefix
+/// the notification must bind to.
+///
+/// No credentials, no identity assertion, no provider state.
 #[derive(Clone)]
 pub struct TicketingMailWakeHandler {
     service: Arc<TicketingService>,
     mailbox_scope: String,
+    expected_bucket: String,
+    expected_key_prefix: String,
 }
 
 impl TicketingMailWakeHandler {
     #[must_use]
-    pub fn new(service: Arc<TicketingService>, mailbox_scope: impl Into<String>) -> Self {
+    pub fn new(
+        service: Arc<TicketingService>,
+        mailbox_scope: impl Into<String>,
+        expected_bucket: impl Into<String>,
+        expected_key_prefix: impl Into<String>,
+    ) -> Self {
         Self {
             service,
             mailbox_scope: mailbox_scope.into(),
+            expected_bucket: expected_bucket.into(),
+            expected_key_prefix: expected_key_prefix.into(),
         }
     }
 
-    /// Parse the real S3 `Records` envelope (ADR-0061) into exactly one
-    /// wake event. Non-S3 sources, non-ObjectCreated events, zero or
-    /// multiple records, and missing bounded fields fail closed with
-    /// stable codes; nothing is guessed.
-    fn parse_event(body: &str) -> Result<TicketingMailWakeEvent, WorkerFailure> {
+    /// Parse the real S3 `Records` envelope (ADR-0061) into bounded wake
+    /// events, one per record. Non-S3 sources, non-ObjectCreated events,
+    /// zero or over-large batches, records from unexpected buckets or key
+    /// prefixes, and missing bounded fields fail closed with stable
+    /// codes; nothing is guessed.
+    fn parse_events(body: &str) -> Result<Vec<TicketingMailWakeEvent>, WorkerFailure> {
         let event: S3Event = serde_json::from_str(body)
             .map_err(|_| WorkerFailure::new("ticketing.wake_body_invalid"))?;
-        if event.records.len() != 1 {
+        if event.records.is_empty() || event.records.len() > MAX_WAKE_RECORDS {
             return Err(WorkerFailure::new("ticketing.wake_record_count_invalid"));
         }
-        let record = &event.records[0];
+        event.records.iter().map(Self::parse_record).collect()
+    }
+
+    fn parse_record(
+        record: &aws_lambda_events::event::s3::S3EventRecord,
+    ) -> Result<TicketingMailWakeEvent, WorkerFailure> {
         if record.event_source.as_deref() != Some("aws:s3") {
             return Err(WorkerFailure::new("ticketing.wake_source_invalid"));
         }
@@ -108,6 +133,19 @@ impl TicketingMailWakeHandler {
         })
     }
 
+    /// The bucket and key prefix the notification must bind to (review
+    /// finding 5): a record from any other source is refused, never
+    /// routed into ticketing.
+    fn validate_binding(&self, event: &TicketingMailWakeEvent) -> Result<(), WorkerFailure> {
+        if event.bucket != self.expected_bucket {
+            return Err(WorkerFailure::new("ticketing.wake_bucket_unexpected"));
+        }
+        if !event.key.starts_with(&self.expected_key_prefix) {
+            return Err(WorkerFailure::new("ticketing.wake_prefix_unexpected"));
+        }
+        Ok(())
+    }
+
     /// Bounded external identity for the durable dedupe key: a digest of
     /// the bucket and key — never message content. SES receipt-id
     /// attribution through message attributes is a slice-3b concern.
@@ -135,38 +173,45 @@ impl MessageHandler for TicketingMailWakeHandler {
         if message.body.len() > MAX_WAKE_EVENT_BYTES {
             return Err(WorkerFailure::new("ticketing.wake_body_too_large"));
         }
-        let event = Self::parse_event(&message.body)?;
-        let failure_code = match self
-            .service
-            .wake_inbound_email(
-                "ses",
-                &self.mailbox_scope,
-                &Self::external_id(&event),
-                &event.key,
-                Uuid::new_v4(),
-                event.event_time,
-            )
-            .await
-        {
-            Ok(_) => return Ok(()),
-            Err(minco_plugin_ticketing::TicketingServiceError::InboundObjectMissing) => {
-                "ticketing.inbound_object_missing"
-            }
-            Err(minco_plugin_ticketing::TicketingServiceError::InboundMimeInvalid) => {
-                "ticketing.inbound_mime_invalid"
-            }
-            Err(minco_plugin_ticketing::TicketingServiceError::InboundThreadUnresolved) => {
-                "ticketing.inbound_thread_unresolved"
-            }
-            Err(minco_plugin_ticketing::TicketingServiceError::ObjectsUnavailable) => {
-                "ticketing.objects_unavailable"
-            }
-            Err(minco_plugin_ticketing::TicketingServiceError::JobsUnavailable) => {
-                "ticketing.jobs_unavailable"
-            }
-            Err(_) => "ticketing.wake_failed",
-        };
-        Err(WorkerFailure::new(failure_code))
+        // Bounded multi-record batches (review finding 5): records process
+        // in order; the first classified failure surfaces and SQS decides
+        // redelivery. Earlier records are durable-idempotent under replay,
+        // so a redelivered batch never duplicates work.
+        for event in Self::parse_events(&message.body)? {
+            self.validate_binding(&event)?;
+            let failure_code = match self
+                .service
+                .wake_inbound_email(
+                    "ses",
+                    &self.mailbox_scope,
+                    &Self::external_id(&event),
+                    &event.key,
+                    Uuid::new_v4(),
+                    event.event_time,
+                )
+                .await
+            {
+                Ok(_) => continue,
+                Err(minco_plugin_ticketing::TicketingServiceError::InboundObjectMissing) => {
+                    "ticketing.inbound_object_missing"
+                }
+                Err(minco_plugin_ticketing::TicketingServiceError::InboundMimeInvalid) => {
+                    "ticketing.inbound_mime_invalid"
+                }
+                Err(minco_plugin_ticketing::TicketingServiceError::InboundThreadUnresolved) => {
+                    "ticketing.inbound_thread_unresolved"
+                }
+                Err(minco_plugin_ticketing::TicketingServiceError::ObjectsUnavailable) => {
+                    "ticketing.objects_unavailable"
+                }
+                Err(minco_plugin_ticketing::TicketingServiceError::JobsUnavailable) => {
+                    "ticketing.jobs_unavailable"
+                }
+                Err(_) => "ticketing.wake_failed",
+            };
+            return Err(WorkerFailure::new(failure_code));
+        }
+        Ok(())
     }
 }
 
@@ -296,7 +341,8 @@ mod tests {
     #[tokio::test]
     async fn invalid_bodies_fail_closed_with_stable_codes() {
         let (service, _store, _objects, _identity) = seeded_service().await;
-        let handler = TicketingMailWakeHandler::new(service, "support@example.test");
+        let handler =
+            TicketingMailWakeHandler::new(service, "support@example.test", "minco-mail", "mail/");
         assert_eq!(
             handler
                 .handle(message("not json"))
@@ -314,14 +360,52 @@ mod tests {
                 .code(),
             "ticketing.wake_record_count_invalid"
         );
-        // Two records would silently drop one; fail closed instead.
-        let two = serde_json::json!({
-            "Records": [full_record("k1"), full_record("k2")],
+        // An over-large batch is refused outright (review finding 5).
+        let oversized = serde_json::json!({
+            "Records": (0..=MAX_WAKE_RECORDS).map(|_| full_record("mail/k")).collect::<Vec<_>>(),
         })
         .to_string();
         assert_eq!(
-            handler.handle(message(&two)).await.unwrap_err().code(),
+            handler
+                .handle(message(&oversized))
+                .await
+                .unwrap_err()
+                .code(),
             "ticketing.wake_record_count_invalid"
+        );
+        // A record from a foreign bucket is refused, never routed.
+        let foreign_bucket = serde_json::json!({
+            "Records": [full_record("mail/k1"), full_record("mail/k2")],
+        })
+        .to_string();
+        let mut foreign_bucket =
+            serde_json::from_str::<serde_json::Value>(&foreign_bucket).unwrap();
+        foreign_bucket["Records"][0]["s3"]["bucket"]["name"] =
+            serde_json::Value::String("not-our-bucket".into());
+        assert_eq!(
+            handler
+                .handle(message(&foreign_bucket.to_string()))
+                .await
+                .unwrap_err()
+                .code(),
+            "ticketing.wake_bucket_unexpected"
+        );
+        // A record outside the expected key prefix is refused.
+        let foreign_prefix = serde_json::json!({
+            "Records": [full_record("elsewhere/k1")],
+        })
+        .to_string();
+        let mut foreign_prefix =
+            serde_json::from_str::<serde_json::Value>(&foreign_prefix).unwrap();
+        foreign_prefix["Records"][0]["s3"]["bucket"]["name"] =
+            serde_json::Value::String("minco-mail".into());
+        assert_eq!(
+            handler
+                .handle(message(&foreign_prefix.to_string()))
+                .await
+                .unwrap_err()
+                .code(),
+            "ticketing.wake_prefix_unexpected"
         );
         // Non-S3 source is rejected.
         let mut foreign_record = full_record("k");
@@ -368,7 +452,8 @@ mod tests {
     async fn missing_object_maps_to_the_classified_worker_code() {
         let (service, _store, objects, _identity) = seeded_service().await;
         assert!(objects.is_empty().await);
-        let handler = TicketingMailWakeHandler::new(service, "support@example.test");
+        let handler =
+            TicketingMailWakeHandler::new(service, "support@example.test", "minco-mail", "mail/");
         // The object store is empty: the wake fails closed at the object
         // read, and the translation preserves the classification.
         assert_eq!(
@@ -406,7 +491,7 @@ mod tests {
                     requester: TicketRequester {
                         subject: "user-1".into(),
                         display_name: None,
-                        email: None,
+                        email: Some("user-1@example.test".into()),
                     },
                     channel: TicketChannel::Email,
                     priority: TicketPriority::Normal,
@@ -436,7 +521,6 @@ mod tests {
                 },
                 created.id,
                 "Original external reply".into(),
-                created.revision,
                 Uuid::new_v4(),
                 Utc::now(),
             )
@@ -454,7 +538,12 @@ mod tests {
             .await
             .unwrap();
 
-        let handler = TicketingMailWakeHandler::new(Arc::clone(&service), "support@example.test");
+        let handler = TicketingMailWakeHandler::new(
+            Arc::clone(&service),
+            "support@example.test",
+            "minco-mail",
+            "mail/",
+        );
         handler
             .handle(message(&worker_message_body("mail/project-a/reply-w")))
             .await
@@ -479,18 +568,18 @@ mod tests {
     fn parse_event_is_url_decoded_key_aware() {
         // Percent-encoded key with a urlDecodedKey companion: the decoded
         // key wins.
-        let decoded = TicketingMailWakeHandler::parse_event(&real_envelope(
+        let decoded = &TicketingMailWakeHandler::parse_events(&real_envelope(
             "mail/project-a/reply+w%40v1",
             Some("mail/project-a/reply+w@v1"),
         ))
-        .unwrap();
+        .unwrap()[0];
         assert_eq!(decoded.key, "mail/project-a/reply+w@v1");
         assert_eq!(decoded.bucket, "minco-mail");
         assert_eq!(decoded.sequencer, "0062FB4BD93640D5");
         // Without urlDecodedKey the raw key is used, bounded as before.
         let raw =
-            TicketingMailWakeHandler::parse_event(&real_envelope("mail/project-a/plain", None))
-                .unwrap();
+            &TicketingMailWakeHandler::parse_events(&real_envelope("mail/project-a/plain", None))
+                .unwrap()[0];
         assert_eq!(raw.key, "mail/project-a/plain");
     }
 

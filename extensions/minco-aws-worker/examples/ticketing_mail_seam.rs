@@ -190,7 +190,6 @@ async fn seed() {
             },
             created.ticket.id,
             "It broke".into(),
-            0,
             Uuid::new_v4(),
             now,
         )
@@ -205,7 +204,9 @@ async fn seed() {
 async fn poll() {
     let (service, _objects, _pool) = compose().await;
     let scope = env::var("SEAM_MAILBOX_SCOPE").unwrap_or_else(|_| "support@example.test".into());
-    let handler = TicketingMailWakeHandler::new(service, scope);
+    let bucket = env::var("SEAM_MAIL_BUCKET").unwrap_or_else(|_| "minco-mail".into());
+    let prefix = env::var("SEAM_MAIL_KEY_PREFIX").unwrap_or_else(|_| "mail/".into());
+    let handler = TicketingMailWakeHandler::new(service, scope, bucket, prefix);
     let endpoint = env::var("AWS_ENDPOINT_URL").ok();
     let region = env::var("AWS_DEFAULT_REGION").unwrap_or_else(|_| "ap-southeast-2".into());
     let config = aws_config::defaults(aws_config::BehaviorVersion::latest());
