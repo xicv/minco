@@ -54,6 +54,7 @@ cargo test -p minco --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-targets --all-features --locked
 scripts/test/generated_apps.sh
+uv run --locked python scripts/test/desk_binary_lifecycle.py
 cargo rustdoc -p cargo-minco --lib --all-features --locked
 cargo doc --workspace --all-features --no-deps --locked
 cargo deny check advisories bans licenses sources

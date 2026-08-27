@@ -31,11 +31,17 @@ async fn main() -> Result<()> {
             }
         }
     });
-    let worker_handle = worker;
     axum::serve(listener, desk.router)
         .with_graceful_shutdown(async move {
-            worker_handle.abort();
+            // Wait for the shutdown signal FIRST; the graceful-shutdown
+            // future is polled while the server runs, so cancelling the
+            // worker before this await would stop it immediately
+            // (exact-head review R1).
             let _ = tokio::signal::ctrl_c().await;
+            worker.abort();
+            // An aborted task resolves promptly; awaiting it here keeps
+            // the exit clean instead of leaking the loop.
+            let _ = worker.await;
         })
         .await?;
     Ok(())
