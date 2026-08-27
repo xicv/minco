@@ -21,27 +21,21 @@
     selected: null,
     etag: null,
     principalSubject: null,
-    capabilities: { create: false, reply: false, internal_note: false, manage: false },
-    inflight: null
+    capabilities: { create: false, reply: false, internal_note: false, manage: false }
   };
 
   function el(name) { return document.querySelector("[data-console=\"" + name + "\"]"); }
 
   function setStatus(message) { el("status").textContent = message || ""; }
 
-  function abortInflight() {
-    if (state.inflight) { state.inflight.abort(); state.inflight = null; }
-  }
-
+  // Every request owns its AbortController: unrelated list, detail and
+  // mutation operations never cancel each other (review finding 12).
   function fetchJson(path, options) {
-    abortInflight();
     var controller = new AbortController();
-    state.inflight = controller;
     options = options || {};
     options.signal = controller.signal;
     options.credentials = "same-origin";
     return fetch(path, options).then(function (response) {
-      state.inflight = null;
       var etag = response.headers.get("ETag");
       if (!response.ok) {
         return response.json().then(function (problem) {
@@ -192,27 +186,61 @@
     return payload;
   }
 
-  function createTicket() {
-    var subject = window.prompt("Ticket subject");
-    if (!subject) { return; }
-    var description = window.prompt("Ticket description (at least 20 characters)");
-    if (!description) { return; }
+  // Accessible creation flow (review finding 12): a labelled dialog with
+  // required fields, inline validation errors, cancel/Escape support and
+  // focus restored to the opener — never window.prompt.
+  function openCreateDialog() {
+    var dialog = el("create-dialog");
+    if (typeof dialog.showModal !== "function") {
+      dialog.setAttribute("open", "");
+    } else {
+      dialog.showModal();
+    }
+    el("create-error").hidden = true;
+    el("create-form").reset();
+    el("create-subject").focus();
+  }
+
+  function closeCreateDialog() {
+    var dialog = el("create-dialog");
+    dialog.close();
+    // Focus restoration: the opener keeps the keyboard position.
+    el("create").focus();
+  }
+
+  function submitCreate(event) {
+    event.preventDefault();
+    var form = el("create-form");
+    var error = el("create-error");
+    if (!form.subject.value.trim() || form.description.value.trim().length < 20) {
+      error.textContent = "A subject and a description of at least 20 characters are required.";
+      error.hidden = false;
+      return;
+    }
+    var submit = el("create-submit");
+    submit.disabled = true;
     fetchJson(BASE + "/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         project_id: state.projectId,
-        subject: subject,
-        description: description,
+        subject: form.subject.value.trim(),
+        description: form.description.value.trim(),
         requester: { subject: state.principalSubject || "agent" },
         channel: "internal"
       })
     }).then(function (result) {
+      submit.disabled = false;
+      closeCreateDialog();
       renderDetail(result.body.ticket);
       state.etag = result.etag;
       setStatus("");
       loadPage(true);
-    }, function (error) { setStatus("Create was rejected. " + error.message); });
+    }, function (requestError) {
+      submit.disabled = false;
+      error.textContent = "Create was rejected. " + requestError.message;
+      error.hidden = false;
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -228,10 +256,14 @@
     el("search").addEventListener("input", function () { renderList(state.page); });
     el("refresh").addEventListener("click", function () { loadPage(true); });
     el("next").addEventListener("click", function () { loadPage(false); });
-    el("create").addEventListener("click", createTicket);
+    el("create").addEventListener("click", openCreateDialog);
+    el("create-cancel").addEventListener("click", closeCreateDialog);
+    el("create-form").addEventListener("submit", submitCreate);
     el("close-detail").addEventListener("click", function () {
       el("detail-panel").hidden = true;
       state.selected = null;
+      // Focus restoration: return to the list controls after closing.
+      el("refresh").focus();
     });
     el("reply-form").addEventListener("submit", function (event) {
       event.preventDefault();
@@ -254,9 +286,12 @@
       state.principalSubject = result.body.subject;
       state.capabilities = result.body.capabilities;
       el("brand").textContent = result.body.brand + " — " + result.body.label;
-      el("create").disabled = !result.body.capabilities.create;
-      el("reply-submit").disabled = !result.body.capabilities.reply;
-      el("note-submit").disabled = !result.body.capabilities.internal_note;
+      // Controls the principal cannot use are hidden, not merely
+      // disabled (review finding 12).
+      el("create").hidden = !result.body.capabilities.create;
+      el("reply-form").hidden = !result.body.capabilities.reply;
+      el("note-form").hidden = !result.body.capabilities.internal_note;
+      el("manage-form").hidden = !result.body.capabilities.manage;
       loadPage(true);
     }, function (error) {
       setStatus(error.status === 401

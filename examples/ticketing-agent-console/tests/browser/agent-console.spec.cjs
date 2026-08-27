@@ -335,11 +335,19 @@ test('stale management conflict shows recovery and reloads the ticket', async ({
   expect(state.lastManagement).toBeUndefined();
 });
 
-test('create posts the exact payload and opens the created detail', async ({ page }) => {
+test('create uses the accessible dialog and opens the created detail', async ({ page }) => {
   const { state } = await loadConsole(page);
-  const promptAnswers = ['New urgent issue', 'A new request that needs an agent right now.'];
-  page.on('dialog', dialog => dialog.accept(promptAnswers.shift() || 'unused'));
   await page.locator('[data-console="create"]').click();
+  const dialog = page.locator('[data-console="create-dialog"]');
+  await expect(dialog).toBeVisible();
+  // Focus lands in the first field of the labelled form.
+  await expect(page.locator('#create-subject')).toBeFocused();
+  await page.locator('#create-subject').fill('New urgent issue');
+  await page.locator('#create-description').fill('A new request that needs an agent right now.');
+  await page.locator('[data-console="create-submit"]').click();
+  await expect(dialog).not.toBeVisible();
+  // Focus restoration: the opener regains keyboard position.
+  await expect(page.locator('[data-console="create"]')).toBeFocused();
   await expect(page.locator('[data-console="detail-title"]')).toContainText('TKT-111');
   expect(state.lastCreate).toEqual({
     project_id: 'example',
@@ -350,13 +358,31 @@ test('create posts the exact payload and opens the created detail', async ({ pag
   });
 });
 
-test('capabilities the principal lacks disable the matching controls', async ({ page }) => {
+test('create dialog shows inline validation and cancel restores focus', async ({ page }) => {
+  await loadConsole(page);
+  await page.locator('[data-console="create"]').click();
+  await page.locator('#create-subject').fill('Too short description');
+  await page.locator('#create-description').fill('short');
+  await page.locator('[data-console="create-submit"]').click();
+  await expect(page.locator('[data-console="create-error"]')).toBeVisible();
+  await expect(page.locator('[data-console="create-error"]')).toContainText(
+    'at least 20 characters');
+  await page.locator('[data-console="create-cancel"]').click();
+  await expect(page.locator('[data-console="create-dialog"]')).not.toBeVisible();
+  await expect(page.locator('[data-console="create"]')).toBeFocused();
+});
+
+test('capabilities the principal lacks hide the matching controls', async ({ page }) => {
   await loadConsole(page, {
     capabilities: { create: false, reply: false, internal_note: false, manage: true },
   });
-  await expect(page.locator('[data-console="create"]')).toBeDisabled();
-  await expect(page.locator('[data-console="reply-submit"]')).toBeDisabled();
-  await expect(page.locator('[data-console="note-submit"]')).toBeDisabled();
+  await expect(page.locator('[data-console="create"]')).toBeHidden();
+  await expect(page.locator('[data-console="reply-form"]')).toBeHidden();
+  await expect(page.locator('[data-console="note-form"]')).toBeHidden();
+  // The management form lives in the detail panel: open a ticket first.
+  await page.locator('[data-console="list"] tr').first().click();
+  await expect(page.locator('[data-console="detail-panel"]')).toBeVisible();
+  await expect(page.locator('[data-console="manage-form"]')).toBeVisible();
   await expect(page.locator('[data-console="brand"]')).toHaveText('Support — Console');
 });
 

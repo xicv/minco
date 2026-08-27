@@ -90,5 +90,21 @@
     <button type="button" data-console="close-detail">Close detail</button>
   </section>
 </main>
+<dialog data-console="create-dialog" aria-labelledby="create-title">
+  <form method="dialog" data-console="create-form" novalidate>
+    <h2 id="create-title">New ticket</h2>
+    <p role="alert" data-console="create-error" hidden></p>
+    <label for="create-subject">Subject</label>
+    <input id="create-subject" name="subject" required maxlength="200"
+           autocomplete="off" aria-describedby="create-error">
+    <label for="create-description">Description (at least 20 characters)</label>
+    <textarea id="create-description" name="description" required minlength="20"
+              maxlength="20000" aria-describedby="create-error"></textarea>
+    <menu>
+      <button type="button" data-console="create-cancel">Cancel</button>
+      <button type="submit" data-console="create-submit">Create ticket</button>
+    </menu>
+  </form>
+</dialog>
 </body>
 </html>
