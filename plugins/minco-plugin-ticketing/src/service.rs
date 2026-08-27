@@ -1683,9 +1683,13 @@ impl TicketingService {
 
     /// One bounded, explicit dispatch pass (ADR-0056): publishes
     /// transactionally-committed activity intents as domain events through
-    /// the events service, marking each published only after its
-    /// publication succeeded. Never scheduled implicitly. Returns the
-    /// number of intents published in this pass.
+    /// the events outbox claim/lease lifecycle, marking each published only
+    /// after its publication succeeded. One intent carries one event
+    /// identity forever — the event id IS the intent id — so a crash between
+    /// publish and mark replays the same identity and consumers can dedupe;
+    /// concurrent passes cannot double-publish because only one worker holds
+    /// the outbox claim (review finding 9). Never scheduled implicitly.
+    /// Returns the number of intents published in this pass.
     pub async fn dispatch_pending_activity(
         &self,
         project_id: &str,
@@ -1706,27 +1710,59 @@ impl TicketingService {
             .store
             .pending_activity_intents(project_id, limit)
             .await?;
+        let worker = format!("ticketing-activity-{}", Uuid::now_v7());
+        let claim_expires_at = Utc::now() + TimeDelta::seconds(300);
+        let infrastructure = |error: minco_plugin_events::EventError| {
+            TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
+        };
         let mut published = 0;
         for intent in pending {
-            let event = minco_plugin_events::DomainEvent::new(
-                intent.kind.clone(),
-                "ticketing.ticket",
-                intent.ticket_id.to_string(),
-                intent.correlation_id,
-                intent.payload.clone(),
-            );
-            events.publisher.publish(&event).await.map_err(|error| {
-                TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
-            })?;
-            if !self
-                .store
-                .mark_activity_published(intent.id, Utc::now())
-                .await?
+            let event = minco_plugin_events::DomainEvent {
+                id: intent.id,
+                event_type: intent.kind.clone(),
+                aggregate_type: "ticketing.ticket".into(),
+                aggregate_id: intent.ticket_id.to_string(),
+                correlation_id: intent.correlation_id,
+                occurred_at: intent.created_at,
+                payload: intent.payload.clone(),
+                metadata: BTreeMap::new(),
+            };
+            match events
+                .outbox
+                .enqueue(minco_plugin_events::OutboxRecord::pending(event))
+                .await
             {
-                // Already published by a concurrent pass; at-least-once
-                // delivery tolerates the duplicate.
+                // A fresh enqueue and a duplicate from an earlier pass are
+                // both fine: the claim below decides who publishes it.
+                Ok(()) | Err(minco_plugin_events::EventError::DuplicateEvent(_)) => {}
+                Err(error) => return Err(infrastructure(error)),
             }
-            published += 1;
+            match events
+                .outbox
+                .claim_event(intent.id, &worker, claim_expires_at)
+                .await
+            {
+                Ok(Some(record)) => {
+                    events
+                        .publisher
+                        .publish(&record.event)
+                        .await
+                        .map_err(infrastructure)?;
+                    events
+                        .outbox
+                        .mark_published(record.event.id, &worker)
+                        .await
+                        .map_err(infrastructure)?;
+                    let _ = self
+                        .store
+                        .mark_activity_published(intent.id, Utc::now())
+                        .await?;
+                    published += 1;
+                }
+                // Claimed by another worker, or already published; skip.
+                Ok(None) => {}
+                Err(error) => return Err(infrastructure(error)),
+            }
         }
         Ok(published)
     }
@@ -3608,6 +3644,79 @@ mod tests {
             .await
             .unwrap();
         assert!(quiet.enqueued_job_records().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn concurrent_dispatch_publishes_each_intent_once_with_stable_identity() {
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let (_plugin, bus) = minco_plugin_events::EventsPlugin::memory();
+        let events = minco_plugin_events::EventServices {
+            publisher: bus.clone(),
+            outbox: bus.clone(),
+        };
+        let service =
+            TicketingService::new(TicketingStoreService::new(memory.clone()), test_config())
+                .unwrap()
+                .with_portal_services(TicketingPortalServices {
+                    events: Some(Arc::new(events)),
+                    ..TicketingPortalServices::default()
+                });
+        let created = service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("user-a"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        service
+            .reply_as_agent(
+                &identity("agent-1", &["ticketing.reply"]),
+                "project-a",
+                created.id,
+                "Answer.".into(),
+                created.revision,
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        // The published event identity must BE the intent identity.
+        let intent_ids = TicketingStoreService::new(memory.clone())
+            .pending_activity_intents("project-a", 100)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|intent| intent.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(intent_ids.len(), 2);
+
+        // Two racing passes must publish each intent exactly once; only
+        // one worker can hold the outbox claim (review finding 9).
+        let (first, second) = tokio::join!(
+            service.dispatch_pending_activity("project-a", 10),
+            service.dispatch_pending_activity("project-a", 10),
+        );
+        assert_eq!(first.unwrap() + second.unwrap(), 2);
+        let published = bus.published().await;
+        assert_eq!(published.len(), 2, "no intent may be published twice");
+        let event_ids = published
+            .iter()
+            .map(|event| event.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(event_ids, intent_ids);
+
+        // A settled pass publishes nothing new.
+        assert_eq!(
+            service
+                .dispatch_pending_activity("project-a", 10)
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(bus.published().await.len(), 2);
     }
 
     #[tokio::test]
