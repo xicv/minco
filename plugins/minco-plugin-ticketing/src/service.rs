@@ -3,9 +3,9 @@ use crate::{
     CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity, IngestExternalMessageRequest,
     MessageListFilter, OutboundDeliveryEvidence, OutboundEvidenceKind, PublicTicketMessage,
     PublicTicketSummary, RequesterTicket, Ticket, TicketActivityIntent, TicketAiContext,
-    TicketAttachment, TicketFromHandoffInput, TicketId, TicketListFilter, TicketMessage,
-    TicketMessageId, TicketMessageKind, TicketPriority, TicketStatus, TicketStoreError,
-    TicketSummary, TicketSummaryFilter, TicketingStoreService,
+    TicketAttachment, TicketChannel, TicketFromHandoffInput, TicketId, TicketListFilter,
+    TicketMessage, TicketMessageId, TicketMessageKind, TicketPriority, TicketRequester,
+    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStoreService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use minco_interaction::{
@@ -95,6 +95,12 @@ pub struct TicketingConfig {
     /// (ADR-0054). Default false: no application gets a queue by surprise.
     #[serde(default)]
     pub notify_requester_on_public_reply: bool,
+    /// Verified first-contact email intake (review finding 6): an
+    /// unthreaded inbound email from a verified sender creates a ticket
+    /// instead of being rejected. Default false; the email profile opts
+    /// in explicitly.
+    #[serde(default)]
+    pub inbound_email_first_contact: bool,
     /// Private development automation (ADR-0070). Off by default: no
     /// application gets automation by surprise.
     #[serde(default)]
@@ -115,6 +121,7 @@ impl Default for TicketingConfig {
             assignment_pool: Vec::new(),
             sla: None,
             notify_requester_on_public_reply: false,
+            inbound_email_first_contact: false,
             automation: crate::AutomationConfig::default(),
         }
     }
@@ -1637,6 +1644,7 @@ impl TicketingService {
             })
             .unwrap_or_default();
         let in_reply_ref = in_reply_to.as_deref();
+        let subject = header_text(mail_parser::HeaderName::Subject);
         self.submit_inbound_email(
             provider,
             mailbox_scope,
@@ -1646,10 +1654,75 @@ impl TicketingService {
             internet_message_id.as_deref(),
             in_reply_ref,
             &references,
+            subject.as_deref(),
             correlation_id,
             arrived_at,
         )
         .await
+    }
+
+    /// The ticket requester's email participant address for inbound
+    /// sender verification, or `None` when the requester cannot receive
+    /// mail (review finding 6).
+    pub async fn ticket_requester_email(
+        &self,
+        project_id: &str,
+        id: TicketId,
+    ) -> Result<Option<String>, TicketingServiceError> {
+        Ok(self.load(project_id, id).await?.requester.email)
+    }
+
+    /// Verified first-contact intake (review finding 6): create one
+    /// ticket from an inbound email whose sender passed the trust policy,
+    /// registering the message's external identity in the same
+    /// transaction so replies thread. The mail worker's ingest authority
+    /// is the boundary; requester identity is derived from the verified
+    /// sender address, never from client input.
+    #[cfg(feature = "jobs")]
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_ticket_from_inbound_email(
+        &self,
+        principal: &Identity,
+        identity: ExternalMessageIdentity,
+        subject: String,
+        body: String,
+        sender_email: String,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<TicketingMutationResult, TicketingServiceError> {
+        authorize(principal, "ticketing.ingest")?;
+        self.require_project(&identity.project_id)?;
+        if !valid_external_text(&sender_email, 320) || !sender_email.contains('@') {
+            return Err(TicketingServiceError::InvalidExternalIdentity);
+        }
+        let id = Uuid::now_v7();
+        let display_reference = format!("TKT-{}", id.simple());
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: identity.project_id.clone(),
+                subject,
+                description: body,
+                requester: TicketRequester {
+                    subject: sender_email.clone(),
+                    display_name: None,
+                    email: Some(sender_email),
+                },
+                channel: TicketChannel::Email,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
+                priority: TicketPriority::Normal,
+                resource_references: Vec::new(),
+            },
+            display_reference,
+            now,
+        )?;
+        let ticket = self.apply_sla(ticket);
+        let intent = activity(&ticket, "ticketing.created", correlation_id, now);
+        let outcome = self
+            .store
+            .create_ticket_from_external(ticket, intent, identity)
+            .await?;
+        Ok(result(outcome.ticket))
     }
 
     /// Verified-reference inbound submission (ADR-0058): resolve the
@@ -1671,6 +1744,7 @@ impl TicketingService {
         internet_message_id: Option<&str>,
         in_reply_to: Option<&str>,
         references: &[String],
+        subject: Option<&str>,
         correlation_id: Uuid,
         arrived_at: DateTime<Utc>,
     ) -> Result<Uuid, TicketingServiceError> {
@@ -1701,8 +1775,14 @@ impl TicketingService {
                 break;
             }
         }
-        let (ticket_id, _resolved_revision) =
-            resolved.ok_or(TicketingServiceError::InboundThreadUnresolved)?;
+        // Verified first contact (review finding 6): unthreaded mail
+        // creates a ticket when the profile opts in; otherwise unresolved
+        // threading still fails closed.
+        let ticket_id = match resolved {
+            Some((ticket_id, _revision)) => Some(ticket_id),
+            None if self.config.inbound_email_first_contact => None,
+            None => return Err(TicketingServiceError::InboundThreadUnresolved),
+        };
         let envelope = crate::inbound_email_envelope(
             &crate::ProcessInboundEmail {
                 project_id: project_id.clone(),
@@ -1715,6 +1795,7 @@ impl TicketingService {
                 internet_message_id: internet_message_id.map(str::to_owned),
                 in_reply_to: in_reply_to.map(str::to_owned),
                 references: references.to_vec(),
+                subject: subject.map(str::to_owned),
             },
             correlation_id,
             arrived_at,
@@ -3942,6 +4023,7 @@ mod tests {
                     None,
                     Some("<original-1@example.test>"),
                     &[],
+                    Some("Re: Help"),
                     Uuid::now_v7(),
                     arrival,
                 )
@@ -3970,7 +4052,7 @@ mod tests {
                 record.envelope.payload.clone(),
             )
             .unwrap();
-            assert_eq!(payload.ticket_id, ticket_id);
+            assert_eq!(payload.ticket_id, Some(ticket_id));
 
             // References chain resolves when In-Reply-To is absent.
             let chained_job_id = service
@@ -3986,6 +4068,7 @@ mod tests {
                         "<unrelated@example.test>".into(),
                         "<original-1@example.test>".into(),
                     ],
+                    Some("Re: Help"),
                     Uuid::now_v7(),
                     arrival,
                 )
@@ -4004,6 +4087,7 @@ mod tests {
                     None,
                     Some("<original-1@example.test>"),
                     &[],
+                    Some("Re: Help"),
                     Uuid::now_v7(),
                     arrival,
                 )
@@ -4026,6 +4110,7 @@ mod tests {
                         None,
                         Some("<unknown@example.test>"),
                         &[],
+                        Some("Re: Help"),
                         Uuid::now_v7(),
                         Utc::now(),
                     )
@@ -4049,6 +4134,7 @@ mod tests {
                     None,
                     None,
                     &[],
+                    None,
                     Uuid::now_v7(),
                     Utc::now(),
                 )
@@ -4104,7 +4190,7 @@ mod tests {
                 record.envelope.payload.clone(),
             )
             .unwrap();
-            assert_eq!(payload.ticket_id, ticket_id);
+            assert_eq!(payload.ticket_id, Some(ticket_id));
             assert_eq!(
                 payload.content_sha256,
                 crate::external_content_sha256(REPLY_EMAIL.as_bytes())

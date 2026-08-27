@@ -860,6 +860,82 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(())
     }
 
+    async fn create_ticket_from_external(
+        &self,
+        ticket: Ticket,
+        intent: TicketActivityIntent,
+        identity: ExternalMessageIdentity,
+    ) -> Result<ExternalMessageIngestResult, TicketStoreError> {
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let inserted = sqlx::query(
+            "INSERT OR IGNORE INTO ticketing_external_messages
+             (project_id, provider, mailbox_scope, external_id, content_sha256, identity_json, ticket_id, created_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?
+             WHERE NOT EXISTS (
+               SELECT 1 FROM ticketing_external_messages
+                WHERE project_id = ? AND provider = ? AND mailbox_scope = ? AND external_id = ?
+             )",
+        )
+        .bind(&identity.project_id)
+        .bind(&identity.provider)
+        .bind(&identity.mailbox_scope)
+        .bind(&identity.external_id)
+        .bind(&identity.content_sha256)
+        .bind(serde_json::to_string(&identity).map_err(encoding)?)
+        .bind(ticket.id.to_string())
+        .bind(Utc::now().to_rfc3339())
+        .bind(&identity.project_id)
+        .bind(&identity.provider)
+        .bind(&identity.mailbox_scope)
+        .bind(&identity.external_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        if inserted.rows_affected() == 0 {
+            let row = sqlx::query(
+                "SELECT content_sha256, ticket_id FROM ticketing_external_messages WHERE project_id = ? AND provider = ? AND mailbox_scope = ? AND external_id = ?",
+            )
+            .bind(&identity.project_id)
+            .bind(&identity.provider)
+            .bind(&identity.mailbox_scope)
+            .bind(&identity.external_id)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(infrastructure)?;
+            let Some(row) = row else {
+                return Err(TicketStoreError::NotFound(ticket.id));
+            };
+            transaction.commit().await.map_err(infrastructure)?;
+            return if row.get::<String, _>("content_sha256") == identity.content_sha256 {
+                let ticket_id = row
+                    .get::<String, _>("ticket_id")
+                    .parse::<TicketId>()
+                    .map_err(encoding)?;
+                let ticket = self
+                    .get(&identity.project_id, ticket_id)
+                    .await?
+                    .ok_or_else(|| {
+                        TicketStoreError::Infrastructure(
+                            "external message authoritative ticket is missing".into(),
+                        )
+                    })?;
+                Ok(ExternalMessageIngestResult {
+                    ticket,
+                    repeated: true,
+                })
+            } else {
+                Err(TicketStoreError::ExternalIdentityConflict)
+            };
+        }
+        insert_ticket(&mut transaction, &ticket).await?;
+        insert_activity(&mut transaction, &intent).await?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(ExternalMessageIngestResult {
+            ticket,
+            repeated: false,
+        })
+    }
+
     async fn append_outbound_evidence(
         &self,
         evidence: OutboundDeliveryEvidence,

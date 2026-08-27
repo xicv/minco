@@ -60,18 +60,49 @@ pub struct ProcessInboundEmail {
     pub external_id: String,
     pub content_sha256: String,
     pub raw_object_key: String,
-    pub ticket_id: TicketId,
+    /// `Some` for a threaded reply to a resolved ticket; `None` for a
+    /// verified first-contact email (review finding 6).
+    pub ticket_id: Option<TicketId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub internet_message_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_reply_to: Option<String>,
     #[serde(default)]
     pub references: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
 }
 
 impl Job for ProcessInboundEmail {
     const NAME: &'static str = "ticketing.process-inbound-email";
     const VERSION: u16 = 1;
+}
+
+/// One parsed sender-authentication verdict from the receiving provider
+/// (`Authentication-Results`); absent headers stay `None` and explicit
+/// failures quarantine the message (review finding 6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InboundMailVerdict {
+    Pass,
+    Fail,
+}
+
+/// Parses `spf=`/`dkim=` verdicts from one Authentication-Results value.
+fn authentication_verdicts(
+    header: &str,
+) -> (Option<InboundMailVerdict>, Option<InboundMailVerdict>) {
+    let verdict = |mechanism: &str| {
+        header
+            .contains(&format!("{mechanism}=pass"))
+            .then_some(InboundMailVerdict::Pass)
+            .or_else(|| {
+                header
+                    .contains(&format!("{mechanism}=fail"))
+                    .then_some(InboundMailVerdict::Fail)
+            })
+    };
+    (verdict("spf"), verdict("dkim"))
 }
 
 /// Deferred command: run private development automation for one ticket
@@ -282,59 +313,160 @@ async fn process_inbound_email(
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    let identity = crate::ExternalMessageIdentity {
-        project_id: command.project_id.clone(),
-        provider: command.provider.clone(),
-        mailbox_scope: command.mailbox_scope.clone(),
-        external_id: command.external_id.clone(),
-        content_sha256: command.content_sha256.to_ascii_lowercase(),
-        raw_message_object_key: Some(command.raw_object_key.clone()),
-        internet_message_id: command.internet_message_id.clone(),
-        in_reply_to: command.in_reply_to.clone(),
-        references: command.references.clone(),
-    };
-    match service
-        .ingest_external_message(
-            worker,
-            identity,
-            command.ticket_id,
-            body,
-            context.correlation_id,
-            Utc::now(),
-        )
-        .await
+    // Sender trust (review finding 6): the From address and any explicit
+    // authentication failures decide participation; the raw MIME stays in
+    // object storage as the quarantine record for refused mail.
+    let sender = message
+        .from()
+        .and_then(|address| address.first())
+        .and_then(|entry| entry.address())
+        .map(str::to_owned);
+    let (spf, dkim) = message
+        .header_raw(mail_parser::HeaderName::Other(
+            "Authentication-Results".into(),
+        ))
+        .map(str::trim)
+        .map_or((None, None), authentication_verdicts);
+    if matches!(spf, Some(InboundMailVerdict::Fail))
+        || matches!(dkim, Some(InboundMailVerdict::Fail))
     {
-        Ok(_) => Ok(()),
-        Err(error @ crate::TicketingServiceError::PermissionDenied(_)) => {
-            let _ = error;
-            Err(JobExecutionFailure::permanent(
-                "ticketing.ingest_unauthorized",
-            ))
+        return Err(JobExecutionFailure::permanent(
+            "ticketing.inbound_sender_unverified",
+        ));
+    }
+    match command.ticket_id {
+        // Verified first contact: the sender becomes the requester of a
+        // new ticket and the message identity registers atomically.
+        None => {
+            let sender = sender.ok_or_else(|| {
+                JobExecutionFailure::permanent("ticketing.inbound_sender_unverified")
+            })?;
+            let subject = command
+                .subject
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| "Email support request".into());
+            match service
+                .create_ticket_from_inbound_email(
+                    worker,
+                    crate::ExternalMessageIdentity {
+                        project_id: command.project_id.clone(),
+                        provider: command.provider.clone(),
+                        mailbox_scope: command.mailbox_scope.clone(),
+                        external_id: command.external_id.clone(),
+                        content_sha256: command.content_sha256.to_ascii_lowercase(),
+                        raw_message_object_key: Some(command.raw_object_key.clone()),
+                        internet_message_id: command.internet_message_id.clone(),
+                        in_reply_to: command.in_reply_to.clone(),
+                        references: command.references.clone(),
+                    },
+                    subject,
+                    body,
+                    sender,
+                    context.correlation_id,
+                    Utc::now(),
+                )
+                .await
+            {
+                Ok(_) => Ok(()),
+                Err(error @ crate::TicketingServiceError::PermissionDenied(_)) => {
+                    let _ = error;
+                    Err(JobExecutionFailure::permanent(
+                        "ticketing.ingest_unauthorized",
+                    ))
+                }
+                Err(crate::TicketingServiceError::Store(
+                    crate::TicketStoreError::ExternalIdentityConflict,
+                )) => Err(JobExecutionFailure::permanent(
+                    "ticketing.inbound_identity_conflict",
+                )),
+                Err(crate::TicketingServiceError::Configuration(_)) => Err(
+                    JobExecutionFailure::permanent("ticketing.inbound_first_contact_disabled"),
+                ),
+                Err(other) => {
+                    tracing::warn!(error = %other, "first-contact email intake failed; retrying");
+                    Err(JobExecutionFailure::retryable(
+                        "ticketing.inbound_store_unavailable",
+                    ))
+                }
+            }
         }
-        Err(
-            crate::TicketingServiceError::StaleRevision { .. }
-            | crate::TicketingServiceError::Store(crate::TicketStoreError::StaleRevision { .. }),
-        ) => Err(JobExecutionFailure::retryable(
-            "ticketing.inbound_revision_stale",
-        )),
-        Err(crate::TicketingServiceError::Store(
-            crate::TicketStoreError::ExternalIdentityConflict,
-        )) => Err(JobExecutionFailure::permanent(
-            "ticketing.inbound_identity_conflict",
-        )),
-        Err(
-            crate::TicketingServiceError::Validation(_)
-            | crate::TicketingServiceError::InvalidExternalIdentity
-            | crate::TicketingServiceError::InvalidContentDigest
-            | crate::TicketingServiceError::Store(crate::TicketStoreError::Validation(_)),
-        ) => Err(JobExecutionFailure::permanent("ticketing.inbound_invalid")),
-        Err(other) => {
-            // Store and infrastructure failures are retryable; the exact
-            // cause stays in worker logs, never in the failure code.
-            tracing::warn!(error = %other, "inbound email ingestion failed; retrying");
-            Err(JobExecutionFailure::retryable(
-                "ticketing.inbound_store_unavailable",
-            ))
+        Some(ticket_id) => {
+            // Threaded reply: the sender must be the ticket's requester
+            // participant; a stranger who learned the thread identity is
+            // quarantined, never appended.
+            let participants = service
+                .ticket_requester_email(&command.project_id, ticket_id)
+                .await
+                .map_err(|_| {
+                    JobExecutionFailure::retryable("ticketing.inbound_store_unavailable")
+                })?;
+            let sender = sender.as_deref().map(str::to_ascii_lowercase);
+            let allowed = participants
+                .as_deref()
+                .is_some_and(|expected| sender.as_deref() == Some(&expected.to_ascii_lowercase()));
+            if !allowed {
+                return Err(JobExecutionFailure::permanent(
+                    "ticketing.inbound_sender_unverified",
+                ));
+            }
+            let identity = crate::ExternalMessageIdentity {
+                project_id: command.project_id.clone(),
+                provider: command.provider.clone(),
+                mailbox_scope: command.mailbox_scope.clone(),
+                external_id: command.external_id.clone(),
+                content_sha256: command.content_sha256.to_ascii_lowercase(),
+                raw_message_object_key: Some(command.raw_object_key.clone()),
+                internet_message_id: command.internet_message_id.clone(),
+                in_reply_to: command.in_reply_to.clone(),
+                references: command.references.clone(),
+            };
+            match service
+                .ingest_external_message(
+                    worker,
+                    identity,
+                    ticket_id,
+                    body,
+                    context.correlation_id,
+                    Utc::now(),
+                )
+                .await
+            {
+                Ok(_) => Ok(()),
+                Err(error @ crate::TicketingServiceError::PermissionDenied(_)) => {
+                    let _ = error;
+                    Err(JobExecutionFailure::permanent(
+                        "ticketing.ingest_unauthorized",
+                    ))
+                }
+                Err(
+                    crate::TicketingServiceError::StaleRevision { .. }
+                    | crate::TicketingServiceError::Store(crate::TicketStoreError::StaleRevision {
+                        ..
+                    }),
+                ) => Err(JobExecutionFailure::retryable(
+                    "ticketing.inbound_revision_stale",
+                )),
+                Err(crate::TicketingServiceError::Store(
+                    crate::TicketStoreError::ExternalIdentityConflict,
+                )) => Err(JobExecutionFailure::permanent(
+                    "ticketing.inbound_identity_conflict",
+                )),
+                Err(
+                    crate::TicketingServiceError::Validation(_)
+                    | crate::TicketingServiceError::InvalidExternalIdentity
+                    | crate::TicketingServiceError::InvalidContentDigest
+                    | crate::TicketingServiceError::Store(crate::TicketStoreError::Validation(_)),
+                ) => Err(JobExecutionFailure::permanent("ticketing.inbound_invalid")),
+                Err(other) => {
+                    // Store and infrastructure failures are retryable; the exact
+                    // cause stays in worker logs, never in the failure code.
+                    tracing::warn!(error = %other, "inbound email ingestion failed; retrying");
+                    Err(JobExecutionFailure::retryable(
+                        "ticketing.inbound_store_unavailable",
+                    ))
+                }
+            }
         }
     }
 }
@@ -1316,7 +1448,7 @@ mod tests {
                     requester: crate::TicketRequester {
                         subject: "user-1".into(),
                         display_name: None,
-                        email: None,
+                        email: Some("user-1@example.test".into()),
                     },
                     channel: crate::TicketChannel::Email,
                     ticket_type: crate::TicketType::default(),
@@ -1375,10 +1507,11 @@ mod tests {
             external_id: "message-1".into(),
             content_sha256: digest.into(),
             raw_object_key: "mail/project-a/message-1".into(),
-            ticket_id,
+            ticket_id: Some(ticket_id),
             internet_message_id: Some("<message-1@example.test>".into()),
             in_reply_to: None,
             references: Vec::new(),
+            subject: Some("Re: Help".into()),
         }
     }
 
@@ -1502,6 +1635,156 @@ mod tests {
         assert!(envelope.deadline.is_some());
         let encoded = serde_json::to_string(&payload).unwrap();
         assert!(!encoded.contains("Reply from the mailbox"));
+    }
+
+    const STRANGER_EMAIL: &str = "From: stranger@example.test\r\n\
+        To: support@example.test\r\n\
+        Subject: Re: Help\r\n\
+        \r\n\
+        Let me into this thread.\r\n";
+
+    const FIRST_CONTACT_EMAIL: &str = "From: new-person@example.test\r\n\
+        To: support@example.test\r\n\
+        Subject: The dashboard will not load\r\n\
+        \r\n\
+        It shows a blank page since this morning.\r\n";
+
+    #[tokio::test]
+    async fn stranger_reply_is_quarantined_never_appended() {
+        // Review finding 6: knowing the thread identity is not enough —
+        // the From address must be the ticket's requester participant.
+        let (services, objects, memory, ticket_id, _revision, _digest) = inbound_setup().await;
+        let stranger_digest = crate::external_content_sha256(STRANGER_EMAIL.as_bytes());
+        objects
+            .put(minco_plugin_object_storage::PutObject {
+                key: minco_plugin_object_storage::ObjectKey::parse("mail/project-a/message-1")
+                    .unwrap(),
+                bytes: STRANGER_EMAIL.as_bytes().to_vec(),
+                content_type: "message/rfc822".into(),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        let envelope = inbound_email_envelope(
+            &ProcessInboundEmail {
+                content_sha256: stranger_digest,
+                ..inbound_command_shape(ticket_id)
+            },
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap();
+        let failure = services.submit_inline(envelope).await.unwrap_err();
+        assert_eq!(failure.code(), "ticketing.inbound_sender_unverified");
+        assert!(failure.is_permanent());
+        let ticket = memory.get("project-a", ticket_id).await.unwrap().unwrap();
+        assert!(
+            !ticket
+                .messages
+                .iter()
+                .any(|message| message.body.contains("Let me into this thread.")),
+            "a quarantined stranger reply must never append"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_authentication_verdict_is_quarantined() {
+        let (services, objects, _memory, ticket_id, _revision, _digest) = inbound_setup().await;
+        let failed = concat!(
+            "From: user-1@example.test\r\nTo: support@example.test\r\n",
+            "Subject: Re: Help\r\nAuthentication-Results: example.test; spf=fail; dkim=pass\r\n",
+            "\r\nReply from the mailbox.\r\n"
+        );
+        objects
+            .put(minco_plugin_object_storage::PutObject {
+                key: minco_plugin_object_storage::ObjectKey::parse("mail/project-a/message-1")
+                    .unwrap(),
+                bytes: failed.as_bytes().to_vec(),
+                content_type: "message/rfc822".into(),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        let digest = crate::external_content_sha256(failed.as_bytes());
+        let envelope = inbound_email_envelope(
+            &ProcessInboundEmail {
+                content_sha256: digest,
+                ..inbound_command_shape(ticket_id)
+            },
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap();
+        let failure = services.submit_inline(envelope).await.unwrap_err();
+        assert_eq!(failure.code(), "ticketing.inbound_sender_unverified");
+        assert!(failure.is_permanent());
+    }
+
+    #[tokio::test]
+    async fn first_contact_email_creates_a_ticket_for_the_verified_sender() {
+        // Review finding 6: unthreaded mail from a sender with no failed
+        // verdicts creates a ticket instead of being rejected.
+        let (services, objects, memory, ticket_id, _revision, _digest) = inbound_setup().await;
+        let digest = crate::external_content_sha256(FIRST_CONTACT_EMAIL.as_bytes());
+        objects
+            .put(minco_plugin_object_storage::PutObject {
+                key: minco_plugin_object_storage::ObjectKey::parse("mail/project-a/message-1")
+                    .unwrap(),
+                bytes: FIRST_CONTACT_EMAIL.as_bytes().to_vec(),
+                content_type: "message/rfc822".into(),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        let envelope = inbound_email_envelope(
+            &ProcessInboundEmail {
+                content_sha256: digest,
+                ticket_id: None,
+                subject: Some("The dashboard will not load".into()),
+                ..inbound_command_shape(ticket_id)
+            },
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap();
+        services.submit_inline(envelope).await.unwrap();
+        let created = memory
+            .list(crate::TicketListFilter {
+                project_id: "project-a".into(),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|ticket| ticket.requester.email.as_deref() == Some("new-person@example.test"))
+            .expect("the first-contact ticket exists");
+        assert_eq!(created.requester.subject, "new-person@example.test");
+        assert_eq!(created.subject, "The dashboard will not load");
+        assert_eq!(
+            created.description,
+            "It shows a blank page since this morning."
+        );
+        assert_eq!(
+            serde_json::to_string(&created.channel).unwrap(),
+            "\"email\""
+        );
+    }
+
+    fn inbound_command_shape(ticket_id: TicketId) -> ProcessInboundEmail {
+        ProcessInboundEmail {
+            project_id: "project-a".into(),
+            provider: "ses".into(),
+            mailbox_scope: "support@example.test".into(),
+            external_id: "message-1".into(),
+            content_sha256: "0".repeat(64),
+            raw_object_key: "mail/project-a/message-1".into(),
+            ticket_id: Some(ticket_id),
+            internet_message_id: Some("<message-1@example.test>".into()),
+            in_reply_to: None,
+            references: Vec::new(),
+            subject: Some("Re: Help".into()),
+        }
     }
 
     #[tokio::test]

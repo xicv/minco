@@ -364,6 +364,18 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         ticket_id: TicketId,
     ) -> Result<(), TicketStoreError>;
 
+    /// Verified first-contact intake (review finding 6): create one
+    /// ticket from an inbound email and register its external identity
+    /// in the same transaction. Replaying the same identity returns the
+    /// originally created ticket; a different digest for a known
+    /// identity conflicts.
+    async fn create_ticket_from_external(
+        &self,
+        ticket: Ticket,
+        intent: TicketActivityIntent,
+        identity: ExternalMessageIdentity,
+    ) -> Result<ExternalMessageIngestResult, TicketStoreError>;
+
     /// Appends one append-only outbound delivery-evidence row
     /// (ADR-0063).
     async fn append_outbound_evidence(
@@ -640,6 +652,17 @@ impl TicketingStoreService {
     ) -> Result<(), TicketStoreError> {
         self.0
             .register_outbound_identity(project_id, identity, ticket_id)
+            .await
+    }
+
+    pub async fn create_ticket_from_external(
+        &self,
+        ticket: Ticket,
+        intent: TicketActivityIntent,
+        identity: ExternalMessageIdentity,
+    ) -> Result<ExternalMessageIngestResult, TicketStoreError> {
+        self.0
+            .create_ticket_from_external(ticket, intent, identity)
             .await
     }
 
@@ -1659,6 +1682,57 @@ impl TicketingStore for MemoryTicketingStore {
             .or_insert((identity, ticket_id));
         drop(state);
         Ok(())
+    }
+
+    async fn create_ticket_from_external(
+        &self,
+        ticket: Ticket,
+        intent: TicketActivityIntent,
+        identity: ExternalMessageIdentity,
+    ) -> Result<ExternalMessageIngestResult, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let external_key = (
+            identity.project_id.clone(),
+            identity.provider.clone(),
+            identity.mailbox_scope.clone(),
+            identity.external_id.clone(),
+        );
+        if let Some((existing, ticket_id)) = state.external_messages.get(&external_key) {
+            return if existing.content_sha256 == identity.content_sha256 {
+                let ticket = state
+                    .tickets
+                    .get(&(existing.project_id.clone(), *ticket_id))
+                    .cloned()
+                    .ok_or_else(|| {
+                        TicketStoreError::Infrastructure(
+                            "external message authoritative ticket is missing".into(),
+                        )
+                    })?;
+                Ok(ExternalMessageIngestResult {
+                    ticket,
+                    repeated: true,
+                })
+            } else {
+                Err(TicketStoreError::ExternalIdentityConflict)
+            };
+        }
+        if state
+            .tickets
+            .contains_key(&(ticket.project_id.clone(), ticket.id))
+        {
+            return Err(TicketStoreError::DuplicateTicket(ticket.id));
+        }
+        let key = (ticket.project_id.clone(), ticket.id);
+        state.tickets.insert(key, ticket.clone());
+        state.activity_intents.push(intent);
+        state
+            .external_messages
+            .insert(external_key, (identity, ticket.id));
+        drop(state);
+        Ok(ExternalMessageIngestResult {
+            ticket,
+            repeated: false,
+        })
     }
 
     #[allow(clippy::significant_drop_tightening)]
