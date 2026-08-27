@@ -390,7 +390,9 @@ fn feedback_operations() -> Vec<OperationDescriptor> {
         method: method.into(),
         path: path.into(),
         public,
-        idempotent: false,
+        // Safe reads are idempotent (review finding 10, enforced by
+        // `cargo minco plugin validate`).
+        idempotent: method == "GET",
     })
     .collect()
 }

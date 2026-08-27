@@ -367,11 +367,29 @@ impl TicketingService {
     pub async fn issue_ticketing_handoff(
         &self,
         principal: &Identity,
-        input: IssueTicketingHandoffInput,
+        mut input: IssueTicketingHandoffInput,
         now: DateTime<Utc>,
     ) -> Result<SupportHandoffGrant, TicketingServiceError> {
         authorize(principal, "ticketing.integrate")?;
         self.require_project(&input.project_id)?;
+        // Handoffs mint requester portal sessions; the granted set is
+        // constrained to the requester portal capabilities and can never
+        // carry agent or integration permissions into a session (review
+        // finding 10). An omitted set means the full requester set.
+        if input.requester_permissions.is_empty() {
+            input.requester_permissions = REQUESTER_PORTAL_CAPABILITIES
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect();
+        }
+        for permission in &input.requester_permissions {
+            if !REQUESTER_PORTAL_CAPABILITIES.contains(&permission.as_str()) {
+                return Err(TicketingServiceError::Configuration(format!(
+                    "requester permissions must be a subset of {REQUESTER_PORTAL_CAPABILITIES:?}; \
+                     got {permission:?}"
+                )));
+            }
+        }
         let (handoff, grant) = issue_support_handoff(
             input.project_id,
             input.requester_subject,
@@ -452,7 +470,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<RequesterTicket, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.requester.read")?;
         let ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
@@ -468,7 +486,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<Ticket, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.agent.read")?;
         self.load(project_id, id).await
     }
 
@@ -477,7 +495,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketListFilter,
     ) -> Result<Vec<Ticket>, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.agent.read")?;
         self.require_project(&filter.project_id)?;
         Ok(self.store.list(filter).await?)
     }
@@ -493,7 +511,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<RequesterTicketResult, TicketingServiceError> {
-        authorize(principal, "ticketing.reply")?;
+        authorize(principal, "ticketing.requester.write")?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
             return Err(TicketingServiceError::RequesterMismatch);
@@ -1052,7 +1070,7 @@ impl TicketingService {
         &self,
         principal: &Identity,
     ) -> Result<Vec<crate::RequesterClarification>, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.requester.read")?;
         let project_id = self.config().project_id.clone();
         let tickets = self
             .store
@@ -1102,7 +1120,7 @@ impl TicketingService {
         answers: Vec<String>,
         now: DateTime<Utc>,
     ) -> Result<crate::RequesterClarification, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.requester.write")?;
         self.require_project(project_id)?;
         let mut clarification = self
             .store
@@ -1284,7 +1302,7 @@ impl TicketingService {
         comment: Option<String>,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.requester.write")?;
         self.require_project(project_id)?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
@@ -1444,7 +1462,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketSummaryFilter,
     ) -> Result<Vec<PublicTicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.requester.read")?;
         let own = TicketSummaryFilter {
             requester_subject: Some(principal.subject.clone()),
             assignee_subject: None,
@@ -1959,7 +1977,7 @@ impl TicketingService {
         before: Option<(DateTime<Utc>, TicketMessageId)>,
         limit: usize,
     ) -> Result<Vec<PublicTicketMessage>, TicketingServiceError> {
-        authorize(principal, "ticketing.read")?;
+        authorize(principal, "ticketing.requester.read")?;
         let ticket = self.load(project_id, ticket_id).await?;
         if ticket.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
@@ -2014,6 +2032,12 @@ fn authorize(principal: &Identity, permission: &str) -> Result<(), TicketingServ
         .then_some(())
         .ok_or_else(|| TicketingServiceError::PermissionDenied(permission.into()))
 }
+
+/// The complete capability set a requester portal session may carry
+/// (review finding 10). Requester-facing use cases authorize these exact
+/// names; handoff grants are constrained to this set.
+pub const REQUESTER_PORTAL_CAPABILITIES: &[&str] =
+    &["ticketing.requester.read", "ticketing.requester.write"];
 
 const fn require_revision(ticket: &Ticket, expected: u64) -> Result<(), TicketingServiceError> {
     if ticket.revision == expected {
@@ -2212,13 +2236,179 @@ mod tests {
         assert!(matches!(
             service
                 .get_ticket_for_requester(
-                    &identity("user-b", &["ticketing.read"]),
+                    &identity("user-b", &["ticketing.requester.read"]),
                     "project-a",
                     created.ticket.id
                 )
                 .await,
             Err(TicketingServiceError::RequesterMismatch)
         ));
+    }
+
+    #[tokio::test]
+    async fn requester_and_agent_capabilities_are_separated() {
+        let service = service();
+        let created = service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "Help".into(),
+                    description: "Broken".into(),
+                    requester: TicketRequester {
+                        subject: "user-a".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    priority: TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        // Broad agent capabilities must not open the requester portal
+        // surface (review finding 10).
+        for agent_only in [
+            &["ticketing.read"][..],
+            &["ticketing.reply"][..],
+            &["ticketing.agent.read", "ticketing.agent.manage"][..],
+        ] {
+            assert!(matches!(
+                service
+                    .get_ticket_for_requester(
+                        &identity("user-a", agent_only),
+                        "project-a",
+                        created.ticket.id
+                    )
+                    .await,
+                Err(TicketingServiceError::PermissionDenied(_))
+            ));
+            assert!(matches!(
+                service
+                    .list_requester_summaries(
+                        &identity("user-a", agent_only),
+                        crate::TicketSummaryFilter {
+                            project_id: "project-a".into(),
+                            statuses: BTreeSet::default(),
+                            queue_id: None,
+                            assignee_subject: None,
+                            unassigned: false,
+                            query: None,
+                            requester_subject: None,
+                            before_updated_at: None,
+                            before_id: None,
+                            limit: 10,
+                        },
+                    )
+                    .await,
+                Err(TicketingServiceError::PermissionDenied(_))
+            ));
+        }
+        // Requester capabilities must not open the agent surface.
+        let requester = identity(
+            "user-a",
+            &["ticketing.requester.read", "ticketing.requester.write"],
+        );
+        assert!(matches!(
+            service
+                .list_tickets(
+                    &requester,
+                    crate::TicketListFilter {
+                        project_id: "project-a".into(),
+                        statuses: BTreeSet::default(),
+                        queue_id: None,
+                        assignee_subject: None,
+                        requester_subject: None,
+                        after_updated_at: None,
+                        after_id: None,
+                        limit: 10,
+                    }
+                )
+                .await,
+            Err(TicketingServiceError::PermissionDenied(_))
+        ));
+        assert!(matches!(
+            service
+                .get_ticket_for_agent(&requester, "project-a", created.ticket.id)
+                .await,
+            Err(TicketingServiceError::PermissionDenied(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn handoff_grants_are_constrained_to_requester_capabilities() {
+        let service = service();
+        let now = Utc::now();
+        let integration = identity("integration", &["ticketing.integrate"]);
+        // Broad agent permissions are refused at issuance.
+        for forbidden in [
+            vec!["ticketing.read".to_owned()],
+            vec!["ticketing.manage".to_owned()],
+            vec!["ticketing.integrate".to_owned()],
+            vec![
+                "ticketing.requester.read".to_owned(),
+                "ticketing.agent.manage".to_owned(),
+            ],
+        ] {
+            assert!(matches!(
+                service
+                    .issue_ticketing_handoff(
+                        &integration,
+                        IssueTicketingHandoffInput {
+                            project_id: "project-a".into(),
+                            requester_subject: "user-1".into(),
+                            requester_permissions: forbidden,
+                            surface: minco_interaction::SupportSurface::Portal,
+                            context: minco_interaction::SupportContext {
+                                page_url: "https://app.example.test/orders/1".into(),
+                                ..minco_interaction::SupportContext::default()
+                            },
+                            return_location: "https://app.example.test/orders/1".into(),
+                            correlation_id: Uuid::now_v7(),
+                        },
+                        now,
+                    )
+                    .await,
+                Err(TicketingServiceError::Configuration(_))
+            ));
+        }
+        // The requester set itself issues, and an omitted set defaults to it.
+        for allowed in [
+            vec!["ticketing.requester.read".to_owned()],
+            REQUESTER_PORTAL_CAPABILITIES
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect(),
+            Vec::new(),
+        ] {
+            assert!(
+                service
+                    .issue_ticketing_handoff(
+                        &integration,
+                        IssueTicketingHandoffInput {
+                            project_id: "project-a".into(),
+                            requester_subject: "user-1".into(),
+                            requester_permissions: allowed,
+                            surface: minco_interaction::SupportSurface::Portal,
+                            context: minco_interaction::SupportContext {
+                                page_url: "https://app.example.test/orders/1".into(),
+                                ..minco_interaction::SupportContext::default()
+                            },
+                            return_location: "https://app.example.test/orders/1".into(),
+                            correlation_id: Uuid::now_v7(),
+                        },
+                        now,
+                    )
+                    .await
+                    .is_ok(),
+                "handoff issuance must accept the constrained requester set"
+            );
+        }
     }
 
     #[tokio::test]
@@ -2373,7 +2563,14 @@ mod tests {
     async fn clarification_lifecycle_is_gated_sent_once_and_answered_once() {
         let service = service();
         let manager = manager_identity();
-        let requester = identity("user-a", &["ticketing.create", "ticketing.read"]);
+        let requester = identity(
+            "user-a",
+            &[
+                "ticketing.create",
+                "ticketing.requester.read",
+                "ticketing.requester.write",
+            ],
+        );
         let ticket = service
             .create_ticket(
                 &requester,
@@ -2449,7 +2646,10 @@ mod tests {
                 .await
                 .is_err()
         );
-        let stranger = identity("user-b", &["ticketing.read"]);
+        let stranger = identity(
+            "user-b",
+            &["ticketing.requester.read", "ticketing.requester.write"],
+        );
         assert!(
             service
                 .reply_to_clarification(
@@ -2719,7 +2919,14 @@ mod tests {
     #[tokio::test]
     async fn csat_is_one_shot_and_only_after_resolution() {
         let service = service();
-        let requester = identity("user-a", &["ticketing.create", "ticketing.read"]);
+        let requester = identity(
+            "user-a",
+            &[
+                "ticketing.create",
+                "ticketing.requester.read",
+                "ticketing.requester.write",
+            ],
+        );
         let ticket = service
             .create_ticket(&requester, create_input("Help"), Uuid::new_v4(), Utc::now())
             .await
@@ -2771,7 +2978,10 @@ mod tests {
                 .await
                 .is_err()
         );
-        let stranger = identity("user-b", &["ticketing.read"]);
+        let stranger = identity(
+            "user-b",
+            &["ticketing.requester.read", "ticketing.requester.write"],
+        );
         assert!(
             service
                 .submit_csat(&stranger, "project-a", ticket.id, 5, None, Utc::now())
@@ -2922,7 +3132,10 @@ mod tests {
         let (service, memory, ticket, message) = feedback_fixture().await;
         let error = service
             .record_delivery_feedback(
-                &identity("web", &["ticketing.read"]),
+                &identity(
+                    "web",
+                    &["ticketing.requester.read", "ticketing.requester.write"],
+                ),
                 "project-a",
                 ticket.id,
                 message.id,
@@ -3275,7 +3488,10 @@ mod tests {
         // Even a caller-injected requester filter is overridden.
         let summaries = service
             .list_requester_summaries(
-                &identity("user-a", &["ticketing.read"]),
+                &identity(
+                    "user-a",
+                    &["ticketing.requester.read", "ticketing.requester.write"],
+                ),
                 TicketSummaryFilter {
                     project_id: "project-a".into(),
                     requester_subject: Some("user-b".into()),

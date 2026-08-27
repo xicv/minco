@@ -1805,6 +1805,17 @@ fn validate_linked_descriptor(
         &operations,
         findings,
     );
+    // Safe reads must not claim non-idempotent semantics anywhere in the
+    // descriptor/distribution pair; a false flag invites unsafe client
+    // retries and misrepresents the operation contract.
+    for operation in &operations {
+        if operation.method == "GET" && !operation.idempotent {
+            findings.push(format!(
+                "plugin {} safe GET operation {} must declare idempotent semantics",
+                plugin.id, operation.operation_id
+            ));
+        }
+    }
     if descriptor
         .documentation
         .as_deref()

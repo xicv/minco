@@ -187,14 +187,14 @@
       "method": "GET",
       "path": "/_minco/ticketing/support-entry.js",
       "public": true,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicketingBootstrap",
       "method": "GET",
       "path": "/_minco/ticketing/bootstrap",
       "public": true,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "issueTicketingHandoff",
@@ -235,14 +235,14 @@
       "method": "GET",
       "path": "/_minco/ticketing/tickets",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicket",
       "method": "GET",
       "path": "/_minco/ticketing/tickets/{ticketId}",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "replyToTicketAsRequester",
@@ -326,49 +326,49 @@
       "method": "GET",
       "path": "/_minco/ticketing/tickets/{ticketId}/ai-context",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicketingAgentConsole",
       "method": "GET",
       "path": "/_minco/ticketing/agent",
       "public": true,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicketingAgentConsoleScript",
       "method": "GET",
       "path": "/_minco/ticketing/agent/console.js",
       "public": true,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicketingAgentConsoleStyles",
       "method": "GET",
       "path": "/_minco/ticketing/agent/console.css",
       "public": true,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicketingAgentBootstrap",
       "method": "GET",
       "path": "/_minco/ticketing/agent/bootstrap",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "listTicketingAgentTickets",
       "method": "GET",
       "path": "/_minco/ticketing/agent/tickets",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicketingAgentTicket",
       "method": "GET",
       "path": "/_minco/ticketing/agent/tickets/{ticketId}",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "manageTicketingAgentTicket",
@@ -385,14 +385,14 @@
       "method": "GET",
       "path": "/_minco/ticketing/agent/views/{viewId}",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "listTicketingAgentSearch",
       "method": "GET",
       "path": "/_minco/ticketing/agent/search",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "requestTicketingAutomation",
@@ -413,7 +413,7 @@
       "method": "GET",
       "path": "/_minco/ticketing/agent/tickets/{ticketId}/clarifications",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "sendTicketingClarification",
@@ -427,7 +427,7 @@
       "method": "GET",
       "path": "/_minco/ticketing/requester/clarifications",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "replyTicketingClarification",
@@ -441,7 +441,7 @@
       "method": "GET",
       "path": "/_minco/ticketing/agent/tickets/{ticketId}/automation-proposals",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "decideTicketingAutomationProposal",
@@ -469,7 +469,7 @@
       "method": "GET",
       "path": "/_minco/ticketing/agent/macros",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "createTicketingAgentMacro",
@@ -490,14 +490,14 @@
       "method": "GET",
       "path": "/_minco/ticketing/requester/tickets",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "getTicketingRequesterTicket",
       "method": "GET",
       "path": "/_minco/ticketing/requester/tickets/{ticketId}",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "replyToTicketingRequesterTicket",
@@ -514,14 +514,14 @@
       "method": "GET",
       "path": "/_minco/ticketing/requester/tickets/{ticketId}/messages",
       "public": false,
-      "idempotent": false
+      "idempotent": true
     },
     {
       "operation_id": "createTicketingRequesterSession",
       "method": "POST",
       "path": "/_minco/ticketing/requester/sessions",
       "public": true,
-      "idempotent": false,
+      "idempotent": true,
       "headers": [
         "X-Minco-Ticketing-Handoff"
       ]

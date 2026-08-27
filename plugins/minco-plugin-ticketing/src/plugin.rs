@@ -549,7 +549,9 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
         method: method.into(),
         path: path.into(),
         public,
-        idempotent: false,
+        // Safe reads are idempotent, and the session exchange is
+        // replay-safe by the shared idempotency layer (review finding 10).
+        idempotent: method == "GET" || operation_id == "createTicketingRequesterSession",
     })
     .collect()
 }
@@ -717,6 +719,30 @@ mod tests {
         contract.sort();
         descriptor.sort();
         assert_eq!(contract, descriptor);
+    }
+
+    #[test]
+    fn safe_get_operations_are_idempotent() {
+        // Review finding 10: safe reads must not claim non-idempotent
+        // semantics in the descriptor or the distribution manifest.
+        let operations = ticketing_operations();
+        assert!(!operations.is_empty());
+        for operation in &operations {
+            if operation.method == "GET" {
+                assert!(
+                    operation.idempotent,
+                    "GET operation {} must be idempotent",
+                    operation.operation_id
+                );
+            }
+        }
+        assert!(
+            operations
+                .iter()
+                .find(|operation| operation.operation_id == "createTicketingRequesterSession")
+                .is_some_and(|operation| operation.idempotent),
+            "the session exchange is replay-safe through the idempotency layer"
+        );
     }
 
     #[test]

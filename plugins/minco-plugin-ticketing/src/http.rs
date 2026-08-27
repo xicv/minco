@@ -2431,7 +2431,7 @@ mod tests {
             claims: BTreeMap::new(),
         }));
         let body = serde_json::json!({
-            "project_id":"project-a", "requester_subject":"user-1", "requester_permissions":["ticketing.create"],
+            "project_id":"project-a", "requester_subject":"user-1", "requester_permissions":["ticketing.requester.read"],
             "surface":"widget", "context":{"page_url":"https://app.example.test/orders/1"}, "return_location":"https://app.example.test/orders/1"
         });
         let response = app
@@ -2825,7 +2825,7 @@ mod tests {
         assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
 
         let mut wrong_permission = agent_principal();
-        wrong_permission.permissions = std::iter::once("ticketing.read".into()).collect();
+        wrong_permission.permissions = std::iter::once("ticketing.requester.read".into()).collect();
         let response = app
             .clone()
             .oneshot(
@@ -3267,10 +3267,14 @@ mod tests {
     fn requester_principal(subject: &str) -> minco_http::Principal {
         minco_http::Principal {
             subject: subject.into(),
-            permissions: ["ticketing.create", "ticketing.read", "ticketing.reply"]
-                .into_iter()
-                .map(String::from)
-                .collect(),
+            permissions: [
+                "ticketing.create",
+                "ticketing.requester.read",
+                "ticketing.requester.write",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
             claims: BTreeMap::new(),
         }
     }
@@ -3479,7 +3483,10 @@ mod tests {
                 IssueTicketingHandoffInput {
                     project_id: "project-a".into(),
                     requester_subject: "user-1".into(),
-                    requester_permissions: vec!["ticketing.read".into(), "ticketing.reply".into()],
+                    requester_permissions: vec![
+                        "ticketing.requester.read".into(),
+                        "ticketing.requester.write".into(),
+                    ],
                     surface: minco_interaction::SupportSurface::Portal,
                     context: minco_interaction::SupportContext {
                         page_url: "https://app.example.test/orders/1".into(),
