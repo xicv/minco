@@ -137,5 +137,79 @@ Blocker 1 (generated dependencies), run 2026-08-27 in the
 - `scripts/test/deep_review_exclusions.py` — passed;
   `scripts/test/operational_evidence.py` — OK.
 
-Remaining blockers 2–12 and the final-head qualification runs are
-recorded here as they close.
+Blockers 2–12, run 2026-08-27 in the `minco-task-m14-t74` workspace;
+one described jj change per blocker (or pair), all tests green at each
+slice:
+
+- **Blocker 11** `fix(ticketing): typed form slots...` — the populated
+  value slot must match the declared kind; OpenAPI wording regenerated.
+- **Blocker 7** — external ingress is revision-free: both stores reload
+  authoritative state inside their transaction; IngressMessage drops
+  expected_revision; retries converge (proven after concurrent
+  revision movement).
+- **Blocker 10** — requester flows authorize
+  ticketing.requester.read/.write; agent reads unify on
+  ticketing.agent.read; handoff grants constrained to the requester
+  portal set; every safe GET declares idempotent true (ticketing +
+  feedback descriptors and manifests) and `cargo minco plugin validate`
+  enforces GET=>idempotent repo-wide.
+- **Blocker 4** — the session exchange's completion record carries the
+  bearer server-side so a lost-response replay re-issues the identical
+  Set-Cookie at 201 and the body never contains the token;
+  idempotency.complete failures return 503
+  ticketing_session_persist_uncertain and keep the lease claimed;
+  logout expires the browser cookie.
+- **Blocker 9** — activity intents publish through the events outbox
+  claim/lease lifecycle with the event id equal to the intent id;
+  concurrent passes proven to publish each intent exactly once.
+- **Blocker 8** — one public reply carries one deterministic mail id
+  (uuid v5) driving the rendered RFC Message-ID; unresolved ambiguity
+  fails closed (ticketing.notification_reconciliation_required) until
+  the new reconcile_outbound_delivery use case records the verified
+  verdict; accepted sends register their threading identity so emailed
+  replies resolve by message-id local part in both stores.
+- **Blockers 2+3** `fix(desk): durable authenticated standalone
+  composition...` — SQLite sessions/CSRF/idempotency/audit wired into
+  the portal services and the plugin graph; the trust boundary is the
+  session cookie plus the DESK_AGENT_TOKEN bearer (forged development
+  headers authorize nothing); SqliteTicketingStore carries the
+  same-transaction enqueue adapter; DurableJobDispatcher +
+  DeskWorker::run_once form the operated dispatch path; real-TCP
+  proofs cover atomic job commit, full-restart session/job/worker
+  recovery, the bearer boundary, and logout expiry
+  (tests/desk_durability_proofs.rs, 3 tests).
+- **Blocker 6** — inbound From + Authentication-Results verdicts are
+  parsed: threaded replies must come from the requester email
+  participant, explicit spf/dkim failures quarantine permanently, and
+  unthreaded verified mail creates a ticket atomically (new
+  create_ticket_from_external store op) when the profile opts in
+  (inbound_email_first_contact, default off).
+- **Blocker 5** — full mailbox recipient + ScanEnabled true; one shared
+  named receipt-rule set; SES writes bound by aws:SourceAccount and
+  the rule-set SourceArn; wake queues gain DLQs with bounded
+  max-receive; the wake handler processes bounded batches (<=10) and
+  binds every record to the expected bucket and prefix.
+- **Blocker 12** — creation dialog (novalidate + handler validation,
+  inline aria-described errors, focus restoration), per-operation
+  AbortControllers, capability-gated hiding of create/reply/note/
+  manage controls; 34 chromium+firefox browser tests green; the
+  requester-portal claim narrowed to the honest session-cookie API
+  surface statement in the desk docs.
+
+Test totals at the final slice: ticketing 112, desk 16 (13 prior + 3
+durability), worker 22, plan 60+, browser 34; clippy -D warnings and
+rustfmt --check clean on every touched crate.
+
+**Final-head qualification (2026-08-27)**: `./scripts/quality.sh`
+exit 0 at the final head — 1,225 cargo tests passed workspace-wide,
+every python evidence suite OK (including the recipe matrix after
+ADR-0072 gained its required Features/Provider-assumptions/Cost/
+Verification/Unsupported-gates sections and the minco-desk-example
+check was registered), docs build/check-links/browser suites green,
+five cargo check feature boundaries clean, workspace clippy -D
+warnings clean, cargo deny/audit and npm audit clean, gitleaks clean,
+and the source-manifest check verified (tree digest f6d4e1c8-era,
+re-bound after each final edit; operational evidence PASS with the two
+known no-provider warnings). The M14-T74 blockers are closed; the
+independent exact-head re-review requested by the finding-12 verdict
+remains the human gate before merge.

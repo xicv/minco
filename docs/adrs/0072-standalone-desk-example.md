@@ -53,3 +53,46 @@ Only after its evidence can Minco Desk be described as standalone.
 - The example is a workspace member and ships in the workspace gate;
   it cannot rot silently.
 - A recipe entry (`standalone-desk`) documents how to run it.
+
+## Features
+
+Composed on one SQLite database behind one native Axum process:
+ticketing (45 operations), jobs with same-transaction enqueue and an
+operated in-process worker, durable requester sessions with CSRF,
+durable idempotency, audit, the in-process event bus, memory object
+storage (no provider contact), in-app notifications, health and
+observability. The trust boundary is explicit: requester routes
+authenticate with the durable session cookie; every other route
+requires the loopback service bearer token (`DESK_AGENT_TOKEN`), and
+development identity headers are never trusted. Verified first-contact
+email intake is off by default; mail delivery is deliberately absent.
+
+## Provider assumptions
+
+No provider access: memory objects and notifications, one SQLite file
+database, one native process bound to loopback by default. No SES, no
+SQS, no mail transport is contacted by the example.
+
+## Cost and wake behavior
+
+Zero compute beyond the local process; wake source is the HTTP request
+itself plus the explicit jobs worker (`DeskWorker::run_once`, driven on
+an interval by the local binary). No schedules, no provisioned
+concurrency, no queues.
+
+## Verification
+
+The `minco-desk-example` check (`cargo test -p minco-desk-example`) runs
+the in-process proofs plus the real-TCP durability proofs
+(`tests/desk_durability_proofs.rs`): the bearer trust boundary refuses
+anonymous, forged-header and wrong-token calls; sessions, the idempotent
+exchange and notification jobs survive a full process rebuild on the
+same database; the restarted worker completes the pending notification
+job; logout revokes the session and expires the cookie.
+
+## Unsupported gates
+
+Hosted Linux qualification, provider contact, email delivery, the
+PostgreSQL profile, browser-driven console verification (covered by the
+agent-console Playwright suite) and mobile clients are out of scope for
+this example.

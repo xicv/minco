@@ -18,10 +18,10 @@
       "plugins": 21,
       "milestones": 15,
       "tasks": 154,
-      "rust_files": 266,
+      "rust_files": 267,
       "python_files": 41,
       "shell_files": 83,
-      "implementation_files_scanned": 565
+      "implementation_files_scanned": 566
     },
     "findings": [],
     "limitations": [
@@ -30,9 +30,9 @@
     ]
   },
   "metrics": {
-    "rust_files": 266,
-    "rust_lines": 157785,
-    "unsafe_tokens": 21,
+    "rust_files": 267,
+    "rust_lines": 159987,
+    "unsafe_tokens": 22,
     "production_unwrap_expect": 320,
     "sql_files": 33
   },
@@ -83,7 +83,7 @@
       "severity": "warning",
       "code": "REVIEW-RUST-002",
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "message": "33 lines exceed 120 columns"
+      "message": "34 lines exceed 120 columns"
     },
     {
       "severity": "warning",

@@ -28,8 +28,8 @@ fn scratch_config(tag: &str, directory: &std::path::Path) -> DeskConfig {
         allowed_origins: vec!["http://127.0.0.1:8090".into()],
         mailbox_scope: "support@desk.example.test".into(),
         environment: "local".into(),
-        agent_token: "proof-agent-token-0123456789abcdef".into(),
-        csrf_secret: "proof-csrf-secret-0123456789abcdef0123456789abcdef".into(),
+        agent_token: "desk-proof-agent-token".into(),
+        csrf_secret: "desk-proof-csrf-secret-desk-proof-csrf-secret".into(),
         allowed_return_paths: BTreeMap::from([(
             "https://app.example.test".to_owned(),
             vec!["/orders".to_owned()],

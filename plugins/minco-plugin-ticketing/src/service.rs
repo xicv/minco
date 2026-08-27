@@ -3,9 +3,9 @@ use crate::{
     CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity, IngestExternalMessageRequest,
     MessageListFilter, OutboundDeliveryEvidence, OutboundEvidenceKind, PublicTicketMessage,
     PublicTicketSummary, RequesterTicket, Ticket, TicketActivityIntent, TicketAiContext,
-    TicketAttachment, TicketChannel, TicketFromHandoffInput, TicketId, TicketListFilter,
-    TicketMessage, TicketMessageId, TicketMessageKind, TicketPriority, TicketRequester,
-    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStoreService,
+    TicketAttachment, TicketFromHandoffInput, TicketId, TicketListFilter, TicketMessage,
+    TicketMessageId, TicketMessageKind, TicketPriority, TicketStatus, TicketStoreError,
+    TicketSummary, TicketSummaryFilter, TicketingStoreService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use minco_interaction::{
@@ -1702,12 +1702,12 @@ impl TicketingService {
                 project_id: identity.project_id.clone(),
                 subject,
                 description: body,
-                requester: TicketRequester {
+                requester: crate::TicketRequester {
                     subject: sender_email.clone(),
                     display_name: None,
                     email: Some(sender_email),
                 },
-                channel: TicketChannel::Email,
+                channel: crate::TicketChannel::Email,
                 ticket_type: crate::TicketType::default(),
                 form_answers: Vec::new(),
                 priority: TicketPriority::Normal,

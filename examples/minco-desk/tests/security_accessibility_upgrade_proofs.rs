@@ -2,11 +2,11 @@
 //! desk's hardened surface, its accessible assets, and additive schema
 //! upgrade without data loss — all providerless, all in-process.
 
-use std::collections::BTreeMap;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt as _;
 use minco_desk_example::{DeskConfig, build_desk, migrate};
+use std::collections::BTreeMap;
 use tower::ServiceExt as _;
 
 fn scratch_config(tag: &str, dir: &std::path::Path) -> DeskConfig {
@@ -21,8 +21,8 @@ fn scratch_config(tag: &str, dir: &std::path::Path) -> DeskConfig {
         portal_origin: "http://127.0.0.1:8090".into(),
         allowed_origins: vec!["http://127.0.0.1:8090".into()],
         mailbox_scope: "support@desk.example.test".into(),
-        agent_token: "proof-agent-token-0123456789abcdef".into(),
-        csrf_secret: "proof-csrf-secret-0123456789abcdef0123456789abcdef".into(),
+        agent_token: "desk-proof-agent-token".into(),
+        csrf_secret: "desk-proof-csrf-secret-desk-proof-csrf-secret".into(),
         allowed_return_paths: BTreeMap::from([(
             "https://app.example.test".to_owned(),
             vec!["/orders".to_owned()],
