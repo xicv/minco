@@ -1,13 +1,14 @@
 use crate::{
     AgentMacro, AutomationProposal, AutomationProposalState, Clarification, ClarificationReason,
     ClarificationState, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
-    ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIngestResult,
-    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OutboundDeliveryEvidence,
-    OutboundEvidenceKind, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
-    TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
-    TicketSummaryFilter, TicketingStore,
+    ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity,
+    ExternalMessageIngestResult, IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT,
+    OutboundDeliveryEvidence, OutboundEvidenceKind, Ticket, TicketActivityIntent, TicketId,
+    TicketListFilter, TicketMessageId, TicketRequester, TicketStatus, TicketStoreError,
+    TicketSummary, TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
+use chrono::Utc;
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
 use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 use std::collections::BTreeMap;
@@ -700,9 +701,10 @@ impl TicketingStore for SqliteTicketingStore {
         // transaction (the domain mutation already bumped ticket.revision,
         // so the compare-and-set base is one below it); a lost race is
         // retriable with a fresh load and converges.
-        let loaded_revision = ticket.revision.checked_sub(1).ok_or_else(|| {
-            TicketStoreError::Infrastructure("ingress revision underflow".into())
-        })?;
+        let loaded_revision = ticket
+            .revision
+            .checked_sub(1)
+            .ok_or_else(|| TicketStoreError::Infrastructure("ingress revision underflow".into()))?;
         update_ticket(&mut transaction, &ticket, loaded_revision).await?;
         replace_children(&mut transaction, &ticket).await?;
         insert_activity(&mut transaction, &intent).await?;
@@ -782,17 +784,35 @@ impl TicketingStore for SqliteTicketingStore {
         provider: &str,
         internet_message_id: &str,
     ) -> Result<Option<(TicketId, u64)>, TicketStoreError> {
+        // Exact match first, then the outbound-registration form: replies
+        // echo the rendered <id@from-domain> while the registration pins
+        // the deterministic local part (review finding 8).
+        let local_part = internet_message_id
+            .trim()
+            .trim_start_matches('<')
+            .split('@')
+            .next()
+            .unwrap_or_default()
+            .to_owned();
         let row = sqlx::query(
             "SELECT m.ticket_id, t.revision
                FROM ticketing_external_messages m
                JOIN ticketing_tickets t
                  ON t.project_id = m.project_id AND t.id = m.ticket_id
               WHERE m.project_id = ? AND m.provider = ?
-                AND json_extract(m.identity_json, '$.internet_message_id') = ?
+                AND (
+                  json_extract(m.identity_json, '$.internet_message_id') = ?
+                  OR (? != '' AND json_extract(m.identity_json, '$.internet_message_id')
+                      LIKE '<' || ? || '@%')
+                )
+              ORDER BY (json_extract(m.identity_json, '$.internet_message_id') = ?) DESC
               LIMIT 1",
         )
         .bind(project_id)
         .bind(provider)
+        .bind(internet_message_id)
+        .bind(&local_part)
+        .bind(&local_part)
         .bind(internet_message_id)
         .fetch_optional(&self.pool)
         .await
@@ -811,6 +831,33 @@ impl TicketingStore for SqliteTicketingStore {
             ))
         })
         .transpose()
+    }
+
+    async fn register_outbound_identity(
+        &self,
+        project_id: &str,
+        identity: ExternalMessageIdentity,
+        ticket_id: TicketId,
+    ) -> Result<(), TicketStoreError> {
+        // INSERT OR IGNORE keeps re-registration idempotent on the
+        // provider-scoped external identity key.
+        sqlx::query(
+            "INSERT OR IGNORE INTO ticketing_external_messages
+             (project_id, provider, mailbox_scope, external_id, content_sha256, identity_json, ticket_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(&identity.provider)
+        .bind(&identity.mailbox_scope)
+        .bind(&identity.external_id)
+        .bind(&identity.content_sha256)
+        .bind(serde_json::to_string(&identity).map_err(encoding)?)
+        .bind(ticket_id.to_string())
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
     }
 
     async fn append_outbound_evidence(

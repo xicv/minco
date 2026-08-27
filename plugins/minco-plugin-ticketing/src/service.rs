@@ -959,6 +959,58 @@ impl TicketingService {
         Ok(())
     }
 
+    /// Authoritative reconciliation of one ambiguous outbound delivery
+    /// (review finding 8): the caller has verified the provider outcome
+    /// out of band. `accepted` records provider acceptance — which
+    /// suppresses every future resend; a reconciled non-send is recorded
+    /// as evidence so a redrive may resend under the same stable message
+    /// identity. Reconciliation must reference an existing public reply.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn reconcile_outbound_delivery(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+        accepted: bool,
+        provider: &str,
+        provider_message_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<(), TicketingServiceError> {
+        authorize(principal, "ticketing.ingest")?;
+        self.require_project(project_id)?;
+        if !valid_external_text(provider, 100)
+            || !valid_external_text(provider_message_id, 500)
+            || provider_message_id.trim().is_empty()
+        {
+            return Err(TicketingServiceError::InvalidDeliveryFeedback);
+        }
+        let ticket = self.load(project_id, ticket_id).await?;
+        if !ticket.messages.iter().any(|message| {
+            message.id == message_id && message.kind == TicketMessageKind::PublicReply
+        }) {
+            return Err(TicketingServiceError::InvalidDeliveryFeedback);
+        }
+        self.store
+            .append_outbound_evidence(OutboundDeliveryEvidence {
+                project_id: project_id.to_owned(),
+                ticket_id,
+                message_id,
+                kind: if accepted {
+                    OutboundEvidenceKind::Accepted
+                } else {
+                    OutboundEvidenceKind::PermanentFailure
+                },
+                provider: provider.to_owned(),
+                provider_message_id: provider_message_id.to_owned(),
+                feedback: None,
+                failure_kind: (!accepted).then(|| "reconciled_not_sent".to_owned()),
+                recorded_at: now,
+            })
+            .await?;
+        Ok(())
+    }
+
     pub async fn export_ai_context(
         &self,
         principal: &Identity,

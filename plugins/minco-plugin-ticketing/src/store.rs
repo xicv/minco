@@ -354,6 +354,16 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         internet_message_id: &str,
     ) -> Result<Option<(TicketId, u64)>, TicketStoreError>;
 
+    /// Registers an outbound message's threading identity so email replies
+    /// that reference it resolve to the originating ticket (review
+    /// finding 8). Idempotent: re-registering the same identity is a no-op.
+    async fn register_outbound_identity(
+        &self,
+        project_id: &str,
+        identity: ExternalMessageIdentity,
+        ticket_id: TicketId,
+    ) -> Result<(), TicketStoreError>;
+
     /// Appends one append-only outbound delivery-evidence row
     /// (ADR-0063).
     async fn append_outbound_evidence(
@@ -619,6 +629,17 @@ impl TicketingStoreService {
     ) -> Result<Option<(TicketId, u64)>, TicketStoreError> {
         self.0
             .find_ticket_by_message_identity(project_id, provider, internet_message_id)
+            .await
+    }
+
+    pub async fn register_outbound_identity(
+        &self,
+        project_id: &str,
+        identity: ExternalMessageIdentity,
+        ticket_id: TicketId,
+    ) -> Result<(), TicketStoreError> {
+        self.0
+            .register_outbound_identity(project_id, identity, ticket_id)
             .await
     }
 
@@ -1604,7 +1625,12 @@ impl TicketingStore for MemoryTicketingStore {
         let Some((_, ticket_id)) = state.external_messages.values().find(|(identity, _)| {
             identity.project_id == project_id
                 && identity.provider == provider
-                && identity.internet_message_id.as_deref() == Some(internet_message_id)
+                && identity
+                    .internet_message_id
+                    .as_deref()
+                    .is_some_and(|registered| {
+                        message_identity_matches(registered, internet_message_id)
+                    })
         }) else {
             return Ok(None);
         };
@@ -1612,6 +1638,27 @@ impl TicketingStore for MemoryTicketingStore {
             .tickets
             .get(&(project_id.to_owned(), *ticket_id))
             .map(|ticket| (*ticket_id, ticket.revision)))
+    }
+
+    async fn register_outbound_identity(
+        &self,
+        project_id: &str,
+        identity: ExternalMessageIdentity,
+        ticket_id: TicketId,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let key = (
+            project_id.to_owned(),
+            identity.provider.clone(),
+            identity.mailbox_scope.clone(),
+            identity.external_id.clone(),
+        );
+        state
+            .external_messages
+            .entry(key)
+            .or_insert((identity, ticket_id));
+        drop(state);
+        Ok(())
     }
 
     #[allow(clippy::significant_drop_tightening)]
@@ -1791,6 +1838,30 @@ pub enum TicketStoreError {
     Infrastructure(String),
     #[error("a ticketing mutation may carry at most 8 job records")]
     InvalidJobRecords,
+}
+
+/// Outbound registrations pin the mail identity's local part (the
+/// deterministic message id); the rendered domain belongs to the sending
+/// transport, so reply resolution compares the angle-bracket local part
+/// scoped to project and provider (review finding 8).
+fn message_id_local_part(value: &str) -> &str {
+    value
+        .trim()
+        .trim_start_matches('<')
+        .split('@')
+        .next()
+        .unwrap_or_default()
+}
+
+fn message_identity_matches(registered: &str, candidate: &str) -> bool {
+    if registered == candidate {
+        return true;
+    }
+    let (registered_local, candidate_local) = (
+        message_id_local_part(registered),
+        message_id_local_part(candidate),
+    );
+    !registered_local.is_empty() && registered_local == candidate_local
 }
 
 #[cfg(test)]

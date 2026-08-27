@@ -445,8 +445,11 @@ async fn deliver_public_notification(
 
 /// Email-channel delivery with reconciliation and ambiguity recovery
 /// (ADR-0063). Provider acceptance is recorded as evidence and never
-/// claimed as delivery; an ambiguous transport result records evidence and
-/// retries only after reconciliation against it.
+/// claimed as delivery. Every send of one message carries the same stable
+/// RFC Message-ID, so provider-side dedupe can bound duplicates and email
+/// replies thread back to the originating ticket; an ambiguous transport
+/// result fails closed for explicit reconciliation instead of blindly
+/// resending (review finding 8).
 async fn deliver_public_reply_by_mail(
     store: &TicketingStoreService,
     mail: &MailService,
@@ -460,8 +463,8 @@ async fn deliver_public_reply_by_mail(
         })?;
     let message_id = message.id;
     // Reconcile before any send: a recorded acceptance suppresses the
-    // resend, so job redelivery and ambiguous retries cannot duplicate
-    // outbound mail.
+    // resend, and an unresolved ambiguous outcome fails closed — the
+    // outcome must be reconciled explicitly, never guessed by resending.
     let evidence = store
         .outbound_evidence(&command.project_id, command.ticket_id, message_id)
         .await
@@ -472,18 +475,55 @@ async fn deliver_public_reply_by_mail(
     {
         return Ok(());
     }
+    // An ambiguous outcome stays unresolved until a later authoritative
+    // row (acceptance or a reconciled verdict) closes it; evidence rows
+    // are append-only, so resolution is positional.
+    let last_ambiguous = evidence
+        .iter()
+        .rposition(|row| row.kind == OutboundEvidenceKind::Ambiguous);
+    let last_resolved = evidence.iter().rposition(|row| {
+        matches!(
+            row.kind,
+            OutboundEvidenceKind::Accepted | OutboundEvidenceKind::PermanentFailure
+        )
+    });
+    let unresolved = match (last_ambiguous, last_resolved) {
+        (Some(_), None) => true,
+        (Some(ambiguous_at), Some(resolved_at)) => resolved_at < ambiguous_at,
+        _ => false,
+    };
+    if unresolved {
+        return Err(JobExecutionFailure::permanent(
+            "ticketing.notification_reconciliation_required",
+        ));
+    }
     let address = MailAddress::new(email)
         .map_err(|_| JobExecutionFailure::permanent("ticketing.notification_recipient_invalid"))?;
-    let message = minco_plugin_notifications::MailMessage::builder(
+    // One message carries one mail identity forever: the deterministic
+    // message id drives the rendered RFC Message-ID
+    // (<id@from-domain>), so retries, ambiguous redrives and reconciled
+    // resends are all dedupeable by identity.
+    let stable_mail_id = Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!(
+            "ticketing:public-reply:{}:{}:{}",
+            command.project_id, command.ticket_id, message_id
+        )
+        .as_bytes(),
+    );
+    let stable_message_id = format!("<{stable_mail_id}@outbound.ticketing.invalid>");
+    let outbound_body = message.body.clone();
+    let mail_message = minco_plugin_notifications::MailMessage::builder(
         "ticketing.public-notification",
         format!("{} — {}", ticket.display_reference, ticket.subject),
     )
+    .id(stable_mail_id)
     .to(address)
-    .text(message.body.clone())
+    .text(outbound_body.clone())
     .build()
     .map_err(|_| JobExecutionFailure::permanent("ticketing.notification_message_invalid"))?;
     let now = Utc::now();
-    match mail.send(message).await {
+    match mail.send(mail_message).await {
         Ok(receipt) => {
             store
                 .append_outbound_evidence(OutboundDeliveryEvidence {
@@ -499,6 +539,33 @@ async fn deliver_public_reply_by_mail(
                 })
                 .await
                 .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
+            // Register the outbound threading identity so an emailed reply
+            // referencing our Message-ID resolves to this ticket
+            // (ADR-0058 resolution, review finding 8). Registration is
+            // idempotent; a failure here is retriable and never
+            // re-triggers a send because acceptance is already recorded.
+            store
+                .register_outbound_identity(
+                    &command.project_id,
+                    crate::ExternalMessageIdentity {
+                        project_id: command.project_id.clone(),
+                        provider: receipt.transport.clone(),
+                        mailbox_scope: "outbound".into(),
+                        external_id: if receipt.provider_message_id.is_empty() {
+                            stable_message_id.clone()
+                        } else {
+                            receipt.provider_message_id.clone()
+                        },
+                        content_sha256: crate::external_content_sha256(outbound_body.as_bytes()),
+                        raw_message_object_key: None,
+                        internet_message_id: Some(stable_message_id),
+                        in_reply_to: None,
+                        references: Vec::new(),
+                    },
+                    command.ticket_id,
+                )
+                .await
+                .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
             Ok(())
         }
         Err(error) => match error.retry_advice() {
@@ -506,9 +573,9 @@ async fn deliver_public_reply_by_mail(
                 "ticketing.notification_transport_retryable",
             )),
             MailRetryAdvice::ReconcileBeforeRetry => {
-                // Ambiguous result: record the fact, then fail retryably.
-                // The next attempt reconciles against recorded evidence
-                // before resending — never a blind retry.
+                // Ambiguous result: record the fact, then fail closed. The
+                // next attempt sees the ambiguous evidence and demands
+                // explicit reconciliation — never a blind retry.
                 store
                     .append_outbound_evidence(OutboundDeliveryEvidence {
                         project_id: command.project_id.clone(),
@@ -998,6 +1065,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn outbound_threading_identity_resolves_replies_to_the_ticket() {
+        // One successful mail delivery registers the stable outbound
+        // identity; an emailed reply referencing the rendered
+        // <id@from-domain> resolves back to the ticket (review finding 8).
+        let (services, transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 1);
+        let sent = transport.submitted.lock().await.clone();
+        let rendered = format!("<{}@mail.example.test>", sent[0].id);
+        let resolved = TicketingStoreService::new(store)
+            .find_ticket_by_message_identity("project-a", "scripted", &rendered)
+            .await
+            .unwrap()
+            .expect("the reply must resolve to the originating ticket");
+        assert_eq!(resolved.0, ticket.id);
+    }
+
+    #[tokio::test]
     async fn ambiguous_result_records_evidence_and_resends_only_after_reconciliation() {
         // First attempt: the transport result is ambiguous (was the mail
         // accepted or not?). Evidence records the ambiguity; the job fails
@@ -1016,8 +1104,57 @@ mod tests {
         assert_eq!(evidence.len(), 1);
         assert_eq!(evidence[0].kind, OutboundEvidenceKind::Ambiguous);
         assert_eq!(evidence[0].failure_kind.as_deref(), Some("ambiguous"));
-        // Retry: reconciliation finds no acceptance, so the resend is
-        // justified; it lands and records acceptance.
+        assert_eq!(transport.submit_count().await, 1);
+
+        // A blind retry is refused: an ambiguous outcome demands explicit
+        // reconciliation (review finding 8) — never a guessed resend.
+        let refused = services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            refused.code(),
+            "ticketing.notification_reconciliation_required"
+        );
+        assert!(refused.is_permanent());
+        assert_eq!(transport.submit_count().await, 1, "no blind resend");
+
+        // The authoritative reconciliation: the operator confirmed the
+        // provider never received the message.
+        let service = crate::TicketingService::new(
+            TicketingStoreService::new(store.clone()),
+            crate::TicketingConfig {
+                project_id: "project-a".into(),
+                ..crate::TicketingConfig::default()
+            },
+        )
+        .unwrap();
+        service
+            .reconcile_outbound_delivery(
+                &worker_identity(),
+                "project-a",
+                ticket.id,
+                message.id,
+                false,
+                "scripted",
+                "provider-0",
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+
+        // The redrive resends under the same stable mail identity and
+        // records acceptance; further redrives stay suppressed.
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 2);
+        let submitted = transport.submitted.lock().await.clone();
+        assert_eq!(
+            submitted[0].id, submitted[1].id,
+            "the mail identity must be stable across sends"
+        );
         services
             .submit_inline(deliver_envelope(&ticket, &message))
             .await
@@ -1033,6 +1170,7 @@ mod tests {
             kinds,
             vec![
                 OutboundEvidenceKind::Ambiguous,
+                OutboundEvidenceKind::PermanentFailure,
                 OutboundEvidenceKind::Accepted
             ]
         );
@@ -1248,8 +1386,12 @@ mod tests {
     async fn inbound_email_is_verified_parsed_and_ingested_idempotently() {
         let (services, _objects, memory, ticket_id, revision, digest) = inbound_setup().await;
         let correlation = Uuid::now_v7();
-        let envelope = inbound_email_envelope(&inbound_command(ticket_id, &digest), correlation, Utc::now())
-            .unwrap();
+        let envelope = inbound_email_envelope(
+            &inbound_command(ticket_id, &digest),
+            correlation,
+            Utc::now(),
+        )
+        .unwrap();
         services.submit_inline(envelope).await.unwrap();
         let ticket = memory.get("project-a", ticket_id).await.unwrap().unwrap();
         assert!(
@@ -1261,9 +1403,12 @@ mod tests {
         assert_eq!(ticket.revision, revision + 1);
 
         // Same external identity replays without a second message.
-        let envelope =
-            inbound_email_envelope(&inbound_command(ticket_id, &digest), correlation, Utc::now())
-                .unwrap();
+        let envelope = inbound_email_envelope(
+            &inbound_command(ticket_id, &digest),
+            correlation,
+            Utc::now(),
+        )
+        .unwrap();
         services.submit_inline(envelope).await.unwrap();
         let ticket = memory.get("project-a", ticket_id).await.unwrap().unwrap();
         assert_eq!(
@@ -1299,9 +1444,12 @@ mod tests {
             )
             .await
             .unwrap();
-        let envelope =
-            inbound_email_envelope(&inbound_command(ticket_id, &digest), Uuid::now_v7(), Utc::now())
-                .unwrap();
+        let envelope = inbound_email_envelope(
+            &inbound_command(ticket_id, &digest),
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap();
         let failure = services.submit_inline(envelope).await.unwrap_err();
         assert_eq!(failure.code(), "ticketing.inbound_object_missing");
         assert!(failure.is_permanent());
@@ -1322,9 +1470,12 @@ mod tests {
             .await
             .unwrap();
         let digest = crate::external_content_sha256(&garbage);
-        let envelope =
-            inbound_email_envelope(&inbound_command(ticket_id, &digest), Uuid::now_v7(), Utc::now())
-                .unwrap();
+        let envelope = inbound_email_envelope(
+            &inbound_command(ticket_id, &digest),
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap();
         let failure = services.submit_inline(envelope).await.unwrap_err();
         assert!(failure.is_permanent(), "unexpected code {}", failure.code());
     }
@@ -1370,9 +1521,12 @@ mod tests {
             Utc::now(),
         );
         memory.save(moved, revision, intent).await.unwrap();
-        let envelope =
-            inbound_email_envelope(&inbound_command(ticket_id, &digest), Uuid::now_v7(), Utc::now())
-                .unwrap();
+        let envelope = inbound_email_envelope(
+            &inbound_command(ticket_id, &digest),
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap();
         services.submit_inline(envelope).await.unwrap();
         let ticket = memory.get("project-a", ticket_id).await.unwrap().unwrap();
         assert!(
