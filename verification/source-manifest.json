@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1920,
+  "file_count": 1923,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -1744,8 +1744,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "5f67b1d74ab936f4a02a64d2c6df41e7cb9ba2aa37fdccf17535f7347018e5f1",
-      "size_bytes": 16060
+      "sha256": "5a0089e63990c81dcfe20c4ac960d5ba40b7be0c20167c08525bf682728f3b97",
+      "size_bytes": 16424
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2236,6 +2236,11 @@
       "path": "docs/adrs/0074-desk-security-accessibility-upgrade-proofs.md",
       "sha256": "1dbb3f161abf8fb471d5a40e5f88f7a89772e84d9b9fe87c41a38a6d8bd216bd",
       "size_bytes": 2433
+    },
+    {
+      "path": "docs/adrs/0075-desk-operational-readiness-proofs.md",
+      "sha256": "40e0760c03b85422085c817b9f2c9c9e1ef73ce68d2f393e5d53204887d3e0b5",
+      "size_bytes": 2135
     },
     {
       "path": "docs/architecture/adoption-readiness-review.md",
@@ -6078,6 +6083,11 @@
       "size_bytes": 9713
     },
     {
+      "path": "examples/minco-desk/tests/operational_readiness_proofs.rs",
+      "sha256": "61ff8dce787b60f1c53b7689cf8681dbd7bd9645d8485ba2736a76d6d343367e",
+      "size_bytes": 10256
+    },
+    {
       "path": "examples/minco-desk/tests/security_accessibility_upgrade_proofs.rs",
       "sha256": "6e7742a298da1b7bc1cdd761bacfd8aa3f41e9f8704764b65c3cbf5d3c3e3425",
       "size_bytes": 12274
@@ -9208,6 +9218,11 @@
       "size_bytes": 3182
     },
     {
+      "path": "tasks/M14/M14-T73-desk-operational-readiness-proofs.md",
+      "sha256": "8fac6bbbf1daf930eeeb6313ef13c24253172eae8ef1193361015cfc1eae3cf3",
+      "size_bytes": 2212
+    },
+    {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
       "sha256": "c145ea0920bdd34957405ff028901484d09e240cc6e9870da37fdd6f4769f007",
       "size_bytes": 865
@@ -9659,7 +9674,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "7705e1134df9b1cf7f6117068910d0f83a89048058b39e478c6d32a3200ffad4",
-  "total_size_bytes": 14500815,
+  "source_tree_sha256": "a9e59c1fb51b30511e5e4c1b8f57d181376ddb226258ed9a712ab8ca24b61ad9",
+  "total_size_bytes": 14515782,
   "version": "1.12.0"
 }
