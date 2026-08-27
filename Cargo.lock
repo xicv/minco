@@ -2619,6 +2619,7 @@ dependencies = [
  "minco-plugin-sessions",
  "minco-plugin-ticketing",
  "minco-sqlx-sqlite",
+ "reqwest",
  "serde_json",
  "sha2 0.11.0",
  "sqlx",

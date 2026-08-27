@@ -60,6 +60,7 @@ minco-plugin-notifications = { workspace = true, optional = true }
 
 [dev-dependencies]
 http-body-util.workspace = true
+reqwest.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 tower.workspace = true

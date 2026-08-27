@@ -2,6 +2,7 @@
 //! erasure and job recovery — all on the standalone desk's one `SQLite`
 //! database, all providerless.
 
+use std::collections::BTreeMap;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt as _;
@@ -20,6 +21,12 @@ fn scratch_config(tag: &str, dir: &std::path::Path) -> DeskConfig {
         portal_origin: "http://127.0.0.1:8090".into(),
         allowed_origins: vec!["http://127.0.0.1:8090".into()],
         mailbox_scope: "support@desk.example.test".into(),
+        agent_token: "proof-agent-token-0123456789abcdef".into(),
+        csrf_secret: "proof-csrf-secret-0123456789abcdef0123456789abcdef".into(),
+        allowed_return_paths: BTreeMap::from([(
+            "https://app.example.test".to_owned(),
+            vec!["/orders".to_owned()],
+        )]),
         environment: "local".into(),
     }
 }

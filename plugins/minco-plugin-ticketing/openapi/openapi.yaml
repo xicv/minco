@@ -65,7 +65,7 @@ paths:
                 value:
                   project_id: example
                   requester_subject: user-42
-                  requester_permissions: [ticketing.create, ticketing.read]
+                  requester_permissions: [ticketing.requester.read, ticketing.requester.write]
                   surface: widget
                   context: {page_url: https://app.example.test/orders/42}
                   return_location: https://app.example.test/orders/42

@@ -1,12 +1,18 @@
-//! The standalone Minco Desk private-beta example (ADR-0072).
+//! The standalone Minco Desk example (ADR-0072).
 //!
 //! Composes every service a private helpdesk needs on one `SQLite`
 //! database behind one native Axum process: identity, sessions/CSRF,
 //! idempotency, object storage, notifications, audit, events/outbox,
 //! jobs, health, observability and ticketing. The composition root is
-//! the only place concrete adapters are selected (ADR-0011): memory
-//! adapters for mail/objects (no provider contact), `SQLite` for all
-//! durable state.
+//! the only place concrete adapters are selected (ADR-0011):
+//! `SQLite` for every durable surface — tickets, jobs (same-transaction
+//! enqueue), requester sessions, idempotency and audit — and memory
+//! adapters only where no provider is contacted by design (raw MIME
+//! objects, the in-process event bus, the notification sink). The
+//! trust boundary is explicit: requester routes authenticate with
+//! durable session cookies; every other ticketing route requires the
+//! loopback service bearer token (`DESK_AGENT_TOKEN`) and the
+//! development identity headers are not trusted.
 #![forbid(unsafe_code)]
 
 use anyhow::{Context as _, Result};
@@ -28,6 +34,20 @@ pub struct DeskConfig {
     pub allowed_origins: Vec<String>,
     pub mailbox_scope: String,
     pub environment: String,
+    /// Loopback service token for the agent/integration surface. Loaded
+    /// from `DESK_AGENT_TOKEN`; when unset a high-entropy token is
+    /// generated for this process (printed at startup by the local
+    /// binary) so the desk never trusts unauthenticated callers.
+    pub agent_token: String,
+    /// CSRF signing secret. Loaded from `DESK_CSRF_SECRET`; generated
+    /// per process when unset (sessions then do not survive restarts,
+    /// which the durability proofs make explicit).
+    pub csrf_secret: String,
+    /// Handoff return-location policy: exact origins and their allowed
+    /// path prefixes, loaded from `DESK_ALLOWED_RETURN_PATHS` as
+    /// `origin=path|path,origin=path`. Defaults to the portal origin
+    /// with the ticketing prefix.
+    pub allowed_return_paths: BTreeMap<String, Vec<String>>,
 }
 
 impl DeskConfig {
@@ -53,15 +73,90 @@ impl DeskConfig {
             mailbox_scope: std::env::var("DESK_MAILBOX_SCOPE")
                 .unwrap_or_else(|_| "support@desk.example.test".into()),
             environment: std::env::var("DESK_ENVIRONMENT").unwrap_or_else(|_| "local".into()),
+            agent_token: std::env::var("DESK_AGENT_TOKEN")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| {
+                    format!(
+                        "{}{}",
+                        uuid::Uuid::new_v4().simple(),
+                        uuid::Uuid::new_v4().simple()
+                    )
+                }),
+            csrf_secret: std::env::var("DESK_CSRF_SECRET")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| {
+                    format!(
+                        "{}{}",
+                        uuid::Uuid::new_v4().simple(),
+                        uuid::Uuid::new_v4().simple()
+                    )
+                }),
+            allowed_return_paths: parse_return_paths(
+                &std::env::var("DESK_ALLOWED_RETURN_PATHS")
+                    .unwrap_or_else(|_| "http://127.0.0.1:8090=/_minco/ticketing".into()),
+            ),
         })
     }
 }
 
-/// The composed application: the router plus the service graph the
-/// health registry reports on.
+/// Parses `origin=path|path,origin=path` into the handoff location
+/// policy; malformed entries fail closed at startup.
+fn parse_return_paths(value: &str) -> BTreeMap<String, Vec<String>> {
+    let mut policy = BTreeMap::new();
+    for entry in value.split(',') {
+        let Some((origin, paths)) = entry.split_once('=') else {
+            continue;
+        };
+        let paths = paths
+            .split('|')
+            .filter(|path| !path.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if !origin.is_empty() && !paths.is_empty() {
+            policy.insert(origin.to_owned(), paths);
+        }
+    }
+    policy
+}
+
+/// The composed application: the router, the explicit jobs worker and
+/// the service graph the health registry reports on.
 pub struct BuiltDesk {
     pub router: axum::Router,
+    pub worker: DeskWorker,
     pub health_report: serde_json::Value,
+}
+
+/// The desk's explicit jobs worker: one bounded dispatch pass per call.
+/// Nothing schedules it implicitly — the local binary drives it on an
+/// interval and proofs drive it by hand (review finding 3).
+#[derive(Clone)]
+pub struct DeskWorker {
+    jobs: Arc<minco_plugin_jobs::JobsServices>,
+}
+
+impl std::fmt::Debug for DeskWorker {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("DeskWorker").finish()
+    }
+}
+
+impl DeskWorker {
+    /// One bounded dispatch pass over due job publications; claimed jobs
+    /// execute in-process through the registered handlers and their
+    /// durable dispositions are committed.
+    pub async fn run_once(&self) -> Result<minco_plugin_jobs::DispatchReport, anyhow::Error> {
+        self.jobs
+            .dispatch_due_once(
+                &format!("desk-worker-{}", uuid::Uuid::new_v4().simple()),
+                50,
+                chrono::TimeDelta::seconds(60),
+            )
+            .await
+            .map_err(|error| anyhow::anyhow!("desk worker dispatch pass failed: {error}"))
+    }
 }
 
 impl std::fmt::Debug for BuiltDesk {
@@ -100,15 +195,10 @@ pub async fn migrate(config: &DeskConfig) -> Result<sqlx::SqlitePool> {
 /// native process, zero provider contact.
 #[cfg(feature = "sqlite")]
 pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
-    use minco_plugin_audit::MemoryAuditSink;
-    use minco_plugin_events::EventsPlugin;
     use minco_plugin_health::{HealthPlugin, HealthRegistry};
-    use minco_plugin_idempotency::IdempotencyPlugin;
     use minco_plugin_identity::IdentityPlugin;
     use minco_plugin_jobs::JobsServices;
-    use minco_plugin_notifications::NotificationsPlugin;
     use minco_plugin_observability::{ObservabilityConfig, ObservabilityPlugin};
-    use minco_plugin_sessions::SessionsPlugin;
     use minco_plugin_ticketing::{
         SqliteTicketingStore, TicketingConfig, TicketingJobsDeps, TicketingPortalServices,
         TicketingService, TicketingStoreService, register_ticketing_jobs, ticketing_router,
@@ -117,24 +207,72 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     let pool = migrate(config).await?;
 
     // Concrete adapter selection lives here and nowhere else.
-    let ticketing_store: Arc<dyn minco_plugin_ticketing::TicketingStore> =
-        Arc::new(SqliteTicketingStore::new(pool.clone()));
     let jobs_store = Arc::new(minco_sqlx_sqlite::jobs::SqliteJobStore::new(pool.clone()));
+    // The same-transaction enqueue adapter (review finding 3): ticket
+    // mutations commit their job records inside the caller's SQLite
+    // transaction, so a public reply can never strand its notification.
+    let ticketing_store: Arc<dyn minco_plugin_ticketing::TicketingStore> = Arc::new(
+        SqliteTicketingStore::new(pool.clone())
+            .with_job_enqueue(Arc::new(JobStoreEnqueue(jobs_store.clone()))),
+    );
     let registry = Arc::new(minco_plugin_jobs::JobHandlerRegistry::new());
+    let clock: Arc<dyn minco_plugin_jobs::JobClock> = Arc::new(minco_plugin_jobs::SystemJobClock);
+    let executor = Arc::new(minco_plugin_jobs::JobExecutor::new(Arc::clone(&registry)));
+    // The operated dispatch path (review finding 3): claimed due
+    // publications execute in-process and commit durable dispositions —
+    // never the fail-closed placeholder.
     let jobs = JobsServices::new(
         jobs_store.clone(),
         jobs_store.clone(),
-        Arc::new(minco_plugin_jobs::FailClosedDispatcher),
+        Arc::new(DurableJobDispatcher {
+            executor: Arc::clone(&executor),
+            clock: Arc::clone(&clock),
+            store: Arc::clone(&jobs_store) as Arc<dyn minco_plugin_jobs::JobStore>,
+            publications: Arc::clone(&jobs_store)
+                as Arc<dyn minco_plugin_jobs::JobPublicationStore>,
+            locks: Arc::clone(&jobs_store) as Arc<dyn minco_plugin_jobs::OverlapLockStore>,
+        }),
         jobs_store,
-        Arc::new(minco_plugin_jobs::SystemJobClock),
-        Arc::new(minco_plugin_jobs::JobExecutor::new(Arc::clone(&registry))),
+        Arc::clone(&clock),
+        Arc::clone(&executor),
     );
+    let jobs_handle = Arc::new(jobs);
     let objects = Arc::new(minco_plugin_object_storage::ObjectStoreService::new(
         Arc::new(minco_plugin_object_storage::MemoryObjectStore::default()),
     ));
+    let notification_sink = Arc::new(minco_plugin_notifications::MemoryNotificationSink::default());
     let notifications = Arc::new(minco_plugin_notifications::NotificationService::new(
-        Arc::new(minco_plugin_notifications::MemoryNotificationSink::default()),
+        Arc::clone(&notification_sink) as Arc<dyn minco_plugin_notifications::NotificationSink>,
     ));
+    // Durable portal services (review finding 2): requester sessions,
+    // CSRF and idempotency survive restarts on the same database.
+    let session_store = Arc::new(minco_sqlx_sqlite::plugin_adapters::SqliteSessionStore::new(
+        pool.clone(),
+    ));
+    let sessions = Arc::new(minco_plugin_sessions::SessionService::new(
+        Arc::clone(&session_store) as Arc<dyn minco_plugin_sessions::SessionStore>,
+    ));
+    let csrf = Arc::new(
+        minco_plugin_sessions::CsrfService::new(config.csrf_secret.clone())
+            .context("the desk CSRF secret must carry sufficient entropy")?,
+    );
+    let idempotency_store =
+        Arc::new(minco_sqlx_sqlite::plugin_adapters::SqliteIdempotencyStore::new(pool.clone()));
+    let idempotency = Arc::new(
+        minco_plugin_idempotency::IdempotencyService::new(
+            Arc::clone(&idempotency_store) as Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
+            chrono::TimeDelta::seconds(300),
+        )
+        .context("compose the desk idempotency service")?,
+    );
+    // The in-process event bus: ticketing keeps durable intents and the
+    // outbox claim mediates single publication; subscribers are local
+    // by design in the desk profile (no external broker).
+    let (_events_plugin, events_bus) = minco_plugin_events::EventsPlugin::memory();
+    let events = Arc::new(minco_plugin_events::EventServices {
+        publisher: Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::EventPublisher>,
+        outbox: Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::OutboxStore>,
+    });
 
     let service = Arc::new(
         TicketingService::new(
@@ -143,13 +281,17 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
                 project_id: config.project_id.clone(),
                 portal_origin: config.portal_origin.clone(),
                 notify_requester_on_public_reply: true,
+                allowed_return_paths: config.allowed_return_paths.clone(),
                 ..TicketingConfig::default()
             },
         )?
         .with_portal_services(TicketingPortalServices {
-            jobs: Some(Arc::new(jobs)),
+            sessions: Some(sessions),
+            csrf: Some(csrf),
+            idempotency: Some(idempotency),
+            events: Some(events),
+            jobs: Some(Arc::clone(&jobs_handle)),
             objects: Some(objects.clone()),
-            ..TicketingPortalServices::default()
         }),
     );
     // The durable worker principal holds only ingest authority.
@@ -181,12 +323,24 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
         default_filter: "info,tower_http=info,sqlx=warn".into(),
     }))?;
     manager.register(IdentityPlugin::default())?;
-    manager.register(SessionsPlugin::memory())?;
-    manager.register(IdempotencyPlugin::memory())?;
-    manager.register(NotificationsPlugin::memory().0)?;
-    manager.register(EventsPlugin::memory().0)?;
+    // The graph registers the same concrete adapters the composition
+    // uses — sqlite stores and the shared sinks — so the selection
+    // describes the real desk, not decorative memory defaults.
+    manager.register(minco_plugin_sessions::SessionsPlugin::new(
+        Arc::clone(&session_store) as Arc<dyn minco_plugin_sessions::SessionStore>,
+    ))?;
+    manager.register(minco_plugin_idempotency::IdempotencyPlugin::new(
+        Arc::clone(&idempotency_store) as Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
+    ))?;
+    manager.register(minco_plugin_notifications::NotificationsPlugin::new(
+        Arc::clone(&notification_sink) as Arc<dyn minco_plugin_notifications::NotificationSink>,
+    ))?;
+    manager.register(minco_plugin_events::EventsPlugin::new(
+        Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::EventPublisher>,
+        Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::OutboxStore>,
+    ))?;
     manager.register(minco_plugin_audit::AuditPlugin::new(Arc::new(
-        MemoryAuditSink::default(),
+        minco_sqlx_sqlite::plugin_adapters::SqliteAuditSink::new(pool.clone()),
     )))?;
     let mut selection = minco_core::PluginSelection::default();
     selection
@@ -223,12 +377,14 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     let health_report =
         serde_json::to_value(&composed.graph).unwrap_or_else(|_| serde_json::json!({}));
 
-    let desk_router = ticketing_router(minco_plugin_ticketing::TicketingService::clone(&service));
-    let mut header_policy = minco_http::HttpHeaderPolicy::default();
-    for name in ["x-minco-subject", "x-minco-permissions"] {
-        header_policy.allow_request_header_name(name)?;
-        header_policy.mark_request_header_name_sensitive(name)?;
-    }
+    let desk_router =
+        ticketing_router(minco_plugin_ticketing::TicketingService::clone(&service)).layer(
+            axum::middleware::from_fn_with_state(config.agent_token.clone(), desk_agent_identity),
+        );
+    // Development identity headers are deliberately NOT allowed: the
+    // desk's trust boundary is the session cookie plus the loopback
+    // service bearer token (review finding 2).
+    let header_policy = minco_http::HttpHeaderPolicy::default();
     let router = minco_http::apply_standard_middleware(
         desk_router,
         &minco_http::HttpRuntimeConfig {
@@ -242,6 +398,7 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     )?;
     Ok(BuiltDesk {
         router,
+        worker: DeskWorker { jobs: jobs_handle },
         health_report,
     })
 }
@@ -267,6 +424,140 @@ pub async fn erase_resolved_before(
 #[cfg(not(feature = "sqlite"))]
 pub async fn build_desk(_config: &DeskConfig) -> Result<BuiltDesk> {
     bail!("the standalone desk requires the sqlite feature")
+}
+
+/// The same-transaction job enqueue adapter: the composition root binds
+/// the released `SqliteJobStore::enqueue_in` behind ticketing's port,
+/// sharing one pool so job records commit with the ticket mutation
+/// (ADR-0054, review finding 3).
+#[cfg(feature = "sqlite")]
+#[derive(Debug)]
+struct JobStoreEnqueue(Arc<minco_sqlx_sqlite::jobs::SqliteJobStore>);
+
+#[cfg(feature = "sqlite")]
+#[async_trait::async_trait]
+impl minco_plugin_ticketing::TicketingJobEnqueue for JobStoreEnqueue {
+    async fn enqueue_in(
+        &self,
+        transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        record: minco_plugin_jobs::JobRecord,
+    ) -> Result<(), minco_plugin_ticketing::TicketStoreError> {
+        self.0
+            .enqueue_in(transaction, record)
+            .await
+            .map(|_| ())
+            .map_err(|error| {
+                minco_plugin_ticketing::TicketStoreError::Infrastructure(error.to_string())
+            })
+    }
+}
+
+/// The desk's in-process dispatcher: a claimed publication executes
+/// through the durable executor path — claim execution, run the handler,
+/// commit the disposition — before the publication is acknowledged.
+#[cfg(feature = "sqlite")]
+struct DurableJobDispatcher {
+    executor: Arc<minco_plugin_jobs::JobExecutor>,
+    clock: Arc<dyn minco_plugin_jobs::JobClock>,
+    store: Arc<dyn minco_plugin_jobs::JobStore>,
+    publications: Arc<dyn minco_plugin_jobs::JobPublicationStore>,
+    locks: Arc<dyn minco_plugin_jobs::OverlapLockStore>,
+}
+
+#[cfg(feature = "sqlite")]
+impl std::fmt::Debug for DurableJobDispatcher {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("DurableJobDispatcher").finish()
+    }
+}
+
+#[cfg(feature = "sqlite")]
+#[async_trait::async_trait]
+impl minco_plugin_jobs::JobDispatcher for DurableJobDispatcher {
+    async fn dispatch(
+        &self,
+        delivery: &minco_plugin_jobs::JobDelivery,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), minco_plugin_jobs::JobError> {
+        let _ = now;
+        let worker = format!("desk-dispatch-{}", uuid::Uuid::new_v4().simple());
+        let disposition = self
+            .executor
+            .run(
+                &delivery.envelope,
+                &worker,
+                self.clock.as_ref(),
+                self.store.as_ref(),
+                self.publications.as_ref(),
+                self.locks.as_ref(),
+            )
+            .await?;
+        if let minco_plugin_jobs::JobRunDisposition::Executed(
+            minco_plugin_jobs::JobExecutionDisposition::FailedPermanently { code, .. },
+        ) = &disposition
+        {
+            return Err(minco_plugin_jobs::JobError::InvalidJob(format!(
+                "job executed to permanent failure: {code}"
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// The desk trust boundary: `Authorization: Bearer <agent token>` maps to
+/// the loopback service principal (full agent capability set) and every
+/// other request stays anonymous until a requester session cookie
+/// resolves. Forged development headers are never trusted.
+#[cfg(feature = "sqlite")]
+async fn desk_agent_identity(
+    axum::extract::State(agent_token): axum::extract::State<String>,
+    mut request: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let authorized = request
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .is_some_and(|token| constant_time_eq(token.as_bytes(), agent_token.as_bytes()));
+    if authorized
+        && request
+            .extensions()
+            .get::<minco_http::Principal>()
+            .is_none()
+    {
+        request.extensions_mut().insert(minco_http::Principal {
+            subject: "desk-agent".into(),
+            permissions: [
+                "ticketing.create",
+                "ticketing.reply",
+                "ticketing.manage",
+                "ticketing.ingest",
+                "ticketing.integrate",
+                "ticketing.ai-context",
+                "ticketing.agent-console",
+                "ticketing.agent.read",
+                "ticketing.agent.manage",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            claims: BTreeMap::default(),
+        });
+    }
+    next.run(request).await
+}
+
+/// Constant-time byte-slice comparison for bearer token checks.
+#[cfg(feature = "sqlite")]
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    left.iter()
+        .zip(right)
+        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+        == 0
 }
 
 #[cfg(feature = "sqlite")]
