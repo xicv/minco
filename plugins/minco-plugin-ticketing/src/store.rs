@@ -227,7 +227,11 @@ pub struct IngestExternalMessageRequest {
     pub identity: ExternalMessageIdentity,
     pub ticket_id: TicketId,
     pub body: String,
-    pub expected_revision: u64,
+    /// External ingress is append-only and idempotent by external identity:
+    /// the store reloads the authoritative ticket inside the transaction, so
+    /// no caller-supplied revision is required or honored (review finding 7 —
+    /// a frozen `expected_revision` in an immutable job payload can never
+    /// converge on retry).
     pub correlation_id: Uuid,
     pub now: DateTime<Utc>,
 }
@@ -1545,12 +1549,6 @@ impl TicketingStore for MemoryTicketingStore {
             .get(&key)
             .cloned()
             .ok_or(TicketStoreError::NotFound(request.ticket_id))?;
-        if ticket.revision != request.expected_revision {
-            return Err(TicketStoreError::StaleRevision {
-                expected: request.expected_revision,
-                actual: ticket.revision,
-            });
-        }
         ticket.reply_as_requester(request.body, request.now)?;
         let intent = TicketActivityIntent::new(
             ticket.project_id.clone(),
@@ -1871,7 +1869,6 @@ mod tests {
             },
             ticket_id,
             body: "External reply".into(),
-            expected_revision: 0,
             correlation_id: Uuid::now_v7(),
             now,
         }

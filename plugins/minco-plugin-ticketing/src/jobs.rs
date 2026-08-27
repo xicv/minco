@@ -49,6 +49,9 @@ impl Job for DeliverPublicNotification {
 /// Deferred command: process one inbound raw email for a known ticket
 /// (ADR-0055). The raw MIME stays authoritative in object storage; this
 /// payload carries bounded identities and digests only.
+///
+/// Ingress is revision-free — the store reloads the authoritative ticket
+/// inside its transaction, so retries always converge (review finding 7).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProcessInboundEmail {
     pub project_id: String,
@@ -58,7 +61,6 @@ pub struct ProcessInboundEmail {
     pub content_sha256: String,
     pub raw_object_key: String,
     pub ticket_id: TicketId,
-    pub expected_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub internet_message_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -297,7 +299,6 @@ async fn process_inbound_email(
             identity,
             command.ticket_id,
             body,
-            command.expected_revision,
             context.correlation_id,
             Utc::now(),
         )
@@ -1228,7 +1229,7 @@ mod tests {
         )
     }
 
-    fn inbound_command(ticket_id: TicketId, revision: u64, digest: &str) -> ProcessInboundEmail {
+    fn inbound_command(ticket_id: TicketId, digest: &str) -> ProcessInboundEmail {
         ProcessInboundEmail {
             project_id: "project-a".into(),
             provider: "ses".into(),
@@ -1237,7 +1238,6 @@ mod tests {
             content_sha256: digest.into(),
             raw_object_key: "mail/project-a/message-1".into(),
             ticket_id,
-            expected_revision: revision,
             internet_message_id: Some("<message-1@example.test>".into()),
             in_reply_to: None,
             references: Vec::new(),
@@ -1248,12 +1248,8 @@ mod tests {
     async fn inbound_email_is_verified_parsed_and_ingested_idempotently() {
         let (services, _objects, memory, ticket_id, revision, digest) = inbound_setup().await;
         let correlation = Uuid::now_v7();
-        let envelope = inbound_email_envelope(
-            &inbound_command(ticket_id, revision, &digest),
-            correlation,
-            Utc::now(),
-        )
-        .unwrap();
+        let envelope = inbound_email_envelope(&inbound_command(ticket_id, &digest), correlation, Utc::now())
+            .unwrap();
         services.submit_inline(envelope).await.unwrap();
         let ticket = memory.get("project-a", ticket_id).await.unwrap().unwrap();
         assert!(
@@ -1265,12 +1261,9 @@ mod tests {
         assert_eq!(ticket.revision, revision + 1);
 
         // Same external identity replays without a second message.
-        let envelope = inbound_email_envelope(
-            &inbound_command(ticket_id, ticket.revision - 1, &digest),
-            correlation,
-            Utc::now(),
-        )
-        .unwrap();
+        let envelope =
+            inbound_email_envelope(&inbound_command(ticket_id, &digest), correlation, Utc::now())
+                .unwrap();
         services.submit_inline(envelope).await.unwrap();
         let ticket = memory.get("project-a", ticket_id).await.unwrap().unwrap();
         assert_eq!(
@@ -1285,9 +1278,9 @@ mod tests {
 
     #[tokio::test]
     async fn digest_mismatch_is_permanent_and_nothing_is_ingested() {
-        let (services, _objects, _memory, ticket_id, revision, _digest) = inbound_setup().await;
+        let (services, _objects, _memory, ticket_id, _revision, _digest) = inbound_setup().await;
         let envelope = inbound_email_envelope(
-            &inbound_command(ticket_id, revision, &"f".repeat(64)),
+            &inbound_command(ticket_id, &"f".repeat(64)),
             Uuid::now_v7(),
             Utc::now(),
         )
@@ -1299,19 +1292,16 @@ mod tests {
 
     #[tokio::test]
     async fn missing_object_is_permanent() {
-        let (services, objects, _memory, ticket_id, revision, digest) = inbound_setup().await;
+        let (services, objects, _memory, ticket_id, _revision, digest) = inbound_setup().await;
         objects
             .delete(
                 &minco_plugin_object_storage::ObjectKey::parse("mail/project-a/message-1").unwrap(),
             )
             .await
             .unwrap();
-        let envelope = inbound_email_envelope(
-            &inbound_command(ticket_id, revision, &digest),
-            Uuid::now_v7(),
-            Utc::now(),
-        )
-        .unwrap();
+        let envelope =
+            inbound_email_envelope(&inbound_command(ticket_id, &digest), Uuid::now_v7(), Utc::now())
+                .unwrap();
         let failure = services.submit_inline(envelope).await.unwrap_err();
         assert_eq!(failure.code(), "ticketing.inbound_object_missing");
         assert!(failure.is_permanent());
@@ -1319,7 +1309,7 @@ mod tests {
 
     #[tokio::test]
     async fn unparseable_mime_is_permanent() {
-        let (services, objects, _memory, ticket_id, revision, _digest) = inbound_setup().await;
+        let (services, objects, _memory, ticket_id, _revision, _digest) = inbound_setup().await;
         let garbage = b"\x00\x01\x02 not mime at all \xff\xfe".to_vec();
         objects
             .put(minco_plugin_object_storage::PutObject {
@@ -1332,19 +1322,16 @@ mod tests {
             .await
             .unwrap();
         let digest = crate::external_content_sha256(&garbage);
-        let envelope = inbound_email_envelope(
-            &inbound_command(ticket_id, revision, &digest),
-            Uuid::now_v7(),
-            Utc::now(),
-        )
-        .unwrap();
+        let envelope =
+            inbound_email_envelope(&inbound_command(ticket_id, &digest), Uuid::now_v7(), Utc::now())
+                .unwrap();
         let failure = services.submit_inline(envelope).await.unwrap_err();
         assert!(failure.is_permanent(), "unexpected code {}", failure.code());
     }
 
     #[test]
     fn inbound_envelope_carries_the_contract_policies() {
-        let payload = inbound_command(TicketId::new(), 0, &"a".repeat(64));
+        let payload = inbound_command(TicketId::new(), &"a".repeat(64));
         let envelope = inbound_email_envelope(&payload, Uuid::now_v7(), Utc::now()).unwrap();
         assert_eq!(envelope.job_name, ProcessInboundEmail::NAME);
         assert_eq!(envelope.worker_profile, TICKETING_MAIL_PROFILE);
@@ -1367,10 +1354,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stale_revision_is_retryable_and_unauthorized_worker_is_permanent() {
+    async fn inbound_append_converges_after_concurrent_revision_movement() {
         let (services, _objects, memory, ticket_id, revision, digest) = inbound_setup().await;
-        // Move the ticket forward so the command's revision is stale.
-        memory.get("project-a", ticket_id).await.unwrap().unwrap();
+        // Move the ticket forward after the command was frozen — the old
+        // behavior retried an immutable stale revision forever (review
+        // finding 7); revision-free ingress must converge on the append.
         let mut moved = memory.get("project-a", ticket_id).await.unwrap().unwrap();
         moved.change_priority(crate::TicketPriority::High, Utc::now());
         let intent = crate::TicketActivityIntent::new(
@@ -1382,14 +1370,18 @@ mod tests {
             Utc::now(),
         );
         memory.save(moved, revision, intent).await.unwrap();
-        let envelope = inbound_email_envelope(
-            &inbound_command(ticket_id, revision, &digest),
-            Uuid::now_v7(),
-            Utc::now(),
-        )
-        .unwrap();
-        let failure = services.submit_inline(envelope).await.unwrap_err();
-        assert_eq!(failure.code(), "ticketing.inbound_revision_stale");
-        assert!(!failure.is_permanent());
+        let envelope =
+            inbound_email_envelope(&inbound_command(ticket_id, &digest), Uuid::now_v7(), Utc::now())
+                .unwrap();
+        services.submit_inline(envelope).await.unwrap();
+        let ticket = memory.get("project-a", ticket_id).await.unwrap().unwrap();
+        assert!(
+            ticket
+                .messages
+                .iter()
+                .any(|message| message.body.contains("Reply from the mailbox.")),
+            "the reply must land on the moved ticket"
+        );
+        assert_eq!(ticket.revision, revision + 2);
     }
 }

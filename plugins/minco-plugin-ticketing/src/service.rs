@@ -852,7 +852,6 @@ impl TicketingService {
         mut identity: ExternalMessageIdentity,
         id: TicketId,
         body: String,
-        expected_revision: u64,
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
@@ -889,7 +888,6 @@ impl TicketingService {
                 identity,
                 ticket_id: id,
                 body,
-                expected_revision,
                 correlation_id,
                 now,
             })
@@ -1587,8 +1585,10 @@ impl TicketingService {
     /// Verified-reference inbound submission (ADR-0058): resolve the
     /// target ticket strictly by `In-Reply-To`/`References` against
     /// previously ingested external identities, then durably submit the
-    /// `ticketing.process-inbound-email` job with the ticket's current
-    /// revision. Unresolved threading fails closed; no ticket is guessed.
+    /// `ticketing.process-inbound-email` job. The append is revision-free:
+    /// the store reloads authoritative state inside its transaction, so a
+    /// delayed or retried command can never wedge on a stale revision.
+    /// Unresolved threading fails closed; no ticket is guessed.
     #[cfg(feature = "jobs")]
     #[allow(clippy::too_many_arguments)]
     pub async fn submit_inbound_email(
@@ -1631,7 +1631,7 @@ impl TicketingService {
                 break;
             }
         }
-        let (ticket_id, revision) =
+        let (ticket_id, _resolved_revision) =
             resolved.ok_or(TicketingServiceError::InboundThreadUnresolved)?;
         let envelope = crate::inbound_email_envelope(
             &crate::ProcessInboundEmail {
@@ -1642,7 +1642,6 @@ impl TicketingService {
                 content_sha256: content_sha256.to_ascii_lowercase(),
                 raw_object_key: raw_object_key.to_owned(),
                 ticket_id,
-                expected_revision: revision,
                 internet_message_id: internet_message_id.map(str::to_owned),
                 in_reply_to: in_reply_to.map(str::to_owned),
                 references: references.to_vec(),
@@ -2267,7 +2266,6 @@ mod tests {
                 external(digest.to_ascii_uppercase()),
                 created.ticket.id,
                 "Reply".into(),
-                0,
                 Uuid::now_v7(),
                 now,
             )
@@ -2279,7 +2277,6 @@ mod tests {
                 external(digest),
                 created.ticket.id,
                 "Reply".into(),
-                0,
                 Uuid::now_v7(),
                 now,
             )
@@ -3545,7 +3542,6 @@ mod tests {
                     identity_record,
                     created.id,
                     "Original external reply".into(),
-                    created.revision,
                     Uuid::now_v7(),
                     Utc::now(),
                 )
@@ -3598,7 +3594,6 @@ mod tests {
             )
             .unwrap();
             assert_eq!(payload.ticket_id, ticket_id);
-            assert_eq!(payload.expected_revision, 1);
 
             // References chain resolves when In-Reply-To is absent.
             let chained_job_id = service

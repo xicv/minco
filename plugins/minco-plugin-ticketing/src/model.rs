@@ -186,9 +186,10 @@ pub enum TicketFormValueKind {
 
 /// One typed form answer captured at creation (ADR-0066).
 ///
-/// `kind` selects the meaningful slot — exactly one slot is set;
-/// `date_time` answers carry an RFC 3339 string in `text_value`. Numbers
-/// are bounded integers; floating point is deliberately out of contract.
+/// `kind` selects the meaningful slot — exactly one slot is set and it
+/// must be the slot `kind` names; `date_time` answers carry an RFC 3339
+/// string in `text_value`. Numbers are bounded integers; floating point
+/// is deliberately out of contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TicketFormAnswer {
@@ -244,6 +245,25 @@ fn validate_form_answers(answers: &[TicketFormAnswer]) -> Result<(), TicketValid
             return Err(TicketValidationError::InvalidField {
                 field: "form_answers.value",
                 detail: "exactly one value slot must be set".into(),
+            });
+        }
+        let (kind_name, expected_slot) = match answer.kind {
+            TicketFormValueKind::Text => ("text", "text_value"),
+            TicketFormValueKind::Number => ("number", "number_value"),
+            TicketFormValueKind::Boolean => ("boolean", "boolean_value"),
+            TicketFormValueKind::DateTime => ("date_time", "text_value"),
+        };
+        let slot_matches_kind = match answer.kind {
+            TicketFormValueKind::Text | TicketFormValueKind::DateTime => {
+                answer.text_value.is_some()
+            }
+            TicketFormValueKind::Number => answer.number_value.is_some(),
+            TicketFormValueKind::Boolean => answer.boolean_value.is_some(),
+        };
+        if !slot_matches_kind {
+            return Err(TicketValidationError::InvalidField {
+                field: "form_answers.value",
+                detail: format!("{kind_name} answers must carry {expected_slot}"),
             });
         }
         match answer.kind {
@@ -1703,6 +1723,38 @@ mod tests {
                 text_value: Some("yesterday".into()),
                 number_value: None,
                 boolean_value: None,
+            }],
+            // kind text must not carry the number slot
+            vec![TicketFormAnswer {
+                field_id: "a".into(),
+                kind: TicketFormValueKind::Text,
+                text_value: None,
+                number_value: Some(7),
+                boolean_value: None,
+            }],
+            // kind number must not carry the text slot
+            vec![TicketFormAnswer {
+                field_id: "a".into(),
+                kind: TicketFormValueKind::Number,
+                text_value: Some("7".into()),
+                number_value: None,
+                boolean_value: None,
+            }],
+            // kind boolean must not carry the text slot
+            vec![TicketFormAnswer {
+                field_id: "a".into(),
+                kind: TicketFormValueKind::Boolean,
+                text_value: Some("yes".into()),
+                number_value: None,
+                boolean_value: None,
+            }],
+            // kind date_time must not carry the boolean slot
+            vec![TicketFormAnswer {
+                field_id: "a".into(),
+                kind: TicketFormValueKind::DateTime,
+                text_value: None,
+                number_value: None,
+                boolean_value: Some(true),
             }],
             // invalid field id charset
             vec![TicketFormAnswer {

@@ -687,12 +687,6 @@ impl TicketingStore for SqliteTicketingStore {
         )
         .await?
         .ok_or(TicketStoreError::NotFound(request.ticket_id))?;
-        if ticket.revision != request.expected_revision {
-            return Err(TicketStoreError::StaleRevision {
-                expected: request.expected_revision,
-                actual: ticket.revision,
-            });
-        }
         ticket.reply_as_requester(request.body, request.now)?;
         let intent = TicketActivityIntent::new(
             ticket.project_id.clone(),
@@ -702,7 +696,14 @@ impl TicketingStore for SqliteTicketingStore {
             serde_json::json!({ "ticket_id": ticket.id }),
             request.now,
         );
-        update_ticket(&mut transaction, &ticket, request.expected_revision).await?;
+        // The append rewrites against the revision just loaded inside this
+        // transaction (the domain mutation already bumped ticket.revision,
+        // so the compare-and-set base is one below it); a lost race is
+        // retriable with a fresh load and converges.
+        let loaded_revision = ticket.revision.checked_sub(1).ok_or_else(|| {
+            TicketStoreError::Infrastructure("ingress revision underflow".into())
+        })?;
+        update_ticket(&mut transaction, &ticket, loaded_revision).await?;
         replace_children(&mut transaction, &ticket).await?;
         insert_activity(&mut transaction, &intent).await?;
         transaction.commit().await.map_err(infrastructure)?;
@@ -1980,7 +1981,6 @@ mod tests {
             },
             ticket_id,
             body: "External reply".into(),
-            expected_revision: 0,
             correlation_id: uuid::Uuid::now_v7(),
             now,
         }
@@ -3308,7 +3308,6 @@ mod tests {
             },
             ticket_id: ticket.id,
             body: "Original external reply".into(),
-            expected_revision: 0,
             correlation_id: uuid::Uuid::now_v7(),
             now,
         };

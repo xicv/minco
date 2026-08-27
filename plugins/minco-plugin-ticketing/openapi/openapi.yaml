@@ -1059,7 +1059,7 @@ components:
     TicketFormValueKind: {type: string, enum: [text, number, boolean, date_time]}
     TicketFormAnswer:
       type: object
-      description: One typed form answer; `kind` selects the meaningful value slot and exactly one slot may be set.
+      description: One typed form answer; `kind` selects the meaningful value slot, exactly one slot may be set, and it must be the slot `kind` names.
       additionalProperties: false
       required: [field_id, kind]
       properties:
@@ -1371,7 +1371,7 @@ components:
     IngressMessage:
       type: object
       additionalProperties: false
-      required: [provider, mailbox_scope, external_message_id, content_sha256, ticket_id, body, expected_revision]
+      required: [provider, mailbox_scope, external_message_id, content_sha256, ticket_id, body]
       properties:
         provider: {type: string, maxLength: 100}
         mailbox_scope: {type: string, maxLength: 300}
@@ -1383,7 +1383,6 @@ components:
         references: {type: array, maxItems: 64, items: {type: string, maxLength: 1000}}
         ticket_id: {type: string, format: uuid}
         body: {type: string, minLength: 1, maxLength: 20000}
-        expected_revision: {type: integer, minimum: 0}
     TicketAiContext:
       type: object
       additionalProperties: false

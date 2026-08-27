@@ -1038,9 +1038,6 @@ async fn ingest_external_message(
             identity_record,
             TicketId(body.ticket_id),
             body.body,
-            u64::try_from(body.expected_revision).map_err(|_| {
-                ApiFailure::validation("expected_revision must be non-negative", &request_id)
-            })?,
             request_uuid(&request_id),
             Utc::now(),
         )
