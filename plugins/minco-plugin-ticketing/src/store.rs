@@ -280,6 +280,38 @@ pub struct SessionExchangeGrant {
     pub created_at: DateTime<Utc>,
 }
 
+/// One durable outbound send intent (exact-head review R4): committed
+/// before provider contact and resolved by stable logical identity, so
+/// ambiguous transport outcomes recover without duplicate sends.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SendIntent {
+    pub logical_send_id: String,
+    pub project_id: String,
+    pub ticket_id: TicketId,
+    pub message_id: TicketMessageId,
+    pub state: SendIntentState,
+    pub provider_message_id: Option<String>,
+    pub updated_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SendIntentState {
+    /// Reconciled authoritative no-send: one identity-stable resend may
+    /// proceed.
+    PendingSend,
+    /// Committed immediately before provider contact; an outcome is not
+    /// yet known.
+    Sending,
+    /// Provider acceptance recorded with the provider's message identity.
+    Sent,
+    /// Ambiguous outcome: resolve by reconciliation, never a blind resend.
+    RecoveryRequired,
+    /// Reconciled permanent failure; the intent is terminal.
+    FailedNoSend,
+}
+
 #[derive(Debug, Clone)]
 pub struct AppendTicketMessageRequest {
     pub project_id: String,
@@ -412,6 +444,32 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         &self,
         grant: SessionExchangeGrant,
     ) -> Result<(), TicketStoreError>;
+
+    /// Claims or advances one send intent atomically (exact-head review
+    /// R4). `Ok(None)` means the intent was newly claimed for sending;
+    /// `Ok(Some(current))` returns the existing state so the caller can
+    /// decide (sent -> done, recovery -> fail closed, pending -> resend).
+    async fn claim_send_intent(
+        &self,
+        intent: SendIntent,
+    ) -> Result<Option<SendIntent>, TicketStoreError>;
+
+    /// Resolves one send intent by logical identity.
+    async fn send_intent(
+        &self,
+        logical_send_id: &str,
+    ) -> Result<Option<SendIntent>, TicketStoreError>;
+
+    /// Records the outcome for one send intent: provider acceptance with
+    /// its message identity, `recovery_required`, or a reconciled
+    /// no-send.
+    async fn resolve_send_intent(
+        &self,
+        logical_send_id: &str,
+        state: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError>;
 
     async fn session_exchange_grant(
         &self,
@@ -732,6 +790,32 @@ impl TicketingStoreService {
         self.0.operation_receipt(idempotency_key).await
     }
 
+    pub async fn claim_send_intent(
+        &self,
+        intent: SendIntent,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        self.0.claim_send_intent(intent).await
+    }
+
+    pub async fn send_intent(
+        &self,
+        logical_send_id: &str,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        self.0.send_intent(logical_send_id).await
+    }
+
+    pub async fn resolve_send_intent(
+        &self,
+        logical_send_id: &str,
+        state: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .resolve_send_intent(logical_send_id, state, provider_message_id, now)
+            .await
+    }
+
     pub async fn put_session_exchange_grant(
         &self,
         grant: SessionExchangeGrant,
@@ -945,6 +1029,7 @@ struct MemoryState {
     clarifications: BTreeMap<(String, Uuid), Clarification>,
     operation_receipts: BTreeMap<String, OperationReceipt>,
     session_exchange_grants: BTreeMap<String, SessionExchangeGrant>,
+    send_intents: BTreeMap<String, SendIntent>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -958,6 +1043,30 @@ pub struct MemoryTicketingStore {
 impl MemoryTicketingStore {
     pub async fn activity_intents(&self) -> Vec<TicketActivityIntent> {
         self.state.lock().await.activity_intents.clone()
+    }
+
+    /// Test seeding for the outbound send-intent state machine.
+    pub async fn put_send_intent_for_tests(
+        &self,
+        logical_send_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+        state: SendIntentState,
+    ) {
+        let mut guard = self.state.lock().await;
+        guard.send_intents.insert(
+            logical_send_id.to_owned(),
+            SendIntent {
+                logical_send_id: logical_send_id.to_owned(),
+                project_id: "project-a".into(),
+                ticket_id,
+                message_id,
+                state,
+                provider_message_id: None,
+                updated_at: Utc::now(),
+                created_at: Utc::now(),
+            },
+        );
     }
 
     pub async fn published_intent_ids(&self) -> BTreeSet<Uuid> {
@@ -1814,6 +1923,49 @@ impl TicketingStore for MemoryTicketingStore {
     ) -> Result<bool, TicketStoreError> {
         let mut state = self.state.lock().await;
         Ok(state.session_exchange_grants.remove(exchange_key).is_some())
+    }
+
+    async fn claim_send_intent(
+        &self,
+        intent: SendIntent,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        if let Some(existing) = state.send_intents.get(&intent.logical_send_id) {
+            return Ok(Some(existing.clone()));
+        }
+        state
+            .send_intents
+            .insert(intent.logical_send_id.clone(), intent.clone());
+        drop(state);
+        Ok(None)
+    }
+
+    async fn send_intent(
+        &self,
+        logical_send_id: &str,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        let state = self.state.lock().await;
+        Ok(state.send_intents.get(logical_send_id).cloned())
+    }
+
+    async fn resolve_send_intent(
+        &self,
+        logical_send_id: &str,
+        state: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let mut guard = self.state.lock().await;
+        match guard.send_intents.get_mut(logical_send_id) {
+            Some(intent) => {
+                intent.state = state;
+                intent.provider_message_id = provider_message_id;
+                intent.updated_at = now;
+                drop(guard);
+                Ok(true)
+            }
+            None => Ok(false),
+        }
     }
 
     async fn create_ticket_from_external(

@@ -1065,6 +1065,28 @@ impl TicketingService {
         }) {
             return Err(TicketingServiceError::InvalidDeliveryFeedback);
         }
+        // The verdict also resolves the durable send intent (exact-head
+        // review R4): acceptance marks it sent; an authoritative no-send
+        // returns it to pending so exactly one identity-stable resend may
+        // proceed.
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("ticketing:public-reply:{project_id}:{ticket_id}:{message_id}").as_bytes(),
+        )
+        .to_string();
+        let _ = self
+            .store
+            .resolve_send_intent(
+                &logical_send_id,
+                if accepted {
+                    crate::SendIntentState::Sent
+                } else {
+                    crate::SendIntentState::PendingSend
+                },
+                accepted.then(|| provider_message_id.to_owned()),
+                now,
+            )
+            .await;
         self.store
             .append_outbound_evidence(OutboundDeliveryEvidence {
                 project_id: project_id.to_owned(),

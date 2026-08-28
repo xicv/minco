@@ -200,6 +200,31 @@ Test totals at the final slice: ticketing 112, desk 16 (13 prior + 3
 durability), worker 22, plan 60+, browser 34; clippy -D warnings and
 rustfmt --check clean on every touched crate.
 
+**Exact-head re-review round 2 (2026-08-28, review comment 5046662764
+at head 170f434a)** — continue M14-T74, ten new findings R1-R10:
+
+- **R1 DONE** (`fix(desk): the shipped worker waits for SIGINT...`):
+  with_graceful_shutdown aborted the worker immediately; now waits for
+  Ctrl-C, aborts and awaits. Spawned-binary proof
+  scripts/test/desk_binary_lifecycle.py (in quality.sh): real process,
+  HTTP-driven durable job completed by the background loop, SIGINT →
+  exit 0.
+- **R2 DONE** (`fix(ticketing): atomic operation receipts...`):
+  migration 0012 ticketing_operation_receipts commits the serialized
+  authoritative result with the append in one transaction (memory +
+  SQLite); the requester-reply wrapper surfaces completion failure as
+  503 ticketing_idempotency_persist_uncertain and, after lease
+  staleness, replays the receipt instead of re-executing. Audit: only
+  requester reply + session exchange advertise Idempotency-Key today;
+  the append-path mechanism is generic for future surfaces.
+- **R3 DONE** (`fix(ticketing): rotation-based session replay...`):
+  migration 0013 ticketing_session_exchange_grants stores only
+  non-secret rotation material; replays ROTATE (new bearer, old
+  revoked), bodies + shared records are token-free with
+  Cache-Control: no-store; completion failure revokes + releases and
+  503s; stale-lease takeover revokes the replaced session; missing
+  grant fails closed. Desk durability proofs updated to rotation.
+
 **Final-head qualification (2026-08-27)**: `./scripts/quality.sh`
 exit 0 at the final head — 1,225 cargo tests passed workspace-wide,
 every python evidence suite OK (including the recipe matrix after

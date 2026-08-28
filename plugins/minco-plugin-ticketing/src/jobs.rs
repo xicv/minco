@@ -10,8 +10,8 @@
 #[cfg(feature = "sqlite")]
 use crate::TicketStoreError;
 use crate::{
-    OutboundDeliveryEvidence, OutboundEvidenceKind, TicketId, TicketMessageId, TicketingService,
-    TicketingStoreService,
+    OutboundDeliveryEvidence, OutboundEvidenceKind, SendIntent, SendIntentState, TicketId,
+    TicketMessageId, TicketingService, TicketingStoreService,
 };
 #[cfg(feature = "sqlite")]
 use async_trait::async_trait;
@@ -644,6 +644,48 @@ async fn deliver_public_reply_by_mail(
         .as_bytes(),
     );
     let stable_message_id = format!("<{stable_mail_id}@outbound.ticketing.invalid>");
+    // The send intent commits BEFORE provider contact (exact-head review
+    // R4): sent → done; sending/recovery → reconciliation only;
+    // pending → the one identity-stable resend.
+    let logical_send_id = stable_mail_id.to_string();
+    let claimed = store
+        .claim_send_intent(SendIntent {
+            logical_send_id: logical_send_id.clone(),
+            project_id: command.project_id.clone(),
+            ticket_id: command.ticket_id,
+            message_id,
+            state: SendIntentState::Sending,
+            provider_message_id: None,
+            updated_at: Utc::now(),
+            created_at: Utc::now(),
+        })
+        .await
+        .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
+    if let Some(existing) = claimed {
+        match existing.state {
+            SendIntentState::Sent => return Ok(()),
+            SendIntentState::PendingSend => {
+                let _ = store
+                    .resolve_send_intent(
+                        &existing.logical_send_id,
+                        SendIntentState::Sending,
+                        None,
+                        Utc::now(),
+                    )
+                    .await;
+            }
+            SendIntentState::Sending | SendIntentState::RecoveryRequired => {
+                return Err(JobExecutionFailure::permanent(
+                    "ticketing.notification_reconciliation_required",
+                ));
+            }
+            SendIntentState::FailedNoSend => {
+                return Err(JobExecutionFailure::permanent(
+                    "ticketing.notification_permanent",
+                ));
+            }
+        }
+    }
     let outbound_body = message.body.clone();
     let mail_message = minco_plugin_notifications::MailMessage::builder(
         "ticketing.public-notification",
@@ -652,11 +694,24 @@ async fn deliver_public_reply_by_mail(
     .id(stable_mail_id)
     .to(address)
     .text(outbound_body.clone())
+    .tag("minco-send-id", logical_send_id.clone())
     .build()
     .map_err(|_| JobExecutionFailure::permanent("ticketing.notification_message_invalid"))?;
     let now = Utc::now();
     match mail.send(mail_message).await {
         Ok(receipt) => {
+            // Provider acceptance resolves the intent with the provider's
+            // own message identity: SES overwrites caller Message-IDs, so
+            // the provider id is the correlation truth and the logical id
+            // remains the stable tag (exact-head review R4).
+            let _ = store
+                .resolve_send_intent(
+                    &logical_send_id,
+                    SendIntentState::Sent,
+                    Some(receipt.provider_message_id.clone()),
+                    Utc::now(),
+                )
+                .await;
             store
                 .append_outbound_evidence(OutboundDeliveryEvidence {
                     project_id: command.project_id.clone(),
@@ -705,9 +760,18 @@ async fn deliver_public_reply_by_mail(
                 "ticketing.notification_transport_retryable",
             )),
             MailRetryAdvice::ReconcileBeforeRetry => {
-                // Ambiguous result: record the fact, then fail closed. The
-                // next attempt sees the ambiguous evidence and demands
-                // explicit reconciliation — never a blind retry.
+                // Ambiguous result: the intent holds in recovery and the
+                // evidence records the fact; later attempts fail closed
+                // until explicit reconciliation — never a blind retry
+                // (exact-head review R4).
+                let _ = store
+                    .resolve_send_intent(
+                        &logical_send_id,
+                        SendIntentState::RecoveryRequired,
+                        None,
+                        Utc::now(),
+                    )
+                    .await;
                 store
                     .append_outbound_evidence(OutboundDeliveryEvidence {
                         project_id: command.project_id.clone(),
@@ -729,6 +793,14 @@ async fn deliver_public_reply_by_mail(
                 ))
             }
             MailRetryAdvice::Never => {
+                let _ = store
+                    .resolve_send_intent(
+                        &logical_send_id,
+                        SendIntentState::FailedNoSend,
+                        None,
+                        Utc::now(),
+                    )
+                    .await;
                 store
                     .append_outbound_evidence(OutboundDeliveryEvidence {
                         project_id: command.project_id.clone(),
@@ -1194,6 +1266,42 @@ mod tests {
             .unwrap();
         assert_eq!(transport.submit_count().await, 1);
         assert_eq!(store.all_outbound_evidence().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn resolved_send_intent_prevents_resend_after_evidence_failure() {
+        // Exact-head review R4: the provider accepted the mail and the
+        // intent resolved, but the evidence write failed. The retry must
+        // NOT contact the provider again.
+        let (services, transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        // Simulate the crashed prior attempt: intent resolved as sent,
+        // evidence missing.
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "ticketing:public-reply:project-a:{}:{}",
+                ticket.id, message.id
+            )
+            .as_bytes(),
+        )
+        .to_string();
+        store
+            .put_send_intent_for_tests(
+                &logical_send_id,
+                ticket.id,
+                message.id,
+                crate::SendIntentState::Sent,
+            )
+            .await;
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(
+            transport.submit_count().await,
+            0,
+            "a resolved send intent must suppress the resend"
+        );
     }
 
     #[tokio::test]

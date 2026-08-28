@@ -3,12 +3,13 @@ use crate::{
     ClarificationState, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
     ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity,
     ExternalMessageIngestResult, IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT,
-    OperationReceipt, OutboundDeliveryEvidence, OutboundEvidenceKind, SessionExchangeGrant, Ticket,
-    TicketActivityIntent, TicketId, TicketListFilter, TicketMessageId, TicketRequester,
-    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStore,
+    OperationReceipt, OutboundDeliveryEvidence, OutboundEvidenceKind, SendIntent, SendIntentState,
+    SessionExchangeGrant, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
+    TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
+    TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
 use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 use std::collections::BTreeMap;
@@ -906,6 +907,93 @@ impl TicketingStore for SqliteTicketingStore {
             })
         })
         .transpose()
+    }
+
+    async fn claim_send_intent(
+        &self,
+        intent: SendIntent,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        let existing = self.send_intent(&intent.logical_send_id).await?;
+        if existing.is_some() {
+            return Ok(existing);
+        }
+        sqlx::query(
+            "INSERT INTO ticketing_send_intents
+                 (logical_send_id, project_id, ticket_id, message_id, state, provider_message_id, updated_at, created_at)
+             VALUES (?, ?, ?, ?, 'sending', NULL, ?, ?)",
+        )
+        .bind(&intent.logical_send_id)
+        .bind(&intent.project_id)
+        .bind(intent.ticket_id.to_string())
+        .bind(intent.message_id.to_string())
+        .bind(intent.updated_at.to_rfc3339())
+        .bind(intent.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(None)
+    }
+
+    async fn send_intent(
+        &self,
+        logical_send_id: &str,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT logical_send_id, project_id, ticket_id, message_id, state,
+                    provider_message_id, updated_at, created_at
+               FROM ticketing_send_intents WHERE logical_send_id = ?",
+        )
+        .bind(logical_send_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| {
+            Ok(SendIntent {
+                logical_send_id: row.get("logical_send_id"),
+                project_id: row.get("project_id"),
+                ticket_id: TicketId(Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(
+                    |_| {
+                        TicketStoreError::Infrastructure(
+                            "stored send intent ticket id is not a UUID".into(),
+                        )
+                    },
+                )?),
+                message_id: TicketMessageId(
+                    Uuid::parse_str(&row.get::<String, _>("message_id")).map_err(|_| {
+                        TicketStoreError::Infrastructure(
+                            "stored send intent message id is not a UUID".into(),
+                        )
+                    })?,
+                ),
+                state: parse_send_intent_state(&row.get::<String, _>("state"))?,
+                provider_message_id: row.get("provider_message_id"),
+                updated_at: parse_timestamp(&row.get::<String, _>("updated_at"))?,
+                created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn resolve_send_intent(
+        &self,
+        logical_send_id: &str,
+        state: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = ?, provider_message_id = ?, updated_at = ?
+              WHERE logical_send_id = ?",
+        )
+        .bind(send_intent_state_name(state))
+        .bind(provider_message_id)
+        .bind(now.to_rfc3339())
+        .bind(logical_send_id)
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() > 0)
     }
 
     async fn put_session_exchange_grant(
@@ -1998,6 +2086,29 @@ fn parse_enum<T: serde::de::DeserializeOwned>(
     serde_json::from_value(serde_json::Value::String(value)).map_err(|_| {
         TicketStoreError::Infrastructure(format!("stored {field} is not a valid enum value"))
     })
+}
+
+const fn send_intent_state_name(state: SendIntentState) -> &'static str {
+    match state {
+        SendIntentState::PendingSend => "pending_send",
+        SendIntentState::Sending => "sending",
+        SendIntentState::Sent => "sent",
+        SendIntentState::RecoveryRequired => "recovery_required",
+        SendIntentState::FailedNoSend => "failed_no_send",
+    }
+}
+
+fn parse_send_intent_state(value: &str) -> Result<SendIntentState, TicketStoreError> {
+    match value {
+        "pending_send" => Ok(SendIntentState::PendingSend),
+        "sending" => Ok(SendIntentState::Sending),
+        "sent" => Ok(SendIntentState::Sent),
+        "recovery_required" => Ok(SendIntentState::RecoveryRequired),
+        "failed_no_send" => Ok(SendIntentState::FailedNoSend),
+        other => Err(TicketStoreError::Infrastructure(format!(
+            "unknown send intent state {other:?}"
+        ))),
+    }
 }
 
 fn parse_timestamp(value: &str) -> Result<chrono::DateTime<chrono::Utc>, TicketStoreError> {
