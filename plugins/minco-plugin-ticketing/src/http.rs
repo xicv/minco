@@ -830,7 +830,13 @@ async fn requester_session_exchange(
 
     match state
         .service
-        .exchange_requester_session(token, &body.portal_origin, fingerprint.as_str(), Utc::now())
+        .exchange_requester_session(
+            token,
+            &body.portal_origin,
+            fingerprint.as_str(),
+            key.as_str(),
+            Utc::now(),
+        )
         .await
     {
         Ok(grant) => {
@@ -932,6 +938,13 @@ async fn requester_logout(
         .as_ref()
         .ok_or_else(|| identity_required(&request_id))?;
     require_session_csrf(&state, &requester, &headers, &request_id)?;
+    // Logout also kills the exchange's replay authority (exact-head
+    // review R20): a holder of the original handoff token cannot mint a
+    // new session after the user signed out.
+    state
+        .service
+        .revoke_exchange_for_logout(&session.attributes)
+        .await;
     state
         .service
         .revoke_requester_session(session.id)
@@ -4266,6 +4279,57 @@ mod tests {
             forbidden_write.status(),
             StatusCode::FORBIDDEN,
             "the replayed read-only session must not gain write access"
+        );
+    }
+
+    #[tokio::test]
+    async fn logout_kills_the_replay_authority() {
+        // Exact-head review R20/P0-1: after logout, the holder of the
+        // original handoff token must NOT be able to mint a new session.
+        let (app, token) = portal_app().await;
+        let exchange = |token: &SupportHandoffToken| {
+            app.clone().oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({"portal_origin": "https://support.example.test"})
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+        };
+        let created = exchange(&token).await.unwrap();
+        assert_eq!(created.status(), StatusCode::CREATED);
+        let cookie = created
+            .headers()
+            .get(header::SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap()
+            .to_owned();
+        let grant: serde_json::Value =
+            serde_json::from_slice(&to_bytes(created.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let csrf = grant["csrf_token"].as_str().unwrap().to_owned();
+        let logout = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/logout")
+                    .header(header::COOKIE, &cookie)
+                    .header("x-minco-csrf", &csrf)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(logout.status(), StatusCode::NO_CONTENT);
+        // A replay after logout must NOT mint a new session.
+        let replay = exchange(&token).await.unwrap();
+        assert_eq!(
+            replay.status(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            "the replay authority died with the session"
         );
     }
 

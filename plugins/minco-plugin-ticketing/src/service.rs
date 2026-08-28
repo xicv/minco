@@ -2170,6 +2170,7 @@ impl TicketingService {
         token: SupportHandoffToken,
         portal_origin: &str,
         request_fingerprint: &str,
+        exchange_key: &str,
         now: DateTime<Utc>,
     ) -> Result<RequesterSessionGrant, TicketingServiceError> {
         let sessions = self
@@ -2204,6 +2205,9 @@ impl TicketingService {
                         "ticketing.permissions".into(),
                         identity.requester_permissions.join(","),
                     ),
+                    // The exchange key rides the session so logout can
+                    // revoke the replay authority (exact-head review R20).
+                    ("ticketing.exchange_key".into(), exchange_key.to_owned()),
                 ]),
             })
             .await
@@ -2224,6 +2228,11 @@ impl TicketingService {
     /// Records the rotation grant for one completed exchange (exact-head
     /// review R3): the grant carries only non-secret material, so a
     /// database compromise yields no live bearer.
+    /// Fenced initial/takeover grant record (exact-head review R20/P0-1):
+    /// reads the current generation, records only when it still matches,
+    /// and revokes the replaced session — surfacing every failure. A
+    /// stale worker that lost its lease observes a newer generation and
+    /// leaves the winner's grant untouched.
     pub async fn record_session_exchange_grant(
         &self,
         exchange_key: &str,
@@ -2233,46 +2242,58 @@ impl TicketingService {
         permissions: Vec<String>,
         replay_deadline: DateTime<Utc>,
     ) -> Result<(), TicketingServiceError> {
-        // A stale-lease takeover replaces the previous exchange's session:
-        // the grant upsert records the new one and the previous bearer is
-        // revoked so no orphan session survives (exact-head review R3).
-        let previous = self
+        let current = self
             .store
             .session_exchange_grant(exchange_key)
             .await
-            .map_err(TicketingServiceError::from)?
+            .map_err(TicketingServiceError::from)?;
+        let expected_generation = current.as_ref().map(|grant| grant.generation);
+        let previous = current
             .filter(|grant| grant.session_id != session_id)
             .map(|grant| grant.session_id);
-        // The grant records the ACTUAL handoff permission set (exact-head
-        // review R11): rotation mints from these and can never widen a
-        // read-only handoff into write access.
-        self.store
-            .put_session_exchange_grant(crate::SessionExchangeGrant {
-                exchange_key: exchange_key.to_owned(),
-                session_id,
-                subject: subject.to_owned(),
-                project_id: self.config.project_id.clone(),
-                permissions,
-                portal_origin: portal_origin.to_owned(),
-                // Fixed replay deadline: rotations never extend it.
-                expires_at: replay_deadline,
-                created_at: Utc::now(),
-            })
+        let stored = self
+            .store
+            .record_session_exchange_fenced(
+                crate::SessionExchangeGrant {
+                    exchange_key: exchange_key.to_owned(),
+                    session_id,
+                    generation: expected_generation.unwrap_or(0),
+                    subject: subject.to_owned(),
+                    project_id: self.config.project_id.clone(),
+                    permissions,
+                    portal_origin: portal_origin.to_owned(),
+                    expires_at: replay_deadline,
+                    created_at: Utc::now(),
+                    revoked_at: None,
+                },
+                expected_generation,
+            )
             .await
             .map_err(TicketingServiceError::from)?;
+        if stored.session_id != session_id {
+            // A newer exchange won the race: this worker's session must
+            // die and the winner's grant stays.
+            if let Some(sessions) = self.portal.sessions.as_ref() {
+                sessions.revoke(session_id).await.map_err(|error| {
+                    TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                        "losing exchange session could not be revoked: {error}"
+                    )))
+                })?;
+            }
+            return Err(TicketingServiceError::SessionUnauthenticated);
+        }
         if let Some(previous) = previous
             && let Some(sessions) = self.portal.sessions.as_ref()
         {
-            let _ = sessions.revoke(previous).await;
+            sessions.revoke(previous).await.map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                    "replaced session could not be revoked: {error}"
+                )))
+            })?;
         }
         Ok(())
     }
 
-    /// Rotates a session-exchange replay (exact-head review R3): mints a
-    /// fresh session from the grant's non-secret attributes, revokes the
-    /// previously issued session and updates the grant. The response to a
-    /// replay is always a NEW bearer — no token is ever read back from
-    /// storage.
     pub async fn rotate_session_exchange(
         &self,
         exchange_key: &str,
@@ -2294,8 +2315,9 @@ impl TicketingService {
             .map_err(TicketingServiceError::from)?
             .ok_or(TicketingServiceError::SessionUnauthenticated)?;
         // The FIXED replay deadline from the original exchange: rotations
-        // never extend it (exact-head review R11).
-        if grant.expires_at <= Utc::now() {
+        // never extend it (exact-head review R11); a revoked grant (logout)
+        // can never mint another session (exact-head review R20).
+        if grant.expires_at <= Utc::now() || grant.revoked_at.is_some() {
             return Err(TicketingServiceError::SessionUnauthenticated);
         }
         let previous = grant.session_id;
@@ -2310,6 +2332,7 @@ impl TicketingService {
                         grant.portal_origin.clone(),
                     ),
                     ("ticketing.permissions".into(), grant.permissions.join(",")),
+                    ("ticketing.exchange_key".into(), grant.exchange_key.clone()),
                 ]),
             })
             .await
@@ -2355,6 +2378,23 @@ impl TicketingService {
         })
     }
 
+    /// Logout revocation of the exchange replay authority (exact-head
+    /// review R20): the session attributes carry the original exchange
+    /// key stamped at issue time; revoking it means replays die with the
+    /// session. Failures are logged — logout itself must still succeed.
+    pub async fn revoke_exchange_for_logout(&self, attributes: &BTreeMap<String, String>) {
+        let Some(exchange_key) = attributes.get("ticketing.exchange_key") else {
+            return;
+        };
+        if let Err(error) = self
+            .store
+            .revoke_session_exchange(exchange_key, Utc::now())
+            .await
+        {
+            tracing::warn!(%error, exchange_key, "logout could not revoke the replay grant");
+        }
+    }
+
     /// Revokes the session a failed exchange created and removes its
     /// grant (exact-head review R3): no orphan live sessions.
     pub async fn abandon_session_exchange(
@@ -2363,9 +2403,16 @@ impl TicketingService {
         session_id: minco_plugin_sessions::SessionId,
     ) -> Result<(), TicketingServiceError> {
         if let Some(sessions) = self.portal.sessions.as_ref() {
-            let _ = sessions.revoke(session_id).await;
+            sessions.revoke(session_id).await.map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                    "abandoned session could not be revoked: {error}"
+                )))
+            })?;
         }
-        let _ = self.store.remove_session_exchange_grant(exchange_key).await;
+        self.store
+            .remove_session_exchange_grant(exchange_key)
+            .await
+            .map_err(TicketingServiceError::from)?;
         Ok(())
     }
 

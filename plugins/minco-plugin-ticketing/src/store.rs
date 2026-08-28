@@ -272,12 +272,21 @@ pub struct OperationReceipt {
 pub struct SessionExchangeGrant {
     pub exchange_key: String,
     pub session_id: minco_plugin_sessions::SessionId,
+    /// Monotonic fencing generation (exact-head review R20/P0-1): every
+    /// grant mutation carries and bumps it; a stale worker observing an
+    /// older generation can never overwrite a newer exchange.
+    pub generation: u64,
     pub subject: String,
     pub project_id: String,
     pub permissions: Vec<String>,
     pub portal_origin: String,
+    /// Fixed replay deadline from the original exchange; rotations and
+    /// takeovers never extend it.
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+    /// Logout revocation (exact-head review R20): a revoked grant can
+    /// never mint another session.
+    pub revoked_at: Option<DateTime<Utc>>,
 }
 
 /// One atomic pool-mode assignment request (exact-head review R7).
@@ -474,6 +483,23 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
 
     /// Records or replaces the replay grant for one session exchange
     /// (exact-head review R3); removing it kills future replays.
+    /// Fenced initial/takeover record (exact-head review R20/P0-1):
+    /// succeeds only when the grant does not exist or records the
+    /// expected generation. Returns the grant actually stored after the
+    /// attempt so a stale worker can discover it lost.
+    async fn record_session_exchange_fenced(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError>;
+
+    /// Revokes a replay grant (logout): replays after this fail closed.
+    async fn revoke_session_exchange(
+        &self,
+        exchange_key: &str,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError>;
+
     /// Atomic compare-and-swap rotation of a replay grant (exact-head
     /// review R11): succeeds only when the grant still records
     /// `expected_session_id`. The deadline is deliberately NOT updated —
@@ -912,6 +938,24 @@ impl TicketingStoreService {
         self.0
             .resolve_send_intent(logical_send_id, state, provider_message_id, now)
             .await
+    }
+
+    pub async fn record_session_exchange_fenced(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        self.0
+            .record_session_exchange_fenced(grant, expected_generation)
+            .await
+    }
+
+    pub async fn revoke_session_exchange(
+        &self,
+        exchange_key: &str,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.0.revoke_session_exchange(exchange_key, now).await
     }
 
     pub async fn claim_session_rotation(
@@ -2052,12 +2096,65 @@ impl TicketingStore for MemoryTicketingStore {
     ) -> Result<bool, TicketStoreError> {
         let mut state = self.state.lock().await;
         match state.session_exchange_grants.get_mut(exchange_key) {
-            Some(grant) if grant.session_id == expected_session_id => {
+            Some(grant)
+                if grant.session_id == expected_session_id && grant.revoked_at.is_none() =>
+            {
                 grant.session_id = new_session_id;
+                grant.generation += 1;
                 drop(state);
                 Ok(true)
             }
             _ => Ok(false),
+        }
+    }
+
+    async fn record_session_exchange_fenced(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.session_exchange_grants.get(&grant.exchange_key) {
+            None if expected_generation.is_none() => {
+                state
+                    .session_exchange_grants
+                    .insert(grant.exchange_key.clone(), grant.clone());
+                drop(state);
+                Ok(grant)
+            }
+            Some(existing) if Some(existing.generation) == expected_generation => {
+                let mut next = grant;
+                next.generation = existing.generation + 1;
+                state
+                    .session_exchange_grants
+                    .insert(next.exchange_key.clone(), next.clone());
+                drop(state);
+                Ok(next)
+            }
+            Some(existing) => Ok(existing.clone()),
+            None => Err(TicketStoreError::Infrastructure(
+                "fenced exchange record expected an existing generation".into(),
+            )),
+        }
+    }
+
+    async fn revoke_session_exchange(
+        &self,
+        exchange_key: &str,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.session_exchange_grants.get_mut(exchange_key) {
+            Some(grant) => {
+                if grant.revoked_at.is_some() {
+                    drop(state);
+                    return Ok(false);
+                }
+                grant.revoked_at = Some(now);
+                drop(state);
+                Ok(true)
+            }
+            None => Ok(false),
         }
     }
 

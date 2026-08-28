@@ -1164,12 +1164,91 @@ impl TicketingStore for SqliteTicketingStore {
     ) -> Result<bool, TicketStoreError> {
         let updated = sqlx::query(
             "UPDATE ticketing_session_exchange_grants
-                SET session_id = ?
-              WHERE exchange_key = ? AND session_id = ?",
+                SET session_id = ?, generation = generation + 1
+              WHERE exchange_key = ? AND session_id = ? AND revoked_at IS NULL",
         )
         .bind(new_session_id.0.to_string())
         .bind(exchange_key)
         .bind(expected_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn record_session_exchange_fenced(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        let existing = self.session_exchange_grant(&grant.exchange_key).await?;
+        match (existing, expected_generation) {
+            (None, None) => {
+                let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+                sqlx::query(
+                    "INSERT INTO ticketing_session_exchange_grants
+                     (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at, generation, revoked_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)",
+                )
+                .bind(&grant.exchange_key)
+                .bind(grant.session_id.0.to_string())
+                .bind(&grant.subject)
+                .bind(&grant.project_id)
+                .bind(grant.permissions.join(","))
+                .bind(&grant.portal_origin)
+                .bind(grant.expires_at.to_rfc3339())
+                .bind(grant.created_at.to_rfc3339())
+                .execute(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                transaction.commit().await.map_err(infrastructure)?;
+                Ok(grant)
+            }
+            (Some(current), Some(expected)) if current.generation == expected => {
+                let next_generation = current.generation + 1;
+                sqlx::query(
+                    "UPDATE ticketing_session_exchange_grants
+                        SET session_id = ?, subject = ?, project_id = ?, permissions = ?,
+                            portal_origin = ?, generation = generation + 1
+                      WHERE exchange_key = ? AND generation = ?",
+                )
+                .bind(grant.session_id.0.to_string())
+                .bind(&grant.subject)
+                .bind(&grant.project_id)
+                .bind(grant.permissions.join(","))
+                .bind(&grant.portal_origin)
+                .bind(&grant.exchange_key)
+                .bind(
+                    i64::try_from(current.generation).map_err(|_| {
+                        TicketStoreError::Infrastructure("generation overflow".into())
+                    })?,
+                )
+                .execute(&self.pool)
+                .await
+                .map_err(infrastructure)?;
+                let mut stored = grant;
+                stored.generation = next_generation;
+                Ok(stored)
+            }
+            (Some(current), _) => Ok(current),
+            (None, Some(_)) => Err(TicketStoreError::Infrastructure(
+                "fenced exchange record expected an existing generation".into(),
+            )),
+        }
+    }
+
+    async fn revoke_session_exchange(
+        &self,
+        exchange_key: &str,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET revoked_at = ?
+              WHERE exchange_key = ? AND revoked_at IS NULL",
+        )
+        .bind(now.to_rfc3339())
+        .bind(exchange_key)
         .execute(&self.pool)
         .await
         .map_err(infrastructure)?;
@@ -1207,37 +1286,14 @@ impl TicketingStore for SqliteTicketingStore {
     ) -> Result<Option<SessionExchangeGrant>, TicketStoreError> {
         let row = sqlx::query(
             "SELECT exchange_key, session_id, subject, project_id, permissions,
-                    portal_origin, expires_at, created_at
+                    portal_origin, expires_at, created_at, generation, revoked_at
                FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
         )
         .bind(exchange_key)
         .fetch_optional(&self.pool)
         .await
         .map_err(infrastructure)?;
-        row.map(|row| {
-            Ok(SessionExchangeGrant {
-                exchange_key: row.get("exchange_key"),
-                session_id: minco_plugin_sessions::SessionId(
-                    Uuid::parse_str(&row.get::<String, _>("session_id")).map_err(|_| {
-                        TicketStoreError::Infrastructure(
-                            "stored grant session id is not a UUID".into(),
-                        )
-                    })?,
-                ),
-                subject: row.get("subject"),
-                project_id: row.get("project_id"),
-                permissions: row
-                    .get::<String, _>("permissions")
-                    .split(',')
-                    .filter(|part| !part.is_empty())
-                    .map(str::to_owned)
-                    .collect(),
-                portal_origin: row.get("portal_origin"),
-                expires_at: parse_timestamp(&row.get::<String, _>("expires_at"))?,
-                created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
-            })
-        })
-        .transpose()
+        row.map(|row| parse_grant_row(&row)).transpose()
     }
 
     async fn remove_session_exchange_grant(
@@ -2264,6 +2320,35 @@ fn parse_enum<T: serde::de::DeserializeOwned>(
 ) -> Result<T, TicketStoreError> {
     serde_json::from_value(serde_json::Value::String(value)).map_err(|_| {
         TicketStoreError::Infrastructure(format!("stored {field} is not a valid enum value"))
+    })
+}
+
+fn parse_grant_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<SessionExchangeGrant, TicketStoreError> {
+    Ok(SessionExchangeGrant {
+        exchange_key: row.get("exchange_key"),
+        session_id: minco_plugin_sessions::SessionId(
+            Uuid::parse_str(&row.get::<String, _>("session_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("stored grant session id is not a UUID".into())
+            })?,
+        ),
+        generation: u64::try_from(row.get::<i64, _>("generation")).unwrap_or(0),
+        subject: row.get("subject"),
+        project_id: row.get("project_id"),
+        permissions: row
+            .get::<String, _>("permissions")
+            .split(',')
+            .filter(|part| !part.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        portal_origin: row.get("portal_origin"),
+        expires_at: parse_timestamp(&row.get::<String, _>("expires_at"))?,
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+        revoked_at: row
+            .get::<Option<String>, _>("revoked_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
     })
 }
 
