@@ -1074,6 +1074,26 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(None)
     }
 
+    async fn claim_send_attempt(
+        &self,
+        logical_send_id: &str,
+        expected_state: SendIntentState,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = 'sending', updated_at = ?
+              WHERE logical_send_id = ? AND state = ?",
+        )
+        .bind(now.to_rfc3339())
+        .bind(logical_send_id)
+        .bind(send_intent_state_name(expected_state))
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
     async fn send_intent(
         &self,
         logical_send_id: &str,

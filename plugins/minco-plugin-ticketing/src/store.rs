@@ -498,6 +498,17 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         request: AtomicAssignmentRequest,
     ) -> Result<Ticket, TicketStoreError>;
 
+    /// Fenced send-attempt claim (exact-head review R13): succeeds only
+    /// when the intent is currently in `expected_state`, transitioning it
+    /// to `sending`. Only the caller holding this claim may contact the
+    /// provider; a failed claim means zero provider calls.
+    async fn claim_send_attempt(
+        &self,
+        logical_send_id: &str,
+        expected_state: SendIntentState,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError>;
+
     /// Claims or advances one send intent atomically (exact-head review
     /// R4). `Ok(None)` means the intent was newly claimed for sending;
     /// `Ok(Some(current))` returns the existing state so the caller can
@@ -878,6 +889,17 @@ impl TicketingStoreService {
         logical_send_id: &str,
     ) -> Result<Option<SendIntent>, TicketStoreError> {
         self.0.send_intent(logical_send_id).await
+    }
+
+    pub async fn claim_send_attempt(
+        &self,
+        logical_send_id: &str,
+        expected_state: SendIntentState,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .claim_send_attempt(logical_send_id, expected_state, now)
+            .await
     }
 
     pub async fn resolve_send_intent(
@@ -2159,6 +2181,24 @@ impl TicketingStore for MemoryTicketingStore {
     ) -> Result<Option<SendIntent>, TicketStoreError> {
         let state = self.state.lock().await;
         Ok(state.send_intents.get(logical_send_id).cloned())
+    }
+
+    async fn claim_send_attempt(
+        &self,
+        logical_send_id: &str,
+        expected_state: SendIntentState,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.send_intents.get_mut(logical_send_id) {
+            Some(intent) if intent.state == expected_state => {
+                intent.state = SendIntentState::Sending;
+                intent.updated_at = now;
+                drop(state);
+                Ok(true)
+            }
+            None | Some(_) => Ok(false),
+        }
     }
 
     async fn resolve_send_intent(

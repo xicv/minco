@@ -842,14 +842,25 @@ async fn deliver_public_reply_by_mail(
         match existing.state {
             SendIntentState::Sent => return Ok(()),
             SendIntentState::PendingSend => {
-                let _ = store
-                    .resolve_send_intent(
+                // A reconciled authoritative no-send: the fenced
+                // pending_send -> sending claim must SUCCEED before any
+                // provider contact (exact-head review R13). A failed
+                // claim makes zero provider calls.
+                let claimed_attempt = store
+                    .claim_send_attempt(
                         &existing.logical_send_id,
-                        SendIntentState::Sending,
-                        None,
+                        SendIntentState::PendingSend,
                         Utc::now(),
                     )
-                    .await;
+                    .await
+                    .map_err(|_| {
+                        JobExecutionFailure::retryable("ticketing.evidence_unavailable")
+                    })?;
+                if !claimed_attempt {
+                    return Err(JobExecutionFailure::permanent(
+                        "ticketing.notification_reconciliation_required",
+                    ));
+                }
             }
             SendIntentState::Sending | SendIntentState::RecoveryRequired => {
                 return Err(JobExecutionFailure::permanent(
@@ -933,9 +944,29 @@ async fn deliver_public_reply_by_mail(
             Ok(())
         }
         Err(error) => match error.retry_advice() {
-            MailRetryAdvice::SafeAfterBackoff => Err(JobExecutionFailure::retryable(
-                "ticketing.notification_transport_retryable",
-            )),
+            MailRetryAdvice::SafeAfterBackoff => {
+                // The provider explicitly reported no side effect: the
+                // intent returns to pending_send so the next attempt can
+                // retry (exact-head review R13). A persistence failure
+                // surfaces as retryable — never a silent wedge.
+                if store
+                    .resolve_send_intent(
+                        &logical_send_id,
+                        SendIntentState::PendingSend,
+                        None,
+                        Utc::now(),
+                    )
+                    .await
+                    .is_err()
+                {
+                    return Err(JobExecutionFailure::retryable(
+                        "ticketing.evidence_unavailable",
+                    ));
+                }
+                Err(JobExecutionFailure::retryable(
+                    "ticketing.notification_transport_retryable",
+                ))
+            }
             MailRetryAdvice::ReconcileBeforeRetry => {
                 // Ambiguous result: the intent holds in recovery and the
                 // evidence records the fact; later attempts fail closed
@@ -1446,6 +1477,88 @@ mod tests {
             .unwrap();
         assert_eq!(transport.submit_count().await, 1);
         assert_eq!(store.all_outbound_evidence().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn safe_backoff_returns_to_pending_and_the_next_attempt_retries() {
+        // Exact-head review R13: a provider-confirmed no-side-effect
+        // failure must return the intent to pending_send so the retry
+        // actually retries — the old code left it in sending and the
+        // next attempt wedged permanently on reconciliation_required.
+        let (services, transport, store, ticket, message) = mail_setup(vec![Err(mail_error(
+            minco_plugin_notifications::MailErrorKind::Throttled,
+        ))])
+        .await;
+        let first = services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap_err();
+        assert_eq!(first.code(), "ticketing.notification_transport_retryable");
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "ticketing:public-reply:project-a:{}:{}",
+                ticket.id, message.id
+            )
+            .as_bytes(),
+        )
+        .to_string();
+        let intent = TicketingStoreService::new(store)
+            .send_intent(&logical_send_id)
+            .await
+            .unwrap()
+            .expect("intent exists");
+        assert_eq!(intent.state, crate::SendIntentState::PendingSend);
+        // The retry now genuinely contacts the provider again.
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 2);
+    }
+
+    #[tokio::test]
+    async fn failed_pending_send_claim_makes_zero_provider_calls() {
+        // Exact-head review R13: when the fenced pending_send->sending
+        // claim loses (another worker holds it), the attempt must not
+        // contact the provider at all.
+        let (services, transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "ticketing:public-reply:project-a:{}:{}",
+                ticket.id, message.id
+            )
+            .as_bytes(),
+        )
+        .to_string();
+        // Simulate a prior attempt that resolved to pending (reconciled
+        // no-send) and then another worker already claimed sending.
+        store
+            .put_send_intent_for_tests(
+                &logical_send_id,
+                ticket.id,
+                message.id,
+                crate::SendIntentState::Sending,
+            )
+            .await;
+        let failure = services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            failure.code(),
+            "ticketing.notification_reconciliation_required"
+        );
+        assert!(
+            failure.is_permanent(),
+            "a lost claim is reconciliation, not a resend"
+        );
+        assert_eq!(
+            transport.submit_count().await,
+            0,
+            "a lost fenced claim makes zero provider calls"
+        );
     }
 
     #[tokio::test]
