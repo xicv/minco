@@ -280,6 +280,24 @@ pub struct SessionExchangeGrant {
     pub created_at: DateTime<Utc>,
 }
 
+/// One atomic pool-mode assignment request (exact-head review R7).
+///
+/// The store verifies the revision, selects the assignee (advancing the
+/// round-robin cursor or evaluating the workload under the same lock),
+/// updates the ticket and appends the activity intent in one
+/// transaction — a stale revision can never consume a cursor slot and
+/// concurrent least-workload requests can never observe the same counts.
+#[derive(Debug, Clone)]
+pub struct AtomicAssignmentRequest {
+    pub project_id: String,
+    pub ticket_id: TicketId,
+    pub mode: crate::AssignmentMode,
+    pub pool: Vec<String>,
+    pub expected_revision: u64,
+    pub correlation_id: Uuid,
+    pub now: DateTime<Utc>,
+}
+
 /// One durable outbound send intent (exact-head review R4): committed
 /// before provider contact and resolved by stable logical identity, so
 /// ambiguous transport outcomes recover without duplicate sends.
@@ -460,6 +478,14 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         &self,
         grant: SessionExchangeGrant,
     ) -> Result<(), TicketStoreError>;
+
+    /// Atomically assigns one ticket in a pool mode (exact-head review
+    /// R7): revision check, selection, update and intent append commit
+    /// together; a stale revision rejects without consuming a slot.
+    async fn assign_ticket_atomically(
+        &self,
+        request: AtomicAssignmentRequest,
+    ) -> Result<Ticket, TicketStoreError>;
 
     /// Claims or advances one send intent atomically (exact-head review
     /// R4). `Ok(None)` means the intent was newly claimed for sending;
@@ -820,6 +846,13 @@ impl TicketingStoreService {
         idempotency_key: &str,
     ) -> Result<Option<OperationReceipt>, TicketStoreError> {
         self.0.operation_receipt(idempotency_key).await
+    }
+
+    pub async fn assign_ticket_atomically(
+        &self,
+        request: AtomicAssignmentRequest,
+    ) -> Result<Ticket, TicketStoreError> {
+        self.0.assign_ticket_atomically(request).await
     }
 
     pub async fn claim_send_intent(
@@ -1981,6 +2014,89 @@ impl TicketingStore for MemoryTicketingStore {
     ) -> Result<bool, TicketStoreError> {
         let mut state = self.state.lock().await;
         Ok(state.session_exchange_grants.remove(exchange_key).is_some())
+    }
+
+    async fn assign_ticket_atomically(
+        &self,
+        request: AtomicAssignmentRequest,
+    ) -> Result<Ticket, TicketStoreError> {
+        if request.pool.is_empty() {
+            return Err(TicketStoreError::Infrastructure(
+                "assignment_pool is not configured".into(),
+            ));
+        }
+        let mut state = self.state.lock().await;
+        let key = (request.project_id.clone(), request.ticket_id);
+        let mut ticket = state
+            .tickets
+            .get(&key)
+            .cloned()
+            .ok_or(TicketStoreError::NotFound(request.ticket_id))?;
+        if ticket.revision != request.expected_revision {
+            return Err(TicketStoreError::StaleRevision {
+                expected: request.expected_revision,
+                actual: ticket.revision,
+            });
+        }
+        let assignee = match request.mode {
+            crate::AssignmentMode::Manual => {
+                return Err(TicketStoreError::Infrastructure(
+                    "manual assignment is not a pool mode".into(),
+                ));
+            }
+            crate::AssignmentMode::RoundRobin => {
+                let next = state
+                    .assignment_cursor
+                    .get(&request.project_id)
+                    .copied()
+                    .unwrap_or(0);
+                let pool_len = request.pool.len() as u64;
+                let index = usize::try_from(next % pool_len).unwrap_or(0);
+                state
+                    .assignment_cursor
+                    .insert(request.project_id.clone(), (next + 1) % pool_len);
+                request.pool.get(index).cloned().unwrap_or_default()
+            }
+            crate::AssignmentMode::LeastWorkload => {
+                let workload: std::collections::BTreeMap<String, u64> = state
+                    .tickets
+                    .values()
+                    .filter(|candidate| candidate.project_id == request.project_id)
+                    .filter(|candidate| candidate.assignee_subject.is_some())
+                    .filter(|candidate| {
+                        !matches!(
+                            candidate.status,
+                            crate::TicketStatus::Resolved | crate::TicketStatus::Closed
+                        )
+                    })
+                    .fold(std::collections::BTreeMap::new(), |mut acc, candidate| {
+                        let subject = candidate.assignee_subject.clone().unwrap_or_default();
+                        *acc.entry(subject).or_insert(0u64) += 1;
+                        acc
+                    });
+                request
+                    .pool
+                    .iter()
+                    .min_by_key(|subject| (workload.get(*subject).copied().unwrap_or(0), *subject))
+                    .cloned()
+                    .unwrap_or_default()
+            }
+        };
+        ticket
+            .assign(Some(assignee), request.now)
+            .map_err(TicketStoreError::Validation)?;
+        let intent = TicketActivityIntent::new(
+            ticket.project_id.clone(),
+            ticket.id,
+            "ticketing.assignment_changed",
+            request.correlation_id,
+            serde_json::json!({ "ticket_id": ticket.id }),
+            request.now,
+        );
+        state.tickets.insert(key, ticket.clone());
+        state.activity_intents.push(intent);
+        drop(state);
+        Ok(ticket)
     }
 
     async fn claim_send_intent(

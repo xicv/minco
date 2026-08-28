@@ -775,52 +775,46 @@ impl TicketingService {
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
         authorize(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
-        let assignee = match mode {
-            crate::AssignmentMode::Manual => manual,
-            crate::AssignmentMode::RoundRobin => {
-                let pool = self.config.assignment_pool.clone();
-                if pool.is_empty() {
-                    return Err(TicketingServiceError::Configuration(
-                        "assignment_pool is not configured".into(),
-                    ));
-                }
-                let index = self
-                    .store
-                    .advance_assignment_cursor(project_id, pool.len())
-                    .await?;
-                // The cursor index is bounded by the pool length by
-                // construction; unwrap_or_else keeps this total.
-                Some(pool.get(index).cloned().unwrap_or_default())
-            }
-            crate::AssignmentMode::LeastWorkload => {
-                let pool = self.config.assignment_pool.clone();
-                if pool.is_empty() {
-                    return Err(TicketingServiceError::Configuration(
-                        "assignment_pool is not configured".into(),
-                    ));
-                }
-                let workload = self.store.assignee_workload(project_id, &pool).await?;
-                Some(
-                    pool.iter()
-                        .min_by_key(|subject| {
-                            (workload.get(*subject).copied().unwrap_or(0), *subject)
-                        })
-                        .cloned()
-                        // A non-empty pool always has a minimum.
-                        .unwrap_or_default(),
+        match mode {
+            crate::AssignmentMode::Manual => {
+                self.change_assignment(
+                    principal,
+                    project_id,
+                    id,
+                    manual,
+                    expected_revision,
+                    correlation_id,
+                    now,
                 )
+                .await
             }
-        };
-        self.change_assignment(
-            principal,
-            project_id,
-            id,
-            assignee,
-            expected_revision,
-            correlation_id,
-            now,
-        )
-        .await
+            // Pool modes route through one atomic store operation
+            // (exact-head review R7): the revision check, cursor advance
+            // or workload evaluation, ticket update and intent append
+            // commit together — a stale revision never consumes a slot
+            // and concurrent least-workload requests never observe the
+            // same counts.
+            crate::AssignmentMode::RoundRobin | crate::AssignmentMode::LeastWorkload => {
+                if self.config.assignment_pool.is_empty() {
+                    return Err(TicketingServiceError::Configuration(
+                        "assignment_pool is not configured".into(),
+                    ));
+                }
+                let ticket = self
+                    .store
+                    .assign_ticket_atomically(crate::AtomicAssignmentRequest {
+                        project_id: project_id.to_owned(),
+                        ticket_id: id,
+                        mode,
+                        pool: self.config.assignment_pool.clone(),
+                        expected_revision,
+                        correlation_id,
+                        now,
+                    })
+                    .await?;
+                Ok(result(ticket))
+            }
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -4097,6 +4091,80 @@ mod tests {
             .await
             .unwrap();
         assert!(quiet.enqueued_job_records().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn stale_revision_round_robin_never_consumes_a_cursor_slot() {
+        // Exact-head review R7: the revision check and the cursor advance
+        // are one transaction — a stale request rejects without burning a
+        // slot, so the pool rotation stays fair.
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let service = TicketingService::new(
+            TicketingStoreService::new(memory.clone()),
+            TicketingConfig {
+                project_id: "project-a".into(),
+                portal_origin: "https://support.example.test".into(),
+                assignment_pool: vec!["agent-a".into(), "agent-b".into()],
+                ..TicketingConfig::default()
+            },
+        )
+        .unwrap();
+        let manager = identity("agent", &["ticketing.manage", "ticketing.create"]);
+        let created = service
+            .create_ticket(&manager, create_input("user-a"), Uuid::now_v7(), Utc::now())
+            .await
+            .unwrap()
+            .ticket;
+        // Move the ticket forward so the request below is stale.
+        let mut moved = created.clone();
+        moved.change_priority(crate::TicketPriority::High, Utc::now());
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            moved.id,
+            "changed",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            Utc::now(),
+        );
+        TicketingStoreService::new(memory.clone())
+            .save(moved, created.revision, intent)
+            .await
+            .unwrap();
+        let stale = service
+            .assign_ticket_by_mode(
+                &manager,
+                "project-a",
+                created.id,
+                crate::AssignmentMode::RoundRobin,
+                None,
+                0,
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await;
+        assert!(stale.is_err(), "the stale request must reject");
+        // The cursor was NOT consumed: the next valid round-robin picks
+        // the first pool member.
+        let fresh = TicketingStoreService::new(memory.clone())
+            .get("project-a", created.id)
+            .await
+            .unwrap()
+            .unwrap();
+        let assigned = service
+            .assign_ticket_by_mode(
+                &manager,
+                "project-a",
+                created.id,
+                crate::AssignmentMode::RoundRobin,
+                None,
+                fresh.revision,
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap()
+            .ticket;
+        assert_eq!(assigned.assignee_subject.as_deref(), Some("agent-a"));
     }
 
     #[tokio::test]

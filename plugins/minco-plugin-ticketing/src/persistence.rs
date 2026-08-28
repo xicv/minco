@@ -1,9 +1,10 @@
 use crate::{
-    AgentMacro, AutomationProposal, AutomationProposalState, Clarification, ClarificationReason,
-    ClarificationState, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
-    ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity,
-    ExternalMessageIngestResult, IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT,
-    OperationReceipt, OutboundDeliveryEvidence, OutboundEvidenceKind, SendIntent, SendIntentState,
+    AgentMacro, AtomicAssignmentRequest, AutomationProposal, AutomationProposalState,
+    Clarification, ClarificationReason, ClarificationState, ConsumeHandoffRequest,
+    ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity, CreateTicketInput,
+    DeliveryFeedbackKind, ExternalMessageIdentity, ExternalMessageIngestResult,
+    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OperationReceipt,
+    OutboundDeliveryEvidence, OutboundEvidenceKind, SendIntent, SendIntentState,
     SessionExchangeGrant, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
     TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
     TicketSummaryFilter, TicketingStore,
@@ -944,6 +945,108 @@ impl TicketingStore for SqliteTicketingStore {
             })
         })
         .transpose()
+    }
+
+    async fn assign_ticket_atomically(
+        &self,
+        request: AtomicAssignmentRequest,
+    ) -> Result<Ticket, TicketStoreError> {
+        if request.pool.is_empty() {
+            return Err(TicketStoreError::Infrastructure(
+                "assignment_pool is not configured".into(),
+            ));
+        }
+        // BEGIN IMMEDIATE takes the database write lock before any read:
+        // revision check, cursor advance / workload evaluation, ticket
+        // update and intent append serialize inside one transaction
+        // (exact-head review R7).
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(infrastructure)?;
+        let mut ticket = load_ticket_tx(&mut transaction, &request.project_id, request.ticket_id)
+            .await?
+            .ok_or(TicketStoreError::NotFound(request.ticket_id))?;
+        if ticket.revision != request.expected_revision {
+            return Err(TicketStoreError::StaleRevision {
+                expected: request.expected_revision,
+                actual: ticket.revision,
+            });
+        }
+        let assignee = match request.mode {
+            crate::AssignmentMode::Manual => {
+                return Err(TicketStoreError::Infrastructure(
+                    "manual assignment is not a pool mode".into(),
+                ));
+            }
+            crate::AssignmentMode::RoundRobin => {
+                let row: Option<(i64,)> = sqlx::query_as(
+                    "SELECT next_index FROM ticketing_assignment_cursor WHERE project_id = ?",
+                )
+                .bind(&request.project_id)
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                let next = row.map_or(0, |(value,)| value);
+                let pool_len: i64 = i64::try_from(request.pool.len())
+                    .map_err(|_| TicketStoreError::Infrastructure("overflow".into()))?;
+                let index = usize::try_from(next % pool_len)
+                    .map_err(|_| TicketStoreError::Infrastructure("overflow".into()))?;
+                sqlx::query(
+                    "INSERT INTO ticketing_assignment_cursor (project_id, next_index)
+                     VALUES (?, ( ? + 1 ) % ?)
+                     ON CONFLICT (project_id) DO UPDATE SET next_index = ( ? + 1 ) % ?",
+                )
+                .bind(&request.project_id)
+                .bind(next)
+                .bind(pool_len)
+                .bind(next)
+                .bind(pool_len)
+                .execute(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                request.pool.get(index).cloned().unwrap_or_default()
+            }
+            crate::AssignmentMode::LeastWorkload => {
+                let rows: Vec<(String, i64)> = sqlx::query_as(
+                    "SELECT assignee_subject, COUNT(*) FROM ticketing_tickets
+                      WHERE project_id = ?
+                        AND assignee_subject IS NOT NULL
+                        AND status NOT IN ('resolved', 'closed')
+                      GROUP BY assignee_subject",
+                )
+                .bind(&request.project_id)
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                let workload: std::collections::BTreeMap<String, u64> = rows
+                    .into_iter()
+                    .map(|(subject, count)| (subject, u64::try_from(count).unwrap_or(0)))
+                    .collect();
+                request
+                    .pool
+                    .iter()
+                    .min_by_key(|subject| (workload.get(*subject).copied().unwrap_or(0), *subject))
+                    .cloned()
+                    .unwrap_or_default()
+            }
+        };
+        ticket
+            .assign(Some(assignee), request.now)
+            .map_err(TicketStoreError::Validation)?;
+        let intent = TicketActivityIntent::new(
+            ticket.project_id.clone(),
+            ticket.id,
+            "ticketing.assignment_changed",
+            request.correlation_id,
+            serde_json::json!({ "ticket_id": ticket.id }),
+            request.now,
+        );
+        update_ticket(&mut transaction, &ticket, request.expected_revision).await?;
+        insert_activity(&mut transaction, &intent).await?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(ticket)
     }
 
     async fn claim_send_intent(

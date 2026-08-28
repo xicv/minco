@@ -241,6 +241,15 @@ at head 170f434a)** — continue M14-T74, ten new findings R1-R10:
   plugin wires the fetched AuditService; the desk worker drives the
   audit pass; proof of once-only delivery.
 
+- **R6 DONE** (`fix(ticketing): structural inbound authentication...`):
+  RFC 8601 structural parsing of ALL Authentication-Results headers
+  with configured authserv-id trust (foreign ignored, two-trusted
+  quarantines), inbound_auth_policy (LocalTrusted default;
+  RequireAlignedSpf/Dkim/Dmarc quarantine missing/GRAY/malformed and
+  demand aligned passes via header.d/smtp.mailfrom), X-SES-Spam/
+  Virus-Verdict FAIL quarantines always; forged/ambiguity/misalignment
+  unit tests.
+
 **Final-head qualification (2026-08-27)**: `./scripts/quality.sh`
 exit 0 at the final head — 1,225 cargo tests passed workspace-wide,
 every python evidence suite OK (including the recipe matrix after
