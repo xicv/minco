@@ -360,8 +360,12 @@ pub fn development_automation_envelope(
         .with(
             JobOptions::default()
                 .with_dedupe_key(format!(
-                    "automation:{}:{}:{}:{}",
-                    payload.ticket_id, payload.requested_by, payload.bound_revision, context
+                    "automation:{}:{}:{}:{}:{}",
+                    payload.ticket_id,
+                    payload.requested_by,
+                    payload.bound_revision,
+                    context,
+                    payload.run_id
                 ))
                 .with_overlap_key(format!("ticket:{}", payload.ticket_id))
                 .with_partition(payload.project_id.clone())
@@ -740,6 +744,21 @@ async fn run_development_automation(
         return Err(JobExecutionFailure::permanent(
             "ticketing.automation_superseded",
         ));
+    }
+    // The context digest proves the proposal derives from the submitted
+    // ticket content, not merely the same revision number (exact-head
+    // review R18).
+    if let Some(bound) = command.bound_context_digest.as_deref() {
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(ticket.subject.as_bytes());
+        hasher.update(ticket.description.as_bytes());
+        let authoritative = hex::encode(hasher.finalize());
+        if authoritative != bound {
+            return Err(JobExecutionFailure::permanent(
+                "ticketing.automation_superseded",
+            ));
+        }
     }
     // Deterministic local model (ADR-0070): a proposal assembled from
     // ticket context. No external calls, no hidden execution.
@@ -2242,6 +2261,36 @@ mod tests {
                 crate::InboundAuthPolicy::LocalTrusted,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn automation_dedupe_identity_includes_the_run_id() {
+        // Exact-head review R18: two explicit runs by the same requester
+        // on the same revision/context are distinct jobs — the unique
+        // run id rides the dedupe identity, so the second run is never
+        // swallowed as a duplicate of the first.
+        let base = RunDevelopmentAutomation {
+            project_id: "project-a".into(),
+            ticket_id: TicketId::new(),
+            requested_by: "agent-1".into(),
+            bound_revision: 3,
+            bound_context_digest: Some("a".repeat(64)),
+            run_id: Uuid::new_v4(),
+        };
+        let mut second = base.clone();
+        second.run_id = Uuid::new_v4();
+        let first = development_automation_envelope(&base, Uuid::now_v7(), Utc::now()).unwrap();
+        let second_envelope =
+            development_automation_envelope(&second, Uuid::now_v7(), Utc::now()).unwrap();
+        assert_ne!(
+            first.dedupe_key, second_envelope.dedupe_key,
+            "an explicit second run is a distinct job"
+        );
+        let replay = development_automation_envelope(&base, Uuid::now_v7(), Utc::now()).unwrap();
+        assert_eq!(
+            first.dedupe_key, replay.dedupe_key,
+            "an identical submission still dedupes"
         );
     }
 
