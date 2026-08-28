@@ -53,6 +53,14 @@ impl AuditEvent {
     }
 }
 
+/// Durable audit sink contract (exact-head review R17).
+///
+/// `append` MUST be idempotent by event id: appending the same
+/// `AuditEvent` id twice succeeds without duplicating the record. The
+/// ticketing dispatcher redelivers at-least-once with the intent id as
+/// the audit event id, so this contract is what makes the pipeline
+/// exactly-once observable. Adapters MUST reject events with empty
+/// action or resource id.
 #[async_trait]
 pub trait AuditSink: Send + Sync + std::fmt::Debug {
     async fn append(&self, event: AuditEvent) -> Result<(), AuditError>;
@@ -94,7 +102,15 @@ impl AuditSink for MemoryAuditSink {
         if event.action.trim().is_empty() || event.resource_id.trim().is_empty() {
             return Err(AuditError::InvalidEvent);
         }
-        self.events.write().await.push(event);
+        let mut events = self.events.write().await;
+        // Idempotent by event id (exact-head review R17): at-least-once
+        // dispatchers never produce duplicate ledger records.
+        if events.iter().any(|existing| existing.id == event.id) {
+            drop(events);
+            return Ok(());
+        }
+        events.push(event);
+        drop(events);
         Ok(())
     }
 }
@@ -204,6 +220,25 @@ pub enum AuditError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn append_is_idempotent_by_event_id() {
+        // Exact-head review R17: the sink contract guarantees appending
+        // the same event id twice succeeds without duplication.
+        let sink = MemoryAuditSink::default();
+        let mut event = AuditEvent::new(
+            "ticketing.created",
+            "ticketing.ticket",
+            "one",
+            uuid::Uuid::new_v4(),
+        );
+        event.id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, b"stable-intent");
+        sink.append(event.clone()).await.unwrap();
+        sink.append(event.clone()).await.unwrap();
+        sink.append(event).await.unwrap();
+        let all = sink.all().await;
+        assert_eq!(all.len(), 1, "duplicate ids never duplicate the ledger");
+    }
 
     #[tokio::test]
     async fn memory_sink_is_append_only_and_ordered() {

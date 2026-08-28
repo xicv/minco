@@ -322,7 +322,8 @@ impl AuditSink for SqliteAuditSink {
             "INSERT INTO minco_audit
              (id, action, resource_type, resource_id, actor_subject, correlation_id,
               occurred_at, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO NOTHING",
         )
         .bind(event.id)
         .bind(event.action)

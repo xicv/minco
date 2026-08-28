@@ -591,7 +591,8 @@ impl AuditSink for PostgresAuditSink {
             "INSERT INTO minco_audit
              (id, action, resource_type, resource_id, actor_subject, correlation_id,
               occurred_at, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (id) DO NOTHING",
         )
         .bind(event.id)
         .bind(event.action)
