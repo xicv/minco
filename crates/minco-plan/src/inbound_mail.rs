@@ -379,16 +379,22 @@ pub fn render_sam_with_inbound_mail(
             retention_days = binding.retention_days,
         )
         .expect("write to String");
-        // Exact-head review R9: the SES write grant is scoped to the
-        // configured key prefix and the exact receipt-rule ARN.
+        // Exact-head review R9/R14: the SES write grant is scoped to the
+        // configured key prefix and the exact receipt-rule ARN. The whole
+        // !Sub substitution is built first and quoted exactly once —
+        // nesting yaml_quote inside an already-quoted scalar produced
+        // invalid YAML.
         let rule_name = format!("{}-inbound-mail", binding.id);
+        let resource_sub = format!("${{{bucket_logical}.Arn}}/{}*", binding.key_prefix);
+        let source_arn_sub = format!(
+            "arn:aws:ses:${{AWS::Region}}:${{AWS::AccountId}}:receipt-rule-set/{shared_rule_set_name}:receipt-rule/{rule_name}"
+        );
         write!(
             resources,
-            "  {bucket_logical}Policy:\n    Type: AWS::S3::BucketPolicy\n    Properties:\n      Bucket: !Ref {bucket_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowSeSInboundWrite\n            Effect: Allow\n            Principal:\n              Service: ses.amazonaws.com\n            Action: s3:PutObject\n            Resource: !Sub '${{{bucket_logical}.Arn}}/{key_prefix_ref}*'\n            Condition:\n              StringEquals:\n                aws:SourceAccount: !Sub '${{AWS::AccountId}}'\n              ArnLike:\n                aws:SourceArn: !Sub 'arn:aws:ses:${{AWS::Region}}:${{AWS::AccountId}}:receipt-rule-set/{shared_rule_set_name}:receipt-rule/{rule_name_ref}'\n",
+            "  {bucket_logical}Policy:\n    Type: AWS::S3::BucketPolicy\n    Properties:\n      Bucket: !Ref {bucket_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowSeSInboundWrite\n            Effect: Allow\n            Principal:\n              Service: ses.amazonaws.com\n            Action: s3:PutObject\n            Resource: !Sub {resource}\n            Condition:\n              StringEquals:\n                aws:SourceAccount: !Sub '${{AWS::AccountId}}'\n              ArnLike:\n                aws:SourceArn: !Sub {source_arn}\n",
             bucket_logical = bucket_logical,
-            key_prefix_ref = yaml_quote(&binding.key_prefix),
-            shared_rule_set_name = shared_rule_set_name,
-            rule_name_ref = yaml_quote(&rule_name),
+            resource = yaml_quote(&resource_sub),
+            source_arn = yaml_quote(&source_arn_sub),
         )
         .expect("write to String");
         write!(
