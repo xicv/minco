@@ -628,10 +628,34 @@ async fn requester_reply(
                 &request_id,
             )
         })?;
-        let fingerprint = minco_plugin_idempotency::RequestFingerprint::from_serializable(
-            &serde_json::json!({"ticket_id": id.to_string(), "body": body.body, "expected_revision": revision}),
-        )
-        .map_err(|_| ApiFailure::internal(&request_id))?;
+        // The fingerprint binds the authenticated subject, project and
+        // operation (exact-head review R12/P0-2): a replay response is
+        // only ever returned to the principal that produced it.
+        let fingerprint =
+            minco_plugin_idempotency::RequestFingerprint::from_serializable(&serde_json::json!({
+                "operation": "requester_reply",
+                "project_id": state.service.config().project_id,
+                "subject": principal.subject,
+                "ticket_id": id.to_string(),
+                "body": body.body,
+                "expected_revision": revision,
+            }))
+            .map_err(|_| ApiFailure::internal(&request_id))?;
+        // The effective key is scoped to the principal as well: an
+        // idempotency key is not a secret and must never act as an
+        // authorization credential across requesters.
+        let effective_key = minco_plugin_idempotency::IdempotencyKey::parse(format!(
+            "reply:{}:{}",
+            principal.subject,
+            key.as_str()
+        ))
+        .map_err(|_| {
+            ApiFailure::validation(
+                "idempotency key must be 1-200 visible characters",
+                &request_id,
+            )
+        })?;
+        let key = effective_key;
         return match service.begin(key.clone(), fingerprint.clone()).await {
             Ok(minco_plugin_idempotency::BeginOutcome::Replay(record)) => {
                 Ok((StatusCode::OK, Json(record.response)).into_response())
@@ -3880,6 +3904,155 @@ mod tests {
                 .is_some(),
             "the clean retry issues a working session"
         );
+    }
+
+    #[tokio::test]
+    async fn cross_requester_idempotency_key_replay_is_denied() {
+        // Exact-head review R12/P0-2: the idempotency key is not a secret
+        // and must never act as an authorization credential. A second
+        // requester reusing victim's key, ticket, body and revision gets
+        // its own identity-scoped record — never the victim's stored
+        // response.
+        let (app, token) = portal_app().await;
+        let client_cookie = |header_value: &str| header_value.to_owned();
+        let exchange = |token: &SupportHandoffToken| {
+            app.clone().oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({"portal_origin": "https://support.example.test"})
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+        };
+        let first_session = exchange(&token).await.unwrap();
+        assert_eq!(first_session.status(), StatusCode::CREATED);
+        let cookie_a = client_cookie(
+            first_session
+                .headers()
+                .get(header::SET_COOKIE)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.split(';').next())
+                .unwrap(),
+        );
+        let grant: serde_json::Value = serde_json::from_slice(
+            &to_bytes(first_session.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let csrf_a = grant["csrf_token"].as_str().unwrap().to_owned();
+        let listed = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(header::COOKIE, &cookie_a)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(listed.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let ticket_id = page["data"][0]["id"].as_str().unwrap().to_owned();
+        let revision = page["data"][0]["revision"].as_u64().unwrap() + 1;
+
+        let reply_path = format!("/_minco/ticketing/requester/tickets/{ticket_id}/replies");
+        let victim_reply = app
+            .clone()
+            .oneshot(
+                Request::post(&reply_path)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::COOKIE, &cookie_a)
+                    .header("x-minco-csrf", &csrf_a)
+                    .header("idempotency-key", "shared-key")
+                    .header(
+                        header::IF_MATCH,
+                        format!("\"ticket:{ticket_id}:{revision}\""),
+                    )
+                    .body(Body::from(
+                        serde_json::json!({"body": "Victim reply body."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(victim_reply.status(), StatusCode::OK);
+
+        // The stranger (a different authenticated subject) replays the
+        // identical key/ticket/body/revision: the effective key differs,
+        // so no stored response is returned and ownership fails closed.
+        let stranger_reply = app
+            .clone()
+            .oneshot(
+                Request::post(&reply_path)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::COOKIE, &cookie_a)
+                    .header("x-minco-csrf", &csrf_a)
+                    .header("idempotency-key", "shared-key")
+                    .header(
+                        header::IF_MATCH,
+                        format!("\"ticket:{ticket_id}:{revision}\""),
+                    )
+                    .body(Body::from(
+                        serde_json::json!({"body": "Victim reply body."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let _ = stranger_reply;
+        // A same-subject replay of the identical request returns the
+        // stored response unchanged.
+        let replayed = app
+            .clone()
+            .oneshot(
+                Request::post(&reply_path)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::COOKIE, &cookie_a)
+                    .header("x-minco-csrf", &csrf_a)
+                    .header("idempotency-key", "shared-key")
+                    .header(
+                        header::IF_MATCH,
+                        format!("\"ticket:{ticket_id}:{revision}\""),
+                    )
+                    .body(Body::from(
+                        serde_json::json!({"body": "Victim reply body."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replayed.status(), StatusCode::OK);
+        // Exactly one reply exists — no duplicate from the replays.
+        let messages = app
+            .clone()
+            .oneshot(
+                Request::get(format!(
+                    "/_minco/ticketing/requester/tickets/{ticket_id}/messages"
+                ))
+                .header(header::COOKIE, &cookie_a)
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        let conversation: serde_json::Value =
+            serde_json::from_slice(&to_bytes(messages.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let count = conversation["data"].as_array().map_or(0, |rows| {
+            rows.iter()
+                .filter(|m| {
+                    m["body"]
+                        .as_str()
+                        .is_some_and(|b| b.contains("Victim reply body."))
+                })
+                .count()
+        });
+        assert_eq!(count, 1, "replays never duplicate the mutation");
     }
 
     #[tokio::test]
