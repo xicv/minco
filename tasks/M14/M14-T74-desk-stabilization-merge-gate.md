@@ -268,6 +268,54 @@ at head 170f434a)** — continue M14-T74, ten new findings R1-R10:
   /live and /ready routes execute the registered checks (verified on
   the spawned binary).
 
+**Round 3 (2026-08-28, exact-head review 5048859089 at 4d225fd2)**:
+all six P0 and three P1 residual findings closed, one described
+change per finding:
+
+- **R11/P0-1** replay grants carry the handoff's ACTUAL permission
+  subset; rotation is a store-owned CAS (claim_session_rotation) with
+  a FIXED deadline never extended by rotation; race losers revoke
+  their minted session; revoke failures surface. Proofs: read-only
+  handoff replay stays read-only (403 on write), 50 concurrent
+  replays leave exactly one live bearer.
+- **R12/P0-2** requester-reply idempotency keys/fingerprints are
+  principal-scoped (operation+project+subject+ticket+body+revision);
+  effective key = reply:<subject>:<client key>; cross-requester reuse
+  of an identical key gets its own record and fails ownership —
+  proven with zero cross-principal leaks and no duplicate mutation.
+- **R13/P0-3** fenced send state machine: SafeAfterBackoff persists
+  sending->pending_send; the re-attempt must win a
+  claim_send_attempt CAS (pending_send->sending) before any provider
+  contact. Proofs: throttled-then-success retries genuinely resend;
+  a pre-claimed sending intent makes zero provider calls.
+- **R14/P0-4** the SES bucket policy builds each !Sub substitution
+  whole and quotes it exactly once (the nested-quote YAML defect is
+  gone); a new structural gate parses the COMPLETE rendered template
+  with a CFN-tag-aware YAML loader (render_inbound_mail example +
+  scripts/test/inbound_mail_template_parse.py, wired into
+  quality.sh). sam validate --lint remains unavailable locally.
+- **R15/P0-5** bounded RFC 8601 grammar: balanced CFWS comment
+  stripping before tokenization; tokens classified by key name (SES
+  property-only clauses parse); quoted RFC 5322 values and
+  mailbox->domain extraction; SPF envelope-from / DKIM header.i /
+  DMARC header.from alignment per RFC 7489; malformed untrusted
+  headers are ignored, malformed trusted-claim headers quarantine.
+  Byte-accurate AWS SES fixture tested across all strict policies.
+- **R16/P0-6** the desk worker cycle runs Jobs, domain-Events and
+  Audit dispatch independently (a failing pass never starves the
+  others; failures aggregate). The spawned binary proves durable
+  intents are published; an in-process test proves one cycle advances
+  both published_at and audit_published_at.
+- **R17/P1** AuditSink contract is now idempotent-by-event-id
+  (memory dedupes; SQLite/Postgres ON CONFLICT DO NOTHING; contract
+  test).
+- **R18/P1** automation dedupe includes run_id (explicit second runs
+  are distinct; identical submissions still dedupe); the handler
+  recomputes and compares the subject+description digest.
+- **R19/P1** non-local startup requires >=32-char secrets, explicit
+  mode=rwc non-memory SQLite, explicit portal origin and allowed
+  origins — each refusal proven on the spawned binary.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and
