@@ -78,26 +78,6 @@ impl Job for ProcessInboundEmail {
     const VERSION: u16 = 1;
 }
 
-/// Inbound sender-authentication policy (exact-head review R6).
-///
-/// Variants decide which trusted verdict must pass before inbound mail
-/// participates.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum InboundAuthPolicy {
-    /// The inbound channel itself is trusted (local or rustack profiles
-    /// with no Authentication-Results); spam/virus failures and explicit
-    /// mechanism failures still quarantine.
-    #[default]
-    LocalTrusted,
-    /// A trusted aligned SPF pass is required.
-    RequireAlignedSpf,
-    /// A trusted aligned DKIM pass is required.
-    RequireAlignedDkim,
-    /// A trusted DMARC pass is required.
-    RequireDmarc,
-}
-
 /// One structurally parsed Authentication-Results header (RFC 8601).
 ///
 /// Carries the authserv-id, the mechanism verdicts it asserts and the
@@ -171,7 +151,7 @@ pub fn evaluate_inbound_trust(
     virus_verdict: Option<&str>,
     from_domain: Option<&str>,
     expected_authserv_id: &str,
-    policy: InboundAuthPolicy,
+    policy: crate::InboundAuthPolicy,
 ) -> Result<(), &'static str> {
     // SES spam/virus verdicts are provider evidence: FAIL quarantines
     // under every policy.
@@ -213,10 +193,10 @@ pub fn evaluate_inbound_trust(
         }
     }
     let required = match policy {
-        InboundAuthPolicy::LocalTrusted => None,
-        InboundAuthPolicy::RequireAlignedSpf => Some("spf"),
-        InboundAuthPolicy::RequireAlignedDkim => Some("dkim"),
-        InboundAuthPolicy::RequireDmarc => Some("dmarc"),
+        crate::InboundAuthPolicy::LocalTrusted => None,
+        crate::InboundAuthPolicy::RequireAlignedSpf => Some("spf"),
+        crate::InboundAuthPolicy::RequireAlignedDkim => Some("dkim"),
+        crate::InboundAuthPolicy::RequireDmarc => Some("dmarc"),
     };
     let Some(required) = required else {
         return Ok(());
@@ -1932,7 +1912,7 @@ mod tests {
                 Some("PASS"),
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::RequireAlignedSpf,
+                crate::InboundAuthPolicy::RequireAlignedSpf,
             )
             .is_ok()
         );
@@ -1945,7 +1925,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::RequireAlignedSpf,
+                crate::InboundAuthPolicy::RequireAlignedSpf,
             )
             .is_err()
         );
@@ -1961,7 +1941,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::RequireAlignedSpf,
+                crate::InboundAuthPolicy::RequireAlignedSpf,
             )
             .is_ok()
         );
@@ -1976,7 +1956,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::RequireAlignedSpf,
+                crate::InboundAuthPolicy::RequireAlignedSpf,
             )
             .is_err()
         );
@@ -1988,7 +1968,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::RequireAlignedDkim,
+                crate::InboundAuthPolicy::RequireAlignedDkim,
             )
             .is_err()
         );
@@ -2000,7 +1980,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::RequireAlignedDkim,
+                crate::InboundAuthPolicy::RequireAlignedDkim,
             )
             .is_ok()
         );
@@ -2013,7 +1993,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::LocalTrusted,
+                crate::InboundAuthPolicy::LocalTrusted,
             )
             .is_err()
         );
@@ -2024,7 +2004,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::LocalTrusted,
+                crate::InboundAuthPolicy::LocalTrusted,
             )
             .is_ok()
         );
@@ -2035,7 +2015,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::RequireDmarc,
+                crate::InboundAuthPolicy::RequireDmarc,
             )
             .is_err()
         );
@@ -2047,7 +2027,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::LocalTrusted,
+                crate::InboundAuthPolicy::LocalTrusted,
             )
             .is_err()
         );
@@ -2059,7 +2039,7 @@ mod tests {
                 None,
                 Some("example.test"),
                 "amazonses.com",
-                super::InboundAuthPolicy::LocalTrusted,
+                crate::InboundAuthPolicy::LocalTrusted,
             )
             .is_err()
         );

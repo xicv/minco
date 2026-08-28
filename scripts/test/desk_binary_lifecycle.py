@@ -88,6 +88,13 @@ class DeskBinaryLifecycleTests(unittest.TestCase):
                         time.sleep(0.2)
                 self.assertEqual(bootstrap_status, 200, "the binary never became ready")
 
+                # Real health endpoints execute the registered checks
+                # (exact-head review R10).
+                for path in ("/live", "/ready"):
+                    with self.subTest(path=path):
+                        status, _ = request_json("GET", f"{origin}{path}", AGENT_TOKEN)
+                        self.assertEqual(status, 200, f"{path} must report healthy")
+
                 status, ticket = request_json("POST", f"{origin}/_minco/ticketing/tickets",
                                               AGENT_TOKEN, body={
                     "project_id": "desk-proof",

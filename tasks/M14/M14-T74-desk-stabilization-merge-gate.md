@@ -250,6 +250,24 @@ at head 170f434a)** — continue M14-T74, ten new findings R1-R10:
   Virus-Verdict FAIL quarantines always; forged/ambiguity/misalignment
   unit tests.
 
+- **R7 DONE** (`fix(ticketing): atomic pool-mode assignment...`):
+  assign_ticket_atomically performs revision check, cursor advance /
+  locked workload, update and intent append in one transaction
+  (SQLite BEGIN IMMEDIATE); stale round-robin burns no slot (proved).
+- **R8 DONE** (`fix(ticketing): freshness-bound automation runs...`):
+  dedicated ticketing-development profile; dedupe identity bound to
+  revision + subject/description digest + unique run id; the handler
+  classifies stale work ticketing.automation_superseded and stores no
+  proposal (proved).
+- **R9 DONE** (`fix(plan): SES rendering hardening...`): TlsPolicy
+  Require; PutObject scoped to the key prefix; aws:SourceArn names the
+  exact receipt-rule ARN; the bucket DependsOn the queue policy.
+- **R10 DONE** (`fix(desk): non-local fail-closed startup...`):
+  generated credentials rejected outside the local profile; explicit
+  persistent SQLite URL required; the token prints local-only; real
+  /live and /ready routes execute the registered checks (verified on
+  the spawned binary).
+
 **Final-head qualification (2026-08-27)**: `./scripts/quality.sh`
 exit 0 at the final head — 1,225 cargo tests passed workspace-wide,
 every python evidence suite OK (including the recipe matrix after

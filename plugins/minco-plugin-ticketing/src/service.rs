@@ -68,6 +68,27 @@ pub struct TicketSlaConfig {
     pub resolution_hours: u32,
 }
 
+/// Inbound sender-authentication policy (exact-head review R6).
+///
+/// Variants decide which trusted verdict must pass before inbound mail
+/// participates. Lives outside the jobs-gated module so configuration
+/// compiles on every feature boundary.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InboundAuthPolicy {
+    /// The inbound channel itself is trusted (local or rustack profiles
+    /// with no Authentication-Results); spam/virus failures and explicit
+    /// mechanism failures still quarantine.
+    #[default]
+    LocalTrusted,
+    /// A trusted aligned SPF pass is required.
+    RequireAlignedSpf,
+    /// A trusted aligned DKIM pass is required.
+    RequireAlignedDkim,
+    /// A trusted DMARC pass is required.
+    RequireDmarc,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TicketingConfig {

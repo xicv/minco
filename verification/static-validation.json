@@ -16,9 +16,9 @@
     "milestones": 15,
     "tasks": 154,
     "rust_files": 267,
-    "python_files": 41,
+    "python_files": 42,
     "shell_files": 83,
-    "implementation_files_scanned": 566
+    "implementation_files_scanned": 571
   },
   "findings": [],
   "limitations": [

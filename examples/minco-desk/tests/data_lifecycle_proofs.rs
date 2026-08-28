@@ -208,6 +208,9 @@ async fn pending_jobs_survive_a_process_restart_and_recover() {
         for index in 0..3 {
             let envelope = minco_plugin_ticketing::development_automation_envelope(
                 &minco_plugin_ticketing::RunDevelopmentAutomation {
+                    bound_revision: 0,
+                    bound_context_digest: None,
+                    run_id: uuid::Uuid::new_v4(),
                     project_id: "desk-proof".into(),
                     ticket_id: minco_plugin_ticketing::TicketId::new(),
                     requested_by: format!("agent-{index}"),

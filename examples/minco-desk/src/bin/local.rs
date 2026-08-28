@@ -14,8 +14,12 @@ async fn main() -> Result<()> {
     let desk = build_desk(&config).await?;
     let listener = TcpListener::bind(address).await?;
     // The loopback service token authorizes the agent/integration
-    // surface; announce it once so the operator can drive the desk.
-    eprintln!("Minco Desk agent token: {}", config.agent_token);
+    // surface. It is announced only in the local profile (exact-head
+    // review R10): non-local startup already refused generated
+    // credentials, so there is nothing ephemeral to print.
+    if config.environment == "local" {
+        eprintln!("Minco Desk agent token: {}", config.agent_token);
+    }
     tracing::info!(
         address = %listener.local_addr()?,
         project = %config.project_id,

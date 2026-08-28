@@ -53,9 +53,35 @@ pub struct DeskConfig {
 impl DeskConfig {
     /// Loads the configuration; `DESK_DATABASE_URL` defaults to a local
     /// `SQLite` file so a clean clone runs without external setup.
+    /// Loads the configuration. In non-local environments startup fails
+    /// closed when the agent credential, CSRF key or database URL are
+    /// absent or trivial (exact-head review R10): generated secrets are
+    /// acceptable only for the local development profile.
     pub fn from_env() -> Result<Self> {
+        let environment = std::env::var("DESK_ENVIRONMENT").unwrap_or_else(|_| "local".into());
         let database_url = std::env::var("DESK_DATABASE_URL")
             .unwrap_or_else(|_| "sqlite://minco-desk.sqlite?mode=rwc".into());
+        let agent_token = explicit_or_generated("DESK_AGENT_TOKEN");
+        let csrf_secret = explicit_or_generated("DESK_CSRF_SECRET");
+        if environment != "local" {
+            for (name, value) in [
+                ("DESK_AGENT_TOKEN", &agent_token),
+                ("DESK_CSRF_SECRET", &csrf_secret),
+            ] {
+                if value.1 {
+                    anyhow::bail!(
+                        "{name} must be set explicitly in non-local environments \
+                         ({environment}); generated credentials are local-only"
+                    );
+                }
+            }
+            if !database_url.starts_with("sqlite://") || !database_url.contains("mode=") {
+                anyhow::bail!(
+                    "DESK_DATABASE_URL must be an explicit persistent SQLite URL in \
+                     non-local environments"
+                );
+            }
+        }
         Ok(Self {
             host: std::env::var("DESK_HOST").unwrap_or_else(|_| "127.0.0.1".into()),
             port: std::env::var("DESK_PORT")
@@ -72,32 +98,30 @@ impl DeskConfig {
             },
             mailbox_scope: std::env::var("DESK_MAILBOX_SCOPE")
                 .unwrap_or_else(|_| "support@desk.example.test".into()),
-            environment: std::env::var("DESK_ENVIRONMENT").unwrap_or_else(|_| "local".into()),
-            agent_token: std::env::var("DESK_AGENT_TOKEN")
-                .ok()
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or_else(|| {
-                    format!(
-                        "{}{}",
-                        uuid::Uuid::new_v4().simple(),
-                        uuid::Uuid::new_v4().simple()
-                    )
-                }),
-            csrf_secret: std::env::var("DESK_CSRF_SECRET")
-                .ok()
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or_else(|| {
-                    format!(
-                        "{}{}",
-                        uuid::Uuid::new_v4().simple(),
-                        uuid::Uuid::new_v4().simple()
-                    )
-                }),
+            environment,
+            agent_token: agent_token.0,
+            csrf_secret: csrf_secret.0,
             allowed_return_paths: parse_return_paths(
                 &std::env::var("DESK_ALLOWED_RETURN_PATHS")
                     .unwrap_or_else(|_| "http://127.0.0.1:8090=/_minco/ticketing".into()),
             ),
         })
+    }
+}
+
+/// Reads one credential variable: `(value, was_generated)` — the flag
+/// drives non-local fail-closed startup (exact-head review R10).
+fn explicit_or_generated(name: &str) -> (String, bool) {
+    match std::env::var(name) {
+        Ok(value) if !value.trim().is_empty() => (value, false),
+        _ => (
+            format!(
+                "{}{}",
+                uuid::Uuid::new_v4().simple(),
+                uuid::Uuid::new_v4().simple()
+            ),
+            true,
+        ),
     }
 }
 
@@ -394,10 +418,36 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     let health_report =
         serde_json::to_value(&composed.graph).unwrap_or_else(|_| serde_json::json!({}));
 
-    let desk_router =
-        ticketing_router(minco_plugin_ticketing::TicketingService::clone(&service)).layer(
-            axum::middleware::from_fn_with_state(config.agent_token.clone(), desk_agent_identity),
-        );
+    // Real liveness and readiness routes (exact-head review R10): the
+    // registered checks execute on demand instead of shipping a static
+    // composition graph.
+    let liveness_registry = health.clone();
+    let liveness = move || async move {
+        let results = liveness_registry.run().await;
+        let healthy = results.iter().all(|result| result.ready);
+        if healthy {
+            axum::http::StatusCode::OK
+        } else {
+            axum::http::StatusCode::SERVICE_UNAVAILABLE
+        }
+    };
+    let readiness_registry = health;
+    let readiness = move || async move {
+        let results = readiness_registry.run().await;
+        let ready = results.iter().all(|result| result.ready);
+        if ready {
+            axum::http::StatusCode::OK
+        } else {
+            axum::http::StatusCode::SERVICE_UNAVAILABLE
+        }
+    };
+    let desk_router = ticketing_router(minco_plugin_ticketing::TicketingService::clone(&service))
+        .route("/live", axum::routing::get(liveness))
+        .route("/ready", axum::routing::get(readiness))
+        .layer(axum::middleware::from_fn_with_state(
+            config.agent_token.clone(),
+            desk_agent_identity,
+        ));
     // Development identity headers are deliberately NOT allowed: the
     // desk's trust boundary is the session cookie plus the loopback
     // service bearer token (review finding 2).
