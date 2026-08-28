@@ -275,7 +275,12 @@ fn renders_the_full_provider_chain_into_sam() {
         // SES writes, one shared rule set name on every rule.
         "Recipients:\n          - 'support@example.test'",
         "aws:SourceAccount: !Sub '${AWS::AccountId}'",
-        "aws:SourceArn: !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/",
+        "aws:SourceArn: !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/Ticketing-inbound-mail-ruleset:receipt-rule/'",
+        // Exact-head review R9: TLS required, prefix-scoped writes,
+        // deployment-order dependency.
+        "TlsPolicy: Require",
+        "Resource: !Sub '${TicketingRawMailBucket.Arn}/'mail/'*'",
+        "DependsOn: [TicketingMailQueuePolicy]",
         "RuleSetName: 'Ticketing-inbound-mail-ruleset'",
         // Worker wake policy: SQS receive/delete plus raw-object reads.
         "sqs:ReceiveMessage",

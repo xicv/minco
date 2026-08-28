@@ -363,18 +363,32 @@ pub fn render_sam_with_inbound_mail(
         // finding 5): a bare local part would capture every domain's
         // mail for that local part.
         let mailbox_recipient = binding.mailbox_scope.trim().to_ascii_lowercase();
+        let queue_policy_logical = format!("{logical}MailQueuePolicy");
+        // Deployment ordering (exact-head review R9): the bucket's
+        // notification must not be created before the queue policy that
+        // authorizes S3 sends — an explicit dependency prevents the
+        // race without a two-phase deployment.
         write!(
             resources,
-            "  {bucket_logical}:\n    Type: AWS::S3::Bucket\n    Properties:\n      BucketName: {}\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true\n      NotificationConfiguration:\n        QueueConfigurations:\n          - Event: s3:ObjectCreated:*\n            Queue: !GetAtt {queue_logical}.Arn\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: {}\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-raw-mail\n            Status: Enabled\n            Prefix: {}\n            ExpirationInDays: {}\n",
-            yaml_quote(&binding.bucket_name),
-            yaml_quote(&binding.key_prefix),
-            yaml_quote(&binding.key_prefix),
-            binding.retention_days,
+            "  {bucket_logical}:\n    Type: AWS::S3::Bucket\n    DependsOn: [{queue_policy_logical}]\n    Properties:\n      BucketName: {bucket_name}\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true\n      NotificationConfiguration:\n        QueueConfigurations:\n          - Event: s3:ObjectCreated:*\n            Queue: !GetAtt {queue_logical}.Arn\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: {key_prefix_a}\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-raw-mail\n            Status: Enabled\n            Prefix: {key_prefix_b}\n            ExpirationInDays: {retention_days}\n",
+            bucket_logical = bucket_logical,
+            queue_policy_logical = queue_policy_logical,
+            bucket_name = yaml_quote(&binding.bucket_name),
+            key_prefix_a = yaml_quote(&binding.key_prefix),
+            key_prefix_b = yaml_quote(&binding.key_prefix),
+            retention_days = binding.retention_days,
         )
         .expect("write to String");
+        // Exact-head review R9: the SES write grant is scoped to the
+        // configured key prefix and the exact receipt-rule ARN.
+        let rule_name = format!("{}-inbound-mail", binding.id);
         write!(
             resources,
-            "  {bucket_logical}Policy:\n    Type: AWS::S3::BucketPolicy\n    Properties:\n      Bucket: !Ref {bucket_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowSeSInboundWrite\n            Effect: Allow\n            Principal:\n              Service: ses.amazonaws.com\n            Action: s3:PutObject\n            Resource:\n              - !GetAtt {bucket_logical}.Arn\n              - !Sub '${{{bucket_logical}.Arn}}/*'\n            Condition:\n              StringEquals:\n                aws:SourceAccount: !Sub '${{AWS::AccountId}}'\n              ArnLike:\n                aws:SourceArn: !Sub 'arn:aws:ses:${{AWS::Region}}:${{AWS::AccountId}}:receipt-rule-set/{shared_rule_set_name}'\n",
+            "  {bucket_logical}Policy:\n    Type: AWS::S3::BucketPolicy\n    Properties:\n      Bucket: !Ref {bucket_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowSeSInboundWrite\n            Effect: Allow\n            Principal:\n              Service: ses.amazonaws.com\n            Action: s3:PutObject\n            Resource: !Sub '${{{bucket_logical}.Arn}}/{key_prefix_ref}*'\n            Condition:\n              StringEquals:\n                aws:SourceAccount: !Sub '${{AWS::AccountId}}'\n              ArnLike:\n                aws:SourceArn: !Sub 'arn:aws:ses:${{AWS::Region}}:${{AWS::AccountId}}:receipt-rule-set/{shared_rule_set_name}:receipt-rule/{rule_name_ref}'\n",
+            bucket_logical = bucket_logical,
+            key_prefix_ref = yaml_quote(&binding.key_prefix),
+            shared_rule_set_name = shared_rule_set_name,
+            rule_name_ref = yaml_quote(&rule_name),
         )
         .expect("write to String");
         write!(
@@ -385,11 +399,12 @@ pub fn render_sam_with_inbound_mail(
         // One shared receipt rule set (review finding 5): every binding
         // adds a rule to the single activated set instead of competing
         // rule sets; content scanning stays enabled.
+        let rule_name = format!("{}-inbound-mail", binding.id);
         write!(
             resources,
-            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    Properties:\n      RuleSetName: {}\n      Rule:\n        Name: {}\n        Enabled: true\n        ScanEnabled: true\n        Recipients:\n          - {}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {}\n",
+            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    Properties:\n      RuleSetName: {}\n      Rule:\n        Name: {}\n        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {}\n",
             yaml_quote(&shared_rule_set_name),
-            yaml_quote(&format!("{}-inbound-mail", binding.id)),
+            yaml_quote(&rule_name),
             yaml_quote(&mailbox_recipient),
             yaml_quote(&binding.key_prefix),
         )
