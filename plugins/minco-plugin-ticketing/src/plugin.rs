@@ -193,6 +193,14 @@ impl Plugin for TicketingPlugin {
                         .get::<EventServices>()
                         .map_err(|error| PluginError::Installation(error.to_string()))?,
                 ),
+                // The declared audit dependency becomes real (exact-head
+                // review R5): activity intents dispatch to the audit
+                // service with the intent id as the audit event id.
+                audit: Some(
+                    services
+                        .get::<AuditService>()
+                        .map_err(|error| PluginError::Installation(error.to_string()))?,
+                ),
                 #[cfg(feature = "jobs")]
                 jobs: services
                     .get_optional::<minco_plugin_jobs::JobsServices>()

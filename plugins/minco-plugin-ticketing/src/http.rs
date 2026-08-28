@@ -3589,6 +3589,7 @@ mod tests {
                 IdempotencyService::new(idempotency_store, stale_after).unwrap(),
             )),
             events: None,
+            audit: None,
             #[cfg(feature = "jobs")]
             jobs: None,
             objects: None,

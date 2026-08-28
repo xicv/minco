@@ -410,6 +410,22 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
 
+    /// Oldest-first audit-undelivered activity intents for one project
+    /// (exact-head review R5), bounded by `limit`.
+    async fn pending_audit_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
+
+    /// Marks one intent's audit record delivered; `false` when it was
+    /// already delivered or is unknown.
+    async fn mark_audit_published(
+        &self,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError>;
+
     /// Resolves a ticket (and its current revision) from a previously
     /// ingested external message's `internet_message_id` (ADR-0058).
     /// Subject heuristics are never used.
@@ -742,6 +758,22 @@ impl TicketingStoreService {
         self.0.pending_activity_intents(project_id, limit).await
     }
 
+    pub async fn pending_audit_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        self.0.pending_audit_intents(project_id, limit).await
+    }
+
+    pub async fn mark_audit_published(
+        &self,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.0.mark_audit_published(intent_id, at).await
+    }
+
     pub async fn mark_activity_published(
         &self,
         intent_id: Uuid,
@@ -1021,6 +1053,7 @@ struct MemoryState {
         BTreeMap<(String, String, String, String), (ExternalMessageIdentity, TicketId)>,
     activity_intents: Vec<TicketActivityIntent>,
     published_intents: BTreeSet<Uuid>,
+    audit_published_intents: BTreeSet<Uuid>,
     outbound_evidence: Vec<OutboundDeliveryEvidence>,
     ticket_views: BTreeMap<(String, TicketId), BTreeMap<String, DateTime<Utc>>>,
     macros: BTreeMap<(String, Uuid), AgentMacro>,
@@ -1833,6 +1866,31 @@ impl TicketingStore for MemoryTicketingStore {
             .take(limit)
             .cloned()
             .collect())
+    }
+
+    async fn pending_audit_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        let state = self.state.lock().await;
+        Ok(state
+            .activity_intents
+            .iter()
+            .filter(|intent| intent.project_id == project_id)
+            .filter(|intent| !state.audit_published_intents.contains(&intent.id))
+            .take(limit)
+            .cloned()
+            .collect())
+    }
+
+    async fn mark_audit_published(
+        &self,
+        intent_id: Uuid,
+        _at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        Ok(state.audit_published_intents.insert(intent_id))
     }
 
     async fn mark_activity_published(

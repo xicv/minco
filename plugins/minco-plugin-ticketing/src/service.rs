@@ -33,6 +33,10 @@ pub struct TicketingPortalServices {
     pub csrf: Option<Arc<CsrfService>>,
     pub idempotency: Option<Arc<minco_plugin_idempotency::IdempotencyService>>,
     pub events: Option<Arc<minco_plugin_events::EventServices>>,
+    /// Semantic audit dispatch target (exact-head review R5): activity
+    /// intents flow here through an explicit dispatcher; the audit event
+    /// id equals the intent id so at-least-once appends dedupe.
+    pub audit: Option<Arc<minco_plugin_audit::AuditService>>,
     /// Durable job submission handle (ADR-0058); present when the jobs
     /// feature is enabled and the application registered the jobs plugin.
     #[cfg(feature = "jobs")]
@@ -1987,6 +1991,57 @@ impl TicketingService {
             }
         }
         Ok(published)
+    }
+
+    /// One bounded, explicit audit dispatch pass (exact-head review R5):
+    /// appends transactionally-committed activity intents to the audit
+    /// service as semantic records and marks each delivered only after
+    /// its append succeeded. The audit event id IS the intent id, so
+    /// at-least-once redelivery is dedupeable downstream. Never
+    /// scheduled implicitly.
+    pub async fn dispatch_pending_audit(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<usize, TicketingServiceError> {
+        let configuration_error = || {
+            TicketingServiceError::Configuration(
+                "audit dispatch requires a registered audit service".into(),
+            )
+        };
+        let audit = self.portal.audit.as_ref().ok_or_else(configuration_error)?;
+        self.require_project(project_id)?;
+        if !(1..=100).contains(&limit) {
+            return Err(TicketingServiceError::Configuration(
+                "audit dispatch limit must be between 1 and 100".into(),
+            ));
+        }
+        let pending = self.store.pending_audit_intents(project_id, limit).await?;
+        let mut delivered = 0;
+        for intent in pending {
+            let mut event = minco_plugin_audit::AuditEvent::new(
+                intent.kind.clone(),
+                "ticketing.ticket",
+                intent.ticket_id.to_string(),
+                intent.correlation_id,
+            );
+            event.id = intent.id;
+            event.occurred_at = intent.created_at;
+            event.metadata = intent
+                .payload
+                .as_object()
+                .map(|object| object.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default();
+            audit.append(event).await.map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
+            })?;
+            let _ = self
+                .store
+                .mark_audit_published(intent.id, Utc::now())
+                .await?;
+            delivered += 1;
+        }
+        Ok(delivered)
     }
 
     /// Resolve a session token to the bound requester identity. Permissions
@@ -4024,6 +4079,64 @@ mod tests {
             .await
             .unwrap();
         assert!(quiet.enqueued_job_records().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn audit_dispatch_delivers_intents_once_with_intent_identity() {
+        // Exact-head review R5: activity intents reach the audit service
+        // as semantic records keyed by the intent id; delivered marks
+        // make the pass bounded and repeatable.
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let sink = Arc::new(minco_plugin_audit::MemoryAuditSink::default());
+        let service = TicketingService::new(
+            TicketingStoreService::new(memory.clone()),
+            TicketingConfig {
+                project_id: "project-a".into(),
+                portal_origin: "https://support.example.test".into(),
+                ..TicketingConfig::default()
+            },
+        )
+        .unwrap()
+        .with_portal_services(TicketingPortalServices {
+            audit: Some(Arc::new(minco_plugin_audit::AuditService(
+                Arc::clone(&sink) as Arc<dyn minco_plugin_audit::AuditSink>,
+            ))),
+            ..TicketingPortalServices::default()
+        });
+        service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("user-a"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        let delivered = service
+            .dispatch_pending_audit("project-a", 10)
+            .await
+            .unwrap();
+        assert_eq!(delivered, 1);
+        let events = sink.all().await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].action, "ticketing.created");
+        assert_eq!(events[0].resource_type, "ticketing.ticket");
+        let intent_ids = TicketingStoreService::new(memory)
+            .pending_audit_intents("project-a", 100)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|intent| intent.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(intent_ids.is_empty(), "delivery marks advance");
+        assert!(
+            service
+                .dispatch_pending_audit("project-a", 10)
+                .await
+                .unwrap()
+                == 0,
+            "a settled audit pass delivers nothing"
+        );
     }
 
     #[tokio::test]

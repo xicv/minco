@@ -135,6 +135,8 @@ pub struct BuiltDesk {
 #[derive(Clone)]
 pub struct DeskWorker {
     jobs: Arc<minco_plugin_jobs::JobsServices>,
+    audit: Arc<minco_plugin_ticketing::TicketingService>,
+    project_id: String,
 }
 
 impl std::fmt::Debug for DeskWorker {
@@ -148,14 +150,22 @@ impl DeskWorker {
     /// execute in-process through the registered handlers and their
     /// durable dispositions are committed.
     pub async fn run_once(&self) -> Result<minco_plugin_jobs::DispatchReport, anyhow::Error> {
-        self.jobs
+        let report = self
+            .jobs
             .dispatch_due_once(
                 &format!("desk-worker-{}", uuid::Uuid::new_v4().simple()),
                 50,
                 chrono::TimeDelta::seconds(60),
             )
             .await
-            .map_err(|error| anyhow::anyhow!("desk worker dispatch pass failed: {error}"))
+            .map_err(|error| anyhow::anyhow!("desk worker dispatch pass failed: {error}"))?;
+        // The explicit audit pass rides every worker run (exact-head
+        // review R5): committed intents reach the durable audit sink.
+        self.audit
+            .dispatch_pending_audit(&self.project_id, 100)
+            .await
+            .map_err(|error| anyhow::anyhow!("desk worker audit pass failed: {error}"))?;
+        Ok(report)
     }
 }
 
@@ -273,6 +283,12 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
         publisher: Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::EventPublisher>,
         outbox: Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::OutboxStore>,
     });
+    // Semantic audit rides the same durable sink the plugin graph
+    // registers (exact-head review R5).
+    let audit_sink: Arc<dyn minco_plugin_audit::AuditSink> = Arc::new(
+        minco_sqlx_sqlite::plugin_adapters::SqliteAuditSink::new(pool.clone()),
+    );
+    let audit = Arc::new(minco_plugin_audit::AuditService(Arc::clone(&audit_sink)));
 
     let service = Arc::new(
         TicketingService::new(
@@ -290,6 +306,7 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
             csrf: Some(csrf),
             idempotency: Some(idempotency),
             events: Some(events),
+            audit: Some(audit),
             jobs: Some(Arc::clone(&jobs_handle)),
             objects: Some(objects.clone()),
         }),
@@ -339,8 +356,8 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
         Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::EventPublisher>,
         Arc::clone(&events_bus) as Arc<dyn minco_plugin_events::OutboxStore>,
     ))?;
-    manager.register(minco_plugin_audit::AuditPlugin::new(Arc::new(
-        minco_sqlx_sqlite::plugin_adapters::SqliteAuditSink::new(pool.clone()),
+    manager.register(minco_plugin_audit::AuditPlugin::new(Arc::clone(
+        &audit_sink,
     )))?;
     let mut selection = minco_core::PluginSelection::default();
     selection
@@ -398,7 +415,11 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     )?;
     Ok(BuiltDesk {
         router,
-        worker: DeskWorker { jobs: jobs_handle },
+        worker: DeskWorker {
+            jobs: jobs_handle,
+            audit: Arc::clone(&service),
+            project_id: config.project_id.clone(),
+        },
         health_report,
     })
 }

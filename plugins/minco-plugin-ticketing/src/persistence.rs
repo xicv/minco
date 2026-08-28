@@ -796,6 +796,43 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(result.rows_affected() == 1)
     }
 
+    async fn pending_audit_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, ticket_id, kind, correlation_id, payload_json, created_at
+               FROM ticketing_activity_intents
+              WHERE project_id = ? AND audit_published_at IS NULL
+              ORDER BY created_at, id
+              LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter().map(|row| parse_intent_row(&row)).collect()
+    }
+
+    async fn mark_audit_published(
+        &self,
+        intent_id: Uuid,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_activity_intents SET audit_published_at = ?
+              WHERE id = ? AND audit_published_at IS NULL",
+        )
+        .bind(at.to_rfc3339())
+        .bind(intent_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(result.rows_affected() == 1)
+    }
+
     async fn find_ticket_by_message_identity(
         &self,
         project_id: &str,
@@ -2085,6 +2122,28 @@ fn parse_enum<T: serde::de::DeserializeOwned>(
 ) -> Result<T, TicketStoreError> {
     serde_json::from_value(serde_json::Value::String(value)).map_err(|_| {
         TicketStoreError::Infrastructure(format!("stored {field} is not a valid enum value"))
+    })
+}
+
+fn parse_intent_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<TicketActivityIntent, TicketStoreError> {
+    Ok(TicketActivityIntent {
+        id: Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+            TicketStoreError::Infrastructure("stored intent id is not a UUID".into())
+        })?,
+        project_id: row.get("project_id"),
+        ticket_id: TicketId(
+            Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("stored intent ticket id is not a UUID".into())
+            })?,
+        ),
+        kind: row.get("kind"),
+        correlation_id: Uuid::parse_str(&row.get::<String, _>("correlation_id")).map_err(|_| {
+            TicketStoreError::Infrastructure("stored correlation id is not a UUID".into())
+        })?,
+        payload: serde_json::from_str(&row.get::<String, _>("payload_json")).map_err(encoding)?,
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
     })
 }
 
