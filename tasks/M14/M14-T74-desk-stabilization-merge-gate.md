@@ -225,6 +225,22 @@ at head 170f434a)** — continue M14-T74, ten new findings R1-R10:
   503s; stale-lease takeover revokes the replaced session; missing
   grant fails closed. Desk durability proofs updated to rotation.
 
+- **R4 DONE** (`fix(ticketing): durable outbound send intents...`):
+  migration 0014 ticketing_send_intents; the logical send identity
+  commits BEFORE provider contact and rides the mail as a
+  minco-send-id tag; provider acceptance resolves sent WITH the
+  provider's own message identity (SES overwrites caller
+  Message-IDs); ambiguity holds in recovery_required; reconciliation
+  drives the intent (accepted → sent, no-send → pending for one
+  identity-stable resend); proven: retry after
+  intent-resolved-but-evidence-failed never contacts the provider.
+- **R5 DONE** (`fix(ticketing): activity intents dispatch to a real
+  audit service...`): migration 0015 audit delivery marks; portal
+  carries the audit service; dispatch_pending_audit appends intents
+  as semantic records with the intent id as the audit event id; the
+  plugin wires the fetched AuditService; the desk worker drives the
+  audit pass; proof of once-only delivery.
+
 **Final-head qualification (2026-08-27)**: `./scripts/quality.sh`
 exit 0 at the final head — 1,225 cargo tests passed workspace-wide,
 every python evidence suite OK (including the recipe matrix after

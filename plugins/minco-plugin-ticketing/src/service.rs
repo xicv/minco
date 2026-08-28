@@ -105,6 +105,18 @@ pub struct TicketingConfig {
     /// in explicitly.
     #[serde(default)]
     pub inbound_email_first_contact: bool,
+    /// Inbound sender-authentication policy (exact-head review R6):
+    /// which trusted verdict must pass before mail participates.
+    /// `LocalTrusted` trusts the channel itself (local/rustack profiles
+    /// with no Authentication-Results); the strict modes quarantine
+    /// missing, malformed, `GRAY` or `PROCESSING_FAILED` evidence.
+    #[serde(default)]
+    pub inbound_auth_policy: crate::InboundAuthPolicy,
+    /// The expected authentication-service identifier the receiving
+    /// provider stamps (exact-head review R6): results from any other
+    /// authserv-id are attacker-forged and never trusted.
+    #[serde(default = "default_inbound_authserv_id")]
+    pub inbound_authserv_id: String,
     /// Private development automation (ADR-0070). Off by default: no
     /// application gets automation by surprise.
     #[serde(default)]
@@ -126,6 +138,8 @@ impl Default for TicketingConfig {
             sla: None,
             notify_requester_on_public_reply: false,
             inbound_email_first_contact: false,
+            inbound_auth_policy: crate::InboundAuthPolicy::default(),
+            inbound_authserv_id: default_inbound_authserv_id(),
             automation: crate::AutomationConfig::default(),
         }
     }
@@ -2568,6 +2582,10 @@ fn default_support_label() -> String {
 fn default_support_brand() -> String {
     "Support".into()
 }
+fn default_inbound_authserv_id() -> String {
+    "amazonses.com".into()
+}
+
 const fn default_requester_session_ttl_seconds() -> i64 {
     3600
 }

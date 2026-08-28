@@ -78,31 +78,184 @@ impl Job for ProcessInboundEmail {
     const VERSION: u16 = 1;
 }
 
-/// One parsed sender-authentication verdict from the receiving provider
-/// (`Authentication-Results`); absent headers stay `None` and explicit
-/// failures quarantine the message (review finding 6).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+/// Inbound sender-authentication policy (exact-head review R6).
+///
+/// Variants decide which trusted verdict must pass before inbound mail
+/// participates.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum InboundMailVerdict {
-    Pass,
-    Fail,
+pub enum InboundAuthPolicy {
+    /// The inbound channel itself is trusted (local or rustack profiles
+    /// with no Authentication-Results); spam/virus failures and explicit
+    /// mechanism failures still quarantine.
+    #[default]
+    LocalTrusted,
+    /// A trusted aligned SPF pass is required.
+    RequireAlignedSpf,
+    /// A trusted aligned DKIM pass is required.
+    RequireAlignedDkim,
+    /// A trusted DMARC pass is required.
+    RequireDmarc,
 }
 
-/// Parses `spf=`/`dkim=` verdicts from one Authentication-Results value.
-fn authentication_verdicts(
-    header: &str,
-) -> (Option<InboundMailVerdict>, Option<InboundMailVerdict>) {
-    let verdict = |mechanism: &str| {
-        header
-            .contains(&format!("{mechanism}=pass"))
-            .then_some(InboundMailVerdict::Pass)
-            .or_else(|| {
-                header
-                    .contains(&format!("{mechanism}=fail"))
-                    .then_some(InboundMailVerdict::Fail)
-            })
+/// One structurally parsed Authentication-Results header (RFC 8601).
+///
+/// Carries the authserv-id, the mechanism verdicts it asserts and the
+/// property tokens (`header.d`, `smtp.mailfrom`) with authenticated
+/// domains.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedAuthResults {
+    pub authserv_id: String,
+    pub mechanisms: Vec<(String, String)>,
+    pub properties: Vec<(String, String)>,
+}
+
+/// Structural parse of one Authentication-Results value.
+///
+/// Returns `None` when the value is malformed (exact-head review R6:
+/// substring matching is forgeable).
+pub fn parse_authentication_results(value: &str) -> Option<ParsedAuthResults> {
+    let (authserv_id, rest) = value.trim().split_once(';')?;
+    let authserv_id = authserv_id.trim();
+    if authserv_id.is_empty()
+        || !authserv_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-')
+    {
+        return None;
+    }
+    let mut mechanisms = Vec::new();
+    let mut properties = Vec::new();
+    for token in rest.split(';') {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        // One ';'-token carries the mechanism verdict followed by
+        // space-separated property pairs (`spf=pass smtp.mailfrom=x`),
+        // with RFC 8601 comments possibly attached to each part.
+        for part in token.split_whitespace() {
+            let clean = match part.find('(') {
+                Some(position) => part[..position].trim(),
+                None => part,
+            };
+            let (key, value) = clean.split_once('=')?;
+            let key = key.trim().to_ascii_lowercase();
+            let value = value.trim().to_ascii_lowercase();
+            if key.is_empty() || value.is_empty() {
+                return None;
+            }
+            match key.as_str() {
+                "spf" | "dkim" | "dmarc" | "dkim-atps" | "spf2" => mechanisms.push((key, value)),
+                _ => properties.push((key, value)),
+            }
+        }
+    }
+    Some(ParsedAuthResults {
+        authserv_id: authserv_id.to_owned(),
+        mechanisms,
+        properties,
+    })
+}
+
+/// The sender-trust decision for one inbound message (exact-head
+/// review R6).
+///
+/// Every Authentication-Results header is parsed; only the configured
+/// authserv-id is trusted; two trusted headers are ambiguous; explicit
+/// mechanism failures and SES spam/virus failures quarantine under
+/// every policy; strict policies demand their aligned pass.
+pub fn evaluate_inbound_trust(
+    headers: &[String],
+    spam_verdict: Option<&str>,
+    virus_verdict: Option<&str>,
+    from_domain: Option<&str>,
+    expected_authserv_id: &str,
+    policy: InboundAuthPolicy,
+) -> Result<(), &'static str> {
+    // SES spam/virus verdicts are provider evidence: FAIL quarantines
+    // under every policy.
+    for verdict in [spam_verdict, virus_verdict].into_iter().flatten() {
+        if verdict.trim().eq_ignore_ascii_case("FAIL") {
+            return Err("ticketing.inbound_sender_unverified");
+        }
+    }
+    let parsed: Vec<ParsedAuthResults> = headers
+        .iter()
+        .map(|value| parse_authentication_results(value))
+        .collect::<Option<Vec<_>>>()
+        .ok_or("ticketing.inbound_sender_unverified")?;
+    let trusted: Vec<&ParsedAuthResults> = parsed
+        .iter()
+        .filter(|results| {
+            results
+                .authserv_id
+                .eq_ignore_ascii_case(expected_authserv_id)
+        })
+        .collect();
+    if trusted.len() > 1 {
+        // Multiple trusted headers are ambiguous evidence (RFC 8601).
+        return Err("ticketing.inbound_sender_unverified");
+    }
+    let quarantine_verdicts = [
+        "fail",
+        "hardfail",
+        "permerror",
+        "temperror",
+        "processing_failed",
+        "gray",
+    ];
+    for results in &trusted {
+        for (_mechanism, verdict) in &results.mechanisms {
+            if quarantine_verdicts.contains(&verdict.as_str()) {
+                return Err("ticketing.inbound_sender_unverified");
+            }
+        }
+    }
+    let required = match policy {
+        InboundAuthPolicy::LocalTrusted => None,
+        InboundAuthPolicy::RequireAlignedSpf => Some("spf"),
+        InboundAuthPolicy::RequireAlignedDkim => Some("dkim"),
+        InboundAuthPolicy::RequireDmarc => Some("dmarc"),
     };
-    (verdict("spf"), verdict("dkim"))
+    let Some(required) = required else {
+        return Ok(());
+    };
+    let Some(results) = trusted.first() else {
+        // Strict policies quarantine missing evidence.
+        return Err("ticketing.inbound_sender_unverified");
+    };
+    let mechanism_passed = results
+        .mechanisms
+        .iter()
+        .any(|(mechanism, verdict)| mechanism == required && verdict == "pass");
+    if !mechanism_passed {
+        return Err("ticketing.inbound_sender_unverified");
+    }
+    // Alignment: the authenticated domain must equal or be a subdomain
+    // of the From domain. For DKIM/DMARC the identity is header.d; for
+    // SPF smtp.mailfrom. A missing identity fails closed under strict
+    // policies.
+    let from_domain = from_domain.map(str::trim).map(str::to_ascii_lowercase);
+    let identity_keys: &[&str] = match required {
+        "spf" => &["smtp.mailfrom", "mailfrom"],
+        _ => &["header.d", "d"],
+    };
+    let authenticated = results
+        .properties
+        .iter()
+        .find(|(key, _)| identity_keys.contains(&key.as_str()))
+        .map(|(_, value)| value.clone());
+    match (authenticated, from_domain) {
+        (Some(identity), Some(from_domain)) if !identity.is_empty() && !from_domain.is_empty() => {
+            if identity == from_domain || identity.ends_with(&format!(".{from_domain}")) {
+                Ok(())
+            } else {
+                Err("ticketing.inbound_sender_unverified")
+            }
+        }
+        _ => Err("ticketing.inbound_sender_unverified"),
+    }
 }
 
 /// Deferred command: run private development automation for one ticket
@@ -321,19 +474,34 @@ async fn process_inbound_email(
         .and_then(|address| address.first())
         .and_then(|entry| entry.address())
         .map(str::to_owned);
-    let (spf, dkim) = message
-        .header_raw(mail_parser::HeaderName::Other(
-            "Authentication-Results".into(),
-        ))
-        .map(str::trim)
-        .map_or((None, None), authentication_verdicts);
-    if matches!(spf, Some(InboundMailVerdict::Fail))
-        || matches!(dkim, Some(InboundMailVerdict::Fail))
-    {
-        return Err(JobExecutionFailure::permanent(
-            "ticketing.inbound_sender_unverified",
-        ));
-    }
+    // Every Authentication-Results header participates; the configured
+    // authserv-id decides which are trusted (exact-head review R6).
+    let auth_headers: Vec<String> = message
+        .headers_raw()
+        .filter(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"))
+        .map(|(_, value)| value.trim().to_owned())
+        .collect();
+    let header_text = |name: &str| -> Option<String> {
+        message
+            .headers_raw()
+            .filter(|(header, _)| header.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.trim().to_owned())
+            .next()
+    };
+    let from_domain = sender
+        .as_deref()
+        .and_then(|address| address.rsplit_once('@'))
+        .map(|(_, domain)| domain.to_ascii_lowercase());
+    let config = service.config();
+    evaluate_inbound_trust(
+        &auth_headers,
+        header_text("X-SES-Spam-Verdict").as_deref(),
+        header_text("X-SES-Virus-Verdict").as_deref(),
+        from_domain.as_deref(),
+        &config.inbound_authserv_id,
+        config.inbound_auth_policy,
+    )
+    .map_err(JobExecutionFailure::permanent)?;
     match command.ticket_id {
         // Verified first contact: the sender becomes the requester of a
         // new ticket and the message identity registers atomically.
@@ -1722,6 +1890,150 @@ mod tests {
     }
 
     #[test]
+    fn structural_auth_parsing_rejects_forgery_and_ambiguity() {
+        use super::evaluate_inbound_trust;
+        // A trusted SPF pass with aligned mailfrom passes strict SPF.
+        assert!(
+            evaluate_inbound_trust(
+                &["amazonses.com; spf=pass smtp.mailfrom=example.test".into()],
+                Some("PASS"),
+                Some("PASS"),
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::RequireAlignedSpf,
+            )
+            .is_ok()
+        );
+        // A foreign authserv-id is attacker-forged: never trusted, so a
+        // strict policy quarantines despite the 'pass'.
+        assert!(
+            evaluate_inbound_trust(
+                &["attacker.example; spf=pass smtp.mailfrom=example.test".into()],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::RequireAlignedSpf,
+            )
+            .is_err()
+        );
+        // A forged foreign header plus one trusted header: only the
+        // trusted one counts.
+        assert!(
+            evaluate_inbound_trust(
+                &[
+                    "attacker.example; spf=fail".into(),
+                    "amazonses.com; spf=pass smtp.mailfrom=example.test".into(),
+                ],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::RequireAlignedSpf,
+            )
+            .is_ok()
+        );
+        // Two TRUSTED headers are ambiguous evidence.
+        assert!(
+            evaluate_inbound_trust(
+                &[
+                    "amazonses.com; spf=pass smtp.mailfrom=example.test".into(),
+                    "amazonses.com; spf=pass smtp.mailfrom=example.test".into(),
+                ],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::RequireAlignedSpf,
+            )
+            .is_err()
+        );
+        // Misaligned authenticated domain fails a strict policy.
+        assert!(
+            evaluate_inbound_trust(
+                &["amazonses.com; dkim=pass (2048-bit) header.d=other.example".into()],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::RequireAlignedDkim,
+            )
+            .is_err()
+        );
+        // Aligned subdomain passes.
+        assert!(
+            evaluate_inbound_trust(
+                &["amazonses.com; dkim=pass header.d=mail.example.test".into()],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::RequireAlignedDkim,
+            )
+            .is_ok()
+        );
+        // GRAY and PROCESSING_FAILED quarantine; missing evidence fails
+        // strict policies but passes LocalTrusted.
+        assert!(
+            evaluate_inbound_trust(
+                &["amazonses.com; dmarc=gray".into()],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::LocalTrusted,
+            )
+            .is_err()
+        );
+        assert!(
+            evaluate_inbound_trust(
+                &[],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::LocalTrusted,
+            )
+            .is_ok()
+        );
+        assert!(
+            evaluate_inbound_trust(
+                &[],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::RequireDmarc,
+            )
+            .is_err()
+        );
+        // SES spam verdict FAIL quarantines under every policy.
+        assert!(
+            evaluate_inbound_trust(
+                &[],
+                Some("FAIL"),
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::LocalTrusted,
+            )
+            .is_err()
+        );
+        // Malformed header values never parse into trust.
+        assert!(
+            evaluate_inbound_trust(
+                &["no-semicolon-value".into()],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                super::InboundAuthPolicy::LocalTrusted,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn inbound_envelope_carries_the_contract_policies() {
         let payload = inbound_command(TicketId::new(), &"a".repeat(64));
         let envelope = inbound_email_envelope(&payload, Uuid::now_v7(), Utc::now()).unwrap();
@@ -1800,7 +2112,7 @@ mod tests {
         let (services, objects, _memory, ticket_id, _revision, _digest) = inbound_setup().await;
         let failed = concat!(
             "From: user-1@example.test\r\nTo: support@example.test\r\n",
-            "Subject: Re: Help\r\nAuthentication-Results: example.test; spf=fail; dkim=pass\r\n",
+            "Subject: Re: Help\r\nAuthentication-Results: amazonses.com; spf=fail; dkim=pass\r\n",
             "\r\nReply from the mailbox.\r\n"
         );
         objects
