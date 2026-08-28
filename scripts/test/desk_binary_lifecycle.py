@@ -159,5 +159,60 @@ class DeskBinaryLifecycleTests(unittest.TestCase):
                     child.wait(timeout=10)
 
 
+
+
+class NonLocalFailClosedTests(unittest.TestCase):
+    """Exact-head review R19: trivial secrets, memory/read-only databases
+    and inherited local defaults must refuse non-local startup."""
+
+    def _run(self, env_overrides: dict) -> subprocess.CompletedProcess:
+        env = {
+            **os.environ,
+            "DESK_ENVIRONMENT": "production",
+            "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal.sqlite?mode=rwc",
+            "DESK_AGENT_TOKEN": "x" * 40,
+            "DESK_CSRF_SECRET": "y" * 40,
+            "DESK_PORTAL_ORIGIN": "https://desk.example.test",
+            "DESK_ALLOWED_ORIGINS": "https://desk.example.test",
+        }
+        env.update(env_overrides)
+        return subprocess.run(
+            [BINARY],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    def test_trivial_secret_is_rejected(self) -> None:
+        result = self._run({"DESK_AGENT_TOKEN": "x"})
+        self.assertNotEqual(result.returncode, 0, "a 1-char token must fail closed")
+        self.assertIn("at least 32 characters", result.stderr)
+
+    def test_memory_database_is_rejected(self) -> None:
+        result = self._run({"DESK_DATABASE_URL": "sqlite://:memory:?mode=memory"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("read-write", result.stderr)
+
+    def test_read_only_database_is_rejected(self) -> None:
+        result = self._run({"DESK_DATABASE_URL": "sqlite:///tmp/ro.sqlite?mode=ro"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("read-write", result.stderr)
+
+    def test_inherited_portal_origin_is_rejected(self) -> None:
+        env = {
+            **os.environ,
+            "DESK_ENVIRONMENT": "production",
+            "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal2.sqlite?mode=rwc",
+            "DESK_AGENT_TOKEN": "x" * 40,
+            "DESK_CSRF_SECRET": "y" * 40,
+        }
+        env.pop("DESK_PORTAL_ORIGIN", None)
+        env.pop("DESK_ALLOWED_ORIGINS", None)
+        result = subprocess.run([BINARY], env=env, capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DESK_PORTAL_ORIGIN", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -75,10 +75,35 @@ impl DeskConfig {
                     );
                 }
             }
-            if !database_url.starts_with("sqlite://") || !database_url.contains("mode=") {
+            for (name, value) in [
+                ("DESK_AGENT_TOKEN", agent_token.0.as_str()),
+                ("DESK_CSRF_SECRET", csrf_secret.0.as_str()),
+            ] {
+                if value.trim().len() < 32 {
+                    anyhow::bail!(
+                        "{name} must carry at least 32 characters of entropy in \
+                         non-local environments"
+                    );
+                }
+            }
+            let lowered = database_url.to_ascii_lowercase();
+            if !lowered.starts_with("sqlite://")
+                || !lowered.contains("mode=rwc")
+                || lowered.contains(":memory:")
+            {
                 anyhow::bail!(
-                    "DESK_DATABASE_URL must be an explicit persistent SQLite URL in \
-                     non-local environments"
+                    "DESK_DATABASE_URL must be an explicit persistent read-write \
+                     SQLite URL (mode=rwc, no :memory:) in non-local environments"
+                );
+            }
+            if std::env::var("DESK_PORTAL_ORIGIN").is_err() {
+                anyhow::bail!(
+                    "DESK_PORTAL_ORIGIN must be set explicitly in non-local environments"
+                );
+            }
+            if std::env::var("DESK_ALLOWED_ORIGINS").is_err() {
+                anyhow::bail!(
+                    "DESK_ALLOWED_ORIGINS must be set explicitly in non-local environments"
                 );
             }
         }
