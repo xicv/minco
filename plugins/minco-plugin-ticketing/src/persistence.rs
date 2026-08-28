@@ -3,8 +3,8 @@ use crate::{
     ClarificationState, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
     ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity,
     ExternalMessageIngestResult, IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT,
-    OutboundDeliveryEvidence, OutboundEvidenceKind, Ticket, TicketActivityIntent, TicketId,
-    TicketListFilter, TicketMessageId, TicketRequester, TicketStatus, TicketStoreError,
+    OperationReceipt, OutboundDeliveryEvidence, OutboundEvidenceKind, Ticket, TicketActivityIntent,
+    TicketId, TicketListFilter, TicketMessageId, TicketRequester, TicketStatus, TicketStoreError,
     TicketSummary, TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
@@ -341,6 +341,23 @@ impl TicketingStore for SqliteTicketingStore {
             for record in &request.job_records {
                 sink.enqueue_in(&mut transaction, record.clone()).await?;
             }
+        }
+        // The idempotency receipt commits with the append in this
+        // transaction (exact-head review R2): a lost HTTP response can
+        // always be replayed from the authoritative row.
+        if let Some(receipt) = &request.receipt {
+            sqlx::query(
+                "INSERT INTO ticketing_operation_receipts
+                 (idempotency_key, fingerprint, response_json, created_at)
+                 VALUES (?, ?, ?, ?)",
+            )
+            .bind(&receipt.idempotency_key)
+            .bind(&receipt.fingerprint)
+            .bind(&receipt.response_json)
+            .bind(receipt.created_at.to_rfc3339())
+            .execute(&mut *transaction)
+            .await
+            .map_err(infrastructure)?;
         }
         transaction.commit().await.map_err(infrastructure)
     }
@@ -858,6 +875,37 @@ impl TicketingStore for SqliteTicketingStore {
         .await
         .map_err(infrastructure)?;
         Ok(())
+    }
+
+    async fn operation_receipt(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<OperationReceipt>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT idempotency_key, fingerprint, response_json, created_at
+               FROM ticketing_operation_receipts WHERE idempotency_key = ?",
+        )
+        .bind(idempotency_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| {
+            Ok(OperationReceipt {
+                idempotency_key: row.get("idempotency_key"),
+                fingerprint: row.get("fingerprint"),
+                response_json: row.get("response_json"),
+                created_at: chrono::DateTime::parse_from_rfc3339(
+                    &row.get::<String, _>("created_at"),
+                )
+                .map_err(|_| {
+                    TicketStoreError::Infrastructure(
+                        "stored receipt timestamp is not RFC 3339".into(),
+                    )
+                })?
+                .with_timezone(&Utc),
+            })
+        })
+        .transpose()
     }
 
     async fn create_ticket_from_external(
@@ -2572,6 +2620,7 @@ mod tests {
             );
             store
                 .append_ticket_message(crate::AppendTicketMessageRequest {
+                    receipt: None,
                     project_id: "project-a".into(),
                     ticket_id: ticket.id,
                     message,
@@ -2961,6 +3010,7 @@ mod tests {
             .reply_as_agent_message("agent-1", "Latest message", now)
             .unwrap();
         let stale = crate::AppendTicketMessageRequest {
+            receipt: None,
             project_id: "project-a".into(),
             ticket_id: ticket.id,
             message: message.clone(),
@@ -3154,6 +3204,61 @@ mod tests {
             (directory, store)
         }
 
+        #[tokio::test]
+        async fn operation_receipt_commits_with_the_append_and_reads_back() {
+            let (_directory, store) = store().await;
+            let now = Utc::now();
+            let mut ticket = Ticket::create(
+                CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "Help".into(),
+                    description: "Broken".into(),
+                    requester: TicketRequester {
+                        subject: "user".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    priority: TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                "TKT-RECEIPT",
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            store.create(ticket.clone(), intent).await.unwrap();
+            let receipt = OperationReceipt {
+                idempotency_key: "receipt-key-1".into(),
+                fingerprint: "f".repeat(64),
+                response_json: "{\"replayed\":true}".into(),
+                created_at: now,
+            };
+            store
+                .append_ticket_message(AppendTicketMessageRequest {
+                    receipt: Some(receipt.clone()),
+                    ..append_request(
+                        &mut ticket,
+                        "The receipt must commit with this reply.",
+                        Vec::new(),
+                    )
+                })
+                .await
+                .unwrap();
+            let stored = store.operation_receipt("receipt-key-1").await.unwrap();
+            assert_eq!(stored.as_ref(), Some(&receipt));
+            assert!(store.operation_receipt("absent").await.unwrap().is_none());
+        }
+
         fn append_request(
             ticket: &mut Ticket,
             body: &str,
@@ -3165,6 +3270,7 @@ mod tests {
             AppendTicketMessageRequest {
                 project_id: "project-a".into(),
                 ticket_id: ticket.id,
+                receipt: None,
                 message,
                 status: ticket.status,
                 first_public_response_at: ticket.first_public_response_at,

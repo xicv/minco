@@ -249,10 +249,25 @@ pub struct ExternalMessageIngestResult {
 /// only the listed columns are updated. Under the optional `jobs` feature,
 /// `job_records` are enqueued in the same transaction; they are bounded
 /// and carry identifiers only.
+/// A recoverable idempotency receipt committed in the same transaction
+/// as the mutation it describes (exact-head review R2): the serialized
+/// authoritative response is rebuilt from this row when a lost response
+/// is retried after the shared idempotency lease has gone stale.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperationReceipt {
+    pub idempotency_key: String,
+    pub fingerprint: String,
+    pub response_json: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
 pub struct AppendTicketMessageRequest {
     pub project_id: String,
     pub ticket_id: TicketId,
+    /// Optional idempotency receipt committed atomically with this
+    /// append (exact-head review R2).
+    pub receipt: Option<OperationReceipt>,
     pub message: crate::TicketMessage,
     pub status: crate::TicketStatus,
     pub first_public_response_at: Option<DateTime<Utc>>,
@@ -363,6 +378,14 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         identity: ExternalMessageIdentity,
         ticket_id: TicketId,
     ) -> Result<(), TicketStoreError>;
+
+    /// Reads one operation receipt by idempotency key (exact-head
+    /// review R2): the recovery path replays the authoritative response
+    /// instead of re-executing the mutation.
+    async fn operation_receipt(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<OperationReceipt>, TicketStoreError>;
 
     /// Verified first-contact intake (review finding 6): create one
     /// ticket from an inbound email and register its external identity
@@ -666,6 +689,13 @@ impl TicketingStoreService {
             .await
     }
 
+    pub async fn operation_receipt(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<OperationReceipt>, TicketStoreError> {
+        self.0.operation_receipt(idempotency_key).await
+    }
+
     pub async fn erase_tickets_resolved_before(
         &self,
         project_id: &str,
@@ -856,6 +886,7 @@ struct MemoryState {
     assignment_cursor: BTreeMap<String, u64>,
     automation_proposals: BTreeMap<(String, Uuid), AutomationProposal>,
     clarifications: BTreeMap<(String, Uuid), Clarification>,
+    operation_receipts: BTreeMap<String, OperationReceipt>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -1272,6 +1303,13 @@ impl TicketingStore for MemoryTicketingStore {
         request: AppendTicketMessageRequest,
     ) -> Result<(), TicketStoreError> {
         let mut state = self.state.lock().await;
+        // The idempotency receipt commits with the append itself
+        // (exact-head review R2).
+        if let Some(receipt) = &request.receipt {
+            state
+                .operation_receipts
+                .insert(receipt.idempotency_key.clone(), receipt.clone());
+        }
         let key = (request.project_id.clone(), request.ticket_id);
         let ticket = state
             .tickets
@@ -1682,6 +1720,14 @@ impl TicketingStore for MemoryTicketingStore {
             .or_insert((identity, ticket_id));
         drop(state);
         Ok(())
+    }
+
+    async fn operation_receipt(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<OperationReceipt>, TicketStoreError> {
+        let state = self.state.lock().await;
+        Ok(state.operation_receipts.get(idempotency_key).cloned())
     }
 
     async fn create_ticket_from_external(

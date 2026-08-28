@@ -540,6 +540,68 @@ impl TicketingService {
         })
     }
 
+    /// Idempotency-guarded requester reply (exact-head review R2): the
+    /// serialized authoritative result is committed beside the message in
+    /// the same transaction, so a lost HTTP response is always replayable
+    /// from the receipt — by the shared idempotency layer immediately, or
+    /// by receipt lookup once a stale lease allows a new begin.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn reply_as_requester_with_receipt(
+        &self,
+        principal: &Identity,
+        project_id: &str,
+        id: TicketId,
+        body: String,
+        expected_revision: u64,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+        idempotency_key: &str,
+        fingerprint: &str,
+    ) -> Result<RequesterTicketResult, TicketingServiceError> {
+        authorize(principal, "ticketing.requester.write")?;
+        let mut ticket = self.load(project_id, id).await?;
+        if ticket.requester.subject != principal.subject {
+            return Err(TicketingServiceError::RequesterMismatch);
+        }
+        require_revision(&ticket, expected_revision)?;
+        let message = ticket.reply_as_requester_message(body, now)?;
+        let result = RequesterTicketResult {
+            ticket: ticket.requester_projection(),
+            warnings: Vec::new(),
+        };
+        let receipt = crate::OperationReceipt {
+            idempotency_key: idempotency_key.to_owned(),
+            fingerprint: fingerprint.to_owned(),
+            response_json: serde_json::to_string(&result).map_err(|_| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(
+                    "operation receipt serialization failed".into(),
+                ))
+            })?,
+            created_at: now,
+        };
+        #[allow(clippy::redundant_pub_crate)]
+        self.append_message_with_receipt(
+            &ticket,
+            message,
+            "ticketing.requester_replied",
+            expected_revision,
+            correlation_id,
+            now,
+            receipt,
+        )
+        .await?;
+        Ok(result)
+    }
+
+    /// Reads one committed operation receipt for idempotency recovery
+    /// (exact-head review R2).
+    pub async fn operation_receipt(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<crate::OperationReceipt>, TicketingServiceError> {
+        Ok(self.store.operation_receipt(idempotency_key).await?)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn reply_as_agent(
         &self,
@@ -575,6 +637,7 @@ impl TicketingService {
                 correlation_id,
                 now,
                 job_records,
+                None,
             )
             .await
             .map(|()| result(ticket));
@@ -2067,6 +2130,34 @@ impl TicketingService {
             now,
             #[cfg(feature = "jobs")]
             Vec::new(),
+            None,
+        )
+        .await
+    }
+
+    /// Like [`Self::append_message`], committing an idempotency receipt
+    /// in the same transaction (exact-head review R2).
+    #[allow(clippy::too_many_arguments)]
+    async fn append_message_with_receipt(
+        &self,
+        ticket: &Ticket,
+        message: TicketMessage,
+        kind: &str,
+        expected_revision: u64,
+        correlation_id: Uuid,
+        now: DateTime<Utc>,
+        receipt: crate::OperationReceipt,
+    ) -> Result<(), TicketingServiceError> {
+        self.append_message_with_jobs(
+            ticket,
+            message,
+            kind,
+            expected_revision,
+            correlation_id,
+            now,
+            #[cfg(feature = "jobs")]
+            Vec::new(),
+            Some(receipt),
         )
         .await
     }
@@ -2114,6 +2205,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
         #[cfg(feature = "jobs")] job_records: Vec<minco_plugin_jobs::JobRecord>,
+        receipt: Option<crate::OperationReceipt>,
     ) -> Result<(), TicketingServiceError> {
         let intent = activity(ticket, kind, correlation_id, now);
         Ok(self
@@ -2121,6 +2213,7 @@ impl TicketingService {
             .append_ticket_message(AppendTicketMessageRequest {
                 project_id: ticket.project_id.clone(),
                 ticket_id: ticket.id,
+                receipt,
                 message,
                 status: ticket.status,
                 first_public_response_at: ticket.first_public_response_at,

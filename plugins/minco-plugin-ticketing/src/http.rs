@@ -632,7 +632,7 @@ async fn requester_reply(
             &serde_json::json!({"ticket_id": id.to_string(), "body": body.body, "expected_revision": revision}),
         )
         .map_err(|_| ApiFailure::internal(&request_id))?;
-        return match service.begin(key, fingerprint).await {
+        return match service.begin(key.clone(), fingerprint.clone()).await {
             Ok(minco_plugin_idempotency::BeginOutcome::Replay(record)) => {
                 Ok((StatusCode::OK, Json(record.response)).into_response())
             }
@@ -651,25 +651,53 @@ async fn requester_reply(
                 &request_id,
             )),
             Ok(minco_plugin_idempotency::BeginOutcome::Started(lease)) => {
-                match perform_requester_reply(
-                    &state,
-                    &principal,
-                    id,
-                    body.body.clone(),
-                    revision,
-                    &request_id,
-                )
-                .await
+                // Stale-lease takeover (exact-head review R2): a previous
+                // attempt may have committed the mutation and its receipt
+                // without completing the shared record. The receipt is the
+                // authority — replay it instead of re-executing.
+                if let Ok(Some(receipt)) = state.service.operation_receipt(key.as_str()).await
+                    && let Ok(value) =
+                        serde_json::from_str::<serde_json::Value>(&receipt.response_json)
+                {
+                    let _ = service.complete(lease, value.clone()).await;
+                    return Ok((StatusCode::OK, Json(value)).into_response());
+                }
+                match state
+                    .service
+                    .reply_as_requester_with_receipt(
+                        &principal,
+                        &state.service.config().project_id,
+                        id,
+                        body.body.clone(),
+                        revision,
+                        request_uuid(&request_id),
+                        Utc::now(),
+                        key.as_str(),
+                        fingerprint.as_str(),
+                    )
+                    .await
                 {
                     Ok(result) => {
-                        if let Ok(value) = serde_json::to_value(&result) {
-                            let _ = service.complete(lease, value).await;
+                        // The mutation and its receipt are committed; a
+                        // completion failure is surfaced, never swallowed —
+                        // the receipt makes the outcome recoverable.
+                        if let Ok(value) = serde_json::to_value(&result)
+                            && service.complete(lease, value).await.is_err()
+                        {
+                            return Err(ApiFailure::new(
+                                StatusCode::SERVICE_UNAVAILABLE,
+                                "ticketing_idempotency_persist_uncertain",
+                                "Idempotency persistence uncertain",
+                                "The reply was committed but its replay record could not be \
+                                 persisted; retry the same key to recover the result.",
+                                &request_id,
+                            ));
                         }
                         requester_response(StatusCode::OK, result)
                     }
                     Err(error) => {
                         let _ = service.abort(&lease).await;
-                        Err(error)
+                        Err(map_error(error, &request_id))
                     }
                 }
             }
@@ -3485,6 +3513,13 @@ mod tests {
     async fn portal_app_with_idempotency(
         idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
     ) -> (Router, SupportHandoffToken) {
+        portal_app_with_idempotency_ttl(idempotency_store, chrono::TimeDelta::seconds(300)).await
+    }
+
+    async fn portal_app_with_idempotency_ttl(
+        idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
+        stale_after: chrono::TimeDelta,
+    ) -> (Router, SupportHandoffToken) {
         use minco_plugin_idempotency::IdempotencyService;
         use minco_plugin_sessions::{CsrfService, MemorySessionStore, SessionService};
         let store = Arc::new(MemoryTicketingStore::default());
@@ -3509,8 +3544,7 @@ mod tests {
                 CsrfService::new(b"test-csrf-secret-0123456789abcdef".to_vec()).unwrap(),
             )),
             idempotency: Some(Arc::new(
-                IdempotencyService::new(idempotency_store, chrono::TimeDelta::seconds(300))
-                    .unwrap(),
+                IdempotencyService::new(idempotency_store, stale_after).unwrap(),
             )),
             events: None,
             #[cfg(feature = "jobs")]
@@ -3576,10 +3610,29 @@ mod tests {
         (ticketing_router(service), grant.token)
     }
 
-    /// A store whose completion path always fails, proving the exchange
-    /// fails explicitly instead of silently dropping the replay record
-    /// (review finding 4).
-    struct FailingCompleteStore(minco_plugin_idempotency::MemoryIdempotencyStore);
+    /// A store whose completion path fails for keys outside a pass
+    /// prefix, proving guarded mutations fail explicitly instead of
+    /// silently dropping their replay record (review findings 4 and R2).
+    struct FailingCompleteStore {
+        inner: minco_plugin_idempotency::MemoryIdempotencyStore,
+        pass_prefix: &'static str,
+    }
+
+    impl FailingCompleteStore {
+        fn always(inner: minco_plugin_idempotency::MemoryIdempotencyStore) -> Self {
+            Self {
+                inner,
+                pass_prefix: "\u{0}never",
+            }
+        }
+
+        fn except_sessions(inner: minco_plugin_idempotency::MemoryIdempotencyStore) -> Self {
+            Self {
+                inner,
+                pass_prefix: "ticketing.session.",
+            }
+        }
+    }
 
     impl std::fmt::Debug for FailingCompleteStore {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3596,7 +3649,7 @@ mod tests {
             Option<minco_plugin_idempotency::IdempotencyRecord>,
             minco_plugin_idempotency::IdempotencyError,
         > {
-            self.0.get(key).await
+            self.inner.get(key).await
         }
 
         async fn begin(
@@ -3609,7 +3662,7 @@ mod tests {
             minco_plugin_idempotency::BeginOutcome,
             minco_plugin_idempotency::IdempotencyError,
         > {
-            self.0.begin(key, fingerprint, now, stale_after).await
+            self.inner.begin(key, fingerprint, now, stale_after).await
         }
 
         async fn complete(
@@ -3621,7 +3674,9 @@ mod tests {
             minco_plugin_idempotency::IdempotencyRecord,
             minco_plugin_idempotency::IdempotencyError,
         > {
-            let _ = (lease, response, completed_at);
+            if lease.key.as_str().starts_with(self.pass_prefix) {
+                return self.inner.complete(lease, response, completed_at).await;
+            }
             Err(minco_plugin_idempotency::IdempotencyError::Store(
                 "completion failed".into(),
             ))
@@ -3631,14 +3686,14 @@ mod tests {
             &self,
             lease: &minco_plugin_idempotency::IdempotencyLease,
         ) -> Result<bool, minco_plugin_idempotency::IdempotencyError> {
-            self.0.abort(lease).await
+            self.inner.abort(lease).await
         }
     }
 
     #[tokio::test]
     async fn session_exchange_completion_failure_fails_explicitly() {
         use minco_plugin_idempotency::MemoryIdempotencyStore;
-        let (app, token) = portal_app_with_idempotency(Arc::new(FailingCompleteStore(
+        let (app, token) = portal_app_with_idempotency(Arc::new(FailingCompleteStore::always(
             MemoryIdempotencyStore::default(),
         )))
         .await;
@@ -3664,6 +3719,144 @@ mod tests {
         // exchange still in progress instead of minting a second session.
         let retry = exchange(&app, &token).await.unwrap();
         assert_eq!(retry.status(), StatusCode::TOO_EARLY);
+    }
+
+    #[tokio::test]
+    async fn requester_reply_receipt_recovers_after_completion_failure_and_lease_staleness() {
+        // Exact-head review R2: the mutation and its receipt commit
+        // atomically; when the shared idempotency completion fails the
+        // client sees an explicit 503, and after the lease goes stale a
+        // retry replays the ORIGINAL result from the receipt — the
+        // mutation never executes twice.
+        use minco_plugin_idempotency::MemoryIdempotencyStore;
+        let (app, token) = portal_app_with_idempotency_ttl(
+            Arc::new(FailingCompleteStore::except_sessions(
+                MemoryIdempotencyStore::default(),
+            )),
+            chrono::TimeDelta::milliseconds(50),
+        )
+        .await;
+        // The session-exchange keys pass through the selective store, so
+        // the portal session establishes normally.
+        let (cookie, csrf) = {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post("/_minco/ticketing/requester/sessions")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .header(HANDOFF_HEADER, token.expose_sensitive())
+                        .body(Body::from(
+                            serde_json::json!({"portal_origin": "https://support.example.test"})
+                                .to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::CREATED);
+            let cookie = response
+                .headers()
+                .get(header::SET_COOKIE)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.split(';').next())
+                .expect("session cookie")
+                .to_owned();
+            let grant: serde_json::Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                    .unwrap();
+            (cookie, grant["csrf_token"].as_str().unwrap().to_owned())
+        };
+        let (ticket_id, etag) = {
+            let listed = app
+                .clone()
+                .oneshot(
+                    Request::get("/_minco/ticketing/requester/tickets")
+                        .header(header::COOKIE, &cookie)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let page: serde_json::Value =
+                serde_json::from_slice(&to_bytes(listed.into_body(), usize::MAX).await.unwrap())
+                    .unwrap();
+            let row = &page["data"][0];
+            (
+                row["id"].as_str().unwrap().to_owned(),
+                row["revision"].as_u64().unwrap() + 1,
+            )
+        };
+
+        let reply_path = format!("/_minco/ticketing/requester/tickets/{ticket_id}/replies");
+        let send = |app: &Router, key: &str| {
+            app.clone().oneshot(
+                Request::post(&reply_path)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::COOKIE, &cookie)
+                    .header("x-minco-csrf", &csrf)
+                    .header("idempotency-key", key)
+                    .header(header::IF_MATCH, format!("\"ticket:{ticket_id}:{etag}\""))
+                    .body(Body::from(
+                        serde_json::json!({"body": "Recovered reply."}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+        };
+
+        // Completion fails: the reply is committed (with its receipt) but
+        // the response is an explicit 503 — never a silent 200.
+        let first = send(&app, "recover-1").await.unwrap();
+        assert_eq!(first.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let problem: serde_json::Value =
+            serde_json::from_slice(&to_bytes(first.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(problem["code"], "ticketing_idempotency_persist_uncertain");
+
+        // While the lease is held, a retry sees the request in progress.
+        let in_progress = send(&app, "recover-1").await.unwrap();
+        assert_eq!(in_progress.status(), StatusCode::TOO_EARLY);
+
+        // After the lease goes stale, the receipt is the authority: the
+        // retry replays the original committed result without executing
+        // the mutation again.
+        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+        let recovered = send(&app, "recover-1").await.unwrap();
+        assert_eq!(recovered.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(recovered.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(
+            body["ticket"]["id"].as_str(),
+            Some(ticket_id.as_str()),
+            "the receipt replays the original ticket result"
+        );
+
+        // Exactly one requester reply exists.
+        let messages = app
+            .clone()
+            .oneshot(
+                Request::get(format!(
+                    "/_minco/ticketing/requester/tickets/{ticket_id}/messages"
+                ))
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(messages.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let replies = page["data"].as_array().map_or(0, |rows| {
+            rows.iter()
+                .filter(|message| {
+                    message["body"]
+                        .as_str()
+                        .is_some_and(|b| b.contains("Recovered reply."))
+                })
+                .count()
+        });
+        assert_eq!(replies, 1, "the mutation executed exactly once");
     }
 
     #[tokio::test]
