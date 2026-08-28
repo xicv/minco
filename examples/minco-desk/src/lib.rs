@@ -173,8 +173,14 @@ impl DeskWorker {
     /// One bounded dispatch pass over due job publications; claimed jobs
     /// execute in-process through the registered handlers and their
     /// durable dispositions are committed.
+    /// One bounded worker cycle (exact-head review R16): Jobs dispatch,
+    /// Domain-Events delivery and Audit dispatch each run INDEPENDENTLY —
+    /// a failing job store can never starve event delivery or audit — and
+    /// the cycle fails only after every pass was attempted, with each
+    /// failure preserved in the error chain.
     pub async fn run_once(&self) -> Result<minco_plugin_jobs::DispatchReport, anyhow::Error> {
-        let report = self
+        let mut failures: Vec<String> = Vec::new();
+        let report = match self
             .jobs
             .dispatch_due_once(
                 &format!("desk-worker-{}", uuid::Uuid::new_v4().simple()),
@@ -182,14 +188,35 @@ impl DeskWorker {
                 chrono::TimeDelta::seconds(60),
             )
             .await
-            .map_err(|error| anyhow::anyhow!("desk worker dispatch pass failed: {error}"))?;
-        // The explicit audit pass rides every worker run (exact-head
-        // review R5): committed intents reach the durable audit sink.
-        self.audit
+        {
+            Ok(report) => report,
+            Err(error) => {
+                failures.push(format!("jobs dispatch pass failed: {error}"));
+                minco_plugin_jobs::DispatchReport::default()
+            }
+        };
+        // The durable activity intents reach the Events outbox (the
+        // required dependency becomes a runtime truth).
+        if let Err(error) = self
+            .audit
+            .dispatch_pending_activity(&self.project_id, 100)
+            .await
+        {
+            failures.push(format!("domain events dispatch pass failed: {error}"));
+        }
+        // The audit pass rides every cycle regardless of the others.
+        if let Err(error) = self
+            .audit
             .dispatch_pending_audit(&self.project_id, 100)
             .await
-            .map_err(|error| anyhow::anyhow!("desk worker audit pass failed: {error}"))?;
-        Ok(report)
+        {
+            failures.push(format!("audit dispatch pass failed: {error}"));
+        }
+        if failures.is_empty() {
+            Ok(report)
+        } else {
+            Err(anyhow::anyhow!(failures.join("; ")))
+        }
     }
 }
 

@@ -114,6 +114,24 @@ class DeskBinaryLifecycleTests(unittest.TestCase):
                 )
                 self.assertEqual(status, 200, reply)
 
+                # Domain events are delivered by the same worker cycle
+                # (exact-head review R16): the durable activity intents
+                # are published to the in-process outbox. Poll until the
+                # cycle following the job completes.
+                deadline = time.monotonic() + 10.0
+                published = 0
+                while time.monotonic() < deadline:
+                    with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as conn:
+                        published = conn.execute(
+                            "SELECT COUNT(*) FROM ticketing_activity_intents"
+                            " WHERE published_at IS NOT NULL").fetchone()[0]
+                    if published > 0:
+                        break
+                    time.sleep(0.2)
+                self.assertGreater(
+                    published, 0,
+                    "the worker must deliver domain events, not only jobs")
+
                 # The background worker loop (500 ms interval) must complete
                 # the durable notification job on its own.
                 deadline = time.monotonic() + 30.0
