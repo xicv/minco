@@ -815,7 +815,8 @@ async fn requester_session_exchange(
             // R3): a database compromise yields no live bearer.
             let session_id = grant.session_id;
             let subject = grant.subject.clone();
-            let expires_at = grant.expires_at;
+            let replay_deadline = grant.expires_at;
+            let granted_permissions = grant.permissions.clone();
             if let Err(error) = state
                 .service
                 .record_session_exchange_grant(
@@ -823,7 +824,8 @@ async fn requester_session_exchange(
                     session_id,
                     &subject,
                     &body.portal_origin,
-                    expires_at,
+                    granted_permissions,
+                    replay_deadline,
                 )
                 .await
             {
@@ -842,7 +844,7 @@ async fn requester_session_exchange(
                 ));
             }
             let snapshot = serde_json::json!({
-                "expires_at": expires_at.to_rfc3339(),
+                "expires_at": grant.expires_at.to_rfc3339(),
                 "csrf_token": grant.csrf_token.expose(),
             });
             if let Err(error) = idempotency.complete(lease.clone(), snapshot).await {
@@ -3549,18 +3551,70 @@ mod tests {
 
     async fn portal_app() -> (Router, SupportHandoffToken) {
         use minco_plugin_idempotency::MemoryIdempotencyStore;
-        portal_app_with_idempotency(Arc::new(MemoryIdempotencyStore::default())).await
+        portal_app_with_idempotency_and_permissions(
+            Arc::new(MemoryIdempotencyStore::default()),
+            vec![
+                "ticketing.requester.read".into(),
+                "ticketing.requester.write".into(),
+            ],
+        )
+        .await
+    }
+
+    async fn portal_app_read_only() -> (Router, SupportHandoffToken) {
+        use minco_plugin_idempotency::MemoryIdempotencyStore;
+        portal_app_with_idempotency_and_permissions(
+            Arc::new(MemoryIdempotencyStore::default()),
+            vec!["ticketing.requester.read".into()],
+        )
+        .await
     }
 
     async fn portal_app_with_idempotency(
         idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
     ) -> (Router, SupportHandoffToken) {
-        portal_app_with_idempotency_ttl(idempotency_store, chrono::TimeDelta::seconds(300)).await
+        portal_app_with_idempotency_ttl_and_permissions(
+            idempotency_store,
+            chrono::TimeDelta::seconds(300),
+            vec![
+                "ticketing.requester.read".into(),
+                "ticketing.requester.write".into(),
+            ],
+        )
+        .await
+    }
+
+    async fn portal_app_with_idempotency_and_permissions(
+        idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
+        permissions: Vec<String>,
+    ) -> (Router, SupportHandoffToken) {
+        portal_app_with_idempotency_ttl_and_permissions(
+            idempotency_store,
+            chrono::TimeDelta::seconds(300),
+            permissions,
+        )
+        .await
     }
 
     async fn portal_app_with_idempotency_ttl(
         idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
         stale_after: chrono::TimeDelta,
+    ) -> (Router, SupportHandoffToken) {
+        portal_app_with_idempotency_ttl_and_permissions(
+            idempotency_store,
+            stale_after,
+            vec![
+                "ticketing.requester.read".into(),
+                "ticketing.requester.write".into(),
+            ],
+        )
+        .await
+    }
+
+    async fn portal_app_with_idempotency_ttl_and_permissions(
+        idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
+        stale_after: chrono::TimeDelta,
+        permissions: Vec<String>,
     ) -> (Router, SupportHandoffToken) {
         use minco_plugin_idempotency::IdempotencyService;
         use minco_plugin_sessions::{CsrfService, MemorySessionStore, SessionService};
@@ -3606,10 +3660,7 @@ mod tests {
                 IssueTicketingHandoffInput {
                     project_id: "project-a".into(),
                     requester_subject: "user-1".into(),
-                    requester_permissions: vec![
-                        "ticketing.requester.read".into(),
-                        "ticketing.requester.write".into(),
-                    ],
+                    requester_permissions: permissions,
                     surface: minco_interaction::SupportSurface::Portal,
                     context: minco_interaction::SupportContext {
                         page_url: "https://app.example.test/orders/1".into(),
@@ -3967,6 +4018,157 @@ mod tests {
                 .count()
         });
         assert_eq!(replies, 1, "the mutation executed exactly once");
+    }
+
+    #[tokio::test]
+    async fn read_only_handoff_replay_stays_read_only() {
+        // Exact-head review R11/P0-1: a handoff that legitimately grants
+        // only requester.read must never gain write access by replaying.
+        let (app, token) = portal_app_read_only().await;
+        let exchange = |origin: &str| {
+            app.clone().oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({ "portal_origin": origin }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+        };
+        let first = exchange("https://support.example.test").await.unwrap();
+        assert_eq!(first.status(), StatusCode::CREATED);
+        let replay = exchange("https://support.example.test").await.unwrap();
+        assert_eq!(replay.status(), StatusCode::CREATED);
+        // The rotated session's permissions are the handoff's subset —
+        // proven by the CSRF-guarded write surface refusing it.
+        let cookie = replay
+            .headers()
+            .get(header::SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap()
+            .to_owned();
+        let grant: serde_json::Value =
+            serde_json::from_slice(&to_bytes(replay.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let csrf = grant["csrf_token"].as_str().unwrap().to_owned();
+        let listed = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(listed.status(), StatusCode::OK, "read access works");
+        let page: serde_json::Value =
+            serde_json::from_slice(&to_bytes(listed.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let ticket_id = page["data"][0]["id"].as_str().unwrap().to_owned();
+        let revision = page["data"][0]["revision"].as_u64().unwrap() + 1;
+        let forbidden_write = app
+            .clone()
+            .oneshot(
+                Request::post(format!(
+                    "/_minco/ticketing/requester/tickets/{ticket_id}/replies"
+                ))
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::COOKIE, &cookie)
+                .header("x-minco-csrf", &csrf)
+                .header(
+                    header::IF_MATCH,
+                    format!("\"ticket:{ticket_id}:{revision}\""),
+                )
+                .body(Body::from(
+                    serde_json::json!({"body": "Should be forbidden."}).to_string(),
+                ))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            forbidden_write.status(),
+            StatusCode::FORBIDDEN,
+            "the replayed read-only session must not gain write access"
+        );
+    }
+
+    #[tokio::test]
+    async fn fifty_concurrent_replays_leave_exactly_one_live_session() {
+        // Exact-head review R11/P0-1: the CAS rotation means exactly one
+        // concurrent replay wins; every loser's freshly minted session is
+        // revoked before its call returns.
+        let (app, token) = portal_app().await;
+        let first = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({ "portal_origin": "https://support.example.test" })
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first.status(), StatusCode::CREATED);
+        let mut handles = Vec::new();
+        for _ in 0..50 {
+            let app = app.clone();
+            let token = token.clone();
+            handles.push(tokio::spawn(async move {
+                app.oneshot(
+                    Request::post("/_minco/ticketing/requester/sessions")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .header(HANDOFF_HEADER, token.expose_sensitive())
+                        .body(Body::from(
+                            serde_json::json!({"portal_origin": "https://support.example.test"})
+                                .to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+            }));
+        }
+        let mut live_cookies = Vec::new();
+        for handle in handles {
+            let response = handle.await.unwrap();
+            let cookie = response
+                .headers()
+                .get(header::SET_COOKIE)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.split(';').next())
+                .map(str::to_owned);
+            if let Some(cookie) = cookie {
+                live_cookies.push(cookie);
+            }
+        }
+        let mut confirmed_live = 0;
+        for cookie in &live_cookies {
+            let listed = app
+                .clone()
+                .oneshot(
+                    Request::get("/_minco/ticketing/requester/tickets")
+                        .header(header::COOKIE, cookie)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            if listed.status() == StatusCode::OK {
+                confirmed_live += 1;
+            }
+        }
+        assert_eq!(
+            confirmed_live, 1,
+            "exactly one live bearer survives fifty concurrent replays"
+        );
     }
 
     #[tokio::test]

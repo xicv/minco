@@ -474,6 +474,17 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
 
     /// Records or replaces the replay grant for one session exchange
     /// (exact-head review R3); removing it kills future replays.
+    /// Atomic compare-and-swap rotation of a replay grant (exact-head
+    /// review R11): succeeds only when the grant still records
+    /// `expected_session_id`. The deadline is deliberately NOT updated —
+    /// it is fixed at the original exchange.
+    async fn claim_session_rotation(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        new_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError>;
+
     async fn put_session_exchange_grant(
         &self,
         grant: SessionExchangeGrant,
@@ -878,6 +889,17 @@ impl TicketingStoreService {
     ) -> Result<bool, TicketStoreError> {
         self.0
             .resolve_send_intent(logical_send_id, state, provider_message_id, now)
+            .await
+    }
+
+    pub async fn claim_session_rotation(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        new_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .claim_session_rotation(exchange_key, expected_session_id, new_session_id)
             .await
     }
 
@@ -1998,6 +2020,23 @@ impl TicketingStore for MemoryTicketingStore {
             .insert(grant.exchange_key.clone(), grant);
         drop(state);
         Ok(())
+    }
+
+    async fn claim_session_rotation(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        new_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.session_exchange_grants.get_mut(exchange_key) {
+            Some(grant) if grant.session_id == expected_session_id => {
+                grant.session_id = new_session_id;
+                drop(state);
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
     }
 
     async fn session_exchange_grant(

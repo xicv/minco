@@ -1136,6 +1136,26 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(updated.rows_affected() > 0)
     }
 
+    async fn claim_session_rotation(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        new_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET session_id = ?
+              WHERE exchange_key = ? AND session_id = ?",
+        )
+        .bind(new_session_id.0.to_string())
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
     async fn put_session_exchange_grant(
         &self,
         grant: SessionExchangeGrant,
@@ -1145,8 +1165,7 @@ impl TicketingStore for SqliteTicketingStore {
                  (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(exchange_key) DO UPDATE SET
-                 session_id = excluded.session_id,
-                 expires_at = excluded.expires_at",
+                 session_id = excluded.session_id",
         )
         .bind(&grant.exchange_key)
         .bind(grant.session_id.0.to_string())

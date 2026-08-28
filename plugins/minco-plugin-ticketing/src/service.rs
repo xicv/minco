@@ -281,6 +281,10 @@ pub struct RequesterSessionGrant {
     pub token: SessionToken,
     pub session_id: SessionId,
     pub subject: String,
+    /// The permissions actually granted by the handoff (exact-head
+    /// review R11): carried into the replay grant so rotation can never
+    /// widen them.
+    pub permissions: Vec<String>,
     pub expires_at: DateTime<Utc>,
     pub csrf_token: CsrfToken,
 }
@@ -2211,6 +2215,7 @@ impl TicketingService {
             token: issued.token,
             session_id: issued.session.id,
             subject: issued.session.subject,
+            permissions: identity.requester_permissions,
             expires_at: issued.session.expires_at,
             csrf_token,
         })
@@ -2225,7 +2230,8 @@ impl TicketingService {
         session_id: minco_plugin_sessions::SessionId,
         subject: &str,
         portal_origin: &str,
-        expires_at: DateTime<Utc>,
+        permissions: Vec<String>,
+        replay_deadline: DateTime<Utc>,
     ) -> Result<(), TicketingServiceError> {
         // A stale-lease takeover replaces the previous exchange's session:
         // the grant upsert records the new one and the previous bearer is
@@ -2237,18 +2243,19 @@ impl TicketingService {
             .map_err(TicketingServiceError::from)?
             .filter(|grant| grant.session_id != session_id)
             .map(|grant| grant.session_id);
+        // The grant records the ACTUAL handoff permission set (exact-head
+        // review R11): rotation mints from these and can never widen a
+        // read-only handoff into write access.
         self.store
             .put_session_exchange_grant(crate::SessionExchangeGrant {
                 exchange_key: exchange_key.to_owned(),
                 session_id,
                 subject: subject.to_owned(),
                 project_id: self.config.project_id.clone(),
-                permissions: REQUESTER_PORTAL_CAPABILITIES
-                    .iter()
-                    .map(|value| (*value).to_owned())
-                    .collect(),
+                permissions,
                 portal_origin: portal_origin.to_owned(),
-                expires_at,
+                // Fixed replay deadline: rotations never extend it.
+                expires_at: replay_deadline,
                 created_at: Utc::now(),
             })
             .await
@@ -2286,6 +2293,8 @@ impl TicketingService {
             .await
             .map_err(TicketingServiceError::from)?
             .ok_or(TicketingServiceError::SessionUnauthenticated)?;
+        // The FIXED replay deadline from the original exchange: rotations
+        // never extend it (exact-head review R11).
         if grant.expires_at <= Utc::now() {
             return Err(TicketingServiceError::SessionUnauthenticated);
         }
@@ -2307,22 +2316,40 @@ impl TicketingService {
             .map_err(|error| {
                 TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
             })?;
-        // The replacement exists before the previous bearer dies.
-        let updated = crate::SessionExchangeGrant {
-            session_id: issued.session.id,
-            expires_at: issued.session.expires_at,
-            ..grant.clone()
-        };
-        self.store
-            .put_session_exchange_grant(updated)
+        // Compare-and-swap the rotation (exact-head review R11): only the
+        // caller that still observes the session it read may take over
+        // the grant. Concurrent losers revoke the session they just
+        // minted, so exactly one live bearer survives.
+        if self
+            .store
+            .claim_session_rotation(exchange_key, previous, issued.session.id)
             .await
-            .map_err(TicketingServiceError::from)?;
-        let _ = sessions.revoke(previous).await;
+            .map_err(TicketingServiceError::from)?
+        {
+            // The winner retires the previous bearer; a revoke failure is
+            // surfaced, never swallowed — an orphan live session demands
+            // operator attention.
+            sessions.revoke(previous).await.map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                    "rotated-out session could not be revoked: {error}"
+                )))
+            })?;
+        } else {
+            // Lost the race: our freshly minted session is the loser's
+            // cleanup duty and must die before this call returns.
+            sessions.revoke(issued.session.id).await.map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                    "losing rotation session could not be revoked: {error}"
+                )))
+            })?;
+            return Err(TicketingServiceError::SessionUnauthenticated);
+        }
         let csrf_token = csrf.issue(issued.session.id);
         Ok(RequesterSessionGrant {
             token: issued.token,
             session_id: issued.session.id,
             subject: issued.session.subject,
+            permissions: grant.permissions,
             expires_at: issued.session.expires_at,
             csrf_token,
         })
