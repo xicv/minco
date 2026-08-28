@@ -269,6 +269,17 @@ pub struct RunDevelopmentAutomation {
     pub project_id: String,
     pub ticket_id: TicketId,
     pub requested_by: String,
+    /// Freshness binding (exact-head review R8): the ticket revision and
+    /// a context digest captured at submission. The handler refuses to
+    /// store a proposal when the authoritative ticket moved past them.
+    #[serde(default)]
+    pub bound_revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bound_context_digest: Option<String>,
+    /// Unique run identity: distinct legitimate requests by the same
+    /// person are never deduplicated away.
+    #[serde(default = "uuid::Uuid::new_v4")]
+    pub run_id: Uuid,
 }
 
 impl Job for RunDevelopmentAutomation {
@@ -279,23 +290,32 @@ impl Job for RunDevelopmentAutomation {
 /// Envelope policy for the automation command (ADR-0070): dedupe by
 /// ticket and requester, serialize per ticket, partition by project,
 /// bounded retry, one-hour deadline.
+pub const TICKETING_AUTOMATION_PROFILE: &str = "ticketing-development";
+
 pub fn development_automation_envelope(
     payload: &RunDevelopmentAutomation,
     correlation_id: Uuid,
     now: chrono::DateTime<Utc>,
 ) -> Result<JobEnvelope, JobError> {
-    let envelope = JobEnvelope::for_job(payload, TICKETING_MAIL_PROFILE, correlation_id)?.with(
-        JobOptions::default()
-            .with_dedupe_key(format!(
-                "automation:{}:{}",
-                payload.ticket_id, payload.requested_by
-            ))
-            .with_overlap_key(format!("ticket:{}", payload.ticket_id))
-            .with_partition(payload.project_id.clone())
-            .with_retry(RetryPolicy::exponential(5, 5, 900))
-            .with_deadline(now + TimeDelta::seconds(3600))
-            .with_causation(correlation_id),
-    );
+    // Exact-head review R8: a dedicated worker profile, and a dedupe
+    // identity bound to the run (revision + context digest) so a later
+    // legitimate request by the same person on a changed ticket is
+    // never treated as a duplicate of an earlier one; the unique run id
+    // rides the payload.
+    let context = payload.bound_context_digest.as_deref().unwrap_or("none");
+    let envelope = JobEnvelope::for_job(payload, TICKETING_AUTOMATION_PROFILE, correlation_id)?
+        .with(
+            JobOptions::default()
+                .with_dedupe_key(format!(
+                    "automation:{}:{}:{}:{}",
+                    payload.ticket_id, payload.requested_by, payload.bound_revision, context
+                ))
+                .with_overlap_key(format!("ticket:{}", payload.ticket_id))
+                .with_partition(payload.project_id.clone())
+                .with_retry(RetryPolicy::exponential(5, 5, 900))
+                .with_deadline(now + TimeDelta::seconds(3600))
+                .with_causation(correlation_id),
+        );
     Ok(envelope)
 }
 
@@ -659,6 +679,15 @@ async fn run_development_automation(
         .await
         .map_err(|_| JobExecutionFailure::retryable("ticketing.automation_store_unavailable"))?
         .ok_or_else(|| JobExecutionFailure::permanent("ticketing.automation_target_missing"))?;
+    // Freshness (exact-head review R8): a proposal must provably come
+    // from the submitted ticket context. A ticket that moved past the
+    // bound revision is stale work — classify it superseded instead of
+    // storing a proposal over changed reality.
+    if ticket.revision != command.bound_revision {
+        return Err(JobExecutionFailure::permanent(
+            "ticketing.automation_superseded",
+        ));
+    }
     // Deterministic local model (ADR-0070): a proposal assembled from
     // ticket context. No external calls, no hidden execution.
     let requested_actions = match config.automation.profile {
@@ -1208,6 +1237,9 @@ mod tests {
                 project_id: "project-a".into(),
                 ticket_id: ticket.id,
                 requested_by: "agent-1".into(),
+                bound_revision: ticket.revision,
+                bound_context_digest: None,
+                run_id: Uuid::new_v4(),
             },
             Uuid::now_v7(),
             now,
@@ -2030,6 +2062,86 @@ mod tests {
                 super::InboundAuthPolicy::LocalTrusted,
             )
             .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_automation_run_is_superseded_not_proposed() {
+        // Exact-head review R8: the handler compares the bound revision
+        // with the authoritative ticket; stale work classifies as
+        // superseded instead of storing a proposal over changed reality.
+        // Compose a service with automation enabled and the handler
+        // registered around one seeded ticket.
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let now = Utc::now();
+        let ticket = ticket(now);
+        let intent = crate::TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        TicketingStoreService::new(memory.clone())
+            .create(ticket.clone(), intent)
+            .await
+            .unwrap();
+        let service = Arc::new(
+            TicketingService::new(
+                TicketingStoreService::new(memory.clone()),
+                crate::TicketingConfig {
+                    project_id: "project-a".into(),
+                    automation: crate::AutomationConfig {
+                        profile: crate::AutomationProfile::Assist,
+                        ..crate::AutomationConfig::default()
+                    },
+                    ..crate::TicketingConfig::default()
+                },
+            )
+            .unwrap(),
+        );
+        let registry = Arc::new(minco_plugin_jobs::JobHandlerRegistry::new());
+        register_ticketing_jobs(
+            &registry,
+            &TicketingStoreService::new(memory.clone()),
+            TicketingJobsDeps {
+                service: TicketingService::clone(&service),
+                notifications: Arc::new(NotificationService::new(Arc::new(
+                    MemoryNotificationSink::default(),
+                ))),
+                mail: None,
+                objects: Arc::new(minco_plugin_object_storage::ObjectStoreService::new(
+                    Arc::new(minco_plugin_object_storage::MemoryObjectStore::default()),
+                )),
+                worker: worker_identity(),
+            },
+        )
+        .unwrap();
+        let services = minco_plugin_jobs::JobsServices::memory(registry).0;
+        let envelope = development_automation_envelope(
+            &RunDevelopmentAutomation {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                requested_by: "agent-1".into(),
+                bound_revision: ticket.revision + 5,
+                bound_context_digest: None,
+                run_id: Uuid::new_v4(),
+            },
+            Uuid::now_v7(),
+            Utc::now(),
+        )
+        .unwrap();
+        let failure = services.submit_inline(envelope).await.unwrap_err();
+        assert_eq!(failure.code(), "ticketing.automation_superseded");
+        assert!(failure.is_permanent());
+        assert!(
+            TicketingStoreService::new(memory)
+                .list_automation_proposals("project-a", ticket.id)
+                .await
+                .unwrap()
+                .is_empty(),
+            "no proposal is stored for stale work"
         );
     }
 

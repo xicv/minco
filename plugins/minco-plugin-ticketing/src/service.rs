@@ -1328,11 +1328,26 @@ impl TicketingService {
                 .as_ref()
                 .ok_or(TicketingServiceError::JobsUnavailable)?;
             let correlation = Uuid::now_v7();
+            // Freshness binding (exact-head review R8): capture the
+            // authoritative revision and a subject/description digest at
+            // submission so the handler proves the proposal derives from
+            // this context.
+            let bound_ticket = self.load(project_id, id).await?;
+            let context_digest = {
+                use sha2::Digest as _;
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(bound_ticket.subject.as_bytes());
+                hasher.update(bound_ticket.description.as_bytes());
+                hex::encode(hasher.finalize())
+            };
             let envelope = crate::development_automation_envelope(
                 &crate::RunDevelopmentAutomation {
                     project_id: project_id.to_owned(),
                     ticket_id: id,
                     requested_by: principal.subject.clone(),
+                    bound_revision: bound_ticket.revision,
+                    bound_context_digest: Some(context_digest),
+                    run_id: Uuid::now_v7(),
                 },
                 correlation,
                 now,
