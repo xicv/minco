@@ -350,13 +350,18 @@ impl TicketingStore for SqliteTicketingStore {
         if let Some(receipt) = &request.receipt {
             sqlx::query(
                 "INSERT INTO ticketing_operation_receipts
-                 (idempotency_key, fingerprint, response_json, created_at)
-                 VALUES (?, ?, ?, ?)",
+                 (idempotency_key, fingerprint, response_json, created_at,
+                  operation, project_id, subject_digest, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&receipt.idempotency_key)
             .bind(&receipt.fingerprint)
             .bind(&receipt.response_json)
             .bind(receipt.created_at.to_rfc3339())
+            .bind(&receipt.operation)
+            .bind(&receipt.project_id)
+            .bind(&receipt.subject_digest)
+            .bind(receipt.expires_at.map(|value| value.to_rfc3339()))
             .execute(&mut *transaction)
             .await
             .map_err(infrastructure)?;
@@ -921,7 +926,8 @@ impl TicketingStore for SqliteTicketingStore {
         idempotency_key: &str,
     ) -> Result<Option<OperationReceipt>, TicketStoreError> {
         let row = sqlx::query(
-            "SELECT idempotency_key, fingerprint, response_json, created_at
+            "SELECT idempotency_key, fingerprint, response_json, created_at,
+                    operation, project_id, subject_digest, expires_at
                FROM ticketing_operation_receipts WHERE idempotency_key = ?",
         )
         .bind(idempotency_key)
@@ -942,6 +948,13 @@ impl TicketingStore for SqliteTicketingStore {
                     )
                 })?
                 .with_timezone(&Utc),
+                operation: row.get("operation"),
+                project_id: row.get("project_id"),
+                subject_digest: row.get("subject_digest"),
+                expires_at: row
+                    .get::<Option<String>, _>("expires_at")
+                    .map(|value| parse_timestamp(&value))
+                    .transpose()?,
             })
         })
         .transpose()
@@ -3717,6 +3730,10 @@ mod tests {
                 fingerprint: "f".repeat(64),
                 response_json: "{\"replayed\":true}".into(),
                 created_at: now,
+                operation: "requester_reply".into(),
+                project_id: "project-a".into(),
+                subject_digest: "a".repeat(64),
+                expires_at: None,
             };
             store
                 .append_ticket_message(AppendTicketMessageRequest {

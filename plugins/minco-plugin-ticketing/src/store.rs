@@ -259,6 +259,13 @@ pub struct OperationReceipt {
     pub fingerprint: String,
     pub response_json: String,
     pub created_at: DateTime<Utc>,
+    /// Full verification scope (exact-head review R21/P0-2): recovery
+    /// checks operation, project, subject digest, fingerprint AND
+    /// expiry before replaying the stored response.
+    pub operation: String,
+    pub project_id: String,
+    pub subject_digest: String,
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 /// One session-exchange replay grant (exact-head review R3): holds only

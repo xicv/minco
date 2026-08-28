@@ -641,20 +641,19 @@ async fn requester_reply(
                 "expected_revision": revision,
             }))
             .map_err(|_| ApiFailure::internal(&request_id))?;
-        // The effective key is scoped to the principal as well: an
-        // idempotency key is not a secret and must never act as an
-        // authorization credential across requesters.
+        // The effective key is a canonical hash of the full request
+        // identity (exact-head review R21/P0-2): no delimiter ambiguity,
+        // bounded length regardless of subject/key sizes, and the subject
+        // never appears in the persisted key material.
         let effective_key = minco_plugin_idempotency::IdempotencyKey::parse(format!(
-            "reply:{}:{}",
-            principal.subject,
-            key.as_str()
-        ))
-        .map_err(|_| {
-            ApiFailure::validation(
-                "idempotency key must be 1-200 visible characters",
-                &request_id,
+            "ticketing.requester-reply.{}",
+            effective_reply_key_digest(
+                &state.service.config().project_id,
+                &principal.subject,
+                key.as_str(),
             )
-        })?;
+        ))
+        .map_err(|_| ApiFailure::internal(&request_id))?;
         let key = effective_key;
         return match service.begin(key.clone(), fingerprint.clone()).await {
             Ok(minco_plugin_idempotency::BeginOutcome::Replay(record)) => {
@@ -675,11 +674,20 @@ async fn requester_reply(
                 &request_id,
             )),
             Ok(minco_plugin_idempotency::BeginOutcome::Started(lease)) => {
-                // Stale-lease takeover (exact-head review R2): a previous
-                // attempt may have committed the mutation and its receipt
-                // without completing the shared record. The receipt is the
-                // authority — replay it instead of re-executing.
+                // Stale-lease takeover (exact-head reviews R2 and R21): a
+                // previous attempt may have committed the mutation and its
+                // receipt without completing the shared record. The
+                // receipt is the authority — but ONLY after operation,
+                // project, subject-digest, fingerprint AND expiry all
+                // match the current request.
                 if let Ok(Some(receipt)) = state.service.operation_receipt(key.as_str()).await
+                    && receipt.operation == "requester_reply"
+                    && receipt.project_id == state.service.config().project_id
+                    && receipt.subject_digest == effective_subject_digest(&principal.subject)
+                    && receipt.fingerprint == fingerprint.as_str()
+                    && receipt
+                        .expires_at
+                        .is_none_or(|deadline| deadline > Utc::now())
                     && let Ok(value) =
                         serde_json::from_str::<serde_json::Value>(&receipt.response_json)
                 {
@@ -904,6 +912,26 @@ async fn requester_session_exchange(
             Err(map_error(error, &request_id))
         }
     }
+}
+
+/// Canonical digest of the principal-scoped idempotency identity
+/// (exact-head review R21/P0-2): length-framed parts prevent delimiter
+/// ambiguity; the raw subject never lands in the key.
+fn effective_subject_digest(subject: &str) -> String {
+    use sha2::Digest as _;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(subject.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+fn effective_reply_key_digest(project_id: &str, subject: &str, client_key: &str) -> String {
+    use sha2::Digest as _;
+    let mut hasher = sha2::Sha256::new();
+    for part in ["requester_reply", project_id, subject, client_key] {
+        hasher.update((part.len() as u64).to_le_bytes());
+        hasher.update(part.as_bytes());
+    }
+    hex::encode(hasher.finalize())
 }
 
 /// Builds the credential-bearing exchange response: the bearer lives only
@@ -3610,7 +3638,7 @@ mod tests {
     async fn portal_app_with_idempotency(
         idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
     ) -> (Router, SupportHandoffToken) {
-        portal_app_with_idempotency_ttl_and_permissions(
+        let (app, token, _) = portal_app_with_idempotency_ttl_and_permissions(
             idempotency_store,
             chrono::TimeDelta::seconds(300),
             vec![
@@ -3618,26 +3646,28 @@ mod tests {
                 "ticketing.requester.write".into(),
             ],
         )
-        .await
+        .await;
+        (app, token)
     }
 
     async fn portal_app_with_idempotency_and_permissions(
         idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
         permissions: Vec<String>,
     ) -> (Router, SupportHandoffToken) {
-        portal_app_with_idempotency_ttl_and_permissions(
+        let (app, token, _) = portal_app_with_idempotency_ttl_and_permissions(
             idempotency_store,
             chrono::TimeDelta::seconds(300),
             permissions,
         )
-        .await
+        .await;
+        (app, token)
     }
 
     async fn portal_app_with_idempotency_ttl(
         idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
         stale_after: chrono::TimeDelta,
     ) -> (Router, SupportHandoffToken) {
-        portal_app_with_idempotency_ttl_and_permissions(
+        let (app, token, _) = portal_app_with_idempotency_ttl_and_permissions(
             idempotency_store,
             stale_after,
             vec![
@@ -3645,14 +3675,15 @@ mod tests {
                 "ticketing.requester.write".into(),
             ],
         )
-        .await
+        .await;
+        (app, token)
     }
 
     async fn portal_app_with_idempotency_ttl_and_permissions(
         idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
         stale_after: chrono::TimeDelta,
         permissions: Vec<String>,
-    ) -> (Router, SupportHandoffToken) {
+    ) -> (Router, SupportHandoffToken, Arc<TicketingService>) {
         use minco_plugin_idempotency::IdempotencyService;
         use minco_plugin_sessions::{CsrfService, MemorySessionStore, SessionService};
         let store = Arc::new(MemoryTicketingStore::default());
@@ -3691,6 +3722,7 @@ mod tests {
             claims: BTreeMap::new(),
         });
         let now = Utc::now();
+        let service = Arc::new(service);
         let grant = service
             .issue_ticketing_handoff(
                 &integration,
@@ -3738,7 +3770,8 @@ mod tests {
             )
             .await
             .unwrap();
-        (ticketing_router(service), grant.token)
+        let router = ticketing_router(TicketingService::clone(&service));
+        (router, grant.token, service)
     }
 
     /// A store whose completion path fails for keys outside a pass
@@ -3926,7 +3959,45 @@ mod tests {
         // requester reusing victim's key, ticket, body and revision gets
         // its own identity-scoped record — never the victim's stored
         // response.
-        let (app, token) = portal_app().await;
+        let (app, token, service) = portal_app_with_idempotency_ttl_and_permissions(
+            Arc::new(minco_plugin_idempotency::MemoryIdempotencyStore::default()),
+            chrono::TimeDelta::seconds(300),
+            vec![
+                "ticketing.requester.read".into(),
+                "ticketing.requester.write".into(),
+            ],
+        )
+        .await;
+        // Issue a second handoff for a genuinely different subject
+        // through the SAME service/store (exact-head review R21/P0-2).
+        let integration = identity(minco_http::Principal {
+            subject: "integration".into(),
+            permissions: std::iter::once("ticketing.integrate".into()).collect(),
+            claims: BTreeMap::new(),
+        });
+        let second = service
+            .issue_ticketing_handoff(
+                &integration,
+                IssueTicketingHandoffInput {
+                    project_id: "project-a".into(),
+                    requester_subject: "user-2".into(),
+                    requester_permissions: vec![
+                        "ticketing.requester.read".into(),
+                        "ticketing.requester.write".into(),
+                    ],
+                    surface: minco_interaction::SupportSurface::Portal,
+                    context: minco_interaction::SupportContext {
+                        page_url: "https://app.example.test/orders/2".into(),
+                        ..minco_interaction::SupportContext::default()
+                    },
+                    return_location: "https://app.example.test/orders/2".into(),
+                    correlation_id: Uuid::now_v7(),
+                },
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        let token_b = second.token;
         let client_cookie = |header_value: &str| header_value.to_owned();
         let exchange = |token: &SupportHandoffToken| {
             app.clone().oneshot(
@@ -3995,16 +4066,48 @@ mod tests {
             .unwrap();
         assert_eq!(victim_reply.status(), StatusCode::OK);
 
-        // The stranger (a different authenticated subject) replays the
-        // identical key/ticket/body/revision: the effective key differs,
-        // so no stored response is returned and ownership fails closed.
+        // The stranger is a GENUINELY different authenticated subject
+        // (exact-head review R21/P0-2): a second handoff for user-2,
+        // issued through the same integration surface and exchanged
+        // against the SAME app/store, so only the subject differs.
+        let session_b = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token_b.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({"portal_origin": "https://support.example.test"})
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(session_b.status(), StatusCode::CREATED);
+        let cookie_b = session_b
+            .headers()
+            .get(header::SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap()
+            .to_owned();
+        let grant_b: serde_json::Value =
+            serde_json::from_slice(&to_bytes(session_b.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let csrf_b = grant_b["csrf_token"].as_str().unwrap().to_owned();
+        // Stranger replays the victim's identical key/ticket/body/revision:
+        // the effective key differs (different subject), the ownership
+        // check runs, and the response is a requester mismatch — never
+        // the victim's stored response, and no ticket-existence leak
+        // beyond the mismatch the ownership check already defines.
         let stranger_reply = app
             .clone()
             .oneshot(
                 Request::post(&reply_path)
                     .header(header::CONTENT_TYPE, "application/json")
-                    .header(header::COOKIE, &cookie_a)
-                    .header("x-minco-csrf", &csrf_a)
+                    .header(header::COOKIE, &cookie_b)
+                    .header("x-minco-csrf", &csrf_b)
                     .header("idempotency-key", "shared-key")
                     .header(
                         header::IF_MATCH,
@@ -4017,7 +4120,13 @@ mod tests {
             )
             .await
             .unwrap();
-        let _ = stranger_reply;
+        assert!(
+            stranger_reply.status() == StatusCode::FORBIDDEN
+                || stranger_reply.status() == StatusCode::NOT_FOUND,
+            "a different requester gets a mismatch/absence answer ({}), \
+             never the stored response",
+            stranger_reply.status()
+        );
         // A same-subject replay of the identical request returns the
         // stored response unchanged.
         let replayed = app

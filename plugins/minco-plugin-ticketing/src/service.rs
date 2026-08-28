@@ -625,6 +625,19 @@ impl TicketingService {
                 ))
             })?,
             created_at: now,
+            // Full verification scope (exact-head review R21/P0-2).
+            operation: "requester_reply".into(),
+            project_id: project_id.to_owned(),
+            subject_digest: {
+                use sha2::Digest as _;
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(principal.subject.as_bytes());
+                hex::encode(hasher.finalize())
+            },
+            // Receipt retention matches the idempotency lease window the
+            // shared record uses, so a cleared shared row cannot be
+            // resurrected by a stale receipt.
+            expires_at: Some(now + TimeDelta::seconds(300)),
         };
         #[allow(clippy::redundant_pub_crate)]
         self.append_message_with_receipt(
