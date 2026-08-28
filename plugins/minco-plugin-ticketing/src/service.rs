@@ -240,6 +240,8 @@ pub struct AgentConsoleBootstrap {
 /// once, in the exchange response; the sessions crate redacts it from Debug.
 pub struct RequesterSessionGrant {
     pub token: SessionToken,
+    pub session_id: SessionId,
+    pub subject: String,
     pub expires_at: DateTime<Utc>,
     pub csrf_token: CsrfToken,
 }
@@ -250,9 +252,11 @@ impl fmt::Debug for RequesterSessionGrant {
         formatter
             .debug_struct("RequesterSessionGrant")
             .field("token", &"[REDACTED]")
+            .field("session_id", &self.session_id)
+            .field("subject", &self.subject)
             .field("expires_at", &self.expires_at)
             .field("csrf_token", &"[REDACTED]")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -2084,9 +2088,137 @@ impl TicketingService {
         let csrf_token = csrf.issue(issued.session.id);
         Ok(RequesterSessionGrant {
             token: issued.token,
+            session_id: issued.session.id,
+            subject: issued.session.subject,
             expires_at: issued.session.expires_at,
             csrf_token,
         })
+    }
+
+    /// Records the rotation grant for one completed exchange (exact-head
+    /// review R3): the grant carries only non-secret material, so a
+    /// database compromise yields no live bearer.
+    pub async fn record_session_exchange_grant(
+        &self,
+        exchange_key: &str,
+        session_id: minco_plugin_sessions::SessionId,
+        subject: &str,
+        portal_origin: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), TicketingServiceError> {
+        // A stale-lease takeover replaces the previous exchange's session:
+        // the grant upsert records the new one and the previous bearer is
+        // revoked so no orphan session survives (exact-head review R3).
+        let previous = self
+            .store
+            .session_exchange_grant(exchange_key)
+            .await
+            .map_err(TicketingServiceError::from)?
+            .filter(|grant| grant.session_id != session_id)
+            .map(|grant| grant.session_id);
+        self.store
+            .put_session_exchange_grant(crate::SessionExchangeGrant {
+                exchange_key: exchange_key.to_owned(),
+                session_id,
+                subject: subject.to_owned(),
+                project_id: self.config.project_id.clone(),
+                permissions: REQUESTER_PORTAL_CAPABILITIES
+                    .iter()
+                    .map(|value| (*value).to_owned())
+                    .collect(),
+                portal_origin: portal_origin.to_owned(),
+                expires_at,
+                created_at: Utc::now(),
+            })
+            .await
+            .map_err(TicketingServiceError::from)?;
+        if let Some(previous) = previous
+            && let Some(sessions) = self.portal.sessions.as_ref()
+        {
+            let _ = sessions.revoke(previous).await;
+        }
+        Ok(())
+    }
+
+    /// Rotates a session-exchange replay (exact-head review R3): mints a
+    /// fresh session from the grant's non-secret attributes, revokes the
+    /// previously issued session and updates the grant. The response to a
+    /// replay is always a NEW bearer — no token is ever read back from
+    /// storage.
+    pub async fn rotate_session_exchange(
+        &self,
+        exchange_key: &str,
+    ) -> Result<RequesterSessionGrant, TicketingServiceError> {
+        let sessions = self
+            .portal
+            .sessions
+            .as_ref()
+            .ok_or(TicketingServiceError::SessionsUnavailable)?;
+        let csrf = self
+            .portal
+            .csrf
+            .as_ref()
+            .ok_or(TicketingServiceError::SessionsUnavailable)?;
+        let grant = self
+            .store
+            .session_exchange_grant(exchange_key)
+            .await
+            .map_err(TicketingServiceError::from)?
+            .ok_or(TicketingServiceError::SessionUnauthenticated)?;
+        if grant.expires_at <= Utc::now() {
+            return Err(TicketingServiceError::SessionUnauthenticated);
+        }
+        let previous = grant.session_id;
+        let issued = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: grant.subject.clone(),
+                ttl: TimeDelta::seconds(self.config.requester_session_ttl_seconds),
+                attributes: BTreeMap::from([
+                    ("ticketing.project".into(), grant.project_id.clone()),
+                    (
+                        "ticketing.portal_origin".into(),
+                        grant.portal_origin.clone(),
+                    ),
+                    ("ticketing.permissions".into(), grant.permissions.join(",")),
+                ]),
+            })
+            .await
+            .map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
+            })?;
+        // The replacement exists before the previous bearer dies.
+        let updated = crate::SessionExchangeGrant {
+            session_id: issued.session.id,
+            expires_at: issued.session.expires_at,
+            ..grant.clone()
+        };
+        self.store
+            .put_session_exchange_grant(updated)
+            .await
+            .map_err(TicketingServiceError::from)?;
+        let _ = sessions.revoke(previous).await;
+        let csrf_token = csrf.issue(issued.session.id);
+        Ok(RequesterSessionGrant {
+            token: issued.token,
+            session_id: issued.session.id,
+            subject: issued.session.subject,
+            expires_at: issued.session.expires_at,
+            csrf_token,
+        })
+    }
+
+    /// Revokes the session a failed exchange created and removes its
+    /// grant (exact-head review R3): no orphan live sessions.
+    pub async fn abandon_session_exchange(
+        &self,
+        exchange_key: &str,
+        session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<(), TicketingServiceError> {
+        if let Some(sessions) = self.portal.sessions.as_ref() {
+            let _ = sessions.revoke(session_id).await;
+        }
+        let _ = self.store.remove_session_exchange_grant(exchange_key).await;
+        Ok(())
     }
 
     async fn load(&self, project_id: &str, id: TicketId) -> Result<Ticket, TicketingServiceError> {

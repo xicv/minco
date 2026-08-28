@@ -766,9 +766,21 @@ async fn requester_session_exchange(
         &serde_json::json!({ "portal_origin": body.portal_origin }),
     )
     .map_err(|_| ApiFailure::internal(&request_id))?;
-    let lease = match idempotency.begin(key, fingerprint.clone()).await {
-        Ok(minco_plugin_idempotency::BeginOutcome::Replay(record)) => {
-            return Ok(session_exchange_response(&record.response));
+    let lease = match idempotency.begin(key.clone(), fingerprint.clone()).await {
+        Ok(minco_plugin_idempotency::BeginOutcome::Replay(_record)) => {
+            // A replay never reads a bearer from storage (exact-head
+            // review R3): the grant rotates — a fresh session is minted,
+            // the previous one revoked, and the new cookie issued.
+            return match state.service.rotate_session_exchange(key.as_str()).await {
+                Ok(grant) => Ok(session_exchange_created(&grant)),
+                Err(_) => Err(ApiFailure::new(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "ticketing_session_replay_unavailable",
+                    "Session replay unavailable",
+                    "No valid replay grant exists for this exchange; start a new one.",
+                    &request_id,
+                )),
+            };
         }
         Ok(minco_plugin_idempotency::BeginOutcome::Conflict) => {
             return Err(ApiFailure::new(
@@ -798,32 +810,62 @@ async fn requester_session_exchange(
         .await
     {
         Ok(grant) => {
-            // The bearer lives only in Set-Cookie on the wire, so a browser
-            // that lost the original response could never recover it from a
-            // replayed body. The completion record therefore carries the
-            // session token server-side; the replay path re-issues the
-            // cookie and never puts the token in a response body (review
-            // finding 4).
-            let snapshot = serde_json::json!({
-                "expires_at": grant.expires_at.to_rfc3339(),
-                "csrf_token": grant.csrf_token.expose(),
-                "session_token": grant.token.expose(),
-            });
-            if let Err(error) = idempotency.complete(lease, snapshot.clone()).await {
-                // The session was minted but its replay record was not
-                // persisted. Never claim success, and never release the
-                // lease: a racing retry would consume the handoff and mint
-                // a second session. The client retries explicitly.
-                tracing::error!(%error, "session exchange completion failed");
+            // Record the non-secret rotation grant, then complete the
+            // shared record with a token-free snapshot (exact-head review
+            // R3): a database compromise yields no live bearer.
+            let session_id = grant.session_id;
+            let subject = grant.subject.clone();
+            let expires_at = grant.expires_at;
+            if let Err(error) = state
+                .service
+                .record_session_exchange_grant(
+                    key.as_str(),
+                    session_id,
+                    &subject,
+                    &body.portal_origin,
+                    expires_at,
+                )
+                .await
+            {
+                tracing::error!(%error, "session exchange grant recording failed");
+                let _ = state
+                    .service
+                    .abandon_session_exchange(key.as_str(), session_id)
+                    .await;
+                let _ = idempotency.abort(&lease).await;
                 return Err(ApiFailure::new(
                     StatusCode::SERVICE_UNAVAILABLE,
                     "ticketing_session_persist_uncertain",
                     "Session persistence uncertain",
-                    "The session was issued but its replay record could not be persisted; retry the exchange.",
+                    "The session could not be made recoverable; the exchange was rolled back.",
                     &request_id,
                 ));
             }
-            Ok(session_exchange_response(&snapshot))
+            let snapshot = serde_json::json!({
+                "expires_at": expires_at.to_rfc3339(),
+                "csrf_token": grant.csrf_token.expose(),
+            });
+            if let Err(error) = idempotency.complete(lease.clone(), snapshot).await {
+                // The session exists but the replay record could not be
+                // persisted: revoke the session and release the lease so a
+                // retry performs a clean exchange — never a silent success
+                // and never an orphan live session (exact-head review R3).
+                tracing::error!(%error, "session exchange completion failed");
+                let _ = state
+                    .service
+                    .abandon_session_exchange(key.as_str(), session_id)
+                    .await;
+                let _ = idempotency.abort(&lease).await;
+                return Err(ApiFailure::new(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "ticketing_session_persist_uncertain",
+                    "Session persistence uncertain",
+                    "The session was issued but its replay record could not be persisted; \
+                     it was revoked — retry the exchange.",
+                    &request_id,
+                ));
+            }
+            Ok(session_exchange_created(&grant))
         }
         Err(error) => {
             let _ = idempotency.abort(&lease).await;
@@ -832,24 +874,24 @@ async fn requester_session_exchange(
     }
 }
 
-/// Builds the exchange response from a completion snapshot: the body never
-/// contains the session token; the Set-Cookie header is (re-)issued from the
-/// recorded token so a lost-response replay restores the browser cookie.
-fn session_exchange_response(snapshot: &serde_json::Value) -> Response {
+/// Builds the credential-bearing exchange response: the bearer lives only
+/// in Set-Cookie, the body carries no token material, and the response is
+/// never cacheable (exact-head review R3).
+fn session_exchange_created(grant: &crate::RequesterSessionGrant) -> Response {
     let body = serde_json::json!({
-        "expires_at": snapshot.get("expires_at").cloned().unwrap_or(serde_json::Value::Null),
-        "csrf_token": snapshot.get("csrf_token").cloned().unwrap_or(serde_json::Value::Null),
+        "expires_at": grant.expires_at.to_rfc3339(),
+        "csrf_token": grant.csrf_token.expose(),
     });
     let mut response = (StatusCode::CREATED, Json(body)).into_response();
-    if let Some(token) = snapshot
-        .get("session_token")
-        .and_then(|value| value.as_str())
-        && let Ok(value) = HeaderValue::from_str(&format!(
-            "{REQUESTER_SESSION_COOKIE}={token}; Secure; HttpOnly; SameSite=Lax; Path={REQUESTER_SESSION_COOKIE_PATH}"
-        ))
-    {
+    if let Ok(value) = HeaderValue::from_str(&format!(
+        "{REQUESTER_SESSION_COOKIE}={}; Secure; HttpOnly; SameSite=Lax; Path={REQUESTER_SESSION_COOKIE_PATH}",
+        grant.token.expose()
+    )) {
         response.headers_mut().insert(header::SET_COOKIE, value);
     }
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     response
 }
 
@@ -3619,13 +3661,6 @@ mod tests {
     }
 
     impl FailingCompleteStore {
-        fn always(inner: minco_plugin_idempotency::MemoryIdempotencyStore) -> Self {
-            Self {
-                inner,
-                pass_prefix: "\u{0}never",
-            }
-        }
-
         fn except_sessions(inner: minco_plugin_idempotency::MemoryIdempotencyStore) -> Self {
             Self {
                 inner,
@@ -3690,11 +3725,76 @@ mod tests {
         }
     }
 
+    /// Fails exactly the first completion, then delegates: proves the
+    /// revoke-and-release recovery lets a retry perform a clean exchange
+    /// (exact-head review R3).
+    struct OnceFailingCompleteStore(
+        minco_plugin_idempotency::MemoryIdempotencyStore,
+        std::sync::atomic::AtomicBool,
+    );
+
+    impl std::fmt::Debug for OnceFailingCompleteStore {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.debug_tuple("OnceFailingCompleteStore").finish()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl minco_plugin_idempotency::IdempotencyStore for OnceFailingCompleteStore {
+        async fn get(
+            &self,
+            key: &minco_plugin_idempotency::IdempotencyKey,
+        ) -> Result<
+            Option<minco_plugin_idempotency::IdempotencyRecord>,
+            minco_plugin_idempotency::IdempotencyError,
+        > {
+            self.0.get(key).await
+        }
+
+        async fn begin(
+            &self,
+            key: minco_plugin_idempotency::IdempotencyKey,
+            fingerprint: minco_plugin_idempotency::RequestFingerprint,
+            now: chrono::DateTime<chrono::Utc>,
+            stale_after: chrono::TimeDelta,
+        ) -> Result<
+            minco_plugin_idempotency::BeginOutcome,
+            minco_plugin_idempotency::IdempotencyError,
+        > {
+            self.0.begin(key, fingerprint, now, stale_after).await
+        }
+
+        async fn complete(
+            &self,
+            lease: minco_plugin_idempotency::IdempotencyLease,
+            response: serde_json::Value,
+            completed_at: chrono::DateTime<chrono::Utc>,
+        ) -> Result<
+            minco_plugin_idempotency::IdempotencyRecord,
+            minco_plugin_idempotency::IdempotencyError,
+        > {
+            if !self.1.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                return self.0.complete(lease, response, completed_at).await;
+            }
+            Err(minco_plugin_idempotency::IdempotencyError::Store(
+                "one-shot completion failure".into(),
+            ))
+        }
+
+        async fn abort(
+            &self,
+            lease: &minco_plugin_idempotency::IdempotencyLease,
+        ) -> Result<bool, minco_plugin_idempotency::IdempotencyError> {
+            self.0.abort(lease).await
+        }
+    }
+
     #[tokio::test]
     async fn session_exchange_completion_failure_fails_explicitly() {
         use minco_plugin_idempotency::MemoryIdempotencyStore;
-        let (app, token) = portal_app_with_idempotency(Arc::new(FailingCompleteStore::always(
+        let (app, token) = portal_app_with_idempotency(Arc::new(OnceFailingCompleteStore(
             MemoryIdempotencyStore::default(),
+            std::sync::atomic::AtomicBool::new(true),
         )))
         .await;
         let exchange = |app: &Router, token: &SupportHandoffToken| {
@@ -3715,10 +3815,19 @@ mod tests {
             serde_json::from_slice(&to_bytes(first.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
         assert_eq!(problem["code"], "ticketing_session_persist_uncertain");
-        // The lease is deliberately not released: a racing retry sees the
-        // exchange still in progress instead of minting a second session.
+        // The failed exchange revoked its session and released the lease
+        // (exact-head review R3): a retry performs a clean exchange
+        // instead of wedging on an in-progress lease.
         let retry = exchange(&app, &token).await.unwrap();
-        assert_eq!(retry.status(), StatusCode::TOO_EARLY);
+        assert_eq!(retry.status(), StatusCode::CREATED);
+        assert!(
+            retry
+                .headers()
+                .get(header::SET_COOKIE)
+                .and_then(|value| value.to_str().ok())
+                .is_some(),
+            "the clean retry issues a working session"
+        );
     }
 
     #[tokio::test]
@@ -3860,6 +3969,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stale_lease_takeover_mints_a_fresh_session_and_revokes_the_old() {
+        // Exact-head review R3: after the idempotency lease goes stale a
+        // retry performs a fresh exchange; the previous session is
+        // revoked by the grant upsert so exactly one live bearer remains.
+        use minco_plugin_idempotency::MemoryIdempotencyStore;
+        let (app, token) = portal_app_with_idempotency_ttl(
+            Arc::new(MemoryIdempotencyStore::default()),
+            chrono::TimeDelta::milliseconds(50),
+        )
+        .await;
+        let exchange = |origin: &str| {
+            app.clone().oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({ "portal_origin": origin }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+        };
+        let first = exchange("https://support.example.test").await.unwrap();
+        assert_eq!(first.status(), StatusCode::CREATED);
+        let first_cookie = first
+            .headers()
+            .get(header::SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap()
+            .to_owned();
+        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+        let takeover = exchange("https://support.example.test").await.unwrap();
+        assert_eq!(takeover.status(), StatusCode::CREATED);
+        let new_cookie = takeover
+            .headers()
+            .get(header::SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap()
+            .to_owned();
+        assert_ne!(new_cookie, first_cookie);
+        let old_dead = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(header::COOKIE, &first_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(old_dead.status(), StatusCode::UNAUTHORIZED);
+        let new_live = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(header::COOKIE, &new_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(new_live.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn session_exchange_issues_cookie_and_replays_identically() {
         let (app, token) = portal_app().await;
         let exchange = |app: &Router, token: &SupportHandoffToken, origin: &str| {
@@ -3898,39 +4073,68 @@ mod tests {
         let replay = exchange(&app, &token, "https://support.example.test")
             .await
             .unwrap();
-        // A lost-response replay must restore the browser cookie (review
-        // finding 4): same status as the original creation, Set-Cookie
-        // re-issued from the server-side record, and the body never
-        // carries the session token.
+        // A lost-response replay rotates the session (exact-head review
+        // R3): a NEW bearer is minted from the non-secret grant, the
+        // previous session is revoked, the body never carries a token,
+        // and the credential-bearing response is never cacheable.
         assert_eq!(replay.status(), StatusCode::CREATED);
         let replay_cookie = replay
             .headers()
             .get(header::SET_COOKIE)
             .and_then(|value| value.to_str().ok())
-            .expect("replay re-issues the session cookie")
+            .and_then(|value| value.split(';').next())
+            .expect("replay issues a fresh session cookie")
             .to_owned();
-        assert_eq!(replay_cookie, cookie);
+        assert_ne!(replay_cookie, cookie, "rotation mints a new bearer");
+        assert_eq!(
+            replay
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store")
+        );
         let replayed: serde_json::Value =
             serde_json::from_slice(&to_bytes(replay.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
-        assert_eq!(replayed, grant);
         assert!(
             replayed.get("session_token").is_none(),
             "the bearer must never appear in a response body"
         );
+        // The rotated-out cookie no longer authorizes; the new one does.
+        let old_dead = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(old_dead.status(), StatusCode::UNAUTHORIZED);
+        let new_live = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(header::COOKIE, &replay_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(new_live.status(), StatusCode::OK);
+        // The original cookie is dead: re-issuing a working session value
+        // for the conflict check comes from the rotated cookie.
+        let session_value = replay_cookie
+            .split_once('=')
+            .map(|(_, value)| value.to_owned())
+            .unwrap();
 
         let conflict = exchange(&app, &token, "https://other.example.test")
             .await
             .unwrap();
         assert_eq!(conflict.status(), StatusCode::CONFLICT);
 
-        // The cookie authenticates the requester list with own isolation.
-        let session_value = cookie
-            .split(';')
-            .next()
-            .and_then(|pair| pair.split_once('='))
-            .map(|(_, value)| value.to_owned())
-            .unwrap();
         let listed = app
             .clone()
             .oneshot(

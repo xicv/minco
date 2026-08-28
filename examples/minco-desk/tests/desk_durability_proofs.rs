@@ -210,16 +210,17 @@ async fn sessions_idempotency_and_jobs_survive_a_full_restart() {
         );
     }
 
-    // Requester portal: handoff, session exchange, cookie replay.
+    // Requester portal: handoff, session exchange, rotation replay. The
+    // replay mints a NEW bearer and revokes the old one — the rotated
+    // cookie is the one that survives (exact-head review R3).
     let handoff = issue_handoff(&origin, &config.agent_token).await;
-    let (status, cookie, grant) = exchange_session(&origin, &handoff).await;
+    let (status, _first_cookie, grant) = exchange_session(&origin, &handoff).await;
     assert_eq!(status, reqwest::StatusCode::CREATED);
-    let cookie = cookie.expect("the session cookie");
     assert!(grant.get("session_token").is_none());
-    let (replay_status, replay_cookie, replay_grant) = exchange_session(&origin, &handoff).await;
+    let (replay_status, cookie, replay_grant) = exchange_session(&origin, &handoff).await;
     assert_eq!(replay_status, reqwest::StatusCode::CREATED);
-    assert_eq!(replay_cookie.as_deref(), Some(cookie.as_str()));
-    assert_eq!(replay_grant, grant);
+    let cookie = cookie.expect("the rotated session cookie");
+    assert!(replay_grant.get("session_token").is_none());
 
     let listed = client
         .get(format!("{origin}/_minco/ticketing/requester/tickets"))
@@ -286,12 +287,11 @@ async fn logout_expires_the_browser_cookie_and_revokes_the_session() {
     let client = reqwest::Client::new();
 
     let handoff = issue_handoff(&origin, &config.agent_token).await;
-    let (_, cookie, _) = exchange_session(&origin, &handoff).await;
+    let (_, cookie, grant) = exchange_session(&origin, &handoff).await;
     let cookie = cookie.expect("session cookie");
-    let csrf = exchange_session(&origin, &handoff).await.2["csrf_token"]
-        .as_str()
-        .expect("csrf token")
-        .to_owned();
+    // One exchange supplies both artifacts: a second call would replay and
+    // rotate the session, revoking this cookie.
+    let csrf = grant["csrf_token"].as_str().expect("csrf token").to_owned();
 
     let logout = client
         .post(format!("{origin}/_minco/ticketing/requester/logout"))

@@ -261,6 +261,25 @@ pub struct OperationReceipt {
     pub created_at: DateTime<Utc>,
 }
 
+/// One session-exchange replay grant (exact-head review R3): holds only
+/// non-secret rotation material — the active session ID and the
+/// attributes needed to mint a replacement.
+///
+/// A replay mints a fresh session from these attributes, revokes the
+/// recorded session and updates this row; no bearer token is ever
+/// persisted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionExchangeGrant {
+    pub exchange_key: String,
+    pub session_id: minco_plugin_sessions::SessionId,
+    pub subject: String,
+    pub project_id: String,
+    pub permissions: Vec<String>,
+    pub portal_origin: String,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone)]
 pub struct AppendTicketMessageRequest {
     pub project_id: String,
@@ -386,6 +405,23 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         &self,
         idempotency_key: &str,
     ) -> Result<Option<OperationReceipt>, TicketStoreError>;
+
+    /// Records or replaces the replay grant for one session exchange
+    /// (exact-head review R3); removing it kills future replays.
+    async fn put_session_exchange_grant(
+        &self,
+        grant: SessionExchangeGrant,
+    ) -> Result<(), TicketStoreError>;
+
+    async fn session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<Option<SessionExchangeGrant>, TicketStoreError>;
+
+    async fn remove_session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<bool, TicketStoreError>;
 
     /// Verified first-contact intake (review finding 6): create one
     /// ticket from an inbound email and register its external identity
@@ -696,6 +732,27 @@ impl TicketingStoreService {
         self.0.operation_receipt(idempotency_key).await
     }
 
+    pub async fn put_session_exchange_grant(
+        &self,
+        grant: SessionExchangeGrant,
+    ) -> Result<(), TicketStoreError> {
+        self.0.put_session_exchange_grant(grant).await
+    }
+
+    pub async fn session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<Option<SessionExchangeGrant>, TicketStoreError> {
+        self.0.session_exchange_grant(exchange_key).await
+    }
+
+    pub async fn remove_session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<bool, TicketStoreError> {
+        self.0.remove_session_exchange_grant(exchange_key).await
+    }
+
     pub async fn erase_tickets_resolved_before(
         &self,
         project_id: &str,
@@ -887,6 +944,7 @@ struct MemoryState {
     automation_proposals: BTreeMap<(String, Uuid), AutomationProposal>,
     clarifications: BTreeMap<(String, Uuid), Clarification>,
     operation_receipts: BTreeMap<String, OperationReceipt>,
+    session_exchange_grants: BTreeMap<String, SessionExchangeGrant>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
@@ -1728,6 +1786,34 @@ impl TicketingStore for MemoryTicketingStore {
     ) -> Result<Option<OperationReceipt>, TicketStoreError> {
         let state = self.state.lock().await;
         Ok(state.operation_receipts.get(idempotency_key).cloned())
+    }
+
+    async fn put_session_exchange_grant(
+        &self,
+        grant: SessionExchangeGrant,
+    ) -> Result<(), TicketStoreError> {
+        let mut state = self.state.lock().await;
+        state
+            .session_exchange_grants
+            .insert(grant.exchange_key.clone(), grant);
+        drop(state);
+        Ok(())
+    }
+
+    async fn session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<Option<SessionExchangeGrant>, TicketStoreError> {
+        let state = self.state.lock().await;
+        Ok(state.session_exchange_grants.get(exchange_key).cloned())
+    }
+
+    async fn remove_session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        Ok(state.session_exchange_grants.remove(exchange_key).is_some())
     }
 
     async fn create_ticket_from_external(

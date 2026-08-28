@@ -3,9 +3,9 @@ use crate::{
     ClarificationState, ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff,
     ConsumedSessionIdentity, CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity,
     ExternalMessageIngestResult, IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT,
-    OperationReceipt, OutboundDeliveryEvidence, OutboundEvidenceKind, Ticket, TicketActivityIntent,
-    TicketId, TicketListFilter, TicketMessageId, TicketRequester, TicketStatus, TicketStoreError,
-    TicketSummary, TicketSummaryFilter, TicketingStore,
+    OperationReceipt, OutboundDeliveryEvidence, OutboundEvidenceKind, SessionExchangeGrant, Ticket,
+    TicketActivityIntent, TicketId, TicketListFilter, TicketMessageId, TicketRequester,
+    TicketStatus, TicketStoreError, TicketSummary, TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -906,6 +906,84 @@ impl TicketingStore for SqliteTicketingStore {
             })
         })
         .transpose()
+    }
+
+    async fn put_session_exchange_grant(
+        &self,
+        grant: SessionExchangeGrant,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_session_exchange_grants
+                 (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(exchange_key) DO UPDATE SET
+                 session_id = excluded.session_id,
+                 expires_at = excluded.expires_at",
+        )
+        .bind(&grant.exchange_key)
+        .bind(grant.session_id.0.to_string())
+        .bind(&grant.subject)
+        .bind(&grant.project_id)
+        .bind(grant.permissions.join(","))
+        .bind(&grant.portal_origin)
+        .bind(grant.expires_at.to_rfc3339())
+        .bind(grant.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<Option<SessionExchangeGrant>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT exchange_key, session_id, subject, project_id, permissions,
+                    portal_origin, expires_at, created_at
+               FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
+        )
+        .bind(exchange_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| {
+            Ok(SessionExchangeGrant {
+                exchange_key: row.get("exchange_key"),
+                session_id: minco_plugin_sessions::SessionId(
+                    Uuid::parse_str(&row.get::<String, _>("session_id")).map_err(|_| {
+                        TicketStoreError::Infrastructure(
+                            "stored grant session id is not a UUID".into(),
+                        )
+                    })?,
+                ),
+                subject: row.get("subject"),
+                project_id: row.get("project_id"),
+                permissions: row
+                    .get::<String, _>("permissions")
+                    .split(',')
+                    .filter(|part| !part.is_empty())
+                    .map(str::to_owned)
+                    .collect(),
+                portal_origin: row.get("portal_origin"),
+                expires_at: parse_timestamp(&row.get::<String, _>("expires_at"))?,
+                created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn remove_session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<bool, TicketStoreError> {
+        let removed =
+            sqlx::query("DELETE FROM ticketing_session_exchange_grants WHERE exchange_key = ?")
+                .bind(exchange_key)
+                .execute(&self.pool)
+                .await
+                .map_err(infrastructure)?;
+        Ok(removed.rows_affected() > 0)
     }
 
     async fn create_ticket_from_external(
