@@ -7814,8 +7814,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/jobs.rs",
-      "sha256": "266734f1866a714e571fb01bd8ee6ba5ca7c645c96059417ca8e33ffd90eddbc",
-      "size_bytes": 93811
+      "sha256": "b1089e7de8f30cab67ac521d63e74bb25efd9c2aa64567b146321bd98c01844f",
+      "size_bytes": 93098
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/lib.rs",
@@ -7839,8 +7839,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
-      "sha256": "7176d340dcd2181a32967b7de0c21217d5c891271bd37f8ff9ba3c0d98dff8f3",
-      "size_bytes": 172539
+      "sha256": "213337daf192f9653f10ad01cba9c7c7c85dae673cceddcf500b6c7ca5408994",
+      "size_bytes": 173366
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
@@ -9254,8 +9254,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "466a661f7230d559612a241712c2a4311afd7970223cb82dbad6b60caaf43c41",
-      "size_bytes": 15309
+      "sha256": "97267a2e55ab0e89ce4b501e66f98f28e5f99c3d4bfdee949d978e044e3b7b00",
+      "size_bytes": 16152
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9709,7 +9709,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "db8581e5b44229cbdb1ee7a1443eb4fba053dfabdb95d70bde2bcf8b7cf4c431",
-  "total_size_bytes": 14736075,
+  "source_tree_sha256": "854e7a47823be9ba4891adb61d400cec0e2c7ea4803531950ba8c190ac2feab0",
+  "total_size_bytes": 14737032,
   "version": "1.12.0"
 }

@@ -268,6 +268,20 @@ at head 170f434a)** — continue M14-T74, ten new findings R1-R10:
   /live and /ready routes execute the registered checks (verified on
   the spawned binary).
 
+**Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
+exit 0 with 1,233 workspace cargo tests, every python suite OK
+(including the spawned-binary lifecycle/health proof), chromium and
+firefox suites green, five feature-boundary cargo checks clean,
+clippy -D warnings clean, cargo deny/audit and npm audit clean,
+gitleaks clean, and the manifest/release-identity/operational chain
+converged. One pre-existing firefox widget flake (feedback widget,
+unchanged since the reviewed head 170f434a) failed one run and passed
+three consecutive reruns plus the final gate run; recorded as
+environment flakiness, not converted into a pass. The R2-R10
+described changes sit on top of the previously finished M14-T74 head;
+the PR body carries the round-2 closure matrix. Next human gate: an
+independent exact-head re-review of the new head.
+
 **Final-head qualification (2026-08-27)**: `./scripts/quality.sh`
 exit 0 at the final head — 1,225 cargo tests passed workspace-wide,
 every python evidence suite OK (including the recipe matrix after
