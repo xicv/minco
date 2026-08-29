@@ -78,16 +78,34 @@ impl Job for ProcessInboundEmail {
     const VERSION: u16 = 1;
 }
 
-/// One structurally parsed Authentication-Results header (RFC 8601).
+/// One RFC 8601 method-result: a mechanism verdict WITH its own
+/// properties (exact-head review R23/P0-4).
 ///
-/// Carries the authserv-id, the mechanism verdicts it asserts and the
-/// property tokens (`header.d`, `smtp.mailfrom`, `envelope-from`) with
-/// the authenticated identity values.
+/// A DKIM pass and its `header.i` identity belong to the same method
+/// result — cross-result assembly lets a victim-domain identity
+/// validate an attacker-domain pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthenticationMethodResult {
+    pub method: String,
+    pub result: String,
+    /// This method result's `ptype.prop=value` properties.
+    pub properties: Vec<(String, String)>,
+}
+
+impl AuthenticationMethodResult {
+    fn identity_domain(&self, keys: &[&str]) -> Option<String> {
+        self.properties
+            .iter()
+            .find(|(key, _)| keys.contains(&key.as_str()))
+            .map(|(_, value)| property_domain(value).to_owned())
+    }
+}
+
+/// One structurally parsed Authentication-Results header (RFC 8601).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedAuthResults {
     pub authserv_id: String,
-    pub mechanisms: Vec<(String, String)>,
-    pub properties: Vec<(String, String)>,
+    pub methods: Vec<AuthenticationMethodResult>,
 }
 
 /// Strips RFC 8601 CFWS comments (balanced parentheses) from one token,
@@ -113,20 +131,21 @@ fn strip_comments(token: &str) -> String {
     output.trim().to_owned()
 }
 
-/// RFC 8601 structural parse of one Authentication-Results value.
+const AUTH_MECHANISMS: [&str; 5] = ["spf", "dkim", "dmarc", "dkim-atps", "spf2"];
+
+/// RFC 8601 structural parse preserving method-result association.
 ///
-/// The value is `authserv-id; method=verdict prop=value ...; ...` with
-/// comments allowed anywhere. Returns `None` only when the authserv-id
-/// or a method token is structurally malformed (exact-head review R15:
-/// the AWS SES header carries comments with spaces, `envelope-from`,
-/// `header.i` and `header.from` properties, and mailbox-shaped values).
+/// Comments are stripped first; each ';'-clause is tokenized on
+/// whitespace; the FIRST k=v token whose key is a known mechanism
+/// starts a method result, and all subsequent property tokens belong to
+/// THAT result until the next mechanism token. SES property-only
+/// clauses (`envelope-from=...`) attach to the preceding method result
+/// when one exists in the same clause chain.
 pub fn parse_authentication_results(value: &str) -> Option<ParsedAuthResults> {
     let value = value.trim();
     if value.is_empty() || value.len() > 2_048 {
         return None;
     }
-    // Strip comments first so comment text with ';' or spaces cannot
-    // disturb clause tokenization.
     let stripped = strip_comments(value);
     let (authserv_id, rest) = stripped.split_once(';')?;
     let authserv_id = authserv_id.trim();
@@ -137,52 +156,45 @@ pub fn parse_authentication_results(value: &str) -> Option<ParsedAuthResults> {
     {
         return None;
     }
-    let mut mechanisms = Vec::new();
-    let mut properties = Vec::new();
-    for clause in rest.split(';') {
-        let clause = clause.trim();
-        if clause.is_empty() {
+    // The current method result persists ACROSS clauses: AWS SES emits
+    // `spf=pass (...) client-ip=...; envelope-from="..."` — the
+    // envelope-from property belongs to the preceding SPF result even
+    // though it sits in its own clause (exact-head review R23).
+    let mut methods: Vec<AuthenticationMethodResult> = Vec::new();
+    let mut current: Option<AuthenticationMethodResult> = None;
+    for part in rest.split(';').flat_map(str::split_whitespace) {
+        let Some((key, value)) = part.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_ascii_lowercase();
+        let value = value.trim().to_ascii_lowercase();
+        if key.is_empty() || value.is_empty() {
             continue;
         }
-        // Each clause is one method result followed by its properties,
-        // all whitespace-separated k=v tokens (RFC 8601 "method-value"
-        // and "ptype-prop-value" forms).
-        for part in clause.split_whitespace() {
-            let Some((key, value)) = part.split_once('=') else {
-                // A bare word is a reason string (allowed by the
-                // grammar) — skip it, never fail the header.
-                continue;
-            };
-            let key = key.trim().to_ascii_lowercase();
-            let value = value.trim().to_ascii_lowercase();
-            if key.is_empty() || value.is_empty() {
-                continue;
+        if AUTH_MECHANISMS.contains(&key.as_str()) {
+            if let Some(method) = current.take() {
+                methods.push(method);
             }
-            if is_auth_mechanism(&key) {
-                mechanisms.push((key, value));
-            } else {
-                // SES emits provider properties as their own clauses
-                // (for example `envelope-from=...`): position is not
-                // authority — the key name is.
-                properties.push((key, value));
-            }
+            current = Some(AuthenticationMethodResult {
+                method: key,
+                result: value,
+                properties: Vec::new(),
+            });
+        } else if let Some(method) = current.as_mut() {
+            method.properties.push((key, value));
         }
+    }
+    if let Some(method) = current.take() {
+        methods.push(method);
     }
     Some(ParsedAuthResults {
         authserv_id: authserv_id.to_owned(),
-        mechanisms,
-        properties,
+        methods,
     })
 }
 
-/// Extracts the domain from a mailbox- or domain-shaped property value
-/// (`user@example.com` -> `example.com`; `example.com` unchanged).
-fn is_auth_mechanism(key: &str) -> bool {
-    matches!(key, "spf" | "dkim" | "dmarc" | "dkim-atps" | "spf2")
-}
-
+/// Extracts the domain from a mailbox- or domain-shaped property value.
 fn property_domain(value: &str) -> &str {
-    // RFC 5322 quoted values: strip one balanced pair of double quotes.
     let trimmed = if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
         &value[1..value.len() - 1]
     } else {
@@ -213,19 +225,18 @@ pub fn evaluate_inbound_trust(
     expected_authserv_id: &str,
     policy: crate::InboundAuthPolicy,
 ) -> Result<(), &'static str> {
-    // SES spam/virus verdicts are provider evidence: FAIL quarantines
-    // under every policy.
+    // SES spam/virus verdicts are provider evidence: FAIL and the
+    // indeterminate GRAY/PROCESSING_FAILED outcomes quarantine under
+    // every policy (exact-head review R23).
     for verdict in [spam_verdict, virus_verdict].into_iter().flatten() {
-        if verdict.trim().eq_ignore_ascii_case("FAIL") {
+        let normalised = verdict.trim().to_ascii_uppercase();
+        if normalised == "FAIL" || normalised == "GRAY" || normalised == "PROCESSING_FAILED" {
             return Err("ticketing.inbound_sender_unverified");
         }
     }
     let mut trusted: Vec<ParsedAuthResults> = Vec::new();
     for value in headers {
         let Some(parsed) = parse_authentication_results(value) else {
-            // Malformed UNTRUSTED headers never negate provider
-            // evidence; a malformed header claiming the trusted
-            // authserv-id cannot be verified, so it quarantines.
             let claimed = strip_comments(value)
                 .split(';')
                 .next()
@@ -247,10 +258,9 @@ pub fn evaluate_inbound_trust(
         }
     }
     if trusted.len() > 1 {
-        // Multiple trusted headers are ambiguous evidence (RFC 8601).
         return Err("ticketing.inbound_sender_unverified");
     }
-    let quarantine_verdicts = [
+    let quarantine_results = [
         "fail",
         "hardfail",
         "permerror",
@@ -259,8 +269,8 @@ pub fn evaluate_inbound_trust(
         "gray",
     ];
     for results in &trusted {
-        for (_mechanism, verdict) in &results.mechanisms {
-            if quarantine_verdicts.contains(&verdict.as_str()) {
+        for method in &results.methods {
+            if quarantine_results.contains(&method.result.as_str()) {
                 return Err("ticketing.inbound_sender_unverified");
             }
         }
@@ -275,39 +285,41 @@ pub fn evaluate_inbound_trust(
         return Ok(());
     };
     let Some(results) = trusted.first() else {
-        // Strict policies quarantine missing evidence.
         return Err("ticketing.inbound_sender_unverified");
     };
-    let mechanism_passed = results
-        .mechanisms
-        .iter()
-        .any(|(mechanism, verdict)| mechanism == required && verdict == "pass");
-    if !mechanism_passed {
-        return Err("ticketing.inbound_sender_unverified");
-    }
-    // Alignment (exact-head review R15): the authenticated identity
-    // domain must equal or be a subdomain of the From domain, using the
-    // properties real providers emit. Values may be full mailboxes.
+    // Alignment within ONE method result (exact-head review R23/P0-4):
+    // the pass verdict and the identity property must come from the
+    // same method result, never assembled across results.
     let identity_keys: &[&str] = match required {
         "spf" => &["envelope-from", "smtp.mailfrom", "mailfrom"],
         "dkim" => &["header.i", "header.d"],
-        _ => &["header.from", "header.d"],
+        // DMARC's registry property is header.from (RFC 7489) — no
+        // header.d fallback.
+        _ => &["header.from"],
     };
-    let authenticated = results
-        .properties
-        .iter()
-        .find(|(key, _)| identity_keys.contains(&key.as_str()))
-        .map(|(_, value)| property_domain(value).to_owned());
     let from_domain = from_domain.map(str::trim).map(str::to_ascii_lowercase);
-    match (authenticated, from_domain) {
-        (Some(identity), Some(from_domain)) if !identity.is_empty() && !from_domain.is_empty() => {
-            if identity == from_domain || identity.ends_with(&format!(".{from_domain}")) {
-                Ok(())
-            } else {
-                Err("ticketing.inbound_sender_unverified")
-            }
+    let mut aligned_pass = false;
+    for method in &results.methods {
+        if method.method != required || method.result != "pass" {
+            continue;
         }
-        _ => Err("ticketing.inbound_sender_unverified"),
+        let Some(identity) = method.identity_domain(identity_keys) else {
+            continue;
+        };
+        if identity.is_empty() {
+            continue;
+        }
+        if let Some(from) = from_domain.as_deref()
+            && !from.is_empty()
+            && (identity == from || identity.ends_with(&format!(".{from}")))
+        {
+            aligned_pass = true;
+        }
+    }
+    if aligned_pass {
+        Ok(())
+    } else {
+        Err("ticketing.inbound_sender_unverified")
     }
 }
 
@@ -2572,6 +2584,108 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn cross_result_assembly_cannot_validate_a_mismatched_dkim_pass() {
+        // Exact-head review R23/P0-4: AWS SES emits MULTIPLE DKIM
+        // results in one header. A dkim=none for the victim domain and
+        // dkim=pass for the attacker domain must NOT be combined into
+        // "a pass with the victim's header.i".
+        let header = concat!(
+            "amazonses.com; ",
+            "dkim=none (no signatures) header.i=@victim.example; ",
+            "dkim=pass (2048-bit key) header.i=@attacker.example"
+        );
+        // The victim From domain: only the attacker's DKIM passed, and
+        // ITS header.i is attacker.example — not aligned.
+        assert!(
+            super::evaluate_inbound_trust(
+                &[header.into()],
+                None,
+                None,
+                Some("victim.example"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RequireAlignedDkim,
+            )
+            .is_err()
+        );
+        // The attacker From domain: their pass IS aligned — this is the
+        // correct accept, but for the attacker's mail, not the victim's.
+        assert!(
+            super::evaluate_inbound_trust(
+                &[header.into()],
+                None,
+                None,
+                Some("attacker.example"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RequireAlignedDkim,
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn dmarc_requires_header_from_not_header_d() {
+        // Exact-head review R23/P0-4: DMARC's registry property is
+        // header.from (RFC 7489); a header.d fallback must not exist.
+        let header_only_d = "amazonses.com; dmarc=pass header.d=attacker.example";
+        assert!(
+            super::evaluate_inbound_trust(
+                &[header_only_d.into()],
+                None,
+                None,
+                Some("attacker.example"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RequireDmarc,
+            )
+            .is_err(),
+            "header.d is not a DMARC identity — no fallback"
+        );
+        let header_from = "amazonses.com; dmarc=pass header.from=attacker.example";
+        assert!(
+            super::evaluate_inbound_trust(
+                &[header_from.into()],
+                None,
+                None,
+                Some("attacker.example"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RequireDmarc,
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn gray_and_processing_failed_spam_verdicts_quarantine() {
+        // Exact-head review R23/P0-4: indeterminate SES scan outcomes
+        // must not silently pass under any policy.
+        for verdict in ["GRAY", "PROCESSING_FAILED"] {
+            assert!(
+                super::evaluate_inbound_trust(
+                    &[],
+                    Some(verdict),
+                    None,
+                    Some("example.com"),
+                    "amazonses.com",
+                    crate::InboundAuthPolicy::LocalTrusted,
+                )
+                .is_err(),
+                "spam verdict {verdict} must quarantine"
+            );
+            assert!(
+                super::evaluate_inbound_trust(
+                    &[],
+                    None,
+                    Some(verdict),
+                    Some("example.com"),
+                    "amazonses.com",
+                    crate::InboundAuthPolicy::LocalTrusted,
+                )
+                .is_err(),
+                "virus verdict {verdict} must quarantine"
+            );
+        }
     }
 
     #[test]
