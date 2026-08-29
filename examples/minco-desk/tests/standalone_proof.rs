@@ -89,6 +89,34 @@ async fn composed_desk_serves_health_and_support_entry() {
         assert!(graph.contains(service), "graph must record {service}");
     }
 
+    // Liveness and readiness execute the registered checks (exact-head
+    // reviews R10 and R33/P1-3): readiness now covers sessions,
+    // idempotency receipts, the audit dispatch backlog and object
+    // storage alongside the ticketing and jobs stores — all green on a
+    // healthy desk, so both endpoints answer 200.
+    for path in ["/live", "/ready"] {
+        let probe = desk
+            .router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .extension(minco_http::Principal {
+                        subject: "agent-proof".into(),
+                        permissions: ["ticketing.agent-console".into()].into_iter().collect(),
+                        claims: std::collections::BTreeMap::default(),
+                    })
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("health probe dispatches");
+        assert_eq!(
+            probe.status(),
+            http::StatusCode::OK,
+            "{path} must report healthy with the expanded check set"
+        );
+    }
+
     // The agent bootstrap requires identity — proving the full HTTP
     // middleware, router and service stack are wired.
     let bootstrap = desk

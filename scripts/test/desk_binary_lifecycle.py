@@ -200,9 +200,83 @@ class NonLocalFailClosedTests(unittest.TestCase):
         self.assertIn("read-write", result.stderr)
 
     def test_low_entropy_secret_is_rejected(self) -> None:
-        result = self._run({"DESK_AGENT_TOKEN": "a" * 40})
+        # A repeated NON-hex passphrase: not decodable key material, and
+        # far below the distinct-character bar.
+        result = self._run({"DESK_AGENT_TOKEN": "token-" * 7})
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("real entropy", result.stderr)
+
+    def _run_accepted(self, env_overrides: dict) -> subprocess.Popen:
+        """Spawns the binary expecting startup to SUCCEED; returns the
+        still-running child (the caller terminates it)."""
+        env = {
+            **os.environ,
+            "DESK_ENVIRONMENT": "production",
+            "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal-accepted.sqlite?mode=rwc",
+            "DESK_AGENT_TOKEN": "desk-proof-token-mixed-case-and-digits-42",
+            "DESK_CSRF_SECRET": "desk-proof-csrf-mixed-case-and-digits-77",
+            "DESK_PORTAL_ORIGIN": "https://desk.example.test",
+            "DESK_ALLOWED_ORIGINS": "https://desk.example.test",
+            "DESK_ALLOWED_RETURN_PATHS": "https://app.example.test=/orders",
+            "DESK_PORT": str(free_port()),
+        }
+        env.update(env_overrides)
+        child = subprocess.Popen(
+            [BINARY], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        return child
+
+    def _assert_starts(self, env_overrides: dict) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as scratch:
+            env = dict(env_overrides)
+            env["DESK_DATABASE_URL"] = f"sqlite://{scratch}/accepted.sqlite?mode=rwc"
+            child = self._run_accepted(env)
+            try:
+                deadline = time.monotonic() + 8.0
+                while time.monotonic() < deadline:
+                    if child.poll() is not None:
+                        stderr = child.stderr.read() if child.stderr else ""
+                        self.fail(
+                            "startup failed closed unexpectedly:\n" + stderr)
+                    time.sleep(0.2)
+            finally:
+                if child.poll() is None:
+                    child.kill()
+                    child.wait(timeout=10)
+
+    def test_hex_secret_with_two_distinct_characters_is_accepted(self) -> None:
+        # Exact-head review R33/P1-3: key MATERIAL, not passphrase
+        # entropy — 64 hex characters decode to 32 random bytes even
+        # with only two distinct characters.
+        self._assert_starts({"DESK_AGENT_TOKEN": "ab" * 32})
+
+    def test_base64_secret_is_accepted(self) -> None:
+        self._assert_starts(
+            {"DESK_CSRF_SECRET": "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGk"})
+
+    def test_short_hex_secret_is_rejected(self) -> None:
+        result = self._run({"DESK_AGENT_TOKEN": "ab" * 16})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("only 16 bytes", result.stderr)
+
+    def test_file_secret_source_is_accepted(self) -> None:
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".secret", delete=False) as handle:
+            handle.write("cd" * 32 + "\n")
+            path = handle.name
+        try:
+            self._assert_starts({"DESK_AGENT_TOKEN_FILE": path})
+        finally:
+            os.unlink(path)
+
+    def test_missing_secret_file_falls_back_to_generated_rejection(self) -> None:
+        result = self._run({
+            "DESK_AGENT_TOKEN_FILE": "/nonexistent/desk-token",
+            "DESK_AGENT_TOKEN": "",
+        })
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be set explicitly", result.stderr)
 
     def test_http_portal_origin_is_rejected(self) -> None:
         result = self._run({"DESK_PORTAL_ORIGIN": "http://desk.example.test"})

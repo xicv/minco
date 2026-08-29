@@ -75,8 +75,13 @@ impl DeskConfig {
         let environment = std::env::var("DESK_ENVIRONMENT").unwrap_or_else(|_| "local".into());
         let database_url = std::env::var("DESK_DATABASE_URL")
             .unwrap_or_else(|_| "sqlite://minco-desk.sqlite?mode=rwc".into());
-        let agent_token = explicit_or_generated("DESK_AGENT_TOKEN");
-        let csrf_secret = explicit_or_generated("DESK_CSRF_SECRET");
+        // Credential sources (exact-head review R33/P1-3): a `_FILE`
+        // variable wins over the plain one and reads the secret from a
+        // file — the secret-manager/reference pattern, and the rotation
+        // story (update the file, restart; the value is never argv or
+        // logged).
+        let agent_token = read_credential("DESK_AGENT_TOKEN");
+        let csrf_secret = read_credential("DESK_CSRF_SECRET");
         if environment != "local" {
             for (name, value) in [
                 ("DESK_AGENT_TOKEN", &agent_token),
@@ -93,23 +98,7 @@ impl DeskConfig {
                 ("DESK_AGENT_TOKEN", agent_token.0.as_str()),
                 ("DESK_CSRF_SECRET", csrf_secret.0.as_str()),
             ] {
-                let trimmed = value.trim();
-                if trimmed.len() < 32 {
-                    anyhow::bail!(
-                        "{name} must carry at least 32 characters in non-local environments"
-                    );
-                }
-                if trimmed
-                    .chars()
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .len()
-                    < 8
-                {
-                    anyhow::bail!(
-                        "{name} must carry real entropy (at least 8 distinct characters) \
-                         in non-local environments"
-                    );
-                }
+                validate_non_local_secret(name, value)?;
             }
             let lowered = database_url.to_ascii_lowercase();
             if !lowered.starts_with("sqlite://")
@@ -218,9 +207,19 @@ impl DeskConfig {
     }
 }
 
-/// Reads one credential variable: `(value, was_generated)` — the flag
-/// drives non-local fail-closed startup (exact-head review R10).
-fn explicit_or_generated(name: &str) -> (String, bool) {
+/// Reads one credential: `(value, was_generated)` — the flag drives
+/// non-local fail-closed startup (exact-head review R10). A `{name}_FILE`
+/// variable wins over `{name}` and reads the secret from a file
+/// (exact-head review R33/P1-3): the secret-manager/reference pattern —
+/// rotation is "update the file, restart", and the value never appears
+/// in argv or logs.
+fn read_credential(name: &str) -> (String, bool) {
+    if let Ok(path) = std::env::var(format!("{name}_FILE"))
+        && let Ok(contents) = std::fs::read_to_string(&path)
+        && !contents.trim().is_empty()
+    {
+        return (contents.trim().to_owned(), false);
+    }
     match std::env::var(name) {
         Ok(value) if !value.trim().is_empty() => (value, false),
         _ => (
@@ -232,6 +231,62 @@ fn explicit_or_generated(name: &str) -> (String, bool) {
             true,
         ),
     }
+}
+
+/// Non-local credential strength (exact-head review R33/P1-3): a length
+/// plus distinct-character check alone accepts predictable repeated
+/// patterns. Accept EITHER machine material that decodes (hex or
+/// standard base64) to at least 32 random bytes, OR a 32+ character
+/// passphrase with at least 16 distinct characters.
+fn validate_non_local_secret(name: &str, value: &str) -> anyhow::Result<()> {
+    let trimmed = value.trim();
+    if let Some(decoded) = decode_secret_material(trimmed) {
+        if decoded >= 32 {
+            return Ok(());
+        }
+        anyhow::bail!(
+            "{name} looks like encoded key material but decodes to only {decoded} bytes; \
+             at least 32 random bytes (64 hex characters / 43 base64 characters) are required \
+             in non-local environments"
+        );
+    }
+    if trimmed.len() < 32 {
+        anyhow::bail!(
+            "{name} must carry at least 32 characters in non-local environments \
+             (or hex/base64-encoded material decoding to at least 32 bytes)"
+        );
+    }
+    if trimmed
+        .chars()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        < 16
+    {
+        anyhow::bail!(
+            "{name} passphrase must carry real entropy (at least 16 distinct characters) \
+             or be hex/base64-encoded material decoding to at least 32 random bytes"
+        );
+    }
+    Ok(())
+}
+
+/// Returns the decoded byte length when the value is recognizable hex
+/// or standard base64 key material.
+fn decode_secret_material(value: &str) -> Option<usize> {
+    if value.len() >= 32
+        && value.len().is_multiple_of(2)
+        && value.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Some(value.len() / 2);
+    }
+    if value.len() >= 43 {
+        use base64::Engine as _;
+        return base64::engine::general_purpose::STANDARD
+            .decode(value)
+            .ok()
+            .map(|decoded: Vec<u8>| decoded.len());
+    }
+    None
 }
 
 /// Parses `origin=path|path,origin=path` into the handoff location
@@ -553,7 +608,22 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     health.register(Arc::new(TicketingStoreHealth {
         store: TicketingStoreService::new(Arc::clone(&ticketing_store)),
     }));
-    health.register(Arc::new(JobsStoreHealth { pool }));
+    health.register(Arc::new(JobsStoreHealth { pool: pool.clone() }));
+    // Readiness coverage (exact-head review R33/P1-3): the subsystems a
+    // request actually traverses — sessions, idempotency receipts, the
+    // audit dispatch backlog and object storage — each report their own
+    // readiness instead of one pool check standing in for all of them.
+    // They are non-critical: liveness stays the critical subset.
+    health.register(Arc::new(SessionsTableHealth { pool: pool.clone() }));
+    health.register(Arc::new(IdempotencyTableHealth { pool }));
+    health.register(Arc::new(AuditBacklogHealth {
+        store: TicketingStoreService::new(Arc::clone(&ticketing_store)),
+        project_id: config.project_id.clone(),
+        threshold: AUDIT_BACKLOG_READINESS_THRESHOLD,
+    }));
+    health.register(Arc::new(ObjectStorageHealth {
+        objects: Arc::clone(&objects),
+    }));
     let health_report =
         serde_json::to_value(&composed.graph).unwrap_or_else(|_| serde_json::json!({}));
 
@@ -835,6 +905,180 @@ impl minco_plugin_health::HealthCheck for JobsStoreHealth {
             ready,
             critical: true,
             detail: (!ready).then(|| "jobs store is not ready".into()),
+        }
+    }
+}
+
+/// Above this many pending audit dispatch intents, readiness reports
+/// degraded: the worker is falling behind the audit trail.
+#[cfg(feature = "sqlite")]
+const AUDIT_BACKLOG_READINESS_THRESHOLD: usize = 10_000;
+
+/// Sessions subsystem readiness (exact-head review R33/P1-3): the
+/// portal's session table answers queries.
+#[cfg(feature = "sqlite")]
+struct SessionsTableHealth {
+    pool: sqlx::SqlitePool,
+}
+
+#[cfg(feature = "sqlite")]
+impl std::fmt::Debug for SessionsTableHealth {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("SessionsTableHealth").finish()
+    }
+}
+
+#[cfg(feature = "sqlite")]
+#[async_trait::async_trait]
+impl minco_plugin_health::HealthCheck for SessionsTableHealth {
+    fn id(&self) -> &'static str {
+        "sessions-store"
+    }
+
+    async fn check(&self) -> minco_plugin_health::HealthResult {
+        let ready = sqlx::query("SELECT 1 FROM minco_sessions LIMIT 1")
+            .execute(&self.pool)
+            .await
+            .is_ok();
+        minco_plugin_health::HealthResult {
+            id: "sessions-store".into(),
+            ready,
+            critical: false,
+            detail: (!ready).then(|| "sessions store is not ready".into()),
+        }
+    }
+}
+
+/// Idempotency subsystem readiness (exact-head review R33/P1-3): the
+/// receipt table answers queries.
+#[cfg(feature = "sqlite")]
+struct IdempotencyTableHealth {
+    pool: sqlx::SqlitePool,
+}
+
+#[cfg(feature = "sqlite")]
+impl std::fmt::Debug for IdempotencyTableHealth {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("IdempotencyTableHealth").finish()
+    }
+}
+
+#[cfg(feature = "sqlite")]
+#[async_trait::async_trait]
+impl minco_plugin_health::HealthCheck for IdempotencyTableHealth {
+    fn id(&self) -> &'static str {
+        "idempotency-store"
+    }
+
+    async fn check(&self) -> minco_plugin_health::HealthResult {
+        let ready = sqlx::query("SELECT 1 FROM minco_idempotency LIMIT 1")
+            .execute(&self.pool)
+            .await
+            .is_ok();
+        minco_plugin_health::HealthResult {
+            id: "idempotency-store".into(),
+            ready,
+            critical: false,
+            detail: (!ready).then(|| "idempotency store is not ready".into()),
+        }
+    }
+}
+
+/// Audit dispatch backlog readiness (exact-head review R33/P1-3): the
+/// audit trail degrades when undelivered dispatch intents pile up past
+/// the operator threshold.
+#[cfg(feature = "sqlite")]
+struct AuditBacklogHealth {
+    store: minco_plugin_ticketing::TicketingStoreService,
+    project_id: String,
+    threshold: usize,
+}
+
+#[cfg(feature = "sqlite")]
+impl std::fmt::Debug for AuditBacklogHealth {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("AuditBacklogHealth").finish()
+    }
+}
+
+#[cfg(feature = "sqlite")]
+#[async_trait::async_trait]
+impl minco_plugin_health::HealthCheck for AuditBacklogHealth {
+    fn id(&self) -> &'static str {
+        "audit-backlog"
+    }
+
+    async fn check(&self) -> minco_plugin_health::HealthResult {
+        let pending = self
+            .store
+            .pending_audit_intents(&self.project_id, self.threshold + 1)
+            .await
+            .map(|intents| intents.len());
+        let (ready, detail) = match pending {
+            Ok(count) if count <= self.threshold => (true, None),
+            Ok(count) => (
+                false,
+                Some(format!("{count} audit dispatch intents are pending")),
+            ),
+            Err(_) => (false, Some("audit backlog is not observable".into())),
+        };
+        minco_plugin_health::HealthResult {
+            id: "audit-backlog".into(),
+            ready,
+            critical: false,
+            detail,
+        }
+    }
+}
+
+/// Object storage readiness (exact-head review R33/P1-3): a real
+/// probe write and delete through the same store inbound mail and
+/// quarantine records use.
+#[cfg(feature = "sqlite")]
+struct ObjectStorageHealth {
+    objects: Arc<minco_plugin_object_storage::ObjectStoreService>,
+}
+
+#[cfg(feature = "sqlite")]
+impl std::fmt::Debug for ObjectStorageHealth {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("ObjectStorageHealth").finish()
+    }
+}
+
+#[cfg(feature = "sqlite")]
+#[async_trait::async_trait]
+impl minco_plugin_health::HealthCheck for ObjectStorageHealth {
+    fn id(&self) -> &'static str {
+        "object-storage"
+    }
+
+    async fn check(&self) -> minco_plugin_health::HealthResult {
+        use minco_plugin_object_storage::{ObjectKey, PutObject};
+        let Ok(key) = ObjectKey::parse("health/readiness-probe") else {
+            return minco_plugin_health::HealthResult {
+                id: "object-storage".into(),
+                ready: false,
+                critical: false,
+                detail: Some("probe key is invalid".into()),
+            };
+        };
+        let put_ok = self
+            .objects
+            .put(PutObject {
+                key: key.clone(),
+                bytes: b"readiness".to_vec(),
+                content_type: "text/plain".into(),
+                attributes: std::collections::BTreeMap::new(),
+            })
+            .await
+            .is_ok();
+        let ready = put_ok && self.objects.delete(&key).await.is_ok();
+        minco_plugin_health::HealthResult {
+            id: "object-storage".into(),
+            ready,
+            critical: false,
+            detail: (!ready).then(|| "object storage is not writable".into()),
         }
     }
 }
