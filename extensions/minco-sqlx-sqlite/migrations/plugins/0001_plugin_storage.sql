@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS minco_audit (
     actor_subject TEXT,
     correlation_id TEXT NOT NULL,
     occurred_at TEXT NOT NULL,
-    metadata TEXT NOT NULL
+    metadata TEXT NOT NULL,
+    fingerprint TEXT
 );
 
 CREATE INDEX IF NOT EXISTS minco_audit_resource

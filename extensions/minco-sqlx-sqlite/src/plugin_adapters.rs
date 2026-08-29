@@ -318,11 +318,12 @@ impl AuditSink for SqliteAuditSink {
         }
         let metadata = serde_json::to_string(&event.metadata)
             .map_err(|error| AuditError::Append(error.to_string()))?;
-        sqlx::query(
+        let fingerprint = minco_plugin_audit::event_fingerprint(&event);
+        let inserted = sqlx::query(
             "INSERT INTO minco_audit
              (id, action, resource_type, resource_id, actor_subject, correlation_id,
-              occurred_at, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              occurred_at, metadata, fingerprint)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO NOTHING",
         )
         .bind(event.id)
@@ -333,9 +334,28 @@ impl AuditSink for SqliteAuditSink {
         .bind(event.correlation_id)
         .bind(event.occurred_at)
         .bind(metadata)
+        .bind(&fingerprint)
         .execute(&self.pool)
         .await
         .map_err(|error| AuditError::Append(error.to_string()))?;
+        if inserted.rows_affected() == 0 {
+            // Same id: idempotent only when the semantic fingerprint
+            // matches — otherwise this is an integrity conflict
+            // (exact-head review R24/P1-1).
+            let existing: Option<(Option<String>,)> =
+                sqlx::query_as("SELECT fingerprint FROM minco_audit WHERE id = ?")
+                    .bind(event.id)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(|error| AuditError::Append(error.to_string()))?;
+            return match existing {
+                Some((Some(existing_fp),)) if existing_fp == fingerprint => Ok(()),
+                // A different fingerprint, or a pre-fingerprint row that
+                // cannot be verified: both are integrity conflicts.
+                Some(_) => Err(AuditError::Conflict),
+                None => Ok(()),
+            };
+        }
         Ok(())
     }
 }

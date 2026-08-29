@@ -55,12 +55,15 @@ impl AuditEvent {
 
 /// Durable audit sink contract (exact-head review R17).
 ///
-/// `append` MUST be idempotent by event id: appending the same
-/// `AuditEvent` id twice succeeds without duplicating the record. The
-/// ticketing dispatcher redelivers at-least-once with the intent id as
-/// the audit event id, so this contract is what makes the pipeline
-/// exactly-once observable. Adapters MUST reject events with empty
-/// action or resource id.
+/// `append` MUST be idempotent by (event id, semantic fingerprint):
+/// re-appending the SAME event succeeds without duplication, while the
+/// same id with DIFFERENT content (action, resource, actor,
+/// correlation, timestamp or metadata) returns
+/// [`AuditError::Conflict`] — an integrity violation, never a silent
+/// success. The ticketing dispatcher redelivers at-least-once with the
+/// intent id as the audit event id, so this contract is what makes the
+/// pipeline exactly-once observable. Adapters MUST reject events with
+/// empty action or resource id.
 #[async_trait]
 pub trait AuditSink: Send + Sync + std::fmt::Debug {
     async fn append(&self, event: AuditEvent) -> Result<(), AuditError>;
@@ -96,6 +99,21 @@ impl MemoryAuditSink {
     }
 }
 
+/// Canonical semantic fingerprint of one audit event (exact-head
+/// review R24/P1-1): everything except the event id itself.
+pub fn event_fingerprint(event: &AuditEvent) -> String {
+    format!(
+        "{}|{}|{}|{}|{}|{}|{}",
+        event.action,
+        event.resource_type,
+        event.resource_id,
+        event.actor_subject.as_deref().unwrap_or(""),
+        event.correlation_id,
+        event.occurred_at.to_rfc3339(),
+        serde_json::to_string(&event.metadata).unwrap_or_default()
+    )
+}
+
 #[async_trait]
 impl AuditSink for MemoryAuditSink {
     async fn append(&self, event: AuditEvent) -> Result<(), AuditError> {
@@ -103,11 +121,18 @@ impl AuditSink for MemoryAuditSink {
             return Err(AuditError::InvalidEvent);
         }
         let mut events = self.events.write().await;
-        // Idempotent by event id (exact-head review R17): at-least-once
-        // dispatchers never produce duplicate ledger records.
-        if events.iter().any(|existing| existing.id == event.id) {
+        // Idempotent by (event id, semantic fingerprint) (exact-head
+        // reviews R17 and R24): a redelivery of the identical record is
+        // a silent success; the same id with DIFFERENT content is an
+        // integrity conflict.
+        if let Some(existing) = events.iter().find(|existing| existing.id == event.id) {
+            let fingerprint_matches = event_fingerprint(existing) == event_fingerprint(&event);
             drop(events);
-            return Ok(());
+            return if fingerprint_matches {
+                Ok(())
+            } else {
+                Err(AuditError::Conflict)
+            };
         }
         events.push(event);
         drop(events);
@@ -215,11 +240,39 @@ pub enum AuditError {
     InvalidEvent,
     #[error("audit append failed: {0}")]
     Append(String),
+    /// Same event id with a DIFFERENT semantic fingerprint (exact-head
+    /// review R24/P1-1): an integrity conflict, never an idempotent
+    /// success.
+    #[error("audit event id conflict: same id with different content")]
+    Conflict,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn same_id_different_content_is_a_conflict() {
+        // Exact-head review R24/P1-1: the same event id with a
+        // different semantic fingerprint is an integrity conflict,
+        // never an idempotent success.
+        let sink = MemoryAuditSink::default();
+        let mut first = AuditEvent::new(
+            "ticketing.created",
+            "ticketing.ticket",
+            "one",
+            uuid::Uuid::new_v4(),
+        );
+        first.id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, b"stable");
+        sink.append(first.clone()).await.unwrap();
+        let mut impostor = first.clone();
+        impostor.action = "ticketing.deleted".into();
+        let error = sink.append(impostor).await.unwrap_err();
+        assert!(matches!(error, AuditError::Conflict));
+        let all = sink.all().await;
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].action, "ticketing.created");
+    }
 
     #[tokio::test]
     async fn append_is_idempotent_by_event_id() {
