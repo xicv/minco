@@ -316,6 +316,37 @@ change per finding:
   mode=rwc non-memory SQLite, explicit portal origin and allowed
   origins — each refusal proven on the spawned binary.
 
+**Round 4 (2026-08-29, exact-head review 5055654066 at 389be158)**:
+all four P0 and three P1 residual findings closed:
+
+- **R20/P0-1** fenced exchange generations (migration 0016) + logout
+  revokes the replay grant: stale workers cannot clobber the winner;
+  50-concurrent single-bearer proof holds; logout kills replay.
+- **R21/P0-2** canonical hashed effective key (SHA-256 of length-framed
+  identity); receipts carry operation/project/subject-digest/expiry
+  (migration 0017); recovery verifies ALL scope fields; genuine
+  cross-requester proof (user-2 handoff through the same service,
+  403/404 on stranger reply, one mutation).
+- **R22/P0-3** attempt-fenced send state machine (migration 0018):
+  claim_send_attempt issues a unique attempt UUID with lease; every
+  transition validates the SAME attempt (resolve_send_intent_fenced);
+  no state write is ignored; stale worker's transition fails.
+- **R23/P0-4** per-method AuthenticationMethodResult (verdict + its own
+  properties); cross-clause association for SES's envelope-from;
+  DMARC header.from only (no header.d fallback); GRAY and
+  PROCESSING_FAILED spam/virus quarantine. Cross-result assembly
+  attack (dkim=none/@victim + dkim=pass/@attacker) rejected.
+- **R24/P1-1** AuditSink contract is idempotent by (event id, semantic
+  fingerprint): same id + different content returns AuditError::Conflict.
+- **R25/P1-2** automation payload carries bound_policy_digest; handler
+  verifies both context and policy digests; dedupe identity is
+  SHA-256 hashed (raw concatenation exceeded the 128-byte envelope
+  limit, surfacing as opaque 'jobs-handler-failed').
+- **R26/P1-3** non-local requires ≥32 chars AND ≥8 distinct chars;
+  HTTPS portal origin (no wildcard/credentials/fragment/slash);
+  HTTPS return paths (local keeps default); liveness = critical checks
+  only, readiness = all checks. 10 spawned-binary proofs green.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and

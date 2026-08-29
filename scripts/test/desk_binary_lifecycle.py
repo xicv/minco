@@ -170,8 +170,8 @@ class NonLocalFailClosedTests(unittest.TestCase):
             **os.environ,
             "DESK_ENVIRONMENT": "production",
             "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal.sqlite?mode=rwc",
-            "DESK_AGENT_TOKEN": "aB3dEf7hIj9lMn2pQr5tUv8wXy4zC1bE6gK0dJ3fH",
-            "DESK_CSRF_SECRET": "zY4xW7vUtSrQpOnMlKjIhGfEdCbAzXwV5tSr2qP",
+            "DESK_AGENT_TOKEN": "desk-proof-token-mixed-case-and-digits-42",
+            "DESK_CSRF_SECRET": "desk-proof-csrf-mixed-case-and-digits-77",
             "DESK_PORTAL_ORIGIN": "https://desk.example.test",
             "DESK_ALLOWED_ORIGINS": "https://desk.example.test",
         }
@@ -219,8 +219,8 @@ class NonLocalFailClosedTests(unittest.TestCase):
             **os.environ,
             "DESK_ENVIRONMENT": "production",
             "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal3.sqlite?mode=rwc",
-            "DESK_AGENT_TOKEN": "aB3dEf7hIj9lMn2pQr5tUv8wXy4zC1bE6gK0dJ3fH",
-            "DESK_CSRF_SECRET": "zY4xW7vUtSrQpOnMlKjIhGfEdCbAzXwV5tSr2qP",
+            "DESK_AGENT_TOKEN": "desk-proof-token-mixed-case-and-digits-42",
+            "DESK_CSRF_SECRET": "desk-proof-csrf-mixed-case-and-digits-77",
             "DESK_PORTAL_ORIGIN": "https://desk.example.test",
             "DESK_ALLOWED_ORIGINS": "https://desk.example.test",
         }
@@ -242,8 +242,8 @@ class NonLocalFailClosedTests(unittest.TestCase):
             **os.environ,
             "DESK_ENVIRONMENT": "production",
             "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal2.sqlite?mode=rwc",
-            "DESK_AGENT_TOKEN": "aB3dEf7hIj9lMn2pQr5tUv8wXy4zC1bE6gK0dJ3fH",
-            "DESK_CSRF_SECRET": "zY4xW7vUtSrQpOnMlKjIhGfEdCbAzXwV5tSr2qP",
+            "DESK_AGENT_TOKEN": "desk-proof-token-mixed-case-and-digits-42",
+            "DESK_CSRF_SECRET": "desk-proof-csrf-mixed-case-and-digits-77",
         }
         env.pop("DESK_PORTAL_ORIGIN", None)
         env.pop("DESK_ALLOWED_ORIGINS", None)

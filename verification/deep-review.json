@@ -21,7 +21,7 @@
       "rust_files": 268,
       "python_files": 43,
       "shell_files": 83,
-      "implementation_files_scanned": 573
+      "implementation_files_scanned": 576
     },
     "findings": [],
     "limitations": [
@@ -31,10 +31,10 @@
   },
   "metrics": {
     "rust_files": 268,
-    "rust_lines": 163496,
+    "rust_lines": 164467,
     "unsafe_tokens": 22,
     "production_unwrap_expect": 322,
-    "sql_files": 37
+    "sql_files": 40
   },
   "findings": [
     {
@@ -83,7 +83,7 @@
       "severity": "warning",
       "code": "REVIEW-RUST-002",
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "message": "35 lines exceed 120 columns"
+      "message": "36 lines exceed 120 columns"
     },
     {
       "severity": "warning",
