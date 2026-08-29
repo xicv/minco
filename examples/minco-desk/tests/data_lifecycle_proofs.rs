@@ -209,7 +209,8 @@ async fn pending_jobs_survive_a_process_restart_and_recover() {
             let envelope = minco_plugin_ticketing::development_automation_envelope(
                 &minco_plugin_ticketing::RunDevelopmentAutomation {
                     bound_revision: 0,
-                    bound_context_digest: None,
+                    bound_context_digest: "0".repeat(64),
+                    bound_policy_digest: "0".repeat(64),
                     run_id: uuid::Uuid::new_v4(),
                     project_id: "desk-proof".into(),
                     ticket_id: minco_plugin_ticketing::TicketId::new(),

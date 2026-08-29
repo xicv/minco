@@ -337,10 +337,17 @@ pub struct RunDevelopmentAutomation {
     /// Freshness binding (exact-head review R8): the ticket revision and
     /// a context digest captured at submission. The handler refuses to
     /// store a proposal when the authoritative ticket moved past them.
+    /// The digest is REQUIRED (exact-head review R25/P1-2) — internal
+    /// callers cannot silently omit it.
     #[serde(default)]
     pub bound_revision: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub bound_context_digest: Option<String>,
+    /// Digest of the automation policy configuration at submission
+    /// (exact-head review R25/P1-2): the handler verifies the proposal
+    /// derives from the same policy version.
+    #[serde(default)]
+    pub bound_policy_digest: Option<String>,
     /// Unique run identity: distinct legitimate requests by the same
     /// person are never deduplicated away.
     #[serde(default = "uuid::Uuid::new_v4")]
@@ -357,6 +364,20 @@ impl Job for RunDevelopmentAutomation {
 /// bounded retry, one-hour deadline.
 pub const TICKETING_AUTOMATION_PROFILE: &str = "ticketing-development";
 
+/// Stable digest of the automation policy (exact-head review R25/P1-2).
+pub fn automation_policy_digest(profile: crate::AutomationProfile) -> String {
+    use sha2::Digest as _;
+    let name = match profile {
+        crate::AutomationProfile::Off => "off",
+        crate::AutomationProfile::Assist => "assist",
+        crate::AutomationProfile::Supervised => "supervised",
+        crate::AutomationProfile::Autonomous => "autonomous",
+    };
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(name.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 pub fn development_automation_envelope(
     payload: &RunDevelopmentAutomation,
     correlation_id: Uuid,
@@ -366,19 +387,28 @@ pub fn development_automation_envelope(
     // identity bound to the run (revision + context digest) so a later
     // legitimate request by the same person on a changed ticket is
     // never treated as a duplicate of an earlier one; the unique run id
-    // rides the payload.
-    let context = payload.bound_context_digest.as_deref().unwrap_or("none");
+    // rides the payload. The full identity is hashed into a fixed-length
+    // dedupe key (the raw concatenation exceeds the envelope's
+    // 128-byte limit).
+    let dedupe_identity = format!(
+        "{}|{}|{}|{}|{}|{}",
+        payload.ticket_id,
+        payload.requested_by,
+        payload.bound_revision,
+        payload.bound_context_digest.as_deref().unwrap_or("none"),
+        payload.bound_policy_digest.as_deref().unwrap_or("none"),
+        payload.run_id
+    );
+    let dedupe_key = {
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(dedupe_identity.as_bytes());
+        format!("automation:{}", hex::encode(hasher.finalize()))
+    };
     let envelope = JobEnvelope::for_job(payload, TICKETING_AUTOMATION_PROFILE, correlation_id)?
         .with(
             JobOptions::default()
-                .with_dedupe_key(format!(
-                    "automation:{}:{}:{}:{}:{}",
-                    payload.ticket_id,
-                    payload.requested_by,
-                    payload.bound_revision,
-                    context,
-                    payload.run_id
-                ))
+                .with_dedupe_key(dedupe_key)
                 .with_overlap_key(format!("ticket:{}", payload.ticket_id))
                 .with_partition(payload.project_id.clone())
                 .with_retry(RetryPolicy::exponential(5, 5, 900))
@@ -760,15 +790,31 @@ async fn run_development_automation(
     // The context digest proves the proposal derives from the submitted
     // ticket content, not merely the same revision number (exact-head
     // review R18).
-    if let Some(bound) = command.bound_context_digest.as_deref() {
+    {
         use sha2::Digest as _;
         let mut hasher = sha2::Sha256::new();
         hasher.update(ticket.subject.as_bytes());
         hasher.update(ticket.description.as_bytes());
         let authoritative = hex::encode(hasher.finalize());
-        if authoritative != bound {
+        if command
+            .bound_context_digest
+            .as_deref()
+            .is_none_or(|bound| bound != authoritative)
+        {
             return Err(JobExecutionFailure::permanent(
                 "ticketing.automation_superseded",
+            ));
+        }
+        // Policy digest: the same proposal must derive from the same
+        // automation policy version (exact-head review R25/P1-2).
+        let authoritative_policy = automation_policy_digest(config.automation.profile);
+        if command
+            .bound_policy_digest
+            .as_deref()
+            .is_none_or(|bound| bound != authoritative_policy)
+        {
+            return Err(JobExecutionFailure::permanent(
+                "ticketing.automation_policy_changed",
             ));
         }
     }
@@ -1394,14 +1440,24 @@ mod tests {
             },
         )
         .unwrap();
-        // Execute through the registered handler via the inline path.
+        // Execute through the registered handler via the inline path,
+        // binding the REAL context and policy digests.
+        let context_digest = {
+            use sha2::Digest as _;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(ticket.subject.as_bytes());
+            hasher.update(ticket.description.as_bytes());
+            hex::encode(hasher.finalize())
+        };
+        let policy_digest = automation_policy_digest(crate::AutomationProfile::Supervised);
         let envelope = development_automation_envelope(
             &RunDevelopmentAutomation {
                 project_id: "project-a".into(),
                 ticket_id: ticket.id,
                 requested_by: "agent-1".into(),
                 bound_revision: ticket.revision,
-                bound_context_digest: None,
+                bound_context_digest: Some(context_digest),
+                bound_policy_digest: Some(policy_digest),
                 run_id: Uuid::new_v4(),
             },
             Uuid::now_v7(),
@@ -2412,6 +2468,7 @@ mod tests {
             requested_by: "agent-1".into(),
             bound_revision: 3,
             bound_context_digest: Some("a".repeat(64)),
+            bound_policy_digest: Some("p".repeat(64)),
             run_id: Uuid::new_v4(),
         };
         let mut second = base.clone();
@@ -2490,7 +2547,8 @@ mod tests {
                 ticket_id: ticket.id,
                 requested_by: "agent-1".into(),
                 bound_revision: ticket.revision + 5,
-                bound_context_digest: None,
+                bound_context_digest: Some("0".repeat(64)),
+                bound_policy_digest: Some("0".repeat(64)),
                 run_id: Uuid::new_v4(),
             },
             Uuid::now_v7(),

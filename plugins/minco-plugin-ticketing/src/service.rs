@@ -1378,6 +1378,9 @@ impl TicketingService {
                 hasher.update(bound_ticket.description.as_bytes());
                 hex::encode(hasher.finalize())
             };
+            let bound_policy_digest = Some(crate::automation_policy_digest(
+                self.config.automation.profile,
+            ));
             let envelope = crate::development_automation_envelope(
                 &crate::RunDevelopmentAutomation {
                     project_id: project_id.to_owned(),
@@ -1385,6 +1388,7 @@ impl TicketingService {
                     requested_by: principal.subject.clone(),
                     bound_revision: bound_ticket.revision,
                     bound_context_digest: Some(context_digest),
+                    bound_policy_digest,
                     run_id: Uuid::now_v7(),
                 },
                 correlation,
