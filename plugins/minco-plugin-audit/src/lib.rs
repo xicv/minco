@@ -100,18 +100,117 @@ impl MemoryAuditSink {
 }
 
 /// Canonical semantic fingerprint of one audit event (exact-head
-/// review R24/P1-1): everything except the event id itself.
+/// reviews R24 and R31): a SHA-256 digest over a length-framed
+/// canonical encoding of everything except the event id itself.
+///
+/// Length framing (a fixed-width hex length prefix per field) makes the
+/// encoding collision-free even when field values contain bytes that
+/// look like delimiters, unlike plain concatenation.
 pub fn event_fingerprint(event: &AuditEvent) -> String {
-    format!(
-        "{}|{}|{}|{}|{}|{}|{}",
-        event.action,
-        event.resource_type,
-        event.resource_id,
-        event.actor_subject.as_deref().unwrap_or(""),
-        event.correlation_id,
-        event.occurred_at.to_rfc3339(),
-        serde_json::to_string(&event.metadata).unwrap_or_default()
+    fingerprint_from_parts(
+        &event.action,
+        &event.resource_type,
+        &event.resource_id,
+        event.actor_subject.as_deref(),
+        &event.correlation_id.to_string(),
+        &canonical_occurred_at(event.occurred_at),
+        &canonical_metadata(&event.metadata),
     )
+}
+
+/// Fixed-format UTC timestamp used inside fingerprints.
+///
+/// Microsecond precision is what every persistence adapter round-trips,
+/// so a fingerprint computed from a fresh event equals the one
+/// recomputed from the same event read back out of storage.
+pub fn canonical_occurred_at(occurred_at: DateTime<Utc>) -> String {
+    occurred_at.format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string()
+}
+
+/// Canonicalize a timestamp exactly as stored by an adapter.
+///
+/// `SQLite` TEXT timestamps may be RFC 3339 (`T`-separated) or sqlx's
+/// chrono encoding (space-separated, optional fraction/offset); all
+/// accepted spellings of the same instant must canonicalize equally so
+/// legacy backfill verification (R27) cannot produce false conflicts.
+pub fn canonical_stored_occurred_at(stored: &str) -> String {
+    let candidates = [
+        stored.to_string(),
+        stored.replacen(' ', "T", 1),
+        format!("{}+00:00", stored.replacen(' ', "T", 1)),
+    ];
+    for candidate in &candidates {
+        if let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(candidate) {
+            return canonical_occurred_at(parsed.with_timezone(&Utc));
+        }
+    }
+    stored.to_string()
+}
+
+/// Canonical JSON encoding of audit metadata.
+///
+/// Object keys are recursively sorted and insignificant whitespace
+/// removed. Metadata is a `BTreeMap`, but adapters recompute
+/// fingerprints from stored JSON, so the canonical form is rebuilt
+/// rather than trusted.
+pub fn canonical_metadata(metadata: &BTreeMap<String, serde_json::Value>) -> String {
+    let value = serde_json::Value::Object(
+        metadata
+            .iter()
+            .map(|(key, value)| (key.clone(), sort_json(value)))
+            .collect(),
+    );
+    serde_json::to_string(&value).unwrap_or_default()
+}
+
+fn sort_json(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.iter()
+                .map(|(key, inner)| (key.clone(), sort_json(inner)))
+                .collect(),
+        ),
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.iter().map(sort_json).collect())
+        }
+        other => other.clone(),
+    }
+}
+
+/// Fingerprint recomputation from stored parts. Adapters use this to
+/// content-verify pre-fingerprint rows before adopting the digest
+/// (safe backfill, exact-head review R27).
+#[allow(clippy::too_many_arguments)]
+pub fn fingerprint_from_parts(
+    action: &str,
+    resource_type: &str,
+    resource_id: &str,
+    actor_subject: Option<&str>,
+    correlation_id: &str,
+    canonical_occurred_at: &str,
+    canonical_metadata_json: &str,
+) -> String {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write as _;
+    let mut encoded = Vec::new();
+    for part in [
+        action,
+        resource_type,
+        resource_id,
+        actor_subject.unwrap_or(""),
+        correlation_id,
+        canonical_occurred_at,
+        canonical_metadata_json,
+    ] {
+        encoded.extend_from_slice(format!("{:016x}", part.len()).as_bytes());
+        encoded.extend_from_slice(part.as_bytes());
+    }
+    let digest = Sha256::digest(&encoded);
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
 }
 
 #[async_trait]
@@ -307,6 +406,99 @@ mod tests {
                 .map(|event| event.action.as_str())
                 .collect::<Vec<_>>(),
             ["feedback.created", "feedback.replied"]
+        );
+    }
+
+    #[test]
+    fn fingerprint_is_a_stable_sixty_four_hex_digest() {
+        let event = AuditEvent::new(
+            "ticketing.created",
+            "ticketing.ticket",
+            "one",
+            uuid::Uuid::new_v4(),
+        );
+        let digest = event_fingerprint(&event);
+        assert_eq!(digest.len(), 64);
+        assert!(digest.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(digest, event_fingerprint(&event));
+    }
+
+    #[test]
+    fn fingerprint_framing_survives_delimiter_injection() {
+        // Exact-head review R31/P1-1: plain delimiter concatenation
+        // lets distinct tuples collide when field values contain the
+        // delimiter; length framing must not.
+        let left = fingerprint_from_parts(
+            "a|b|c",
+            "d",
+            "e",
+            None,
+            "00000000-0000-0000-0000-000000000001",
+            "2026-08-29T00:00:00.000000Z",
+            "{}",
+        );
+        let right = fingerprint_from_parts(
+            "a",
+            "b|c|d",
+            "e",
+            None,
+            "00000000-0000-0000-0000-000000000001",
+            "2026-08-29T00:00:00.000000Z",
+            "{}",
+        );
+        assert_ne!(left, right);
+        // Same framing characters inside metadata values, too.
+        let mut with_delimiters = AuditEvent::new(
+            "ticketing.noted",
+            "ticketing.ticket",
+            "one",
+            uuid::Uuid::new_v4(),
+        );
+        with_delimiters.metadata.insert(
+            "note|".into(),
+            serde_json::json!({"deep|key": "value|with|pipes"}),
+        );
+        let mut split_differently = with_delimiters.clone();
+        split_differently.metadata.remove("note|");
+        split_differently.metadata.insert(
+            "note".into(),
+            serde_json::json!({"deep": "value|with|pipes", "deep|key": "value"}),
+        );
+        assert_ne!(
+            event_fingerprint(&with_delimiters),
+            event_fingerprint(&split_differently)
+        );
+    }
+
+    #[test]
+    fn fingerprint_recomputation_matches_from_stored_parts() {
+        // The adapter backfill path (R27) recomputes from stored
+        // columns; the canonical timestamp normalizes through the same
+        // instant regardless of storage spelling.
+        let event = AuditEvent::new(
+            "queue.created",
+            "ticketing.queue",
+            "queue-9",
+            uuid::Uuid::new_v4(),
+        );
+        let canonical = canonical_occurred_at(event.occurred_at);
+        let space_separated = canonical.replacen('T', " ", 1).replace('Z', "+00:00");
+        assert_eq!(
+            event_fingerprint(&event),
+            fingerprint_from_parts(
+                &event.action,
+                &event.resource_type,
+                &event.resource_id,
+                event.actor_subject.as_deref(),
+                &event.correlation_id.to_string(),
+                &canonical,
+                &canonical_metadata(&event.metadata),
+            )
+        );
+        assert_eq!(
+            canonical_stored_occurred_at(&space_separated),
+            canonical,
+            "space-separated sqlx chrono encoding must canonicalize to the same digest"
         );
     }
 
