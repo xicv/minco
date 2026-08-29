@@ -968,11 +968,15 @@ async fn requester_logout(
     require_session_csrf(&state, &requester, &headers, &request_id)?;
     // Logout also kills the exchange's replay authority (exact-head
     // review R20): a holder of the original handoff token cannot mint a
-    // new session after the user signed out.
+    // new session after the user signed out. A storage failure fails
+    // the whole logout (R28/P0-2) — reporting success while the replay
+    // authority is still live would let a stolen handoff outlive the
+    // user's sign-out.
     state
         .service
         .revoke_exchange_for_logout(&session.attributes)
-        .await;
+        .await
+        .map_err(|error| map_error(error, &request_id))?;
     state
         .service
         .revoke_requester_session(session.id)
@@ -3684,9 +3688,25 @@ mod tests {
         stale_after: chrono::TimeDelta,
         permissions: Vec<String>,
     ) -> (Router, SupportHandoffToken, Arc<TicketingService>) {
+        portal_app_with_parts(
+            idempotency_store,
+            stale_after,
+            permissions,
+            Arc::new(MemoryTicketingStore::default()),
+        )
+        .await
+    }
+
+    /// Like the standard portal builder, but the caller owns the memory
+    /// store (fault injection for R28 failure-path proofs).
+    async fn portal_app_with_parts(
+        idempotency_store: Arc<dyn minco_plugin_idempotency::IdempotencyStore>,
+        stale_after: chrono::TimeDelta,
+        permissions: Vec<String>,
+        store: Arc<MemoryTicketingStore>,
+    ) -> (Router, SupportHandoffToken, Arc<TicketingService>) {
         use minco_plugin_idempotency::IdempotencyService;
         use minco_plugin_sessions::{CsrfService, MemorySessionStore, SessionService};
-        let store = Arc::new(MemoryTicketingStore::default());
         let service = TicketingService::new(
             TicketingStoreService::new(store.clone()),
             TicketingConfig {
@@ -4443,10 +4463,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fifty_concurrent_replays_leave_exactly_one_live_session() {
-        // Exact-head review R11/P0-1: the CAS rotation means exactly one
-        // concurrent replay wins; every loser's freshly minted session is
-        // revoked before its call returns.
+    async fn hundred_concurrent_replays_leave_exactly_one_live_session() {
+        // Exact-head reviews R11/P0-1 and R28/P0-2: exactly one
+        // concurrent replay wins; every loser's freshly minted session
+        // is revoked before its call returns, and the revoke-first
+        // rotation protocol never leaves two live bearers.
         let (app, token) = portal_app().await;
         let first = app
             .clone()
@@ -4464,7 +4485,7 @@ mod tests {
             .unwrap();
         assert_eq!(first.status(), StatusCode::CREATED);
         let mut handles = Vec::new();
-        for _ in 0..50 {
+        for _ in 0..100 {
             let app = app.clone();
             let token = token.clone();
             handles.push(tokio::spawn(async move {
@@ -4513,7 +4534,126 @@ mod tests {
         }
         assert_eq!(
             confirmed_live, 1,
-            "exactly one live bearer survives fifty concurrent replays"
+            "exactly one live bearer survives one hundred concurrent replays"
+        );
+    }
+
+    #[tokio::test]
+    async fn logout_fails_closed_when_the_replay_grant_revoke_fails() {
+        // Exact-head review R28/P0-2: logout must NOT report success
+        // while the exchange replay authority is still live. The grant
+        // revocation runs FIRST and a storage failure fails the whole
+        // request — session alive, cookie retained, retryable.
+        use minco_plugin_idempotency::MemoryIdempotencyStore;
+        let store = Arc::new(MemoryTicketingStore::default());
+        let (app, token, _service) = portal_app_with_parts(
+            Arc::new(MemoryIdempotencyStore::default()),
+            chrono::TimeDelta::seconds(300),
+            vec![
+                "ticketing.requester.read".into(),
+                "ticketing.requester.write".into(),
+            ],
+            store.clone(),
+        )
+        .await;
+        let exchange = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({"portal_origin": "https://support.example.test"})
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(exchange.status(), StatusCode::CREATED);
+        let cookie = exchange
+            .headers()
+            .get(header::SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap()
+            .to_owned();
+        let grant: serde_json::Value =
+            serde_json::from_slice(&to_bytes(exchange.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        let csrf = grant["csrf_token"].as_str().unwrap().to_owned();
+
+        store
+            .inject_fault(crate::MemoryFaults {
+                fail_next_exchange_grant_revoke: true,
+                ..Default::default()
+            })
+            .await;
+        let failed_logout = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/logout")
+                    .header(header::COOKIE, &cookie)
+                    .header("x-minco-csrf", &csrf)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            failed_logout.status(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            "logout fails closed when the replay authority cannot be revoked"
+        );
+        assert!(
+            failed_logout.headers().get(header::SET_COOKIE).is_none(),
+            "the browser cookie is retained for the retry"
+        );
+        // The session itself was NOT revoked by the failed logout.
+        let still_listed = app
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/requester/tickets")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(still_listed.status(), StatusCode::OK);
+
+        // Once the fault clears, the retried logout completes and the
+        // replay authority is dead.
+        let retried = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/logout")
+                    .header(header::COOKIE, &cookie)
+                    .header("x-minco-csrf", &csrf)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(retried.status(), StatusCode::NO_CONTENT);
+        let replay = app
+            .clone()
+            .oneshot(
+                Request::post("/_minco/ticketing/requester/sessions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(HANDOFF_HEADER, token.expose_sensitive())
+                    .body(Body::from(
+                        serde_json::json!({"portal_origin": "https://support.example.test"})
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            replay.status(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no replay authority outlives the completed logout"
         );
     }
 

@@ -2282,6 +2282,7 @@ impl TicketingService {
                     expires_at: replay_deadline,
                     created_at: Utc::now(),
                     revoked_at: None,
+                    rotation_staged_session_id: None,
                 },
                 expected_generation,
             )
@@ -2337,7 +2338,40 @@ impl TicketingService {
         if grant.expires_at <= Utc::now() || grant.revoked_at.is_some() {
             return Err(TicketingServiceError::SessionUnauthenticated);
         }
+        // Interrupted-rotation recovery (exact-head review R28/P0-2): a
+        // staged marker means an earlier rotation minted a bearer but died
+        // before (or during) its compare-and-swap. That bearer's token was
+        // never handed to anyone, so retire it and clear the marker before
+        // starting a fresh rotation — no orphan live sessions accumulate.
+        if let Some(staged) = grant.rotation_staged_session_id {
+            sessions.revoke(staged).await.map_err(|error| {
+                TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                    "staged rotation session could not be revoked: {error}"
+                )))
+            })?;
+            if !self
+                .store
+                .clear_rotation_staged_fenced(exchange_key, grant.session_id, staged)
+                .await
+                .map_err(TicketingServiceError::from)?
+            {
+                // Another recovery advanced the grant first.
+                return Err(TicketingServiceError::SessionUnauthenticated);
+            }
+        }
         let previous = grant.session_id;
+        // Single-bearer invariant BEFORE minting (R28/P0-2): the previous
+        // bearer dies first, so no failure below can leave two live
+        // bearers. Revoke failure aborts with the grant untouched — the
+        // one live bearer is still the recorded one.
+        sessions.revoke(previous).await.map_err(|error| {
+            TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                "rotated-out session could not be revoked: {error}"
+            )))
+        })?;
+        // A mint failure leaves the grant pointing at the (now revoked)
+        // previous session: safe — zero live bearers — and the next replay
+        // recovers by minting a replacement.
         let issued = sessions
             .issue(minco_plugin_sessions::CreateSession {
                 subject: grant.subject.clone(),
@@ -2356,33 +2390,53 @@ impl TicketingService {
             .map_err(|error| {
                 TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
             })?;
-        // Compare-and-swap the rotation (exact-head review R11): only the
-        // caller that still observes the session it read may take over
-        // the grant. Concurrent losers revoke the session they just
-        // minted, so exactly one live bearer survives.
-        if self
+        // Durably stage the minted bearer (R28/P0-2): if this worker dies
+        // before completing, the marker above recovers it. Losing the
+        // staging fence means another rotation won; a storage ERROR
+        // leaves no marker, so either way the loser retires its own mint
+        // before returning — no orphan bearer from this path.
+        let staged = self
             .store
-            .claim_session_rotation(exchange_key, previous, issued.session.id)
-            .await
-            .map_err(TicketingServiceError::from)?
-        {
-            // The winner retires the previous bearer; a revoke failure is
-            // surfaced, never swallowed — an orphan live session demands
-            // operator attention.
-            sessions.revoke(previous).await.map_err(|error| {
-                TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
-                    "rotated-out session could not be revoked: {error}"
-                )))
-            })?;
-        } else {
-            // Lost the race: our freshly minted session is the loser's
-            // cleanup duty and must die before this call returns.
+            .stage_rotation_fenced(exchange_key, previous, issued.session.id)
+            .await;
+        let staged = match staged {
+            Ok(staged) => staged,
+            Err(error) => {
+                return Err(self
+                    .retire_failed_mint(sessions, issued.session.id, error)
+                    .await);
+            }
+        };
+        if !staged {
             sessions.revoke(issued.session.id).await.map_err(|error| {
                 TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
                     "losing rotation session could not be revoked: {error}"
                 )))
             })?;
             return Err(TicketingServiceError::SessionUnauthenticated);
+        }
+        let completed = self
+            .store
+            .complete_rotation_fenced(exchange_key, previous, issued.session.id)
+            .await;
+        match completed {
+            Ok(true) => {}
+            Ok(false) => {
+                sessions.revoke(issued.session.id).await.map_err(|error| {
+                    TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
+                        "losing rotation session could not be revoked: {error}"
+                    )))
+                })?;
+                return Err(TicketingServiceError::SessionUnauthenticated);
+            }
+            Err(error) => {
+                // The staged marker still names this mint, so recovery
+                // will retire it — but revoke it eagerly anyway; a
+                // failure to revoke is chained onto the original error.
+                return Err(self
+                    .retire_failed_mint(sessions, issued.session.id, error)
+                    .await);
+            }
         }
         let csrf_token = csrf.issue(issued.session.id);
         Ok(RequesterSessionGrant {
@@ -2395,25 +2449,48 @@ impl TicketingService {
         })
     }
 
-    /// Logout revocation of the exchange replay authority (exact-head
-    /// review R20): the session attributes carry the original exchange
-    /// key stamped at issue time; revoking it means replays die with the
-    /// session. Failures are logged — logout itself must still succeed.
-    pub async fn revoke_exchange_for_logout(&self, attributes: &BTreeMap<String, String>) {
-        let Some(exchange_key) = attributes.get("ticketing.exchange_key") else {
-            return;
-        };
-        if let Err(error) = self
-            .store
-            .revoke_session_exchange(exchange_key, Utc::now())
-            .await
-        {
-            tracing::warn!(%error, exchange_key, "logout could not revoke the replay grant");
+    /// Retires a freshly minted rotation bearer whose store step failed
+    /// (R28/P0-2), returning the original error with a revoke failure
+    /// chained onto it. The mint must never outlive a failed rotation.
+    async fn retire_failed_mint(
+        &self,
+        sessions: &Arc<minco_plugin_sessions::SessionService>,
+        minted: minco_plugin_sessions::SessionId,
+        original: TicketStoreError,
+    ) -> TicketingServiceError {
+        match sessions.revoke(minted).await {
+            Ok(_) => TicketingServiceError::from(original),
+            Err(revoke_error) => TicketingServiceError::Store(TicketStoreError::Infrastructure(
+                format!("{original}; the failed mint could not be revoked: {revoke_error}"),
+            )),
         }
     }
 
+    /// Logout revocation of the exchange replay authority (exact-head
+    /// reviews R20 and R28/P0-2): the session attributes carry the
+    /// original exchange key stamped at issue time; revoking it means
+    /// replays die with the session. A storage failure is RETURNED —
+    /// logout must not report success while the replay authority is
+    /// still live; the caller fails the request and the user retries.
+    pub async fn revoke_exchange_for_logout(
+        &self,
+        attributes: &BTreeMap<String, String>,
+    ) -> Result<(), TicketingServiceError> {
+        let Some(exchange_key) = attributes.get("ticketing.exchange_key") else {
+            return Ok(());
+        };
+        self.store
+            .revoke_session_exchange(exchange_key, Utc::now())
+            .await
+            .map(|_| ())
+            .map_err(TicketingServiceError::from)
+    }
+
     /// Revokes the session a failed exchange created and removes its
-    /// grant (exact-head review R3): no orphan live sessions.
+    /// grant (exact-head review R3): no orphan live sessions. The grant
+    /// removal is fenced on the caller's own session (exact-head review
+    /// R28/P0-2): the loser of an initial-exchange race can never delete
+    /// the winner's grant.
     pub async fn abandon_session_exchange(
         &self,
         exchange_key: &str,
@@ -2427,7 +2504,7 @@ impl TicketingService {
             })?;
         }
         self.store
-            .remove_session_exchange_grant(exchange_key)
+            .remove_session_exchange_grant_fenced(exchange_key, session_id)
             .await
             .map_err(TicketingServiceError::from)?;
         Ok(())
@@ -2770,6 +2847,7 @@ pub fn external_content_sha256(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TicketingStore as _;
     use crate::{MemoryTicketingStore, TicketChannel, TicketRequester};
     use std::{collections::BTreeSet, sync::Arc};
 
@@ -4857,5 +4935,290 @@ mod tests {
                 Err(TicketingServiceError::ObjectsUnavailable)
             ));
         }
+    }
+
+    /// A service with real memory-backed portal sessions for the
+    /// exchange failure-path proofs (exact-head review R28/P0-2).
+    fn exchange_service() -> (
+        Arc<TicketingService>,
+        Arc<MemoryTicketingStore>,
+        Arc<SessionService>,
+    ) {
+        use minco_plugin_sessions::MemorySessionStore;
+        let store = Arc::new(MemoryTicketingStore::default());
+        let sessions = Arc::new(SessionService::new(Arc::new(MemorySessionStore::default())));
+        let service =
+            TicketingService::new(TicketingStoreService::new(store.clone()), test_config())
+                .unwrap()
+                .with_portal_services(crate::TicketingPortalServices {
+                    sessions: Some(sessions.clone()),
+                    csrf: Some(Arc::new(
+                        minco_plugin_sessions::CsrfService::new(
+                            b"test-csrf-secret-0123456789abcdef".to_vec(),
+                        )
+                        .unwrap(),
+                    )),
+                    idempotency: None,
+                    events: None,
+                    audit: None,
+                    #[cfg(feature = "jobs")]
+                    jobs: None,
+                    objects: None,
+                });
+        (Arc::new(service), store, sessions)
+    }
+
+    #[tokio::test]
+    async fn concurrent_initial_exchanges_leave_one_grant_and_no_second_bearer() {
+        // Exact-head review R28/P0-2: two workers racing the FIRST
+        // exchange record — exactly one wins, the loser's session dies
+        // and the loser's cleanup can never delete the winner's grant.
+        let (service, store, sessions) = exchange_service();
+        let key = "key-concurrent-initial";
+        let first = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "user-1".into(),
+                ttl: TimeDelta::minutes(5),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        let second = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "user-1".into(),
+                ttl: TimeDelta::minutes(5),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        let (a, b) = tokio::join!(
+            service.record_session_exchange_grant(
+                key,
+                first.session.id,
+                "user-1",
+                "https://support.example.test",
+                vec!["ticketing.requester.read".into()],
+                Utc::now() + TimeDelta::minutes(10),
+            ),
+            service.record_session_exchange_grant(
+                key,
+                second.session.id,
+                "user-1",
+                "https://support.example.test",
+                vec!["ticketing.requester.read".into()],
+                Utc::now() + TimeDelta::minutes(10),
+            ),
+        );
+        // Whichever way the race interleaves, exactly ONE bearer stays
+        // live and the grant records it: either the insert race losers
+        // (store fence refuses the second None-expected record and the
+        // loser's session dies) or the second read lands after the
+        // first insert and acts as a takeover (the replaced session
+        // dies). Both outcomes converge on a single live bearer.
+        assert!(
+            a.is_ok() || b.is_ok(),
+            "at least one exchange wins: {a:?} {b:?}"
+        );
+        let first_live = sessions.resolve(&first.token).await.is_ok();
+        let second_live = sessions.resolve(&second.token).await.is_ok();
+        assert!(
+            first_live ^ second_live,
+            "exactly one live bearer survives; first_live={first_live} second_live={second_live}"
+        );
+        let (live_id, dead_id) = if first_live {
+            (first.session.id, second.session.id)
+        } else {
+            (second.session.id, first.session.id)
+        };
+        let grant = store.session_exchange_grant(key).await.unwrap().unwrap();
+        assert_eq!(grant.session_id, live_id);
+
+        // The dead session's cleanup (abandon) is fenced on its own id.
+        service
+            .abandon_session_exchange(key, dead_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            store
+                .session_exchange_grant(key)
+                .await
+                .unwrap()
+                .unwrap()
+                .session_id,
+            live_id,
+            "loser cleanup cannot delete the winner's grant"
+        );
+    }
+
+    #[tokio::test]
+    async fn takeover_cannot_resurrect_a_revoked_grant() {
+        // Exact-head review R28/P0-2: after logout revokes the replay
+        // authority, a stale worker's takeover record is refused — the
+        // stored grant stays revoked and its own session dies.
+        let (service, store, sessions) = exchange_service();
+        let key = "key-revoked-takeover";
+        let first = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "user-1".into(),
+                ttl: TimeDelta::minutes(5),
+                attributes: BTreeMap::from([("ticketing.exchange_key".into(), key.to_owned())]),
+            })
+            .await
+            .unwrap();
+        service
+            .record_session_exchange_grant(
+                key,
+                first.session.id,
+                "user-1",
+                "https://support.example.test",
+                vec![],
+                Utc::now() + TimeDelta::minutes(10),
+            )
+            .await
+            .unwrap();
+        service
+            .revoke_exchange_for_logout(&first.session.attributes)
+            .await
+            .unwrap();
+
+        let stale = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "user-1".into(),
+                ttl: TimeDelta::minutes(5),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        assert!(
+            service
+                .record_session_exchange_grant(
+                    key,
+                    stale.session.id,
+                    "user-1",
+                    "https://support.example.test",
+                    vec![],
+                    Utc::now() + TimeDelta::minutes(10),
+                )
+                .await
+                .is_err()
+        );
+        let grant = store.session_exchange_grant(key).await.unwrap().unwrap();
+        assert!(grant.revoked_at.is_some());
+        assert_eq!(grant.session_id, first.session.id);
+        assert!(matches!(
+            sessions.resolve(&stale.token).await,
+            Err(minco_plugin_sessions::SessionError::Unauthenticated)
+        ));
+    }
+
+    #[tokio::test]
+    async fn rotation_failures_never_leave_two_live_bearers() {
+        // Exact-head review R28/P0-2: the previous bearer dies BEFORE a
+        // replacement is minted, a failed rotation retires its mint, and
+        // every failure leaves at most one (or zero) live bearers with a
+        // recoverable grant state.
+        let (service, store, sessions) = exchange_service();
+        let key = "key-rotation-failures";
+        let first = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "user-1".into(),
+                ttl: TimeDelta::minutes(5),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        service
+            .record_session_exchange_grant(
+                key,
+                first.session.id,
+                "user-1",
+                "https://support.example.test",
+                vec!["ticketing.requester.read".into()],
+                Utc::now() + TimeDelta::minutes(10),
+            )
+            .await
+            .unwrap();
+
+        // Injected storage failure at the staging step: the rotation
+        // errors, both the previous and the failed mint are dead, and
+        // the next (healthy) replay recovers.
+        store
+            .inject_fault(crate::MemoryFaults {
+                fail_next_rotation_stage: true,
+                ..Default::default()
+            })
+            .await;
+        assert!(service.rotate_session_exchange(key).await.is_err());
+        assert!(
+            matches!(
+                sessions.resolve(&first.token).await,
+                Err(minco_plugin_sessions::SessionError::Unauthenticated)
+            ),
+            "the previous bearer died before the mint (single-bearer invariant)"
+        );
+        let recovered = service.rotate_session_exchange(key).await.unwrap();
+        sessions
+            .resolve(&recovered.token)
+            .await
+            .expect("the recovered rotation mints exactly one live bearer");
+        assert_ne!(recovered.session_id, first.session.id);
+    }
+
+    #[tokio::test]
+    async fn interrupted_rotation_recovery_retires_the_staged_bearer() {
+        // Exact-head review R28/P0-2: a staged marker from a rotation
+        // that died before its compare-and-swap is recovered on the next
+        // replay — the staged bearer is retired before a new one mints.
+        let (service, store, sessions) = exchange_service();
+        let key = "key-interrupted-rotation";
+        let previous = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "user-1".into(),
+                ttl: TimeDelta::minutes(5),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        service
+            .record_session_exchange_grant(
+                key,
+                previous.session.id,
+                "user-1",
+                "https://support.example.test",
+                vec![],
+                Utc::now() + TimeDelta::minutes(10),
+            )
+            .await
+            .unwrap();
+        // Simulate the crash window: a minted session was staged but the
+        // rotation never completed.
+        let orphan = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "user-1".into(),
+                ttl: TimeDelta::minutes(5),
+                attributes: BTreeMap::new(),
+            })
+            .await
+            .unwrap();
+        assert!(
+            store
+                .stage_rotation_fenced(key, previous.session.id, orphan.session.id)
+                .await
+                .unwrap()
+        );
+
+        let recovered = service.rotate_session_exchange(key).await.unwrap();
+        assert_ne!(recovered.session_id, orphan.session.id);
+        assert!(
+            matches!(
+                sessions.resolve(&orphan.token).await,
+                Err(minco_plugin_sessions::SessionError::Unauthenticated)
+            ),
+            "the interrupted rotation's staged bearer is retired"
+        );
+        sessions.resolve(&recovered.token).await.unwrap();
+        let grant = store.session_exchange_grant(key).await.unwrap().unwrap();
+        assert_eq!(grant.session_id, recovered.session_id);
+        assert_eq!(grant.rotation_staged_session_id, None);
     }
 }

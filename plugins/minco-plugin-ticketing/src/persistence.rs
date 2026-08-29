@@ -1215,24 +1215,83 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(updated.rows_affected() > 0)
     }
 
-    async fn claim_session_rotation(
+    async fn stage_rotation_fenced(
         &self,
         exchange_key: &str,
         expected_session_id: minco_plugin_sessions::SessionId,
-        new_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
     ) -> Result<bool, TicketStoreError> {
         let updated = sqlx::query(
             "UPDATE ticketing_session_exchange_grants
-                SET session_id = ?, generation = generation + 1
-              WHERE exchange_key = ? AND session_id = ? AND revoked_at IS NULL",
+                SET rotation_staged_session_id = ?
+              WHERE exchange_key = ? AND session_id = ? AND revoked_at IS NULL
+                AND rotation_staged_session_id IS NULL",
         )
-        .bind(new_session_id.0.to_string())
+        .bind(staged_session_id.0.to_string())
         .bind(exchange_key)
         .bind(expected_session_id.0.to_string())
         .execute(&self.pool)
         .await
         .map_err(infrastructure)?;
         Ok(updated.rows_affected() == 1)
+    }
+
+    async fn complete_rotation_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET session_id = ?, generation = generation + 1, rotation_staged_session_id = NULL
+              WHERE exchange_key = ? AND session_id = ? AND rotation_staged_session_id = ?",
+        )
+        .bind(staged_session_id.0.to_string())
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .bind(staged_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn clear_rotation_staged_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET rotation_staged_session_id = NULL
+              WHERE exchange_key = ? AND session_id = ? AND rotation_staged_session_id = ?",
+        )
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .bind(staged_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn remove_session_exchange_grant_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let removed = sqlx::query(
+            "DELETE FROM ticketing_session_exchange_grants
+              WHERE exchange_key = ? AND session_id = ?",
+        )
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(removed.rows_affected() == 1)
     }
 
     async fn record_session_exchange_fenced(
@@ -1244,10 +1303,11 @@ impl TicketingStore for SqliteTicketingStore {
         match (existing, expected_generation) {
             (None, None) => {
                 let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
-                sqlx::query(
+                let inserted = sqlx::query(
                     "INSERT INTO ticketing_session_exchange_grants
                      (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at, generation, revoked_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)",
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+                     ON CONFLICT(exchange_key) DO NOTHING",
                 )
                 .bind(&grant.exchange_key)
                 .bind(grant.session_id.0.to_string())
@@ -1261,32 +1321,65 @@ impl TicketingStore for SqliteTicketingStore {
                 .await
                 .map_err(infrastructure)?;
                 transaction.commit().await.map_err(infrastructure)?;
+                if inserted.rows_affected() == 0 {
+                    // Lost the initial-insert race (exact-head review
+                    // R28/P0-2): return the winner's grant so the loser
+                    // revokes its own session and never the winner's.
+                    let winner = self
+                        .session_exchange_grant(&grant.exchange_key)
+                        .await?
+                        .ok_or_else(|| {
+                            TicketStoreError::Infrastructure(
+                                "exchange grant vanished after insert race".into(),
+                            )
+                        })?;
+                    return Ok(winner);
+                }
                 Ok(grant)
             }
-            (Some(current), Some(expected)) if current.generation == expected => {
-                let next_generation = current.generation + 1;
-                sqlx::query(
-                    "UPDATE ticketing_session_exchange_grants
+            // A takeover may only advance a live, unstaged grant: a
+            // revoked grant (logout) or an in-flight rotation can never
+            // be overwritten by a stale worker (R28/P0-2). The UPDATE's
+            // affected rows are the fence — 0 rows means this worker
+            // lost and must adopt whatever is actually stored.
+            (Some(current), Some(expected))
+                if current.generation == expected
+                    && current.revoked_at.is_none()
+                    && current.rotation_staged_session_id.is_none() =>
+            {
+                let updated =
+                    sqlx::query(
+                        "UPDATE ticketing_session_exchange_grants
                         SET session_id = ?, subject = ?, project_id = ?, permissions = ?,
                             portal_origin = ?, generation = generation + 1
-                      WHERE exchange_key = ? AND generation = ?",
-                )
-                .bind(grant.session_id.0.to_string())
-                .bind(&grant.subject)
-                .bind(&grant.project_id)
-                .bind(grant.permissions.join(","))
-                .bind(&grant.portal_origin)
-                .bind(&grant.exchange_key)
-                .bind(
-                    i64::try_from(current.generation).map_err(|_| {
+                      WHERE exchange_key = ? AND generation = ?
+                        AND revoked_at IS NULL AND rotation_staged_session_id IS NULL",
+                    )
+                    .bind(grant.session_id.0.to_string())
+                    .bind(&grant.subject)
+                    .bind(&grant.project_id)
+                    .bind(grant.permissions.join(","))
+                    .bind(&grant.portal_origin)
+                    .bind(&grant.exchange_key)
+                    .bind(i64::try_from(current.generation).map_err(|_| {
                         TicketStoreError::Infrastructure("generation overflow".into())
-                    })?,
-                )
-                .execute(&self.pool)
-                .await
-                .map_err(infrastructure)?;
+                    })?)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(infrastructure)?;
+                if updated.rows_affected() == 0 {
+                    let winner = self
+                        .session_exchange_grant(&grant.exchange_key)
+                        .await?
+                        .ok_or_else(|| {
+                            TicketStoreError::Infrastructure(
+                                "exchange grant vanished during takeover".into(),
+                            )
+                        })?;
+                    return Ok(winner);
+                }
                 let mut stored = grant;
-                stored.generation = next_generation;
+                stored.generation = current.generation + 1;
                 Ok(stored)
             }
             (Some(current), _) => Ok(current),
@@ -1345,7 +1438,8 @@ impl TicketingStore for SqliteTicketingStore {
     ) -> Result<Option<SessionExchangeGrant>, TicketStoreError> {
         let row = sqlx::query(
             "SELECT exchange_key, session_id, subject, project_id, permissions,
-                    portal_origin, expires_at, created_at, generation, revoked_at
+                    portal_origin, expires_at, created_at, generation, revoked_at,
+                    rotation_staged_session_id
                FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
         )
         .bind(exchange_key)
@@ -2407,6 +2501,17 @@ fn parse_grant_row(
         revoked_at: row
             .get::<Option<String>, _>("revoked_at")
             .map(|value| parse_timestamp(&value))
+            .transpose()?,
+        rotation_staged_session_id: row
+            .get::<Option<String>, _>("rotation_staged_session_id")
+            .map(|value| Uuid::parse_str(&value).map(minco_plugin_sessions::SessionId))
+            .map(|parsed| {
+                parsed.map_err(|_| {
+                    TicketStoreError::Infrastructure(
+                        "stored staged rotation session id is not a UUID".into(),
+                    )
+                })
+            })
             .transpose()?,
     })
 }
@@ -4110,5 +4215,149 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    fn sqlite_grant(exchange_key: &str, session: u8) -> SessionExchangeGrant {
+        SessionExchangeGrant {
+            exchange_key: exchange_key.to_owned(),
+            session_id: minco_plugin_sessions::SessionId(Uuid::new_v5(
+                &Uuid::NAMESPACE_OID,
+                &[session],
+            )),
+            generation: 0,
+            subject: "user-1".into(),
+            project_id: "project-a".into(),
+            permissions: vec!["ticketing.requester.read".into()],
+            portal_origin: "https://support.example.test".into(),
+            expires_at: Utc::now() + TimeDelta::minutes(10),
+            created_at: Utc::now(),
+            revoked_at: None,
+            rotation_staged_session_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn sqlite_fenced_exchange_record_checks_rows_affected() {
+        // Exact-head review R28/P0-2: the UPDATE fence must be the
+        // affected row count, not the caller's belief. Before R28 the
+        // update branch ignored rows_affected and a stale worker could
+        // believe it had won.
+        let (_directory, sqlite) = store().await;
+        let key = "sqlite-exchange-r28";
+
+        // Initial insert, then the insert race: the loser adopts the
+        // winner (ON CONFLICT DO NOTHING + rows_affected == 0).
+        let winner = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 1), None)
+            .await
+            .unwrap();
+        let loser = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 2), None)
+            .await
+            .unwrap();
+        assert_eq!(loser, winner);
+
+        // Current takeover advances; a stale worker (old generation)
+        // affects zero rows and adopts the stored winner.
+        sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 3), Some(0))
+            .await
+            .unwrap();
+        let stale = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 4), Some(0))
+            .await
+            .unwrap();
+        assert_eq!(stale.session_id, sqlite_grant(key, 3).session_id);
+        assert_eq!(stale.generation, 1);
+
+        // Revocation closes the grant: a takeover at the (now current)
+        // generation is refused by the revoked_at IS NULL fence.
+        assert!(
+            sqlite
+                .revoke_session_exchange(key, Utc::now())
+                .await
+                .unwrap()
+        );
+        let refused = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 5), Some(1))
+            .await
+            .unwrap();
+        assert!(refused.revoked_at.is_some());
+        assert_eq!(refused.session_id, sqlite_grant(key, 3).session_id);
+    }
+
+    #[tokio::test]
+    async fn sqlite_rotation_staging_is_fenced_and_recovers() {
+        // Exact-head review R28/P0-2: staging is exclusive, blocks
+        // takeovers, and completion/clearing require the staged pair.
+        let (_directory, sqlite) = store().await;
+        let key = "sqlite-rotation-r28";
+        let initial = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 1), None)
+            .await
+            .unwrap();
+
+        let staged = sqlite_grant(key, 9).session_id;
+        assert!(
+            sqlite
+                .stage_rotation_fenced(key, initial.session_id, staged)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !sqlite
+                .stage_rotation_fenced(key, initial.session_id, sqlite_grant(key, 10).session_id)
+                .await
+                .unwrap()
+        );
+        let during_rotation = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 11), Some(0))
+            .await
+            .unwrap();
+        assert_eq!(during_rotation.rotation_staged_session_id, Some(staged));
+        assert_eq!(during_rotation.session_id, initial.session_id);
+
+        assert!(
+            !sqlite
+                .complete_rotation_fenced(key, initial.session_id, sqlite_grant(key, 12).session_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            sqlite
+                .complete_rotation_fenced(key, initial.session_id, staged)
+                .await
+                .unwrap()
+        );
+        let rotated = sqlite.session_exchange_grant(key).await.unwrap().unwrap();
+        assert_eq!(rotated.session_id, staged);
+        assert_eq!(rotated.generation, 1);
+        assert_eq!(rotated.rotation_staged_session_id, None);
+
+        sqlite
+            .stage_rotation_fenced(key, staged, sqlite_grant(key, 13).session_id)
+            .await
+            .unwrap();
+        assert!(
+            sqlite
+                .clear_rotation_staged_fenced(key, staged, sqlite_grant(key, 13).session_id)
+                .await
+                .unwrap()
+        );
+
+        // Fenced removal deletes only the caller's own grant.
+        assert!(
+            !sqlite
+                .remove_session_exchange_grant_fenced(key, sqlite_grant(key, 20).session_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            sqlite
+                .remove_session_exchange_grant_fenced(key, staged)
+                .await
+                .unwrap()
+        );
+        assert!(sqlite.session_exchange_grant(key).await.unwrap().is_none());
     }
 }

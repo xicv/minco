@@ -294,6 +294,12 @@ pub struct SessionExchangeGrant {
     /// Logout revocation (exact-head review R20): a revoked grant can
     /// never mint another session.
     pub revoked_at: Option<DateTime<Utc>>,
+    /// Rotation staging (exact-head review R28/P0-2): durably records
+    /// a freshly minted session between mint and compare-and-swap so an
+    /// interrupted rotation recovers (staged bearer retired, marker
+    /// cleared) instead of leaking a second live bearer. `None` outside
+    /// an in-flight rotation.
+    pub rotation_staged_session_id: Option<minco_plugin_sessions::SessionId>,
 }
 
 /// One atomic pool-mode assignment request (exact-head review R7).
@@ -512,15 +518,47 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         now: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
 
-    /// Atomic compare-and-swap rotation of a replay grant (exact-head
-    /// review R11): succeeds only when the grant still records
-    /// `expected_session_id`. The deadline is deliberately NOT updated —
-    /// it is fixed at the original exchange.
-    async fn claim_session_rotation(
+    /// Stages a freshly minted replacement session on the grant
+    /// (exact-head review R28/P0-2). Succeeds only when the grant still
+    /// records `expected_session_id`, is not revoked, and no other
+    /// rotation is already staged. The durable marker lets a rotation
+    /// interrupted before the compare-and-swap recover instead of
+    /// leaking a live bearer.
+    async fn stage_rotation_fenced(
         &self,
         exchange_key: &str,
         expected_session_id: minco_plugin_sessions::SessionId,
-        new_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError>;
+
+    /// Completes a staged rotation (exact-head review R28/P0-2): moves
+    /// the grant to `staged_session_id`, bumps the generation and
+    /// clears the marker — only when the grant still records
+    /// `expected_session_id` with exactly that staged replacement.
+    async fn complete_rotation_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError>;
+
+    /// Clears a stale rotation marker (exact-head review R28/P0-2) after
+    /// the interrupted rotation's staged bearer was retired. Fails
+    /// (returns false) when another recovery already advanced the grant.
+    async fn clear_rotation_staged_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError>;
+
+    /// Removes a replay grant only when it still records
+    /// `expected_session_id` (exact-head review R28/P0-2): the loser of
+    /// an initial-exchange race can never delete the winner's grant.
+    async fn remove_session_exchange_grant_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
     ) -> Result<bool, TicketStoreError>;
 
     async fn put_session_exchange_grant(
@@ -998,14 +1036,46 @@ impl TicketingStoreService {
         self.0.revoke_session_exchange(exchange_key, now).await
     }
 
-    pub async fn claim_session_rotation(
+    pub async fn stage_rotation_fenced(
         &self,
         exchange_key: &str,
         expected_session_id: minco_plugin_sessions::SessionId,
-        new_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
     ) -> Result<bool, TicketStoreError> {
         self.0
-            .claim_session_rotation(exchange_key, expected_session_id, new_session_id)
+            .stage_rotation_fenced(exchange_key, expected_session_id, staged_session_id)
+            .await
+    }
+
+    pub async fn complete_rotation_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .complete_rotation_fenced(exchange_key, expected_session_id, staged_session_id)
+            .await
+    }
+
+    pub async fn clear_rotation_staged_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .clear_rotation_staged_fenced(exchange_key, expected_session_id, staged_session_id)
+            .await
+    }
+
+    pub async fn remove_session_exchange_grant_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .remove_session_exchange_grant_fenced(exchange_key, expected_session_id)
             .await
     }
 
@@ -1227,6 +1297,16 @@ struct MemoryState {
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
     fail_next_handoff_commit: bool,
+    faults: MemoryFaults,
+}
+
+/// Scripted storage failures for failure-path proofs (exact-head
+/// review R28/P0-2): each flag fails exactly the next matching store
+/// operation and re-arms itself off.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MemoryFaults {
+    pub fail_next_exchange_grant_revoke: bool,
+    pub fail_next_rotation_stage: bool,
 }
 
 #[derive(Debug, Default)]
@@ -1237,6 +1317,11 @@ pub struct MemoryTicketingStore {
 impl MemoryTicketingStore {
     pub async fn activity_intents(&self) -> Vec<TicketActivityIntent> {
         self.state.lock().await.activity_intents.clone()
+    }
+
+    /// Arms one scripted storage failure (see [`MemoryFaults`]).
+    pub async fn inject_fault(&self, faults: MemoryFaults) {
+        self.state.lock().await.faults = faults;
     }
 
     /// Test seeding for the outbound send-intent state machine.
@@ -2131,19 +2216,85 @@ impl TicketingStore for MemoryTicketingStore {
         Ok(())
     }
 
-    async fn claim_session_rotation(
+    async fn stage_rotation_fenced(
         &self,
         exchange_key: &str,
         expected_session_id: minco_plugin_sessions::SessionId,
-        new_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        if state.faults.fail_next_rotation_stage {
+            state.faults.fail_next_rotation_stage = false;
+            drop(state);
+            return Err(TicketStoreError::Infrastructure(
+                "injected rotation-stage failure".into(),
+            ));
+        }
+        match state.session_exchange_grants.get_mut(exchange_key) {
+            Some(grant)
+                if grant.session_id == expected_session_id
+                    && grant.revoked_at.is_none()
+                    && grant.rotation_staged_session_id.is_none() =>
+            {
+                grant.rotation_staged_session_id = Some(staged_session_id);
+                drop(state);
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    async fn complete_rotation_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
     ) -> Result<bool, TicketStoreError> {
         let mut state = self.state.lock().await;
         match state.session_exchange_grants.get_mut(exchange_key) {
             Some(grant)
-                if grant.session_id == expected_session_id && grant.revoked_at.is_none() =>
+                if grant.session_id == expected_session_id
+                    && grant.rotation_staged_session_id == Some(staged_session_id) =>
             {
-                grant.session_id = new_session_id;
+                grant.session_id = staged_session_id;
                 grant.generation += 1;
+                grant.rotation_staged_session_id = None;
+                drop(state);
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    async fn clear_rotation_staged_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.session_exchange_grants.get_mut(exchange_key) {
+            Some(grant)
+                if grant.session_id == expected_session_id
+                    && grant.rotation_staged_session_id == Some(staged_session_id) =>
+            {
+                grant.rotation_staged_session_id = None;
+                drop(state);
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    async fn remove_session_exchange_grant_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.session_exchange_grants.get(exchange_key) {
+            Some(grant) if grant.session_id == expected_session_id => {
+                state.session_exchange_grants.remove(exchange_key);
                 drop(state);
                 Ok(true)
             }
@@ -2165,7 +2316,14 @@ impl TicketingStore for MemoryTicketingStore {
                 drop(state);
                 Ok(grant)
             }
-            Some(existing) if Some(existing.generation) == expected_generation => {
+            // A takeover may only advance a live grant: a revoked grant
+            // (logout) can never be re-recorded by a stale worker
+            // (exact-head review R28/P0-2).
+            Some(existing)
+                if Some(existing.generation) == expected_generation
+                    && existing.revoked_at.is_none()
+                    && existing.rotation_staged_session_id.is_none() =>
+            {
                 let mut next = grant;
                 next.generation = existing.generation + 1;
                 state
@@ -2187,6 +2345,13 @@ impl TicketingStore for MemoryTicketingStore {
         now: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
         let mut state = self.state.lock().await;
+        if state.faults.fail_next_exchange_grant_revoke {
+            state.faults.fail_next_exchange_grant_revoke = false;
+            drop(state);
+            return Err(TicketStoreError::Infrastructure(
+                "injected exchange-grant revoke failure".into(),
+            ));
+        }
         match state.session_exchange_grants.get_mut(exchange_key) {
             Some(grant) => {
                 if grant.revoked_at.is_some() {
@@ -3140,5 +3305,200 @@ mod tests {
             .await
             .unwrap();
         assert!(replayed.repeated);
+    }
+
+    fn grant_for(exchange_key: &str, session: u8) -> SessionExchangeGrant {
+        SessionExchangeGrant {
+            exchange_key: exchange_key.to_owned(),
+            session_id: minco_plugin_sessions::SessionId(Uuid::new_v5(
+                &Uuid::NAMESPACE_OID,
+                &[session],
+            )),
+            generation: 0,
+            subject: "user-1".into(),
+            project_id: "project-a".into(),
+            permissions: vec!["ticketing.requester.read".into()],
+            portal_origin: "https://support.example.test".into(),
+            expires_at: Utc::now() + chrono::TimeDelta::minutes(10),
+            created_at: Utc::now(),
+            revoked_at: None,
+            rotation_staged_session_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn fenced_exchange_record_survives_every_race_and_revocation() {
+        // Exact-head review R28/P0-2: the memory store proves the
+        // semantic contract the SQLite adapter implements with
+        // rows_affected checks.
+        let store = MemoryTicketingStore::default();
+        let key = "exchange-key-r28";
+
+        // Initial insert: the loser of the race observes the winner.
+        let winner = store
+            .record_session_exchange_fenced(grant_for(key, 1), None)
+            .await
+            .unwrap();
+        let loser_observed = store
+            .record_session_exchange_fenced(grant_for(key, 2), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            loser_observed, winner,
+            "the insert-race loser adopts the winner"
+        );
+        assert_eq!(
+            store.session_exchange_grant(key).await.unwrap().unwrap(),
+            winner
+        );
+
+        // A current-generation takeover does advance…
+        let takeover = store
+            .record_session_exchange_fenced(grant_for(key, 3), Some(0))
+            .await
+            .unwrap();
+        assert_eq!(takeover.generation, 1);
+        assert_eq!(takeover.session_id, grant_for(key, 3).session_id);
+
+        // …but a stale worker (holding the pre-takeover generation 0)
+        // mutates nothing and observes the stored winner.
+        let stale = store
+            .record_session_exchange_fenced(grant_for(key, 4), Some(0))
+            .await
+            .unwrap();
+        assert_eq!(stale.session_id, grant_for(key, 3).session_id);
+        assert_eq!(stale.generation, 1);
+
+        // A revoked grant can never be re-recorded by a stale worker.
+        assert!(
+            store
+                .revoke_session_exchange(key, Utc::now())
+                .await
+                .unwrap()
+        );
+        let refused = store
+            .record_session_exchange_fenced(grant_for(key, 5), Some(1))
+            .await
+            .unwrap();
+        assert!(
+            refused.revoked_at.is_some(),
+            "the revoked grant is returned untouched"
+        );
+        assert_eq!(refused.session_id, grant_for(key, 3).session_id);
+    }
+
+    #[tokio::test]
+    async fn rotation_stage_complete_and_clear_are_fenced() {
+        // Exact-head review R28/P0-2: staging is exclusive, completion
+        // requires the staged pair, and takeover is blocked while a
+        // rotation is in flight.
+        let store = MemoryTicketingStore::default();
+        let key = "exchange-key-rotation";
+        let initial = store
+            .record_session_exchange_fenced(grant_for(key, 1), None)
+            .await
+            .unwrap();
+
+        let staged = grant_for(key, 9).session_id;
+        assert!(
+            store
+                .stage_rotation_fenced(key, initial.session_id, staged)
+                .await
+                .unwrap()
+        );
+        // A concurrent rotation cannot stage over an in-flight marker,
+        // and a takeover cannot advance a staged grant.
+        assert!(
+            !store
+                .stage_rotation_fenced(key, initial.session_id, grant_for(key, 10).session_id)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            store
+                .record_session_exchange_fenced(grant_for(key, 11), Some(0))
+                .await
+                .unwrap()
+                .rotation_staged_session_id,
+            Some(staged)
+        );
+
+        // Completion requires the exact staged pair.
+        assert!(
+            !store
+                .complete_rotation_fenced(key, initial.session_id, grant_for(key, 12).session_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            store
+                .complete_rotation_fenced(key, initial.session_id, staged)
+                .await
+                .unwrap()
+        );
+        let rotated = store.session_exchange_grant(key).await.unwrap().unwrap();
+        assert_eq!(rotated.session_id, staged);
+        assert_eq!(rotated.generation, 1);
+        assert_eq!(rotated.rotation_staged_session_id, None);
+
+        // Recovery clearing only removes the matching marker.
+        store
+            .stage_rotation_fenced(key, staged, grant_for(key, 13).session_id)
+            .await
+            .unwrap();
+        assert!(
+            !store
+                .clear_rotation_staged_fenced(key, staged, grant_for(key, 14).session_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            store
+                .clear_rotation_staged_fenced(key, staged, grant_for(key, 13).session_id)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            store
+                .session_exchange_grant(key)
+                .await
+                .unwrap()
+                .unwrap()
+                .rotation_staged_session_id,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn fenced_grant_removal_never_deletes_a_winners_grant() {
+        // Exact-head review R28/P0-2: the loser of an initial-exchange
+        // race cleans up through the fenced removal — only its own grant
+        // (identified by its own session) can ever be deleted.
+        let store = MemoryTicketingStore::default();
+        let key = "exchange-key-removal";
+        let winner = store
+            .record_session_exchange_fenced(grant_for(key, 1), None)
+            .await
+            .unwrap();
+        let loser_session = grant_for(key, 2).session_id;
+
+        assert!(
+            !store
+                .remove_session_exchange_grant_fenced(key, loser_session)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            store.session_exchange_grant(key).await.unwrap().unwrap(),
+            winner,
+            "the loser's cleanup cannot touch the winner's grant"
+        );
+        assert!(
+            store
+                .remove_session_exchange_grant_fenced(key, winner.session_id)
+                .await
+                .unwrap()
+        );
+        assert!(store.session_exchange_grant(key).await.unwrap().is_none());
     }
 }
