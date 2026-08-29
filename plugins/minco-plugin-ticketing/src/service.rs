@@ -77,8 +77,9 @@ pub struct TicketSlaConfig {
 #[serde(rename_all = "snake_case")]
 pub enum InboundAuthPolicy {
     /// The inbound channel itself is trusted (local or rustack profiles
-    /// with no Authentication-Results); spam/virus failures and explicit
-    /// mechanism failures still quarantine.
+    /// with no Authentication-Results); explicit mechanism failures do
+    /// not quarantine on their own — only the scan-verdict policy and
+    /// the required aligned verdict decide.
     #[default]
     LocalTrusted,
     /// A trusted aligned SPF pass is required.
@@ -87,6 +88,30 @@ pub enum InboundAuthPolicy {
     RequireAlignedDkim,
     /// A trusted DMARC pass is required.
     RequireDmarc,
+    /// Operator opt-in for the ultra-strict posture (exact-head review
+    /// R30/P0-4): ANY explicit authentication failure on a trusted
+    /// header quarantines, even when the required aligned verdict
+    /// passes. Off by default — this false-quarantines legitimate mail
+    /// carrying an unrelated broken signature (AWS SES ships such
+    /// samples).
+    RejectAnyAuthFailure,
+}
+
+/// How `X-SES-Spam-Verdict` / `X-SES-Virus-Verdict` evidence is
+/// enforced (exact-head review R30/P0-4): a missing verdict must never
+/// silently pass in production.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScanVerdictPolicy {
+    /// No scanner sits in front of the receiver (local or rustack
+    /// profiles): absent verdicts pass; `FAIL`/`GRAY`/`PROCESSING_FAILED`
+    /// verdicts still quarantine.
+    #[default]
+    Local,
+    /// Production `SES` profile: a missing or malformed verdict is
+    /// treated as unverified and quarantines, alongside
+    /// `FAIL`/`GRAY`/`PROCESSING_FAILED`.
+    RequireClean,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +163,11 @@ pub struct TicketingConfig {
     /// authserv-id are attacker-forged and never trusted.
     #[serde(default = "default_inbound_authserv_id")]
     pub inbound_authserv_id: String,
+    /// Scan-verdict enforcement (exact-head review R30/P0-4): the
+    /// production SES profile requires present-and-clean spam/virus
+    /// verdicts; the local default has no scanner to consult.
+    #[serde(default)]
+    pub inbound_scan_verdicts: crate::ScanVerdictPolicy,
     /// Private development automation (ADR-0070). Off by default: no
     /// application gets automation by surprise.
     #[serde(default)]
@@ -161,6 +191,7 @@ impl Default for TicketingConfig {
             inbound_email_first_contact: false,
             inbound_auth_policy: crate::InboundAuthPolicy::default(),
             inbound_authserv_id: default_inbound_authserv_id(),
+            inbound_scan_verdicts: crate::ScanVerdictPolicy::default(),
             automation: crate::AutomationConfig::default(),
         }
     }

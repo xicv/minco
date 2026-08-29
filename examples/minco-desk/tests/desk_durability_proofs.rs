@@ -28,6 +28,9 @@ fn scratch_config(tag: &str, directory: &std::path::Path) -> DeskConfig {
         allowed_origins: vec!["http://127.0.0.1:8090".into()],
         mailbox_scope: "support@desk.example.test".into(),
         environment: "local".into(),
+        inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy::LocalTrusted,
+        inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy::Local,
+        inbound_authserv_id: "amazonses.com".into(),
         agent_token: "desk-proof-agent-token".into(),
         csrf_secret: "desk-proof-csrf-secret-desk-proof-csrf-secret".into(),
         allowed_return_paths: BTreeMap::from([(

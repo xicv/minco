@@ -110,14 +110,22 @@ pub struct ParsedAuthResults {
 
 /// Strips RFC 8601 CFWS comments (balanced parentheses) from one token,
 /// keeping the grammar bounded: at most 8 nesting levels and 998 bytes.
+/// Backslash escapes (including `\(` and `\)`) are honored inside
+/// comments; an unclosed comment consumes the remainder.
 fn strip_comments(token: &str) -> String {
     if !token.contains('(') {
         return token.trim().to_owned();
     }
     let mut output = String::with_capacity(token.len());
     let mut depth: u8 = 0;
+    let mut escaped = false;
     for character in token.chars().take(998) {
+        if escaped {
+            escaped = false;
+            continue;
+        }
         match character {
+            '\\' if depth > 0 => escaped = true,
             '(' => {
                 if depth < 8 {
                     depth += 1;
@@ -133,44 +141,152 @@ fn strip_comments(token: &str) -> String {
 
 const AUTH_MECHANISMS: [&str; 5] = ["spf", "dkim", "dmarc", "dkim-atps", "spf2"];
 
+/// One token produced by the RFC 8601 tokenizer: a run of non-space
+/// characters that may embed ONE quoted string (whose contents may
+/// contain spaces, `;` and escapes) plus the clause-separator marker.
+#[derive(Debug, PartialEq, Eq)]
+enum AuthToken {
+    Word(String),
+    ClauseSeparator,
+}
+
+/// Character-level RFC 8601 tokenizer (exact-head review R30/P0-4).
+///
+/// Handles the structures a split-based parser loses: quoted strings
+/// with embedded spaces and quoted-pair escapes, backslash-escaped
+/// parentheses inside comments, unterminated comments (consumed to the
+/// end, bounded) and `reason=` values carrying arbitrary text. Bounded:
+/// input ≤ 2,048 bytes, comment depth ≤ 8, one open quote per token.
+fn tokenize_authentication_results(value: &str) -> Vec<AuthToken> {
+    fn flush(current: &mut String, tokens: &mut Vec<AuthToken>) {
+        if !current.trim().is_empty() {
+            let stripped = strip_comments(current);
+            if !stripped.is_empty() {
+                tokens.push(AuthToken::Word(stripped));
+            }
+            current.clear();
+        }
+    }
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_comment = 0u8;
+    let mut comment_escaped = false;
+    let mut in_quote = false;
+    let mut quote_escaped = false;
+    for character in value.chars() {
+        if in_comment > 0 {
+            if comment_escaped {
+                comment_escaped = false;
+            } else if character == '\\' {
+                comment_escaped = true;
+            } else if character == '(' && in_comment < 8 {
+                in_comment += 1;
+            } else if character == ')' {
+                in_comment -= 1;
+            }
+            continue;
+        }
+        if in_quote {
+            if quote_escaped {
+                quote_escaped = false;
+                current.push(character);
+            } else if character == '\\' {
+                quote_escaped = true;
+            } else if character == '"' {
+                in_quote = false;
+                current.push(character);
+            } else {
+                current.push(character);
+            }
+            continue;
+        }
+        match character {
+            '"' => {
+                in_quote = true;
+                current.push(character);
+            }
+            '(' if in_comment < 8 => {
+                in_comment += 1;
+            }
+            ';' => {
+                flush(&mut current, &mut tokens);
+                tokens.push(AuthToken::ClauseSeparator);
+            }
+            c if c.is_whitespace() => flush(&mut current, &mut tokens),
+            c => current.push(c),
+        }
+    }
+    // An unterminated comment consumed the remainder; an unterminated
+    // quote closes at the end of input. Both stay bounded.
+    flush(&mut current, &mut tokens);
+    tokens
+}
+
+/// Splits one mechanism token into its RFC 8601 base name and result
+/// (`dkim/1=pass` → `dkim`, `pass`): a versioned method is the same
+/// method for policy purposes.
+fn split_mechanism(token: &str) -> Option<(String, String)> {
+    let (key, value) = token.split_once('=')?;
+    let base = key.split('/').next().unwrap_or(key);
+    let base = base.trim().to_ascii_lowercase();
+    let value = value.trim().to_ascii_lowercase();
+    if base.is_empty() || value.is_empty() {
+        return None;
+    }
+    Some((base, value))
+}
+
 /// RFC 8601 structural parse preserving method-result association.
 ///
-/// Comments are stripped first; each ';'-clause is tokenized on
-/// whitespace; the FIRST k=v token whose key is a known mechanism
-/// starts a method result, and all subsequent property tokens belong to
+/// The tokenizer preserves quoted values (spaces, `;`, escapes),
+/// comment structure and clause boundaries; the first k=v token whose
+/// key is a known mechanism (with or without a `/version` suffix)
+/// starts a method result, and subsequent property tokens belong to
 /// THAT result until the next mechanism token. SES property-only
 /// clauses (`envelope-from=...`) attach to the preceding method result
-/// when one exists in the same clause chain.
+/// across the clause chain.
 pub fn parse_authentication_results(value: &str) -> Option<ParsedAuthResults> {
     let value = value.trim();
     if value.is_empty() || value.len() > 2_048 {
         return None;
     }
-    let stripped = strip_comments(value);
-    let (authserv_id, rest) = stripped.split_once(';')?;
-    let authserv_id = authserv_id.trim();
-    if authserv_id.is_empty()
-        || !authserv_id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-')
+    let tokens = tokenize_authentication_results(value);
+    // The authserv-id is everything before the first clause separator.
+    let mut authserv_id = String::new();
+    let mut rest: Vec<&AuthToken> = Vec::new();
+    let mut seen_separator = false;
+    for token in &tokens {
+        if seen_separator {
+            rest.push(token);
+        } else if *token == AuthToken::ClauseSeparator {
+            seen_separator = true;
+        } else if let AuthToken::Word(word) = token {
+            if !authserv_id.is_empty() {
+                authserv_id.push(' ');
+            }
+            authserv_id.push_str(word);
+        }
+    }
+    if !seen_separator || authserv_id.is_empty() {
+        return None;
+    }
+    if !authserv_id
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-')
     {
         return None;
     }
-    // The current method result persists ACROSS clauses: AWS SES emits
-    // `spf=pass (...) client-ip=...; envelope-from="..."` — the
-    // envelope-from property belongs to the preceding SPF result even
-    // though it sits in its own clause (exact-head review R23).
     let mut methods: Vec<AuthenticationMethodResult> = Vec::new();
     let mut current: Option<AuthenticationMethodResult> = None;
-    for part in rest.split(';').flat_map(str::split_whitespace) {
-        let Some((key, value)) = part.split_once('=') else {
+    for token in rest {
+        let AuthToken::Word(word) = token else {
+            // A clause separator does not close the current method
+            // result: SES properties continue across clauses.
             continue;
         };
-        let key = key.trim().to_ascii_lowercase();
-        let value = value.trim().to_ascii_lowercase();
-        if key.is_empty() || value.is_empty() {
+        let Some((key, value)) = split_mechanism(word) else {
             continue;
-        }
+        };
         if AUTH_MECHANISMS.contains(&key.as_str()) {
             if let Some(method) = current.take() {
                 methods.push(method);
@@ -188,7 +304,7 @@ pub fn parse_authentication_results(value: &str) -> Option<ParsedAuthResults> {
         methods.push(method);
     }
     Some(ParsedAuthResults {
-        authserv_id: authserv_id.to_owned(),
+        authserv_id,
         methods,
     })
 }
@@ -199,9 +315,15 @@ fn property_domain(value: &str) -> &str {
         &value[1..value.len() - 1]
     } else {
         value
+    }
+    .trim();
+    let trimmed = if trimmed.len() >= 2 && trimmed.starts_with('<') && trimmed.ends_with('>') {
+        &trimmed[1..trimmed.len() - 1]
+    } else {
+        trimmed
     };
     match trimmed.rsplit_once('@') {
-        Some((_, domain)) if !domain.is_empty() => domain,
+        Some((_, domain)) if !domain.is_empty() => domain.trim_end_matches('>').trim(),
         _ => trimmed,
     }
 }
@@ -224,14 +346,27 @@ pub fn evaluate_inbound_trust(
     from_domain: Option<&str>,
     expected_authserv_id: &str,
     policy: crate::InboundAuthPolicy,
+    scan_verdicts: crate::ScanVerdictPolicy,
 ) -> Result<(), &'static str> {
-    // SES spam/virus verdicts are provider evidence: FAIL and the
-    // indeterminate GRAY/PROCESSING_FAILED outcomes quarantine under
-    // every policy (exact-head review R23).
-    for verdict in [spam_verdict, virus_verdict].into_iter().flatten() {
-        let normalised = verdict.trim().to_ascii_uppercase();
-        if normalised == "FAIL" || normalised == "GRAY" || normalised == "PROCESSING_FAILED" {
-            return Err("ticketing.inbound_sender_unverified");
+    const UNVERIFIED: &str = "ticketing.inbound_sender_unverified";
+    // Scan-verdict evidence (exact-head reviews R23 and R30/P0-4):
+    // FAIL and the indeterminate GRAY/PROCESSING_FAILED outcomes
+    // quarantine under every policy. The production SES profile
+    // additionally treats a MISSING or MALFORMED verdict as unverified —
+    // a missing verdict is never a silent pass in production.
+    for verdict in [spam_verdict, virus_verdict] {
+        let normalised = verdict.map(|value| value.trim().to_ascii_uppercase());
+        // DONE is a terminal success spelling some providers emit.
+        let clean = matches!(normalised.as_deref(), Some("PASS" | "DONE"));
+        let failing = matches!(
+            normalised.as_deref(),
+            Some("FAIL" | "GRAY" | "PROCESSING_FAILED")
+        );
+        // A failing verdict quarantines under every policy; a missing or
+        // malformed verdict is unverified under the production
+        // RequireClean profile (the local profile has no scanner).
+        if failing || (matches!(scan_verdicts, crate::ScanVerdictPolicy::RequireClean) && !clean) {
+            return Err(UNVERIFIED);
         }
     }
     let mut trusted: Vec<ParsedAuthResults> = Vec::new();
@@ -246,7 +381,7 @@ pub fn evaluate_inbound_trust(
                 .unwrap_or_default()
                 .to_ascii_lowercase();
             if claimed.eq_ignore_ascii_case(expected_authserv_id) {
-                return Err("ticketing.inbound_sender_unverified");
+                return Err(UNVERIFIED);
             }
             continue;
         };
@@ -258,25 +393,37 @@ pub fn evaluate_inbound_trust(
         }
     }
     if trusted.len() > 1 {
-        return Err("ticketing.inbound_sender_unverified");
+        // Two headers claiming the trusted authserv-id: one is likely
+        // attacker-injected — ambiguous evidence fails closed.
+        return Err(UNVERIFIED);
     }
-    let quarantine_results = [
-        "fail",
-        "hardfail",
-        "permerror",
-        "temperror",
-        "processing_failed",
-        "gray",
-    ];
-    for results in &trusted {
-        for method in &results.methods {
-            if quarantine_results.contains(&method.result.as_str()) {
-                return Err("ticketing.inbound_sender_unverified");
+    // The explicit mechanism failures of UNRELATED methods are evidence,
+    // not verdicts (exact-head review R30/P0-4): AWS SES itself emits
+    // samples where one DKIM signature passes and a second, unrelated
+    // one records permerror while DMARC passes. Only the operator's
+    // explicit ultra-strict opt-in (`RejectAnyAuthFailure`) makes any
+    // failure quarantine.
+    if matches!(policy, crate::InboundAuthPolicy::RejectAnyAuthFailure) {
+        const FAILING_RESULTS: [&str; 6] = [
+            "fail",
+            "hardfail",
+            "permerror",
+            "temperror",
+            "processing_failed",
+            "gray",
+        ];
+        for results in &trusted {
+            for method in &results.methods {
+                if FAILING_RESULTS.contains(&method.result.as_str()) {
+                    return Err(UNVERIFIED);
+                }
             }
         }
     }
     let required = match policy {
-        crate::InboundAuthPolicy::LocalTrusted => None,
+        crate::InboundAuthPolicy::LocalTrusted | crate::InboundAuthPolicy::RejectAnyAuthFailure => {
+            None
+        }
         crate::InboundAuthPolicy::RequireAlignedSpf => Some("spf"),
         crate::InboundAuthPolicy::RequireAlignedDkim => Some("dkim"),
         crate::InboundAuthPolicy::RequireDmarc => Some("dmarc"),
@@ -285,11 +432,14 @@ pub fn evaluate_inbound_trust(
         return Ok(());
     };
     let Some(results) = trusted.first() else {
-        return Err("ticketing.inbound_sender_unverified");
+        return Err(UNVERIFIED);
     };
     // Alignment within ONE method result (exact-head review R23/P0-4):
     // the pass verdict and the identity property must come from the
-    // same method result, never assembled across results.
+    // same method result, never assembled across results — and only the
+    // policy's OWN mechanism decides (R30/P0-4): a passing SPF with an
+    // aligned envelope-from satisfies RequireAlignedSpf even when an
+    // unrelated DKIM signature records permerror.
     let identity_keys: &[&str] = match required {
         "spf" => &["envelope-from", "smtp.mailfrom", "mailfrom"],
         "dkim" => &["header.i", "header.d"],
@@ -319,7 +469,7 @@ pub fn evaluate_inbound_trust(
     if aligned_pass {
         Ok(())
     } else {
-        Err("ticketing.inbound_sender_unverified")
+        Err(UNVERIFIED)
     }
 }
 
@@ -619,6 +769,7 @@ async fn process_inbound_email(
         from_domain.as_deref(),
         &config.inbound_authserv_id,
         config.inbound_auth_policy,
+        config.inbound_scan_verdicts,
     )
     .map_err(JobExecutionFailure::permanent)?;
     match command.ticket_id {
@@ -2146,9 +2297,23 @@ mod tests {
         u64,
         String,
     ) {
+        inbound_setup_with_policy(crate::InboundAuthPolicy::LocalTrusted).await
+    }
+
+    async fn inbound_setup_with_policy(
+        policy: crate::InboundAuthPolicy,
+    ) -> (
+        minco_plugin_jobs::JobsServices,
+        Arc<minco_plugin_object_storage::MemoryObjectStore>,
+        Arc<MemoryTicketingStore>,
+        crate::TicketId,
+        u64,
+        String,
+    ) {
         let memory = Arc::new(MemoryTicketingStore::default());
         let config = crate::TicketingConfig {
             project_id: "project-a".into(),
+            inbound_auth_policy: policy,
             ..crate::TicketingConfig::default()
         };
         let service =
@@ -2346,6 +2511,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedSpf,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2359,6 +2525,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedSpf,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2375,6 +2542,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedSpf,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2390,6 +2558,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedSpf,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2402,6 +2571,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedDkim,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2414,11 +2584,14 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedDkim,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
-        // GRAY and PROCESSING_FAILED quarantine; missing evidence fails
-        // strict policies but passes LocalTrusted.
+        // An indeterminate DMARC verdict is EVIDENCE, not a verdict
+        // (R30/P0-4): LocalTrusted still trusts the channel, the
+        // strict DMARC policy refuses (no pass), and the operator's
+        // ultra-strict opt-in quarantines any explicit failure.
         assert!(
             evaluate_inbound_trust(
                 &["amazonses.com; dmarc=gray".into()],
@@ -2427,6 +2600,31 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::LocalTrusted,
+                crate::ScanVerdictPolicy::Local,
+            )
+            .is_ok()
+        );
+        assert!(
+            evaluate_inbound_trust(
+                &["amazonses.com; dmarc=gray".into()],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::Local,
+            )
+            .is_err()
+        );
+        assert!(
+            evaluate_inbound_trust(
+                &["amazonses.com; dmarc=gray".into()],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RejectAnyAuthFailure,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2438,6 +2636,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::LocalTrusted,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2449,6 +2648,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2461,6 +2661,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::LocalTrusted,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2474,6 +2675,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::LocalTrusted,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2487,6 +2689,7 @@ mod tests {
                 Some("example.test"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::LocalTrusted,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2626,6 +2829,7 @@ mod tests {
                 Some("example.com"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedSpf,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2638,6 +2842,7 @@ mod tests {
                 Some("example.com"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedDkim,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2650,6 +2855,7 @@ mod tests {
                 Some("example.com"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2662,6 +2868,7 @@ mod tests {
                 Some("other.example"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2675,6 +2882,7 @@ mod tests {
                 Some("example.com"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2701,6 +2909,7 @@ mod tests {
                 Some("victim.example"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedDkim,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err()
         );
@@ -2714,6 +2923,7 @@ mod tests {
                 Some("attacker.example"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireAlignedDkim,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_ok()
         );
@@ -2732,6 +2942,7 @@ mod tests {
                 Some("attacker.example"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::Local,
             )
             .is_err(),
             "header.d is not a DMARC identity — no fallback"
@@ -2745,6 +2956,218 @@ mod tests {
                 Some("attacker.example"),
                 "amazonses.com",
                 crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::Local,
+            )
+            .is_ok()
+        );
+    }
+
+    /// The AWS SES official receiving-email example (exact-head review
+    /// R30/P0-4): one valid DKIM signature AND a second, unrelated
+    /// DKIM permerror, with SPF and DMARC passing. This is legitimate
+    /// mail the old any-failure evaluation false-quarantined.
+    const AWS_OFFICIAL_SAMPLE: &str = concat!(
+        "amazonses.com;\n",
+        " spf=pass (sender IP is 192.0.2.1) smtp.mailfrom=contoso.com;\n",
+        " dkim=pass (2048-bit key) header.d=contoso.com;\n",
+        " dkim=permerror (unverifiable signature) header.d=thirdparty.example;\n",
+        " dmarc=pass (p=none dis=none) header.from=contoso.com"
+    );
+
+    #[test]
+    fn aws_official_sample_is_accepted_by_real_policies() {
+        use super::evaluate_inbound_trust;
+        // The strict DMARC policy accepts: DMARC passed with an aligned
+        // header.from; the unrelated broken third-party signature is
+        // evidence, not a verdict.
+        assert!(
+            evaluate_inbound_trust(
+                &[AWS_OFFICIAL_SAMPLE.into()],
+                Some("PASS"),
+                Some("PASS"),
+                Some("contoso.com"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::RequireClean,
+            )
+            .is_ok(),
+            "DMARC pass with an unrelated DKIM permerror is legitimate mail"
+        );
+        // The aligned-SPF and aligned-DKIM policies accept too: each
+        // finds ITS aligned pass among the results.
+        for policy in [
+            crate::InboundAuthPolicy::RequireAlignedSpf,
+            crate::InboundAuthPolicy::RequireAlignedDkim,
+        ] {
+            assert!(
+                evaluate_inbound_trust(
+                    &[AWS_OFFICIAL_SAMPLE.into()],
+                    Some("PASS"),
+                    Some("PASS"),
+                    Some("contoso.com"),
+                    "amazonses.com",
+                    policy,
+                    crate::ScanVerdictPolicy::RequireClean,
+                )
+                .is_ok()
+            );
+        }
+        // Only the operator's explicit ultra-strict opt-in quarantines
+        // the unrelated failure.
+        assert!(
+            evaluate_inbound_trust(
+                &[AWS_OFFICIAL_SAMPLE.into()],
+                Some("PASS"),
+                Some("PASS"),
+                Some("contoso.com"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RejectAnyAuthFailure,
+                crate::ScanVerdictPolicy::RequireClean,
+            )
+            .is_err(),
+            "reject_any_auth_failure is the explicit opt-in that quarantines"
+        );
+    }
+
+    #[test]
+    fn parser_handles_rfc8601_structure_the_split_parser_lost() {
+        use super::parse_authentication_results;
+        // Method versions: `dkim/1=pass` is a DKIM result.
+        let versioned =
+            parse_authentication_results("mx.example.test; dkim/1=pass header.d=example.test")
+                .unwrap();
+        assert_eq!(versioned.methods.len(), 1);
+        assert_eq!(versioned.methods[0].method, "dkim");
+        assert_eq!(versioned.methods[0].result, "pass");
+
+        // Quoted values with embedded spaces and quoted-pair escapes:
+        // the envelope-from survives as ONE property (quote-pairs are
+        // unescaped inside the quoted string) whose domain resolves.
+        let quoted = parse_authentication_results(
+            "mx.example.test; spf=pass envelope-from=\"Contoso \\\"Mail\\\" <bounce@contoso.com>\"",
+        )
+        .unwrap();
+        assert_eq!(quoted.methods[0].properties.len(), 1);
+        assert_eq!(
+            quoted.methods[0].properties[0],
+            (
+                "envelope-from".to_owned(),
+                "\"contoso \"mail\" <bounce@contoso.com>\"".to_owned()
+            )
+        );
+        assert_eq!(
+            super::property_domain(&quoted.methods[0].properties[0].1),
+            "contoso.com",
+            "the quoted envelope-from still resolves to its domain"
+        );
+
+        // Escaped parentheses inside a comment stay a comment.
+        let escaped = parse_authentication_results(
+            "mx.example.test; dkim=pass (2048\\-bit \\(key\\) rotation) header.d=example.test",
+        )
+        .unwrap();
+        assert_eq!(escaped.methods[0].result, "pass");
+        assert_eq!(escaped.methods[0].properties.len(), 1);
+
+        // An unclosed comment consumes the remainder without failing.
+        let unclosed = parse_authentication_results(
+            "mx.example.test; spf=pass header.d=example.test (never closed",
+        )
+        .unwrap();
+        assert_eq!(unclosed.methods[0].result, "pass");
+
+        // reason= with an embedded semicolon inside quotes is ONE
+        // property, not a clause break.
+        let reason = parse_authentication_results(
+            "mx.example.test; dmarc=fail reason=\"policy skipped; local override\" header.from=example.test",
+        )
+        .unwrap();
+        assert_eq!(reason.methods[0].method, "dmarc");
+        assert_eq!(reason.methods[0].properties.len(), 2);
+
+        // Multiple same-mechanism results stay distinct and ordered.
+        let multiple = parse_authentication_results(
+            "mx.example.test; dkim=pass header.d=a.test; dkim=permerror header.d=b.test",
+        )
+        .unwrap();
+        assert_eq!(multiple.methods.len(), 2);
+        assert_eq!(multiple.methods[0].result, "pass");
+        assert_eq!(multiple.methods[1].result, "permerror");
+    }
+
+    #[test]
+    fn attacker_injected_claims_of_the_trusted_authserv_id_fail_closed() {
+        use super::evaluate_inbound_trust;
+        // An attacker-injected header carrying the trusted authserv-id
+        // next to the provider's real header makes the evidence
+        // ambiguous — fail closed, never accept via the forgery.
+        assert!(
+            evaluate_inbound_trust(
+                &[
+                    "amazonses.com; dmarc=pass header.from=attacker.example".into(),
+                    "amazonses.com; dmarc=fail header.from=example.test".into(),
+                ],
+                Some("PASS"),
+                Some("PASS"),
+                Some("example.test"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::RequireDmarc,
+                crate::ScanVerdictPolicy::RequireClean,
+            )
+            .is_err(),
+            "two headers claiming the trusted authserv-id never accept"
+        );
+    }
+
+    #[test]
+    fn missing_or_malformed_scan_verdicts_follow_the_configured_policy() {
+        use super::evaluate_inbound_trust;
+        // Local profile: no scanner exists; absent verdicts pass.
+        assert!(
+            evaluate_inbound_trust(
+                &[],
+                None,
+                None,
+                Some("example.test"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::LocalTrusted,
+                crate::ScanVerdictPolicy::Local,
+            )
+            .is_ok()
+        );
+        // Production SES profile: missing, empty and malformed
+        // verdicts are unverified — never a silent pass.
+        for (spam, virus) in [
+            (None, None),
+            (Some(""), None),
+            (Some("  "), None),
+            (Some("WEIRD-VERDICT"), None),
+            (None, Some("NOPE")),
+        ] {
+            assert!(
+                evaluate_inbound_trust(
+                    &[],
+                    spam,
+                    virus,
+                    Some("example.test"),
+                    "amazonses.com",
+                    crate::InboundAuthPolicy::LocalTrusted,
+                    crate::ScanVerdictPolicy::RequireClean,
+                )
+                .is_err(),
+                "spam={spam:?} virus={virus:?} must be unverified under require_clean"
+            );
+        }
+        // Present-and-clean passes under both profiles.
+        assert!(
+            evaluate_inbound_trust(
+                &[],
+                Some("PASS"),
+                Some("PASS"),
+                Some("example.test"),
+                "amazonses.com",
+                crate::InboundAuthPolicy::LocalTrusted,
+                crate::ScanVerdictPolicy::RequireClean,
             )
             .is_ok()
         );
@@ -2763,6 +3186,7 @@ mod tests {
                     Some("example.com"),
                     "amazonses.com",
                     crate::InboundAuthPolicy::LocalTrusted,
+                    crate::ScanVerdictPolicy::Local,
                 )
                 .is_err(),
                 "spam verdict {verdict} must quarantine"
@@ -2775,6 +3199,7 @@ mod tests {
                     Some("example.com"),
                     "amazonses.com",
                     crate::InboundAuthPolicy::LocalTrusted,
+                    crate::ScanVerdictPolicy::Local,
                 )
                 .is_err(),
                 "virus verdict {verdict} must quarantine"
@@ -2858,7 +3283,11 @@ mod tests {
 
     #[tokio::test]
     async fn failed_authentication_verdict_is_quarantined() {
-        let (services, objects, _memory, ticket_id, _revision, _digest) = inbound_setup().await;
+        // Under a policy that requires aligned SPF, an spf=fail verdict
+        // can never satisfy it — the mail quarantines (exact-head
+        // review R30/P0-4: the policy's own mechanism decides).
+        let (services, objects, _memory, ticket_id, _revision, _digest) =
+            inbound_setup_with_policy(crate::InboundAuthPolicy::RequireAlignedSpf).await;
         let failed = concat!(
             "From: user-1@example.test\r\nTo: support@example.test\r\n",
             "Subject: Re: Help\r\nAuthentication-Results: amazonses.com; spf=fail; dkim=pass\r\n",

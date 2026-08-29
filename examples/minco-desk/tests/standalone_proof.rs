@@ -33,6 +33,9 @@ fn scratch_config(tag: &str) -> (tempfile::TempDir, DeskConfig) {
             vec!["/orders".to_owned()],
         )]),
         environment: "local".into(),
+        inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy::LocalTrusted,
+        inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy::Local,
+        inbound_authserv_id: "amazonses.com".into(),
     };
     (directory, config)
 }

@@ -48,6 +48,20 @@ pub struct DeskConfig {
     /// `origin=path|path,origin=path`. Defaults to the portal origin
     /// with the ticketing prefix.
     pub allowed_return_paths: BTreeMap<String, Vec<String>>,
+    /// Inbound sender-authentication posture (exact-head review
+    /// R30/P0-4), loaded from `DESK_INBOUND_AUTH_POLICY`
+    /// (`local_trusted` | `require_aligned_spf` | `require_aligned_dkim`
+    /// | `require_dmarc` | `reject_any_auth_failure`). Defaults to the
+    /// channel-trusting local profile.
+    pub inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy,
+    /// Scan-verdict enforcement (exact-head review R30/P0-4), loaded
+    /// from `DESK_INBOUND_SCAN_VERDICTS` (`local` | `require_clean`).
+    /// The SES production profile must set `require_clean`: a missing
+    /// spam/virus verdict is never a silent pass.
+    pub inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy,
+    /// The authserv-id the receiving provider stamps, loaded from
+    /// `DESK_INBOUND_AUTHSERV_ID` (default `amazonses.com`).
+    pub inbound_authserv_id: String,
 }
 
 impl DeskConfig {
@@ -171,6 +185,35 @@ impl DeskConfig {
                 }
                 parse_return_paths(&raw)
             },
+            inbound_auth_policy: match std::env::var("DESK_INBOUND_AUTH_POLICY")
+                .unwrap_or_else(|_| "local_trusted".into())
+                .to_ascii_lowercase()
+                .as_str()
+            {
+                "local_trusted" => minco_plugin_ticketing::InboundAuthPolicy::LocalTrusted,
+                "require_aligned_spf" => {
+                    minco_plugin_ticketing::InboundAuthPolicy::RequireAlignedSpf
+                }
+                "require_aligned_dkim" => {
+                    minco_plugin_ticketing::InboundAuthPolicy::RequireAlignedDkim
+                }
+                "require_dmarc" => minco_plugin_ticketing::InboundAuthPolicy::RequireDmarc,
+                "reject_any_auth_failure" => {
+                    minco_plugin_ticketing::InboundAuthPolicy::RejectAnyAuthFailure
+                }
+                other => anyhow::bail!("unknown DESK_INBOUND_AUTH_POLICY: {other}"),
+            },
+            inbound_scan_verdicts: match std::env::var("DESK_INBOUND_SCAN_VERDICTS")
+                .unwrap_or_else(|_| "local".into())
+                .to_ascii_lowercase()
+                .as_str()
+            {
+                "local" => minco_plugin_ticketing::ScanVerdictPolicy::Local,
+                "require_clean" => minco_plugin_ticketing::ScanVerdictPolicy::RequireClean,
+                other => anyhow::bail!("unknown DESK_INBOUND_SCAN_VERDICTS: {other}"),
+            },
+            inbound_authserv_id: std::env::var("DESK_INBOUND_AUTHSERV_ID")
+                .unwrap_or_else(|_| "amazonses.com".into()),
         })
     }
 }
@@ -415,6 +458,9 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
                 portal_origin: config.portal_origin.clone(),
                 notify_requester_on_public_reply: true,
                 allowed_return_paths: config.allowed_return_paths.clone(),
+                inbound_auth_policy: config.inbound_auth_policy,
+                inbound_scan_verdicts: config.inbound_scan_verdicts,
+                inbound_authserv_id: config.inbound_authserv_id.clone(),
                 ..TicketingConfig::default()
             },
         )?
