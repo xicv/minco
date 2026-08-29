@@ -79,10 +79,21 @@ impl DeskConfig {
                 ("DESK_AGENT_TOKEN", agent_token.0.as_str()),
                 ("DESK_CSRF_SECRET", csrf_secret.0.as_str()),
             ] {
-                if value.trim().len() < 32 {
+                let trimmed = value.trim();
+                if trimmed.len() < 32 {
                     anyhow::bail!(
-                        "{name} must carry at least 32 characters of entropy in \
-                         non-local environments"
+                        "{name} must carry at least 32 characters in non-local environments"
+                    );
+                }
+                if trimmed
+                    .chars()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    < 8
+                {
+                    anyhow::bail!(
+                        "{name} must carry real entropy (at least 8 distinct characters) \
+                         in non-local environments"
                     );
                 }
             }
@@ -96,9 +107,22 @@ impl DeskConfig {
                      SQLite URL (mode=rwc, no :memory:) in non-local environments"
                 );
             }
-            if std::env::var("DESK_PORTAL_ORIGIN").is_err() {
-                anyhow::bail!(
+            let portal_origin = std::env::var("DESK_PORTAL_ORIGIN").map_err(|_| {
+                anyhow::anyhow!(
                     "DESK_PORTAL_ORIGIN must be set explicitly in non-local environments"
+                )
+            })?;
+            if !portal_origin.starts_with("https://")
+                || portal_origin.contains('*')
+                || portal_origin.contains('#')
+                || portal_origin.contains('@')
+                || portal_origin.ends_with('/')
+                || portal_origin.len() > 2_048
+            {
+                anyhow::bail!(
+                    "DESK_PORTAL_ORIGIN must be an exact HTTPS origin \
+                     (scheme + host + optional port, no wildcard, credentials, \
+                     fragment or trailing slash) in non-local environments"
                 );
             }
             if std::env::var("DESK_ALLOWED_ORIGINS").is_err() {
@@ -123,13 +147,30 @@ impl DeskConfig {
             },
             mailbox_scope: std::env::var("DESK_MAILBOX_SCOPE")
                 .unwrap_or_else(|_| "support@desk.example.test".into()),
-            environment,
+            environment: environment.clone(),
             agent_token: agent_token.0,
             csrf_secret: csrf_secret.0,
-            allowed_return_paths: parse_return_paths(
-                &std::env::var("DESK_ALLOWED_RETURN_PATHS")
-                    .unwrap_or_else(|_| "http://127.0.0.1:8090=/_minco/ticketing".into()),
-            ),
+            allowed_return_paths: {
+                let raw = match std::env::var("DESK_ALLOWED_RETURN_PATHS") {
+                    Ok(value) => value,
+                    Err(_) if environment == "local" => {
+                        "http://127.0.0.1:8090=/_minco/ticketing".into()
+                    }
+                    Err(_) => {
+                        anyhow::bail!(
+                            "DESK_ALLOWED_RETURN_PATHS must be set explicitly in \
+                             non-local environments"
+                        )
+                    }
+                };
+                if environment != "local" && raw.starts_with("http://") {
+                    anyhow::bail!(
+                        "DESK_ALLOWED_RETURN_PATHS must use HTTPS origins in \
+                         non-local environments"
+                    );
+                }
+                parse_return_paths(&raw)
+            },
         })
     }
 }
@@ -473,11 +514,17 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     // Real liveness and readiness routes (exact-head review R10): the
     // registered checks execute on demand instead of shipping a static
     // composition graph.
+    // Liveness answers "is the process up" from the critical subset;
+    // readiness answers "can it serve traffic" from every registered
+    // check including non-critical ones (exact-head review R26/P1-3).
     let liveness_registry = health.clone();
     let liveness = move || async move {
         let results = liveness_registry.run().await;
-        let healthy = results.iter().all(|result| result.ready);
-        if healthy {
+        let alive = results
+            .iter()
+            .filter(|result| result.critical)
+            .all(|result| result.ready);
+        if alive {
             axum::http::StatusCode::OK
         } else {
             axum::http::StatusCode::SERVICE_UNAVAILABLE

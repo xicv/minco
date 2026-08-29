@@ -170,8 +170,8 @@ class NonLocalFailClosedTests(unittest.TestCase):
             **os.environ,
             "DESK_ENVIRONMENT": "production",
             "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal.sqlite?mode=rwc",
-            "DESK_AGENT_TOKEN": "x" * 40,
-            "DESK_CSRF_SECRET": "y" * 40,
+            "DESK_AGENT_TOKEN": "aB3dEf7hIj9lMn2pQr5tUv8wXy4zC1bE6gK0dJ3fH",
+            "DESK_CSRF_SECRET": "zY4xW7vUtSrQpOnMlKjIhGfEdCbAzXwV5tSr2qP",
             "DESK_PORTAL_ORIGIN": "https://desk.example.test",
             "DESK_ALLOWED_ORIGINS": "https://desk.example.test",
         }
@@ -199,13 +199,51 @@ class NonLocalFailClosedTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("read-write", result.stderr)
 
+    def test_low_entropy_secret_is_rejected(self) -> None:
+        result = self._run({"DESK_AGENT_TOKEN": "a" * 40})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("real entropy", result.stderr)
+
+    def test_http_portal_origin_is_rejected(self) -> None:
+        result = self._run({"DESK_PORTAL_ORIGIN": "http://desk.example.test"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("HTTPS", result.stderr)
+
+    def test_wildcard_origin_is_rejected(self) -> None:
+        result = self._run({"DESK_PORTAL_ORIGIN": "https://*.example.test"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("HTTPS", result.stderr)
+
+    def test_inherited_return_paths_are_rejected(self) -> None:
+        env = {
+            **os.environ,
+            "DESK_ENVIRONMENT": "production",
+            "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal3.sqlite?mode=rwc",
+            "DESK_AGENT_TOKEN": "aB3dEf7hIj9lMn2pQr5tUv8wXy4zC1bE6gK0dJ3fH",
+            "DESK_CSRF_SECRET": "zY4xW7vUtSrQpOnMlKjIhGfEdCbAzXwV5tSr2qP",
+            "DESK_PORTAL_ORIGIN": "https://desk.example.test",
+            "DESK_ALLOWED_ORIGINS": "https://desk.example.test",
+        }
+        env.pop("DESK_ALLOWED_RETURN_PATHS", None)
+        result = subprocess.run([BINARY], env=env, capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DESK_ALLOWED_RETURN_PATHS", result.stderr)
+
+    def test_http_return_paths_are_rejected(self) -> None:
+        result = self._run({
+            "DESK_ALLOWED_RETURN_PATHS":
+                "http://app.example.test=/orders",
+        })
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("HTTPS origins", result.stderr)
+
     def test_inherited_portal_origin_is_rejected(self) -> None:
         env = {
             **os.environ,
             "DESK_ENVIRONMENT": "production",
             "DESK_DATABASE_URL": "sqlite:///tmp/nonlocal2.sqlite?mode=rwc",
-            "DESK_AGENT_TOKEN": "x" * 40,
-            "DESK_CSRF_SECRET": "y" * 40,
+            "DESK_AGENT_TOKEN": "aB3dEf7hIj9lMn2pQr5tUv8wXy4zC1bE6gK0dJ3fH",
+            "DESK_CSRF_SECRET": "zY4xW7vUtSrQpOnMlKjIhGfEdCbAzXwV5tSr2qP",
         }
         env.pop("DESK_PORTAL_ORIGIN", None)
         env.pop("DESK_ALLOWED_ORIGINS", None)
