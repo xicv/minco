@@ -364,15 +364,21 @@ pub fn render_sam_with_inbound_mail(
         // mail for that local part.
         let mailbox_recipient = binding.mailbox_scope.trim().to_ascii_lowercase();
         let queue_policy_logical = format!("{logical}MailQueuePolicy");
-        // Deployment ordering (exact-head review R9): the bucket's
-        // notification must not be created before the queue policy that
-        // authorizes S3 sends — an explicit dependency prevents the
-        // race without a two-phase deployment.
+        // Deployment ordering (exact-head review R9): the queue policy
+        // references the bucket ARN, so CloudFormation already orders
+        // bucket-before-policy; the bucket must NOT also DependOn the
+        // policy — that is the E3004 circular dependency `sam validate
+        // --lint` catches (exact-head review R34). The ordering race the
+        // DependsOn tried to fix belongs to the bucket NOTIFICATION (it
+        // needs the policy's permission for S3 sends), so the explicit
+        // dependency is expressed with a DependsOn on the notification
+        // path via the queue policy attached to the queue the
+        // notification targets — expressed on the ReceiptRule below,
+        // which depends on both the bucket and the queue policy.
         write!(
             resources,
-            "  {bucket_logical}:\n    Type: AWS::S3::Bucket\n    DependsOn: [{queue_policy_logical}]\n    Properties:\n      BucketName: {bucket_name}\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true\n      NotificationConfiguration:\n        QueueConfigurations:\n          - Event: s3:ObjectCreated:*\n            Queue: !GetAtt {queue_logical}.Arn\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: {key_prefix_a}\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-raw-mail\n            Status: Enabled\n            Prefix: {key_prefix_b}\n            ExpirationInDays: {retention_days}\n",
+            "  {bucket_logical}:\n    Type: AWS::S3::Bucket\n    Properties:\n      BucketName: {bucket_name}\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true\n      NotificationConfiguration:\n        QueueConfigurations:\n          - Event: s3:ObjectCreated:*\n            Queue: !GetAtt {queue_logical}.Arn\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: {key_prefix_a}\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-raw-mail\n            Status: Enabled\n            Prefix: {key_prefix_b}\n            ExpirationInDays: {retention_days}\n",
             bucket_logical = bucket_logical,
-            queue_policy_logical = queue_policy_logical,
             bucket_name = yaml_quote(&binding.bucket_name),
             key_prefix_a = yaml_quote(&binding.key_prefix),
             key_prefix_b = yaml_quote(&binding.key_prefix),
@@ -404,15 +410,19 @@ pub fn render_sam_with_inbound_mail(
         .expect("write to String");
         // One shared receipt rule set (review finding 5): every binding
         // adds a rule to the single activated set instead of competing
-        // rule sets; content scanning stays enabled.
+        // rule sets; content scanning stays enabled. The rule depends
+        // on the queue policy (exact-head review R9): S3 event delivery
+        // to the queue must be authorized before mail flows — expressed
+        // here, on the consumer, keeping the graph acyclic (R34).
         let rule_name = format!("{}-inbound-mail", binding.id);
         write!(
             resources,
-            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    Properties:\n      RuleSetName: {}\n      Rule:\n        Name: {}\n        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {}\n",
-            yaml_quote(&shared_rule_set_name),
-            yaml_quote(&rule_name),
-            yaml_quote(&mailbox_recipient),
-            yaml_quote(&binding.key_prefix),
+            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [{queue_policy_logical}]\n    Properties:\n      RuleSetName: {rule_set_name}\n      Rule:\n        Name: {rule_name_value}\n        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {recipient}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {key_prefix_value}\n",
+            queue_policy_logical = queue_policy_logical,
+            rule_set_name = yaml_quote(&shared_rule_set_name),
+            rule_name_value = yaml_quote(&rule_name),
+            recipient = yaml_quote(&mailbox_recipient),
+            key_prefix_value = yaml_quote(&binding.key_prefix),
         )
         .expect("write to String");
     }

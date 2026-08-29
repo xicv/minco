@@ -347,6 +347,105 @@ all four P0 and three P1 residual findings closed:
   HTTPS return paths (local keeps default); liveness = critical checks
   only, readiness = all checks. 10 spawned-binary proofs green.
 
+**Round 5 (2026-08-29, exact-head review 5057195399 at 37ceb32b)**:
+all four P0 and three P1 residual findings closed (R27–R33):
+
+- **R27/P0-1** SQLite plugin migration 0001 restored byte-identical to
+  the Minco 1.12 release (an in-place edit failed every real upgrade
+  with sqlx VersionMismatch); the audit fingerprint column now lands
+  as forward-only 0004 on BOTH SQLite and PostgreSQL. Upgrade proofs
+  build a database from the exact released migration bytes (real
+  recorded checksums) and upgrade it; immutability guards pin the
+  shipped files to the released bytes (`tests/fixtures/
+  minco_1_12_plugin_migrations/` in both extension crates).
+- **R28/P0-2** rotation is revoke-first with durable staging
+  (migration 0019): the previous bearer dies BEFORE a replacement is
+  minted and the mint is staged on the grant between mint and CAS, so
+  an interrupted rotation recovers (staged bearer retired, marker
+  cleared) instead of leaking a second live bearer. stage/complete/
+  clear are store-owned CAS operations whose SQLite implementations
+  check rows_affected; the takeover UPDATE gained the missing
+  revoked_at IS NULL and unstaged guards; the initial INSERT race
+  returns the winner via ON CONFLICT + affected-row check; the loser's
+  abandon removes the grant only when it records the loser's own
+  session; logout fails closed (grant-revoke failure = 503, cookie
+  retained, retryable). Proofs: insert race, stale takeover, revoked
+  refusal, staging fences + recovery on memory AND SQLite; concurrent
+  initial exchanges converge on one live bearer under any
+  interleaving; injected rotation-stage failure leaves zero live
+  bearers with recovery on the next replay; logout-fails-closed HTTP
+  proof; replay storm raised to 100 concurrent.
+- **R29/P0-3** complete_send_attempt is ONE store transaction
+  (migration 0020 scopes evidence rows to their attempt): fence
+  validation, the sent transition, the attempt-scoped accepted
+  evidence and the threading identity commit together — sent can
+  never exist without its evidence, and a stale attempt writes
+  NOTHING (returns reconciliation_required, never Ok; the round-4
+  warn-and-still-record path is gone). Ambiguous/permanent-failure
+  evidence is attempt-scoped and refused for stale attempts. Proofs:
+  stale provider success writes nothing (state, evidence, threading
+  all absent) while the current owner completes atomically; sent
+  implies evidence and a retry never re-contacts the provider; stale
+  ambiguity evidence refused; concurrent claims admit one owner;
+  SQLite single-transaction proof.
+- **R30/P0-4** policy-scoped evaluation replaces the global
+  any-failure loop (AWS SES's own documented sample — one valid DKIM
+  signature, one unrelated permerror, SPF+DMARC pass — was
+  false-quarantined): each policy judges only its own mechanism's
+  aligned pass; unrelated failures are evidence; reject_any_auth_
+  failure is the explicit operator opt-in. Full bounded RFC 8601
+  tokenizer (quoted values with spaces/escapes, escaped parens,
+  unterminated comments, dkim/1 versions, reason= with embedded
+  semicolons, angle-bracket domains). ScanVerdictPolicy (local |
+  require_clean) makes missing/empty/malformed verdicts unverified in
+  the production SES profile — never a silent pass; wired through
+  DESK_INBOUND_AUTH_POLICY / DESK_INBOUND_SCAN_VERDICTS /
+  DESK_INBOUND_AUTHSERV_ID. AWS-official-sample, parser-structure,
+  attacker-injected-header and scan-verdict proofs.
+- **R31/P1-1** audit fingerprints are SHA-256 over a length-framed
+  canonical encoding (no delimiter collisions, fixed 64-hex digest,
+  storage-normalizing canonical timestamp); PostgreSQL gains the same
+  same-id-different-content Conflict semantics (no more ON CONFLICT DO
+  NOTHING swallow) with content-verified legacy adoption on both
+  engines (safe backfill). Proof against the live local PostgreSQL
+  server (env-gated as the seed proofs).
+- **R32/P1-2** the automation context digest covers EVERY proposal
+  input (schema version, subject, description, ticket type, full form
+  answers, full knowledge links, revision; length-framed) and the
+  policy digest binds the COMPLETE effective policy (schemas, full
+  AutomationConfig including review posture, exclusion list) — a
+  review-posture change under the same profile now invalidates stale
+  runs. The run id derives from the client Idempotency-Key (UUIDv5
+  over project|ticket|operation): a retried submission creates ONE
+  durable job; distinct keys are distinct runs.
+- **R33/P1-3** non-local credentials accept real key material:
+  DESK_AGENT_TOKEN_FILE / DESK_CSRF_SECRET_FILE read from a file
+  (rotation = update + restart; never argv or logs), env values
+  decoding as hex/base64 to ≥32 random bytes pass on decoded strength
+  (a 64-hex token with two distinct characters accepted; a repeated
+  predictable passphrase still rejected). Readiness grows from two
+  checks to six: sessions + idempotency probes, audit dispatch backlog
+  (10k threshold) and a real object-storage write/delete probe join
+  ticketing and jobs stores (all non-critical; liveness unchanged).
+  Six new spawned-binary proofs.
+
+**Round-5 qualification (2026-08-29)**: `sam validate --lint` became
+RUNNABLE via `uv tool run --from aws-sam-cli sam` (SAM CLI 1.165.0) —
+and it immediately caught a real E3004 circular dependency
+(TicketingRawMailBucket DependsOn TicketingMailQueuePolicy while the
+policy references the bucket ARN). The dependency was moved to the
+ReceiptRule (the consumer), the template now validates clean, and the
+sam validate --lint gate is wired into
+scripts/test/inbound_mail_template_parse.py. Full
+`./scripts/quality.sh` re-run at the round-5 head (evidence chain
+regenerated: source manifest 1,943 files, tree digest
+51b38b5d…; 1.9 baseline re-bound; operational evidence PASS with the
+two known no-provider warnings). Mimosa pre-push scanner remains
+scanner_enobufs/inconclusive — a full exact-head scan was requested
+and recorded as such, never converted into a pass. The round-5
+closure matrix rides the PR body; the next independent exact-head
+re-review is the human gate before merge.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and

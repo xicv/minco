@@ -252,8 +252,12 @@ class NonLocalFailClosedTests(unittest.TestCase):
         self._assert_starts({"DESK_AGENT_TOKEN": "ab" * 32})
 
     def test_base64_secret_is_accepted(self) -> None:
+        # Standard base64 decoding to exactly 32 bytes of material
+        # (deliberately low-entropy fixture bytes; strength is judged on
+        # the decoded length, and the fixture itself must stay below
+        # gitleaks' generic-api-key entropy floor).
         self._assert_starts(
-            {"DESK_CSRF_SECRET": "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGk"})
+            {"DESK_CSRF_SECRET": "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE="})
 
     def test_short_hex_secret_is_rejected(self) -> None:
         result = self._run({"DESK_AGENT_TOKEN": "ab" * 16})

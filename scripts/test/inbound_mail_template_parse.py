@@ -92,8 +92,57 @@ class InboundMailTemplateParseTests(unittest.TestCase):
         self.assertEqual(rule["TlsPolicy"], "Require")
         self.assertEqual(rule["ScanEnabled"], True)
         self.assertEqual(rule["Recipients"], ["support@example.test"])
-        # The bucket depends on the queue policy for ordering.
-        self.assertIn("TicketingMailQueuePolicy", resources["TicketingRawMailBucket"]["DependsOn"])
+        # The receipt rule (the consumer of the queue policy) carries the
+        # ordering dependency; the bucket must NOT depend on the policy
+        # that references its ARN — that is the E3004 circular dependency
+        # `sam validate --lint` catches (exact-head review R34).
+        self.assertNotIn(
+            "DependsOn",
+            resources["TicketingRawMailBucket"],
+            "the bucket must not depend on the policy referencing its ARN",
+        )
+        self.assertIn(
+            "TicketingMailQueuePolicy",
+            resources["TicketingReceiptRule"]["DependsOn"],
+        )
+
+    def test_sam_validate_lint_accepts_the_template(self) -> None:
+        """The full cfn-lint pass (exact-head review R34): `sam validate
+        --lint` runs the CloudFormation resource specification checks the
+        structural parse cannot. The SAM CLI is materialized through
+        `uv tool run` so the gate is reproducible."""
+        import shutil
+        import tempfile
+
+        template = render_template()
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", delete=False
+        ) as handle:
+            handle.write(template)
+            path = handle.name
+        command = [
+            "uv",
+            "tool",
+            "run",
+            "--from",
+            "aws-sam-cli",
+            "sam",
+            "validate",
+            "--lint",
+            "--template",
+            path,
+        ]
+        if shutil.which("uv") is None:
+            self.skipTest("uv is not available to materialize the SAM CLI")
+        result = subprocess.run(
+            command, capture_output=True, text=True, timeout=300
+        )
+        combined = result.stdout + result.stderr
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"sam validate --lint rejected the template:\n{combined}",
+        )
 
 
 if __name__ == "__main__":

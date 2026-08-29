@@ -102,7 +102,7 @@ async fn composed_desk_serves_health_and_support_entry() {
                 Request::get(path)
                     .extension(minco_http::Principal {
                         subject: "agent-proof".into(),
-                        permissions: ["ticketing.agent-console".into()].into_iter().collect(),
+                        permissions: std::iter::once("ticketing.agent-console".into()).collect(),
                         claims: std::collections::BTreeMap::default(),
                     })
                     .body(Body::empty())

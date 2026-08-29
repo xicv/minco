@@ -1501,7 +1501,7 @@ impl TicketingService {
         }
         #[cfg(not(feature = "jobs"))]
         {
-            let _ = (id, now);
+            let _ = (id, client_operation_id, now);
             Err(TicketingServiceError::JobsUnavailable)
         }
     }

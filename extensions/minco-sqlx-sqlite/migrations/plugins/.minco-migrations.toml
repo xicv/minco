@@ -20,3 +20,8 @@ reversible = false
 version = 3
 risk = "additive"
 reversible = false
+
+[[migration]]
+version = 4
+risk = "additive"
+reversible = false
