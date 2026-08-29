@@ -1056,49 +1056,36 @@ async fn deliver_public_reply_by_mail(
             // own message identity: SES overwrites caller Message-IDs, so
             // the provider id is the correlation truth and the logical id
             // remains the stable tag (exact-head review R4).
+            //
+            // The completion is ONE store transaction (exact-head review
+            // R29/P0-3): fence validation, the sent transition, the
+            // attempt-scoped accepted evidence and the outbound threading
+            // identity commit together — `sent` can never exist without
+            // its evidence, and a stale attempt writes NOTHING (fence
+            // loss is recovery, not warning, not success).
             let attempt = current_attempt
                 .ok_or_else(|| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
-            let fenced = store
-                .resolve_send_intent_fenced(
+            let completion = store
+                .complete_send_attempt(
                     &logical_send_id,
                     attempt,
-                    SendIntentState::Sent,
-                    Some(receipt.provider_message_id.clone()),
-                    Utc::now(),
-                )
-                .await
-                .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
-            if !fenced {
-                // The attempt fence was lost — a newer worker owns this
-                // send. This worker's provider acceptance is recorded in
-                // evidence but the state machine is the other worker's.
-                tracing::warn!(
-                    "send attempt fence lost after provider acceptance; \
-                     evidence still recorded"
-                );
-            }
-            store
-                .append_outbound_evidence(OutboundDeliveryEvidence {
-                    project_id: command.project_id.clone(),
-                    ticket_id: command.ticket_id,
-                    message_id,
-                    kind: OutboundEvidenceKind::Accepted,
-                    provider: receipt.transport.clone(),
-                    provider_message_id: receipt.provider_message_id.clone(),
-                    feedback: None,
-                    failure_kind: None,
-                    recorded_at: now,
-                })
-                .await
-                .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
-            // Register the outbound threading identity so an emailed reply
-            // referencing our Message-ID resolves to this ticket
-            // (ADR-0058 resolution, review finding 8). Registration is
-            // idempotent; a failure here is retriable and never
-            // re-triggers a send because acceptance is already recorded.
-            store
-                .register_outbound_identity(
-                    &command.project_id,
+                    &receipt.provider_message_id,
+                    OutboundDeliveryEvidence {
+                        project_id: command.project_id.clone(),
+                        ticket_id: command.ticket_id,
+                        message_id,
+                        kind: OutboundEvidenceKind::Accepted,
+                        provider: receipt.transport.clone(),
+                        provider_message_id: receipt.provider_message_id.clone(),
+                        feedback: None,
+                        failure_kind: None,
+                        attempt_id: None,
+                        attempt_sequence: None,
+                        recorded_at: now,
+                    },
+                    // Outbound threading identity so an emailed reply
+                    // referencing our Message-ID resolves to this ticket
+                    // (ADR-0058 resolution, review finding 8).
                     crate::ExternalMessageIdentity {
                         project_id: command.project_id.clone(),
                         provider: receipt.transport.clone(),
@@ -1114,11 +1101,26 @@ async fn deliver_public_reply_by_mail(
                         in_reply_to: None,
                         references: Vec::new(),
                     },
-                    command.ticket_id,
+                    Utc::now(),
                 )
                 .await
                 .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
-            Ok(())
+            match completion {
+                crate::CompleteSendOutcome::Completed => Ok(()),
+                crate::CompleteSendOutcome::FenceLost => {
+                    // A newer worker owns this send: this worker's
+                    // provider acceptance polluted nothing and the next
+                    // run observes the current owner's authoritative
+                    // state (sent → done, in-flight → reconciliation).
+                    tracing::warn!(
+                        "send attempt fence lost after provider acceptance; \
+                         no state, evidence or threading was written"
+                    );
+                    Err(JobExecutionFailure::permanent(
+                        "ticketing.notification_reconciliation_required",
+                    ))
+                }
+            }
         }
         Err(error) => match error.retry_advice() {
             MailRetryAdvice::SafeAfterBackoff => {
@@ -1148,81 +1150,115 @@ async fn deliver_public_reply_by_mail(
                 ))
             }
             MailRetryAdvice::ReconcileBeforeRetry => {
-                // Ambiguous result: the intent holds in recovery and the
-                // evidence records the fact; later attempts fail closed
-                // until explicit reconciliation — never a blind retry
-                // (exact-head review R4).
-                if let Some(attempt) = current_attempt
-                    && !store
-                        .resolve_send_intent_fenced(
-                            &logical_send_id,
-                            attempt,
-                            SendIntentState::RecoveryRequired,
-                            None,
-                            Utc::now(),
-                        )
-                        .await
-                        .map_err(|_| {
-                            JobExecutionFailure::retryable("ticketing.evidence_unavailable")
-                        })?
-                {
-                    // Fence lost: the newer owner decides the state; this
-                    // worker still records its evidence.
-                    tracing::warn!("ambiguity recorded on a lost send fence");
-                }
-                store
-                    .append_outbound_evidence(OutboundDeliveryEvidence {
-                        project_id: command.project_id.clone(),
-                        ticket_id: command.ticket_id,
-                        message_id,
-                        kind: OutboundEvidenceKind::Ambiguous,
-                        provider: error.transport.clone(),
-                        provider_message_id: String::new(),
-                        feedback: None,
-                        failure_kind: Some(mail_failure_kind_name(&error)),
-                        recorded_at: now,
-                    })
+                // Ambiguous result: the evidence records the fact while
+                // the fence is still held, then the intent holds in
+                // recovery; later attempts fail closed until explicit
+                // reconciliation — never a blind retry (exact-head
+                // reviews R4 and R29/P0-3). Evidence is attempt-scoped:
+                // a stale attempt's report carries its own attempt id
+                // and never masquerades as the current attempt's
+                // outcome.
+                let Some(attempt) = current_attempt else {
+                    return Err(JobExecutionFailure::retryable(
+                        "ticketing.notification_ambiguous",
+                    ));
+                };
+                let recorded = store
+                    .append_outbound_evidence_fenced(
+                        &logical_send_id,
+                        attempt,
+                        OutboundDeliveryEvidence {
+                            project_id: command.project_id.clone(),
+                            ticket_id: command.ticket_id,
+                            message_id,
+                            kind: OutboundEvidenceKind::Ambiguous,
+                            provider: error.transport.clone(),
+                            provider_message_id: String::new(),
+                            feedback: None,
+                            failure_kind: Some(mail_failure_kind_name(&error)),
+                            attempt_id: None,
+                            attempt_sequence: None,
+                            recorded_at: now,
+                        },
+                    )
                     .await
                     .map_err(|_| {
                         JobExecutionFailure::retryable("ticketing.evidence_unavailable")
                     })?;
+                if !recorded {
+                    // Fence lost: the newer owner decides state AND
+                    // evidence; this worker writes nothing.
+                    tracing::warn!("ambiguity observed on a lost send fence; nothing recorded");
+                    return Err(JobExecutionFailure::retryable(
+                        "ticketing.notification_ambiguous",
+                    ));
+                }
+                if !store
+                    .resolve_send_intent_fenced(
+                        &logical_send_id,
+                        attempt,
+                        SendIntentState::RecoveryRequired,
+                        None,
+                        Utc::now(),
+                    )
+                    .await
+                    .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?
+                {
+                    tracing::warn!("ambiguous evidence recorded; state transition lost the fence");
+                }
                 Err(JobExecutionFailure::retryable(
                     "ticketing.notification_ambiguous",
                 ))
             }
             MailRetryAdvice::Never => {
-                if let Some(attempt) = current_attempt
-                    && !store
-                        .resolve_send_intent_fenced(
-                            &logical_send_id,
-                            attempt,
-                            SendIntentState::FailedNoSend,
-                            None,
-                            Utc::now(),
-                        )
-                        .await
-                        .map_err(|_| {
-                            JobExecutionFailure::retryable("ticketing.evidence_unavailable")
-                        })?
-                {
-                    tracing::warn!("permanent failure recorded on a lost send fence");
-                }
-                store
-                    .append_outbound_evidence(OutboundDeliveryEvidence {
-                        project_id: command.project_id.clone(),
-                        ticket_id: command.ticket_id,
-                        message_id,
-                        kind: OutboundEvidenceKind::PermanentFailure,
-                        provider: error.transport.clone(),
-                        provider_message_id: String::new(),
-                        feedback: None,
-                        failure_kind: Some(mail_failure_kind_name(&error)),
-                        recorded_at: now,
-                    })
+                let Some(attempt) = current_attempt else {
+                    return Err(JobExecutionFailure::permanent(
+                        "ticketing.notification_permanent",
+                    ));
+                };
+                let recorded = store
+                    .append_outbound_evidence_fenced(
+                        &logical_send_id,
+                        attempt,
+                        OutboundDeliveryEvidence {
+                            project_id: command.project_id.clone(),
+                            ticket_id: command.ticket_id,
+                            message_id,
+                            kind: OutboundEvidenceKind::PermanentFailure,
+                            provider: error.transport.clone(),
+                            provider_message_id: String::new(),
+                            feedback: None,
+                            failure_kind: Some(mail_failure_kind_name(&error)),
+                            attempt_id: None,
+                            attempt_sequence: None,
+                            recorded_at: now,
+                        },
+                    )
                     .await
                     .map_err(|_| {
                         JobExecutionFailure::retryable("ticketing.evidence_unavailable")
                     })?;
+                if !recorded {
+                    tracing::warn!(
+                        "permanent failure observed on a lost send fence; nothing recorded"
+                    );
+                    return Err(JobExecutionFailure::permanent(
+                        "ticketing.notification_permanent",
+                    ));
+                }
+                if !store
+                    .resolve_send_intent_fenced(
+                        &logical_send_id,
+                        attempt,
+                        SendIntentState::FailedNoSend,
+                        None,
+                        Utc::now(),
+                    )
+                    .await
+                    .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?
+                {
+                    tracing::warn!("failure evidence recorded; state transition lost the fence");
+                }
                 Err(JobExecutionFailure::permanent(
                     "ticketing.notification_permanent",
                 ))
@@ -2953,5 +2989,310 @@ mod tests {
             "the reply must land on the moved ticket"
         );
         assert_eq!(ticket.revision, revision + 2);
+    }
+
+    #[tokio::test]
+    async fn provider_success_on_a_lost_fence_writes_nothing_and_never_succeeds() {
+        // Exact-head review R29/P0-3: a stale worker whose attempt fence
+        // was lost (a newer worker re-claimed after lease expiry) must
+        // not write evidence, must not register threading identity, must
+        // not resolve state — and the job must return reconciliation,
+        // never success. Fence loss is recovery, not warning.
+        let (_services, _transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "ticketing:public-reply:project-a:{}:{}",
+                ticket.id, message.id
+            )
+            .as_bytes(),
+        )
+        .to_string();
+        let service = TicketingStoreService::new(store.clone());
+        store
+            .put_send_intent_for_tests(
+                &logical_send_id,
+                ticket.id,
+                message.id,
+                SendIntentState::PendingSend,
+            )
+            .await;
+        // Worker A claims, then loses the fence to worker B (re-claim on
+        // the expired lease).
+        let attempt_a = service
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, Utc::now())
+            .await
+            .unwrap()
+            .expect("worker A claims");
+        service
+            .resolve_send_intent(
+                &logical_send_id,
+                SendIntentState::PendingSend,
+                None,
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        let attempt_b = service
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, Utc::now())
+            .await
+            .unwrap()
+            .expect("worker B claims");
+
+        // Worker A's provider call SUCCEEDED — but its completion is
+        // refused wholesale.
+        let evidence_before = store.all_outbound_evidence().await.len();
+        let outcome = service
+            .complete_send_attempt(
+                &logical_send_id,
+                attempt_a,
+                "provider-stale",
+                OutboundDeliveryEvidence {
+                    project_id: "project-a".into(),
+                    ticket_id: ticket.id,
+                    message_id: message.id,
+                    kind: OutboundEvidenceKind::Accepted,
+                    provider: "scripted".into(),
+                    provider_message_id: "provider-stale".into(),
+                    feedback: None,
+                    failure_kind: None,
+                    attempt_id: None,
+                    attempt_sequence: None,
+                    recorded_at: Utc::now(),
+                },
+                crate::ExternalMessageIdentity {
+                    project_id: "project-a".into(),
+                    provider: "scripted".into(),
+                    mailbox_scope: "outbound".into(),
+                    external_id: "stale-external".into(),
+                    content_sha256: "stale".into(),
+                    raw_message_object_key: None,
+                    internet_message_id: Some("stale-external".into()),
+                    in_reply_to: None,
+                    references: Vec::new(),
+                },
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(outcome, crate::CompleteSendOutcome::FenceLost);
+        assert_eq!(
+            store.all_outbound_evidence().await.len(),
+            evidence_before,
+            "a stale attempt appends no evidence"
+        );
+        assert!(
+            service
+                .find_ticket_by_message_identity("project-a", "scripted", "stale-external")
+                .await
+                .unwrap()
+                .is_none(),
+            "a stale attempt registers no threading identity"
+        );
+        // Worker B still owns the state machine and completes cleanly,
+        // atomically carrying evidence AND threading.
+        let outcome_b = service
+            .complete_send_attempt(
+                &logical_send_id,
+                attempt_b,
+                "provider-fresh",
+                OutboundDeliveryEvidence {
+                    project_id: "project-a".into(),
+                    ticket_id: ticket.id,
+                    message_id: message.id,
+                    kind: OutboundEvidenceKind::Accepted,
+                    provider: "scripted".into(),
+                    provider_message_id: "provider-fresh".into(),
+                    feedback: None,
+                    failure_kind: None,
+                    attempt_id: None,
+                    attempt_sequence: None,
+                    recorded_at: Utc::now(),
+                },
+                crate::ExternalMessageIdentity {
+                    project_id: "project-a".into(),
+                    provider: "scripted".into(),
+                    mailbox_scope: "outbound".into(),
+                    external_id: "fresh-external".into(),
+                    content_sha256: "fresh".into(),
+                    raw_message_object_key: None,
+                    internet_message_id: Some("fresh-external".into()),
+                    in_reply_to: None,
+                    references: Vec::new(),
+                },
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(outcome_b, crate::CompleteSendOutcome::Completed);
+        let evidence = store.all_outbound_evidence().await;
+        assert_eq!(evidence.len(), evidence_before + 1);
+        assert_eq!(evidence.last().unwrap().attempt_id, Some(attempt_b));
+        assert_eq!(
+            evidence.last().unwrap().attempt_sequence,
+            Some(2),
+            "evidence carries the current attempt's sequence"
+        );
+        assert!(
+            service
+                .find_ticket_by_message_identity("project-a", "scripted", "fresh-external")
+                .await
+                .unwrap()
+                .is_some(),
+            "the winning completion registered the threading identity atomically"
+        );
+    }
+
+    #[tokio::test]
+    async fn sent_state_implies_evidence_and_threading_and_retry_never_resends() {
+        // Exact-head review R29/P0-3: because the sent transition, the
+        // accepted evidence and the threading identity commit in ONE
+        // transaction, a retry observing `sent` can return Ok knowing
+        // the evidence exists — and it must not contact the provider
+        // again.
+        let (services, transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 1);
+        let evidence = store.all_outbound_evidence().await;
+        assert_eq!(evidence.len(), 1, "sent implies its accepted evidence");
+        assert_eq!(evidence[0].kind, OutboundEvidenceKind::Accepted);
+        assert!(
+            evidence[0].attempt_id.is_some() && evidence[0].attempt_sequence.is_some(),
+            "the accepted evidence is attempt-scoped"
+        );
+        // The retry observes sent and returns Ok with zero provider
+        // contact — the evidence is already there, nothing to repair.
+        services
+            .submit_inline(deliver_envelope(&ticket, &message))
+            .await
+            .unwrap();
+        assert_eq!(
+            transport.submit_count().await,
+            1,
+            "a sent intent never re-contacts the provider"
+        );
+        assert_eq!(store.all_outbound_evidence().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn ambiguous_evidence_from_a_stale_attempt_is_refused() {
+        // Exact-head review R29/P0-3: a stale attempt's ambiguity report
+        // is refused — the current attempt's evidence cannot be
+        // polluted; only the current owner records outcomes.
+        let (_services, _transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "ticketing:public-reply:project-a:{}:{}",
+                ticket.id, message.id
+            )
+            .as_bytes(),
+        )
+        .to_string();
+        let service = TicketingStoreService::new(store.clone());
+        store
+            .put_send_intent_for_tests(
+                &logical_send_id,
+                ticket.id,
+                message.id,
+                SendIntentState::PendingSend,
+            )
+            .await;
+        let stale_attempt = service
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, Utc::now())
+            .await
+            .unwrap()
+            .unwrap();
+        service
+            .resolve_send_intent(
+                &logical_send_id,
+                SendIntentState::PendingSend,
+                None,
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        let current_attempt = service
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, Utc::now())
+            .await
+            .unwrap()
+            .unwrap();
+
+        let ambiguity = |attempt: Option<Uuid>| OutboundDeliveryEvidence {
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            message_id: message.id,
+            kind: OutboundEvidenceKind::Ambiguous,
+            provider: "scripted".into(),
+            provider_message_id: String::new(),
+            feedback: None,
+            failure_kind: Some("ambiguous".into()),
+            attempt_id: attempt,
+            attempt_sequence: None,
+            recorded_at: Utc::now(),
+        };
+        assert!(
+            !service
+                .append_outbound_evidence_fenced(&logical_send_id, stale_attempt, ambiguity(None))
+                .await
+                .unwrap(),
+            "a stale attempt's evidence is refused"
+        );
+        assert!(store.all_outbound_evidence().await.is_empty());
+        assert!(
+            service
+                .append_outbound_evidence_fenced(&logical_send_id, current_attempt, ambiguity(None))
+                .await
+                .unwrap(),
+            "the current attempt records its outcome"
+        );
+        let evidence = store.all_outbound_evidence().await;
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(evidence[0].attempt_id, Some(current_attempt));
+    }
+
+    #[tokio::test]
+    async fn concurrent_claims_admit_exactly_one_attempt_owner() {
+        // Exact-head review R29/P0-3: two workers racing the attempt
+        // claim — exactly one owns the provider contact.
+        let (_services, _transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "ticketing:public-reply:project-a:{}:{}",
+                ticket.id, message.id
+            )
+            .as_bytes(),
+        )
+        .to_string();
+        let store_service = Arc::new(TicketingStoreService::new(store.clone()));
+        store
+            .put_send_intent_for_tests(
+                &logical_send_id,
+                ticket.id,
+                message.id,
+                SendIntentState::PendingSend,
+            )
+            .await;
+        let (a, b) = tokio::join!(
+            store_service.claim_send_attempt(
+                &logical_send_id,
+                SendIntentState::PendingSend,
+                Utc::now()
+            ),
+            store_service.claim_send_attempt(
+                &logical_send_id,
+                SendIntentState::PendingSend,
+                Utc::now()
+            ),
+        );
+        let owners = [a.unwrap(), b.unwrap()]
+            .iter()
+            .filter(|claim| claim.is_some())
+            .count();
+        assert_eq!(owners, 1, "exactly one worker claims the attempt");
     }
 }

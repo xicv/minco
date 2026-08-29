@@ -1077,6 +1077,8 @@ impl TicketingService {
                 provider_message_id: provider_message_id.to_owned(),
                 feedback: Some(feedback),
                 failure_kind: None,
+                attempt_id: None,
+                attempt_sequence: None,
                 recorded_at: now,
             })
             .await?;
@@ -1151,6 +1153,8 @@ impl TicketingService {
                 provider_message_id: provider_message_id.to_owned(),
                 feedback: None,
                 failure_kind: (!accepted).then(|| "reconciled_not_sent".to_owned()),
+                attempt_id: None,
+                attempt_sequence: None,
                 recorded_at: now,
             })
             .await?;

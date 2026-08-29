@@ -1,8 +1,8 @@
 use crate::{
     AgentMacro, AtomicAssignmentRequest, AutomationProposal, AutomationProposalState,
-    Clarification, ClarificationReason, ClarificationState, ConsumeHandoffRequest,
-    ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity, CreateTicketInput,
-    DeliveryFeedbackKind, ExternalMessageIdentity, ExternalMessageIngestResult,
+    Clarification, ClarificationReason, ClarificationState, CompleteSendOutcome,
+    ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity,
+    CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity, ExternalMessageIngestResult,
     IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OperationReceipt,
     OutboundDeliveryEvidence, OutboundEvidenceKind, SendIntent, SendIntentState,
     SessionExchangeGrant, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
@@ -1137,6 +1137,102 @@ impl TicketingStore for SqliteTicketingStore {
         Ok(updated.rows_affected() == 1)
     }
 
+    async fn complete_send_attempt(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        provider_message_id: &str,
+        evidence: OutboundDeliveryEvidence,
+        threading: ExternalMessageIdentity,
+        now: DateTime<Utc>,
+    ) -> Result<CompleteSendOutcome, TicketStoreError> {
+        // One SQLite transaction (exact-head review R29/P0-3): the
+        // fence check, sent transition, attempt-scoped evidence and
+        // threading identity commit together — `sent` can never exist
+        // without its evidence, and a stale attempt writes nothing.
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let sequence: Option<i64> = sqlx::query_scalar(
+            "SELECT attempt_sequence FROM ticketing_send_intents
+              WHERE logical_send_id = ? AND state = 'sending' AND attempt_id = ?",
+        )
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let Some(sequence) = sequence else {
+            transaction.rollback().await.map_err(infrastructure)?;
+            return Ok(CompleteSendOutcome::FenceLost);
+        };
+        let mut scoped = evidence;
+        scoped.attempt_id = Some(attempt_id);
+        scoped.attempt_sequence = Some(u64::try_from(sequence).unwrap_or(0));
+        let transitioned = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = 'sent', provider_message_id = ?, attempt_id = NULL,
+                    lease_expires_at = NULL, updated_at = ?
+              WHERE logical_send_id = ? AND state = 'sending' AND attempt_id = ?",
+        )
+        .bind(provider_message_id)
+        .bind(now.to_rfc3339())
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        if transitioned.rows_affected() != 1 {
+            transaction.rollback().await.map_err(infrastructure)?;
+            return Ok(CompleteSendOutcome::FenceLost);
+        }
+        insert_evidence_row(&mut *transaction, &scoped).await?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO ticketing_external_messages
+             (project_id, provider, mailbox_scope, external_id, content_sha256, identity_json, ticket_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&threading.project_id)
+        .bind(&threading.provider)
+        .bind(&threading.mailbox_scope)
+        .bind(&threading.external_id)
+        .bind(&threading.content_sha256)
+        .bind(serde_json::to_string(&threading).map_err(encoding)?)
+        .bind(scoped.ticket_id.to_string())
+        .bind(now.to_rfc3339())
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(CompleteSendOutcome::Completed)
+    }
+
+    async fn append_outbound_evidence_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<bool, TicketStoreError> {
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let sequence: Option<i64> = sqlx::query_scalar(
+            "SELECT attempt_sequence FROM ticketing_send_intents
+              WHERE logical_send_id = ? AND attempt_id = ?",
+        )
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let Some(sequence) = sequence else {
+            transaction.rollback().await.map_err(infrastructure)?;
+            return Ok(false);
+        };
+        let mut scoped = evidence;
+        scoped.attempt_id = Some(attempt_id);
+        scoped.attempt_sequence = Some(u64::try_from(sequence).unwrap_or(0));
+        insert_evidence_row(&mut *transaction, &scoped).await?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(true)
+    }
+
     async fn send_intent(
         &self,
         logical_send_id: &str,
@@ -1542,39 +1638,7 @@ impl TicketingStore for SqliteTicketingStore {
         &self,
         evidence: OutboundDeliveryEvidence,
     ) -> Result<(), TicketStoreError> {
-        let kind = match evidence.kind {
-            OutboundEvidenceKind::Accepted => "accepted",
-            OutboundEvidenceKind::Ambiguous => "ambiguous",
-            OutboundEvidenceKind::PermanentFailure => "permanent_failure",
-            OutboundEvidenceKind::Feedback => "feedback",
-        };
-        let feedback = evidence.feedback.map(|feedback| match feedback {
-            DeliveryFeedbackKind::Bounce => "bounce",
-            DeliveryFeedbackKind::Complaint => "complaint",
-            DeliveryFeedbackKind::Delay => "delay",
-        });
-        sqlx::query(
-            "INSERT INTO ticketing_delivery_evidence
-                 (project_id, ticket_id, message_id, kind, provider, provider_message_id,
-                  feedback, failure_kind, recorded_at, evidence_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (project_id, ticket_id, message_id, recorded_at, kind, provider_message_id)
-                 DO NOTHING",
-        )
-        .bind(&evidence.project_id)
-        .bind(evidence.ticket_id.to_string())
-        .bind(evidence.message_id.to_string())
-        .bind(kind)
-        .bind(&evidence.provider)
-        .bind(&evidence.provider_message_id)
-        .bind(feedback)
-        .bind(&evidence.failure_kind)
-        .bind(evidence.recorded_at.to_rfc3339())
-        .bind(serde_json::to_string(&evidence).map_err(encoding)?)
-        .execute(&self.pool)
-        .await
-        .map_err(infrastructure)?;
-        Ok(())
+        insert_evidence_row(&self.pool, &evidence).await
     }
 
     async fn outbound_evidence(
@@ -2678,6 +2742,58 @@ fn infrastructure(error: impl std::fmt::Display) -> TicketStoreError {
     TicketStoreError::Infrastructure(error.to_string())
 }
 
+/// Inserts one delivery-evidence row (idempotent on the natural key),
+/// binding the attempt scope columns (exact-head review R29/P0-3).
+/// Works against the pool or inside a transaction so
+/// `complete_send_attempt` commits evidence atomically with the state.
+async fn insert_evidence_row<'e, E>(
+    executor: E,
+    evidence: &OutboundDeliveryEvidence,
+) -> Result<(), TicketStoreError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    let kind = match evidence.kind {
+        OutboundEvidenceKind::Accepted => "accepted",
+        OutboundEvidenceKind::Ambiguous => "ambiguous",
+        OutboundEvidenceKind::PermanentFailure => "permanent_failure",
+        OutboundEvidenceKind::Feedback => "feedback",
+    };
+    let feedback = evidence.feedback.map(|feedback| match feedback {
+        DeliveryFeedbackKind::Bounce => "bounce",
+        DeliveryFeedbackKind::Complaint => "complaint",
+        DeliveryFeedbackKind::Delay => "delay",
+    });
+    sqlx::query(
+        "INSERT INTO ticketing_delivery_evidence
+             (project_id, ticket_id, message_id, kind, provider, provider_message_id,
+              feedback, failure_kind, recorded_at, attempt_id, attempt_sequence, evidence_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (project_id, ticket_id, message_id, recorded_at, kind, provider_message_id)
+             DO NOTHING",
+    )
+    .bind(&evidence.project_id)
+    .bind(evidence.ticket_id.to_string())
+    .bind(evidence.message_id.to_string())
+    .bind(kind)
+    .bind(&evidence.provider)
+    .bind(&evidence.provider_message_id)
+    .bind(feedback)
+    .bind(&evidence.failure_kind)
+    .bind(evidence.recorded_at.to_rfc3339())
+    .bind(evidence.attempt_id.map(|attempt| attempt.to_string()))
+    .bind(
+        evidence
+            .attempt_sequence
+            .map(|sequence| i64::try_from(sequence).unwrap_or(0)),
+    )
+    .bind(serde_json::to_string(evidence).map_err(encoding)?)
+    .execute(executor)
+    .await
+    .map_err(infrastructure)?;
+    Ok(())
+}
+
 fn encoding(error: impl std::fmt::Display) -> TicketStoreError {
     TicketStoreError::Infrastructure(format!("ticketing persisted JSON is invalid: {error}"))
 }
@@ -3303,6 +3419,8 @@ mod tests {
                 provider_message_id: String::new(),
                 feedback: None,
                 failure_kind: Some("ambiguous".into()),
+                attempt_id: None,
+                attempt_sequence: None,
                 recorded_at: now,
             })
             .await
@@ -3316,6 +3434,8 @@ mod tests {
             provider_message_id: "provider-1".into(),
             feedback: None,
             failure_kind: None,
+            attempt_id: None,
+            attempt_sequence: None,
             recorded_at: now + TimeDelta::seconds(1),
         };
         sqlite
@@ -4359,5 +4479,166 @@ mod tests {
                 .unwrap()
         );
         assert!(sqlite.session_exchange_grant(key).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn sqlite_send_completion_is_atomic_and_attempt_fenced() {
+        // Exact-head review R29/P0-3: on SQLite the sent transition, the
+        // attempt-scoped accepted evidence and the threading identity
+        // commit in ONE transaction; a stale attempt commits nothing.
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let mut ticket = seeded_conversation_ticket(now);
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let message = ticket
+            .reply_as_agent_message("agent-1", "Your fix is live.", now)
+            .unwrap();
+        let logical_send_id = format!(
+            "ticketing:public-reply:project-a:{}:{}",
+            ticket.id, message.id
+        );
+        // Seed a reconciled no-send: claim creates the intent in
+        // sending, the unfenced reconciliation resolver parks it in
+        // pending_send.
+        sqlite
+            .claim_send_intent(SendIntent {
+                logical_send_id: logical_send_id.clone(),
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                message_id: message.id,
+                state: SendIntentState::Sending,
+                provider_message_id: None,
+                updated_at: now,
+                created_at: now,
+                attempt_id: None,
+                attempt_sequence: 0,
+                lease_expires_at: None,
+            })
+            .await
+            .unwrap();
+        sqlite
+            .resolve_send_intent(&logical_send_id, SendIntentState::PendingSend, None, now)
+            .await
+            .unwrap();
+
+        // Worker A claims; the lease expires; worker B re-claims.
+        let stale_attempt = sqlite
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, now)
+            .await
+            .unwrap()
+            .unwrap();
+        sqlite
+            .resolve_send_intent(&logical_send_id, SendIntentState::PendingSend, None, now)
+            .await
+            .unwrap();
+        let current_attempt = sqlite
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, now)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let accepted = || OutboundDeliveryEvidence {
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            message_id: message.id,
+            kind: OutboundEvidenceKind::Accepted,
+            provider: "scripted".into(),
+            provider_message_id: "provider-1".into(),
+            feedback: None,
+            failure_kind: None,
+            attempt_id: None,
+            attempt_sequence: None,
+            recorded_at: now,
+        };
+        let threading = || ExternalMessageIdentity {
+            project_id: "project-a".into(),
+            provider: "scripted".into(),
+            mailbox_scope: "outbound".into(),
+            external_id: "provider-1".into(),
+            content_sha256: "content".into(),
+            raw_message_object_key: None,
+            internet_message_id: Some("<stable@mail.example.test>".into()),
+            in_reply_to: None,
+            references: Vec::new(),
+        };
+
+        // The stale attempt's completion writes NOTHING.
+        assert_eq!(
+            sqlite
+                .complete_send_attempt(
+                    &logical_send_id,
+                    stale_attempt,
+                    "provider-1",
+                    accepted(),
+                    threading(),
+                    now,
+                )
+                .await
+                .unwrap(),
+            CompleteSendOutcome::FenceLost
+        );
+        assert!(
+            sqlite
+                .outbound_evidence("project-a", ticket.id, message.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            sqlite
+                .send_intent(&logical_send_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .state,
+            SendIntentState::Sending
+        );
+
+        // The current attempt completes atomically: state, evidence and
+        // threading all become visible together.
+        assert_eq!(
+            sqlite
+                .complete_send_attempt(
+                    &logical_send_id,
+                    current_attempt,
+                    "provider-1",
+                    accepted(),
+                    threading(),
+                    now,
+                )
+                .await
+                .unwrap(),
+            CompleteSendOutcome::Completed
+        );
+        let intent = sqlite.send_intent(&logical_send_id).await.unwrap().unwrap();
+        assert_eq!(intent.state, SendIntentState::Sent);
+        assert_eq!(intent.provider_message_id.as_deref(), Some("provider-1"));
+        let evidence = sqlite
+            .outbound_evidence("project-a", ticket.id, message.id)
+            .await
+            .unwrap();
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(evidence[0].attempt_id, Some(current_attempt));
+        assert_eq!(evidence[0].attempt_sequence, Some(2));
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity(
+                    "project-a",
+                    "scripted",
+                    "<stable@mail.example.test>"
+                )
+                .await
+                .unwrap()
+                .is_some(),
+            "the threading identity committed in the same transaction"
+        );
     }
 }

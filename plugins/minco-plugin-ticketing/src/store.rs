@@ -73,6 +73,14 @@ pub struct OutboundDeliveryEvidence {
     /// `permanent_failure` rows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_kind: Option<String>,
+    /// Attempt scope of the worker that produced this row (exact-head
+    /// review R29/P0-3): current-attempt evidence, stale-attempt
+    /// reports and reconciliation output stay distinguishable. `None`
+    /// only on rows written before the attempt-scoped writers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt_sequence: Option<u64>,
     pub recorded_at: DateTime<Utc>,
 }
 
@@ -357,6 +365,17 @@ pub enum SendIntentState {
     FailedNoSend,
 }
 
+/// Outcome of [`TicketingStore::complete_send_attempt`] (exact-head
+/// review R29/P0-3).
+///
+/// `FenceLost` means NO writes happened — the caller must treat it as
+/// a stale attempt requiring reconciliation, never as success.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompleteSendOutcome {
+    Completed,
+    FenceLost,
+}
+
 #[derive(Debug, Clone)]
 pub struct AppendTicketMessageRequest {
     pub project_id: String,
@@ -598,6 +617,36 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         to: SendIntentState,
         provider_message_id: Option<String>,
         now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError>;
+
+    /// Transactional success completion (exact-head review R29/P0-3):
+    /// in ONE store transaction, validate the attempt fence, move the
+    /// intent to `sent` with the provider message id, append the
+    /// attempt-scoped `accepted` evidence row and register the outbound
+    /// threading identity. `FenceLost` performs NO writes — a stale
+    /// worker's provider acceptance must never pollute the current
+    /// attempt's authoritative result, and `sent` can never exist
+    /// without its evidence and threading rows.
+    async fn complete_send_attempt(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        provider_message_id: &str,
+        evidence: OutboundDeliveryEvidence,
+        threading: ExternalMessageIdentity,
+        now: DateTime<Utc>,
+    ) -> Result<CompleteSendOutcome, TicketStoreError>;
+
+    /// Attempt-scoped evidence append (exact-head review R29/P0-3):
+    /// the row is stamped with the CURRENT attempt only when
+    /// `attempt_id` still owns the intent; a stale attempt's evidence
+    /// is refused (`false`) so it can never masquerade as the current
+    /// attempt's outcome.
+    async fn append_outbound_evidence_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        evidence: OutboundDeliveryEvidence,
     ) -> Result<bool, TicketStoreError>;
 
     /// Claims or advances one send intent atomically (exact-head review
@@ -1003,6 +1052,38 @@ impl TicketingStoreService {
     ) -> Result<bool, TicketStoreError> {
         self.0
             .resolve_send_intent_fenced(logical_send_id, attempt_id, to, provider_message_id, now)
+            .await
+    }
+
+    pub async fn complete_send_attempt(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        provider_message_id: &str,
+        evidence: OutboundDeliveryEvidence,
+        threading: ExternalMessageIdentity,
+        now: DateTime<Utc>,
+    ) -> Result<CompleteSendOutcome, TicketStoreError> {
+        self.0
+            .complete_send_attempt(
+                logical_send_id,
+                attempt_id,
+                provider_message_id,
+                evidence,
+                threading,
+                now,
+            )
+            .await
+    }
+
+    pub async fn append_outbound_evidence_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .append_outbound_evidence_fenced(logical_send_id, attempt_id, evidence)
             .await
     }
 
@@ -2533,6 +2614,75 @@ impl TicketingStore for MemoryTicketingStore {
             }
             _ => Ok(false),
         }
+    }
+
+    async fn complete_send_attempt(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        provider_message_id: &str,
+        evidence: OutboundDeliveryEvidence,
+        threading: ExternalMessageIdentity,
+        now: DateTime<Utc>,
+    ) -> Result<CompleteSendOutcome, TicketStoreError> {
+        // One critical section = one transaction (exact-head review
+        // R29/P0-3): fence check, sent transition, attempt-scoped
+        // evidence and threading identity commit together or not at
+        // all.
+        let mut state = self.state.lock().await;
+        let outcome = match state.send_intents.get_mut(logical_send_id) {
+            Some(intent)
+                if intent.state == SendIntentState::Sending
+                    && intent.attempt_id == Some(attempt_id) =>
+            {
+                let sequence = intent.attempt_sequence;
+                intent.state = SendIntentState::Sent;
+                intent.provider_message_id = Some(provider_message_id.to_owned());
+                intent.attempt_id = None;
+                intent.lease_expires_at = None;
+                intent.updated_at = now;
+                let mut scoped = evidence;
+                scoped.attempt_id = Some(attempt_id);
+                scoped.attempt_sequence = Some(sequence);
+                let evidence_ticket = scoped.ticket_id;
+                state.outbound_evidence.push(scoped);
+                state
+                    .external_messages
+                    .entry((
+                        threading.project_id.clone(),
+                        threading.provider.clone(),
+                        threading.mailbox_scope.clone(),
+                        threading.external_id.clone(),
+                    ))
+                    .or_insert((threading, evidence_ticket));
+                CompleteSendOutcome::Completed
+            }
+            _ => CompleteSendOutcome::FenceLost,
+        };
+        drop(state);
+        Ok(outcome)
+    }
+
+    async fn append_outbound_evidence_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        let appended = match state.send_intents.get(logical_send_id) {
+            Some(intent) if intent.attempt_id == Some(attempt_id) => {
+                let sequence = intent.attempt_sequence;
+                let mut scoped = evidence;
+                scoped.attempt_id = Some(attempt_id);
+                scoped.attempt_sequence = Some(sequence);
+                state.outbound_evidence.push(scoped);
+                true
+            }
+            _ => false,
+        };
+        drop(state);
+        Ok(appended)
     }
 
     async fn resolve_send_intent(
