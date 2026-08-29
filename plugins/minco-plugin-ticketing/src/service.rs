@@ -114,6 +114,61 @@ pub enum ScanVerdictPolicy {
     RequireClean,
 }
 
+/// Bump when the set of proposal inputs covered by the context digest
+/// changes (exact-head review R32/P1-2): every bound run from an older
+/// schema is invalidated rather than silently re-validated.
+pub const AUTOMATION_CONTEXT_SCHEMA_VERSION: &str = "ticketing.automation.context.v2";
+/// Bump when the effective-policy encoding changes.
+pub const AUTOMATION_POLICY_SCHEMA_VERSION: &str = "ticketing.automation.policy.v2";
+
+/// Digest over EVERY input that can influence an automation proposal
+/// (exact-head reviews R25 and R32/P1-2).
+///
+/// Covers the schema version, subject, description, ticket type, full
+/// form answers, full knowledge links and the revision — length-framed
+/// so field values cannot collide across boundaries.
+pub fn automation_context_digest(ticket: &crate::Ticket) -> String {
+    use sha2::Digest as _;
+    use std::fmt::Write as _;
+    let ticket_type = serde_json::to_string(&ticket.ticket_type).unwrap_or_default();
+    let form_answers = serde_json::to_string(&ticket.form_answers).unwrap_or_default();
+    let knowledge_links = serde_json::to_string(&ticket.knowledge_links).unwrap_or_default();
+    let mut encoded = String::new();
+    for part in [
+        AUTOMATION_CONTEXT_SCHEMA_VERSION,
+        ticket.subject.as_str(),
+        ticket.description.as_str(),
+        ticket_type.as_str(),
+        form_answers.as_str(),
+        knowledge_links.as_str(),
+        &ticket.revision.to_string(),
+    ] {
+        let _ = write!(encoded, "{:016x}", part.len());
+        encoded.push_str(part);
+    }
+    hex::encode(sha2::Sha256::digest(encoded.as_bytes()))
+}
+
+/// Digest over the COMPLETE effective automation policy (exact-head
+/// reviews R25 and R32/P1-2).
+///
+/// Covers the schema versions, the full configured policy (profile AND
+/// review posture — and any field added later) and the authority
+/// exclusion list. Any policy change invalidates every stale bound run
+/// instead of just a profile rename.
+pub fn automation_policy_digest(config: &crate::AutomationConfig) -> String {
+    use sha2::Digest as _;
+    let policy = serde_json::json!({
+        "schema": AUTOMATION_POLICY_SCHEMA_VERSION,
+        "context_schema": AUTOMATION_CONTEXT_SCHEMA_VERSION,
+        "profile": config.profile,
+        "review": config.review,
+        "excluded_actions": crate::AUTOMATION_EXCLUDED_ACTIONS,
+    });
+    let encoded = serde_json::to_string(&policy).unwrap_or_default();
+    hex::encode(sha2::Sha256::digest(encoded.as_bytes()))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TicketingConfig {
@@ -1384,6 +1439,7 @@ impl TicketingService {
         principal: &Identity,
         project_id: &str,
         id: TicketId,
+        client_operation_id: Option<&str>,
         now: DateTime<Utc>,
     ) -> Result<Uuid, TicketingServiceError> {
         authorize(principal, "ticketing.manage")?;
@@ -1406,16 +1462,24 @@ impl TicketingService {
             // submission so the handler proves the proposal derives from
             // this context.
             let bound_ticket = self.load(project_id, id).await?;
-            let context_digest = {
-                use sha2::Digest as _;
-                let mut hasher = sha2::Sha256::new();
-                hasher.update(bound_ticket.subject.as_bytes());
-                hasher.update(bound_ticket.description.as_bytes());
-                hex::encode(hasher.finalize())
+            let context_digest = crate::automation_context_digest(&bound_ticket);
+            let bound_policy_digest =
+                Some(crate::automation_policy_digest(&self.config.automation));
+            // Run identity (exact-head review R32/P1-2): an HTTP retry
+            // carrying the same Idempotency-Key derives the SAME run id
+            // (and therefore the same dedupe key) — a lost response
+            // never creates a second automation run. Without a client
+            // key each explicit request is a distinct run.
+            let run_id = match client_operation_id
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                Some(operation) => Uuid::new_v5(
+                    &Uuid::NAMESPACE_URL,
+                    format!("ticketing.automation|{project_id}|{id}|{operation}").as_bytes(),
+                ),
+                None => Uuid::now_v7(),
             };
-            let bound_policy_digest = Some(crate::automation_policy_digest(
-                self.config.automation.profile,
-            ));
             let envelope = crate::development_automation_envelope(
                 &crate::RunDevelopmentAutomation {
                     project_id: project_id.to_owned(),
@@ -1424,7 +1488,7 @@ impl TicketingService {
                     bound_revision: bound_ticket.revision,
                     bound_context_digest: Some(context_digest),
                     bound_policy_digest,
-                    run_id: Uuid::now_v7(),
+                    run_id,
                 },
                 correlation,
                 now,
@@ -3445,7 +3509,7 @@ mod tests {
             .unwrap()
             .ticket;
         assert!(matches!(
-            off.request_development_automation(&identity, "project-a", ticket.id, Utc::now())
+            off.request_development_automation(&identity, "project-a", ticket.id, None, Utc::now())
                 .await
                 .unwrap_err(),
             TicketingServiceError::Configuration(_)

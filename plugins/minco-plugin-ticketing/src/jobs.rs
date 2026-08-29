@@ -514,20 +514,6 @@ impl Job for RunDevelopmentAutomation {
 /// bounded retry, one-hour deadline.
 pub const TICKETING_AUTOMATION_PROFILE: &str = "ticketing-development";
 
-/// Stable digest of the automation policy (exact-head review R25/P1-2).
-pub fn automation_policy_digest(profile: crate::AutomationProfile) -> String {
-    use sha2::Digest as _;
-    let name = match profile {
-        crate::AutomationProfile::Off => "off",
-        crate::AutomationProfile::Assist => "assist",
-        crate::AutomationProfile::Supervised => "supervised",
-        crate::AutomationProfile::Autonomous => "autonomous",
-    };
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(name.as_bytes());
-    hex::encode(hasher.finalize())
-}
-
 pub fn development_automation_envelope(
     payload: &RunDevelopmentAutomation,
     correlation_id: Uuid,
@@ -940,13 +926,11 @@ async fn run_development_automation(
     }
     // The context digest proves the proposal derives from the submitted
     // ticket content, not merely the same revision number (exact-head
-    // review R18).
+    // reviews R18 and R32/P1-2): every proposal input is covered —
+    // subject, description, ticket type, form answers, knowledge links
+    // and the revision, length-framed under a schema version.
     {
-        use sha2::Digest as _;
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(ticket.subject.as_bytes());
-        hasher.update(ticket.description.as_bytes());
-        let authoritative = hex::encode(hasher.finalize());
+        let authoritative = crate::automation_context_digest(&ticket);
         if command
             .bound_context_digest
             .as_deref()
@@ -957,8 +941,10 @@ async fn run_development_automation(
             ));
         }
         // Policy digest: the same proposal must derive from the same
-        // automation policy version (exact-head review R25/P1-2).
-        let authoritative_policy = automation_policy_digest(config.automation.profile);
+        // COMPLETE effective policy — profile, review posture, schema
+        // versions and the authority exclusion list (exact-head reviews
+        // R25 and R32/P1-2), not just the profile name.
+        let authoritative_policy = crate::automation_policy_digest(&config.automation);
         if command
             .bound_policy_digest
             .as_deref()
@@ -1629,14 +1615,11 @@ mod tests {
         .unwrap();
         // Execute through the registered handler via the inline path,
         // binding the REAL context and policy digests.
-        let context_digest = {
-            use sha2::Digest as _;
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(ticket.subject.as_bytes());
-            hasher.update(ticket.description.as_bytes());
-            hex::encode(hasher.finalize())
-        };
-        let policy_digest = automation_policy_digest(crate::AutomationProfile::Supervised);
+        let context_digest = crate::automation_context_digest(&ticket);
+        let policy_digest = crate::automation_policy_digest(&crate::AutomationConfig {
+            profile: crate::AutomationProfile::Supervised,
+            ..crate::AutomationConfig::default()
+        });
         let envelope = development_automation_envelope(
             &RunDevelopmentAutomation {
                 project_id: "project-a".into(),
@@ -3723,5 +3706,190 @@ mod tests {
             .filter(|claim| claim.is_some())
             .count();
         assert_eq!(owners, 1, "exactly one worker claims the attempt");
+    }
+
+    #[test]
+    fn automation_context_digest_covers_every_proposal_input() {
+        // Exact-head review R32/P1-2: the freshness digest covers all
+        // inputs that influence a proposal — subject, description,
+        // ticket type, form answers, knowledge links and the revision —
+        // length-framed so boundaries cannot collide.
+        type TicketMutation = Box<dyn Fn(&mut crate::Ticket)>;
+        let now = Utc::now();
+        let base = ticket(now);
+        let baseline = crate::automation_context_digest(&base);
+        assert_eq!(baseline, crate::automation_context_digest(&base));
+
+        let changed = |mut ticket: crate::Ticket, mutate: &dyn Fn(&mut crate::Ticket)| {
+            mutate(&mut ticket);
+            crate::automation_context_digest(&ticket)
+        };
+        let mutations: [(&str, TicketMutation); 6] = [
+            ("subject", Box::new(|t| t.subject = "Different".into())),
+            (
+                "description",
+                Box::new(|t| t.description = "A different problem".into()),
+            ),
+            (
+                "ticket_type",
+                Box::new(|t| t.ticket_type = crate::TicketType::Incident),
+            ),
+            (
+                "form_answers",
+                Box::new(|t| {
+                    t.form_answers = vec![crate::TicketFormAnswer {
+                        field_id: "urgency".into(),
+                        kind: crate::TicketFormValueKind::Text,
+                        text_value: Some("high".into()),
+                        number_value: None,
+                        boolean_value: None,
+                    }];
+                }),
+            ),
+            (
+                "knowledge_links",
+                Box::new(|t| {
+                    t.knowledge_links = vec![crate::KnowledgeLink {
+                        article_id: "kb-1".into(),
+                        title: "Runbook".into(),
+                        url: "https://kb.example.test/runbook".into(),
+                    }];
+                }),
+            ),
+            ("revision", Box::new(|t| t.revision += 1)),
+        ];
+        for (name, mutate) in mutations {
+            let digest = changed(base.clone(), &mut |t| mutate(t));
+            assert_ne!(
+                digest, baseline,
+                "changing {name} must invalidate the bound context digest"
+            );
+        }
+    }
+
+    #[test]
+    fn automation_policy_digest_covers_the_complete_effective_policy() {
+        // Exact-head review R32/P1-2: the digest binds the full policy —
+        // changing the review posture under the SAME profile invalidates
+        // stale bound runs (the old name-only digest did not).
+        let assist_default = crate::automation_policy_digest(&crate::AutomationConfig {
+            profile: crate::AutomationProfile::Assist,
+            ..crate::AutomationConfig::default()
+        });
+        assert_eq!(
+            assist_default,
+            crate::automation_policy_digest(&crate::AutomationConfig {
+                profile: crate::AutomationProfile::Assist,
+                ..crate::AutomationConfig::default()
+            })
+        );
+        let supervised = crate::automation_policy_digest(&crate::AutomationConfig {
+            profile: crate::AutomationProfile::Supervised,
+            ..crate::AutomationConfig::default()
+        });
+        assert_ne!(assist_default, supervised, "profile changes invalidate");
+        let other_review = crate::AutomationConfig {
+            profile: crate::AutomationProfile::Assist,
+            review: crate::AutomationReview::RiskBased,
+        };
+        assert_ne!(
+            assist_default,
+            crate::automation_policy_digest(&other_review),
+            "a review-posture change under the same profile invalidates"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_idempotency_key_retry_never_creates_a_second_automation_run() {
+        // Exact-head review R32/P1-2: the run id derives from the
+        // client's Idempotency-Key, so an HTTP retry after a lost
+        // response resubmits the SAME dedupe identity — the durable
+        // queue holds one job, not two. Distinct keys (or none) are
+        // distinct runs.
+        let memory = Arc::new(MemoryTicketingStore::default());
+        let now = Utc::now();
+        let ticket = ticket(now);
+        let intent = crate::TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        TicketingStoreService::new(memory.clone())
+            .create(ticket.clone(), intent)
+            .await
+            .unwrap();
+        let registry = Arc::new(minco_plugin_jobs::JobHandlerRegistry::new());
+        let (jobs_services, job_store, _dispatcher) =
+            minco_plugin_jobs::JobsServices::memory(registry);
+        let service = TicketingService::new(
+            TicketingStoreService::new(memory.clone()),
+            crate::TicketingConfig {
+                project_id: "project-a".into(),
+                automation: crate::AutomationConfig {
+                    profile: crate::AutomationProfile::Assist,
+                    ..crate::AutomationConfig::default()
+                },
+                ..crate::TicketingConfig::default()
+            },
+        )
+        .unwrap()
+        .with_portal_services(crate::TicketingPortalServices {
+            sessions: None,
+            csrf: None,
+            idempotency: None,
+            events: None,
+            audit: None,
+            jobs: Some(Arc::new(jobs_services)),
+            objects: None,
+        });
+        let agent = minco_plugin_identity::Identity {
+            subject: "agent-1".into(),
+            permissions: BTreeSet::from(["ticketing.manage".into()]),
+            scopes: BTreeSet::new(),
+            claims: BTreeMap::new(),
+        };
+
+        // Two HTTP retries carrying the same Idempotency-Key.
+        service
+            .request_development_automation(
+                &agent,
+                "project-a",
+                ticket.id,
+                Some("client-op-7"),
+                now,
+            )
+            .await
+            .unwrap();
+        service
+            .request_development_automation(
+                &agent,
+                "project-a",
+                ticket.id,
+                Some("client-op-7"),
+                now,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            job_store.records().len(),
+            1,
+            "a retried submission with the same key is one durable run"
+        );
+
+        // A different key is a distinct run.
+        service
+            .request_development_automation(
+                &agent,
+                "project-a",
+                ticket.id,
+                Some("client-op-8"),
+                now,
+            )
+            .await
+            .unwrap();
+        assert_eq!(job_store.records().len(), 2);
     }
 }

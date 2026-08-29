@@ -1606,12 +1606,20 @@ async fn request_automation(
 ) -> Result<Response, ApiFailure> {
     let request_id = request_id(&headers);
     let id = parse_ticket_id(&ticket_id, &request_id)?;
+    // Run identity (exact-head review R32/P1-2): an HTTP retry carrying
+    // the same Idempotency-Key derives the same automation run instead
+    // of creating a second one after a lost response.
+    let client_operation_id = headers
+        .get("idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let correlation = state
         .service
         .request_development_automation(
             &principal,
             &state.service.config().project_id,
             id,
+            client_operation_id.as_deref(),
             Utc::now(),
         )
         .await
