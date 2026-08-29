@@ -327,6 +327,11 @@ pub struct SendIntent {
     pub provider_message_id: Option<String>,
     pub updated_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+    /// Fencing identity of the current attempt (exact-head review
+    /// R22/P0-3): every state transition validates the same `attempt_id`.
+    pub attempt_id: Option<Uuid>,
+    pub attempt_sequence: u64,
+    pub lease_expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -531,14 +536,29 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         request: AtomicAssignmentRequest,
     ) -> Result<Ticket, TicketStoreError>;
 
-    /// Fenced send-attempt claim (exact-head review R13): succeeds only
-    /// when the intent is currently in `expected_state`, transitioning it
-    /// to `sending`. Only the caller holding this claim may contact the
-    /// provider; a failed claim means zero provider calls.
+    /// Attempt-fenced send claim (exact-head reviews R13 and R22/P0-3):
+    /// succeeds only when the intent is currently in `expected_state`,
+    /// transitioning it to `sending` under a fresh attempt identity with
+    /// a lease. Returns `Some(attempt_id)` on success; `None` means the
+    /// claim was lost. Only the holder of the returned attempt may
+    /// contact the provider.
     async fn claim_send_attempt(
         &self,
         logical_send_id: &str,
         expected_state: SendIntentState,
+        now: DateTime<Utc>,
+    ) -> Result<Option<Uuid>, TicketStoreError>;
+
+    /// Attempt-validated state transition (exact-head review R22/P0-3):
+    /// succeeds only when the intent is in the expected FROM state AND
+    /// still carries the given `attempt_id`. Returns false when the fence
+    /// is lost — the caller MUST NOT convert that to success.
+    async fn resolve_send_intent_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        to: SendIntentState,
+        provider_message_id: Option<String>,
         now: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
 
@@ -929,9 +949,22 @@ impl TicketingStoreService {
         logical_send_id: &str,
         expected_state: SendIntentState,
         now: DateTime<Utc>,
-    ) -> Result<bool, TicketStoreError> {
+    ) -> Result<Option<Uuid>, TicketStoreError> {
         self.0
             .claim_send_attempt(logical_send_id, expected_state, now)
+            .await
+    }
+
+    pub async fn resolve_send_intent_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        to: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .resolve_send_intent_fenced(logical_send_id, attempt_id, to, provider_message_id, now)
             .await
     }
 
@@ -1226,6 +1259,9 @@ impl MemoryTicketingStore {
                 provider_message_id: None,
                 updated_at: Utc::now(),
                 created_at: Utc::now(),
+                attempt_id: None,
+                attempt_sequence: 0,
+                lease_expires_at: None,
             },
         );
     }
@@ -2292,16 +2328,45 @@ impl TicketingStore for MemoryTicketingStore {
         logical_send_id: &str,
         expected_state: SendIntentState,
         now: DateTime<Utc>,
-    ) -> Result<bool, TicketStoreError> {
+    ) -> Result<Option<Uuid>, TicketStoreError> {
+        let attempt_id = Uuid::now_v7();
         let mut state = self.state.lock().await;
         match state.send_intents.get_mut(logical_send_id) {
             Some(intent) if intent.state == expected_state => {
                 intent.state = SendIntentState::Sending;
+                intent.attempt_id = Some(attempt_id);
+                intent.attempt_sequence += 1;
+                intent.lease_expires_at = Some(now + chrono::TimeDelta::seconds(120));
+                intent.updated_at = now;
+                drop(state);
+                Ok(Some(attempt_id))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    async fn resolve_send_intent_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        to: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.send_intents.get_mut(logical_send_id) {
+            Some(intent)
+                if intent.state == SendIntentState::Sending
+                    && intent.attempt_id == Some(attempt_id) =>
+            {
+                intent.state = to;
+                intent.provider_message_id = provider_message_id;
+                intent.attempt_id = None;
                 intent.updated_at = now;
                 drop(state);
                 Ok(true)
             }
-            None | Some(_) => Ok(false),
+            _ => Ok(false),
         }
     }
 

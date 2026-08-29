@@ -1092,15 +1092,45 @@ impl TicketingStore for SqliteTicketingStore {
         logical_send_id: &str,
         expected_state: SendIntentState,
         now: DateTime<Utc>,
-    ) -> Result<bool, TicketStoreError> {
+    ) -> Result<Option<Uuid>, TicketStoreError> {
+        let attempt_id = Uuid::now_v7();
+        let lease = now + chrono::TimeDelta::seconds(120);
         let updated = sqlx::query(
             "UPDATE ticketing_send_intents
-                SET state = 'sending', updated_at = ?
+                SET state = 'sending', updated_at = ?, attempt_id = ?,
+                    attempt_sequence = attempt_sequence + 1, lease_expires_at = ?
               WHERE logical_send_id = ? AND state = ?",
         )
         .bind(now.to_rfc3339())
+        .bind(attempt_id.to_string())
+        .bind(lease.to_rfc3339())
         .bind(logical_send_id)
         .bind(send_intent_state_name(expected_state))
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok((updated.rows_affected() == 1).then_some(attempt_id))
+    }
+
+    async fn resolve_send_intent_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        to: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = ?, provider_message_id = ?, attempt_id = NULL,
+                    updated_at = ?
+              WHERE logical_send_id = ? AND state = 'sending' AND attempt_id = ?",
+        )
+        .bind(send_intent_state_name(to))
+        .bind(provider_message_id)
+        .bind(now.to_rfc3339())
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
         .execute(&self.pool)
         .await
         .map_err(infrastructure)?;
@@ -1113,7 +1143,8 @@ impl TicketingStore for SqliteTicketingStore {
     ) -> Result<Option<SendIntent>, TicketStoreError> {
         let row = sqlx::query(
             "SELECT logical_send_id, project_id, ticket_id, message_id, state,
-                    provider_message_id, updated_at, created_at
+                    provider_message_id, updated_at, created_at,
+                    attempt_id, attempt_sequence, lease_expires_at
                FROM ticketing_send_intents WHERE logical_send_id = ?",
         )
         .bind(logical_send_id)
@@ -1142,6 +1173,21 @@ impl TicketingStore for SqliteTicketingStore {
                 provider_message_id: row.get("provider_message_id"),
                 updated_at: parse_timestamp(&row.get::<String, _>("updated_at"))?,
                 created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+                attempt_id: row
+                    .get::<Option<String>, _>("attempt_id")
+                    .map(|value| Uuid::parse_str(&value))
+                    .transpose()
+                    .map_err(|_| {
+                        TicketStoreError::Infrastructure("stored attempt id is not a UUID".into())
+                    })?,
+                attempt_sequence: row
+                    .get::<Option<i64>, _>("attempt_sequence")
+                    .and_then(|value| u64::try_from(value).ok())
+                    .unwrap_or(0),
+                lease_expires_at: row
+                    .get::<Option<String>, _>("lease_expires_at")
+                    .map(|value| parse_timestamp(&value))
+                    .transpose()?,
             })
         })
         .transpose()

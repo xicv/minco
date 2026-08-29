@@ -917,6 +917,7 @@ async fn deliver_public_reply_by_mail(
     // R4): sent → done; sending/recovery → reconciliation only;
     // pending → the one identity-stable resend.
     let logical_send_id = stable_mail_id.to_string();
+    let mut current_attempt: Option<Uuid> = None;
     let claimed = store
         .claim_send_intent(SendIntent {
             logical_send_id: logical_send_id.clone(),
@@ -927,6 +928,9 @@ async fn deliver_public_reply_by_mail(
             provider_message_id: None,
             updated_at: Utc::now(),
             created_at: Utc::now(),
+            attempt_id: None,
+            attempt_sequence: 0,
+            lease_expires_at: None,
         })
         .await
         .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
@@ -938,7 +942,7 @@ async fn deliver_public_reply_by_mail(
                 // pending_send -> sending claim must SUCCEED before any
                 // provider contact (exact-head review R13). A failed
                 // claim makes zero provider calls.
-                let claimed_attempt = store
+                let Some(attempt) = store
                     .claim_send_attempt(
                         &existing.logical_send_id,
                         SendIntentState::PendingSend,
@@ -947,12 +951,13 @@ async fn deliver_public_reply_by_mail(
                     .await
                     .map_err(|_| {
                         JobExecutionFailure::retryable("ticketing.evidence_unavailable")
-                    })?;
-                if !claimed_attempt {
+                    })?
+                else {
                     return Err(JobExecutionFailure::permanent(
                         "ticketing.notification_reconciliation_required",
                     ));
-                }
+                };
+                current_attempt = Some(attempt);
             }
             SendIntentState::Sending | SendIntentState::RecoveryRequired => {
                 return Err(JobExecutionFailure::permanent(
@@ -965,6 +970,15 @@ async fn deliver_public_reply_by_mail(
                 ));
             }
         }
+    }
+    // The initial claim created the intent in sending WITHOUT an
+    // attempt identity; claim one now so every subsequent fenced
+    // transition validates against it (exact-head review R22/P0-3).
+    if current_attempt.is_none() {
+        current_attempt = store
+            .claim_send_attempt(&logical_send_id, SendIntentState::Sending, Utc::now())
+            .await
+            .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
     }
     let outbound_body = message.body.clone();
     let mail_message = minco_plugin_notifications::MailMessage::builder(
@@ -984,14 +998,27 @@ async fn deliver_public_reply_by_mail(
             // own message identity: SES overwrites caller Message-IDs, so
             // the provider id is the correlation truth and the logical id
             // remains the stable tag (exact-head review R4).
-            let _ = store
-                .resolve_send_intent(
+            let attempt = current_attempt
+                .ok_or_else(|| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
+            let fenced = store
+                .resolve_send_intent_fenced(
                     &logical_send_id,
+                    attempt,
                     SendIntentState::Sent,
                     Some(receipt.provider_message_id.clone()),
                     Utc::now(),
                 )
-                .await;
+                .await
+                .map_err(|_| JobExecutionFailure::retryable("ticketing.evidence_unavailable"))?;
+            if !fenced {
+                // The attempt fence was lost — a newer worker owns this
+                // send. This worker's provider acceptance is recorded in
+                // evidence but the state machine is the other worker's.
+                tracing::warn!(
+                    "send attempt fence lost after provider acceptance; \
+                     evidence still recorded"
+                );
+            }
             store
                 .append_outbound_evidence(OutboundDeliveryEvidence {
                     project_id: command.project_id.clone(),
@@ -1041,19 +1068,22 @@ async fn deliver_public_reply_by_mail(
                 // intent returns to pending_send so the next attempt can
                 // retry (exact-head review R13). A persistence failure
                 // surfaces as retryable — never a silent wedge.
-                if store
-                    .resolve_send_intent(
-                        &logical_send_id,
-                        SendIntentState::PendingSend,
-                        None,
-                        Utc::now(),
-                    )
-                    .await
-                    .is_err()
-                {
-                    return Err(JobExecutionFailure::retryable(
-                        "ticketing.evidence_unavailable",
-                    ));
+                if let Some(attempt) = current_attempt {
+                    let fenced = store
+                        .resolve_send_intent_fenced(
+                            &logical_send_id,
+                            attempt,
+                            SendIntentState::PendingSend,
+                            None,
+                            Utc::now(),
+                        )
+                        .await
+                        .map_err(|_| {
+                            JobExecutionFailure::retryable("ticketing.evidence_unavailable")
+                        })?;
+                    if !fenced {
+                        tracing::warn!("safe backoff recorded on a lost send fence");
+                    }
                 }
                 Err(JobExecutionFailure::retryable(
                     "ticketing.notification_transport_retryable",
@@ -1064,14 +1094,24 @@ async fn deliver_public_reply_by_mail(
                 // evidence records the fact; later attempts fail closed
                 // until explicit reconciliation — never a blind retry
                 // (exact-head review R4).
-                let _ = store
-                    .resolve_send_intent(
-                        &logical_send_id,
-                        SendIntentState::RecoveryRequired,
-                        None,
-                        Utc::now(),
-                    )
-                    .await;
+                if let Some(attempt) = current_attempt
+                    && !store
+                        .resolve_send_intent_fenced(
+                            &logical_send_id,
+                            attempt,
+                            SendIntentState::RecoveryRequired,
+                            None,
+                            Utc::now(),
+                        )
+                        .await
+                        .map_err(|_| {
+                            JobExecutionFailure::retryable("ticketing.evidence_unavailable")
+                        })?
+                {
+                    // Fence lost: the newer owner decides the state; this
+                    // worker still records its evidence.
+                    tracing::warn!("ambiguity recorded on a lost send fence");
+                }
                 store
                     .append_outbound_evidence(OutboundDeliveryEvidence {
                         project_id: command.project_id.clone(),
@@ -1093,14 +1133,22 @@ async fn deliver_public_reply_by_mail(
                 ))
             }
             MailRetryAdvice::Never => {
-                let _ = store
-                    .resolve_send_intent(
-                        &logical_send_id,
-                        SendIntentState::FailedNoSend,
-                        None,
-                        Utc::now(),
-                    )
-                    .await;
+                if let Some(attempt) = current_attempt
+                    && !store
+                        .resolve_send_intent_fenced(
+                            &logical_send_id,
+                            attempt,
+                            SendIntentState::FailedNoSend,
+                            None,
+                            Utc::now(),
+                        )
+                        .await
+                        .map_err(|_| {
+                            JobExecutionFailure::retryable("ticketing.evidence_unavailable")
+                        })?
+                {
+                    tracing::warn!("permanent failure recorded on a lost send fence");
+                }
                 store
                     .append_outbound_evidence(OutboundDeliveryEvidence {
                         project_id: command.project_id.clone(),
@@ -1651,6 +1699,82 @@ mod tests {
             0,
             "a lost fenced claim makes zero provider calls"
         );
+    }
+
+    #[tokio::test]
+    async fn stale_worker_cannot_overwrite_a_newer_attempt_state() {
+        // Exact-head review R22/P0-3: a worker whose attempt fence was
+        // lost (a newer worker claimed the send) cannot resolve the
+        // state — its transition returns false and never converts to
+        // success.
+        let (_services, transport, store, ticket, message) = mail_setup(Vec::new()).await;
+        let logical_send_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "ticketing:public-reply:project-a:{}:{}",
+                ticket.id, message.id
+            )
+            .as_bytes(),
+        )
+        .to_string();
+        // Seed the intent in pending_send (a reconciled no-send).
+        store
+            .put_send_intent_for_tests(
+                &logical_send_id,
+                ticket.id,
+                message.id,
+                SendIntentState::PendingSend,
+            )
+            .await;
+        let store_service = || TicketingStoreService::new(store.clone());
+        // Worker A claims the attempt.
+        let attempt_a = store_service()
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, Utc::now())
+            .await
+            .unwrap()
+            .expect("worker A claims");
+        // Reconciliation resets to pending; worker B claims a NEW attempt.
+        store_service()
+            .resolve_send_intent(
+                &logical_send_id,
+                SendIntentState::PendingSend,
+                None,
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        let attempt_b = store_service()
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, Utc::now())
+            .await
+            .unwrap()
+            .expect("worker B claims");
+        assert_ne!(attempt_a, attempt_b);
+        // Worker A's fenced transition must fail — it cannot overwrite
+        // worker B's state (exact-head review R22/P0-3).
+        let fenced = store_service()
+            .resolve_send_intent_fenced(
+                &logical_send_id,
+                attempt_a,
+                SendIntentState::Sent,
+                Some("stale".into()),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        assert!(!fenced, "a stale worker can never write state");
+        // Worker B's transition succeeds.
+        let fenced_b = store_service()
+            .resolve_send_intent_fenced(
+                &logical_send_id,
+                attempt_b,
+                SendIntentState::Sent,
+                Some("fresh".into()),
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+        assert!(fenced_b, "the current attempt owner writes state");
+        assert_eq!(transport.submit_count().await, 0, "no provider contact");
     }
 
     #[tokio::test]
