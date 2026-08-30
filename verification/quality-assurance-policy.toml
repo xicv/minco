@@ -19,7 +19,7 @@ cargo-semver-checks = "1.93"
 packages = ["minco-core", "minco-plan", "minco-release"]
 baseline_revision = "f48ead125b09699f1d7e8ab8bf02deeeb9dc6fb4"
 baseline_executable_test_count = 122
-executable_test_count = 153
+executable_test_count = 160
 doctest_count = 1
 
 [coverage]

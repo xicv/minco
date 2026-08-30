@@ -7924,8 +7924,8 @@
     },
     {
       "path": "proofs/realtime-appsync/aws-handler/Cargo.lock",
-      "sha256": "05e5164af111e09e6e1b39ebff8c95e95621dc41791576a1ca0c21f7306d19b1",
-      "size_bytes": 66417
+      "sha256": "eb56a7b57c238029c89f05f9bd85f8b3e67fca525628b55ae9464ad778955a21",
+      "size_bytes": 66624
     },
     {
       "path": "proofs/realtime-appsync/aws-handler/Cargo.toml",
@@ -8694,7 +8694,7 @@
     },
     {
       "path": "scripts/test/quality_assurance.py",
-      "sha256": "ff7ad36565bbbaaa56af3d7949935673d1c0d2bcbf212ef1ee24227df2fb2f71",
+      "sha256": "f21d075b3f0bb21af7d11da384c49a1e998a698f1ece339478e58eac8d964d04",
       "size_bytes": 24923
     },
     {
@@ -9319,8 +9319,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "d7abdc383b5351014c075fedd0025bf2a50dd88a6cdc2fe65128d4970190443c",
-      "size_bytes": 27062
+      "sha256": "9cac965cc6e3b92c13f7263088e3996ae0b56c0ee140bede75ee4cb454f1ee96",
+      "size_bytes": 28915
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9669,7 +9669,7 @@
     },
     {
       "path": "verification/quality-assurance-policy.toml",
-      "sha256": "ed1a9debcab9e932c8d21b1d095ab816c6a8d7e302e2821c44eecc142fd38198",
+      "sha256": "3b34c0e4cc92ec6c1134c03d7ff29debf0baf956e3d4fa98d54a0c019e5af8de",
       "size_bytes": 1822
     },
     {
@@ -9774,7 +9774,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "ebdf3db03103633ac06693b6846fb87fd6fd496a97885382a135de5f16ba408e",
-  "total_size_bytes": 14995464,
+  "source_tree_sha256": "c4629b977d0cf031ea8d9df3364b0260e2708d94bbd0ad6f7e298dd366f0689c",
+  "total_size_bytes": 14997524,
   "version": "1.12.0"
 }

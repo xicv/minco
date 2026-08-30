@@ -446,6 +446,38 @@ and recorded as such, never converted into a pass. The round-5
 closure matrix rides the PR body; the next independent exact-head
 re-review is the human gate before merge.
 
+**Local release gate (2026-08-30 follow-up)**: the six missing
+prerequisites were installed at their pinned versions (cargo-nextest
+0.9.143, cargo-llvm-cov 0.8.7, cargo-mutants 27.1.0,
+cargo-semver-checks 0.50.0, `sam` on PATH via
+`uv tool install aws-sam-cli`, zig 0.16.0, plus the rustup llvm-tools
+component), and every local-release step was executed:
+
+- `./scripts/quality.sh` (inside local-release.sh): exit 0 — full gate
+  green as recorded above.
+- `scripts/ci/local-assurance.sh --ephemeral` with
+  `MINCO_QUALITY_TOOL_ROOT="$HOME/.cargo"` (the documented tool-root
+  installation): nextest parity PASS (160 executable + 1 doctest after
+  the policy's stale pin was refreshed 153→160 — round 4 added seven
+  minco-plan tests while this lane was unrunnable), measured coverage
+  PASS, mutation PASS (24+19 caught, 3 unviable, 0 missed, 0 timeouts
+  — exactly the policy budget), then **semver FAILED CLOSED**:
+  `cargo semver-checks` vs the pinned v1.9.0 baseline found two
+  genuine breaking public-API additions introduced by this PR —
+  `DeploymentPlan.inbound_mail` (exhaustively-constructible struct
+  gained a field) and `AuditError::Conflict` (exhaustive enum gained a
+  variant). `#[non_exhaustive]` was tried and reverted: semver-checks
+  0.50.0 lints that addition itself. Resolution requires a maintainer
+  decision — a workspace major version (2.0.0) or an API redesign
+  (sidecar-carried topology, non-typed conflict channel) — and is
+  recorded as an OPEN limitation, never converted into a pass.
+- `proofs/realtime-appsync/scripts/test-local.sh`: PASS after its
+  stale `aws-handler/Cargo.lock` was regenerated offline (the lock had
+  drifted from the workspace's newer dependency set while this proof
+  was unrunnable).
+- `scripts/release/candidate-recovery.sh`: PASS.
+- `scripts/release/candidate-load.sh`: PASS.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and
