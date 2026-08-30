@@ -59,13 +59,18 @@ impl InboundMailTopology {
     }
 }
 
-/// Synthesize wake queues, worker triggers and the binding list into a
-/// copy of the plan. Base plans without inbound mail stay unchanged.
+/// Synthesize wake queues and worker triggers into a copy of the plan.
+///
+/// The topology stays an explicit sidecar (exact-head review
+/// 5060065907): it is never stored on `DeploymentPlan`, whose public
+/// field set is a published compatibility boundary, so `apply` only
+/// projects into the EXISTING queues/triggers/function collections,
+/// mirroring the durable-work sidecar. Base plans without inbound mail
+/// stay unchanged.
 #[must_use]
 pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology) -> DeploymentPlan {
     let mut next = plan.clone();
     if !topology.enabled {
-        next.inbound_mail = Vec::new();
         return next;
     }
     for binding in &topology.bindings {
@@ -108,7 +113,6 @@ pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology)
             });
         }
     }
-    next.inbound_mail.clone_from(&topology.bindings);
     next
 }
 
@@ -332,7 +336,10 @@ pub fn render_sam_with_inbound_mail(
     topology: &InboundMailTopology,
     code_uris: &std::collections::BTreeMap<String, String>,
 ) -> Result<String, crate::PlanError> {
-    let mut template = crate::sam::render_sam_with_code_uris(plan, code_uris)?;
+    // The base render receives the sidecar's bindings explicitly so the
+    // worker IAM environment scopes the mail buckets (the plan itself
+    // no longer carries the topology — exact-head review 5060065907).
+    let mut template = crate::sam::render_sam_template(plan, code_uris, &topology.bindings)?;
     if !topology.enabled || topology.bindings.is_empty() {
         return Ok(template);
     }

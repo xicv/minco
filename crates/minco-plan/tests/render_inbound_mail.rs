@@ -104,8 +104,12 @@ fn plan() -> DeploymentPlan {
 
 #[test]
 fn synthesis_adds_wake_queue_trigger_and_binding() {
-    let applied = apply_inbound_mail(&plan(), &topology());
-    assert_eq!(applied.inbound_mail.len(), 1);
+    // Exact-head review 5060065907: the topology is an explicit sidecar
+    // — the plan never carries it as a field, so the witness here is
+    // the projection into the EXISTING queues/triggers collections.
+    let topology = topology();
+    assert_eq!(topology.bindings.len(), 1);
+    let applied = apply_inbound_mail(&plan(), &topology);
     assert!(
         applied
             .queues
@@ -143,7 +147,7 @@ fn synthesis_adds_wake_queue_trigger_and_binding() {
                 && *report_batch_item_failures
     )));
     // Applying twice is stable: no duplicate queues or triggers.
-    let twice = apply_inbound_mail(&applied, &topology());
+    let twice = apply_inbound_mail(&applied, &topology);
     assert_eq!(twice.queues, applied.queues);
     assert_eq!(twice.triggers, applied.triggers);
 }

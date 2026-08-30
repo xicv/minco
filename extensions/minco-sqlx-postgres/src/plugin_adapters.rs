@@ -634,7 +634,9 @@ impl AuditSink for PostgresAuditSink {
                 Some((_, _, _, _, _, _, _, Some(existing_fp))) if existing_fp == fingerprint => {
                     Ok(())
                 }
-                Some((_, _, _, _, _, _, _, Some(_))) => Err(AuditError::Conflict),
+                Some((_, _, _, _, _, _, _, Some(_))) => {
+                    Err(minco_plugin_audit::audit_conflict_error())
+                }
                 // Pre-fingerprint row (written before the forward-only
                 // 0004 migration): content-verify against the incoming
                 // event and adopt the digest only on an exact semantic
@@ -665,7 +667,7 @@ impl AuditSink for PostgresAuditSink {
                         &canonical_metadata,
                     );
                     if stored_fingerprint != fingerprint {
-                        return Err(AuditError::Conflict);
+                        return Err(minco_plugin_audit::audit_conflict_error());
                     }
                     sqlx::query(
                         "UPDATE minco_audit SET fingerprint = $1 WHERE id = $2 AND fingerprint IS NULL",

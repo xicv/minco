@@ -4,7 +4,7 @@
 //! proofs; each run creates and drops its own database so the shared
 //! test server is never polluted.
 
-use minco_plugin_audit::{AuditError, AuditEvent, AuditSink};
+use minco_plugin_audit::{AuditEvent, AuditSink};
 use minco_sqlx_postgres::plugin_adapters::{PostgresAuditSink, migrate_plugin_storage};
 use sqlx::PgPool;
 use std::fs;
@@ -144,10 +144,13 @@ async fn minco_1_12_postgres_database_upgrades_and_detects_audit_conflicts() {
     // must no longer swallow the conflict with ON CONFLICT DO NOTHING).
     let mut conflicting = event.clone();
     conflicting.action = "ticket.updated".into();
-    assert!(matches!(
-        sink.append(conflicting).await,
-        Err(AuditError::Conflict)
-    ));
+    assert!(
+        matches!(
+            sink.append(conflicting).await,
+            Err(error) if minco_plugin_audit::is_audit_conflict(&error)
+        ),
+        "the conflict rides the stable Append code"
+    );
 
     // A pre-0004 row (NULL fingerprint) is content-verified and adopted
     // on redelivery of identical content; different content conflicts.
@@ -187,8 +190,11 @@ async fn minco_1_12_postgres_database_upgrades_and_detects_audit_conflicts() {
     );
     let mut legacy_conflict = legacy.clone();
     legacy_conflict.resource_id = "queue-2".into();
-    assert!(matches!(
-        sink.append(legacy_conflict).await,
-        Err(AuditError::Conflict)
-    ));
+    assert!(
+        matches!(
+            sink.append(legacy_conflict).await,
+            Err(error) if minco_plugin_audit::is_audit_conflict(&error)
+        ),
+        "the unadoption conflict rides the stable Append code"
+    );
 }

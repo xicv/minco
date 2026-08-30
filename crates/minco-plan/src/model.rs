@@ -108,7 +108,6 @@ impl DeploymentConfig {
             functions: self.functions,
             queues: self.queues,
             triggers: self.triggers,
-            inbound_mail: Vec::new(),
             iam_intents,
             routes,
             application_graph,
@@ -143,11 +142,6 @@ pub struct DeploymentPlan {
     pub queues: Vec<QueuePlan>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub triggers: Vec<TriggerPlan>,
-    /// Inbound mail wake bindings (ADR-0065): SES receiving drops raw
-    /// MIME into an S3 bucket whose `ObjectCreated` notifications wake the
-    /// bound worker through SQS.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub inbound_mail: Vec<InboundMailBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub iam_intents: Vec<IamIntent>,
     pub routes: Vec<RoutePlan>,

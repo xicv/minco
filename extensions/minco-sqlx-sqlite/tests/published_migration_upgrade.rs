@@ -7,7 +7,7 @@
 //! Minco 1.12 and upgrade a database whose migration history was
 //! recorded by those exact released bytes.
 
-use minco_plugin_audit::{AuditError, AuditEvent, AuditSink};
+use minco_plugin_audit::{AuditEvent, AuditSink};
 use minco_sqlx_sqlite::{SqlitePoolConfig, connect, plugin_adapters::SqliteAuditSink};
 use sqlx::SqlitePool;
 use std::fs;
@@ -117,10 +117,13 @@ async fn upgraded_database_detects_audit_conflicts_and_adopts_legacy_rows() {
     // Same id + different content → integrity conflict, original kept.
     let mut conflicting = event.clone();
     conflicting.action = "ticket.updated".into();
-    assert!(matches!(
-        sink.append(conflicting).await,
-        Err(AuditError::Conflict)
-    ));
+    assert!(
+        matches!(
+            sink.append(conflicting).await,
+            Err(error) if minco_plugin_audit::is_audit_conflict(&error)
+        ),
+        "the conflict rides the stable Append code"
+    );
     let stored_action: String = sqlx::query_scalar("SELECT action FROM minco_audit WHERE id = ?")
         .bind(event.id)
         .fetch_one(&pool)
@@ -169,8 +172,11 @@ async fn upgraded_database_detects_audit_conflicts_and_adopts_legacy_rows() {
     // …while different content under a legacy id stays a conflict.
     let mut legacy_conflict = legacy.clone();
     legacy_conflict.resource_id = "queue-2".into();
-    assert!(matches!(
-        sink.append(legacy_conflict).await,
-        Err(AuditError::Conflict)
-    ));
+    assert!(
+        matches!(
+            sink.append(legacy_conflict).await,
+            Err(error) if minco_plugin_audit::is_audit_conflict(&error)
+        ),
+        "the unadoption conflict rides the stable Append code"
+    );
 }

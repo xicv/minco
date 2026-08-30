@@ -193,7 +193,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-audit/Cargo.toml",
-      "manifest_sha256": "c14fd3046cf3698e81a6f50201e64d485e75dad1ca4a24d5817be0937e26f9c9",
+      "manifest_sha256": "3a05fe98e0b14ce43f219b258a0ba07750da0d6724f0dff946a33bb6c79d2bc4",
       "name": "minco-plugin-audit",
       "version": {
         "workspace": true
@@ -572,7 +572,7 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "f301988123c090365bb1b0c594264de961d290418001f2e85dc373d4b3272bbc",
+  "projection_sha256": "860eddd2ab007ae7e5a4a01cf830e9bd10e86c20c0c8f11c2ecfb7a051515b24",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1"

@@ -58,12 +58,13 @@ impl AuditEvent {
 /// `append` MUST be idempotent by (event id, semantic fingerprint):
 /// re-appending the SAME event succeeds without duplication, while the
 /// same id with DIFFERENT content (action, resource, actor,
-/// correlation, timestamp or metadata) returns
-/// [`AuditError::Conflict`] — an integrity violation, never a silent
-/// success. The ticketing dispatcher redelivers at-least-once with the
-/// intent id as the audit event id, so this contract is what makes the
-/// pipeline exactly-once observable. Adapters MUST reject events with
-/// empty action or resource id.
+/// correlation, timestamp or metadata) returns an integrity-conflict
+/// error — the stable [`AUDIT_CONFLICT_CODE`] carried by
+/// [`AuditError::Append`], detectable with [`is_audit_conflict`] —
+/// never a silent success. The ticketing dispatcher redelivers
+/// at-least-once with the intent id as the audit event id, so this
+/// contract is what makes the pipeline exactly-once observable.
+/// Adapters MUST reject events with empty action or resource id.
 #[async_trait]
 pub trait AuditSink: Send + Sync + std::fmt::Debug {
     async fn append(&self, event: AuditEvent) -> Result<(), AuditError>;
@@ -230,7 +231,7 @@ impl AuditSink for MemoryAuditSink {
             return if fingerprint_matches {
                 Ok(())
             } else {
-                Err(AuditError::Conflict)
+                Err(audit_conflict_error())
             };
         }
         events.push(event);
@@ -339,11 +340,34 @@ pub enum AuditError {
     InvalidEvent,
     #[error("audit append failed: {0}")]
     Append(String),
-    /// Same event id with a DIFFERENT semantic fingerprint (exact-head
-    /// review R24/P1-1): an integrity conflict, never an idempotent
-    /// success.
-    #[error("audit event id conflict: same id with different content")]
-    Conflict,
+}
+
+/// Stable machine code prefix marking an integrity conflict carried by
+/// [`AuditError::Append`] (exact-head review 5060065907).
+///
+/// The same event id redelivered with a DIFFERENT semantic fingerprint
+/// carries this code. The variant set of `AuditError` is a published
+/// compatibility boundary — the conflict channel stays inside `Append`
+/// so downstream exhaustive matches from 1.x keep compiling.
+pub const AUDIT_CONFLICT_CODE: &str = "MINCO-AUDIT-CONFLICT";
+
+/// Builds the conflict error through the stable `Append` channel.
+#[must_use]
+pub fn audit_conflict_error() -> AuditError {
+    AuditError::Append(format!(
+        "{AUDIT_CONFLICT_CODE}: same event id with different semantic fingerprint"
+    ))
+}
+
+/// Returns true when an error is the stable-coded integrity conflict
+/// (see [`AUDIT_CONFLICT_CODE`]) — works identically for the memory,
+/// `SQLite` and `PostgreSQL` sinks.
+#[must_use]
+pub fn is_audit_conflict(error: &AuditError) -> bool {
+    matches!(
+        error,
+        AuditError::Append(message) if message.starts_with(AUDIT_CONFLICT_CODE)
+    )
 }
 
 #[cfg(test)]
@@ -367,7 +391,7 @@ mod tests {
         let mut impostor = first.clone();
         impostor.action = "ticketing.deleted".into();
         let error = sink.append(impostor).await.unwrap_err();
-        assert!(matches!(error, AuditError::Conflict));
+        assert!(is_audit_conflict(&error));
         let all = sink.all().await;
         assert_eq!(all.len(), 1);
         assert_eq!(all[0].action, "ticketing.created");

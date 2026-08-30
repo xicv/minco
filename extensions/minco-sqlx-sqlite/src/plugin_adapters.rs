@@ -359,7 +359,7 @@ impl AuditSink for SqliteAuditSink {
                         .map_err(|error| AuditError::Append(error.to_string()))?;
                     match stored_fingerprint {
                         Some(existing_fp) if existing_fp == fingerprint => Ok(()),
-                        Some(_) => Err(AuditError::Conflict),
+                        Some(_) => Err(minco_plugin_audit::audit_conflict_error()),
                         // A pre-fingerprint row (written before the
                         // forward-only 0004 migration): content-verify it
                         // against the incoming event and, only on an exact
@@ -370,7 +370,7 @@ impl AuditSink for SqliteAuditSink {
                             let recomputed = stored_fingerprint_from_row(&row)
                                 .map_err(|error| AuditError::Append(error.to_string()))?;
                             if recomputed != fingerprint {
-                                return Err(AuditError::Conflict);
+                                return Err(minco_plugin_audit::audit_conflict_error());
                             }
                             sqlx::query(
                                 "UPDATE minco_audit SET fingerprint = ? WHERE id = ? AND fingerprint IS NULL",

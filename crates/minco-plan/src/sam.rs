@@ -27,6 +27,22 @@ pub fn render_sam_with_code_uris(
     plan: &DeploymentPlan,
     code_uris: &BTreeMap<String, String>,
 ) -> Result<String, PlanError> {
+    render_sam_template(plan, code_uris, &[])
+}
+
+/// Renderer entry carrying the inbound-mail sidecar bindings
+/// explicitly (exact-head review 5060065907): the bindings live in
+/// [`crate::inbound_mail::InboundMailTopology`], never in the plan's
+/// public field set, so the worker IAM environment is scoped by the
+/// sidecar the caller applied. Not re-exported: this stays an internal
+/// detail of the private `sam` module behind the stable public
+/// rendering API.
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) fn render_sam_template(
+    plan: &DeploymentPlan,
+    code_uris: &BTreeMap<String, String>,
+    mail_bindings: &[crate::InboundMailBinding],
+) -> Result<String, PlanError> {
     if !matches!(&plan.runtime, RuntimePlan::LambdaZipArm64) {
         return Err(PlanError::UnsupportedDeployment(
             "SAM rendering requires lambda_zip_arm64".into(),
@@ -300,7 +316,7 @@ pub fn render_sam_with_code_uris(
         .iter()
         .filter(|function| matches!(function.role, FunctionRole::Worker))
     {
-        render_worker_function(&mut output, plan, worker, code_uris);
+        render_worker_function(&mut output, plan, worker, code_uris, mail_bindings);
     }
     output.push_str("  ApiLogGroup:\n");
     output.push_str("    Type: AWS::Logs::LogGroup\n");
@@ -1038,6 +1054,7 @@ fn render_worker_function(
     plan: &DeploymentPlan,
     function: &FunctionPlan,
     code_uris: &BTreeMap<String, String>,
+    mail_bindings: &[crate::InboundMailBinding],
 ) {
     let function_resource = format!("{}Function", sam_logical_id(&function.name));
     writeln!(output, "  {function_resource}:").expect("writing to String cannot fail");
@@ -1111,8 +1128,7 @@ fn render_worker_function(
             TriggerPlan::Sqs { function_id, .. } if function_id == &function.name
         )
     });
-    let mail_buckets = plan
-        .inbound_mail
+    let mail_buckets = mail_bindings
         .iter()
         .filter(|binding| binding.worker_function_id == function.name)
         .map(|binding| sam_logical_id(&binding.id))
@@ -1344,7 +1360,6 @@ mod tests {
             }],
             queues: Vec::new(),
             triggers: Vec::new(),
-            inbound_mail: Vec::new(),
             iam_intents: Vec::new(),
             routes: vec![
                 RoutePlan {
