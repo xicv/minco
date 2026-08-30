@@ -3324,6 +3324,7 @@ mod tests {
         .unwrap()
     }
 
+    #[cfg(feature = "jobs")]
     fn automation_service(profile: crate::AutomationProfile) -> TicketingService {
         let memory = Arc::new(MemoryTicketingStore::default());
         let registry = Arc::new(minco_plugin_jobs::JobHandlerRegistry::new());
@@ -3498,6 +3499,7 @@ mod tests {
         assert_eq!(agent_view[0].state, crate::ClarificationState::Answered);
     }
 
+    #[cfg(feature = "jobs")]
     #[tokio::test]
     async fn automation_fails_closed_when_off_and_review_disabled_is_unconfigurable() {
         let identity = manager_identity();
@@ -3550,6 +3552,7 @@ mod tests {
         assert!(crate::validate_automation_actions(&["summarize".to_owned()]).is_ok());
     }
 
+    #[cfg(feature = "jobs")]
     #[tokio::test]
     async fn proposals_are_decided_once_and_never_reach_requesters() {
         let service = automation_service(crate::AutomationProfile::Assist);
