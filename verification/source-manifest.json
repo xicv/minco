@@ -7909,8 +7909,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
-      "sha256": "8db5b2d510307645360af493c93ad28cca62cd5d4d05ba29bca655c41fd25d0d",
-      "size_bytes": 197448
+      "sha256": "b48458edeaab2d9d5fc0d3009b0f08efb26c445ce5691f576b38826ff11f4d61",
+      "size_bytes": 197535
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "5d07cacda96e09b436bbcceda28174ce8706a7c3c0e2068f528dd32d46d34134",
-  "total_size_bytes": 15005431,
+  "source_tree_sha256": "8fdc44ff065e238cb044fd9ddbcec5a29a1499365649bc2ff3a387e959552303",
+  "total_size_bytes": 15005518,
   "version": "1.12.0"
 }
