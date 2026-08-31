@@ -1,6 +1,6 @@
 {
   "counts": {
-    "errors": 0,
+    "errors": 1,
     "warnings": 2
   },
   "effective_date": "2026-08-12",
@@ -11,6 +11,12 @@
       "message": "no current exact-source live-provider evidence qualifies the current source or release",
       "path": "verification/provider-evidence.toml",
       "severity": "warning"
+    },
+    {
+      "code": "EVIDENCE-SOURCE-004",
+      "message": "source manifest is stale for the current tree",
+      "path": "verification/source-manifest.json",
+      "severity": "error"
     },
     {
       "code": "PERF-BASELINE-007",
@@ -34,8 +40,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "ce7fffb3d86111d38ba5714c05d2ee1cb9679186e44f9487c287063f6a170ab4",
+  "receipt_digest": "7f11d0b1226a7b64b853194ec6cb177ea81462bb6dd933bcc4f7ae6bf6c708a8",
   "schema_version": 1,
-  "source_tree_sha256": "89bc3f999fe925798d40efa0f8106dbe2353033287f516954d00bd6c7f198098",
-  "status": "PASS"
+  "source_tree_sha256": null,
+  "status": "FAIL"
 }
