@@ -8704,7 +8704,7 @@
     },
     {
       "path": "scripts/test/quality_assurance.py",
-      "sha256": "143e72bc08ba53c85406c7973f9afdeb47832be0145ef8f49d2d4a6268e0d11b",
+      "sha256": "f02cde1a8a2557b6476e20663c2d51e84953866aff5e4b16d8a01e203a688da0",
       "size_bytes": 24923
     },
     {
@@ -9679,7 +9679,7 @@
     },
     {
       "path": "verification/quality-assurance-policy.toml",
-      "sha256": "2c0ae8fd7553af126036cb9469fa3a9d87a3c56cc2129bd281bf7213f493d6f3",
+      "sha256": "4ff8a4647addffecf2834e07e7aaa226a00766f7059ad385b9bd0148ab0d3f8a",
       "size_bytes": 1822
     },
     {
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "89bc3f999fe925798d40efa0f8106dbe2353033287f516954d00bd6c7f198098",
+  "source_tree_sha256": "a60857b163a4f9d3d6e7da085f2e5429798867502efcd3ca8c2a385695089495",
   "total_size_bytes": 15021348,
   "version": "1.12.0"
 }

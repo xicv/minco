@@ -1,6 +1,6 @@
 {
   "counts": {
-    "errors": 1,
+    "errors": 0,
     "warnings": 2
   },
   "effective_date": "2026-08-12",
@@ -13,12 +13,6 @@
       "severity": "warning"
     },
     {
-      "code": "EVIDENCE-SOURCE-004",
-      "message": "source manifest is stale for the current tree",
-      "path": "verification/source-manifest.json",
-      "severity": "error"
-    },
-    {
       "code": "PERF-BASELINE-007",
       "message": "exact-tree hosted Linux performance evidence is NOT RUN",
       "path": "verification/1.9-performance-baseline.json",
@@ -26,12 +20,12 @@
     }
   ],
   "inputs": {
-    "verification/1.9-performance-baseline.json": "5edf34e15cee44d3fef92cdd89278d7cba5a6b0e8b75545d3bddca541f9db701",
+    "verification/1.9-performance-baseline.json": "160d3c3d939f138801d5d722344aba46d5d481174bfe4577563bd60168788cc3",
     "verification/aws-capability-candidates.toml": "204c3573941ddd62f6764777ccc8667b523eba53d442be6ed6c72e4a3c5fae64",
     "verification/performance-policy.toml": "f73611985227c3daf63bf85cd863706a1005da57714c8093585ef59f62d8b6a3",
     "verification/provider-evidence.toml": "d8e02e72c142a05a1d71f140c5332223940731a01faa5cea4bb83c53e5dabdc0",
     "verification/repository-truth.toml": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1",
-    "verification/source-manifest.json": "45ecc423967655e7f502d7408540fcaf6d96364b91fc31959e35fb1e78d266c5"
+    "verification/source-manifest.json": "1e6f207b290e4ce011bf7d0418c4bde2b025786806ad84ea8c83e193adc8c2db"
   },
   "kind": "minco.operational-evidence-validation.v1",
   "metrics": {
@@ -40,8 +34,8 @@
     "performance_status": "NOT RUN",
     "project_lessons": 3
   },
-  "receipt_digest": "7f11d0b1226a7b64b853194ec6cb177ea81462bb6dd933bcc4f7ae6bf6c708a8",
+  "receipt_digest": "13a266c89af748927d191fda4b27d096c6f903b2fc67ce72674446a0192f9226",
   "schema_version": 1,
-  "source_tree_sha256": null,
-  "status": "FAIL"
+  "source_tree_sha256": "a60857b163a4f9d3d6e7da085f2e5429798867502efcd3ca8c2a385695089495",
+  "status": "PASS"
 }
