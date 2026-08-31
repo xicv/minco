@@ -182,7 +182,7 @@ class QualityAssuranceTests(unittest.TestCase):
             ["minco-interaction", "minco-plugin-jobs", "minco-plugin-ticketing"],
         )
         self.assertEqual(policy["nextest"]["baseline_executable_test_count"], 122)
-        self.assertEqual(policy["nextest"]["executable_test_count"], 161)
+        self.assertEqual(policy["nextest"]["executable_test_count"], 166)
         self.assertFalse(policy["production_slo"])
         self.assertFalse(policy["provider_contact"])
 
