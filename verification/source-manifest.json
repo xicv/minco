@@ -2559,8 +2559,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "82455417ee27c8a47cc148af339ec8a22ebb001bd64f621090348ed661c17fc9",
-      "size_bytes": 53859
+      "sha256": "47537175ac79b89a62f3645a5045b069c1123c1adeb0dda57f0179055dddf1d4",
+      "size_bytes": 53862
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -2584,7 +2584,7 @@
     },
     {
       "path": "docs/reference/generated/schemas.md",
-      "sha256": "30a12aa46ba9677daef8f0d744cc651d3445a3956530f6adb3dcaab8731ad5e2",
+      "sha256": "58861eae1d13168c8d1aad729155b30562576d856b146ef13d1b94959de758da",
       "size_bytes": 16915
     },
     {
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "0f8e9d368f6a157a4d6f7a34a532f6be9832fb31458e56903e65231001ea30e1",
-  "total_size_bytes": 15021345,
+  "source_tree_sha256": "89bc3f999fe925798d40efa0f8106dbe2353033287f516954d00bd6c7f198098",
+  "total_size_bytes": 15021348,
   "version": "1.12.0"
 }
