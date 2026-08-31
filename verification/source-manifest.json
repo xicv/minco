@@ -1424,13 +1424,13 @@
     },
     {
       "path": "crates/minco-plan/src/durable_work.rs",
-      "sha256": "02e955f37dc4b37e1891457e3731d4d3647a79d66f41dc14727a1f1f08fedc0f",
-      "size_bytes": 42995
+      "sha256": "abfa1be49d32973388875b4e5d68d499e28b835559d3c1fa739aa24b9c5d2771",
+      "size_bytes": 42718
     },
     {
       "path": "crates/minco-plan/src/inbound_mail.rs",
-      "sha256": "588031b8dec27389b2ee2ee431d7f0b36af8c35dd8e1610b0117985980a50dc1",
-      "size_bytes": 20770
+      "sha256": "d4bc06f365f90d5221b4c5dc00db33664b574d2d37a54470f9177e6a1bf1f33e",
+      "size_bytes": 22515
     },
     {
       "path": "crates/minco-plan/src/lib.rs",
@@ -1439,8 +1439,8 @@
     },
     {
       "path": "crates/minco-plan/src/model.rs",
-      "sha256": "4a30b11c887bc21f18f62f60e85e8df315ce42a0510a250540be4fa5ec6e644b",
-      "size_bytes": 98096
+      "sha256": "d402d6ace725c71fdef476b8749173005d566a106926610089de238fcbc3e054",
+      "size_bytes": 99032
     },
     {
       "path": "crates/minco-plan/src/sam.rs",
@@ -1504,8 +1504,8 @@
     },
     {
       "path": "crates/minco-plan/tests/render_inbound_mail.rs",
-      "sha256": "bd0d734f54977ae843a073906f1bce79eb0cf26c310df5c7773c6ed9caad7edc",
-      "size_bytes": 10876
+      "sha256": "a4eef633eac493f825b1f9496e1d9050dd4b66c501a67182c88655f426cb03b2",
+      "size_bytes": 19286
     },
     {
       "path": "crates/minco-project-view/Cargo.toml",
@@ -9329,8 +9329,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "cf425957a6954df7414a44d2548cf4c873ce7fbe043383fa6351e65a7d01c6c9",
-      "size_bytes": 31811
+      "sha256": "7225a3ed3495211d7c5aa814e56e87af477c145a49f635de3a35b6aecf13f3f7",
+      "size_bytes": 33928
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "44b451d7947d66e699f218c4acc88d037096b10ba302eec926ea69b6e30dfb8b",
-  "total_size_bytes": 15008414,
+  "source_tree_sha256": "0f8e9d368f6a157a4d6f7a34a532f6be9832fb31458e56903e65231001ea30e1",
+  "total_size_bytes": 15021345,
   "version": "1.12.0"
 }

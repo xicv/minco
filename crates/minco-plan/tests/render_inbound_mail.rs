@@ -47,10 +47,25 @@ name = "mail-worker"
 role = "worker"
 artifact_path = "target/lambda/mail-worker.zip"
 memory_mb = 256
-timeout_seconds = 60
+timeout_seconds = 30
 reserved_concurrency = 2
 provisioned_concurrency = 0
 database_connections_per_instance = 1
+
+[[functions]]
+name = "jobs-worker"
+role = "worker"
+artifact_path = "target/lambda/jobs-worker.zip"
+memory_mb = 512
+timeout_seconds = 30
+reserved_concurrency = 2
+provisioned_concurrency = 0
+database_connections_per_instance = 1
+
+[[triggers]]
+kind = "http_api"
+id = "api"
+function_id = "api"
 "#,
     )
     .expect("deployment config")
@@ -68,7 +83,11 @@ fn contract() -> minco_contract::ContractDocument {
             operation_id: "createOrder".into(),
             method: HttpMethod::Post,
             path: "/orders".into(),
-            authenticated: true,
+            // The fixture's deployment has no authorizer; the operation
+            // must match or even the BASE plan fails MINCO-AUTH-001 and
+            // the applied-plan validation regression could never pass
+            // (exact-head review 5064401898).
+            authenticated: false,
             idempotent: true,
         }],
         schema_names: Vec::new(),
@@ -323,4 +342,217 @@ fn disabled_topology_leaves_the_template_unchanged() {
         render_sam_with_inbound_mail(&plan(), &InboundMailTopology::default(), &code_uris)
             .expect("render");
     assert_eq!(base, unchanged);
+}
+
+#[test]
+fn applied_inbound_mail_plan_passes_ordinary_plan_validation() {
+    // Exact-head review 5064401898: the synthesized queues/triggers
+    // change the derived fields; the applied plan must still satisfy
+    // the ordinary DeploymentPlan validators.
+    let applied = apply_inbound_mail(&plan(), &topology());
+    let diagnostics = applied.validate();
+    assert!(
+        diagnostics.is_empty(),
+        "applied plan must remain internally valid: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn applying_inbound_mail_refreshes_derived_services_and_iam() {
+    let base = plan();
+    assert!(
+        !base
+            .local_aws_services
+            .iter()
+            .any(|service| service == "sqs"),
+        "fixture sanity: the queue-free base plan has no sqs service"
+    );
+    let applied = apply_inbound_mail(&base, &topology());
+    assert!(
+        applied
+            .local_aws_services
+            .iter()
+            .any(|service| service == "sqs"),
+        "the synthesized wake queue must add the sqs local service"
+    );
+    assert_eq!(
+        applied.local_aws_services,
+        minco_plan::local_aws_services(
+            &applied.runtime,
+            &applied.database,
+            &applied.application_graph,
+            &applied.queues,
+        )
+    );
+    assert_eq!(
+        applied.iam_intents,
+        minco_plan::derive_iam_intents(
+            applied.schema_version,
+            &applied.runtime,
+            &applied.database,
+            &applied.application_graph,
+            &applied.functions,
+            &applied.triggers,
+        )
+    );
+}
+
+#[test]
+fn applying_inbound_mail_twice_keeps_derived_state_stable() {
+    let once = apply_inbound_mail(&plan(), &topology());
+    let twice = apply_inbound_mail(&once, &topology());
+    assert_eq!(once, twice);
+    assert!(twice.validate().is_empty());
+}
+
+#[test]
+fn disabled_topology_with_bindings_never_affects_rendering() {
+    // Exact-head review 5064401898: disabled-with-bindings is
+    // internally inconsistent — validation rejects it and rendering
+    // fails closed instead of half-producing a template.
+    let invalid = InboundMailTopology {
+        enabled: false,
+        bindings: vec![binding()],
+    };
+    assert!(!validate_inbound_mail(&plan(), &invalid).is_empty());
+    let mut code_uris = std::collections::BTreeMap::new();
+    code_uris.insert("api".to_owned(), "./api.zip".to_owned());
+    code_uris.insert("mail-worker".to_owned(), "./mail-worker.zip".to_owned());
+    let result = render_sam_with_inbound_mail(&plan(), &invalid, &code_uris);
+    assert!(
+        result.is_err(),
+        "disabled topology with bindings must fail closed"
+    );
+}
+
+#[test]
+fn durable_work_and_inbound_mail_sidecars_compose_in_both_orders() {
+    // Exact-head review 5064401898: two sidecars composing in either
+    // order must leave derived state consistent and both sidecar
+    // validators plus the ordinary plan validator green.
+    use minco_plan::durable_work::{
+        DurableWorkTopology, JobRoutePlan, WorkerProfilePlan, apply_durable_work,
+        validate_durable_work,
+    };
+    let durable = DurableWorkTopology {
+        enabled: true,
+        profiles: vec![WorkerProfilePlan {
+            id: "orders-notifications".into(),
+            queue_id: "jobs-orders-notifications".into(),
+            function_id: "jobs-worker".into(),
+            artifact_path: "target/lambda/jobs-worker.zip".into(),
+            fifo: false,
+            batch_size: 10,
+            batching_window_seconds: 1,
+            maximum_concurrency: 2,
+            memory_mb: 512,
+            timeout_seconds: 30,
+            reserved_concurrency: 2,
+            max_payload_bytes: 262_144,
+            database_connections_per_instance: 1,
+            dead_letter_queue_id: None,
+            max_receive_count: None,
+            data_classes: vec!["internal".into()],
+            required_capabilities: vec!["notifications.send".into()],
+        }],
+        routes: vec![JobRoutePlan {
+            job_name: "orders.send-confirmation".into(),
+            job_version: 1,
+            worker_profile: "orders-notifications".into(),
+            ordering_source: None,
+        }],
+        schedules: vec![],
+    };
+    // Both sidecar triggers bind mail-worker; the validator requires
+    // per-trigger concurrency >= 2 AND aggregate <= reserved, so the
+    // fixture reserves 4 for the two triggers' 2 each.
+    let mail = topology();
+    let base = plan();
+    let mail_first = apply_inbound_mail(&apply_durable_work(&base, &durable), &mail);
+    let durable_first = apply_durable_work(&apply_inbound_mail(&base, &mail), &durable);
+    for composed in [&mail_first, &durable_first] {
+        let diagnostics = composed.validate();
+        assert!(
+            diagnostics.is_empty(),
+            "composed plan must pass ordinary validation: {diagnostics:#?}"
+        );
+        assert!(validate_durable_work(composed, &durable).is_empty());
+        assert!(validate_inbound_mail(composed, &mail).is_empty());
+        assert_eq!(
+            composed.local_aws_services,
+            minco_plan::local_aws_services(
+                &composed.runtime,
+                &composed.database,
+                &composed.application_graph,
+                &composed.queues,
+            )
+        );
+        assert_eq!(
+            composed.iam_intents,
+            minco_plan::derive_iam_intents(
+                composed.schema_version,
+                &composed.runtime,
+                &composed.database,
+                &composed.application_graph,
+                &composed.functions,
+                &composed.triggers,
+            )
+        );
+    }
+    // Both orders converge on the same synthesized collections as SETS
+    // (the order-independence property of projection-only sidecars;
+    // insertion order legitimately differs by application order).
+    let sorted_ids = {
+        fn sorted(queues: &[minco_plan::QueuePlan]) -> Vec<&str> {
+            let mut ids: Vec<&str> = queues.iter().map(|queue| queue.id.as_str()).collect();
+            ids.sort_unstable();
+            ids
+        }
+        sorted
+    };
+    let sorted_triggers = {
+        fn sorted(triggers: &[minco_plan::TriggerPlan]) -> Vec<String> {
+            let mut keys: Vec<String> = triggers
+                .iter()
+                .map(|trigger| match trigger {
+                    minco_plan::TriggerPlan::Sqs { id, .. }
+                    | minco_plan::TriggerPlan::HttpApi { id, .. }
+                    | minco_plan::TriggerPlan::Schedule { id, .. } => id.clone(),
+                })
+                .collect();
+            keys.sort_unstable();
+            keys
+        }
+        sorted
+    };
+    let sorted_functions = {
+        fn sorted(functions: &[minco_plan::FunctionPlan]) -> Vec<String> {
+            let mut names: Vec<String> = functions.iter().map(|f| f.name.clone()).collect();
+            names.sort_unstable();
+            names
+        }
+        sorted
+    };
+    assert_eq!(
+        sorted_ids(&mail_first.queues),
+        sorted_ids(&durable_first.queues)
+    );
+    assert_eq!(
+        sorted_triggers(&mail_first.triggers),
+        sorted_triggers(&durable_first.triggers)
+    );
+    assert_eq!(
+        sorted_functions(&mail_first.functions),
+        sorted_functions(&durable_first.functions)
+    );
+
+    // The composed template renders; the external `sam validate
+    // --lint` gate over the exact artifact runs in
+    // scripts/test/inbound_mail_template_parse.py.
+    let mut code_uris = std::collections::BTreeMap::new();
+    code_uris.insert("api".to_owned(), "./api.zip".to_owned());
+    code_uris.insert("mail-worker".to_owned(), "./mail-worker.zip".to_owned());
+    let template =
+        render_sam_with_inbound_mail(&mail_first, &mail, &code_uris).expect("composed render");
+    assert!(template.contains("AWS::SES::ReceiptRule"));
 }

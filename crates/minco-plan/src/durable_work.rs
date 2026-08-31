@@ -211,21 +211,9 @@ pub fn apply_durable_work(plan: &DeploymentPlan, topology: &DurableWorkTopology)
     }
     // Synthesized queues and triggers change the derived local-service list
     // and IAM intents; recompute both exactly as plan construction does so
-    // the ordinary validators accept the result.
-    next.local_aws_services = crate::model::local_aws_services(
-        &next.runtime,
-        &next.database,
-        &next.application_graph,
-        &next.queues,
-    );
-    next.iam_intents = crate::model::derive_iam_intents(
-        next.schema_version,
-        &next.runtime,
-        &next.database,
-        &next.application_graph,
-        &next.functions,
-        &next.triggers,
-    );
+    // the ordinary validators accept the result (shared sidecar helper,
+    // exact-head review 5064401898).
+    crate::model::refresh_derived_plan_state(&mut next);
     next
 }
 

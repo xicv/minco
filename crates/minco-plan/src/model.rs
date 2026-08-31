@@ -299,6 +299,31 @@ impl StaticSiteDeployment {
     }
 }
 
+/// Recomputes the plan's derived fields from its CURRENT collections
+/// (exact-head review 5064401898): every sidecar that synthesizes
+/// queues, functions or triggers MUST run this before returning, or
+/// the plan carries `local_aws_services`/`iam_intents` describing the
+/// pre-sidecar topology and fails ordinary `DeploymentPlan`
+/// validation. Shared by the durable-work and inbound-mail sidecars
+/// so a third sidecar cannot repeat the omission.
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) fn refresh_derived_plan_state(plan: &mut DeploymentPlan) {
+    plan.local_aws_services = local_aws_services(
+        &plan.runtime,
+        &plan.database,
+        &plan.application_graph,
+        &plan.queues,
+    );
+    plan.iam_intents = derive_iam_intents(
+        plan.schema_version,
+        &plan.runtime,
+        &plan.database,
+        &plan.application_graph,
+        &plan.functions,
+        &plan.triggers,
+    );
+}
+
 pub fn local_aws_services(
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,

@@ -74,6 +74,23 @@ pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology)
         return next;
     }
     for binding in &topology.bindings {
+        // The wake queue's visibility timeout must cover the bound
+        // worker's timeout six-fold plus the batching window — the same
+        // rule DeploymentPlan validation enforces (exact-head review
+        // 5064401898: a fixed constant fell one second short of the
+        // validator's derivation and the applied plan failed
+        // MINCO-SQS-002).
+        let wake_visibility = next
+            .functions
+            .iter()
+            .find(|function| function.name == binding.worker_function_id)
+            .map_or(WAKE_VISIBILITY_TIMEOUT_SECONDS, |function| {
+                function
+                    .timeout_seconds
+                    .saturating_mul(6)
+                    .saturating_add(binding.batching_window_seconds)
+            })
+            .max(WAKE_VISIBILITY_TIMEOUT_SECONDS);
         // Every wake queue carries a dead-letter queue (review finding 5):
         // exhausted notifications must be inspectable, not silently lost.
         let wake_dlq_id = format!("{}-dlq", binding.queue_id);
@@ -81,7 +98,7 @@ pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology)
             next.queues.push(QueuePlan {
                 id: wake_dlq_id.clone(),
                 fifo: false,
-                visibility_timeout_seconds: WAKE_VISIBILITY_TIMEOUT_SECONDS,
+                visibility_timeout_seconds: wake_visibility,
                 retention_seconds: WAKE_RETENTION_SECONDS,
                 dead_letter_queue_id: None,
                 max_receive_count: None,
@@ -91,7 +108,7 @@ pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology)
             next.queues.push(QueuePlan {
                 id: binding.queue_id.clone(),
                 fifo: false,
-                visibility_timeout_seconds: WAKE_VISIBILITY_TIMEOUT_SECONDS,
+                visibility_timeout_seconds: wake_visibility,
                 retention_seconds: WAKE_RETENTION_SECONDS,
                 dead_letter_queue_id: Some(wake_dlq_id),
                 max_receive_count: Some(WAKE_MAX_RECEIVE_COUNT),
@@ -113,6 +130,11 @@ pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology)
             });
         }
     }
+    // Synthesized queues and triggers change the derived local-service
+    // list and IAM intents; recompute both exactly as plan construction
+    // does so the ordinary validators accept the result (exact-head
+    // review 5064401898 — shared with the durable-work sidecar).
+    crate::model::refresh_derived_plan_state(&mut next);
     next
 }
 
@@ -336,13 +358,24 @@ pub fn render_sam_with_inbound_mail(
     topology: &InboundMailTopology,
     code_uris: &std::collections::BTreeMap<String, String>,
 ) -> Result<String, crate::PlanError> {
+    // Fail closed BEFORE any binding reaches the base renderer
+    // (exact-head review 5064401898): a disabled topology carrying
+    // bindings is internally inconsistent — the worker IAM
+    // environment would reference raw-mail buckets whose provider
+    // resources are never rendered. Rendering it is refused rather
+    // than half-produced.
+    if !topology.enabled && !topology.bindings.is_empty() {
+        return Err(crate::PlanError::UnsupportedDeployment(
+            "inbound mail topology is disabled but carries bindings".into(),
+        ));
+    }
+    if !topology.enabled || topology.bindings.is_empty() {
+        return crate::sam::render_sam_with_code_uris(plan, code_uris);
+    }
     // The base render receives the sidecar's bindings explicitly so the
     // worker IAM environment scopes the mail buckets (the plan itself
     // no longer carries the topology — exact-head review 5060065907).
     let mut template = crate::sam::render_sam_template(plan, code_uris, &topology.bindings)?;
-    if !topology.enabled || topology.bindings.is_empty() {
-        return Ok(template);
-    }
     let mut resources = String::new();
     // One shared, explicitly named receipt rule set (review finding 5);
     // activation semantics belong to the operator applying the change set.

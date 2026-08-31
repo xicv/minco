@@ -9,16 +9,63 @@ depends_on: [M14-T73]
 operations: []
 owned_paths:
   - .gitignore
+  - Cargo.lock
+  - Cargo.toml
   - tasks/M14/M14-T74-desk-stabilization-merge-gate.md
   - examples/ticketing-agent-console
   - examples/minco-desk
   - plugins/minco-plugin-ticketing
+  - plugins/minco-plugin-audit/Cargo.toml
+  - plugins/minco-plugin-audit/src/lib.rs
+  - plugins/minco-plugin-audit/tests/downstream_witness.rs
+  - plugins/minco-plugin-feedback/minco-plugin.json
+  - plugins/minco-plugin-feedback/src/plugin.rs
+  - plugins/minco-plugin-notifications/src/lib.rs
+  - crates/minco-cli/src/delivery_evidence.rs
+  - crates/minco-cli/src/plugin_cmd.rs
+  - crates/minco-contract/src/generate.rs
+  - crates/minco-contract/src/validate.rs
+  - crates/minco-plan/src/inbound_mail.rs
+  - crates/minco-plan/src/lib.rs
+  - crates/minco-plan/src/model.rs
+  - crates/minco-plan/src/sam.rs
+  - crates/minco-plan/src/durable_work.rs
+  - crates/minco-plan/examples/render_inbound_mail.rs
+  - crates/minco-plan/tests/downstream_witness.rs
+  - crates/minco-plan/tests/render_inbound_mail.rs
+  - extensions/minco-aws-adapters/src/s3.rs
+  - extensions/minco-aws-worker/Cargo.toml
+  - extensions/minco-aws-worker/examples/ticketing_mail_seam.rs
+  - extensions/minco-aws-worker/src/lib.rs
+  - extensions/minco-aws-worker/src/ticketing_wake.rs
+  - extensions/minco-sqlx-sqlite/src/plugin_adapters.rs
+  - extensions/minco-sqlx-sqlite/migrations/plugins
+  - extensions/minco-sqlx-sqlite/tests/fixtures/minco_1_12_plugin_migrations
+  - extensions/minco-sqlx-sqlite/tests/published_migration_upgrade.rs
+  - extensions/minco-sqlx-postgres/src/plugin_adapters.rs
+  - extensions/minco-sqlx-postgres/migrations/plugins
+  - extensions/minco-sqlx-postgres/tests/audit_migration_parity.rs
+  - extensions/minco-sqlx-postgres/tests/fixtures/minco_1_12_plugin_migrations
+  - proofs/realtime-appsync/aws-handler/Cargo.lock
+  - scripts/dev/ticketing-mail-seam.sh
+  - scripts/quality.sh
+  - scripts/source_manifest.py
+  - scripts/test/desk_binary_lifecycle.py
+  - scripts/test/examples/validate.py
+  - scripts/test/inbound_mail_template_parse.py
+  - scripts/test/quality_assurance.py
   - docs/DECISIONS.md
+  - docs/adrs
+  - docs/reference/generated
   - verification/deep-review.json
   - verification/source-manifest.json
   - verification/static-validation.json
   - verification/operational-evidence-validation.json
   - verification/publish-validation.json
+  - verification/1.9-performance-baseline.json
+  - verification/release-identity.json
+  - verification/agent-workflows.json
+  - verification/quality-assurance-policy.toml
 checks:
   - cargo test -p minco-plugin-ticketing -p minco-desk-example --all-targets --locked
   - cargo clippy -p minco-plugin-ticketing -p minco-desk-example --all-targets --locked -- -D warnings
