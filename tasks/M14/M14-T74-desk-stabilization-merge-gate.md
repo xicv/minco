@@ -478,6 +478,56 @@ component), and every local-release step was executed:
 - `scripts/release/candidate-recovery.sh`: PASS.
 - `scripts/release/candidate-load.sh`: PASS.
 
+**Round 6 (2026-08-31, exact-head review 5060065907 at 2bdd7e2f)**:
+the SemVer verdict was implemented as ruled — the lock-step 1.x family
+stays 1.x, both breaking APIs were redesigned compatibly, and the
+complete release controller exited 0:
+
+- **`DeploymentPlan.inbound_mail` REMOVED.** The inbound-mail topology
+  is a true explicit sidecar (the durable-work pattern): apply
+  projects only into the EXISTING queues/triggers/function
+  collections; the renderer threads the bindings through an internal
+  `render_sam_template` entry so the worker IAM environment is scoped
+  by the applied sidecar; validate/cost/render keep receiving the
+  topology. A downstream witness
+  (`crates/minco-plan/tests/downstream_witness.rs` — an external
+  integration-test crate) constructs `DeploymentPlan` with the FULL
+  published v1.12 struct literal and compiles; any future public
+  field breaks that witness exactly as it would break downstream.
+- **`AuditError::Conflict` REMOVED.** The integrity conflict rides the
+  existing `Append(String)` variant behind the stable
+  `MINCO-AUDIT-CONFLICT` machine code with a public constructor
+  (`audit_conflict_error`) and detector (`is_audit_conflict`); the
+  canonical fingerprint, same-id idempotence, conflict semantics,
+  migration 0004, legacy adoption and memory/SQLite/PostgreSQL parity
+  all keep their round-5 behavior. A downstream witness exhaustively
+  matches the original two variants with no wildcard arm and
+  compiles.
+- **cargo-semver-checks: PASS** — `no semver update required` for
+  both crates against exact v1.12.0 AND the policy-pinned v1.9.0; the
+  complete family lane passed inside the controller.
+- **local-release.sh exit 0** (the full controller, one invocation,
+  at the source-frozen tree): the aggregate gate with chromium +
+  firefox 40+40 green in-gate, 1,657 cargo tests, the measured
+  assurance lane (nextest parity 161 — the plan witness adds one to
+  the lane's core/plan/release count; coverage; mutation; family
+  semver), AppSync local proof, candidate recovery, candidate load,
+  the packaged-crate verification (which surfaced and fixed a latent
+  break: ticketing's default-feature unit tests referenced the
+  jobs-gated plugin — now cfg-gated), the publication dry-run on a
+  clean tree, and the docker-runtime E2E. Two latent infrastructure
+  gaps were also closed en route: the generated reference docs and
+  the AppSync aws-handler lockfile were regenerated, the two runtime
+  container images pre-pulled, and Docker Desktop started for the
+  runtime lane.
+- No lint was relaxed, no baseline moved, no exception recorded: the
+  two findings were fixed by compatible redesign.
+
+Recorded statuses unchanged: Mimosa inconclusive; hosted Linux
+performance and live AWS provider evidence NOT RUN per the
+no-provider-contact policy. The PR stays draft pending the final
+independent exact-head re-review.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and
