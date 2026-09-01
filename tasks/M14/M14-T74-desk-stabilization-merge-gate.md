@@ -570,6 +570,44 @@ complete release controller exited 0:
 - No lint was relaxed, no baseline moved, no exception recorded: the
   two findings were fixed by compatible redesign.
 
+**Round 7 (2026-09-01, exact-head review 5064401898 at cd8c8c92)**:
+the Plan-sidecar blocker was closed exactly as prescribed:
+
+- **Derived state refresh**: `apply_inbound_mail` now recomputes
+  `local_aws_services` and `iam_intents` from the final collections
+  through ONE package-private helper (`refresh_derived_plan_state`)
+  shared with `apply_durable_work` — a third sidecar cannot repeat the
+  omission. The wake queue's visibility timeout derives from the bound
+  worker's timeout (six-fold + batching window) instead of a fixed
+  300s constant that fell one second short of the validator's own
+  MINCO-SQS-002 rule.
+- **Fail-closed disabled rendering**: `render_sam_with_inbound_mail`
+  refuses a disabled topology carrying bindings BEFORE any binding
+  reaches the base renderer (stable PlanError); a cleanly disabled or
+  empty topology renders the unmodified base template.
+- **Six regressions**: applied plan passes ordinary
+  DeploymentPlan::validate; sqs appears in local_aws_services and both
+  derived fields equal fresh derivations; double-apply structural
+  stability; disabled-with-bindings rejected by validation AND
+  rendering; durable-work + inbound-mail composition in both orders
+  (ordinary validation, both sidecar validators, derived-field
+  equality, set-level collection convergence, composed template
+  renders).
+- **Task ownership truth**: the owned_paths front matter now lists
+  every path rounds 5–7 actually touched.
+- **Qualification at the frozen head**: focused minco-plan tests and
+  clippy -D warnings clean; rustfmt --check on every changed Rust
+  file; cargo semver-checks reports no update required vs v1.12.0 AND
+  the policy-pinned v1.9.0; `sam validate --lint` PASS on the rendered
+  template (wired in the parse gate); measured lane pin refreshed
+  161→166 (the six regressions are executable lane tests); evidence
+  chain converged (manifest a60857b1…); and the COMPLETE
+  `scripts/ci/local-release.sh` exited 0 in one invocation — 1,744
+  cargo/doc tests, chromium + firefox 40+40 in-gate, the measured
+  assurance lane, AppSync local, candidate recovery/load,
+  packaged-crate verification, publication dry-run on a clean tree,
+  multi-release rehearsal, and the docker-runtime E2E.
+
 Recorded statuses unchanged: Mimosa inconclusive; hosted Linux
 performance and live AWS provider evidence NOT RUN per the
 no-provider-contact policy. The PR stays draft pending the final
