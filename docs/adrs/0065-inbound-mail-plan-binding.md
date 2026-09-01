@@ -96,3 +96,29 @@ the plan. The shared SES receipt rule set is named from the application,
 environment and an order-independent digest of the binding set — never
 from the first binding — so reordering bindings cannot replace the
 provider rule set.
+
+## Amendment (2026-09-02, M14-T74 stabilization review 5083559431)
+
+The provider dependency graph and multi-binding contracts were
+completed; the prior text stands with these refinements authoritative:
+
+- **Clean-create ordering**: the S3-to-SQS queue policy builds its
+  `aws:SourceArn` from the EXPLICIT configured bucket name (never
+  `!GetAtt` the bucket resource), so the graph is
+  Queue → QueuePolicy → Bucket(+Notification) → BucketPolicy →
+  ReceiptRule; the bucket `DependsOn` the queue policy because S3
+  validates the notification destination's permission at
+  notification-apply time. The SES receipt rule references the rule
+  set with `!Ref` (a real CloudFormation dependency; identical literal
+  strings create none) and `DependsOn` the SES-write bucket policy.
+  A rendered-graph regression proves acyclicity and the provider
+  order.
+- **Full-identity rule-set name**: the digest covers the FULL
+  application, environment, region and sorted binding set (canonical
+  length-framed), so visible-prefix truncation can never collide two
+  deployments; the 64-character budget counts every separator.
+- **Physical ingress ownership**: one normalized mailbox routes to
+  exactly one binding and one physical bucket belongs to one binding
+  (duplicate recipients would silently fan one mail into multiple
+  buckets/wakes/projects; duplicate bucket names cannot deploy).
+  Shared-mailbox fan-out requires an explicit future model.

@@ -46,6 +46,18 @@ pub mod durable_work_codes {
     /// already exists, so the mapping must be proven present (exact-head
     /// review 5072859042).
     pub const PROFILE_MAPPING_MISSING: &str = "MINCO-JOBS-020";
+    /// An existing same-ID queue does not match the exact profile shape
+    /// (exact-head review 5083559431 P0-3).
+    pub const PROFILE_QUEUE_SHAPE: &str = "MINCO-JOBS-021";
+    /// An existing same-ID worker function does not match the exact
+    /// profile shape (exact-head review 5083559431 P0-3).
+    pub const PROFILE_FUNCTION_SHAPE: &str = "MINCO-JOBS-022";
+    /// An existing same-ID mapping does not match the exact profile
+    /// shape (exact-head review 5083559431 P0-3).
+    pub const PROFILE_TRIGGER_SHAPE: &str = "MINCO-JOBS-023";
+    /// Another trigger also consumes the profile queue (exact-head
+    /// review 5083559431 P0-3).
+    pub const PROFILE_QUEUE_SECOND_CONSUMER: &str = "MINCO-JOBS-024";
 }
 
 /// Scheduler target payloads are capped at 256 KiB by the provider.
@@ -166,9 +178,60 @@ impl DurableWorkTopology {
     }
 }
 
+/// The exact wake-queue shape one profile owns (exact-head review
+/// 5083559431 P0-3): apply creates it when absent and validate compares
+/// any existing same-ID queue against it field by field.
+fn expected_profile_queue(profile: &WorkerProfilePlan) -> QueuePlan {
+    QueuePlan {
+        id: profile.queue_id.clone(),
+        fifo: profile.fifo,
+        visibility_timeout_seconds: profile.timeout_seconds * 6 + profile.batching_window_seconds,
+        retention_seconds: 345_600,
+        dead_letter_queue_id: profile.dead_letter_queue_id.clone(),
+        max_receive_count: profile.max_receive_count,
+    }
+}
+
+/// The exact worker-function shape one profile owns.
+fn expected_profile_function(profile: &WorkerProfilePlan) -> FunctionPlan {
+    FunctionPlan {
+        name: profile.function_id.clone(),
+        role: FunctionRole::Worker,
+        artifact_path: profile.artifact_path.clone(),
+        memory_mb: profile.memory_mb,
+        timeout_seconds: profile.timeout_seconds,
+        reserved_concurrency: profile.reserved_concurrency,
+        provisioned_concurrency: 0,
+        database_connections_per_instance: profile.database_connections_per_instance,
+    }
+}
+
+fn profile_trigger_id(profile: &WorkerProfilePlan) -> String {
+    format!("{}-mapping", profile.id)
+}
+
+/// The exact event-source mapping shape one profile owns.
+fn expected_profile_trigger(profile: &WorkerProfilePlan) -> TriggerPlan {
+    TriggerPlan::Sqs {
+        id: profile_trigger_id(profile),
+        function_id: profile.function_id.clone(),
+        queue_id: profile.queue_id.clone(),
+        batch_size: profile.batch_size,
+        batching_window_seconds: profile.batching_window_seconds,
+        report_batch_item_failures: true,
+        maximum_concurrency: profile.maximum_concurrency,
+    }
+}
+
 /// Synthesize durable-work queues, worker functions and mappings into a copy
 /// of the plan. A disabled or absent sidecar returns the plan unchanged:
 /// zero queues, zero workers, zero schedules.
+///
+/// Resource ownership follows the exact-shape contract (exact-head review
+/// 5083559431 P0-3): an absent expected resource is created; an existing
+/// resource is reused ONLY when semantically identical (apply never
+/// overwrites an existing same-ID resource, so a mismatch survives for
+/// `validate_durable_work` to reject — it is never silently adopted).
 #[must_use]
 pub fn apply_durable_work(plan: &DeploymentPlan, topology: &DurableWorkTopology) -> DeploymentPlan {
     if !topology.enabled {
@@ -176,44 +239,26 @@ pub fn apply_durable_work(plan: &DeploymentPlan, topology: &DurableWorkTopology)
     }
     let mut next = plan.clone();
     for profile in &topology.profiles {
+        let queue = expected_profile_queue(profile);
         if !next.queues.iter().any(|queue| queue.id == profile.queue_id) {
-            next.queues.push(QueuePlan {
-                id: profile.queue_id.clone(),
-                fifo: profile.fifo,
-                visibility_timeout_seconds: profile.timeout_seconds * 6
-                    + profile.batching_window_seconds,
-                retention_seconds: 345_600,
-                dead_letter_queue_id: profile.dead_letter_queue_id.clone(),
-                max_receive_count: profile.max_receive_count,
-            });
+            next.queues.push(queue);
         }
+        let function = expected_profile_function(profile);
         if !next
             .functions
             .iter()
             .any(|function| function.name == profile.function_id)
         {
-            next.functions.push(FunctionPlan {
-                name: profile.function_id.clone(),
-                role: FunctionRole::Worker,
-                artifact_path: profile.artifact_path.clone(),
-                memory_mb: profile.memory_mb,
-                timeout_seconds: profile.timeout_seconds,
-                reserved_concurrency: profile.reserved_concurrency,
-                provisioned_concurrency: 0,
-                database_connections_per_instance: profile.database_connections_per_instance,
-            });
+            next.functions.push(function);
         }
-        if !next.triggers.iter().any(|trigger| matches!(trigger, TriggerPlan::Sqs { queue_id, .. } if *queue_id == profile.queue_id))
+        let trigger = expected_profile_trigger(profile);
+        let trigger_id = profile_trigger_id(profile);
+        if !next
+            .triggers
+            .iter()
+            .any(|trigger| matches!(trigger, TriggerPlan::Sqs { id, .. } if id == &trigger_id))
         {
-            next.triggers.push(TriggerPlan::Sqs {
-                id: format!("{}-mapping", profile.id),
-                function_id: profile.function_id.clone(),
-                queue_id: profile.queue_id.clone(),
-                batch_size: profile.batch_size,
-                batching_window_seconds: profile.batching_window_seconds,
-                report_batch_item_failures: true,
-                maximum_concurrency: profile.maximum_concurrency,
-            });
+            next.triggers.push(trigger);
         }
     }
     // Synthesized queues and triggers change the derived local-service list
@@ -296,6 +341,126 @@ pub fn validate_durable_work(
                     "worker profile '{}' has no event-source mapping on queue '{}'; \
                      a foreign resource owns the queue id",
                     profile.id, profile.queue_id
+                ),
+            ));
+        }
+        // Exact-shape ownership (exact-head review 5083559431 P0-3):
+        // same-ID resources must match the profile's expected shapes
+        // field by field — apply skips creation on ID collision, so a
+        // foreign queue/function/mapping with the right IDs but the
+        // wrong contract would otherwise be silently adopted.
+        if let Some(existing) = plan
+            .queues
+            .iter()
+            .find(|queue| queue.id == profile.queue_id)
+        {
+            let expected = expected_profile_queue(profile);
+            if existing.fifo != expected.fifo
+                || existing.visibility_timeout_seconds != expected.visibility_timeout_seconds
+                || existing.retention_seconds != expected.retention_seconds
+                || existing.dead_letter_queue_id != expected.dead_letter_queue_id
+                || existing.max_receive_count != expected.max_receive_count
+            {
+                diagnostics.push(diagnostic(
+                    durable_work_codes::PROFILE_QUEUE_SHAPE,
+                    format!(
+                        "existing queue does not match the exact profile shape \
+                         (fifo {}, visibility {}, retention {}, dlq {:?}, max_receive {:?}); \
+                         expected (fifo {}, visibility {}, retention {}, dlq {:?}, max_receive {:?}): {}",
+                        existing.fifo,
+                        existing.visibility_timeout_seconds,
+                        existing.retention_seconds,
+                        existing.dead_letter_queue_id,
+                        existing.max_receive_count,
+                        expected.fifo,
+                        expected.visibility_timeout_seconds,
+                        expected.retention_seconds,
+                        expected.dead_letter_queue_id,
+                        expected.max_receive_count,
+                        profile.queue_id
+                    ),
+                ));
+            }
+        }
+        if let Some(existing) = plan
+            .functions
+            .iter()
+            .find(|function| function.name == profile.function_id)
+        {
+            let expected = expected_profile_function(profile);
+            if existing.role != expected.role
+                || existing.artifact_path != expected.artifact_path
+                || existing.memory_mb != expected.memory_mb
+                || existing.timeout_seconds != expected.timeout_seconds
+                || existing.reserved_concurrency != expected.reserved_concurrency
+                || existing.provisioned_concurrency != expected.provisioned_concurrency
+                || existing.database_connections_per_instance
+                    != expected.database_connections_per_instance
+            {
+                diagnostics.push(diagnostic(
+                    durable_work_codes::PROFILE_FUNCTION_SHAPE,
+                    format!(
+                        "existing function does not match the exact profile shape \
+                         (role {:?}, artifact {}, memory {}, timeout {}, reserved {}, \
+                         provisioned {}, db-connections {}): {}",
+                        existing.role,
+                        existing.artifact_path,
+                        existing.memory_mb,
+                        existing.timeout_seconds,
+                        existing.reserved_concurrency,
+                        existing.provisioned_concurrency,
+                        existing.database_connections_per_instance,
+                        profile.function_id
+                    ),
+                ));
+            }
+        }
+        let trigger_id = profile_trigger_id(profile);
+        if let Some(TriggerPlan::Sqs {
+            function_id,
+            queue_id,
+            batch_size,
+            batching_window_seconds,
+            report_batch_item_failures,
+            maximum_concurrency,
+            ..
+        }) = plan
+            .triggers
+            .iter()
+            .find(|trigger| matches!(trigger, TriggerPlan::Sqs { id, .. } if id == &trigger_id))
+            && (*function_id != profile.function_id
+                || *queue_id != profile.queue_id
+                || *batch_size != profile.batch_size
+                || *batching_window_seconds != profile.batching_window_seconds
+                || !*report_batch_item_failures
+                || *maximum_concurrency != profile.maximum_concurrency)
+        {
+            diagnostics.push(diagnostic(
+                durable_work_codes::PROFILE_TRIGGER_SHAPE,
+                format!(
+                    "existing mapping does not match the exact profile shape \
+                     (function {function_id}, queue {queue_id}, batch {batch_size}, \
+                     window {batching_window_seconds}, partial-batch {report_batch_item_failures}, \
+                     concurrency {maximum_concurrency}): {trigger_id}"
+                ),
+            ));
+        }
+        // Competing consumers steal work items; they do not fan out.
+        let second_consumer = plan
+            .triggers
+            .iter()
+            .filter(|trigger| {
+                matches!(trigger, TriggerPlan::Sqs { id, queue_id, .. }
+                    if queue_id == &profile.queue_id && id != &trigger_id)
+            })
+            .count();
+        if second_consumer > 0 {
+            diagnostics.push(diagnostic(
+                durable_work_codes::PROFILE_QUEUE_SECOND_CONSUMER,
+                format!(
+                    "another trigger also consumes the profile queue; competing consumers \
+                     steal work instead of fanning out: {}",
+                    profile.queue_id
                 ),
             ));
         }

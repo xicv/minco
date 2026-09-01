@@ -1424,13 +1424,13 @@
     },
     {
       "path": "crates/minco-plan/src/durable_work.rs",
-      "sha256": "b24b1e7cad27862cc87ca079cabf5917ad7e2bc18bf9bb8506e64ccc3c04acf7",
-      "size_bytes": 43991
+      "sha256": "75fad501e7bef4050ed7020f42b2d1e9fe6d3b0a92ed6f4f313df0ddc4980fc7",
+      "size_bytes": 51472
     },
     {
       "path": "crates/minco-plan/src/inbound_mail.rs",
-      "sha256": "734772aae403ecb86eee7b411b8324349d2efb63573e73cca41362279174f7e4",
-      "size_bytes": 33926
+      "sha256": "3ee80fa13d41f31a9249c0ba1e93f5d68866e20f06f447036a05bfbd74ad2b63",
+      "size_bytes": 38026
     },
     {
       "path": "crates/minco-plan/src/lib.rs",
@@ -1504,8 +1504,8 @@
     },
     {
       "path": "crates/minco-plan/tests/render_inbound_mail.rs",
-      "sha256": "aaacfa54af53fcd71342c2b53be389e2f5b8a3e6e8df2afc7be502e4825ace32",
-      "size_bytes": 31887
+      "sha256": "193504f16364489ec886e0b36d72dd45255815ae032058226f9a356494d3377a",
+      "size_bytes": 46180
     },
     {
       "path": "crates/minco-project-view/Cargo.toml",
@@ -1754,8 +1754,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "ab3ad727f18239057d5750d360ce5758bb3a751a48f134287dca847374331ac9",
-      "size_bytes": 17086
+      "sha256": "e68d9e74c3257a7c9b819007a42e0766b77a63ed5df254195ebed33b2a094fb7",
+      "size_bytes": 17234
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2179,8 +2179,8 @@
     },
     {
       "path": "docs/adrs/0061-real-s3-wake-envelope.md",
-      "sha256": "11f7b70647abfaeb4a362e08421608d48c59967c2b0245f62a1c69ad1802c529",
-      "size_bytes": 2973
+      "sha256": "00f32f456c4c1fdbfc682ef839b629227a6e40d25a19042be72b328fdd43e455",
+      "size_bytes": 3086
     },
     {
       "path": "docs/adrs/0062-contract-reference-integrity.md",
@@ -2199,8 +2199,8 @@
     },
     {
       "path": "docs/adrs/0065-inbound-mail-plan-binding.md",
-      "sha256": "79036418da83de68d851dddf8f289a945454787f3008164438efaa810039a475",
-      "size_bytes": 5282
+      "sha256": "27d7769a002c6b056815f4098ab2adfd535dc8ce7a5a6db70b54b196d0d6fc7e",
+      "size_bytes": 6734
     },
     {
       "path": "docs/adrs/0066-ticket-types-and-typed-forms.md",
@@ -2559,8 +2559,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "f2aac08fec5242aa4f850e1fbef6a8a771988a2e375cf107155d7d21f7e44c49",
-      "size_bytes": 54324
+      "sha256": "454db304a467e41f0c7466d17aff7726bc97d03838a5e01af3702e390b43ad47",
+      "size_bytes": 54786
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -8684,8 +8684,8 @@
     },
     {
       "path": "scripts/test/inbound_mail_template_parse.py",
-      "sha256": "16c1d7bdd980280c836f7b14d2aca04dcb3d8b5087107d65f62726628b5bb7be",
-      "size_bytes": 6154
+      "sha256": "e9a402e5ffc193ada4fa923f2531bd279708adddb05da967cb3f832e5726b9e1",
+      "size_bytes": 7291
     },
     {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
@@ -9329,8 +9329,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "2f8141b5ed2f53ed1d20b9f6b908392b63abee48cf526d147665496e7b7e02a4",
-      "size_bytes": 38438
+      "sha256": "43fd28ab15a9382a0a8a730fdb346d0df4b58e0b5976809208b89cc609314c71",
+      "size_bytes": 40858
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "6e5d8cfa69bd85eb93943a31249d75918e9d84c357986c47ae0f03e55900f0d8",
-  "total_size_bytes": 15059645,
+  "source_tree_sha256": "dcd7b0a464b6100164bb8bb840e420dc3c97320a681767fdd322ad6404c6a1ae",
+  "total_size_bytes": 15091251,
   "version": "1.12.0"
 }

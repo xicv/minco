@@ -289,9 +289,19 @@ fn renders_the_full_provider_chain_into_sam() {
         "TicketingMailQueuePolicy:\n    Type: AWS::SQS::QueuePolicy",
         "Service: s3.amazonaws.com",
         "Action: sqs:SendMessage",
-        "aws:SourceArn: !GetAtt TicketingRawMailBucket.Arn",
+        // Exact-head review 5083559431 P0-1: the SourceArn is built from
+        // the EXPLICIT bucket name so the queue policy can be created
+        // before the bucket (S3 validates the notification destination
+        // permission at bucket-creation time).
+        "aws:SourceArn: !Sub 'arn:${AWS::Partition}:s3:::orders-dev-raw-mail'",
+        "aws:SourceAccount: !Ref AWS::AccountId",
         "InboundMailReceiptRuleSet:\n    Type: AWS::SES::ReceiptRuleSet",
-        "TicketingReceiptRule:\n    Type: AWS::SES::ReceiptRule",
+        // P0-1: the bucket waits for the queue policy.
+        "TicketingRawMailBucket:\n    Type: AWS::S3::Bucket\n    DependsOn: [TicketingMailQueuePolicy]",
+        // P0-2: the rule carries a REAL dependency on the rule set
+        // (!Ref) and waits for the SES-write bucket policy.
+        "TicketingReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [TicketingRawMailBucketPolicy, TicketingMailQueuePolicy]",
+        "RuleSetName: !Ref InboundMailReceiptRuleSet",
         "ScanEnabled: true",
         "ObjectKeyPrefix: 'mail/'",
         // Review finding 5: full mailbox recipient, source-account-bound
@@ -302,7 +312,6 @@ fn renders_the_full_provider_chain_into_sam() {
         // deployment-order dependency.
         "TlsPolicy: Require",
         "Resource: !Sub '${TicketingRawMailBucket.Arn}/mail/*'",
-        "DependsOn: [TicketingMailQueuePolicy]",
         // Worker wake policy: SQS receive/delete plus raw-object reads.
         "sqs:ReceiveMessage",
         "- s3:GetObject",
@@ -765,10 +774,12 @@ fn durable_work_claiming_the_mail_queue_collides_in_both_orders() {
     assert!(render_sam_with_inbound_mail(&mail_first, &mail, &code_uris()).is_err());
     let durable_diagnostics =
         minco_plan::durable_work::validate_durable_work(&durable_first, &durable);
+    let durable_codes = codes(&durable_diagnostics);
     assert!(
-        codes(&durable_diagnostics).contains(&"MINCO-JOBS-020"),
-        "the durable profile that lost its mapping to the wake queue must fail closed: {:?}",
-        codes(&durable_diagnostics)
+        durable_codes.contains(&"MINCO-JOBS-020")
+            || durable_codes.contains(&"MINCO-JOBS-021")
+            || durable_codes.contains(&"MINCO-JOBS-023"),
+        "the durable profile that lost its mapping to the wake queue must fail closed: {durable_codes:?}"
     );
     // The reverse direction: inbound claiming the DURABLE queue also
     // collides (the wake shape differs from the durable shape).
@@ -794,6 +805,7 @@ fn binding_ids_collapsing_to_one_sam_logical_id_are_rejected() {
     second.id = "ticket--ing".into();
     second.queue_id = "mail-other".into();
     second.bucket_name = "orders-dev-raw-other".into();
+    second.mailbox_scope = "other@example.test".into();
     let collapsing = InboundMailTopology {
         enabled: true,
         bindings: vec![first, second],
@@ -820,8 +832,10 @@ fn reordering_bindings_does_not_change_the_rule_set_identity() {
     second.id = "billing".into();
     second.queue_id = "mail-billing".into();
     second.bucket_name = "orders-dev-raw-billing".into();
-    // One wake discipline per worker: the second binding wakes a
-    // distinct worker.
+    // One wake discipline per worker AND one mailbox per binding
+    // (exact-head review 5083559431 P1): duplicate recipients would
+    // silently fan one mail into both bindings.
+    second.mailbox_scope = "billing@example.test".into();
     second.worker_function_id = "jobs-worker".into();
     let ordered = InboundMailTopology {
         enabled: true,
@@ -865,4 +879,334 @@ fn reordering_bindings_does_not_change_the_rule_set_identity() {
     let other_name = name_of(&other_template);
     assert_ne!(first_name, other_name);
     assert!(other_name.starts_with("billing-dev-inbound-mail-"));
+}
+
+// ---- Round-9 regressions (exact-head review 5083559431) ----
+
+#[test]
+fn rule_set_name_respects_the_ses_limits_at_every_boundary() {
+    // Both prefixes at their maximum allocation, punctuation-only
+    // input, and same-first-20-chars collisions: the name must stay
+    // within 64 characters, be [a-z0-9-] with alphanumeric ends, and
+    // differ for different FULL identities.
+    let topology = topology();
+    let base = plan();
+    let maxed = {
+        let mut p = base.clone();
+        p.application = "abcdefghijklmnopqrstuvwxyz0123456789".repeat(3);
+        p.environment = "zyxwvutsrqponmlkjihgfedcba".repeat(3);
+        p
+    };
+    let applied = apply_inbound_mail(&maxed, &topology);
+    let template = render_sam_with_inbound_mail(&applied, &topology, &code_uris()).expect("render");
+    let name = template
+        .lines()
+        .find(|line| line.trim_start().starts_with("RuleSetName: "))
+        .expect("rule set name")
+        .trim()
+        .trim_start_matches("RuleSetName: ")
+        .trim_matches('\'');
+    assert!(name.len() <= 64, "SES limit: {} ({name})", name.len());
+    assert!(
+        name.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    );
+    assert!(
+        name.chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphanumeric())
+    );
+    assert!(
+        name.chars()
+            .last()
+            .is_some_and(|c| c.is_ascii_alphanumeric())
+    );
+
+    // Punctuation-only application sanitizes to a placeholder, never a
+    // leading separator.
+    let mut punct = base.clone();
+    punct.application = "---...---".into();
+    let applied = apply_inbound_mail(&punct, &topology);
+    let template = render_sam_with_inbound_mail(&applied, &topology, &code_uris()).expect("render");
+    let name = template
+        .lines()
+        .find(|line| line.trim_start().starts_with("RuleSetName: "))
+        .expect("rule set name")
+        .trim()
+        .trim_start_matches("RuleSetName: ")
+        .trim_matches('\'');
+    assert!(name.starts_with(|c: char| c.is_ascii_alphanumeric()));
+
+    // Long-prefix collision: two applications sharing their first 20
+    // characters must NOT share a rule set — the digest covers the
+    // full identity.
+    let name_of_plan = |application: &str| {
+        let mut p = base.clone();
+        p.application = application.into();
+        let applied = apply_inbound_mail(&p, &topology);
+        let template =
+            render_sam_with_inbound_mail(&applied, &topology, &code_uris()).expect("render");
+        template
+            .lines()
+            .find(|line| line.trim_start().starts_with("RuleSetName: "))
+            .expect("rule set name")
+            .trim()
+            .trim_start_matches("RuleSetName: ")
+            .trim_matches('\'')
+            .to_owned()
+    };
+    let shared_prefix = "abcdefghijklmnopqrs";
+    let left = name_of_plan(&format!("{shared_prefix}-product-a-with-a-long-name"));
+    let right = name_of_plan(&format!("{shared_prefix}-product-b-with-a-long-name"));
+    assert_ne!(
+        left, right,
+        "the full identity digest must distinguish long prefixes"
+    );
+
+    // Same application, different full environment.
+    let mut other_env = base.clone();
+    other_env.environment = "production-with-a-long-name".into();
+    let applied_env = apply_inbound_mail(&other_env, &topology);
+    let env_template =
+        render_sam_with_inbound_mail(&applied_env, &topology, &code_uris()).expect("render");
+    let env_name = env_template
+        .lines()
+        .find(|line| line.trim_start().starts_with("RuleSetName: "))
+        .expect("rule set name")
+        .trim()
+        .trim_start_matches("RuleSetName: ")
+        .trim_matches('\'');
+    let applied_dev = apply_inbound_mail(&base, &topology);
+    let dev_template =
+        render_sam_with_inbound_mail(&applied_dev, &topology, &code_uris()).expect("render");
+    let dev_name = dev_template
+        .lines()
+        .find(|line| line.trim_start().starts_with("RuleSetName: "))
+        .expect("rule set name")
+        .trim()
+        .trim_start_matches("RuleSetName: ")
+        .trim_matches('\'');
+    assert_ne!(env_name, dev_name);
+
+    // The same full input is stable.
+    let again = name_of_plan(&format!("{shared_prefix}-product-a-with-a-long-name"));
+    assert_eq!(left, again);
+}
+
+#[test]
+fn duplicate_mailboxes_and_buckets_are_rejected() {
+    // Duplicate recipient: SES evaluates every matching rule, so two
+    // bindings routing one mailbox is an accidental fan-out.
+    let mut duplicate_mailbox = binding();
+    duplicate_mailbox.id = "second-route".into();
+    duplicate_mailbox.queue_id = "mail-second".into();
+    duplicate_mailbox.bucket_name = "orders-dev-raw-second".into();
+    let topology = InboundMailTopology {
+        enabled: true,
+        bindings: vec![binding(), duplicate_mailbox],
+    };
+    let diagnostics = validate_inbound_mail(&plan(), &topology);
+    let found = codes(&diagnostics);
+    assert!(found.contains(&"MINCO-MAIL-019"), "{found:?}");
+    assert!(render_sam_with_inbound_mail(&plan(), &topology, &code_uris()).is_err());
+
+    // Duplicate physical bucket: two logical resources cannot own one
+    // provider bucket name.
+    let mut duplicate_bucket = binding();
+    duplicate_bucket.id = "second-bucket".into();
+    duplicate_bucket.queue_id = "mail-second".into();
+    duplicate_bucket.mailbox_scope = "billing@example.test".into();
+    let topology = InboundMailTopology {
+        enabled: true,
+        bindings: vec![binding(), duplicate_bucket],
+    };
+    let diagnostics = validate_inbound_mail(&plan(), &topology);
+    let found = codes(&diagnostics);
+    assert!(found.contains(&"MINCO-MAIL-020"), "{found:?}");
+    assert!(render_sam_with_inbound_mail(&plan(), &topology, &code_uris()).is_err());
+}
+
+#[test]
+fn clean_create_dependency_graph_is_acyclic_and_provider_ordered() {
+    // Exact-head review 5083559431 P0-1/P0-2: prove the rendered
+    // graph orders Queue -> QueuePolicy -> Bucket -> BucketPolicy ->
+    // ReceiptRule, the ReceiptRule has a REAL dependency on the rule
+    // set (!Ref, not a literal), and the queue policy never references
+    // the bucket resource.
+    use std::collections::BTreeMap;
+    let topology = topology();
+    let applied = apply_inbound_mail(&plan(), &topology);
+    let template = render_sam_with_inbound_mail(&applied, &topology, &code_uris()).expect("render");
+    // The queue policy's SourceArn uses the explicit bucket name.
+    assert!(
+        template.contains("aws:SourceArn: !Sub 'arn:${AWS::Partition}:s3:::orders-dev-raw-mail'")
+    );
+    assert!(
+        !template
+            .matches("aws:SourceArn: !GetAtt TicketingRawMailBucket.Arn")
+            .count()
+            > 0
+    );
+    // The bucket waits for the queue policy.
+    assert!(
+        template
+            .contains("TicketingRawMailBucket:\n    Type: AWS::S3::Bucket\n    DependsOn: [TicketingMailQueuePolicy]")
+    );
+    // The rule waits for the bucket policy AND references the rule set.
+    assert!(
+        template.contains("DependsOn: [TicketingRawMailBucketPolicy, TicketingMailQueuePolicy]")
+    );
+    assert!(template.contains("RuleSetName: !Ref InboundMailReceiptRuleSet"));
+
+    // Structural acyclicity over DependsOn edges.
+    let document = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&template).expect("yaml");
+    let resources = document
+        .get("Resources")
+        .and_then(|value| value.as_mapping())
+        .expect("resources");
+    let mut graph: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (key, value) in resources {
+        let name = key.as_str().expect("resource name").to_owned();
+        let depends = value
+            .get("DependsOn")
+            .and_then(|list| list.as_sequence())
+            .map(|list| {
+                list.iter()
+                    .filter_map(|item| item.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        graph.insert(name, depends);
+    }
+    // Kahn's algorithm: the graph must be a DAG.
+    let mut pending: Vec<String> = graph.keys().cloned().collect();
+    let mut resolved: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut progressed = true;
+    while progressed {
+        progressed = false;
+        pending.retain(|name| {
+            let ready = graph[name]
+                .iter()
+                .all(|dep| resolved.contains(dep) || !graph.contains_key(dep));
+            if ready {
+                resolved.insert(name.clone());
+                progressed = true;
+                false
+            } else {
+                true
+            }
+        });
+    }
+    assert!(
+        pending.is_empty(),
+        "the rendered dependency graph must be acyclic; unresolved: {pending:?}"
+    );
+    // Provider ordering: rule set and queue precede the rule; queue
+    // policy precedes the bucket.
+    let position = |needle: &str| template.find(needle).expect(needle);
+    assert!(position("InboundMailReceiptRuleSet:\n") < position("TicketingReceiptRule:\n"));
+    assert!(position("MailTicketingQueue:\n") < position("TicketingMailQueuePolicy:\n"));
+}
+
+#[test]
+fn durable_work_rejects_same_id_resources_with_wrong_shapes() {
+    // Exact-head review 5083559431 P0-3: a base plan pre-providing a
+    // wrong-shape function, queue or mapping under the profile's ids
+    // must fail closed, never be silently adopted.
+    use minco_plan::durable_work::{
+        DurableWorkTopology, JobRoutePlan, WorkerProfilePlan, apply_durable_work,
+        validate_durable_work,
+    };
+    let durable = DurableWorkTopology {
+        enabled: true,
+        profiles: vec![WorkerProfilePlan {
+            id: "orders-notifications".into(),
+            queue_id: "jobs-orders-notifications".into(),
+            function_id: "jobs-worker".into(),
+            artifact_path: "target/lambda/jobs-worker.zip".into(),
+            fifo: false,
+            batch_size: 10,
+            batching_window_seconds: 1,
+            maximum_concurrency: 2,
+            memory_mb: 512,
+            timeout_seconds: 30,
+            reserved_concurrency: 2,
+            max_payload_bytes: 262_144,
+            database_connections_per_instance: 1,
+            dead_letter_queue_id: None,
+            max_receive_count: None,
+            data_classes: vec!["internal".into()],
+            required_capabilities: vec!["notifications.send".into()],
+        }],
+        routes: vec![JobRoutePlan {
+            job_name: "orders.send-confirmation".into(),
+            job_version: 1,
+            worker_profile: "orders-notifications".into(),
+            ordering_source: None,
+        }],
+        schedules: vec![],
+    };
+    let base = plan();
+    let applied = apply_durable_work(&base, &durable);
+    assert!(validate_durable_work(&applied, &durable).is_empty());
+
+    // Wrong artifact under the expected function name.
+    let mut wrong_artifact = applied.clone();
+    wrong_artifact
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "jobs-worker")
+        .unwrap()
+        .artifact_path = "wrong-worker.zip".into();
+    assert!(codes(&validate_durable_work(&wrong_artifact, &durable)).contains(&"MINCO-JOBS-022"));
+
+    // Wrong timeout under the expected function name.
+    let mut wrong_timeout = applied.clone();
+    wrong_timeout
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "jobs-worker")
+        .unwrap()
+        .timeout_seconds = 10;
+    assert!(codes(&validate_durable_work(&wrong_timeout, &durable)).contains(&"MINCO-JOBS-022"));
+
+    // Wrong queue redrive under the expected queue id.
+    let mut wrong_redrive = applied.clone();
+    wrong_redrive
+        .queues
+        .iter_mut()
+        .find(|q| q.id == "jobs-orders-notifications")
+        .unwrap()
+        .dead_letter_queue_id = Some("foreign-dlq".into());
+    assert!(codes(&validate_durable_work(&wrong_redrive, &durable)).contains(&"MINCO-JOBS-021"));
+
+    // Wrong batching under the expected mapping id.
+    let mut wrong_batching = applied.clone();
+    if let Some(minco_plan::TriggerPlan::Sqs {
+        batching_window_seconds,
+        ..
+    }) = wrong_batching.triggers.iter_mut().find(|t| {
+        matches!(t, minco_plan::TriggerPlan::Sqs { id, .. } if id == "orders-notifications-mapping")
+    }) {
+        *batching_window_seconds = 42;
+    }
+    assert!(codes(&validate_durable_work(&wrong_batching, &durable)).contains(&"MINCO-JOBS-023"));
+
+    // A second consumer on the profile queue.
+    let mut second_consumer = applied.clone();
+    second_consumer.triggers.push(minco_plan::TriggerPlan::Sqs {
+        id: "foreign-worker-mapping".into(),
+        function_id: "mail-worker".into(),
+        queue_id: "jobs-orders-notifications".into(),
+        batch_size: 5,
+        batching_window_seconds: 1,
+        report_batch_item_failures: true,
+        maximum_concurrency: 1,
+    });
+    assert!(codes(&validate_durable_work(&second_consumer, &durable)).contains(&"MINCO-JOBS-024"));
+
+    // Exact-shape repeat application remains idempotent.
+    let twice = apply_durable_work(&applied, &durable);
+    assert_eq!(applied, twice);
+    assert!(validate_durable_work(&twice, &durable).is_empty());
 }

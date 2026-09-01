@@ -61,3 +61,8 @@ validation (source, event name, bucket/key/sequencer presence,
 non-ObjectCreated record, and any record beyond the bounded set still
 fail closed with the existing stable worker codes. The single-record
 text above is retained for decision history only.
+
+## Note (2026-09-02)
+
+No further change from review 5083559431; the 2026-09-01 amendment
+remains authoritative.

@@ -47,6 +47,14 @@ pub mod inbound_mail_codes {
     /// after `sam_logical_id` normalization (exact-head review
     /// 5072859042).
     pub const LOGICAL_ID_COLLISION: &str = "MINCO-MAIL-018";
+    /// Two bindings route the same mailbox (exact-head review
+    /// 5083559431 P1): SES evaluates every matching recipient rule, so
+    /// duplicate recipients are an accidental mail fan-out.
+    pub const DUPLICATE_MAILBOX_SCOPE: &str = "MINCO-MAIL-019";
+    /// Two bindings own one physical bucket name (exact-head review
+    /// 5083559431 P1): the provider cannot create two buckets with a
+    /// single name.
+    pub const DUPLICATE_BUCKET_NAME: &str = "MINCO-MAIL-020";
 }
 
 /// Wake queue defaults: SES notifications are small and single-object;
@@ -218,6 +226,8 @@ pub fn validate_inbound_mail(
     }
     let mut binding_ids = BTreeSet::new();
     let mut queue_ids = BTreeSet::new();
+    let mut mailbox_scopes = BTreeSet::new();
+    let mut bucket_names = BTreeSet::new();
     for binding in &topology.bindings {
         if !valid_identifier(&binding.id) {
             diagnostics.push(diagnostic(
@@ -229,6 +239,32 @@ pub fn validate_inbound_mail(
             diagnostics.push(diagnostic(
                 inbound_mail_codes::DUPLICATE_BINDING_ID,
                 format!("duplicate inbound-mail binding id: {}", binding.id),
+            ));
+        }
+        // Physical ingress ownership (exact-head review 5083559431
+        // P1): one mailbox routes to exactly one binding — SES evaluates
+        // every matching recipient rule, so duplicate recipients would
+        // silently fan one mail into multiple buckets/wakes/projects —
+        // and one physical bucket belongs to exactly one binding
+        // (CloudFormation cannot create two buckets with one name).
+        // Shared-mailbox fan-out needs an explicit future model, never
+        // an accidental second SES rule.
+        if !mailbox_scopes.insert(binding.mailbox_scope.trim().to_ascii_lowercase()) {
+            diagnostics.push(diagnostic(
+                inbound_mail_codes::DUPLICATE_MAILBOX_SCOPE,
+                format!(
+                    "mailbox scope is already routed by another binding: {}",
+                    binding.mailbox_scope
+                ),
+            ));
+        }
+        if !bucket_names.insert(binding.bucket_name.trim().to_ascii_lowercase()) {
+            diagnostics.push(diagnostic(
+                inbound_mail_codes::DUPLICATE_BUCKET_NAME,
+                format!(
+                    "physical raw-mail bucket is already owned by another binding: {}",
+                    binding.bucket_name
+                ),
             ));
         }
         if !queue_ids.insert(binding.queue_id.clone()) {
@@ -496,8 +532,14 @@ fn valid_bucket_name(value: &str) -> bool {
 /// operator step.
 fn receipt_rule_set_name(plan: &DeploymentPlan, topology: &InboundMailTopology) -> String {
     use sha2::{Digest as _, Sha256};
+    use std::fmt::Write as _;
 
-    let mut identity = topology
+    // Canonical length-framed digest input (exact-head review
+    // 5083559431 P0-4): the FULL untruncated deployment identity —
+    // application, environment, region and the sorted binding set — so
+    // visible-prefix truncation can never make two deployments share a
+    // rule-set name.
+    let mut bindings = topology
         .bindings
         .iter()
         .map(|binding| {
@@ -511,8 +553,18 @@ fn receipt_rule_set_name(plan: &DeploymentPlan, topology: &InboundMailTopology) 
             )
         })
         .collect::<Vec<_>>();
-    identity.sort();
-    let digest = Sha256::digest(identity.join("\n").as_bytes());
+    bindings.sort();
+    let mut framed = String::new();
+    for part in [
+        plan.application.as_str(),
+        plan.environment.as_str(),
+        plan.region.as_str(),
+        bindings.join("\n").as_str(),
+    ] {
+        let _ = write!(framed, "{:016x}", part.len());
+        framed.push_str(part);
+    }
+    let digest = Sha256::digest(framed.as_bytes());
     let short = hex::encode(&digest[..6]);
 
     let sanitize = |value: &str| {
@@ -530,13 +582,26 @@ fn receipt_rule_set_name(plan: &DeploymentPlan, topology: &InboundMailTopology) 
     };
     let application = sanitize(&plan.application);
     let environment = sanitize(&plan.environment);
-    // Bound the prefix so app+env+separator+digest never exceeds 64.
-    let budget = 64 - "-inbound-mail-".len() - short.len();
-    let application_budget = budget / 2;
-    let environment_budget = budget - application_budget;
-    let application = &application[..application.len().min(application_budget)];
-    let environment = &environment[..environment.len().min(environment_budget)];
-    format!("{application}-{environment}-inbound-mail-{short}")
+    // Budget counts EVERY separator (exact-head review 5083559431
+    // P0-4): the app/env '-' plus the fixed "-inbound-mail-{digest}"
+    // suffix — the round-8 budget omitted the separator and could emit
+    // a 65-character name.
+    let suffix = format!("-inbound-mail-{short}");
+    let prefix_budget = 64 - suffix.len() - 1;
+    let application_budget = prefix_budget / 2;
+    let environment_budget = prefix_budget - application_budget;
+    // An empty sanitized part (punctuation-only input) falls back to a
+    // stable placeholder so the name never starts with a separator.
+    let truncate = |value: String, budget: usize| {
+        if value.is_empty() {
+            "app".to_owned()
+        } else {
+            value[..value.len().min(budget)].to_owned()
+        }
+    };
+    let application = truncate(application, application_budget);
+    let environment = truncate(environment, environment_budget);
+    format!("{application}-{environment}{suffix}")
 }
 
 /// Cost assumptions one binding adds, stated explicitly instead of priced.
@@ -651,25 +716,40 @@ pub fn render_sam_with_inbound_mail(
         // mail for that local part.
         let mailbox_recipient = binding.mailbox_scope.trim().to_ascii_lowercase();
         let queue_policy_logical = format!("{logical}MailQueuePolicy");
-        // Deployment ordering (exact-head review R9): the queue policy
-        // references the bucket ARN, so CloudFormation already orders
-        // bucket-before-policy; the bucket must NOT also DependOn the
-        // policy — that is the E3004 circular dependency `sam validate
-        // --lint` catches (exact-head review R34). The ordering race the
-        // DependsOn tried to fix belongs to the bucket NOTIFICATION (it
-        // needs the policy's permission for S3 sends), so the explicit
-        // dependency is expressed with a DependsOn on the notification
-        // path via the queue policy attached to the queue the
-        // notification targets — expressed on the ReceiptRule below,
-        // which depends on both the bucket and the queue policy.
+        // Clean-create dependency graph (exact-head review 5083559431
+        // P0-1/P0-2): S3 validates the bucket notification's destination
+        // queue AND its permission at notification-apply time, so the
+        // queue policy must exist BEFORE the bucket. A policy that
+        // !GetAtt's the bucket ARN would invert that order and could
+        // only be resolved circularly — instead the SourceArn is built
+        // from the EXPLICIT configured bucket name (`BucketName` is a
+        // concrete value, never a !Ref), so the policy depends only on
+        // the queue, and the bucket DependsOn the policy:
+        //   Queue -> QueuePolicy -> Bucket(+Notification) -> BucketPolicy
+        //   ReceiptRuleSet -> ReceiptRule (depends on BucketPolicy and
+        //   the queue policy; !Ref on the rule set for a real
+        //   dependency — identical literal strings create none).
         write!(
             resources,
-            "  {bucket_logical}:\n    Type: AWS::S3::Bucket\n    Properties:\n      BucketName: {bucket_name}\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true\n      NotificationConfiguration:\n        QueueConfigurations:\n          - Event: s3:ObjectCreated:*\n            Queue: !GetAtt {queue_logical}.Arn\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: {key_prefix_a}\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-raw-mail\n            Status: Enabled\n            Prefix: {key_prefix_b}\n            ExpirationInDays: {retention_days}\n",
+            "  {bucket_logical}:\n    Type: AWS::S3::Bucket\n    DependsOn: [{queue_policy_logical}]\n    Properties:\n      BucketName: {bucket_name}\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true\n      NotificationConfiguration:\n        QueueConfigurations:\n          - Event: s3:ObjectCreated:*\n            Queue: !GetAtt {queue_logical}.Arn\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: {key_prefix_a}\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-raw-mail\n            Status: Enabled\n            Prefix: {key_prefix_b}\n            ExpirationInDays: {retention_days}\n",
             bucket_logical = bucket_logical,
+            queue_policy_logical = queue_policy_logical,
             bucket_name = yaml_quote(&binding.bucket_name),
             key_prefix_a = yaml_quote(&binding.key_prefix),
             key_prefix_b = yaml_quote(&binding.key_prefix),
             retention_days = binding.retention_days,
+        )
+        .expect("write to String");
+        // The queue policy references only the queue and the explicit
+        // bucket name — never the bucket resource — so it can be
+        // created before the bucket exists (exact-head review
+        // 5083559431 P0-1).
+        write!(
+            resources,
+            "  {queue_policy_logical}:\n    Type: AWS::SQS::QueuePolicy\n    Properties:\n      Queues:\n        - !Ref {queue_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowBucketWakeSend\n            Effect: Allow\n            Principal:\n              Service: s3.amazonaws.com\n            Action: sqs:SendMessage\n            Resource: !GetAtt {queue_logical}.Arn\n            Condition:\n              ArnLike:\n                aws:SourceArn: !Sub 'arn:${{AWS::Partition}}:s3:::{bucket_name_sub}'\n              StringEquals:\n                aws:SourceAccount: !Ref AWS::AccountId\n",
+            queue_policy_logical = queue_policy_logical,
+            queue_logical = queue_logical,
+            bucket_name_sub = binding.bucket_name.replace('\'', "''"),
         )
         .expect("write to String");
         // Exact-head review R9/R14: the SES write grant is scoped to the
@@ -690,23 +770,23 @@ pub fn render_sam_with_inbound_mail(
             source_arn = yaml_quote(&source_arn_sub),
         )
         .expect("write to String");
-        write!(
-            resources,
-            "  {logical}MailQueuePolicy:\n    Type: AWS::SQS::QueuePolicy\n    Properties:\n      Queues:\n        - !Ref {queue_logical}\n      PolicyDocument:\n        Version: '2012-10-17'\n        Statement:\n          - Sid: AllowBucketWakeSend\n            Effect: Allow\n            Principal:\n              Service: s3.amazonaws.com\n            Action: sqs:SendMessage\n            Resource: !GetAtt {queue_logical}.Arn\n            Condition:\n              ArnLike:\n                aws:SourceArn: !GetAtt {bucket_logical}.Arn\n",
-        )
-        .expect("write to String");
         // One shared receipt rule set (review finding 5): every binding
         // adds a rule to the single activated set instead of competing
-        // rule sets; content scanning stays enabled. The rule depends
-        // on the queue policy (exact-head review R9): S3 event delivery
-        // to the queue must be authorized before mail flows — expressed
-        // here, on the consumer, keeping the graph acyclic (R34).
+        // rule sets; content scanning stays enabled. Ordering
+        // (exact-head review 5083559431 P0-2): the rule set is
+        // referenced with !Ref (a real CloudFormation dependency — the
+        // Ref returns the rule-set name; identical literal strings
+        // create none) and the rule waits for the SES-write bucket
+        // policy and the wake queue policy, so the bucket, its write
+        // grant and the rule set all exist before the enabled rule.
+        // Rule-set activation remains an explicit operator step.
         let rule_name = format!("{}-inbound-mail", binding.id);
+        let bucket_policy_logical = format!("{bucket_logical}Policy");
         write!(
             resources,
-            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [{queue_policy_logical}]\n    Properties:\n      RuleSetName: {rule_set_name}\n      Rule:\n        Name: {rule_name_value}\n        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {recipient}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {key_prefix_value}\n",
+            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [{bucket_policy_logical}, {queue_policy_logical}]\n    Properties:\n      RuleSetName: !Ref InboundMailReceiptRuleSet\n      Rule:\n        Name: {rule_name_value}\n        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {recipient}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {key_prefix_value}\n",
+            bucket_policy_logical = bucket_policy_logical,
             queue_policy_logical = queue_policy_logical,
-            rule_set_name = yaml_quote(&shared_rule_set_name),
             rule_name_value = yaml_quote(&rule_name),
             recipient = yaml_quote(&mailbox_recipient),
             key_prefix_value = yaml_quote(&binding.key_prefix),

@@ -113,18 +113,37 @@ class InboundMailTemplateParseTests(unittest.TestCase):
         self.assertEqual(rule["TlsPolicy"], "Require")
         self.assertEqual(rule["ScanEnabled"], True)
         self.assertEqual(rule["Recipients"], ["support@example.test"])
-        # The receipt rule (the consumer of the queue policy) carries the
-        # ordering dependency; the bucket must NOT depend on the policy
-        # that references its ARN — that is the E3004 circular dependency
-        # `sam validate --lint` catches (exact-head review R34).
-        self.assertNotIn(
-            "DependsOn",
-            resources["TicketingRawMailBucket"],
-            "the bucket must not depend on the policy referencing its ARN",
+
+        # Clean-create dependency graph (exact-head review 5083559431
+        # P0-1/P0-2): the queue policy's SourceArn uses the EXPLICIT
+        # bucket name (never !GetAtt the bucket resource), the bucket
+        # waits for the queue policy (S3 validates the notification
+        # destination permission at bucket-creation time), and the
+        # receipt rule carries a REAL dependency on the rule set (!Ref)
+        # plus the SES-write bucket policy.
+        queue_policy = resources["TicketingMailQueuePolicy"]
+        queue_condition = queue_policy["Properties"]["PolicyDocument"]["Statement"][0]
+        queue_source = str(queue_condition["Condition"]["ArnLike"]["aws:SourceArn"])
+        self.assertIn(
+            "arn:${AWS::Partition}:s3:::orders-dev-raw-mail",
+            queue_source,
+            f"the queue policy must not reference the bucket resource: {queue_source!r}",
         )
         self.assertIn(
             "TicketingMailQueuePolicy",
-            resources["TicketingReceiptRule"]["DependsOn"],
+            resources["TicketingRawMailBucket"]["DependsOn"],
+            "the bucket must wait for the queue policy",
+        )
+        rule_depends = resources["TicketingReceiptRule"]["DependsOn"]
+        self.assertIn("TicketingRawMailBucketPolicy", rule_depends)
+        self.assertIn("TicketingMailQueuePolicy", rule_depends)
+        # The tag-aware loader renders !Ref as the bare logical id, so
+        # equality with the LOGICAL ID (not the rule-set name) proves a
+        # reference; a literal would carry the digest identity string.
+        self.assertEqual(
+            resources["TicketingReceiptRule"]["Properties"]["RuleSetName"],
+            "InboundMailReceiptRuleSet",
+            "the rule must reference the rule set with !Ref, not a literal",
         )
 
     def test_sam_validate_lint_accepts_the_template(self) -> None:

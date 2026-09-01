@@ -646,6 +646,45 @@ the three residual findings closed as prescribed:
   and the reorder/two-application rule-set proofs — 19 tests in the
   sidecar suite.
 
+**Round 9 (2026-09-02, exact-head review 5083559431 at 5a6c0dc0)**:
+the provider/deployment and durable-ownership blockers closed:
+
+- **P0-1 clean-create graph**: the S3-to-SQS queue policy builds
+  aws:SourceArn from the EXPLICIT configured bucket name (never
+  !GetAtt the bucket resource), the bucket DependsOn the queue policy,
+  and the graph is Queue → QueuePolicy → Bucket(+Notification) →
+  BucketPolicy → ReceiptRule — S3's notification-time destination
+  permission validation can no longer race. The structural python gate
+  asserts the explicit SourceArn, the bucket DependsOn and the
+  provider order; a rendered-graph regression proves acyclicity by
+  Kahn's algorithm; sam validate --lint passes on the new graph.
+- **P0-2 SES rule ordering**: the receipt rule references the rule set
+  with !Ref (a real CloudFormation dependency — identical literals
+  create none) and DependsOn the SES-write bucket policy and the wake
+  queue policy, so the bucket, its write grant and the rule set exist
+  before the enabled rule; activation stays an explicit operator step.
+- **P0-3 durable-work exact-shape ownership**: expected
+  queue/function/trigger builders shared by apply and validate
+  (MINCO-JOBS-021/022/023 for same-ID wrong-shape queue, function and
+  mapping; MINCO-JOBS-024 for a competing second consumer on the
+  profile queue) — the wrong-artifact/wrong-timeout/wrong-redrive/
+  wrong-batching base-plan pre-provision attack now fails closed;
+  exact-shape repeat application stays idempotent.
+- **P0-4 rule-set name**: the digest is a SHA-256 over a canonical
+  length-framed encoding of the FULL application, environment, region
+  and sorted binding set, so visible-prefix truncation can never
+  collide two deployments; the 64-character budget counts every
+  separator (the round-8 budget could emit 65). Boundary regressions:
+  max-length prefixes, punctuation-only input, same-first-20-chars
+  applications, different environments, repeat stability.
+- **P1 physical ingress ownership**: duplicate normalized mailbox
+  scopes (MINCO-MAIL-019 — SES evaluates every matching recipient
+  rule; duplicates are accidental fan-out) and duplicate physical
+  bucket names (MINCO-MAIL-020) are rejected; shared-mailbox fan-out
+  requires an explicit future model.
+- ADR-0065 carries the 2026-09-02 amendment (graph, full-identity
+  name, ingress ownership) and DECISIONS.md is updated.
+
 Recorded statuses unchanged: Mimosa inconclusive; hosted Linux
 performance and live AWS provider evidence NOT RUN per the
 no-provider-contact policy. The PR stays draft pending the final
