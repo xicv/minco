@@ -82,9 +82,30 @@ class InboundMailTemplateParseTests(unittest.TestCase):
             "'", resource, "no nested quotes inside the quoted !Sub scalar"
         )
         source_arn = str(statement["Condition"]["ArnLike"]["aws:SourceArn"])
-        self.assertIn(
-            "receipt-rule-set/Ticketing-inbound-mail-ruleset:receipt-rule/ticketing-inbound-mail",
-            source_arn,
+        # The rule-set identity is a stable deployment digest (exact-head
+        # review 5072859042): application, environment, the sidecar
+        # marker and a hex digest — never the first binding's logical id.
+        rule_set_segment = next(
+            (
+                part
+                for part in source_arn.split(":")
+                if "-inbound-mail-" in part and "/" in part
+            ),
+            None,
+        )
+        self.assertIsNotNone(rule_set_segment, f"no rule-set identity in {source_arn!r}")
+        assert rule_set_segment is not None
+        identity = rule_set_segment.rsplit("/", 1)[-1]
+        self.assertTrue(
+            identity.startswith("orders-dev-inbound-mail-"),
+            f"identity carries app+environment: {identity!r}",
+        )
+        digest = identity.rsplit("-", 1)[-1]
+        self.assertEqual(len(digest), 12, "bounded hex digest suffix")
+        self.assertTrue(all(c in "0123456789abcdef" for c in digest))
+        self.assertTrue(
+            source_arn.endswith(":receipt-rule/ticketing-inbound-mail"),
+            f"the source ARN targets the receipt rule: {source_arn!r}",
         )
         self.assertNotIn("'", source_arn)
 

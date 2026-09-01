@@ -298,13 +298,11 @@ fn renders_the_full_provider_chain_into_sam() {
         // SES writes, one shared rule set name on every rule.
         "Recipients:\n          - 'support@example.test'",
         "aws:SourceAccount: !Sub '${AWS::AccountId}'",
-        "aws:SourceArn: !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/Ticketing-inbound-mail-ruleset:receipt-rule/ticketing-inbound-mail'",
         // Exact-head review R9: TLS required, prefix-scoped writes,
         // deployment-order dependency.
         "TlsPolicy: Require",
         "Resource: !Sub '${TicketingRawMailBucket.Arn}/mail/*'",
         "DependsOn: [TicketingMailQueuePolicy]",
-        "RuleSetName: 'Ticketing-inbound-mail-ruleset'",
         // Worker wake policy: SQS receive/delete plus raw-object reads.
         "sqs:ReceiveMessage",
         "- s3:GetObject",
@@ -315,6 +313,31 @@ fn renders_the_full_provider_chain_into_sam() {
             "template is missing: {expected}"
         );
     }
+    // Stable rule-set identity (exact-head review 5072859042): the name
+    // is derived from application + environment + an order-independent
+    // topology digest — never from the first binding.
+    let rule_set_line = template
+        .lines()
+        .find(|line| line.trim_start().starts_with("RuleSetName: "))
+        .expect("rule set name line");
+    let rule_set_name = rule_set_line
+        .trim()
+        .trim_start_matches("RuleSetName: ")
+        .trim_matches('\'');
+    assert!(
+        rule_set_name.starts_with("orders-dev-inbound-mail-"),
+        "rule set name carries the deployment identity: {rule_set_name}"
+    );
+    assert!(rule_set_name.len() <= 64, "SES RuleSetName limit");
+    let digest = rule_set_name.rsplit('-').next().expect("digest suffix");
+    assert_eq!(digest.len(), 12, "bounded hex digest suffix");
+    assert!(digest.chars().all(|c| c.is_ascii_hexdigit()));
+    assert!(
+        template.contains(&format!(
+            "arn:aws:ses:${{AWS::Region}}:${{AWS::AccountId}}:receipt-rule-set/{rule_set_name}:receipt-rule/ticketing-inbound-mail"
+        )),
+        "the receipt-rule ARN embeds the stable rule-set name"
+    );
     // The worker never gains write access to the raw bucket: the only
     // s3:PutObject grant names the SES service principal.
     let put_position = template
@@ -555,4 +578,291 @@ fn durable_work_and_inbound_mail_sidecars_compose_in_both_orders() {
     let template =
         render_sam_with_inbound_mail(&mail_first, &mail, &code_uris).expect("composed render");
     assert!(template.contains("AWS::SES::ReceiptRule"));
+}
+
+// ---- Exact-shape resource ownership regressions (exact-head review
+// 5072859042): a same-ID queue/trigger/DLQ with a different shape is a
+// collision, never something the sidecar adopts silently. ----
+
+fn code_uris() -> std::collections::BTreeMap<String, String> {
+    let mut uris = std::collections::BTreeMap::new();
+    uris.insert("api".to_owned(), "./api.zip".to_owned());
+    uris.insert("mail-worker".to_owned(), "./mail-worker.zip".to_owned());
+    uris.insert("jobs-worker".to_owned(), "./jobs-worker.zip".to_owned());
+    uris
+}
+
+fn codes(diagnostic: &[minco_plan::PlanDiagnostic]) -> Vec<&str> {
+    diagnostic.iter().map(|d| d.code.as_str()).collect()
+}
+
+#[test]
+fn existing_queue_with_wrong_dlq_or_shape_is_a_collision() {
+    let topology = topology();
+    let applied = apply_inbound_mail(&plan(), &topology);
+    // Wrong DLQ on the wake queue.
+    let mut wrong_dlq = applied.clone();
+    wrong_dlq
+        .queues
+        .iter_mut()
+        .find(|q| q.id == "mail-ticketing")
+        .unwrap()
+        .dead_letter_queue_id = Some("some-foreign-dlq".into());
+    let found = validate_inbound_mail(&wrong_dlq, &topology);
+    assert!(codes(&found).contains(&"MINCO-MAIL-014"));
+    // No DLQ at all.
+    let mut no_dlq = applied.clone();
+    no_dlq
+        .queues
+        .iter_mut()
+        .find(|q| q.id == "mail-ticketing")
+        .unwrap()
+        .dead_letter_queue_id = None;
+    assert!(codes(&validate_inbound_mail(&no_dlq, &topology)).contains(&"MINCO-MAIL-014"));
+    // FIFO wake queue: S3 direct notifications cannot target FIFO.
+    let mut fifo = applied;
+    fifo.queues
+        .iter_mut()
+        .find(|q| q.id == "mail-ticketing")
+        .unwrap()
+        .fifo = true;
+    let found = validate_inbound_mail(&fifo, &topology);
+    assert!(codes(&found).contains(&"MINCO-MAIL-015"));
+    // Rendering refuses every one of these.
+    for mismatched in [wrong_dlq, no_dlq, fifo] {
+        assert!(
+            render_sam_with_inbound_mail(&mismatched, &topology, &code_uris()).is_err(),
+            "the renderer must refuse a shape collision"
+        );
+    }
+}
+
+/// Mutates the Sqs trigger carrying the wake id (helper hoisted before
+/// the statements that use it).
+fn mutate_ticketing_trigger(
+    plan: &mut minco_plan::DeploymentPlan,
+    mutation: fn(&mut minco_plan::TriggerPlan),
+) {
+    if let Some(trigger) = plan
+        .triggers
+        .iter_mut()
+        .find(|t| matches!(t, minco_plan::TriggerPlan::Sqs { id, .. } if id == "ticketing-mail"))
+    {
+        mutation(trigger);
+    }
+}
+
+#[test]
+fn existing_trigger_with_expected_id_but_wrong_shape_is_a_collision() {
+    let topology = topology();
+    let applied = apply_inbound_mail(&plan(), &topology);
+    // Wrong worker under the expected trigger id (the exact attack from
+    // the review: the wake lands in the wrong consumer).
+    let mut wrong_worker = applied.clone();
+    mutate_ticketing_trigger(&mut wrong_worker, |trigger| {
+        if let minco_plan::TriggerPlan::Sqs { function_id, .. } = trigger {
+            *function_id = "jobs-worker".into();
+        }
+    });
+    assert!(codes(&validate_inbound_mail(&wrong_worker, &topology)).contains(&"MINCO-MAIL-016"));
+    // Wrong batching settings under the expected id.
+    let mut wrong_window = applied.clone();
+    mutate_ticketing_trigger(&mut wrong_window, |trigger| {
+        if let minco_plan::TriggerPlan::Sqs {
+            batching_window_seconds,
+            ..
+        } = trigger
+        {
+            *batching_window_seconds = 42;
+        }
+    });
+    assert!(codes(&validate_inbound_mail(&wrong_window, &topology)).contains(&"MINCO-MAIL-016"));
+    // Partial-batch reporting disabled under the expected id.
+    let mut no_partial = applied;
+    mutate_ticketing_trigger(&mut no_partial, |trigger| {
+        if let minco_plan::TriggerPlan::Sqs {
+            report_batch_item_failures,
+            ..
+        } = trigger
+        {
+            *report_batch_item_failures = false;
+        }
+    });
+    assert!(codes(&validate_inbound_mail(&no_partial, &topology)).contains(&"MINCO-MAIL-016"));
+    // Rendering refuses each mismatch.
+    for mismatched in [wrong_worker, wrong_window, no_partial] {
+        assert!(render_sam_with_inbound_mail(&mismatched, &topology, &code_uris()).is_err());
+    }
+}
+
+#[test]
+fn a_second_consumer_on_the_wake_queue_is_rejected() {
+    // Competing Lambda consumers on one SQS queue steal messages; they
+    // do not fan out.
+    let mut shared = apply_inbound_mail(&plan(), &topology());
+    shared.triggers.push(minco_plan::TriggerPlan::Sqs {
+        id: "foreign-consumer".into(),
+        function_id: "jobs-worker".into(),
+        queue_id: "mail-ticketing".into(),
+        batch_size: 10,
+        batching_window_seconds: 1,
+        report_batch_item_failures: true,
+        maximum_concurrency: 2,
+    });
+    assert!(codes(&validate_inbound_mail(&shared, &topology())).contains(&"MINCO-MAIL-017"));
+    assert!(render_sam_with_inbound_mail(&shared, &topology(), &code_uris()).is_err());
+}
+
+#[test]
+fn durable_work_claiming_the_mail_queue_collides_in_both_orders() {
+    use minco_plan::durable_work::{
+        DurableWorkTopology, JobRoutePlan, WorkerProfilePlan, apply_durable_work,
+    };
+    let mut durable = DurableWorkTopology {
+        enabled: true,
+        profiles: vec![WorkerProfilePlan {
+            id: "claims-mail".into(),
+            // The SAME queue id the inbound binding owns.
+            queue_id: "mail-ticketing".into(),
+            function_id: "jobs-worker".into(),
+            artifact_path: "target/lambda/jobs-worker.zip".into(),
+            fifo: false,
+            batch_size: 10,
+            batching_window_seconds: 1,
+            maximum_concurrency: 2,
+            memory_mb: 512,
+            timeout_seconds: 30,
+            reserved_concurrency: 2,
+            max_payload_bytes: 262_144,
+            database_connections_per_instance: 1,
+            dead_letter_queue_id: None,
+            max_receive_count: None,
+            data_classes: vec!["internal".into()],
+            required_capabilities: vec!["notifications.send".into()],
+        }],
+        routes: vec![JobRoutePlan {
+            job_name: "orders.send-confirmation".into(),
+            job_version: 1,
+            worker_profile: "claims-mail".into(),
+            ordering_source: None,
+        }],
+        schedules: vec![],
+    };
+    let mail = topology();
+    let base = plan();
+    let mail_first = apply_inbound_mail(&apply_durable_work(&base, &durable), &mail);
+    let durable_first = apply_durable_work(&apply_inbound_mail(&base, &mail), &durable);
+    // Durable-first order: the durable sidecar's queue-key dedup
+    // silently skips BOTH its queue and its mapping — the inbound
+    // resources are intact but the durable profile lost its mapping,
+    // which the durable validator now fails closed on.
+    let diagnostics = validate_inbound_mail(&mail_first, &mail);
+    let found = codes(&diagnostics);
+    assert!(
+        found.contains(&"MINCO-MAIL-014") || found.contains(&"MINCO-MAIL-017"),
+        "a durable-work claim on the mail queue must collide: {found:?}"
+    );
+    assert!(render_sam_with_inbound_mail(&mail_first, &mail, &code_uris()).is_err());
+    let durable_diagnostics =
+        minco_plan::durable_work::validate_durable_work(&durable_first, &durable);
+    assert!(
+        codes(&durable_diagnostics).contains(&"MINCO-JOBS-020"),
+        "the durable profile that lost its mapping to the wake queue must fail closed: {:?}",
+        codes(&durable_diagnostics)
+    );
+    // The reverse direction: inbound claiming the DURABLE queue also
+    // collides (the wake shape differs from the durable shape).
+    durable.profiles[0].queue_id = "jobs-orders-notifications".into();
+    let mut claimer = binding();
+    claimer.queue_id = "jobs-orders-notifications".into();
+    let claim_topology = InboundMailTopology {
+        enabled: true,
+        bindings: vec![claimer],
+    };
+    let composed = apply_inbound_mail(&apply_durable_work(&base, &durable), &claim_topology);
+    assert!(codes(&validate_inbound_mail(&composed, &claim_topology)).contains(&"MINCO-MAIL-014"));
+}
+
+#[test]
+fn binding_ids_collapsing_to_one_sam_logical_id_are_rejected() {
+    // `ticket-ing` and `ticket--ing` both normalize to the CloudFormation
+    // logical id `TicketIng`; two provider chains would render onto one
+    // resource.
+    let mut first = binding();
+    first.id = "ticket-ing".into();
+    let mut second = binding();
+    second.id = "ticket--ing".into();
+    second.queue_id = "mail-other".into();
+    second.bucket_name = "orders-dev-raw-other".into();
+    let collapsing = InboundMailTopology {
+        enabled: true,
+        bindings: vec![first, second],
+    };
+    assert!(codes(&validate_inbound_mail(&plan(), &collapsing)).contains(&"MINCO-MAIL-018"));
+    assert!(render_sam_with_inbound_mail(&plan(), &collapsing, &code_uris()).is_err());
+}
+
+#[test]
+fn exactly_matching_preexisting_resources_remain_an_idempotent_reuse() {
+    // Applying twice creates the expected resources once; the second
+    // pass sees semantically identical same-ID resources and neither
+    // creates duplicates nor reports collisions.
+    let once = apply_inbound_mail(&plan(), &topology());
+    let twice = apply_inbound_mail(&once, &topology());
+    assert_eq!(once, twice);
+    assert!(validate_inbound_mail(&twice, &topology()).is_empty());
+    assert!(render_sam_with_inbound_mail(&twice, &topology(), &code_uris()).is_ok());
+}
+
+#[test]
+fn reordering_bindings_does_not_change_the_rule_set_identity() {
+    let mut second = binding();
+    second.id = "billing".into();
+    second.queue_id = "mail-billing".into();
+    second.bucket_name = "orders-dev-raw-billing".into();
+    // One wake discipline per worker: the second binding wakes a
+    // distinct worker.
+    second.worker_function_id = "jobs-worker".into();
+    let ordered = InboundMailTopology {
+        enabled: true,
+        bindings: vec![binding(), second.clone()],
+    };
+    let reversed = InboundMailTopology {
+        enabled: true,
+        bindings: vec![second, binding()],
+    };
+    let base = plan();
+    let applied_ordered = apply_inbound_mail(&base, &ordered);
+    let applied_reversed = apply_inbound_mail(&base, &reversed);
+    let first_template =
+        render_sam_with_inbound_mail(&applied_ordered, &ordered, &code_uris()).expect("render");
+    let second_template =
+        render_sam_with_inbound_mail(&applied_reversed, &reversed, &code_uris()).expect("render");
+    let name_of = |template: &str| {
+        template
+            .lines()
+            .find(|line| line.trim_start().starts_with("RuleSetName: "))
+            .expect("rule set name")
+            .trim()
+            .trim_start_matches("RuleSetName: ")
+            .trim_matches('\'')
+            .to_owned()
+    };
+    let first_name = name_of(&first_template);
+    let second_name = name_of(&second_template);
+    assert_eq!(
+        first_name, second_name,
+        "binding order must not change the provider deployment identity"
+    );
+    assert!(first_name.starts_with("orders-dev-inbound-mail-"));
+    // A different application/environment identity produces a different
+    // name: prove it on a renamed plan.
+    let mut other_app = base;
+    other_app.application = "billing".into();
+    let other_applied = apply_inbound_mail(&other_app, &ordered);
+    let other_template =
+        render_sam_with_inbound_mail(&other_applied, &ordered, &code_uris()).expect("render");
+    let other_name = name_of(&other_template);
+    assert_ne!(first_name, other_name);
+    assert!(other_name.starts_with("billing-dev-inbound-mail-"));
 }

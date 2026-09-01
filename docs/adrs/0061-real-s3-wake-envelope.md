@@ -49,3 +49,15 @@ defect, fixed before any provider wiring is attempted.
   dialect nobody sends is untested surface pretending to be a seam.
 - **Hand-rolling the envelope structs** — rejected: duplicates a pinned
   parser and its `non_exhaustive` future-proofing.
+
+## Amendment (2026-09-01, M14-T74 stabilization review 5072859042)
+
+Point 2's "exactly one record" rule is superseded by the bounded
+multi-record envelope the worker now implements: S3 event notifications
+may batch up to ten `aws:s3` `ObjectCreated:*` records in one message,
+and the worker processes each record through the same per-record
+validation (source, event name, bucket/key/sequencer presence,
+`urlDecodedKey`-aware key handling). Zero valid records, any non-S3 or
+non-ObjectCreated record, and any record beyond the bounded set still
+fail closed with the existing stable worker codes. The single-record
+text above is retained for decision history only.

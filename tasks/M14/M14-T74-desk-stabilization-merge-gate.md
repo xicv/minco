@@ -608,6 +608,44 @@ the Plan-sidecar blocker was closed exactly as prescribed:
   packaged-crate verification, publication dry-run on a clean tree,
   multi-release rehearsal, and the docker-runtime E2E.
 
+**Round 8 (2026-09-01, exact-head review 5072859042 at fe6fae26)**:
+the three residual findings closed as prescribed:
+
+- **P0 resource ownership**: the inbound-mail sidecar owns its
+  resources under an exact-shape contract. apply/validate share
+  expected_wake_queue/expected_wake_dlq/expected_wake_trigger builders
+  (a same-ID resource is reused only when semantically identical);
+  validate compares queue FIFO/visibility/retention/DLQ/max-receive,
+  trigger function/queue/batch/window/partial-batch/concurrency, and
+  rejects a second consumer on the wake queue (competing Lambda
+  consumers steal messages) and binding ids collapsing to one
+  CloudFormation logical id (MINCO-MAIL-014…018); the renderer refuses
+  any plan whose validation is non-empty. The boundary is
+  bidirectional: durable-work profiles now prove their event-source
+  mapping exists (MINCO-JOBS-020) because apply's queue-key dedup
+  silently skips a foreign-owned queue.
+- **P1 rule-set identity**: the shared SES receipt rule set is named
+  `{application}-{environment}-inbound-mail-{12-hex digest}` where the
+  digest covers the ORDER-INDEPENDENT binding set — reordering
+  bindings no longer replaces the provider rule set and two
+  applications never collide; the name is bounded to the 64-character
+  SES limit; activation stays an explicit operator step. The
+  structural python gate asserts the new identity shape.
+- **P0 repository truth**: ADR-0061 amended for the bounded ten-record
+  envelope; ADR-0065 amended on all four drifted points (sidecar-only
+  plan — no DeploymentPlan field, ScanEnabled true, wake DLQ required,
+  sam lint real and passing) plus the exact-shape ownership and stable
+  rule-set identity; ADR-0051/0063/0070/0072 carry dated amendments
+  for the stabilization refinements; ADR-0056 audited with no drift
+  found; docs/DECISIONS.md rows updated to Accepted (amended
+  2026-09-01).
+- Regressions: all nine reviewer collision cases (wrong queue shape,
+  missing/wrong DLQ, FIFO, wrong-worker trigger, wrong batching,
+  partial-batch off, second consumer, durable/inbound collisions in
+  both orders, logical-ID collapse) plus idempotent exact-shape reuse
+  and the reorder/two-application rule-set proofs — 19 tests in the
+  sidecar suite.
+
 Recorded statuses unchanged: Mimosa inconclusive; hosted Linux
 performance and live AWS provider evidence NOT RUN per the
 no-provider-contact policy. The PR stays draft pending the final

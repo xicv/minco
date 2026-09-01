@@ -2707,12 +2707,14 @@ dependencies = [
 name = "minco-plan"
 version = "1.12.0"
 dependencies = [
+ "hex",
  "http 1.5.0",
  "minco-contract",
  "minco-core",
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "sha2 0.11.0",
  "thiserror",
  "toml",
 ]

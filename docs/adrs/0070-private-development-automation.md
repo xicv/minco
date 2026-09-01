@@ -53,3 +53,18 @@ dispatch), and model output as proposal/result — never authority.
 - Profiles `supervised` and `autonomous` differ in proposal scope today;
   if autonomy ever means execution, it must ship with trusted
   verification evidence first.
+
+## Amendment (2026-09-01, M14-T74 stabilization reviews 5060065907 and
+5072859042)
+
+Freshness binding was completed during stabilization; the original
+decision stands, with these refinements authoritative:
+
+- The handler verifies a **complete context digest** (schema version,
+  subject, description, ticket type, full form answers, full knowledge
+  links, revision — length-framed) and a **complete effective-policy
+  digest** (schemas, the full automation configuration including review
+  posture, and the authority exclusion list).
+- The run identity derives from the client's `Idempotency-Key`
+  (UUIDv5 over project, ticket and operation): a retried HTTP request
+  resubmits the same durable run rather than creating a second one.

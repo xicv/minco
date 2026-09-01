@@ -15,7 +15,7 @@ Regenerate with `scripts/docs/generate-reference.sh`; use `--check` to verify by
 
 This inventory lists source-declared stable code identities, not every possible runtime message. Messages may gain context while codes remain the automation contract. A code's presence does not claim that every profile can emit it.
 
-Declared codes: `604`.
+Declared codes: `610`.
 
 | Code | Family | First declaration | Additional references |
 |---|---|---|---:|
@@ -274,6 +274,7 @@ Declared codes: `604`.
 | `MINCO-JOBS-017` | jobs | `crates/minco-plan/src/durable_work.rs:39` | 0 |
 | `MINCO-JOBS-018` | jobs | `crates/minco-plan/src/durable_work.rs:40` | 0 |
 | `MINCO-JOBS-019` | jobs | `crates/minco-plan/src/durable_work.rs:41` | 0 |
+| `MINCO-JOBS-020` | jobs | `crates/minco-plan/src/durable_work.rs:48` | 1 |
 | `MINCO-MAIL-001` | mail | `crates/minco-plan/src/inbound_mail.rs:20` | 0 |
 | `MINCO-MAIL-002` | mail | `crates/minco-plan/src/inbound_mail.rs:21` | 1 |
 | `MINCO-MAIL-003` | mail | `crates/minco-plan/src/inbound_mail.rs:22` | 1 |
@@ -287,6 +288,11 @@ Declared codes: `604`.
 | `MINCO-MAIL-011` | mail | `crates/minco-plan/src/inbound_mail.rs:30` | 0 |
 | `MINCO-MAIL-012` | mail | `crates/minco-plan/src/inbound_mail.rs:31` | 0 |
 | `MINCO-MAIL-013` | mail | `crates/minco-plan/src/inbound_mail.rs:32` | 0 |
+| `MINCO-MAIL-014` | mail | `crates/minco-plan/src/inbound_mail.rs:35` | 4 |
+| `MINCO-MAIL-015` | mail | `crates/minco-plan/src/inbound_mail.rs:38` | 1 |
+| `MINCO-MAIL-016` | mail | `crates/minco-plan/src/inbound_mail.rs:41` | 3 |
+| `MINCO-MAIL-017` | mail | `crates/minco-plan/src/inbound_mail.rs:45` | 2 |
+| `MINCO-MAIL-018` | mail | `crates/minco-plan/src/inbound_mail.rs:49` | 1 |
 | `MINCO-PERF-001` | perf | `crates/minco-plan/src/model.rs:783` | 0 |
 | `MINCO-PERF-002` | perf | `crates/minco-plan/src/model.rs:794` | 0 |
 | `MINCO-PERF-003` | perf | `crates/minco-cli/src/main.rs:5549` | 0 |

@@ -39,6 +39,13 @@ pub mod durable_work_codes {
     pub const SCHEDULE_FIFO_UNSUPPORTED: &str = "MINCO-JOBS-017";
     pub const SCHEDULE_DLQ_REFERENCE: &str = "MINCO-JOBS-018";
     pub const SCHEDULE_INPUT_SIZE: &str = "MINCO-JOBS-019";
+    /// The profile's event-source mapping is absent from the applied
+    /// plan.
+    ///
+    /// `apply_durable_work` skips creation when a queue-key collision
+    /// already exists, so the mapping must be proven present (exact-head
+    /// review 5072859042).
+    pub const PROFILE_MAPPING_MISSING: &str = "MINCO-JOBS-020";
 }
 
 /// Scheduler target payloads are capped at 256 KiB by the provider.
@@ -273,6 +280,25 @@ pub fn validate_durable_work(
         }
         queue_ids.insert(profile.queue_id.clone());
         function_ids.insert(profile.function_id.clone());
+        // Exact-shape ownership, durable side (exact-head review
+        // 5072859042): apply skips queue-key duplicates, so a foreign
+        // queue that already owns the id silently suppresses this
+        // profile's mapping — the mapping's presence must be proven,
+        // never assumed.
+        let mapping_present = plan.triggers.iter().any(|trigger| {
+            matches!(trigger, TriggerPlan::Sqs { function_id, queue_id, .. }
+                if *function_id == profile.function_id && *queue_id == profile.queue_id)
+        });
+        if !mapping_present {
+            diagnostics.push(diagnostic(
+                durable_work_codes::PROFILE_MAPPING_MISSING,
+                format!(
+                    "worker profile '{}' has no event-source mapping on queue '{}'; \
+                     a foreign resource owns the queue id",
+                    profile.id, profile.queue_id
+                ),
+            ));
+        }
         if plan
             .triggers
             .iter()

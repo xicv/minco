@@ -96,3 +96,19 @@ Hosted Linux qualification, provider contact, email delivery, the
 PostgreSQL profile, browser-driven console verification (covered by the
 agent-console Playwright suite) and mobile clients are out of scope for
 this example.
+
+## Amendment (2026-09-01, M14-T74 stabilization reviews 5060065907 and
+5072859042)
+
+Operational hardening landed during stabilization; the original
+decision stands, with these refinements authoritative:
+
+- Non-local credentials accept file-sourced secrets
+  (`*_FILE` rotation by update-and-restart) and hex/base64 key material
+  judged on decoded bytes (at least 32); readiness covers the
+  subsystems a request traverses (sessions, idempotency receipts, audit
+  backlog, object storage, ticketing and jobs stores) with liveness
+  kept to the critical subset.
+- The example's positioning is unchanged and explicit: a
+  local/providerless standalone reference and a private BFF integration
+  foundation — not a production-ready standalone service.

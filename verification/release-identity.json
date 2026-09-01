@@ -185,7 +185,7 @@
     },
     {
       "manifest_path": "crates/minco-plan/Cargo.toml",
-      "manifest_sha256": "1ad8ae3e9c8a6662ba0ea3c811eff40953eaecc9f03cca92c5df4783815c17e0",
+      "manifest_sha256": "b550c97b935f60fbca61937ccd57ae3764a3e2a362ab51bdfd8a981ff015c05a",
       "name": "minco-plan",
       "version": {
         "workspace": true
@@ -572,7 +572,7 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "860eddd2ab007ae7e5a4a01cf830e9bd10e86c20c0c8f11c2ecfb7a051515b24",
+  "projection_sha256": "0594d27d62560c8e045fd03281252cb48f204a87b5afa795dcfb3b03ceb54b5f",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1"

@@ -52,3 +52,47 @@ sources, with no real provider mutation in the PR.
 - Wake queues deliberately have no DLQ by default: SQS redelivery is the
   retry authority (ADR-0060); an operator can add one via the base plan
   queues section when a workload needs it.
+
+## Amendment (2026-09-01, M14-T74 stabilization reviews 5057195399,
+5060065907, 5064401898 and 5072859042)
+
+The original decision above is superseded in four places by the
+stabilization reviews; the original text is retained for history.
+
+1. **The bindings are NOT stored on `DeploymentPlan`.** Point 1's
+   `DeploymentPlan.inbound_mail` field was a SemVer-major break against
+   the published 1.x API (an exhaustively-constructible public struct
+   gained a field) and was removed. `InboundMailTopology` remains an
+   explicit sidecar in the durable-work sense: `apply` projects into
+   the EXISTING queues/triggers collections, `validate`,
+   `estimate_inbound_mail_cost` and `render_sam_with_inbound_mail`
+   receive the topology explicitly, and a downstream witness test
+   constructs `DeploymentPlan` with the full published v1.12 struct
+   literal to keep it that way.
+2. **Content scanning is ENABLED (`ScanEnabled: true`).** The rendered
+   SES receipt rule enables spam/virus scanning; production consumers
+   additionally configure a `ScanVerdictPolicy` (`require_clean`) so a
+   missing or malformed `X-SES-Spam-Verdict`/`X-SES-Virus-Verdict` is
+   quarantined rather than silently passing.
+3. **Every wake queue carries a dead-letter queue.** The original "no
+   DLQ by default" consequence is reversed: each synthesized wake queue
+   redrives to its paired `<queue>-dlq` after a bounded max-receive
+   count, with visibility derived from the bound worker's timeout
+   (six-fold plus batching window), so exhausted notifications are
+   inspectable rather than lost.
+4. **`sam validate --lint` runs and passes.** The SAM CLI became
+   available (`uv tool run --from aws-sam-cli sam`, 1.165.0); the gate
+   is wired into `scripts/test/inbound_mail_template_parse.py` and it
+   caught and closed a real E3004 circular dependency.
+
+Additionally (review 5072859042) the sidecar owns its resources under an
+exact-shape contract: a same-ID queue, DLQ or trigger is reused only
+when semantically identical (FIFO, visibility, retention, DLQ,
+max-receive, function, batch/window, partial-batch reporting and
+concurrency all compared); a mismatch, a competing second consumer on
+the wake queue, or binding ids collapsing to one CloudFormation logical
+id are stable `MINCO-MAIL-014…018` diagnostics and the renderer refuses
+the plan. The shared SES receipt rule set is named from the application,
+environment and an order-independent digest of the binding set — never
+from the first binding — so reordering bindings cannot replace the
+provider rule set.

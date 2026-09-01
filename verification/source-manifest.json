@@ -64,8 +64,8 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "4f23d263f554a1181be638f250327d4bc611d416db08fc76472ff5be241fe07a",
-      "size_bytes": 120593
+      "sha256": "cda95b7ed9cfecca34369e3186ebb3103041c61c7dde9393e15c4528dd39dc9b",
+      "size_bytes": 120617
     },
     {
       "path": "Cargo.toml",
@@ -1394,8 +1394,8 @@
     },
     {
       "path": "crates/minco-plan/Cargo.toml",
-      "sha256": "1ad8ae3e9c8a6662ba0ea3c811eff40953eaecc9f03cca92c5df4783815c17e0",
-      "size_bytes": 948
+      "sha256": "b550c97b935f60fbca61937ccd57ae3764a3e2a362ab51bdfd8a981ff015c05a",
+      "size_bytes": 991
     },
     {
       "path": "crates/minco-plan/LICENSE-APACHE",
@@ -1424,13 +1424,13 @@
     },
     {
       "path": "crates/minco-plan/src/durable_work.rs",
-      "sha256": "abfa1be49d32973388875b4e5d68d499e28b835559d3c1fa739aa24b9c5d2771",
-      "size_bytes": 42718
+      "sha256": "b24b1e7cad27862cc87ca079cabf5917ad7e2bc18bf9bb8506e64ccc3c04acf7",
+      "size_bytes": 43991
     },
     {
       "path": "crates/minco-plan/src/inbound_mail.rs",
-      "sha256": "d4bc06f365f90d5221b4c5dc00db33664b574d2d37a54470f9177e6a1bf1f33e",
-      "size_bytes": 22515
+      "sha256": "734772aae403ecb86eee7b411b8324349d2efb63573e73cca41362279174f7e4",
+      "size_bytes": 33926
     },
     {
       "path": "crates/minco-plan/src/lib.rs",
@@ -1504,8 +1504,8 @@
     },
     {
       "path": "crates/minco-plan/tests/render_inbound_mail.rs",
-      "sha256": "a4eef633eac493f825b1f9496e1d9050dd4b66c501a67182c88655f426cb03b2",
-      "size_bytes": 19286
+      "sha256": "aaacfa54af53fcd71342c2b53be389e2f5b8a3e6e8df2afc7be502e4825ace32",
+      "size_bytes": 31887
     },
     {
       "path": "crates/minco-project-view/Cargo.toml",
@@ -1754,8 +1754,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "5a0089e63990c81dcfe20c4ac960d5ba40b7be0c20167c08525bf682728f3b97",
-      "size_bytes": 16424
+      "sha256": "ab3ad727f18239057d5750d360ce5758bb3a751a48f134287dca847374331ac9",
+      "size_bytes": 17086
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2129,8 +2129,8 @@
     },
     {
       "path": "docs/adrs/0051-requester-portal-sessions-and-idempotency.md",
-      "sha256": "4da083aaecaac78a3c4f039550a4be69b064e252e48a0a2b2200cd2f24da3eda",
-      "size_bytes": 3927
+      "sha256": "6d6ea42d6f3c87cf267e5a9c608a2960dbcc9628530066a9024a18c094bbc9fc",
+      "size_bytes": 4854
     },
     {
       "path": "docs/adrs/0052-append-oriented-ticket-persistence.md",
@@ -2179,8 +2179,8 @@
     },
     {
       "path": "docs/adrs/0061-real-s3-wake-envelope.md",
-      "sha256": "c473f76b0f59ae9bdb6166e376be859806b34db2ddad5a0999b692bd7e48f753",
-      "size_bytes": 2308
+      "sha256": "11f7b70647abfaeb4a362e08421608d48c59967c2b0245f62a1c69ad1802c529",
+      "size_bytes": 2973
     },
     {
       "path": "docs/adrs/0062-contract-reference-integrity.md",
@@ -2189,8 +2189,8 @@
     },
     {
       "path": "docs/adrs/0063-outbound-delivery-evidence.md",
-      "sha256": "55754748f07dee062bc835b388670ff576cb0f03d72d72e78e72f2098457f928",
-      "size_bytes": 3168
+      "sha256": "1bfc37c873a87c5eae0439f68e813be82cd8e9d582e2d2c220c18498ec79362d",
+      "size_bytes": 3839
     },
     {
       "path": "docs/adrs/0064-rustack-inbound-mail-seam.md",
@@ -2199,8 +2199,8 @@
     },
     {
       "path": "docs/adrs/0065-inbound-mail-plan-binding.md",
-      "sha256": "b7aa249fadaa42d8c6ac2558b89c75dc74dcf2e23296c4994d97a90a01f04d13",
-      "size_bytes": 2721
+      "sha256": "79036418da83de68d851dddf8f289a945454787f3008164438efaa810039a475",
+      "size_bytes": 5282
     },
     {
       "path": "docs/adrs/0066-ticket-types-and-typed-forms.md",
@@ -2224,8 +2224,8 @@
     },
     {
       "path": "docs/adrs/0070-private-development-automation.md",
-      "sha256": "33a500ab34c3eb8d40b10e8816122dd9ffb235f548533433ca5b5a0d9a2276f2",
-      "size_bytes": 2755
+      "sha256": "820b269819a26ec2d03dff71ee57da53f22d7cc3a63e3579ede43b59985b4f65",
+      "size_bytes": 3494
     },
     {
       "path": "docs/adrs/0071-clarification-loop-with-checkpoints.md",
@@ -2234,8 +2234,8 @@
     },
     {
       "path": "docs/adrs/0072-standalone-desk-example.md",
-      "sha256": "9bb681c118ac52f77837ae8863540fee64cf129b5d5723c811b53a8b3c3229f2",
-      "size_bytes": 4671
+      "sha256": "2a0e6ca1da1711028a943c8029c93cae5cfb3b28f2064a9c49d0c02723e0462d",
+      "size_bytes": 5422
     },
     {
       "path": "docs/adrs/0073-desk-data-lifecycle-proofs.md",
@@ -2559,8 +2559,8 @@
     },
     {
       "path": "docs/reference/generated/diagnostics.md",
-      "sha256": "47537175ac79b89a62f3645a5045b069c1123c1adeb0dda57f0179055dddf1d4",
-      "size_bytes": 53862
+      "sha256": "f2aac08fec5242aa4f850e1fbef6a8a771988a2e375cf107155d7d21f7e44c49",
+      "size_bytes": 54324
     },
     {
       "path": "docs/reference/generated/features.md",
@@ -8684,8 +8684,8 @@
     },
     {
       "path": "scripts/test/inbound_mail_template_parse.py",
-      "sha256": "5cfbb9060cd29d26ae325ba8d2c10fa47391ef1776dbe03217ee13668b048e62",
-      "size_bytes": 5157
+      "sha256": "16c1d7bdd980280c836f7b14d2aca04dcb3d8b5087107d65f62726628b5bb7be",
+      "size_bytes": 6154
     },
     {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
@@ -9329,8 +9329,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "2418e5fca9fa44c04f4c8201f9910d5fe6788e5dc62a0202de8d6a3523c43146",
-      "size_bytes": 36175
+      "sha256": "2f8141b5ed2f53ed1d20b9f6b908392b63abee48cf526d147665496e7b7e02a4",
+      "size_bytes": 38438
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9684,7 +9684,7 @@
     },
     {
       "path": "verification/release-identity.json",
-      "sha256": "2bfacbbf273dda353f973fc77f0eca8fc551d0b6569fd0cf2b06f1761a743ac4",
+      "sha256": "3dffb39457a416f4f2586b76c2ff44f3d064765bf12d3fb9a3f7d9de18dc88cc",
       "size_bytes": 19768
     },
     {
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "04207a57dce127b7c479a8786b8bd05e41630c0ebbac3d352641624170b1348e",
-  "total_size_bytes": 15023595,
+  "source_tree_sha256": "451570a1ceaa6103625dfdc6536b1cf015e3da3ea051828f18ddd4defafbd72d",
+  "total_size_bytes": 15059645,
   "version": "1.12.0"
 }

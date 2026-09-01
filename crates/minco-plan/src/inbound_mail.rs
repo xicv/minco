@@ -30,6 +30,23 @@ pub mod inbound_mail_codes {
     pub const INVALID_RETENTION: &str = "MINCO-MAIL-011";
     pub const INVALID_IDENTIFIER: &str = "MINCO-MAIL-012";
     pub const WORKER_TRIGGER_BOUND_ELSEWHERE: &str = "MINCO-MAIL-013";
+    /// An existing same-ID queue does not match the exact expected wake
+    /// shape (exact-head review 5072859042).
+    pub const QUEUE_SHAPE_MISMATCH: &str = "MINCO-MAIL-014";
+    /// The wake queue is FIFO; S3 direct event notifications cannot
+    /// target FIFO SQS queues (exact-head review 5072859042).
+    pub const QUEUE_IS_FIFO: &str = "MINCO-MAIL-015";
+    /// An existing same-ID trigger does not match the exact expected
+    /// mapping shape (exact-head review 5072859042).
+    pub const TRIGGER_SHAPE_MISMATCH: &str = "MINCO-MAIL-016";
+    /// Another trigger also consumes the wake queue — competing
+    /// consumers on one queue steal messages, they do not fan out
+    /// (exact-head review 5072859042).
+    pub const QUEUE_SECOND_CONSUMER: &str = "MINCO-MAIL-017";
+    /// Binding ids collapse to the same `CloudFormation` logical id
+    /// after `sam_logical_id` normalization (exact-head review
+    /// 5072859042).
+    pub const LOGICAL_ID_COLLISION: &str = "MINCO-MAIL-018";
 }
 
 /// Wake queue defaults: SES notifications are small and single-object;
@@ -59,6 +76,73 @@ impl InboundMailTopology {
     }
 }
 
+/// The wake queue's visibility timeout must cover the bound worker's
+/// timeout six-fold plus the batching window — the same rule
+/// `DeploymentPlan` validation enforces (exact-head review 5064401898).
+fn expected_wake_visibility(
+    functions: &[crate::FunctionPlan],
+    binding: &InboundMailBinding,
+) -> u32 {
+    functions
+        .iter()
+        .find(|function| function.name == binding.worker_function_id)
+        .map_or(WAKE_VISIBILITY_TIMEOUT_SECONDS, |function| {
+            function
+                .timeout_seconds
+                .saturating_mul(6)
+                .saturating_add(binding.batching_window_seconds)
+        })
+        .max(WAKE_VISIBILITY_TIMEOUT_SECONDS)
+}
+
+/// The exact wake-queue shape one binding owns (exact-head review
+/// 5072859042): apply creates it when absent and validate compares any
+/// existing same-ID queue against it field by field — the sidecar never
+/// silently adopts a same-ID resource with a different shape.
+fn expected_wake_queue(
+    functions: &[crate::FunctionPlan],
+    binding: &InboundMailBinding,
+) -> QueuePlan {
+    QueuePlan {
+        id: binding.queue_id.clone(),
+        fifo: false,
+        visibility_timeout_seconds: expected_wake_visibility(functions, binding),
+        retention_seconds: WAKE_RETENTION_SECONDS,
+        dead_letter_queue_id: Some(format!("{}-dlq", binding.queue_id)),
+        max_receive_count: Some(WAKE_MAX_RECEIVE_COUNT),
+    }
+}
+
+/// The exact wake-DLQ shape paired with the wake queue.
+fn expected_wake_dlq(functions: &[crate::FunctionPlan], binding: &InboundMailBinding) -> QueuePlan {
+    QueuePlan {
+        id: format!("{}-dlq", binding.queue_id),
+        fifo: false,
+        visibility_timeout_seconds: expected_wake_visibility(functions, binding),
+        retention_seconds: WAKE_RETENTION_SECONDS,
+        dead_letter_queue_id: None,
+        max_receive_count: None,
+    }
+}
+
+fn wake_trigger_id(binding: &InboundMailBinding) -> String {
+    format!("{}-mail", binding.id)
+}
+
+/// The exact wake-trigger shape one binding owns (exact-head review
+/// 5072859042).
+fn expected_wake_trigger(binding: &InboundMailBinding) -> TriggerPlan {
+    TriggerPlan::Sqs {
+        id: wake_trigger_id(binding),
+        function_id: binding.worker_function_id.clone(),
+        queue_id: binding.queue_id.clone(),
+        batch_size: binding.batch_size,
+        batching_window_seconds: binding.batching_window_seconds,
+        report_batch_item_failures: true,
+        maximum_concurrency: binding.maximum_concurrency,
+    }
+}
+
 /// Synthesize wake queues and worker triggers into a copy of the plan.
 ///
 /// The topology stays an explicit sidecar (exact-head review
@@ -67,6 +151,13 @@ impl InboundMailTopology {
 /// projects into the EXISTING queues/triggers/function collections,
 /// mirroring the durable-work sidecar. Base plans without inbound mail
 /// stay unchanged.
+///
+/// Resource ownership follows the exact-shape contract (exact-head
+/// review 5072859042): an absent expected resource is created; an
+/// existing resource is reused ONLY when it is semantically identical
+/// (apply never overwrites an existing same-ID resource, so a mismatch
+/// survives for `validate_inbound_mail` to reject — it is never
+/// silently adopted).
 #[must_use]
 pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology) -> DeploymentPlan {
     let mut next = plan.clone();
@@ -74,60 +165,23 @@ pub fn apply_inbound_mail(plan: &DeploymentPlan, topology: &InboundMailTopology)
         return next;
     }
     for binding in &topology.bindings {
-        // The wake queue's visibility timeout must cover the bound
-        // worker's timeout six-fold plus the batching window — the same
-        // rule DeploymentPlan validation enforces (exact-head review
-        // 5064401898: a fixed constant fell one second short of the
-        // validator's derivation and the applied plan failed
-        // MINCO-SQS-002).
-        let wake_visibility = next
-            .functions
-            .iter()
-            .find(|function| function.name == binding.worker_function_id)
-            .map_or(WAKE_VISIBILITY_TIMEOUT_SECONDS, |function| {
-                function
-                    .timeout_seconds
-                    .saturating_mul(6)
-                    .saturating_add(binding.batching_window_seconds)
-            })
-            .max(WAKE_VISIBILITY_TIMEOUT_SECONDS);
         // Every wake queue carries a dead-letter queue (review finding 5):
         // exhausted notifications must be inspectable, not silently lost.
-        let wake_dlq_id = format!("{}-dlq", binding.queue_id);
-        if !next.queues.iter().any(|queue| queue.id == wake_dlq_id) {
-            next.queues.push(QueuePlan {
-                id: wake_dlq_id.clone(),
-                fifo: false,
-                visibility_timeout_seconds: wake_visibility,
-                retention_seconds: WAKE_RETENTION_SECONDS,
-                dead_letter_queue_id: None,
-                max_receive_count: None,
-            });
+        let dlq = expected_wake_dlq(&next.functions, binding);
+        if !next.queues.iter().any(|queue| queue.id == dlq.id) {
+            next.queues.push(dlq);
         }
-        if !next.queues.iter().any(|queue| queue.id == binding.queue_id) {
-            next.queues.push(QueuePlan {
-                id: binding.queue_id.clone(),
-                fifo: false,
-                visibility_timeout_seconds: wake_visibility,
-                retention_seconds: WAKE_RETENTION_SECONDS,
-                dead_letter_queue_id: Some(wake_dlq_id),
-                max_receive_count: Some(WAKE_MAX_RECEIVE_COUNT),
-            });
+        let wake = expected_wake_queue(&next.functions, binding);
+        if !next.queues.iter().any(|queue| queue.id == wake.id) {
+            next.queues.push(wake);
         }
-        let trigger_id = format!("{}-mail", binding.id);
+        let trigger = expected_wake_trigger(binding);
+        let trigger_id = wake_trigger_id(binding);
         if !next.triggers.iter().any(|trigger| match trigger {
             TriggerPlan::Sqs { id, .. } => id == &trigger_id,
             _ => false,
         }) {
-            next.triggers.push(TriggerPlan::Sqs {
-                id: trigger_id,
-                function_id: binding.worker_function_id.clone(),
-                queue_id: binding.queue_id.clone(),
-                batch_size: binding.batch_size,
-                batching_window_seconds: binding.batching_window_seconds,
-                report_batch_item_failures: true,
-                maximum_concurrency: binding.maximum_concurrency,
-            });
+            next.triggers.push(trigger);
         }
     }
     // Synthesized queues and triggers change the derived local-service
@@ -250,17 +304,134 @@ pub fn validate_inbound_mail(
                 inbound_mail_codes::QUEUE_MISSING,
                 format!("wake queue was not synthesized: {}", binding.queue_id),
             ));
-        }
-        let trigger_id = format!("{}-mail", binding.id);
-        if !plan.triggers.iter().any(|trigger| match trigger {
-            TriggerPlan::Sqs { id, queue_id, .. } => {
-                id == &trigger_id && queue_id == &binding.queue_id
+        } else if let Some(existing) = plan
+            .queues
+            .iter()
+            .find(|queue| queue.id == binding.queue_id)
+        {
+            // Exact-shape ownership (exact-head review 5072859042): a
+            // same-ID queue is this binding's wake queue only when it
+            // matches the expected shape field by field — a base-plan
+            // or durable-work queue that merely shares the ID is a
+            // collision, not something to adopt.
+            let expected = expected_wake_queue(&plan.functions, binding);
+            if existing.fifo {
+                diagnostics.push(diagnostic(
+                    inbound_mail_codes::QUEUE_IS_FIFO,
+                    format!(
+                        "wake queue is FIFO; S3 direct event notifications cannot target \
+                         FIFO SQS queues: {}",
+                        binding.queue_id
+                    ),
+                ));
             }
-            _ => false,
-        }) {
+            if existing.dead_letter_queue_id != expected.dead_letter_queue_id
+                || existing.visibility_timeout_seconds != expected.visibility_timeout_seconds
+                || existing.retention_seconds != expected.retention_seconds
+                || existing.max_receive_count != expected.max_receive_count
+            {
+                diagnostics.push(diagnostic(
+                    inbound_mail_codes::QUEUE_SHAPE_MISMATCH,
+                    format!(
+                        "existing queue does not match the exact wake shape \
+                         (fifo {}, visibility {}, retention {}, dlq {:?}, max_receive {:?}); \
+                         expected (visibility {}, retention {}, dlq {:?}, max_receive {:?}): {}",
+                        existing.fifo,
+                        existing.visibility_timeout_seconds,
+                        existing.retention_seconds,
+                        existing.dead_letter_queue_id,
+                        existing.max_receive_count,
+                        expected.visibility_timeout_seconds,
+                        expected.retention_seconds,
+                        expected.dead_letter_queue_id,
+                        expected.max_receive_count,
+                        binding.queue_id
+                    ),
+                ));
+            }
+        }
+        // The paired DLQ must also match its expected shape when present
+        // under the same ID.
+        let expected_dlq = expected_wake_dlq(&plan.functions, binding);
+        if let Some(existing) = plan.queues.iter().find(|queue| queue.id == expected_dlq.id)
+            && (existing.fifo
+                || existing.dead_letter_queue_id != expected_dlq.dead_letter_queue_id
+                || existing.visibility_timeout_seconds != expected_dlq.visibility_timeout_seconds
+                || existing.retention_seconds != expected_dlq.retention_seconds
+                || existing.max_receive_count != expected_dlq.max_receive_count)
+        {
             diagnostics.push(diagnostic(
-                inbound_mail_codes::TRIGGER_MISSING,
-                format!("wake trigger was not synthesized: {trigger_id}"),
+                inbound_mail_codes::QUEUE_SHAPE_MISMATCH,
+                format!(
+                    "existing dead-letter queue does not match the exact wake shape: {}",
+                    expected_dlq.id
+                ),
+            ));
+        }
+        let trigger_id = wake_trigger_id(binding);
+        match plan
+            .triggers
+            .iter()
+            .find(|trigger| matches!(trigger, TriggerPlan::Sqs { id, .. } if id == &trigger_id))
+        {
+            None => {
+                diagnostics.push(diagnostic(
+                    inbound_mail_codes::TRIGGER_MISSING,
+                    format!("wake trigger was not synthesized: {trigger_id}"),
+                ));
+            }
+            Some(TriggerPlan::Sqs {
+                id: _,
+                function_id,
+                queue_id,
+                batch_size,
+                batching_window_seconds,
+                report_batch_item_failures,
+                maximum_concurrency,
+            }) => {
+                // Exact-shape ownership (exact-head review 5072859042):
+                // the same-ID trigger must be THIS binding's mapping —
+                // function, queue, batching and failure reporting all
+                // compared — or it is a collision.
+                if *function_id != binding.worker_function_id
+                    || *queue_id != binding.queue_id
+                    || *batch_size != binding.batch_size
+                    || *batching_window_seconds != binding.batching_window_seconds
+                    || !*report_batch_item_failures
+                    || *maximum_concurrency != binding.maximum_concurrency
+                {
+                    diagnostics.push(diagnostic(
+                        inbound_mail_codes::TRIGGER_SHAPE_MISMATCH,
+                        format!(
+                            "existing trigger does not match the exact wake mapping \
+                             (function {function_id}, queue {queue_id}, batch {batch_size}, \
+                             window {batching_window_seconds}, partial-batch {report_batch_item_failures}, \
+                             concurrency {maximum_concurrency}): {trigger_id}"
+                        ),
+                    ));
+                }
+            }
+            Some(_) => unreachable!("the find matched an Sqs variant"),
+        }
+        // Competing consumers steal messages, they do not fan out
+        // (exact-head review 5072859042): a second trigger polling the
+        // wake queue means mail wakes can land in the wrong handler.
+        let second_consumer = plan
+            .triggers
+            .iter()
+            .filter(|trigger| {
+                matches!(trigger, TriggerPlan::Sqs { id, queue_id, .. }
+                    if queue_id == &binding.queue_id && id != &trigger_id)
+            })
+            .count();
+        if second_consumer > 0 {
+            diagnostics.push(diagnostic(
+                inbound_mail_codes::QUEUE_SECOND_CONSUMER,
+                format!(
+                    "another trigger also consumes the wake queue; competing consumers \
+                     steal mail wakes instead of fanning out: {}",
+                    binding.queue_id
+                ),
             ));
         }
         // A worker function bound to another trigger source would mix wake
@@ -278,6 +449,19 @@ pub fn validate_inbound_mail(
                     "inbound-mail worker is already bound to another SQS trigger: {}",
                     binding.worker_function_id
                 ),
+            ));
+        }
+    }
+    // Provider logical-ID collisions (exact-head review 5072859042):
+    // distinct binding ids that normalize to the same CloudFormation
+    // logical id would render two provider chains onto one resource.
+    let mut logical_ids = BTreeSet::new();
+    for binding in &topology.bindings {
+        let logical = crate::sam_logical_id(&binding.id);
+        if !logical_ids.insert(logical.clone()) {
+            diagnostics.push(diagnostic(
+                inbound_mail_codes::LOGICAL_ID_COLLISION,
+                format!("binding ids collapse to the same CloudFormation logical id: {logical}"),
             ));
         }
     }
@@ -299,6 +483,60 @@ fn valid_bucket_name(value: &str) -> bool {
         })
         && !value.starts_with('.')
         && !value.ends_with('.')
+}
+
+/// Builds the stable SES receipt-rule-set name (exact-head review
+/// 5072859042): `{application}-{environment}-inbound-mail-{digest}`.
+///
+/// The digest covers the ORDER-INDEPENDENT binding set (sorted
+/// mailbox/queue/worker/bucket identities), so reordering bindings
+/// never changes the provider deployment identity while any actual
+/// topology change does. The whole name is bounded to SES's 64-character
+/// `RuleSetName` limit; activation of the rule set remains an explicit
+/// operator step.
+fn receipt_rule_set_name(plan: &DeploymentPlan, topology: &InboundMailTopology) -> String {
+    use sha2::{Digest as _, Sha256};
+
+    let mut identity = topology
+        .bindings
+        .iter()
+        .map(|binding| {
+            format!(
+                "{}|{}|{}|{}|{}",
+                binding.id,
+                binding.mailbox_scope,
+                binding.queue_id,
+                binding.worker_function_id,
+                binding.bucket_name
+            )
+        })
+        .collect::<Vec<_>>();
+    identity.sort();
+    let digest = Sha256::digest(identity.join("\n").as_bytes());
+    let short = hex::encode(&digest[..6]);
+
+    let sanitize = |value: &str| {
+        let cleaned: String = value
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect();
+        cleaned.trim_matches('-').to_owned()
+    };
+    let application = sanitize(&plan.application);
+    let environment = sanitize(&plan.environment);
+    // Bound the prefix so app+env+separator+digest never exceeds 64.
+    let budget = 64 - "-inbound-mail-".len() - short.len();
+    let application_budget = budget / 2;
+    let environment_budget = budget - application_budget;
+    let application = &application[..application.len().min(application_budget)];
+    let environment = &environment[..environment.len().min(environment_budget)];
+    format!("{application}-{environment}-inbound-mail-{short}")
 }
 
 /// Cost assumptions one binding adds, stated explicitly instead of priced.
@@ -372,23 +610,32 @@ pub fn render_sam_with_inbound_mail(
     if !topology.enabled || topology.bindings.is_empty() {
         return crate::sam::render_sam_with_code_uris(plan, code_uris);
     }
+    // Exact-shape ownership (exact-head review 5072859042): the
+    // renderer refuses an applied plan whose same-ID resources do not
+    // match the binding's exact wake shapes, carry competing consumers
+    // or collapse logical ids — rendering would silently adopt a
+    // collision the validator already flagged.
+    let diagnostics = validate_inbound_mail(plan, topology);
+    if let Some(first) = diagnostics.first() {
+        return Err(crate::PlanError::UnsupportedDeployment(format!(
+            "inbound mail sidecar validation failed: {} — {}",
+            first.code, first.message
+        )));
+    }
     // The base render receives the sidecar's bindings explicitly so the
     // worker IAM environment scopes the mail buckets (the plan itself
     // no longer carries the topology — exact-head review 5060065907).
     let mut template = crate::sam::render_sam_template(plan, code_uris, &topology.bindings)?;
     let mut resources = String::new();
     // One shared, explicitly named receipt rule set (review finding 5);
-    // activation semantics belong to the operator applying the change set.
-    let shared_rule_set_name = format!(
-        "{}-inbound-mail-ruleset",
-        sam_logical_id(
-            topology
-                .bindings
-                .first()
-                .map(|binding| binding.id.as_str())
-                .unwrap_or_default(),
-        )
-    );
+    // activation semantics belong to the operator applying the change
+    // set. The name is a stable deployment identity (exact-head review
+    // 5072859042): derived from the application, the environment and a
+    // bounded digest of the ORDER-INDEPENDENT binding set — never from
+    // whichever binding happens to be first — so reordering or removing
+    // one binding does not silently replace the provider rule set, and
+    // two applications never collide on the same name.
+    let shared_rule_set_name = receipt_rule_set_name(plan, topology);
     write!(
         resources,
         "  InboundMailReceiptRuleSet:\n    Type: AWS::SES::ReceiptRuleSet\n    Properties:\n      RuleSetName: {}\n",

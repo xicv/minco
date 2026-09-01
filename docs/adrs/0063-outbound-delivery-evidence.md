@@ -60,3 +60,18 @@ correct ambiguity policy. Ticketing adopted none of it.
   ambiguity, feedback) and never asserts delivery.
 - The SES receiving-rule/S3/SQS plan binding and the Rustack live seam
   proof remain open (slice 3b part 2).
+
+## Amendment (2026-09-01, M14-T74 stabilization reviews 5064401898 and
+5072859042)
+
+The send state machine was completed during stabilization; the original
+decision stands, with these refinements authoritative:
+
+- Sends are **attempt-fenced**: each sending claim carries a unique
+  attempt identity with a lease, and every state transition validates
+  the same attempt.
+- Provider acceptance commits through ONE store transaction — the sent
+  transition, the attempt-scoped accepted evidence row and the outbound
+  threading identity commit together; a stale attempt's acceptance
+  writes nothing and surfaces as reconciliation, never a warning and
+  never a success.

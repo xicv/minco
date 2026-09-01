@@ -73,3 +73,23 @@ HTTP wiring; that is deliberately application-owned.
 - **Making the sessions plugin mandatory** — rejected: violates the
   optional-capability boundary established by ADR-0049 and the portal-first
   handoff flow that works without cookies.
+
+## Amendment (2026-09-01, M14-T74 stabilization reviews 5057195399 and
+5060065907)
+
+The session exchange and logout contracts were hardened during
+stabilization; the original decision text stands, with these
+refinements authoritative:
+
+- Replay rotations are **fenced and staged**: the grant carries a
+  monotonic generation; the previous bearer is revoked before a
+  replacement mints, the mint is durably staged between mint and
+  compare-and-swap, and an interrupted rotation recovers instead of
+  leaking a second live bearer.
+- **Logout revokes the exchange replay authority** (grants record
+  `revoked_at`; sessions carry the exchange key) and fails closed when
+  the revocation cannot be persisted.
+- Idempotency receipts carry the full scope (operation, project,
+  subject digest, expiry) and the effective key is the canonical
+  SHA-256 of the length-framed identity — recovery replays only an
+  exact scope match.
