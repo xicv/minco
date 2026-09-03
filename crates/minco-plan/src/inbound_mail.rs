@@ -285,6 +285,19 @@ pub fn validate_inbound_mail(
                 format!("mailbox scope must be a bounded address: {}", binding.id),
             ));
         }
+        // Control characters are rejected before rendering (ego-chat
+        // cycle-1 review, AC-4): mailbox bytes feed the canonical
+        // rule-set identity, and embedded newlines/controls would let one
+        // crafted binding imitate the encoding of several.
+        if binding.mailbox_scope.chars().any(char::is_control) {
+            diagnostics.push(diagnostic(
+                inbound_mail_codes::INVALID_MAILBOX_SCOPE,
+                format!(
+                    "mailbox scope must not contain control characters: {}",
+                    binding.id
+                ),
+            ));
+        }
         if !valid_bucket_name(&binding.bucket_name) {
             diagnostics.push(diagnostic(
                 inbound_mail_codes::INVALID_BUCKET_NAME,
@@ -521,48 +534,88 @@ fn valid_bucket_name(value: &str) -> bool {
         && !value.ends_with('.')
 }
 
+/// The documented mailbox identity rule (ego-chat cycle-1 review):
+/// trim + ASCII lowercase. One normalized value drives duplicate
+/// detection, the canonical binding order and the rule-set-name digest,
+/// so `Support@Example.TEST` and ` support@example.test ` are one
+/// mailbox everywhere.
+fn normalized_mailbox(binding: &InboundMailBinding) -> String {
+    binding.mailbox_scope.trim().to_ascii_lowercase()
+}
+
+fn frame_part(framed: &mut String, part: &str) {
+    use std::fmt::Write as _;
+    let _ = write!(framed, "{:016x}", part.len());
+    framed.push_str(part);
+}
+
+/// Appends the length-framed canonical encoding of ONE binding's FULL
+/// identity — every field that materially defines the binding (ego-chat
+/// cycle-1 review, AC-4): id, normalized mailbox, bucket, key prefix,
+/// retention, worker, queue, batch size, batching window and maximum
+/// concurrency. Each field is framed individually, so no delimiter can
+/// ever make two distinct binding sets encode to the same bytes.
+fn frame_binding(framed: &mut String, binding: &InboundMailBinding) {
+    frame_part(framed, &binding.id);
+    frame_part(framed, &normalized_mailbox(binding));
+    frame_part(framed, binding.bucket_name.trim());
+    frame_part(framed, &binding.key_prefix);
+    frame_part(framed, &binding.retention_days.to_string());
+    frame_part(framed, &binding.worker_function_id);
+    frame_part(framed, &binding.queue_id);
+    frame_part(framed, &binding.batch_size.to_string());
+    frame_part(framed, &binding.batching_window_seconds.to_string());
+    frame_part(framed, &binding.maximum_concurrency.to_string());
+}
+
+/// Canonical binding order (ego-chat cycle-1 review, AC-5): sorted by the
+/// length-framed canonical binding bytes. ONE order drives the
+/// rule-set-name digest, the receipt-rule rendering and the SES `After`
+/// chain, so the provider rule order never depends on input order.
+fn canonical_bindings(topology: &InboundMailTopology) -> Vec<&InboundMailBinding> {
+    let mut framed_bindings: Vec<(String, &InboundMailBinding)> = topology
+        .bindings
+        .iter()
+        .map(|binding| {
+            let mut framed = String::new();
+            frame_binding(&mut framed, binding);
+            (framed, binding)
+        })
+        .collect();
+    framed_bindings.sort_by(|a, b| a.0.cmp(&b.0));
+    framed_bindings
+        .into_iter()
+        .map(|(_, binding)| binding)
+        .collect()
+}
+
 /// Builds the stable SES receipt-rule-set name (exact-head review
 /// 5072859042): `{application}-{environment}-inbound-mail-{digest}`.
 ///
 /// The digest covers the ORDER-INDEPENDENT binding set (sorted
-/// mailbox/queue/worker/bucket identities), so reordering bindings
-/// never changes the provider deployment identity while any actual
-/// topology change does. The whole name is bounded to SES's 64-character
-/// `RuleSetName` limit; activation of the rule set remains an explicit
-/// operator step.
+/// canonical binding bytes), so reordering bindings never changes the
+/// provider deployment identity while any actual topology change —
+/// including key-prefix, retention, batching and concurrency changes —
+/// does (ego-chat cycle-1 review, AC-4). The whole name is bounded to
+/// SES's 64-character `RuleSetName` limit; activation of the rule set
+/// remains an explicit operator step.
 fn receipt_rule_set_name(plan: &DeploymentPlan, topology: &InboundMailTopology) -> String {
     use sha2::{Digest as _, Sha256};
-    use std::fmt::Write as _;
 
-    // Canonical length-framed digest input (exact-head review
-    // 5083559431 P0-4): the FULL untruncated deployment identity —
-    // application, environment, region and the sorted binding set — so
-    // visible-prefix truncation can never make two deployments share a
-    // rule-set name.
-    let mut bindings = topology
-        .bindings
-        .iter()
-        .map(|binding| {
-            format!(
-                "{}|{}|{}|{}|{}",
-                binding.id,
-                binding.mailbox_scope,
-                binding.queue_id,
-                binding.worker_function_id,
-                binding.bucket_name
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
+    // Canonical length-framed digest input: the FULL untruncated
+    // deployment identity — application, environment, region, the
+    // binding count and every field of every binding in canonical
+    // order — so visible-prefix truncation can never make two
+    // deployments share a rule-set name and no delimiter-bearing input
+    // can make two distinct binding sets encode identically.
+    let canonical = canonical_bindings(topology);
     let mut framed = String::new();
-    for part in [
-        plan.application.as_str(),
-        plan.environment.as_str(),
-        plan.region.as_str(),
-        bindings.join("\n").as_str(),
-    ] {
-        let _ = write!(framed, "{:016x}", part.len());
-        framed.push_str(part);
+    frame_part(&mut framed, plan.application.as_str());
+    frame_part(&mut framed, plan.environment.as_str());
+    frame_part(&mut framed, plan.region.as_str());
+    frame_part(&mut framed, &canonical.len().to_string());
+    for binding in canonical {
+        frame_binding(&mut framed, binding);
     }
     let digest = Sha256::digest(framed.as_bytes());
     let short = hex::encode(&digest[..6]);
@@ -707,14 +760,23 @@ pub fn render_sam_with_inbound_mail(
         yaml_quote(&shared_rule_set_name),
     )
     .expect("write to String");
-    for binding in &topology.bindings {
+    // Canonical provider order (ego-chat cycle-1 review, AC-5): the
+    // same canonical binding list that hashes the deployment identity
+    // also drives receipt-rule rendering and the explicit SES `After`
+    // chain — the first rule has no predecessor, every later rule
+    // names the previous rule (`After`) and carries a real DependsOn on
+    // the previous rule resource, so the provider order is stated in
+    // the template, never implied by YAML text position.
+    let mut previous_rule: Option<(String, String)> = None;
+    for binding in canonical_bindings(topology) {
         let logical = sam_logical_id(&binding.id);
         let bucket_logical = format!("{logical}RawMailBucket");
         let queue_logical = format!("{}Queue", sam_logical_id(&binding.queue_id));
         // The full mailbox address scopes the SES recipient (review
         // finding 5): a bare local part would capture every domain's
-        // mail for that local part.
-        let mailbox_recipient = binding.mailbox_scope.trim().to_ascii_lowercase();
+        // mail for that local part. The value uses the documented
+        // mailbox identity rule (trim + ASCII lowercase).
+        let mailbox_recipient = normalized_mailbox(binding);
         let queue_policy_logical = format!("{logical}MailQueuePolicy");
         // Clean-create dependency graph (exact-head review 5083559431
         // P0-1/P0-2): S3 validates the bucket notification's destination
@@ -779,19 +841,31 @@ pub fn render_sam_with_inbound_mail(
         // create none) and the rule waits for the SES-write bucket
         // policy and the wake queue policy, so the bucket, its write
         // grant and the rule set all exist before the enabled rule.
+        // Provider rule order (ego-chat cycle-1 review, AC-5): every
+        // rule after the first explicitly chains to its canonical
+        // predecessor with SES `After` plus a DependsOn edge.
         // Rule-set activation remains an explicit operator step.
         let rule_name = format!("{}-inbound-mail", binding.id);
         let bucket_policy_logical = format!("{bucket_logical}Policy");
+        let (predecessor_depends, after_field) = match &previous_rule {
+            Some((predecessor_logical, predecessor_name)) => (
+                format!(", {predecessor_logical}"),
+                format!("        After: {}\n", yaml_quote(predecessor_name)),
+            ),
+            None => (String::new(), String::new()),
+        };
         write!(
             resources,
-            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [{bucket_policy_logical}, {queue_policy_logical}]\n    Properties:\n      RuleSetName: !Ref InboundMailReceiptRuleSet\n      Rule:\n        Name: {rule_name_value}\n        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {recipient}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {key_prefix_value}\n",
+            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [{bucket_policy_logical}, {queue_policy_logical}{predecessor_depends}]\n    Properties:\n      RuleSetName: !Ref InboundMailReceiptRuleSet\n      Rule:\n        Name: {rule_name_value}\n{after_field}        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {recipient}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {key_prefix_value}\n",
             bucket_policy_logical = bucket_policy_logical,
             queue_policy_logical = queue_policy_logical,
             rule_name_value = yaml_quote(&rule_name),
+            after_field = after_field,
             recipient = yaml_quote(&mailbox_recipient),
             key_prefix_value = yaml_quote(&binding.key_prefix),
         )
         .expect("write to String");
+        previous_rule = Some((format!("{logical}ReceiptRule"), rule_name));
     }
     // Resources must be inserted before the Outputs block of the template.
     let outputs_marker = "\nOutputs:\n";

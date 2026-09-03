@@ -122,3 +122,26 @@ completed; the prior text stands with these refinements authoritative:
   (duplicate recipients would silently fan one mail into multiple
   buckets/wakes/projects; duplicate bucket names cannot deploy).
   Shared-mailbox fan-out requires an explicit future model.
+
+## Amendment (2026-09-03, convergence cycle-1 review)
+
+The canonical binding identity and the explicit provider rule order
+were completed; the 2026-09-02 amendment stands with these
+refinements authoritative:
+
+- **Canonical binding identity**: the rule-set digest frames EVERY
+  material binding field individually (id, normalized mailbox, bucket,
+  key prefix, retention, worker, queue, batch size, batching window,
+  maximum concurrency) with length prefixes — never delimiter
+  concatenation — plus the application, environment, region and
+  binding count. Mailbox scopes containing control characters are
+  rejected before rendering. The documented mailbox identity rule is
+  trim + ASCII lowercase (casing and surrounding whitespace are one
+  mailbox).
+- **Canonical provider order**: one canonical binding order — sorted
+  by the canonical framed binding bytes — drives the rule-set digest,
+  receipt-rule rendering and rule ordering. The first rule has no
+  predecessor; every later rule names the previous rule with SES
+  `After` and carries a real `DependsOn` edge on the previous rule
+  resource, so the provider rule order is stated in the template,
+  never implied by YAML text position.

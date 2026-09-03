@@ -31,7 +31,7 @@
   },
   "metrics": {
     "rust_files": 272,
-    "rust_lines": 169748,
+    "rust_lines": 170139,
     "unsafe_tokens": 22,
     "production_unwrap_expect": 322,
     "sql_files": 46

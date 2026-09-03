@@ -113,6 +113,13 @@ class InboundMailTemplateParseTests(unittest.TestCase):
         self.assertEqual(rule["TlsPolicy"], "Require")
         self.assertEqual(rule["ScanEnabled"], True)
         self.assertEqual(rule["Recipients"], ["support@example.test"])
+        # Ego-chat cycle-1 review, AC-5: the first canonical rule has no
+        # predecessor — `After` exists only from the second rule on.
+        self.assertNotIn(
+            "After",
+            rule,
+            "a single-binding topology chains nothing",
+        )
 
         # Clean-create dependency graph (exact-head review 5083559431
         # P0-1/P0-2): the queue policy's SourceArn uses the EXPLICIT

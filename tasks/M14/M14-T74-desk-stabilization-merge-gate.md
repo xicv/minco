@@ -733,6 +733,35 @@ failure, none converted into a pass:
   was made"). The working copy was byte-identical to the frozen head
   after the run (deterministic convergence verified).
 
+**Round-9 convergence cycle 1 (2026-09-03, ego-chat review of
+a860a376)**: AC-1/2/3/6/7 passed; two blocking corrections were closed
+in code:
+
+- **AC-4 canonical identity**: the rule-set digest now frames EVERY
+  material binding field individually (id, normalized mailbox, bucket,
+  key prefix, retention, worker, queue, batch size, batching window,
+  maximum concurrency) with 16-hex length prefixes — never delimiter
+  concatenation — plus application, environment, region and binding
+  count; mailbox scopes containing control characters are rejected
+  before rendering (the crafted one-binding-versus-two collision embeds
+  a newline); the documented mailbox identity rule is trim + ASCII
+  lowercase. Regressions: every shape field changes the identity,
+  casing/whitespace variants stay one identity, control-character
+  mailboxes fail validation and the renderer refuses them, and
+  delimiter-heavy legal mailboxes cannot make distinct sets collide.
+- **AC-5 canonical provider order**: one canonical binding order —
+  sorted by the canonical framed binding bytes — drives the digest, the
+  receipt-rule rendering and rule ordering: the first rule has no
+  predecessor, every later rule names the previous rule with SES
+  `After` AND carries a real DependsOn edge on the previous rule
+  resource. Regressions: reversing input bindings yields the identical
+  ordered receipt-rule sequence (logical id, name, predecessor), the
+  second rule chains to the first by name and resource, and the
+  structural graph test now resolves !Ref/!GetAtt/!Sub intrinsic
+  references as real edges (non-blocking strengthening also closed).
+- Lane pin 177→180 (three new plan regressions); ADR-0065 carries the
+  2026-09-03 amendment; DECISIONS.md updated.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and

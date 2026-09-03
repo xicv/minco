@@ -1058,7 +1058,12 @@ fn clean_create_dependency_graph_is_acyclic_and_provider_ordered() {
     );
     assert!(template.contains("RuleSetName: !Ref InboundMailReceiptRuleSet"));
 
-    // Structural acyclicity over DependsOn edges.
+    // Structural acyclicity over DependsOn edges PLUS intrinsic
+    // references (ego-chat cycle-1 non-blocking strengthening): `!Ref X`,
+    // `!GetAtt X.Y` and `!Sub '…${X.Y}…'` all resolve to a real edge
+    // X -> resource, so the graph check no longer leans on source-text
+    // order for the queue-policy-to-queue, bucket-policy-to-bucket and
+    // rule-to-rule-set relationships.
     let document = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&template).expect("yaml");
     let resources = document
         .get("Resources")
@@ -1067,7 +1072,7 @@ fn clean_create_dependency_graph_is_acyclic_and_provider_ordered() {
     let mut graph: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (key, value) in resources {
         let name = key.as_str().expect("resource name").to_owned();
-        let depends = value
+        let mut depends = value
             .get("DependsOn")
             .and_then(|list| list.as_sequence())
             .map(|list| {
@@ -1076,8 +1081,15 @@ fn clean_create_dependency_graph_is_acyclic_and_provider_ordered() {
                     .collect()
             })
             .unwrap_or_default();
+        intrinsic_edges(value, &mut depends);
+        depends.sort();
+        depends.dedup();
         graph.insert(name, depends);
     }
+    // The intrinsic edges the review called out are present.
+    assert!(graph["TicketingRawMailBucketPolicy"].contains(&"TicketingRawMailBucket".to_owned()));
+    assert!(graph["TicketingMailQueuePolicy"].contains(&"MailTicketingQueue".to_owned()));
+    assert!(graph["TicketingReceiptRule"].contains(&"InboundMailReceiptRuleSet".to_owned()));
     // Kahn's algorithm: the graph must be a DAG.
     let mut pending: Vec<String> = graph.keys().cloned().collect();
     let mut resolved: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -1106,6 +1118,311 @@ fn clean_create_dependency_graph_is_acyclic_and_provider_ordered() {
     let position = |needle: &str| template.find(needle).expect(needle);
     assert!(position("InboundMailReceiptRuleSet:\n") < position("TicketingReceiptRule:\n"));
     assert!(position("MailTicketingQueue:\n") < position("TicketingMailQueuePolicy:\n"));
+}
+
+// ---- Ego-chat cycle-1 regressions (AC-4 canonical identity / AC-5
+// canonical provider order) ----
+
+/// One binding-field mutation used by the identity regressions.
+type BindingMutation = fn(&mut InboundMailBinding);
+
+/// Resolves `CloudFormation` intrinsic references (ego-chat cycle-1
+/// non-blocking strengthening): `!Ref X`, `!GetAtt X.Y` and
+/// `!Sub '…${X.Y}…'` all add the edge `X -> resource`.
+fn intrinsic_edges(value: &serde_yaml_ng::Value, edges: &mut Vec<String>) {
+    use serde_yaml_ng::Value;
+    match value {
+        Value::Tagged(tagged) => {
+            let tag = tagged.tag.to_string();
+            if tag.ends_with("Ref") || tag.ends_with("GetAtt") {
+                if let Some(text) = tagged.value.as_str() {
+                    let target = text.split('.').next().unwrap_or(text);
+                    edges.push(target.to_owned());
+                } else if let Some(Value::String(target)) =
+                    tagged.value.as_sequence().and_then(|s| s.first())
+                {
+                    edges.push(target.clone());
+                }
+            } else if tag.ends_with("Sub")
+                && let Some(text) = tagged.value.as_str()
+            {
+                for piece in text.split("${").skip(1) {
+                    let name = piece.split('}').next().unwrap_or(piece);
+                    let target = name.split('.').next().unwrap_or(name);
+                    if !target.starts_with("AWS::") && !target.is_empty() {
+                        edges.push(target.to_owned());
+                    }
+                }
+            }
+            intrinsic_edges(&tagged.value, edges);
+        }
+        Value::Sequence(sequence) => {
+            for item in sequence {
+                intrinsic_edges(item, edges);
+            }
+        }
+        Value::Mapping(mapping) => {
+            for item in mapping.values() {
+                intrinsic_edges(item, edges);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[test]
+fn receipt_rules_form_a_canonical_after_chain() {
+    // The ordered provider rule sequence — logical id, rule name and
+    // predecessor — compared across renders to prove order invariance.
+    fn receipt_rule_sequence(template: &str) -> Vec<(String, String, Option<String>)> {
+        let document = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(template).expect("yaml");
+        let resources = document
+            .get("Resources")
+            .and_then(|value| value.as_mapping())
+            .expect("resources");
+        resources
+            .iter()
+            .filter(|(key, _)| {
+                key.as_str()
+                    .is_some_and(|name| name.ends_with("ReceiptRule"))
+            })
+            .map(|(key, value)| {
+                let rule = value
+                    .get("Properties")
+                    .and_then(|properties| properties.get("Rule"))
+                    .expect("Rule properties");
+                (
+                    key.as_str().expect("rule logical id").to_owned(),
+                    rule.get("Name")
+                        .and_then(|name| name.as_str())
+                        .expect("rule name")
+                        .to_owned(),
+                    rule.get("After")
+                        .and_then(|after| after.as_str())
+                        .map(str::to_owned),
+                )
+            })
+            .collect()
+    }
+    // Ego-chat cycle-1 review, AC-5: the canonical binding order drives
+    // receipt-rule rendering — the first rule has no predecessor, every
+    // later rule names the previous rule with SES `After` AND carries a
+    // real DependsOn edge on the previous rule resource, and reversing
+    // the input bindings produces a byte-identical template.
+    let mut billing = binding();
+    billing.id = "billing".into();
+    billing.queue_id = "mail-billing".into();
+    billing.bucket_name = "orders-dev-raw-billing".into();
+    billing.mailbox_scope = "billing@example.test".into();
+    billing.worker_function_id = "jobs-worker".into();
+    let ordered = InboundMailTopology {
+        enabled: true,
+        bindings: vec![binding(), billing.clone()],
+    };
+    let reversed = InboundMailTopology {
+        enabled: true,
+        bindings: vec![billing, binding()],
+    };
+    let base = plan();
+    let first_template =
+        render_sam_with_inbound_mail(&apply_inbound_mail(&base, &ordered), &ordered, &code_uris())
+            .expect("render");
+    let second_template = render_sam_with_inbound_mail(
+        &apply_inbound_mail(&base, &reversed),
+        &reversed,
+        &code_uris(),
+    )
+    .expect("render");
+    assert_eq!(
+        receipt_rule_sequence(&first_template),
+        receipt_rule_sequence(&second_template),
+        "input order must never change the rendered provider rule order"
+    );
+
+    let document = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&first_template).expect("yaml");
+    let resources = document
+        .get("Resources")
+        .and_then(|value| value.as_mapping())
+        .expect("resources");
+    let receipt_rules: Vec<(String, serde_yaml_ng::Value)> = resources
+        .iter()
+        .filter(|(key, _)| {
+            key.as_str()
+                .is_some_and(|name| name.ends_with("ReceiptRule"))
+        })
+        .map(|(key, value)| {
+            (
+                key.as_str().expect("rule logical id").to_owned(),
+                value.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(receipt_rules.len(), 2, "two bindings render two rules");
+    // Canonical order sorts `billing` before `ticketing`.
+    assert_eq!(receipt_rules[0].0, "BillingReceiptRule");
+    assert_eq!(receipt_rules[1].0, "TicketingReceiptRule");
+    let rule_of = |resource: &serde_yaml_ng::Value| {
+        resource
+            .get("Properties")
+            .and_then(|properties| properties.get("Rule"))
+            .cloned()
+            .expect("Rule properties")
+    };
+    let first_rule = rule_of(&receipt_rules[0].1);
+    assert!(
+        first_rule.get("After").is_none(),
+        "the first canonical rule has no predecessor"
+    );
+    let second_rule = rule_of(&receipt_rules[1].1);
+    assert_eq!(
+        second_rule.get("After").and_then(|after| after.as_str()),
+        Some("billing-inbound-mail"),
+        "the second rule chains to the canonical predecessor by name"
+    );
+    let second_depends = receipt_rules[1]
+        .1
+        .get("DependsOn")
+        .and_then(|list| list.as_sequence())
+        .expect("second rule DependsOn")
+        .iter()
+        .filter_map(|item| item.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        second_depends.contains(&"BillingReceiptRule"),
+        "the second rule carries a real dependency on the predecessor resource: {second_depends:?}"
+    );
+}
+
+#[test]
+fn binding_shape_fields_change_the_rule_set_identity() {
+    // Ego-chat cycle-1 review, AC-4: EVERY material binding field is
+    // part of the canonical framed identity — key prefix, retention,
+    // batching and concurrency changes must all change the rule-set
+    // name — while mailbox casing/whitespace follow the documented
+    // identity rule (trim + ASCII lowercase) and stay the SAME name.
+    let name_for = |mutated: &InboundMailBinding| {
+        let topology = InboundMailTopology {
+            enabled: true,
+            bindings: vec![mutated.clone()],
+        };
+        let template = render_sam_with_inbound_mail(
+            &apply_inbound_mail(&plan(), &topology),
+            &topology,
+            &code_uris(),
+        )
+        .expect("render");
+        template
+            .lines()
+            .find(|line| line.trim_start().starts_with("RuleSetName: "))
+            .expect("rule set name")
+            .trim()
+            .trim_start_matches("RuleSetName: ")
+            .trim_matches('\'')
+            .to_owned()
+    };
+    let base = name_for(&binding());
+    let mutations: [(&str, BindingMutation); 6] = [
+        ("key_prefix", |b: &mut InboundMailBinding| {
+            b.key_prefix = "inbox/".into();
+        }),
+        ("retention", |b: &mut InboundMailBinding| {
+            b.retention_days += 1;
+        }),
+        ("batch_size", |b: &mut InboundMailBinding| {
+            b.batch_size += 1;
+        }),
+        ("batching_window", |b: &mut InboundMailBinding| {
+            b.batching_window_seconds += 1;
+        }),
+        ("maximum_concurrency", |b: &mut InboundMailBinding| {
+            b.maximum_concurrency += 1;
+        }),
+        ("queue", |b: &mut InboundMailBinding| {
+            b.queue_id = "mail-other".into();
+        }),
+    ];
+    for (label, mutate) in mutations {
+        let mut other = binding();
+        mutate(&mut other);
+        assert_ne!(
+            base,
+            name_for(&other),
+            "changing {label} must change the deployment identity"
+        );
+    }
+    // Documented mailbox identity rule: trim + ASCII lowercase.
+    let mut variant = binding();
+    variant.mailbox_scope = "  Support@Example.TEST ".into();
+    assert_eq!(
+        base,
+        name_for(&variant),
+        "mailbox casing and surrounding whitespace are one identity"
+    );
+}
+
+#[test]
+fn control_characters_and_delimiters_cannot_ambiguate_the_identity() {
+    // Ego-chat cycle-1 review, AC-4: control characters in a mailbox
+    // are rejected BEFORE rendering (the crafted one-binding-versus-two
+    // collision from the review embeds a newline), and delimiter-heavy
+    // but legal mailboxes cannot make two distinct binding sets encode
+    // identically because every field is framed individually.
+    let mut crafted = binding();
+    crafted.mailbox_scope = "u@example.test|q|w|bucket\nb|v@example.test".into();
+    let topology = InboundMailTopology {
+        enabled: true,
+        bindings: vec![crafted],
+    };
+    let diagnostics = validate_inbound_mail(&plan(), &topology);
+    assert!(
+        codes(&diagnostics).contains(&"MINCO-MAIL-008"),
+        "control characters must fail validation: {:?}",
+        codes(&diagnostics)
+    );
+    let rendered = render_sam_with_inbound_mail(
+        &apply_inbound_mail(&plan(), &topology),
+        &topology,
+        &code_uris(),
+    );
+    assert!(
+        rendered.is_err(),
+        "the renderer must refuse a non-empty validation"
+    );
+
+    let name_for = |bindings: &[InboundMailBinding]| {
+        let topology = InboundMailTopology {
+            enabled: true,
+            bindings: bindings.to_vec(),
+        };
+        let template = render_sam_with_inbound_mail(
+            &apply_inbound_mail(&plan(), &topology),
+            &topology,
+            &code_uris(),
+        )
+        .expect("render");
+        template
+            .lines()
+            .find(|line| line.trim_start().starts_with("RuleSetName: "))
+            .expect("rule set name")
+            .trim()
+            .trim_start_matches("RuleSetName: ")
+            .trim_matches('\'')
+            .to_owned()
+    };
+    let mut delimiters = binding();
+    delimiters.mailbox_scope = "u@example.test|q|w|bucket".into();
+    let single = name_for(&[delimiters.clone()]);
+    let mut second = binding();
+    second.id = "billing".into();
+    second.queue_id = "mail-billing".into();
+    second.bucket_name = "orders-dev-raw-billing".into();
+    second.mailbox_scope = "b|v@example.test".into();
+    second.worker_function_id = "jobs-worker".into();
+    let pair = name_for(&[delimiters, second]);
+    assert_ne!(
+        single, pair,
+        "framed encoding cannot let one binding imitate two"
+    );
 }
 
 #[test]

@@ -286,7 +286,7 @@ Declared codes: `616`.
 | `MINCO-MAIL-005` | mail | `crates/minco-plan/src/inbound_mail.rs:24` | 0 |
 | `MINCO-MAIL-006` | mail | `crates/minco-plan/src/inbound_mail.rs:25` | 0 |
 | `MINCO-MAIL-007` | mail | `crates/minco-plan/src/inbound_mail.rs:26` | 0 |
-| `MINCO-MAIL-008` | mail | `crates/minco-plan/src/inbound_mail.rs:27` | 0 |
+| `MINCO-MAIL-008` | mail | `crates/minco-plan/src/inbound_mail.rs:27` | 1 |
 | `MINCO-MAIL-009` | mail | `crates/minco-plan/src/inbound_mail.rs:28` | 0 |
 | `MINCO-MAIL-010` | mail | `crates/minco-plan/src/inbound_mail.rs:29` | 0 |
 | `MINCO-MAIL-011` | mail | `crates/minco-plan/src/inbound_mail.rs:30` | 0 |
