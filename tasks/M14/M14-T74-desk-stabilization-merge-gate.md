@@ -690,6 +690,49 @@ performance and live AWS provider evidence NOT RUN per the
 no-provider-contact policy. The PR stays draft pending the final
 independent exact-head re-review.
 
+**Round-9 controller qualification (2026-09-02/03, head 59dc3814)**:
+the full release controller (`MINCO_QUALITY_TOOL_ROOT="$HOME/.cargo"`
+invocation) reached genuine exit 0 on attempt r9o after seven
+environment-hostile attempts; every failure below is recorded as a
+failure, none converted into a pass:
+
+- r9g (Sep 2 22:08): killed mid-run by an agent-session interruption
+  while building smoke apps — no failure, no result.
+- r9h/r9i (Sep 2 22:08/22:47): firefox widget suite 38/40 both times
+  (the two known focus/timing tests, unchanged since the round-2
+  record); the machine was under heavy external CPU load from a booted
+  iOS simulator (1-minute load up to 141). Standalone serial
+  (--workers=1), single-test and default-parallel reruns all passed;
+  the plugin is byte-identical to the three-times-passing round-8
+  head, so the failures are recorded as environment flakiness.
+- r9j (Sep 2 23:40, load-gated): every phase green including both
+  browser suites; failed at the docker runtime E2E — docker CLI calls
+  exceeded the bounded 5s timeout after 2.5h of compile phases.
+- r9k (Sep 3 02:39): identical docker E2E failure on a freshly
+  hard-restarted VM; a `docker ps` keepalive did not prevent it.
+- r9l (Sep 3 05:38): firefox 39/40 under rising morning load.
+- r9m/r9n (Sep 3 06:11/09:47): browser suites green under the
+  repository's own CI browser mode (`CI=1` selects the playwright
+  config's CI branch — 2 workers; timeouts, retries and assertions
+  unchanged) — recorded because it is a supported invocation, not a
+  test change; both died at the docker E2E preflight ("not ready"),
+  r9n despite an intensive `docker info` keepalive through the window
+  (backend logs showed the CLI blocked before reaching the daemon).
+- Root cause found for the docker failures: every prior attempt ran on
+  a Docker Desktop VM born from hard `pkill -9` restarts; those VMs
+  run a damaged engine (VM console logging stops after an in-VM
+  engine shutdown event, and daemon calls freeze under load). A
+  graceful quit plus verified-clean boot produces a healthy VM.
+- r9o (Sep 3 13:42, FINAL): graceful-quit clean VM + warmed runtime
+  lane + CI browser mode + load gate + keepalive — FULL controller
+  exit 0 in 4h01m: both browser suites 40/40, quality.sh green,
+  assurance lanes, AppSync proofs, candidate recovery/load, packaged
+  crate verification, release dry-run, multi-release rehearsal, docker
+  runtime E2E, Rustack smoke and Orders E2E all passed ("Local release
+  qualification passed; no provider, publication, or deployment claim
+  was made"). The working copy was byte-identical to the frozen head
+  after the run (deterministic convergence verified).
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and

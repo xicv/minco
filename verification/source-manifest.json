@@ -9329,8 +9329,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "43fd28ab15a9382a0a8a730fdb346d0df4b58e0b5976809208b89cc609314c71",
-      "size_bytes": 40858
+      "sha256": "ea302581c45269aaf8f9c13fb1de1436badaa4b031875bd13f530022ecf528a4",
+      "size_bytes": 43554
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "b941e2aaf2b4598684a106ae575322c648cc74be91ff13cd47b3cea84c746e33",
-  "total_size_bytes": 15091251,
+  "source_tree_sha256": "26720920d7542be9c1b7df85cf2449c21954d22024bc996909b5682629bf31b8",
+  "total_size_bytes": 15093947,
   "version": "1.12.0"
 }
