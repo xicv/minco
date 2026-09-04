@@ -8674,8 +8674,8 @@
     },
     {
       "path": "scripts/test/generated_apps.sh",
-      "sha256": "5cc0770084da3c5c0d2e9f75c87d02a6e682751e05d769dac14704707f86d579",
-      "size_bytes": 3319
+      "sha256": "7abe6e343e744f29ecfa25cd4af7a44879c53a5ac32d386ff378395364f375a0",
+      "size_bytes": 3965
     },
     {
       "path": "scripts/test/hosted_ci_policy.py",
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "d39c437ea5a4cc8ee94d3dc8739a390ba4e64b3f712b66b0d657a6b7833de04f",
-  "total_size_bytes": 15113804,
+  "source_tree_sha256": "85c91a5e69151feb5c3f7621fbf88fb3b384bd2f088ef4fd196798f9b4c5d338",
+  "total_size_bytes": 15114450,
   "version": "1.12.0"
 }
