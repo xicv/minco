@@ -5,6 +5,8 @@ pub(crate) const MAX_TICKET_LIST_FETCH_LIMIT: usize = 201;
 
 #[cfg(feature = "http")]
 mod http;
+#[cfg(feature = "jobs")]
+mod jobs;
 mod model;
 #[cfg(feature = "sqlite")]
 mod persistence;
@@ -13,8 +15,15 @@ mod plugin;
 mod service;
 mod store;
 
+/// Deterministic contract-derived types (ADR-0057). Regenerate with
+/// `UPDATE_MINCO_GENERATED=1 cargo test -p minco-plugin-ticketing
+/// generated_request_boundary_is_current`.
+pub mod generated;
+
 #[cfg(feature = "http")]
 pub use http::*;
+#[cfg(feature = "jobs")]
+pub use jobs::*;
 pub use model::*;
 #[cfg(feature = "sqlite")]
 pub use persistence::*;

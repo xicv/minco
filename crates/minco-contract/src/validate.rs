@@ -74,6 +74,7 @@ pub fn load_contract_source(
             "info.title",
         );
     }
+    validate_reference_integrity(&raw, &mut findings);
     let mut seen = BTreeSet::new();
     let mut operations = Vec::new();
     if let Some(paths) = raw.get("paths").and_then(Value::as_object) {
@@ -2447,6 +2448,68 @@ fn error(findings: &mut Vec<ContractFinding>, code: &str, message: &str, locatio
     });
 }
 
+// A contract document is a standalone artifact: every local `#/...`
+// reference must resolve inside the same document. External references are
+// out of scope for local validation.
+fn validate_reference_integrity(document: &Value, findings: &mut Vec<ContractFinding>) {
+    let mut references = Vec::new();
+    collect_local_refs(document, "", &mut references);
+    for (location, pointer) in references {
+        if resolve_json_pointer(document, &pointer).is_none() {
+            error(
+                findings,
+                "MINCO-CONTRACT-037",
+                "unresolved local $ref target",
+                &format!("{location}: #/{pointer}"),
+            );
+        }
+    }
+}
+
+fn collect_local_refs(value: &Value, location: &str, references: &mut Vec<(String, String)>) {
+    match value {
+        Value::Object(object) => {
+            for (key, child) in object {
+                let child_location = if location.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{location}.{key}")
+                };
+                if key == "$ref"
+                    && let Value::String(target) = child
+                    && let Some(pointer) = target.strip_prefix("#/")
+                {
+                    references.push((child_location, pointer.to_owned()));
+                } else {
+                    collect_local_refs(child, &child_location, references);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                collect_local_refs(item, &format!("{location}[{index}]"), references);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn resolve_json_pointer<'a>(document: &'a Value, pointer: &str) -> Option<&'a Value> {
+    let mut current = document;
+    if pointer.is_empty() {
+        return Some(current);
+    }
+    for raw_token in pointer.split('/') {
+        let token = raw_token.replace("~1", "/").replace("~0", "~");
+        current = match current {
+            Value::Object(object) => object.get(&token)?,
+            Value::Array(items) => items.get(token.parse::<usize>().ok()?)?,
+            _ => return None,
+        };
+    }
+    Some(current)
+}
+
 #[derive(Debug, Error)]
 pub enum ContractError {
     #[error("failed to read contract: {0}")]
@@ -2469,5 +2532,77 @@ mod tests {
         let report = load_contract(file.path()).unwrap();
         assert!(report.is_valid(), "{:?}", report.findings);
         assert_eq!(report.document.operations.len(), 1);
+    }
+
+    const REF_CONTRACT_SOURCE: &str = r"openapi: 3.1.0
+info: {title: Test, version: 1.0.0}
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Health'}
+        default:
+          description: problem
+          content:
+            application/problem+json:
+              schema: {type: string}
+components:
+  schemas: {}
+";
+
+    #[test]
+    fn flags_dangling_local_refs_as_errors() {
+        let report = load_contract_source("ref-contract.yaml", REF_CONTRACT_SOURCE).unwrap();
+        let finding = report
+            .findings
+            .iter()
+            .find(|finding| finding.code == "MINCO-CONTRACT-037")
+            .expect("a dangling local $ref must produce an error finding");
+        assert_eq!(finding.severity, Severity::Error);
+        assert!(
+            finding
+                .location
+                .ends_with("$ref: #/components/schemas/Health"),
+            "finding location should point at the reference: {}",
+            finding.location
+        );
+        assert!(!report.is_valid());
+    }
+
+    #[test]
+    fn accepts_contracts_whose_local_refs_resolve() {
+        let source = REF_CONTRACT_SOURCE.replace(
+            "components:\n  schemas: {}\n",
+            "components:\n  schemas:\n    Health: {type: object, additionalProperties: false}\n",
+        );
+        let report = load_contract_source("ref-contract.yaml", &source).unwrap();
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.code == "MINCO-CONTRACT-037"),
+            "{:?}",
+            report.findings
+        );
+        assert!(report.is_valid(), "{:?}", report.findings);
+    }
+
+    #[test]
+    fn json_pointer_resolution_handles_escapes_and_arrays() {
+        let document = serde_json::json!({"components": {"schemas": {"a~b": [1, {"x": 2}]}}});
+        assert_eq!(
+            resolve_json_pointer(&document, "components/schemas/a~0b/1/x"),
+            Some(&serde_json::json!(2))
+        );
+        assert_eq!(
+            resolve_json_pointer(&document, "components/schemas/missing"),
+            None
+        );
     }
 }

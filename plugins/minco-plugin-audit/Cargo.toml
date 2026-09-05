@@ -13,7 +13,7 @@ readme = "README.md"
 keywords = ["minco", "audit", "events", "security"]
 categories = ["web-programming", "development-tools"]
 publish = ["crates-io"]
-include = ["src/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "tests/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [package.metadata.minco]
 plugin = "minco-plugin.json"
@@ -25,6 +25,7 @@ minco-core.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 uuid.workspace = true

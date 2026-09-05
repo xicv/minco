@@ -15,6 +15,8 @@ use tokio::sync::Mutex;
 
 #[cfg(feature = "jobs")]
 pub mod jobs;
+#[cfg(feature = "ticketing-wake")]
+pub mod ticketing_wake;
 
 const MAX_BATCH_SIZE: usize = 10_000;
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;

@@ -757,6 +757,7 @@ checksum = "d02c123e89527e7b424f74f52d11be0d17ef2887819323a42dcae1c7630ca53d"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "chrono",
  "http 1.5.0",
  "http-body 1.1.0",
  "http-serde",
@@ -2500,14 +2501,26 @@ name = "minco-aws-worker"
 version = "1.12.0"
 dependencies = [
  "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sdk-s3",
+ "aws-sdk-sqs",
  "aws_lambda_events",
  "chrono",
  "futures",
+ "hex",
  "lambda_runtime",
+ "minco-aws-adapters",
  "minco-plugin-events",
+ "minco-plugin-identity",
  "minco-plugin-jobs",
+ "minco-plugin-object-storage",
+ "minco-plugin-ticketing",
+ "minco-sqlx-sqlite",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
  "thiserror",
  "tokio",
  "tracing",
@@ -2580,6 +2593,42 @@ dependencies = [
  "thiserror",
  "toml",
  "url",
+]
+
+[[package]]
+name = "minco-desk-example"
+version = "1.12.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64 0.23.1",
+ "chrono",
+ "http 1.5.0",
+ "http-body-util",
+ "minco-core",
+ "minco-http",
+ "minco-plugin-audit",
+ "minco-plugin-events",
+ "minco-plugin-health",
+ "minco-plugin-idempotency",
+ "minco-plugin-identity",
+ "minco-plugin-jobs",
+ "minco-plugin-notifications",
+ "minco-plugin-object-storage",
+ "minco-plugin-observability",
+ "minco-plugin-sessions",
+ "minco-plugin-ticketing",
+ "minco-sqlx-sqlite",
+ "reqwest",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2658,12 +2707,14 @@ dependencies = [
 name = "minco-plan"
 version = "1.12.0"
 dependencies = [
+ "hex",
  "http 1.5.0",
  "minco-contract",
  "minco-core",
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "sha2 0.11.0",
  "thiserror",
  "toml",
 ]
@@ -2678,6 +2729,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "thiserror",
  "tokio",
  "uuid",
@@ -2928,6 +2980,7 @@ dependencies = [
  "chrono",
  "hex",
  "http 1.5.0",
+ "mail-parser",
  "minco-contract",
  "minco-core",
  "minco-http",
@@ -2935,9 +2988,13 @@ dependencies = [
  "minco-plugin-audit",
  "minco-plugin-events",
  "minco-plugin-health",
+ "minco-plugin-idempotency",
  "minco-plugin-identity",
+ "minco-plugin-jobs",
  "minco-plugin-notifications",
  "minco-plugin-object-storage",
+ "minco-plugin-sessions",
+ "minco-sqlx-sqlite",
  "minco-test",
  "semver",
  "serde",
@@ -4002,6 +4059,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4812,6 +4875,7 @@ dependencies = [
  "getrandom 0.4.3",
  "js-sys",
  "serde_core",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 

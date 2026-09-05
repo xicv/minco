@@ -24,7 +24,7 @@ This is pre-link distribution metadata. Enabling remains an explicit Cargo featu
 | `aws-worker` | `minco-aws-worker` | `runtime` | `aws-worker` | no | `beta` | Explicit SQS Lambda partial-batch worker runtime without hidden schedules. | ["aws-lambda-sqs"] | [] | ["storage_only","zero_compute"] | ["queue_message"] | `73ca0663219a` / `831a198df6b3` |
 | `jobs` | `minco-plugin-jobs` | `plugin` | `plugin-jobs` | no | `beta` | Durable typed jobs with at-least-once delivery, lease-based execution and explicit scheduling. | ["native"] | [] | [] | [] | `320e801d5983` / `9a867750147a` |
 | `events` | `minco-plugin-events` | `plugin` | `plugin-events` | no | `beta` | Domain events and explicit transactional-outbox ports without hidden schedules. | ["native"] | [] | [] | [] | `51c7c98aae29` / `d990761a164e` |
-| `feedback` | `minco-plugin-feedback` | `plugin` | `plugin-feedback` | no | `stable` | Client feedback widget, screenshots, voice transcription, discussion and AI handoff. | ["native"] | ["postgres","sqlite"] | [] | [] | `8483fd7aef00` / `0a3a6904d38d` |
+| `feedback` | `minco-plugin-feedback` | `plugin` | `plugin-feedback` | no | `stable` | Client feedback widget, screenshots, voice transcription, discussion and AI handoff. | ["native"] | ["postgres","sqlite"] | [] | [] | `8483fd7aef00` / `861a2b599cdf` |
 | `health` | `minco-plugin-health` | `plugin` | `plugin-health` | yes | `stable` | Liveness, readiness and dependency health registry. | ["native"] | [] | [] | [] | `bd91fff30ace` / `ebff79656d63` |
 | `idempotency` | `minco-plugin-idempotency` | `plugin` | `plugin-idempotency` | yes | `stable` | Idempotency keys, request fingerprints and a storage port. | ["native"] | [] | [] | [] | `90584252bb3d` / `1aca7a07a6f0` |
 | `payments-waffo` | `minco-plugin-payments-waffo` | `plugin` | `plugin-payments-waffo` | no | `beta` | Signed Waffo Pancake checkout, payment queries, webhook automation and raw-body verification. | ["native"] | [] | ["provider_managed"] | ["http_request"] | `c5c226ef1363` / `36c878a7def8` |
@@ -37,7 +37,7 @@ This is pre-link distribution metadata. Enabling remains an explicit Cargo featu
 | `sqlx-postgres` | `minco-sqlx-postgres` | `adapter` | `sqlx-postgres` | no | `beta` | Bounded PostgreSQL pools and explicit migrations. | ["native","aws-lambda"] | ["postgres"] | ["provider_managed"] | [] | `0e05c0b20f69` / `a7d0efd86859` |
 | `sqlx-sqlite` | `minco-sqlx-sqlite` | `adapter` | `sqlx-sqlite` | no | `beta` | SQLite pools with explicit durability constraints. | ["native","aws-lambda"] | ["sqlite"] | ["storage_only"] | [] | `c6764ce095b1` / `89f9c94b1c3c` |
 | `static-site` | `minco-plugin-static-site` | `plugin` | `plugin-static-site` | no | `beta` | Private static assets, CDN caching, SPA fallback, and optional custom-domain deployment intent. | ["native"] | [] | [] | [] | `532190c9fd62` / `0311c68c36c9` |
-| `ticketing` | `minco-plugin-ticketing` | `plugin` | `plugin-ticketing` | no | `beta` | Project-scoped support ticketing with atomic browser handoffs, conversation, and explicit SQLite persistence. | ["native"] | ["sqlite"] | [] | [] | `d0b7f30ad206` / `fa153f145725` |
+| `ticketing` | `minco-plugin-ticketing` | `plugin` | `plugin-ticketing` | no | `beta` | Project-scoped support ticketing with atomic browser handoffs, conversation, and explicit SQLite persistence. | ["native"] | ["sqlite"] | [] | [] | `d0b7f30ad206` / `505e10de245f` |
 
 ## Catalog fields
 

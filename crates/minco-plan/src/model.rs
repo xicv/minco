@@ -299,6 +299,31 @@ impl StaticSiteDeployment {
     }
 }
 
+/// Recomputes the plan's derived fields from its CURRENT collections
+/// (exact-head review 5064401898): every sidecar that synthesizes
+/// queues, functions or triggers MUST run this before returning, or
+/// the plan carries `local_aws_services`/`iam_intents` describing the
+/// pre-sidecar topology and fails ordinary `DeploymentPlan`
+/// validation. Shared by the durable-work and inbound-mail sidecars
+/// so a third sidecar cannot repeat the omission.
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) fn refresh_derived_plan_state(plan: &mut DeploymentPlan) {
+    plan.local_aws_services = local_aws_services(
+        &plan.runtime,
+        &plan.database,
+        &plan.application_graph,
+        &plan.queues,
+    );
+    plan.iam_intents = derive_iam_intents(
+        plan.schema_version,
+        &plan.runtime,
+        &plan.database,
+        &plan.application_graph,
+        &plan.functions,
+        &plan.triggers,
+    );
+}
+
 pub fn local_aws_services(
     runtime: &RuntimePlan,
     database: &DatabaseDeployment,
@@ -1986,6 +2011,36 @@ pub struct QueuePlan {
     pub dead_letter_queue_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_receive_count: Option<u32>,
+}
+
+/// One explicit inbound-mail wake binding (ADR-0065).
+///
+/// The SES receiving rule drops raw MIME into the bucket,
+/// `ObjectCreated` notifications wake the bound worker through the queue,
+/// and the worker reads raw objects through the object-storage port.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InboundMailBinding {
+    /// Stable binding identifier (`[a-z0-9-]`).
+    pub id: String,
+    /// The mailbox this binding serves (for example
+    /// `support@example.test`); rendered into the receipt rule.
+    pub mailbox_scope: String,
+    /// Explicit physical bucket name SES writes raw MIME into.
+    pub bucket_name: String,
+    /// Object key prefix notifications are filtered to (for example
+    /// `mail/`).
+    pub key_prefix: String,
+    /// Raw MIME lifecycle in days; the raw object is authoritative only
+    /// until the durable ingest job has verified and ingested it.
+    pub retention_days: u32,
+    /// Worker function consuming the wake queue.
+    pub worker_function_id: String,
+    /// Queue id synthesized into `plan.queues` when omitted from the
+    /// base plan.
+    pub queue_id: String,
+    pub batch_size: u32,
+    pub batching_window_seconds: u32,
+    pub maximum_concurrency: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

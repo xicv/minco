@@ -9,6 +9,7 @@ use minco_plugin_sessions::{
     SessionError, SessionId, SessionRecord, SessionStore, SessionTokenHash,
 };
 use sqlx::{Row, SqlitePool};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -318,11 +319,13 @@ impl AuditSink for SqliteAuditSink {
         }
         let metadata = serde_json::to_string(&event.metadata)
             .map_err(|error| AuditError::Append(error.to_string()))?;
-        sqlx::query(
+        let fingerprint = minco_plugin_audit::event_fingerprint(&event);
+        let inserted = sqlx::query(
             "INSERT INTO minco_audit
              (id, action, resource_type, resource_id, actor_subject, correlation_id,
-              occurred_at, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+              occurred_at, metadata, fingerprint)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO NOTHING",
         )
         .bind(event.id)
         .bind(event.action)
@@ -332,11 +335,92 @@ impl AuditSink for SqliteAuditSink {
         .bind(event.correlation_id)
         .bind(event.occurred_at)
         .bind(metadata)
+        .bind(&fingerprint)
         .execute(&self.pool)
         .await
         .map_err(|error| AuditError::Append(error.to_string()))?;
+        if inserted.rows_affected() == 0 {
+            // Same id: idempotent only when the semantic fingerprint
+            // matches — otherwise this is an integrity conflict
+            // (exact-head reviews R24 and R31).
+            let existing = sqlx::query(
+                "SELECT action, resource_type, resource_id, actor_subject, correlation_id,
+                        occurred_at, metadata, fingerprint
+                 FROM minco_audit WHERE id = ?",
+            )
+            .bind(event.id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|error| AuditError::Append(error.to_string()))?;
+            return match existing {
+                Some(row) => {
+                    let stored_fingerprint: Option<String> = row
+                        .try_get("fingerprint")
+                        .map_err(|error| AuditError::Append(error.to_string()))?;
+                    match stored_fingerprint {
+                        Some(existing_fp) if existing_fp == fingerprint => Ok(()),
+                        Some(_) => Err(minco_plugin_audit::audit_conflict_error()),
+                        // A pre-fingerprint row (written before the
+                        // forward-only 0004 migration): content-verify it
+                        // against the incoming event and, only on an exact
+                        // semantic match, adopt the digest — the safe
+                        // backfill demanded by review R27. A row that
+                        // cannot be verified is an integrity conflict.
+                        None => {
+                            let recomputed = stored_fingerprint_from_row(&row)
+                                .map_err(|error| AuditError::Append(error.to_string()))?;
+                            if recomputed != fingerprint {
+                                return Err(minco_plugin_audit::audit_conflict_error());
+                            }
+                            sqlx::query(
+                                "UPDATE minco_audit SET fingerprint = ? WHERE id = ? AND fingerprint IS NULL",
+                            )
+                            .bind(&fingerprint)
+                            .bind(event.id)
+                            .execute(&self.pool)
+                            .await
+                            .map_err(|error| AuditError::Append(error.to_string()))?;
+                            Ok(())
+                        }
+                    }
+                }
+                None => Ok(()),
+            };
+        }
         Ok(())
     }
+}
+
+/// Recompute the canonical fingerprint from a stored row for the
+/// legacy-backfill verification path. UUID columns may be stored as
+/// BLOB (the historical binding) or TEXT, so both spellings decode.
+fn stored_fingerprint_from_row(row: &sqlx::sqlite::SqliteRow) -> Result<String, sqlx::Error> {
+    let action: String = row.try_get("action")?;
+    let resource_type: String = row.try_get("resource_type")?;
+    let resource_id: String = row.try_get("resource_id")?;
+    let actor_subject: Option<String> = row.try_get("actor_subject")?;
+    let correlation_id = if let Ok(text) = row.try_get::<String, _>("correlation_id") {
+        text
+    } else {
+        let bytes: Vec<u8> = row.try_get("correlation_id")?;
+        Uuid::from_slice(&bytes)
+            .map_err(|error| sqlx::Error::Decode(Box::new(error)))?
+            .to_string()
+    };
+    let occurred_at: String = row.try_get("occurred_at")?;
+    let metadata_json: String = row.try_get("metadata")?;
+    let normalized_occurred_at = minco_plugin_audit::canonical_stored_occurred_at(&occurred_at);
+    let metadata: BTreeMap<String, serde_json::Value> =
+        serde_json::from_str(&metadata_json).unwrap_or_default();
+    Ok(minco_plugin_audit::fingerprint_from_parts(
+        &action,
+        &resource_type,
+        &resource_id,
+        actor_subject.as_deref(),
+        &correlation_id,
+        &normalized_occurred_at,
+        &minco_plugin_audit::canonical_metadata(&metadata),
+    ))
 }
 
 pub async fn migrate_plugin_storage(pool: &SqlitePool) -> Result<(), sqlx::migrate::MigrateError> {
@@ -394,7 +478,7 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(migration_count, 3);
+        assert_eq!(migration_count, 4);
         let service = SessionService::new(Arc::new(SqliteSessionStore::new(pool)));
         let issued = service
             .issue(CreateSession {

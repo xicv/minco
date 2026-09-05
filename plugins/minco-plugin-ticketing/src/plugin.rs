@@ -70,11 +70,10 @@ impl TicketingPlugin {
     }
 }
 
-impl Default for TicketingPlugin {
-    fn default() -> Self {
-        Self::memory()
-    }
-}
+// No `Default` (ADR-0053): store selection must be explicit — `memory()`
+// for the deterministic test profile, `sqlite(pool)` or `new(store)` for
+// durable profiles — so non-durable storage can never be selected
+// silently.
 
 impl Plugin for TicketingPlugin {
     fn descriptor(&self) -> PluginDescriptor {
@@ -127,10 +126,17 @@ impl Plugin for TicketingPlugin {
                 "ticketing.attachments",
                 "ticketing.ai-context",
                 "ticketing.support-entry",
+                "ticketing.agent-console",
+                "ticketing.agent.read",
+                "ticketing.agent.manage",
             ]
             .into_iter()
             .map(provision),
         );
+        // No `ticketing.jobs` capability is declared: the descriptor and
+        // the distribution manifest must match exactly, and neither can
+        // express feature-conditional capabilities (ADR-0054). The Cargo
+        // feature and the notify configuration are the opt-in truth.
         descriptor.operations.extend(ticketing_operations());
         match self.storage_profile {
             StorageProfile::Memory => {}
@@ -166,8 +172,49 @@ impl Plugin for TicketingPlugin {
             let _audit = services.get::<AuditService>()?;
             let _events = services.get::<EventServices>()?;
         }
+        // Sessions, CSRF and idempotency are optional portal services
+        // (ADR-0051): the base plugin works without all of them. Events
+        // are a required capability (ADR-0056) and become a used
+        // dependency through activity-intent dispatch.
+        let portal = {
+            let services = context.services();
+            crate::TicketingPortalServices {
+                sessions: services
+                    .get_optional::<minco_plugin_sessions::SessionService>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
+                csrf: services
+                    .get_optional::<minco_plugin_sessions::CsrfService>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
+                idempotency: services
+                    .get_optional::<minco_plugin_idempotency::IdempotencyService>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
+                events: Some(
+                    services
+                        .get::<EventServices>()
+                        .map_err(|error| PluginError::Installation(error.to_string()))?,
+                ),
+                // The declared audit dependency becomes real (exact-head
+                // review R5): activity intents dispatch to the audit
+                // service with the intent id as the audit event id.
+                audit: Some(
+                    services
+                        .get::<AuditService>()
+                        .map_err(|error| PluginError::Installation(error.to_string()))?,
+                ),
+                #[cfg(feature = "jobs")]
+                jobs: services
+                    .get_optional::<minco_plugin_jobs::JobsServices>()
+                    .map_err(|error| PluginError::Installation(error.to_string()))?,
+                objects: Some(
+                    services
+                        .get::<ObjectStoreService>()
+                        .map_err(|error| PluginError::Installation(error.to_string()))?,
+                ),
+            }
+        };
         let service = TicketingService::new(self.store.clone(), config)
-            .map_err(|error| PluginError::Installation(error.to_string()))?;
+            .map_err(|error| PluginError::Installation(error.to_string()))?
+            .with_portal_services(portal);
         context.services().insert(Arc::new(self.store.clone()))?;
         context.services().insert(Arc::new(service.clone()))?;
         context
@@ -177,6 +224,9 @@ impl Plugin for TicketingPlugin {
         header_policy
             .allow_request_header_name(crate::HANDOFF_HEADER)
             .and_then(|()| header_policy.mark_request_header_name_sensitive(crate::HANDOFF_HEADER))
+            .and_then(|()| header_policy.allow_request_header_name("cookie"))
+            .and_then(|()| header_policy.mark_request_header_name_sensitive("cookie"))
+            .and_then(|()| header_policy.enable_cookie_csrf())
             .map_err(|error| PluginError::Installation(error.to_string()))?;
         HttpModule::new(context.plugin_id().clone(), ticketing_router(service))
             .with_operations(
@@ -191,8 +241,14 @@ impl Plugin for TicketingPlugin {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct TicketingHealthCheck(TicketingService);
+
+impl std::fmt::Debug for TicketingHealthCheck {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("TicketingHealthCheck").finish()
+    }
+}
 
 #[async_trait]
 impl HealthCheck for TicketingHealthCheck {
@@ -326,6 +382,174 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
             "/_minco/ticketing/tickets/{ticketId}/ai-context",
             false,
         ),
+        (
+            "getTicketingAgentConsole",
+            "GET",
+            "/_minco/ticketing/agent",
+            true,
+        ),
+        (
+            "getTicketingAgentConsoleScript",
+            "GET",
+            "/_minco/ticketing/agent/console.js",
+            true,
+        ),
+        (
+            "getTicketingAgentConsoleStyles",
+            "GET",
+            "/_minco/ticketing/agent/console.css",
+            true,
+        ),
+        (
+            "getTicketingAgentBootstrap",
+            "GET",
+            "/_minco/ticketing/agent/bootstrap",
+            false,
+        ),
+        (
+            "listTicketingAgentTickets",
+            "GET",
+            "/_minco/ticketing/agent/tickets",
+            false,
+        ),
+        (
+            "getTicketingAgentTicket",
+            "GET",
+            "/_minco/ticketing/agent/tickets/{ticketId}",
+            false,
+        ),
+        (
+            "manageTicketingAgentTicket",
+            "PATCH",
+            "/_minco/ticketing/agent/tickets/{ticketId}/management",
+            false,
+        ),
+        (
+            "listTicketingAgentView",
+            "GET",
+            "/_minco/ticketing/agent/views/{viewId}",
+            false,
+        ),
+        (
+            "listTicketingAgentSearch",
+            "GET",
+            "/_minco/ticketing/agent/search",
+            false,
+        ),
+        (
+            "requestTicketingAutomation",
+            "POST",
+            "/_minco/ticketing/agent/tickets/{ticketId}/automation",
+            false,
+        ),
+        (
+            "createTicketingClarification",
+            "POST",
+            "/_minco/ticketing/agent/tickets/{ticketId}/clarifications",
+            false,
+        ),
+        (
+            "listTicketingClarifications",
+            "GET",
+            "/_minco/ticketing/agent/tickets/{ticketId}/clarifications",
+            false,
+        ),
+        (
+            "sendTicketingClarification",
+            "POST",
+            "/_minco/ticketing/agent/clarifications/{clarificationId}/send",
+            false,
+        ),
+        (
+            "listTicketingRequesterClarifications",
+            "GET",
+            "/_minco/ticketing/requester/clarifications",
+            false,
+        ),
+        (
+            "replyTicketingClarification",
+            "POST",
+            "/_minco/ticketing/requester/clarifications/{clarificationId}/reply",
+            false,
+        ),
+        (
+            "listTicketingAutomationProposals",
+            "GET",
+            "/_minco/ticketing/agent/tickets/{ticketId}/automation-proposals",
+            false,
+        ),
+        (
+            "decideTicketingAutomationProposal",
+            "PATCH",
+            "/_minco/ticketing/agent/automation-proposals/{proposalId}",
+            false,
+        ),
+        (
+            "replaceTicketingKnowledgeLinks",
+            "PUT",
+            "/_minco/ticketing/agent/tickets/{ticketId}/knowledge-links",
+            false,
+        ),
+        (
+            "submitTicketingCsat",
+            "POST",
+            "/_minco/ticketing/requester/tickets/{ticketId}/csat",
+            false,
+        ),
+        (
+            "listTicketingAgentMacros",
+            "GET",
+            "/_minco/ticketing/agent/macros",
+            false,
+        ),
+        (
+            "createTicketingAgentMacro",
+            "POST",
+            "/_minco/ticketing/agent/macros",
+            false,
+        ),
+        (
+            "updateTicketingAgentMacro",
+            "PATCH",
+            "/_minco/ticketing/agent/macros/{macroId}",
+            false,
+        ),
+        (
+            "listTicketingRequesterTickets",
+            "GET",
+            "/_minco/ticketing/requester/tickets",
+            false,
+        ),
+        (
+            "getTicketingRequesterTicket",
+            "GET",
+            "/_minco/ticketing/requester/tickets/{ticketId}",
+            false,
+        ),
+        (
+            "replyToTicketingRequesterTicket",
+            "POST",
+            "/_minco/ticketing/requester/tickets/{ticketId}/replies",
+            false,
+        ),
+        (
+            "listTicketingRequesterMessages",
+            "GET",
+            "/_minco/ticketing/requester/tickets/{ticketId}/messages",
+            false,
+        ),
+        (
+            "createTicketingRequesterSession",
+            "POST",
+            "/_minco/ticketing/requester/sessions",
+            true,
+        ),
+        (
+            "endTicketingRequesterSession",
+            "POST",
+            "/_minco/ticketing/requester/logout",
+            false,
+        ),
     ]
     .into_iter()
     .map(|(operation_id, method, path, public)| OperationDescriptor {
@@ -333,7 +557,9 @@ fn ticketing_operations() -> Vec<OperationDescriptor> {
         method: method.into(),
         path: path.into(),
         public,
-        idempotent: false,
+        // Safe reads are idempotent, and the session exchange is
+        // replay-safe by the shared idempotency layer (review finding 10).
+        idempotent: method == "GET" || operation_id == "createTicketingRequesterSession",
     })
     .collect()
 }
@@ -391,6 +617,20 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             )),
             "Browser-safe privacy notice",
         ),
+        field(
+            "requester_session_ttl_seconds",
+            ConfigurationValueKind::Integer,
+            false,
+            Some(serde_json::json!(3600)),
+            "Requester portal session lifetime, at most 86400 seconds",
+        ),
+        field(
+            "notify_requester_on_public_reply",
+            ConfigurationValueKind::Boolean,
+            false,
+            Some(serde_json::json!(false)),
+            "Requires the jobs feature and an enqueue adapter: enqueue a notification job with each public agent reply",
+        ),
     ]
 }
 
@@ -437,6 +677,25 @@ mod tests {
     }
 
     #[test]
+    fn generated_request_boundary_is_current() {
+        let contract_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("openapi/openapi.yaml");
+        let report = minco_contract::load_contract(&contract_path).unwrap();
+        assert!(report.is_valid(), "{:?}", report.findings);
+        let generated_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/generated.rs");
+        let expected = minco_contract::generate_rust(&report.document);
+        if std::env::var_os("UPDATE_MINCO_GENERATED").is_some_and(|value| value == "1") {
+            std::fs::write(&generated_path, &expected).unwrap();
+        }
+        let committed = std::fs::read_to_string(&generated_path).unwrap();
+        assert_eq!(
+            committed, expected,
+            "src/generated.rs is stale; run UPDATE_MINCO_GENERATED=1 cargo test -p minco-plugin-ticketing generated_request_boundary_is_current"
+        );
+    }
+
+    #[test]
     fn openapi_and_descriptor_operation_inventories_match() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("openapi/openapi.yaml");
         let report = minco_contract::load_contract(path).unwrap();
@@ -468,6 +727,30 @@ mod tests {
         contract.sort();
         descriptor.sort();
         assert_eq!(contract, descriptor);
+    }
+
+    #[test]
+    fn safe_get_operations_are_idempotent() {
+        // Review finding 10: safe reads must not claim non-idempotent
+        // semantics in the descriptor or the distribution manifest.
+        let operations = ticketing_operations();
+        assert!(!operations.is_empty());
+        for operation in &operations {
+            if operation.method == "GET" {
+                assert!(
+                    operation.idempotent,
+                    "GET operation {} must be idempotent",
+                    operation.operation_id
+                );
+            }
+        }
+        assert!(
+            operations
+                .iter()
+                .find(|operation| operation.operation_id == "createTicketingRequesterSession")
+                .is_some_and(|operation| operation.idempotent),
+            "the session exchange is replay-safe through the idempotency layer"
+        );
     }
 
     #[test]

@@ -40,6 +40,17 @@ run_generator() {
     "$@" >/dev/null
 }
 
+pin_known_broken_upstream() {
+  local project="$1"
+  # 2026-09-04: tinyvec 1.13.0 does not compile on the pinned toolchain
+  # (its declared rust-version admits it, but the source calls the `vec!`
+  # macro while importing only the `alloc::vec` module). The generated
+  # applications resolve dependencies FRESH, so pin the last compatible
+  # release until upstream yanks or fixes 1.13.0; no test is skipped or
+  # weakened — the applications still compile and run their full suites.
+  cargo update --manifest-path "$project/Cargo.toml" --precise 1.12.0 tinyvec
+}
+
 for database in postgres sqlite; do
   project="$temporary/minco-smoke-$database"
   cargo run --locked -p cargo-minco -- \
@@ -54,6 +65,7 @@ for database in postgres sqlite; do
     --set "minco-smoke-$database-$database" >/dev/null
   append_local_patches "$project"
   cargo generate-lockfile --manifest-path "$project/Cargo.toml"
+  pin_known_broken_upstream "$project"
   CARGO_TARGET_DIR="$root/target" \
     cargo check --locked --manifest-path "$project/Cargo.toml" --workspace --all-targets --all-features
   CARGO_TARGET_DIR="$root/target" \
@@ -77,6 +89,7 @@ for database in postgres sqlite; do
     --dry-run
 
   cargo generate-lockfile --manifest-path "$project/Cargo.toml"
+  pin_known_broken_upstream "$project"
   CARGO_TARGET_DIR="$root/target" \
     cargo check --locked --manifest-path "$project/Cargo.toml" --workspace --all-targets --all-features
 

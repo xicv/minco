@@ -12,7 +12,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_RELATIVE = Path("verification/source-manifest.json")
-EXCLUDED_PARTS = {".git", ".jj", ".venv", "target", "node_modules", "__pycache__"}
+EXCLUDED_PARTS = {".git", ".jj", ".venv", "target", "node_modules", "__pycache__", ".mimosa"}
 EXCLUDED_NAMES = {".env"}
 EXCLUDED_RELATIVE = {
     OUTPUT_RELATIVE,

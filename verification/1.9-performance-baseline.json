@@ -2,13 +2,13 @@
   "candidate_version": "1.12.0",
   "kind": "minco.performance-baseline.v1",
   "limitations": [
-    "No exact-tree hosted Linux 1.11.0 performance artifact was available for this documentation closure.",
+    "No exact-tree hosted Linux performance artifact was available for this ticketing-stage tree.",
     "Local macOS measurements, if generated under target/minco, are diagnostic only and are not production SLO or AWS-provider evidence."
   ],
   "production_slo": false,
   "provider_contact": false,
-  "reason": "Exact-source hosted Linux 1.11.0 performance qualification has not run.",
+  "reason": "Exact-source hosted Linux performance qualification has not run for this tree (ticketing Stage A, task M14-T45).",
   "schema_version": 1,
-  "source_tree_sha256": "2ac2b8161e5e2034ff4449c1e76d1bcb3c29f104fc11ec75989d361c127fd514",
+  "source_tree_sha256": "9aafd14b44d5af7adecf3bb4e7845bfb491cdb906e16027d8b4519a9e5f525f2",
   "status": "NOT RUN"
 }
