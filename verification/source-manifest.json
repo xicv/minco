@@ -1414,8 +1414,8 @@
     },
     {
       "path": "crates/minco-plan/examples/render_inbound_mail.rs",
-      "sha256": "ef23b719192cfc1b21e6544b202c4f62888a626195779d833502ddbdf2b3eae2",
-      "size_bytes": 3168
+      "sha256": "a410d793341ab8fcc24c7bf75bb8ff9815862d46ae40f6cbd229417782991c8b",
+      "size_bytes": 4375
     },
     {
       "path": "crates/minco-plan/src/cost.rs",
@@ -1429,8 +1429,8 @@
     },
     {
       "path": "crates/minco-plan/src/inbound_mail.rs",
-      "sha256": "a8af790a23d58f9c3945a0f10919153846492a9befb6d2f99bdd7cf9e78d2daf",
-      "size_bytes": 42229
+      "sha256": "a881ed53a308a4cf0ea3e505ad0defcaa907bdaadbf40751aad026f7abd58378",
+      "size_bytes": 42654
     },
     {
       "path": "crates/minco-plan/src/lib.rs",
@@ -1504,8 +1504,8 @@
     },
     {
       "path": "crates/minco-plan/tests/render_inbound_mail.rs",
-      "sha256": "5257f1745b8181eee2cadb82e382b5051323c18848ebe842a860d727bc77bc27",
-      "size_bytes": 58458
+      "sha256": "ca06b36aeff9a73de15348f06f523f053a86be83550a233fbdf6f1eb92c94a03",
+      "size_bytes": 59602
     },
     {
       "path": "crates/minco-project-view/Cargo.toml",
@@ -8684,8 +8684,8 @@
     },
     {
       "path": "scripts/test/inbound_mail_template_parse.py",
-      "sha256": "1a3173716add603bda2dfcf623173cc3b3535a956c8e461108090da5fc4f2d55",
-      "size_bytes": 7566
+      "sha256": "4a7279d10727e5656d9bcae57b99584c5d5970e2a9abfcab958e3b23fee36614",
+      "size_bytes": 8769
     },
     {
       "path": "scripts/test/lambda_artifact_reproducibility.py",
@@ -9329,8 +9329,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "4e493d8b65e1257267032bf31d9094e7b8de61ede54a406f8490a0381622c64d",
-      "size_bytes": 47772
+      "sha256": "f68ae6ccb217b8ad687fe37bda876b0eaea04ccfec58d1f9687f725162cb3069",
+      "size_bytes": 48949
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "9aafd14b44d5af7adecf3bb4e7845bfb491cdb906e16027d8b4519a9e5f525f2",
-  "total_size_bytes": 15116910,
+  "source_tree_sha256": "c3de4265ce0f8d10b6034ec5f8be74e8567c0670f5ccbb24b0cffeb7d6cd0fd8",
+  "total_size_bytes": 15122066,
   "version": "1.12.0"
 }

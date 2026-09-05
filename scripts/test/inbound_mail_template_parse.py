@@ -113,12 +113,34 @@ class InboundMailTemplateParseTests(unittest.TestCase):
         self.assertEqual(rule["TlsPolicy"], "Require")
         self.assertEqual(rule["ScanEnabled"], True)
         self.assertEqual(rule["Recipients"], ["support@example.test"])
-        # Ego-chat cycle-1 review, AC-5: the first canonical rule has no
-        # predecessor — `After` exists only from the second rule on.
+        # Ego-chat convergence cycle-2 review, AC-5: `After` is a
+        # RESOURCE property (Properties.After, a sibling of RuleSetName
+        # and Rule per the CloudFormation schema), never a member of the
+        # nested Rule object — and this MULTI-rule artifact exercises
+        # the chain: canonical order places `billing` first (no
+        # predecessor) and `ticketing` second.
+        ticketing_properties = resources["TicketingReceiptRule"]["Properties"]
+        billing_properties = resources["BillingReceiptRule"]["Properties"]
         self.assertNotIn(
             "After",
-            rule,
-            "a single-binding topology chains nothing",
+            billing_properties,
+            "the first canonical rule has no predecessor",
+        )
+        self.assertEqual(
+            ticketing_properties.get("After"),
+            "billing-inbound-mail",
+            "the second rule chains to the canonical predecessor at Properties.After",
+        )
+        for name in ("TicketingReceiptRule", "BillingReceiptRule"):
+            self.assertNotIn(
+                "After",
+                resources[name]["Properties"]["Rule"],
+                f"After must not be nested inside {name} Properties.Rule",
+            )
+        self.assertIn(
+            "BillingReceiptRule",
+            resources["TicketingReceiptRule"]["DependsOn"],
+            "the second rule carries a real dependency on the predecessor resource",
         )
 
         # Clean-create dependency graph (exact-head review 5083559431
@@ -156,8 +178,9 @@ class InboundMailTemplateParseTests(unittest.TestCase):
     def test_sam_validate_lint_accepts_the_template(self) -> None:
         """The full cfn-lint pass (exact-head review R34): `sam validate
         --lint` runs the CloudFormation resource specification checks the
-        structural parse cannot. The SAM CLI is materialized through
-        `uv tool run` so the gate is reproducible."""
+        structural parse cannot — including the MULTI-rule artifact with
+        Properties.After (convergence cycle-2 review). The SAM CLI is
+        materialized through `uv tool run` so the gate is reproducible."""
         import shutil
         import tempfile
 

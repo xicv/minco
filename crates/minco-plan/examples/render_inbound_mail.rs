@@ -50,6 +50,16 @@ timeout_seconds = 60
 reserved_concurrency = 2
 provisioned_concurrency = 0
 database_connections_per_instance = 1
+
+[[functions]]
+name = "billing-worker"
+role = "worker"
+artifact_path = "target/lambda/billing-worker.zip"
+memory_mb = 256
+timeout_seconds = 60
+reserved_concurrency = 2
+provisioned_concurrency = 0
+database_connections_per_instance = 1
 "#,
     )
     .expect("deployment config")
@@ -78,25 +88,47 @@ fn contract() -> minco_contract::ContractDocument {
 fn main() {
     let plan: DeploymentPlan =
         config().into_plan_with_graph(&contract(), minco_core::ApplicationGraph::default());
+    // Two bindings (convergence cycle-2 review): the structural gate and
+    // `sam validate --lint` must exercise a MULTI-rule artifact — the
+    // canonical order places `billing` first (no predecessor) and
+    // `ticketing` second with Properties.After chaining to it.
     let topology = InboundMailTopology {
         enabled: true,
-        bindings: vec![InboundMailBinding {
-            id: "ticketing".into(),
-            mailbox_scope: "support@example.test".into(),
-            bucket_name: "orders-dev-raw-mail".into(),
-            key_prefix: "mail/".into(),
-            retention_days: 30,
-            worker_function_id: "mail-worker".into(),
-            queue_id: "mail-ticketing".into(),
-            batch_size: 10,
-            batching_window_seconds: 1,
-            maximum_concurrency: 2,
-        }],
+        bindings: vec![
+            InboundMailBinding {
+                id: "ticketing".into(),
+                mailbox_scope: "support@example.test".into(),
+                bucket_name: "orders-dev-raw-mail".into(),
+                key_prefix: "mail/".into(),
+                retention_days: 30,
+                worker_function_id: "mail-worker".into(),
+                queue_id: "mail-ticketing".into(),
+                batch_size: 10,
+                batching_window_seconds: 1,
+                maximum_concurrency: 2,
+            },
+            InboundMailBinding {
+                id: "billing".into(),
+                mailbox_scope: "billing@example.test".into(),
+                bucket_name: "orders-dev-raw-billing".into(),
+                key_prefix: "billing/".into(),
+                retention_days: 30,
+                worker_function_id: "billing-worker".into(),
+                queue_id: "mail-billing".into(),
+                batch_size: 10,
+                batching_window_seconds: 1,
+                maximum_concurrency: 2,
+            },
+        ],
     };
     let applied = apply_inbound_mail(&plan, &topology);
     let mut code_uris = std::collections::BTreeMap::new();
     code_uris.insert("api".to_owned(), "./api.zip".to_owned());
     code_uris.insert("mail-worker".to_owned(), "./mail-worker.zip".to_owned());
+    code_uris.insert(
+        "billing-worker".to_owned(),
+        "./billing-worker.zip".to_owned(),
+    );
     let template = render_sam_with_inbound_mail(&applied, &topology, &code_uris)
         .expect("render the inbound-mail template");
     print!("{template}");

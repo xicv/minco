@@ -1172,8 +1172,12 @@ fn intrinsic_edges(value: &serde_yaml_ng::Value, edges: &mut Vec<String>) {
 
 #[test]
 fn receipt_rules_form_a_canonical_after_chain() {
-    // The ordered provider rule sequence — logical id, rule name and
-    // predecessor — compared across renders to prove order invariance.
+    // The ordered provider rule sequence — logical id, Rule.Name and the
+    // provider-defined Properties.After predecessor — compared across
+    // renders to prove order invariance. `After` is a RESOURCE property
+    // (Properties.After, a sibling of RuleSetName and Rule), never a
+    // member of the nested Rule object (convergence cycle-2 review
+    // against the CloudFormation resource schema).
     fn receipt_rule_sequence(template: &str) -> Vec<(String, String, Option<String>)> {
         let document = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(template).expect("yaml");
         let resources = document
@@ -1187,17 +1191,16 @@ fn receipt_rules_form_a_canonical_after_chain() {
                     .is_some_and(|name| name.ends_with("ReceiptRule"))
             })
             .map(|(key, value)| {
-                let rule = value
-                    .get("Properties")
-                    .and_then(|properties| properties.get("Rule"))
-                    .expect("Rule properties");
+                let properties = value.get("Properties").expect("resource properties");
+                let rule = properties.get("Rule").expect("Rule properties");
                 (
                     key.as_str().expect("rule logical id").to_owned(),
                     rule.get("Name")
                         .and_then(|name| name.as_str())
                         .expect("rule name")
                         .to_owned(),
-                    rule.get("After")
+                    properties
+                        .get("After")
                         .and_then(|after| after.as_str())
                         .map(str::to_owned),
                 )
@@ -1208,7 +1211,7 @@ fn receipt_rules_form_a_canonical_after_chain() {
     // receipt-rule rendering — the first rule has no predecessor, every
     // later rule names the previous rule with SES `After` AND carries a
     // real DependsOn edge on the previous rule resource, and reversing
-    // the input bindings produces a byte-identical template.
+    // the input bindings produces an identical ordered rule sequence.
     let mut billing = binding();
     billing.id = "billing".into();
     billing.queue_id = "mail-billing".into();
@@ -1261,23 +1264,45 @@ fn receipt_rules_form_a_canonical_after_chain() {
     // Canonical order sorts `billing` before `ticketing`.
     assert_eq!(receipt_rules[0].0, "BillingReceiptRule");
     assert_eq!(receipt_rules[1].0, "TicketingReceiptRule");
-    let rule_of = |resource: &serde_yaml_ng::Value| {
+    let properties_of = |resource: &serde_yaml_ng::Value| {
         resource
             .get("Properties")
-            .and_then(|properties| properties.get("Rule"))
             .cloned()
-            .expect("Rule properties")
+            .expect("resource properties")
     };
-    let first_rule = rule_of(&receipt_rules[0].1);
+    let first_properties = properties_of(&receipt_rules[0].1);
     assert!(
-        first_rule.get("After").is_none(),
+        first_properties.get("After").is_none(),
         "the first canonical rule has no predecessor"
     );
-    let second_rule = rule_of(&receipt_rules[1].1);
+    let second_properties = properties_of(&receipt_rules[1].1);
     assert_eq!(
-        second_rule.get("After").and_then(|after| after.as_str()),
+        second_properties
+            .get("After")
+            .and_then(|after| after.as_str()),
         Some("billing-inbound-mail"),
-        "the second rule chains to the canonical predecessor by name"
+        "the second rule chains to the canonical predecessor by name at Properties.After"
+    );
+    // The provider-defined path is exclusive: the nested Rule object
+    // must NOT carry After (a regression reintroducing the wrong
+    // nesting would otherwise keep the expected string somewhere in
+    // the output — convergence cycle-2 review).
+    for (_, resource) in &receipt_rules {
+        let rule = resource
+            .get("Properties")
+            .and_then(|properties| properties.get("Rule"))
+            .expect("Rule properties");
+        assert!(
+            rule.get("After").is_none(),
+            "After is a resource property (Properties.After), never Properties.Rule.After"
+        );
+    }
+    assert_eq!(
+        second_properties
+            .get("Rule")
+            .and_then(|rule| rule.get("Name"))
+            .and_then(|name| name.as_str()),
+        Some("ticketing-inbound-mail")
     );
     let second_depends = receipt_rules[1]
         .1

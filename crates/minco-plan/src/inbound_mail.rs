@@ -850,13 +850,19 @@ pub fn render_sam_with_inbound_mail(
         let (predecessor_depends, after_field) = match &previous_rule {
             Some((predecessor_logical, predecessor_name)) => (
                 format!(", {predecessor_logical}"),
-                format!("        After: {}\n", yaml_quote(predecessor_name)),
+                format!("\n      After: {}", yaml_quote(predecessor_name)),
             ),
             None => (String::new(), String::new()),
         };
+        // `After` is a RESOURCE property — a sibling of RuleSetName and
+        // Rule, not a member of the nested Rule object (convergence
+        // cycle-2 review against the CloudFormation resource schema):
+        // Properties.After names the existing rule this one is placed
+        // after, while the DependsOn edge creates the real resource
+        // dependency. Both are emitted for every rule after the first.
         write!(
             resources,
-            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [{bucket_policy_logical}, {queue_policy_logical}{predecessor_depends}]\n    Properties:\n      RuleSetName: !Ref InboundMailReceiptRuleSet\n      Rule:\n        Name: {rule_name_value}\n{after_field}        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {recipient}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {key_prefix_value}\n",
+            "  {logical}ReceiptRule:\n    Type: AWS::SES::ReceiptRule\n    DependsOn: [{bucket_policy_logical}, {queue_policy_logical}{predecessor_depends}]\n    Properties:\n      RuleSetName: !Ref InboundMailReceiptRuleSet{after_field}\n      Rule:\n        Name: {rule_name_value}\n        Enabled: true\n        ScanEnabled: true\n        TlsPolicy: Require\n        Recipients:\n          - {recipient}\n        Actions:\n          - S3Action:\n              BucketName: !Ref {bucket_logical}\n              ObjectKeyPrefix: {key_prefix_value}\n",
             bucket_policy_logical = bucket_policy_logical,
             queue_policy_logical = queue_policy_logical,
             rule_name_value = yaml_quote(&rule_name),

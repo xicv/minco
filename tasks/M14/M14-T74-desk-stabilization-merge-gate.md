@@ -802,6 +802,27 @@ converted:
   past the 5-second bound 4–5 minutes into the E2E churn (no external
   load — timing variance). r9aa passed fully on the same fresh VM.
 
+**Round-9 convergence cycle 2 (2026-09-06, ego-chat review of
+9a5a65aa)**: AC-4 closed (per-field framing accepted); one blocking
+provider-schema correction, closed in code:
+
+- **AC-5 After placement**: `After` is a RESOURCE property —
+  Properties.After, a sibling of RuleSetName and Rule per the
+  CloudFormation schema — never a member of the nested Rule object.
+  The cycle-1 renderer nested it inside Rule and the regression
+  asserted the same wrong path, while the lint gate only ever saw a
+  single-rule artifact that could not exercise the chain. Fixed: the
+  renderer emits Properties.After; the regression asserts the
+  provider-defined paths (first rule Properties has no After; second
+  Properties.After == first Properties.Rule.Name; second DependsOn
+  contains the predecessor logical id) PLUS the negative assertion
+  that no rule's nested Rule object contains After; the
+  `render_inbound_mail` example now renders TWO bindings so the
+  structural python gate and `sam validate --lint` exercise the
+  multi-rule artifact with Properties.After.
+- Qualification at the corrected tree re-run in full (see the cycle-2
+  controller qualification block below).
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and
