@@ -762,6 +762,46 @@ in code:
 - Lane pin 177→180 (three new plan regressions); ADR-0065 carries the
   2026-09-03 amendment; DECISIONS.md updated.
 
+**Round-9 convergence cycle 1 qualification (2026-09-03/06, head
+c402bc44)**: the full release controller reached genuine exit 0 on
+attempt r9aa (2026-09-06 00:52–04:05 ACST, 3h12m) — both browser
+suites 40/40 (CI browser mode), quality.sh green including both npm
+audit gates, assurance lanes, AppSync proofs, candidate
+recovery/load, packaged-crate verification, release dry-run,
+multi-release rehearsal, docker runtime E2E, Rustack smoke and Orders
+E2E; the working copy was byte-identical to the committed tree after
+the run. Ten prior attempts failed and are recorded as failures, none
+converted:
+
+- r9p/r9r: my own sequencing error — the corrections were left
+  uncommitted so `publish` refused a dirty tree; and a killed docs
+  webserver left `docs-site/.vitepress/.temp` artifacts that staled
+  the source manifest (cleaned; the committed-tree rerun fixed both).
+- r9q/r9s: the operator's own `xcodebuild` simulator campaigns loaded
+  the machine to 1-minute averages of 100–650, killing the docs
+  webserver (120s bound) once the npm registry 503'd the audit
+  endpoint once; retries are load- and xcodebuild-gated.
+- r9t: upstream breakage — `tinyvec` 1.13.0 (published 2026-09-04)
+  does not compile on the pinned toolchain while its declared
+  rust-version admits it; the generated-application smoke gate
+  resolves dependencies fresh and picked it up deterministically
+  (fresh re-download reproduced; cache ruled out). Fixed by pinning
+  tinyvec 1.12.0 via `cargo update --precise` in the gate (commit
+  c402bc44) — no test skipped or weakened; both database applications
+  still compile and run their full suites.
+- r9u/r9v/r9w/r9x: npm deprecated the registry audit path used by the
+  installed npm 11 client (~31h of hung POSTs from every local path
+  while the edge answered GETs and npm's status stayed green; two
+  12-hour probe windows exhausted). Fixed without touching any gate
+  or the global npm: npm 12.0.2 provisioned into a temp prefix and
+  prepended to PATH for the controller invocation — the SAME audit
+  gates run and pass ("found 0 vulnerabilities", both prefixes).
+- r9y/r9z: docker-runtime E2E timing — the two-day-old VM's `docker
+  info` had crept 0.33s→1.1s+ and failed the preflight; a fresh
+  graceful-quit VM passed the preflight but one docker call stalled
+  past the 5-second bound 4–5 minutes into the E2E churn (no external
+  load — timing variance). r9aa passed fully on the same fresh VM.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and
