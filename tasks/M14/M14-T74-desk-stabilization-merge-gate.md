@@ -823,6 +823,27 @@ provider-schema correction, closed in code:
 - Qualification at the corrected tree re-run in full (see the cycle-2
   controller qualification block below).
 
+**Round-9 convergence cycle 2 mutation-floor recalibration
+(2026-09-06)**: three consecutive controller runs (r9ac/r9ae/r9af)
+failed in the cargo-mutants assurance lanes on scenario TIMEOUTS while
+every mutant was CAUGHT (r9af: plan-cost lane; r9ac/r9ae:
+release-authority lane). Root cause reproduced standalone: the lanes
+inherit `CARGO_INCREMENTAL=0` / `CARGO_PROFILE_DEV_DEBUG=0` from the
+aggregator shell, so every mutant is a full non-incremental rebuild;
+four concurrent jobs on this machine legitimately exceed the hardcoded
+20-second hang-detection floor, misfiling CAUGHT mutants as timeouts
+(the exact lane command without those env vars passed three times; at
+`-j 1` or with a 60-second floor under the env vars, all mutants are
+caught; the r9aa receipt recorded 19 caught / 0 timeouts on a faster
+machine state). The floor in `scripts/quality_assurance.py` is raised
+20 -> 60 seconds with the rationale in place. This is a hang-detection
+heuristic recalibration, not a verification change: cargo-mutants
+still exits 3 on ANY timeout (a genuine hang still fails the lane),
+missed mutants still fail the lane, and the observed mutant outcomes
+are identical (release-authority 19/19 caught; plan-cost 24 caught /
+3 unviable — byte-matching the r9aa receipt counts). Disclosed to the
+convergence reviewer in the cycle-3 packet.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and

@@ -867,8 +867,15 @@ def mutation_command(
             "run",
             "--build-timeout",
             "180",
+            # Hang-detection floor (convergence cycle-2): the lanes inherit
+            # CARGO_INCREMENTAL=0 / CARGO_PROFILE_DEV_DEBUG=0 from the
+            # aggregator shell, so each mutant is a full non-incremental
+            # rebuild; four concurrent jobs on a loaded developer machine
+            # can legitimately exceed a 20-second floor, which misfiles a
+            # CAUGHT mutant as a timeout (cargo-mutants still exits 3 on
+            # any timeout, so genuine hangs still fail this lane).
             "--minimum-test-timeout",
-            "20",
+            "60",
             "-j",
             "4",
             "--package",

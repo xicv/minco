@@ -8534,8 +8534,8 @@
     },
     {
       "path": "scripts/quality_assurance.py",
-      "sha256": "832cbabf23f87f1376f373d5c73f0c547a48208af2caf578db8ae79ee8bb2c48",
-      "size_bytes": 46840
+      "sha256": "483d57ed08d7b0b0e5ba76de997282abfa078e230efa1f1c60be8efec796dafe",
+      "size_bytes": 47348
     },
     {
       "path": "scripts/release/candidate-load.sh",
@@ -9329,8 +9329,8 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "f68ae6ccb217b8ad687fe37bda876b0eaea04ccfec58d1f9687f725162cb3069",
-      "size_bytes": 48949
+      "sha256": "64eea711570b2317ac814fa279912e8d66d89cb0a2920cd193f62a8bb23bbb39",
+      "size_bytes": 50289
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9784,7 +9784,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "c3de4265ce0f8d10b6034ec5f8be74e8567c0670f5ccbb24b0cffeb7d6cd0fd8",
-  "total_size_bytes": 15122066,
+  "source_tree_sha256": "1ff173b9f9bdba3c9a211fc562c4ef3ae30bbe3bd552921c42b89647d8f5061d",
+  "total_size_bytes": 15123914,
   "version": "1.12.0"
 }
