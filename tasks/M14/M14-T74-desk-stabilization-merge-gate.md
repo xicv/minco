@@ -844,6 +844,33 @@ are identical (release-authority 19/19 caught; plan-cost 24 caught /
 3 unviable — byte-matching the r9aa receipt counts). Disclosed to the
 convergence reviewer in the cycle-3 packet.
 
+**Round-9 convergence cycle 2 controller qualification (2026-09-06/07,
+executed source identity a5c0f05f)**: the full release controller
+reached genuine exit 0 on attempt r9ai (2026-09-07 00:12–03:55 ACST,
+3h43m) — both browser suites 40/40 (CI browser mode), both npm audit
+gates green under the npm 12 client, quality.sh, BOTH cargo-mutants
+assurance lanes under the recalibrated 60-second floor, AppSync
+proofs, candidate recovery/load, packaged-crate verification, release
+dry-run, multi-release rehearsal, docker runtime E2E, Rustack smoke
+and Orders E2E; the working copy was byte-identical to a5c0f05f after
+the run. Seven prior attempts failed and are recorded as failures,
+never converted: r9ab/r9r-class dirty-tree and stale-manifest stops
+(the deep-review rust_lines metric and the diagnostics-reference line
+numbers drift when source or scripts change — a pre-flight script now
+regenerates every receipt, the reference, the manifest, the baseline
+rebind and the operational receipt before each attempt, verified
+idempotent); r9ac/r9ae/r9af mutation-lane scenario timeouts (root
+cause and recalibration above); r9ad stale operational receipt from
+standalone cargo-mutants artifacts dropped into the repo root
+(removed; standalone mutation debugging now uses --output under
+target/); r9ag the same diagnostics-reference drift caught pre-launch;
+r9ah the operator's xcodebuild campaign resuming mid-run and killing
+the docs webserver's 120-second budget (the vitepress build alone took
+113 seconds under that load). The post-pass rebind records the
+attempt log and reconverges the evidence chain; the executed source
+identity (a5c0f05f) and the final evidence head remain separately
+identified per the convergence reviewer's evidence-precision request.
+
 **Round-2 final qualification (2026-08-28)**: ./scripts/quality.sh
 exit 0 with 1,233 workspace cargo tests, every python suite OK
 (including the spawned-binary lifecycle/health proof), chromium and
