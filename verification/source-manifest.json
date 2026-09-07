@@ -9399,8 +9399,8 @@
     },
     {
       "path": "tasks/M15/M15-T01-desk-isolation-foundation.md",
-      "sha256": "f19d86f89a976e8f48e7fdec34a1fcbd0923256592491d776ef666280da33e1f",
-      "size_bytes": 21299
+      "sha256": "5f03d03b1a463cf3c23ac523ece38f8af6808822d8905d6f0b217656f8c5f3b5",
+      "size_bytes": 23351
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9764,7 +9764,7 @@
     },
     {
       "path": "verification/rust-dependency-hygiene.json",
-      "sha256": "5e4650d4b84c47cc63a5d98281a98e4ea9bca8813f6b2afe1534a3c45b464211",
+      "sha256": "c66ca9383070aa69df19a30502ae6d519e54db21751712f939f06c1ff2b9e45c",
       "size_bytes": 221
     },
     {
@@ -9854,7 +9854,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "86fb2beea2fae5aca119c5c0384fc0291449410deed81b179fc378671adef4a0",
-  "total_size_bytes": 15366163,
+  "source_tree_sha256": "1597d1573a1b35b9715084a4248edd716913cd6e634a1749d30bd01931f2d970",
+  "total_size_bytes": 15368215,
   "version": "1.12.0"
 }
