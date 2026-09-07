@@ -9754,8 +9754,8 @@
     },
     {
       "path": "verification/release-identity.json",
-      "sha256": "3dffb39457a416f4f2586b76c2ff44f3d064765bf12d3fb9a3f7d9de18dc88cc",
-      "size_bytes": 19768
+      "sha256": "c94bd8bfe062a55d6514ec60e16e3184664b51f1b386f378e6aaf41ccff3bba9",
+      "size_bytes": 20149
     },
     {
       "path": "verification/repository-truth.toml",
@@ -9854,7 +9854,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "31a77ddcea5a475e66cc347549a831279ff3e7d4d958dcff33b3d943f430c7c2",
-  "total_size_bytes": 15365782,
+  "source_tree_sha256": "86fb2beea2fae5aca119c5c0384fc0291449410deed81b179fc378671adef4a0",
+  "total_size_bytes": 15366163,
   "version": "1.12.0"
 }

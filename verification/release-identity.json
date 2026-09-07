@@ -34,7 +34,7 @@
   "inputs": [
     {
       "path": "Cargo.toml",
-      "sha256": "1e7707079fc040fd45899883c35d80b9a5aa54f4a62d813754177e0682ecc0ec"
+      "sha256": "08bae31daade1123c54c71f15605238aee9e4c81ccc1b375338b93cd026d3ae8"
     },
     {
       "path": "CHANGELOG.md",
@@ -50,7 +50,7 @@
     },
     {
       "path": "plugins/catalog.toml",
-      "sha256": "793fab176b0de55a792158775717a8dbb0cb529a8180eeb085d624cbcc5d9f12"
+      "sha256": "17db0f5aaa8219b7db02d44fbc03ec9b83f6b673f74f8826ad88d14205431a92"
     },
     {
       "path": "verification/repository-truth.toml",
@@ -73,7 +73,7 @@
     },
     {
       "manifest_path": "crates/minco/Cargo.toml",
-      "manifest_sha256": "440190de560ffaab261bf67a2128a85f37638148ee8cb540c2a0e81f4b0b072d",
+      "manifest_sha256": "697cdd94e8768339b2134acbb8d844d272afb592d6032ca3893bbf8ca2bffba4",
       "name": "minco",
       "version": {
         "workspace": true
@@ -305,7 +305,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-ticketing/Cargo.toml",
-      "manifest_sha256": "b244433fd13146692453ac9e9fa9f3498e86586ff7ae304c1ae4a63130d8ef93",
+      "manifest_sha256": "0849fe3c58d226d9c0cb419ab4857b5abcf54de9224ff4e8fc8a4e469ca4fad8",
       "name": "minco-plugin-ticketing",
       "version": {
         "workspace": true
@@ -565,14 +565,24 @@
       "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-ticketing",
       "descriptor_path": "plugins/minco-plugin-ticketing/minco-plugin.json",
-      "descriptor_sha256": "69dddd3b5d35250d11c58cba851224c0ce8590b966b1d07291c164980fe9f6b7",
+      "descriptor_sha256": "5fd6f97e7a6f1d3a259584826cf6b1161f346bca6ee04b58621da95be790b327",
       "id": "ticketing",
       "kind": "plugin",
       "plugin_version": "0.1.0",
       "stability": "beta"
+    },
+    {
+      "core_compatibility": "^1.12.0",
+      "crate": "minco-plugin-workspace",
+      "descriptor_path": "plugins/minco-plugin-workspace/minco-plugin.json",
+      "descriptor_sha256": "c06f7273dd1474d8db50a646578d9e48d9df7f90f8b3c6892044e021c6de2b1c",
+      "id": "workspace",
+      "kind": "plugin",
+      "plugin_version": "0.1.0",
+      "stability": "experimental"
     }
   ],
-  "projection_sha256": "0594d27d62560c8e045fd03281252cb48f204a87b5afa795dcfb3b03ceb54b5f",
+  "projection_sha256": "cbf6f63900d74251a13e2ff54547e1f799ce8a63d9de5d5d5d928374e9970f66",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1"
