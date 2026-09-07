@@ -32,13 +32,19 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Deferred command: notify the requester about one public message.
+///
 /// The payload carries bounded identifiers only — never message bodies,
-/// addresses or credentials (ADR-0054).
+/// addresses or credentials (ADR-0054). `workspace_id` is the
+/// authoritative workspace binding (round 1 finding 4): under
+/// isolation, execution validates it against the deployment binding
+/// before any effect; empty means a legacy pre-isolation command.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DeliverPublicNotification {
     pub project_id: String,
     pub ticket_id: TicketId,
     pub message_id: TicketMessageId,
+    #[serde(default)]
+    pub workspace_id: String,
 }
 
 impl Job for DeliverPublicNotification {
@@ -71,6 +77,10 @@ pub struct ProcessInboundEmail {
     pub references: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
+    /// Authoritative workspace binding (round 1 finding 4); empty for
+    /// legacy pre-isolation commands.
+    #[serde(default)]
+    pub workspace_id: String,
 }
 
 impl Job for ProcessInboundEmail {
@@ -484,6 +494,10 @@ pub struct RunDevelopmentAutomation {
     pub project_id: String,
     pub ticket_id: TicketId,
     pub requested_by: String,
+    /// Authoritative workspace binding (round 1 finding 4); empty for
+    /// legacy pre-isolation commands.
+    #[serde(default)]
+    pub workspace_id: String,
     /// Freshness binding (exact-head review R8): the ticket revision and
     /// a context digest captured at submission. The handler refuses to
     /// store a proposal when the authoritative ticket moved past them.
@@ -652,14 +666,29 @@ impl std::fmt::Debug for TicketingJobsDeps {
 /// Register the ticketing handlers on the composition's registry. Static
 /// and explicit: the composition root calls this before building
 /// `JobsServices`; no runtime scanning, no plugin retro-fit.
-/// Scope-bound execution (ADR-0076): under isolation, a misrouted or
-/// tampered job command whose project is not the deployment's bound
-/// project fails permanently instead of adopting the worker's scope.
-fn require_job_project(
+/// Scope-bound execution (ADR-0076, round 1 finding 4): under
+/// isolation, a command must carry BOTH the deployment's bound
+/// workspace identity and its bound project — project spelling alone
+/// cannot distinguish a foreign workspace with deliberately colliding
+/// local identifiers. A legacy pre-isolation command (empty workspace
+/// binding) fails permanently with its own code; legacy compositions
+/// without isolation keep project-agnostic dispatch.
+fn require_job_scope(
     config: &crate::TicketingConfig,
+    command_workspace: &str,
     command_project: &str,
 ) -> Result<(), JobExecutionFailure> {
-    if config.workspace_isolation && command_project != config.project_id {
+    if !config.workspace_isolation {
+        return Ok(());
+    }
+    if command_workspace.is_empty() {
+        return Err(JobExecutionFailure::permanent(
+            "ticketing.job_scope_legacy_unbound",
+        ));
+    }
+    if command_workspace != config.workspace_id.as_deref().unwrap_or_default()
+        || command_project != config.project_id
+    {
         return Err(JobExecutionFailure::permanent("ticketing.job_scope_denied"));
     }
     Ok(())
@@ -926,7 +955,7 @@ async fn run_development_automation(
             "ticketing.automation_disabled",
         ));
     }
-    require_job_project(config, &command.project_id)?;
+    require_job_scope(config, &command.workspace_id, &command.project_id)?;
     let ticket = store
         .get(&command.project_id, command.ticket_id)
         .await
@@ -1011,7 +1040,7 @@ async fn deliver_public_notification(
     mail: Option<&Arc<MailService>>,
     command: &DeliverPublicNotification,
 ) -> Result<(), JobExecutionFailure> {
-    require_job_project(config, &command.project_id)?;
+    require_job_scope(config, &command.workspace_id, &command.project_id)?;
     let ticket = store
         .get(&command.project_id, command.ticket_id)
         .await
@@ -1453,6 +1482,7 @@ pub fn notification_record_for_reply(
     project_id: &str,
     ticket_id: TicketId,
     message_id: TicketMessageId,
+    workspace_id: &str,
     correlation_id: Uuid,
     now: chrono::DateTime<Utc>,
 ) -> Result<Option<minco_plugin_jobs::JobRecord>, JobError> {
@@ -1461,6 +1491,7 @@ pub fn notification_record_for_reply(
             project_id: project_id.to_owned(),
             ticket_id,
             message_id,
+            workspace_id: workspace_id.to_owned(),
         },
         correlation_id,
         now,
@@ -1479,21 +1510,33 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     #[test]
-    fn misrouted_job_projects_fail_closed_under_isolation() {
-        // ADR-0076: a tampered or misrouted command can never adopt the
-        // worker's scope; only the deployment's bound project executes.
+    fn misrouted_job_commands_fail_closed_under_isolation() {
+        // ADR-0076 / round 1 finding 4: a command must carry BOTH the
+        // bound workspace and the bound project — colliding local
+        // identifiers from a foreign workspace cannot execute, and a
+        // legacy unbound command fails with its own code.
         let isolated = crate::TicketingConfig {
             workspace_isolation: true,
             workspace_id: Some("ws-1".into()),
             ..crate::TicketingConfig::default()
         };
-        assert!(require_job_project(&isolated, "default").is_ok());
-        let denial = require_job_project(&isolated, "project-b")
+        assert!(require_job_scope(&isolated, "ws-1", "default").is_ok());
+        let denial = require_job_scope(&isolated, "ws-1", "project-b")
             .expect_err("foreign project must fail permanently");
         assert_eq!(denial.code(), "ticketing.job_scope_denied");
+        // A foreign workspace with the SAME project spelling is denied —
+        // project equality alone proves nothing (round 1 finding 4).
+        let colliding = require_job_scope(&isolated, "ws-elsewhere", "default")
+            .expect_err("colliding identifiers must fail permanently");
+        assert_eq!(colliding.code(), "ticketing.job_scope_denied");
+        // A legacy pre-isolation command (empty binding) fails closed
+        // with its own explicit code.
+        let legacy_command = require_job_scope(&isolated, "", "default")
+            .expect_err("legacy unbound command must fail permanently");
+        assert_eq!(legacy_command.code(), "ticketing.job_scope_legacy_unbound");
         // Legacy compositions keep project-agnostic dispatch.
         let legacy = crate::TicketingConfig::default();
-        assert!(require_job_project(&legacy, "project-b").is_ok());
+        assert!(require_job_scope(&legacy, "", "project-b").is_ok());
     }
 
     fn ticket(now: chrono::DateTime<Utc>) -> crate::Ticket {
@@ -1560,6 +1603,7 @@ mod tests {
             project_id: "project-a".into(),
             ticket_id: TicketId::new(),
             message_id: TicketMessageId::new(),
+            workspace_id: String::new(),
         };
         let envelope = public_notification_envelope(&payload, Uuid::now_v7(), now).unwrap();
         assert_eq!(envelope.job_name, DeliverPublicNotification::NAME);
@@ -1590,6 +1634,7 @@ mod tests {
             project_id: "project-a".into(),
             ticket_id: TicketId::new(),
             message_id: TicketMessageId::new(),
+            workspace_id: String::new(),
         };
         let envelope = public_notification_envelope(&payload, Uuid::now_v7(), now).unwrap();
         let debug = format!("{envelope:?}");
@@ -1666,6 +1711,7 @@ mod tests {
                 bound_context_digest: Some(context_digest),
                 bound_policy_digest: Some(policy_digest),
                 run_id: Uuid::new_v4(),
+                workspace_id: String::new(),
             },
             Uuid::now_v7(),
             now,
@@ -1724,6 +1770,7 @@ mod tests {
                 project_id: "project-a".into(),
                 ticket_id: ticket.id,
                 message_id: message.id,
+                workspace_id: String::new(),
             },
             correlation,
             now,
@@ -1854,11 +1901,71 @@ mod tests {
                 project_id: "project-a".into(),
                 ticket_id: ticket.id,
                 message_id: message.id,
+                workspace_id: String::new(),
             },
             Uuid::now_v7(),
             Utc::now(),
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_misrouted_command_with_colliding_identifiers_mutates_nothing() {
+        // Round 1 finding 4: under isolation, a foreign command carrying
+        // the SAME project spelling (deliberately colliding local IDs)
+        // but a foreign workspace binding fails permanently before any
+        // effect — no mail submission, no outbound evidence, and the
+        // ticket is untouched. The same command with the local binding
+        // still delivers.
+        let (services, transport, store, ticket, message) = mail_setup(vec![]).await;
+        let isolated = crate::TicketingConfig {
+            workspace_isolation: true,
+            workspace_id: Some("ws-local".into()),
+            project_id: "project-a".into(),
+            ..crate::TicketingConfig::default()
+        };
+        let colliding = DeliverPublicNotification {
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            message_id: message.id,
+            workspace_id: "ws-foreign".into(),
+        };
+        let denial = deliver_public_notification(
+            &isolated,
+            &TicketingStoreService::new(store.clone()),
+            &minco_plugin_notifications::NotificationService::new(Arc::new(
+                MemoryNotificationSink::default(),
+            )),
+            None,
+            &colliding,
+        )
+        .await
+        .expect_err("the colliding foreign command must fail permanently");
+        assert_eq!(denial.code(), "ticketing.job_scope_denied");
+        // Zero effects: no mail submitted, no outbound evidence, the
+        // ticket's revision and messages untouched.
+        assert_eq!(transport.submit_count().await, 0);
+        assert!(store.all_outbound_evidence().await.is_empty());
+        let reloaded = store
+            .get("project-a", ticket.id)
+            .await
+            .unwrap()
+            .expect("ticket intact");
+        assert_eq!(reloaded.revision, ticket.revision);
+        assert_eq!(reloaded.messages.len(), ticket.messages.len());
+        // The same identifiers under the LOCAL binding still deliver
+        // through the registered (legacy-config) executor path.
+        let local = DeliverPublicNotification {
+            workspace_id: "ws-local".into(),
+            ..colliding
+        };
+        services
+            .submit_inline(
+                public_notification_envelope(&local, Uuid::now_v7(), Utc::now()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(transport.submit_count().await, 1);
     }
 
     #[tokio::test]
@@ -2290,6 +2397,7 @@ mod tests {
                 project_id: "project-a".into(),
                 ticket_id: TicketId::new(),
                 message_id: TicketMessageId::new(),
+                workspace_id: String::new(),
             },
             Uuid::now_v7(),
             now,
@@ -2418,6 +2526,7 @@ mod tests {
             in_reply_to: None,
             references: Vec::new(),
             subject: Some("Re: Help".into()),
+            workspace_id: String::new(),
         }
     }
 
@@ -2729,6 +2838,7 @@ mod tests {
             bound_context_digest: Some("a".repeat(64)),
             bound_policy_digest: Some("p".repeat(64)),
             run_id: Uuid::new_v4(),
+            workspace_id: String::new(),
         };
         let mut second = base.clone();
         second.run_id = Uuid::new_v4();
@@ -2809,6 +2919,7 @@ mod tests {
                 bound_context_digest: Some("0".repeat(64)),
                 bound_policy_digest: Some("0".repeat(64)),
                 run_id: Uuid::new_v4(),
+                workspace_id: String::new(),
             },
             Uuid::now_v7(),
             Utc::now(),
@@ -3402,6 +3513,7 @@ mod tests {
             in_reply_to: None,
             references: Vec::new(),
             subject: Some("Re: Help".into()),
+            workspace_id: String::new(),
         }
     }
 

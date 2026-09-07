@@ -212,6 +212,9 @@ async fn pending_jobs_survive_a_process_restart_and_recover() {
                     project_id: "desk-proof".into(),
                     ticket_id: minco_plugin_ticketing::TicketId::new(),
                     requested_by: format!("agent-{index}"),
+                    // Legacy (pre-isolation) command: this fixture drives
+                    // the raw job machinery without an isolated service.
+                    workspace_id: String::new(),
                 },
                 uuid::Uuid::now_v7(),
                 chrono::Utc::now(),

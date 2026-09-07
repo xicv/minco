@@ -1541,6 +1541,7 @@ impl TicketingService {
                     bound_context_digest: Some(context_digest),
                     bound_policy_digest,
                     run_id,
+                    workspace_id: self.config.workspace_id.clone().unwrap_or_default(),
                 },
                 correlation,
                 now,
@@ -2105,6 +2106,7 @@ impl TicketingService {
                 in_reply_to: in_reply_to.map(str::to_owned),
                 references: references.to_vec(),
                 subject: subject.map(str::to_owned),
+                workspace_id: self.config.workspace_id.clone().unwrap_or_default(),
             },
             correlation_id,
             arrived_at,
@@ -2877,6 +2879,7 @@ impl TicketingService {
             &ticket.project_id,
             ticket.id,
             message.id,
+            self.config.workspace_id.as_deref().unwrap_or_default(),
             correlation_id,
             now,
         )
