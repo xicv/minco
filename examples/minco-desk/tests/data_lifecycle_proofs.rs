@@ -36,30 +36,16 @@ fn scratch_config(tag: &str, dir: &std::path::Path) -> DeskConfig {
     }
 }
 
-fn agent_principal() -> minco_http::Principal {
-    minco_http::Principal {
-        subject: "agent-proof".into(),
-        permissions: [
-            "ticketing.create",
-            "ticketing.manage",
-            "ticketing.reply",
-            "ticketing.agent-console",
-            "ticketing.agent.read",
-            "ticketing.agent.manage",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect(),
-        claims: std::collections::BTreeMap::default(),
-    }
-}
-
-async fn create_ticket_via_http(router: &axum::Router, subject: &str) -> String {
+async fn create_ticket_via_http(
+    router: &axum::Router,
+    agent: minco_http::Principal,
+    subject: &str,
+) -> String {
     let response = router
         .clone()
         .oneshot(
             Request::post("/_minco/ticketing/tickets")
-                .extension(agent_principal())
+                .extension(agent)
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -81,14 +67,19 @@ async fn create_ticket_via_http(router: &axum::Router, subject: &str) -> String 
     ticket["ticket"]["id"].as_str().unwrap().to_owned()
 }
 
-async fn resolve_ticket_via_http(router: &axum::Router, ticket_id: &str, revision: u64) {
+async fn resolve_ticket_via_http(
+    router: &axum::Router,
+    agent: minco_http::Principal,
+    ticket_id: &str,
+    revision: u64,
+) {
     let response = router
         .clone()
         .oneshot(
             Request::patch(format!(
                 "/_minco/ticketing/agent/tickets/{ticket_id}/management"
             ))
-            .extension(agent_principal())
+            .extension(agent)
             .header("content-type", "application/json")
             .header(
                 "if-match",
@@ -109,8 +100,9 @@ async fn backup_and_restore_preserve_every_ticket() {
     let directory = tempfile::tempdir().unwrap();
     let config = scratch_config("backup", directory.path());
     let desk = build_desk(&config).await.unwrap();
-    let first = create_ticket_via_http(&desk.router, "Backup me").await;
-    let second = create_ticket_via_http(&desk.router, "And me").await;
+    let first =
+        create_ticket_via_http(&desk.router, desk.agent_principal.clone(), "Backup me").await;
+    let second = create_ticket_via_http(&desk.router, desk.agent_principal.clone(), "And me").await;
 
     // Backup: SQLite's online backup via VACUUM INTO (a consistent
     // snapshot without stopping the process). VACUUM INTO cannot take
@@ -137,7 +129,7 @@ async fn backup_and_restore_preserve_every_ticket() {
             .clone()
             .oneshot(
                 Request::get(format!("/_minco/ticketing/agent/tickets/{ticket_id}"))
-                    .extension(agent_principal())
+                    .extension(restored.agent_principal.clone())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -156,11 +148,11 @@ async fn retention_erase_cascades_and_is_bounded() {
     let directory = tempfile::tempdir().unwrap();
     let config = scratch_config("retention", directory.path());
     let desk = build_desk(&config).await.unwrap();
-    let old = create_ticket_via_http(&desk.router, "Erase me").await;
-    let keep = create_ticket_via_http(&desk.router, "Keep me").await;
+    let old = create_ticket_via_http(&desk.router, desk.agent_principal.clone(), "Erase me").await;
+    let keep = create_ticket_via_http(&desk.router, desk.agent_principal.clone(), "Keep me").await;
     // Resolve only the first ticket; retention erases resolved tickets
     // closed before the cutoff.
-    resolve_ticket_via_http(&desk.router, &old, 0).await;
+    resolve_ticket_via_http(&desk.router, desk.agent_principal.clone(), &old, 0).await;
 
     let erased = minco_desk_example::erase_resolved_before(
         &config,

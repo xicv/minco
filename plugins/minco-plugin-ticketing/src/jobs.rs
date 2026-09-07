@@ -652,6 +652,19 @@ impl std::fmt::Debug for TicketingJobsDeps {
 /// Register the ticketing handlers on the composition's registry. Static
 /// and explicit: the composition root calls this before building
 /// `JobsServices`; no runtime scanning, no plugin retro-fit.
+/// Scope-bound execution (ADR-0076): under isolation, a misrouted or
+/// tampered job command whose project is not the deployment's bound
+/// project fails permanently instead of adopting the worker's scope.
+fn require_job_project(
+    config: &crate::TicketingConfig,
+    command_project: &str,
+) -> Result<(), JobExecutionFailure> {
+    if config.workspace_isolation && command_project != config.project_id {
+        return Err(JobExecutionFailure::permanent("ticketing.job_scope_denied"));
+    }
+    Ok(())
+}
+
 pub fn register_ticketing_jobs(
     registry: &JobHandlerRegistry,
     store: &TicketingStoreService,
@@ -660,12 +673,15 @@ pub fn register_ticketing_jobs(
     let notification_store = store.clone();
     let notification_sink = deps.notifications.clone();
     let notification_mail = deps.mail.clone();
+    let notification_config = deps.service.config().clone();
     registry.register_typed::<DeliverPublicNotification, _, _>(move |command, _context| {
         let store = notification_store.clone();
         let notifications = notification_sink.clone();
         let mail = notification_mail.clone();
+        let config = notification_config.clone();
         async move {
-            deliver_public_notification(&store, &notifications, mail.as_ref(), &command).await
+            deliver_public_notification(&config, &store, &notifications, mail.as_ref(), &command)
+                .await
         }
     })?;
     let automation_service = deps.service.clone();
@@ -910,6 +926,7 @@ async fn run_development_automation(
             "ticketing.automation_disabled",
         ));
     }
+    require_job_project(config, &command.project_id)?;
     let ticket = store
         .get(&command.project_id, command.ticket_id)
         .await
@@ -988,11 +1005,13 @@ async fn run_development_automation(
 }
 
 async fn deliver_public_notification(
+    config: &crate::TicketingConfig,
     store: &TicketingStoreService,
     notifications: &NotificationService,
     mail: Option<&Arc<MailService>>,
     command: &DeliverPublicNotification,
 ) -> Result<(), JobExecutionFailure> {
+    require_job_project(config, &command.project_id)?;
     let ticket = store
         .get(&command.project_id, command.ticket_id)
         .await
@@ -1458,6 +1477,24 @@ mod tests {
     };
     use minco_plugin_notifications::MemoryNotificationSink;
     use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn misrouted_job_projects_fail_closed_under_isolation() {
+        // ADR-0076: a tampered or misrouted command can never adopt the
+        // worker's scope; only the deployment's bound project executes.
+        let isolated = crate::TicketingConfig {
+            workspace_isolation: true,
+            workspace_id: Some("ws-1".into()),
+            ..crate::TicketingConfig::default()
+        };
+        assert!(require_job_project(&isolated, "default").is_ok());
+        let denial = require_job_project(&isolated, "project-b")
+            .expect_err("foreign project must fail permanently");
+        assert_eq!(denial.code(), "ticketing.job_scope_denied");
+        // Legacy compositions keep project-agnostic dispatch.
+        let legacy = crate::TicketingConfig::default();
+        assert!(require_job_project(&legacy, "project-b").is_ok());
+    }
 
     fn ticket(now: chrono::DateTime<Utc>) -> crate::Ticket {
         crate::Ticket::create(

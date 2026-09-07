@@ -159,6 +159,16 @@ ACs). Required evidence per criterion:
   searches, pagination, revisions, and child operations; scope-bound handles
   for the jobs worker, activity/audit dispatch, and retention erasure;
   bounded execution envelopes revalidated before execution.
+  (Partial, 2026-09-07: `workspace_isolation`/`workspace_id` config with
+  fail-closed validation; scope enforcement folded into the shared
+  authorize boundary (all 40 permission-checked use cases); the HTTP
+  conversion preserves principal scope tokens instead of dropping them;
+  requester sessions are stamped with the deployment's canonical scope;
+  receipt recovery is scope-checked and foreign-project receipts never
+  cross; misrouted job commands fail permanently under isolation; the
+  desk enables isolation with the provisioned workspace id. Remaining:
+  project parameters on the mark-published store methods and the
+  route-class inventory documentation, landing with the ISO evidence.)
 - [ ] Compatibility: additive scoped constructors/facades; no legacy API
   escape hatch from isolated mode; standalone-consumer behavior verified.
 - [ ] Neutrality: intentional-token static scan over the new plugin,
@@ -271,3 +281,28 @@ and fmt clean, `source_manifest.py` regenerated
 upgrade-from-v1 proof now also crosses the workspace bootstrap: a
 first-generation ticketing database gains the registry with its existing
 project registered verbatim.
+
+### Ticketing enforcement slice (2026-09-07)
+
+Ticketing consumes the resolved scope (ADR-0076): the HTTP
+Principal→Identity conversion preserves the scope claim instead of
+dropping it; `TicketingConfig.workspace_isolation`/`workspace_id` (default
+off — standalone consumers keep the pre-isolation behavior, and isolation
+without a bound workspace identity fails configuration validation) gate a
+`require_scope` check folded into the shared authorize boundary, so every
+permission-checked use case — agent, requester, ingest, integrate,
+ai-context, console — denies scopeless, ambiguous, and foreign-scoped
+callers with `ticketing_scope_denied` (HTTP 403); requester sessions
+rebuilt from validated bindings carry the deployment's canonical scope
+tokens; receipt recovery is scope-checked and a foreign-project receipt
+never crosses; the two Identity-bypassing job handlers fail permanently
+(`ticketing.job_scope_denied`) for misrouted commands under isolation;
+the desk enables isolation bound to the provisioned workspace id, and its
+proofs now inject the desk's resolved scoped principal (the BFF proof
+identity was also renamed off the product term to `desk-bff`). Gates:
+ticketing 158 (was 154; +3 isolation tests +1 job-guard test), desk 20
+(+1 enforcement proof: scopeless and foreign principals get 403 on
+business routes while the bearer path passes), workspace plugin 27;
+combined 205 passed / 0 failed; clippy and fmt clean; `plugin validate`
+`[]`; `plugin doctor` passed; `source_manifest.py` (`025dd9fb…c4bb`);
+`validate_static.py` ok 0/0.

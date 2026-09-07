@@ -179,6 +179,21 @@
       "secret": false,
       "default": false,
       "description": "Requires the jobs feature and an enqueue adapter: enqueue a notification job with each public agent reply"
+    },
+    {
+      "key": "workspace_isolation",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "default": false,
+      "description": "Require every exposed operation to carry a resolved workspace/project scope matching the configured workspace and project (ADR-0076)"
+    },
+    {
+      "key": "workspace_id",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "The provisioned workspace identity this service is bound to; required when workspace_isolation is enabled"
     }
   ],
   "operations": [

@@ -227,6 +227,20 @@ pub struct TicketingConfig {
     /// application gets automation by surprise.
     #[serde(default)]
     pub automation: crate::AutomationConfig,
+    /// Workspace isolation (ADR-0076): when true, every exposed
+    /// operation additionally requires the caller's resolved
+    /// workspace/project scope to match this service's configured
+    /// workspace and project — effective authority stays an
+    /// intersection. Off by default: standalone compositions without a
+    /// workspace binding keep the pre-isolation behavior.
+    #[serde(default)]
+    pub workspace_isolation: bool,
+    /// The workspace identity this service is bound to when
+    /// `workspace_isolation` is enabled. Required and validated in that
+    /// mode; the composition sets it from the provisioned deployment
+    /// binding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
 }
 
 impl Default for TicketingConfig {
@@ -248,6 +262,8 @@ impl Default for TicketingConfig {
             inbound_authserv_id: default_inbound_authserv_id(),
             inbound_scan_verdicts: crate::ScanVerdictPolicy::default(),
             automation: crate::AutomationConfig::default(),
+            workspace_isolation: false,
+            workspace_id: None,
         }
     }
 }
@@ -305,6 +321,27 @@ impl TicketingConfig {
                 "automation review may not be disabled: trusted verification is not available"
                     .into(),
             ));
+        }
+        if self.workspace_isolation {
+            // Isolation cannot run without its bound workspace identity
+            // (ADR-0076): fail closed at configuration time, not at the
+            // first denied request.
+            match &self.workspace_id {
+                Some(workspace) => {
+                    if minco_plugin_workspace::WorkspaceId::try_from(workspace.clone()).is_err() {
+                        return Err(TicketingServiceError::Configuration(
+                            "workspace_id must be a valid workspace identifier when \
+                             workspace_isolation is enabled"
+                                .into(),
+                        ));
+                    }
+                }
+                None => {
+                    return Err(TicketingServiceError::Configuration(
+                        "workspace_id is required when workspace_isolation is enabled".into(),
+                    ));
+                }
+            }
         }
         self.location_policy().validate()?;
         Ok(())
@@ -510,7 +547,7 @@ impl TicketingService {
         mut input: IssueTicketingHandoffInput,
         now: DateTime<Utc>,
     ) -> Result<SupportHandoffGrant, TicketingServiceError> {
-        authorize(principal, "ticketing.integrate")?;
+        self.authorize_scoped(principal, "ticketing.integrate")?;
         self.require_project(&input.project_id)?;
         // Handoffs mint requester portal sessions; the granted set is
         // constrained to the requester portal capabilities and can never
@@ -585,7 +622,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.create")?;
+        self.authorize_scoped(principal, "ticketing.create")?;
         self.require_project(&input.project_id)?;
         if input.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
@@ -610,7 +647,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<RequesterTicket, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
@@ -626,7 +663,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<Ticket, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.load(project_id, id).await
     }
 
@@ -635,7 +672,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketListFilter,
     ) -> Result<Vec<Ticket>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(&filter.project_id)?;
         Ok(self.store.list(filter).await?)
     }
@@ -651,7 +688,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<RequesterTicketResult, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
             return Err(TicketingServiceError::RequesterMismatch);
@@ -691,7 +728,7 @@ impl TicketingService {
         idempotency_key: &str,
         fingerprint: &str,
     ) -> Result<RequesterTicketResult, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
             return Err(TicketingServiceError::RequesterMismatch);
@@ -741,11 +778,25 @@ impl TicketingService {
 
     /// Reads one committed operation receipt for idempotency recovery
     /// (exact-head review R2).
+    /// Idempotency-receipt recovery (ADR-0076): scope-checked like every
+    /// other exposed operation, and under isolation a receipt recorded
+    /// for a foreign project never crosses the boundary.
     pub async fn operation_receipt(
         &self,
+        principal: &Identity,
         idempotency_key: &str,
     ) -> Result<Option<crate::OperationReceipt>, TicketingServiceError> {
-        Ok(self.store.operation_receipt(idempotency_key).await?)
+        self.require_scope(principal)?;
+        match self.store.operation_receipt(idempotency_key).await? {
+            Some(receipt) => {
+                if self.config.workspace_isolation && receipt.project_id != self.config.project_id {
+                    Err(TicketingServiceError::ScopeDenied)
+                } else {
+                    Ok(Some(receipt))
+                }
+            }
+            None => Ok(None),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -759,7 +810,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.reply")?;
+        self.authorize_scoped(principal, "ticketing.reply")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         let message = ticket.reply_as_agent_message(&principal.subject, body, now)?;
@@ -813,7 +864,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         let message = ticket.internal_note_message(&principal.subject, body, now)?;
@@ -897,7 +948,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         match mode {
             crate::AssignmentMode::Manual => {
@@ -952,7 +1003,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.assign(assignee, now)?;
@@ -978,7 +1029,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.transfer_queue(queue_id, now)?;
@@ -1004,7 +1055,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.change_priority(priority, now);
@@ -1032,7 +1083,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.change_status(status, resolution, close_reason, now)?;
@@ -1058,7 +1109,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.add_attachment(TicketAttachment::from(attachment), now);
@@ -1083,7 +1134,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(&identity.project_id)?;
         validate_sha256(&identity.content_sha256)?;
         identity.content_sha256.make_ascii_lowercase();
@@ -1139,7 +1190,7 @@ impl TicketingService {
         provider_message_id: &str,
         now: DateTime<Utc>,
     ) -> Result<(), TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(project_id)?;
         if !valid_external_text(provider, 100)
             || !valid_external_text(provider_message_id, 500)
@@ -1189,7 +1240,7 @@ impl TicketingService {
         provider_message_id: &str,
         now: DateTime<Utc>,
     ) -> Result<(), TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(project_id)?;
         if !valid_external_text(provider, 100)
             || !valid_external_text(provider_message_id, 500)
@@ -1253,7 +1304,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<TicketAiContext, TicketingServiceError> {
-        authorize(principal, "ticketing.ai-context")?;
+        self.authorize_scoped(principal, "ticketing.ai-context")?;
         Ok(self.load(project_id, id).await?.export_ai_context())
     }
 
@@ -1261,7 +1312,7 @@ impl TicketingService {
         &self,
         principal: &Identity,
     ) -> Result<AgentConsoleBootstrap, TicketingServiceError> {
-        authorize(principal, "ticketing.agent-console")?;
+        self.authorize_scoped(principal, "ticketing.agent-console")?;
         Ok(AgentConsoleBootstrap {
             schema_version: 1,
             project_id: self.config.project_id.clone(),
@@ -1282,7 +1333,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketSummaryFilter,
     ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(&filter.project_id)?;
         Ok(self.store.list_summaries(filter).await?)
     }
@@ -1297,7 +1348,7 @@ impl TicketingService {
         draft: ClarificationDraftInput,
         now: DateTime<Utc>,
     ) -> Result<crate::Clarification, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         // The ticket must exist: clarifications anchor to a real ticket.
         let _ = self.load(project_id, ticket_id).await?;
@@ -1324,7 +1375,7 @@ impl TicketingService {
         id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<crate::Clarification, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         let mut clarification = self
             .store
@@ -1345,7 +1396,7 @@ impl TicketingService {
         project_id: &str,
         ticket_id: TicketId,
     ) -> Result<Vec<crate::Clarification>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(project_id)?;
         Ok(self
             .store
@@ -1358,7 +1409,7 @@ impl TicketingService {
         &self,
         principal: &Identity,
     ) -> Result<Vec<crate::RequesterClarification>, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let project_id = self.config().project_id.clone();
         let tickets = self
             .store
@@ -1408,7 +1459,7 @@ impl TicketingService {
         answers: Vec<String>,
         now: DateTime<Utc>,
     ) -> Result<crate::RequesterClarification, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         self.require_project(project_id)?;
         let mut clarification = self
             .store
@@ -1442,7 +1493,7 @@ impl TicketingService {
         client_operation_id: Option<&str>,
         now: DateTime<Utc>,
     ) -> Result<Uuid, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         if self.config().automation.profile == crate::AutomationProfile::Off {
             return Err(TicketingServiceError::Configuration(
@@ -1514,7 +1565,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<Vec<crate::AutomationProposal>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(project_id)?;
         Ok(self.store.list_automation_proposals(project_id, id).await?)
     }
@@ -1530,7 +1581,7 @@ impl TicketingService {
         accept: bool,
         now: DateTime<Utc>,
     ) -> Result<crate::AutomationProposal, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         let mut proposal = self
             .store
@@ -1553,7 +1604,7 @@ impl TicketingService {
         limit: usize,
         before: Option<(DateTime<Utc>, TicketId)>,
     ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         let trimmed = query.trim();
         if trimmed.chars().count() < 2
             || trimmed.chars().count() > 200
@@ -1591,7 +1642,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
@@ -1618,7 +1669,7 @@ impl TicketingService {
         comment: Option<String>,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         self.require_project(project_id)?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
@@ -1645,7 +1696,7 @@ impl TicketingService {
         limit: usize,
         before: Option<(DateTime<Utc>, TicketId)>,
     ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         let mut statuses = BTreeSet::new();
         let mut assignee_subject = None;
         let mut unassigned = false;
@@ -1693,7 +1744,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<(Ticket, Vec<String>), TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(project_id)?;
         let ticket = self.load(project_id, id).await?;
         let now = Utc::now();
@@ -1719,7 +1770,7 @@ impl TicketingService {
         &self,
         principal: &Identity,
     ) -> Result<Vec<crate::AgentMacro>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         Ok(self
             .store
             .list_macros(&self.config().project_id.clone())
@@ -1735,7 +1786,7 @@ impl TicketingService {
         body: &str,
         now: DateTime<Utc>,
     ) -> Result<crate::AgentMacro, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let macro_ = crate::AgentMacro::new_decision(Uuid::now_v7(), title, body, now)?;
         self.store
             .insert_macro(&self.config().project_id.clone(), macro_.clone())
@@ -1755,7 +1806,7 @@ impl TicketingService {
         body: &str,
         now: DateTime<Utc>,
     ) -> Result<crate::AgentMacro, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         crate::AgentMacro::validate_decision(title, body)?;
         Ok(self
             .store
@@ -1778,7 +1829,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketSummaryFilter,
     ) -> Result<Vec<PublicTicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let own = TicketSummaryFilter {
             requester_subject: Some(principal.subject.clone()),
             assignee_subject: None,
@@ -1800,7 +1851,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<Ticket, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.load(project_id, id).await
     }
 
@@ -1815,7 +1866,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.manage")?;
+        self.authorize_scoped(principal, "ticketing.agent.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         if input.assignee_subject.is_some() && input.clear_assignee {
@@ -1947,7 +1998,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(&identity.project_id)?;
         if !valid_external_text(&sender_email, 320) || !sender_email.contains('@') {
             return Err(TicketingServiceError::InvalidExternalIdentity);
@@ -2241,10 +2292,32 @@ impl TicketingService {
                     .collect()
             })
             .unwrap_or_default();
+        // The session's bound project was validated against the configured
+        // project above; under isolation the rebuilt identity carries the
+        // deployment's canonical scope tokens so every subsequent use case
+        // passes the scope check (ADR-0076). The session's own grant was
+        // validated where the credential was issued — no new authority is
+        // minted here.
+        let scopes = if self.config.workspace_isolation {
+            BTreeSet::from([
+                format!(
+                    "{}{}",
+                    minco_plugin_workspace::ProjectScope::WORKSPACE_TOKEN_PREFIX,
+                    self.config.workspace_id.as_deref().unwrap_or_default()
+                ),
+                format!(
+                    "{}{}",
+                    minco_plugin_workspace::ProjectScope::PROJECT_TOKEN_PREFIX,
+                    self.config.project_id
+                ),
+            ])
+        } else {
+            BTreeSet::default()
+        };
         let identity = Identity {
             subject: record.subject.clone(),
             permissions,
-            scopes: BTreeSet::default(),
+            scopes,
             claims: BTreeMap::new(),
         };
         Ok((record, identity))
@@ -2759,7 +2832,7 @@ impl TicketingService {
         before: Option<(DateTime<Utc>, TicketMessageId)>,
         limit: usize,
     ) -> Result<Vec<PublicTicketMessage>, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let ticket = self.load(project_id, ticket_id).await?;
         if ticket.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
@@ -2789,6 +2862,37 @@ impl TicketingService {
         } else {
             Err(TicketingServiceError::ProjectDenied)
         }
+    }
+
+    /// Resolve and enforce the caller's workspace/project scope
+    /// (ADR-0076). Active only when `workspace_isolation` is configured:
+    /// the caller must carry exactly one resolvable workspace and one
+    /// project scope token, both matching this service's binding. No
+    /// scope, an ambiguous scope, or a foreign scope denies the
+    /// operation — there is no ambient fallback.
+    fn require_scope(&self, principal: &Identity) -> Result<(), TicketingServiceError> {
+        if !self.config.workspace_isolation {
+            return Ok(());
+        }
+        let scope = minco_plugin_workspace::ProjectScope::from_scope_tokens(&principal.scopes)
+            .map_err(|_| TicketingServiceError::ScopeDenied)?;
+        if scope.project.as_str() != self.config.project_id
+            || Some(scope.workspace.as_str()) != self.config.workspace_id.as_deref()
+        {
+            return Err(TicketingServiceError::ScopeDenied);
+        }
+        Ok(())
+    }
+
+    /// Permission check preceded by the scope check, so every authorized
+    /// use case is scope-checked through one shared boundary (ADR-0076).
+    fn authorize_scoped(
+        &self,
+        principal: &Identity,
+        permission: &str,
+    ) -> Result<(), TicketingServiceError> {
+        self.require_scope(principal)?;
+        authorize(principal, permission)
     }
 }
 
@@ -2894,6 +2998,8 @@ fn default_privacy_notice() -> String {
 pub enum TicketingServiceError {
     #[error("permission denied: {0}")]
     PermissionDenied(String),
+    #[error("the caller's workspace/project scope is not bound to this deployment")]
+    ScopeDenied,
     #[error("ticketing project is not available to this operation")]
     ProjectDenied,
     #[error("the requester does not match the authenticated subject")]
@@ -2980,6 +3086,188 @@ mod tests {
             )]),
             ..TicketingConfig::default()
         }
+    }
+
+    fn scoped_identity(subject: &str, permissions: &[&str], tokens: &[String]) -> Identity {
+        Identity {
+            scopes: tokens.iter().cloned().collect(),
+            ..identity(subject, permissions)
+        }
+    }
+
+    fn isolated_config() -> TicketingConfig {
+        TicketingConfig {
+            workspace_isolation: true,
+            workspace_id: Some("ws-isolated".into()),
+            ..test_config()
+        }
+    }
+
+    fn isolated_service() -> TicketingService {
+        TicketingService::new(
+            TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+            isolated_config(),
+        )
+        .unwrap()
+    }
+
+    fn scope_tokens(workspace: &str, project: &str) -> Vec<String> {
+        minco_plugin_workspace::ProjectScope {
+            workspace: minco_plugin_workspace::WorkspaceId::try_from(workspace.to_owned())
+                .expect("valid workspace"),
+            project: minco_plugin_workspace::ProjectId::try_from(project.to_owned())
+                .expect("valid project"),
+        }
+        .scope_tokens()
+        .into_iter()
+        .collect()
+    }
+
+    #[test]
+    fn isolation_requires_a_bound_workspace_identity_at_configuration_time() {
+        let mut config = isolated_config();
+        config.workspace_id = None;
+        assert!(matches!(
+            TicketingService::new(
+                TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+                config,
+            ),
+            Err(TicketingServiceError::Configuration(_))
+        ));
+        let mut invalid = isolated_config();
+        invalid.workspace_id = Some(" padded ".into());
+        assert!(matches!(
+            TicketingService::new(
+                TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+                invalid,
+            ),
+            Err(TicketingServiceError::Configuration(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn isolation_denies_scopeless_foreign_and_ambiguous_callers() {
+        let service = isolated_service();
+        // No scope tokens at all: denied even with the right permission.
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &identity("user-a", &["ticketing.create"]),
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // A foreign project token never mints authority.
+        let foreign_project = scoped_identity(
+            "user-a",
+            &["ticketing.create"],
+            &scope_tokens("ws-isolated", "project-b"),
+        );
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &foreign_project,
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // A foreign workspace never matches the bound deployment.
+        let foreign_workspace = scoped_identity(
+            "user-a",
+            &["ticketing.create"],
+            &scope_tokens("ws-other", "project-a"),
+        );
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &foreign_workspace,
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // Duplicated tokens are ambiguous and fail closed.
+        let mut ambiguous = scoped_identity(
+            "user-a",
+            &["ticketing.create"],
+            &scope_tokens("ws-isolated", "project-a"),
+        );
+        ambiguous.scopes.insert("project:project-b".into());
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &ambiguous,
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // The bound scope passes and requester reads stay isolated per
+        // subject exactly as before.
+        let bound = scoped_identity(
+            "user-a",
+            &["ticketing.create", "ticketing.requester.read"],
+            &scope_tokens("ws-isolated", "project-a"),
+        );
+        let created = service
+            .create_ticket(&bound, create_input("user-a"), Uuid::now_v7(), Utc::now())
+            .await
+            .expect("the bound scope authorizes");
+        let stranger = scoped_identity(
+            "user-b",
+            &["ticketing.requester.read"],
+            &scope_tokens("ws-isolated", "project-a"),
+        );
+        assert!(matches!(
+            service
+                .get_ticket_for_requester(&stranger, "project-a", created.ticket.id)
+                .await,
+            Err(TicketingServiceError::RequesterMismatch)
+        ));
+        // Receipt recovery is scope-checked like every other operation.
+        assert!(matches!(
+            service
+                .operation_receipt(
+                    &identity("user-a", &["ticketing.requester.write"]),
+                    "idem-1"
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        assert!(
+            service
+                .operation_receipt(&bound, "idem-1")
+                .await
+                .expect("bound scope reads receipts")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn isolation_off_keeps_the_pre_isolation_behavior() {
+        // The same scopeless identities keep working when the composition
+        // has not opted into isolation (compatibility, ADR-0076).
+        let service = service();
+        let created = service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("user-a"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .expect("legacy compositions are unaffected");
+        assert_eq!(created.ticket.project_id, "project-a");
     }
 
     #[tokio::test]

@@ -120,20 +120,14 @@ async fn composed_desk_serves_health_and_support_entry() {
     }
 
     // The agent bootstrap requires identity — proving the full HTTP
-    // middleware, router and service stack are wired.
+    // middleware, router and service stack are wired. The in-process
+    // principal carries the desk's resolved scope (ADR-0076).
     let bootstrap = desk
         .router
         .clone()
         .oneshot(
             Request::get("/_minco/ticketing/agent/bootstrap")
-                .extension(minco_http::Principal {
-                    subject: "agent-proof".into(),
-                    permissions: ["ticketing.agent-console", "ticketing.agent.read"]
-                        .into_iter()
-                        .map(str::to_owned)
-                        .collect(),
-                    claims: std::collections::BTreeMap::default(),
-                })
+                .extension(desk.agent_principal.clone())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -161,21 +155,9 @@ async fn composed_desk_serves_health_and_support_entry() {
 async fn end_to_end_ticket_lifecycle_on_one_database() {
     let (_directory, config) = scratch_config("lifecycle");
     let desk = build_desk(&config).await.expect("compose the desk");
-    let principal = minco_http::Principal {
-        subject: "agent-proof".into(),
-        permissions: [
-            "ticketing.create",
-            "ticketing.manage",
-            "ticketing.reply",
-            "ticketing.agent-console",
-            "ticketing.agent.read",
-            "ticketing.agent.manage",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect(),
-        claims: std::collections::BTreeMap::default(),
-    };
+    // The in-process caller uses the desk's resolved scoped principal —
+    // exactly what the bearer path injects (ADR-0076).
+    let principal = desk.agent_principal.clone();
 
     // Create through the real HTTP surface.
     let created = desk
@@ -329,4 +311,72 @@ async fn a_conflicting_workspace_pin_fails_closed_instead_of_rebinding() {
     // The same pin still converges.
     let repeat = build_desk(&config).await.expect("same pin converges");
     assert!(!repeat.workspace_report.created);
+}
+
+#[tokio::test]
+async fn the_isolated_desk_denies_scopeless_and_foreign_principals() {
+    // ISO-2/ISO-3 on the real composition: with isolation enabled, a
+    // principal that carries no workspace/project scope — or a foreign
+    // one — is denied on business routes even with full permissions,
+    // while the desk-agent bearer path keeps working.
+    let (_directory, config) = scratch_config("enforcement");
+    let desk = build_desk(&config)
+        .await
+        .expect("compose the isolated desk");
+
+    let scopeless = minco_http::Principal {
+        subject: "agent-proof".into(),
+        permissions: [
+            "ticketing.create",
+            "ticketing.agent.read",
+            "ticketing.agent-console",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect(),
+        claims: std::collections::BTreeMap::default(),
+    };
+    let denied = desk
+        .router
+        .clone()
+        .oneshot(
+            Request::get("/_minco/ticketing/agent/bootstrap")
+                .extension(scopeless.clone())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+
+    let foreign = scopeless
+        .clone()
+        .with_scopes(["workspace:ws-elsewhere", "project:desk-proof"]);
+    let denied = desk
+        .router
+        .clone()
+        .oneshot(
+            Request::get("/_minco/ticketing/agent/bootstrap")
+                .extension(foreign)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+
+    // The bearer credential resolves the provisioned scope and passes the
+    // same route (bootstrap also proves agent-console capability).
+    let authorized = desk
+        .router
+        .clone()
+        .oneshot(
+            Request::get("/_minco/ticketing/agent/bootstrap")
+                .header("authorization", format!("Bearer {}", config.agent_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(authorized.status(), StatusCode::OK);
 }

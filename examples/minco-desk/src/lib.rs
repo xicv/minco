@@ -641,6 +641,11 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
                 inbound_auth_policy: config.inbound_auth_policy,
                 inbound_scan_verdicts: config.inbound_scan_verdicts,
                 inbound_authserv_id: config.inbound_authserv_id.clone(),
+                // Isolation (ADR-0076): the desk binds ticketing to the
+                // provisioned workspace — every exposed operation then
+                // requires the caller's resolved scope to match.
+                workspace_isolation: true,
+                workspace_id: Some(workspace_report.workspace.as_str().to_owned()),
                 ..TicketingConfig::default()
             },
         )?
