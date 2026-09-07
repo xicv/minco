@@ -180,3 +180,19 @@ milestones:
   - The complete candidate package family is versioned and qualified from one exact main source tree.
   - README, changelog, upgrade guidance and the versioned manual describe the released feature boundary.
   - Tag, GitHub release, registry publication, docs.rs and stable documentation are verified as separate states.
+- id: M15
+  name: Desk isolation and client foundations
+  status: active
+  depends_on:
+  - M13
+  outcome: Desk-scoped workloads run behind a fully enforced workspace/project/integration-profile isolation
+    boundary with preserved upgrade integrity, and client foundations land as separately scoped tasks.
+  exit_criteria:
+  - Every desk business and security surface resolves an explicit workspace/project scope and enforces it in
+    application use cases and bound persistence, including workers and operator paths.
+  - Upgrading a populated database from the pre-isolation desk tree preserves project identities, data,
+    cascades, and published migration checksums under a separate workspace ledger.
+  - The isolation boundary is product-neutral, additive, and bounded-cost; neutrality and compatibility gates
+    pass.
+  - Native authentication/device sessions, change feed/sync, mobile delivery, and product integrations land
+    as separately scoped follow-up tasks; mobile readiness is not claimed by the isolation foundation.
