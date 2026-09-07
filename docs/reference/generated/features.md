@@ -28,7 +28,7 @@ Features are compile-time composition only. They do not discover plugins, select
 | `full` | bundle | `config`, `db`, `contract`, `http`, `interaction`, `plan`, `release`, `test`, `official-plugins`, `sqlx-postgres`, `sqlx-sqlite`, `aws-adapters`, `aws-dynamodb`, `aws-lambda`, `aws-worker` |
 | `http` | framework plane | `dep:minco-http` |
 | `interaction` | framework plane | `dep:minco-interaction` |
-| `official-plugins` | bundle | `default-plugins`, `plugin-payments-waffo`, `plugin-sessions`, `plugin-identity`, `plugin-object-storage`, `plugin-events`, `plugin-jobs`, `plugin-notifications`, `plugin-audit`, `plugin-feedback`, `plugin-ticketing`, `plugin-workspace`, `plugin-static-site`, `plugin-realtime` |
+| `official-plugins` | bundle | `default-plugins`, `plugin-payments-waffo`, `plugin-sessions`, `plugin-identity`, `plugin-object-storage`, `plugin-events`, `plugin-jobs`, `plugin-notifications`, `plugin-audit`, `plugin-feedback`, `plugin-ticketing`, `plugin-static-site`, `plugin-realtime` |
 | `plan` | framework plane | `dep:minco-plan`, `contract` |
 | `plugin-audit` | plugin | `dep:minco-plugin-audit` |
 | `plugin-events` | plugin | `dep:minco-plugin-events` |
@@ -45,7 +45,6 @@ Features are compile-time composition only. They do not discover plugins, select
 | `plugin-sessions` | plugin | `dep:minco-plugin-sessions` |
 | `plugin-static-site` | plugin | `dep:minco-plugin-static-site` |
 | `plugin-ticketing` | plugin | `dep:minco-plugin-ticketing`, `interaction`, `plugin-health`, `plugin-identity`, `plugin-object-storage`, `plugin-events`, `plugin-notifications`, `plugin-audit`, `http`, `minco-plugin-ticketing/http` |
-| `plugin-workspace` | plugin | `dep:minco-plugin-workspace`, `plugin-health` |
 | `release` | framework plane | `dep:minco-release` |
 | `sqlx-postgres` | database adapter | `db`, `dep:minco-sqlx-postgres` |
 | `sqlx-sqlite` | database adapter | `db`, `dep:minco-sqlx-sqlite` |

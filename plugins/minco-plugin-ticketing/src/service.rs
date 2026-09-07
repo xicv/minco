@@ -325,14 +325,15 @@ impl TicketingConfig {
         if self.workspace_isolation {
             // Isolation cannot run without its bound workspace identity
             // (ADR-0076): fail closed at configuration time, not at the
-            // first denied request.
+            // first denied request. The identifier is validated as a
+            // bounded visible string; enforcement compares it for
+            // equality against the resolved scope token.
             match &self.workspace_id {
                 Some(workspace) => {
-                    if minco_plugin_workspace::WorkspaceId::try_from(workspace.clone()).is_err() {
+                    validate_text("workspace_id", workspace, 64)?;
+                    if workspace.trim() != workspace {
                         return Err(TicketingServiceError::Configuration(
-                            "workspace_id must be a valid workspace identifier when \
-                             workspace_isolation is enabled"
-                                .into(),
+                            "workspace_id must not carry leading or trailing whitespace".into(),
                         ));
                     }
                 }
@@ -2302,14 +2303,10 @@ impl TicketingService {
             BTreeSet::from([
                 format!(
                     "{}{}",
-                    minco_plugin_workspace::ProjectScope::WORKSPACE_TOKEN_PREFIX,
+                    WORKSPACE_SCOPE_TOKEN_PREFIX,
                     self.config.workspace_id.as_deref().unwrap_or_default()
                 ),
-                format!(
-                    "{}{}",
-                    minco_plugin_workspace::ProjectScope::PROJECT_TOKEN_PREFIX,
-                    self.config.project_id
-                ),
+                format!("{}{}", PROJECT_SCOPE_TOKEN_PREFIX, self.config.project_id),
             ])
         } else {
             BTreeSet::default()
@@ -2874,10 +2871,10 @@ impl TicketingService {
         if !self.config.workspace_isolation {
             return Ok(());
         }
-        let scope = minco_plugin_workspace::ProjectScope::from_scope_tokens(&principal.scopes)
-            .map_err(|_| TicketingServiceError::ScopeDenied)?;
-        if scope.project.as_str() != self.config.project_id
-            || Some(scope.workspace.as_str()) != self.config.workspace_id.as_deref()
+        let (workspace, project) =
+            parse_scope_tokens(&principal.scopes).ok_or(TicketingServiceError::ScopeDenied)?;
+        if project != self.config.project_id
+            || Some(workspace.as_str()) != self.config.workspace_id.as_deref()
         {
             return Err(TicketingServiceError::ScopeDenied);
         }
@@ -2917,6 +2914,34 @@ fn authorize(principal: &Identity, permission: &str) -> Result<(), TicketingServ
         .has_permission(permission)
         .then_some(())
         .ok_or_else(|| TicketingServiceError::PermissionDenied(permission.into()))
+}
+
+/// Canonical scope-token prefixes carried on a checked caller's scope
+/// set (ADR-0076). Only the trusted composition sets these — request
+/// input never reaches them. The format is shared with the workspace
+/// plugin's `ProjectScope::scope_tokens`; the desk proves the two agree
+/// end to end (the plugin-resolved bearer scope passes this check, and
+/// the isolation proofs assert foreign scopes fail).
+const WORKSPACE_SCOPE_TOKEN_PREFIX: &str = "workspace:";
+const PROJECT_SCOPE_TOKEN_PREFIX: &str = "project:";
+
+/// Parse a checked caller's scope set into its `(workspace, project)`
+/// pair. Exactly one token of each prefix must be present with a
+/// non-empty value; anything missing, duplicated, or malformed is
+/// rejected — never guessed at.
+fn parse_scope_tokens(scopes: &BTreeSet<String>) -> Option<(String, String)> {
+    let single = |prefix: &str| -> Option<String> {
+        let mut matches = scopes.iter().filter_map(|scope| {
+            let value = scope.strip_prefix(prefix)?;
+            (!value.is_empty()).then_some(value.to_owned())
+        });
+        let first = matches.next()?;
+        matches.next().is_none().then_some(first)
+    };
+    Some((
+        single(WORKSPACE_SCOPE_TOKEN_PREFIX)?,
+        single(PROJECT_SCOPE_TOKEN_PREFIX)?,
+    ))
 }
 
 /// The complete capability set a requester portal session may carry
@@ -3112,15 +3137,10 @@ mod tests {
     }
 
     fn scope_tokens(workspace: &str, project: &str) -> Vec<String> {
-        minco_plugin_workspace::ProjectScope {
-            workspace: minco_plugin_workspace::WorkspaceId::try_from(workspace.to_owned())
-                .expect("valid workspace"),
-            project: minco_plugin_workspace::ProjectId::try_from(project.to_owned())
-                .expect("valid project"),
-        }
-        .scope_tokens()
-        .into_iter()
-        .collect()
+        vec![
+            format!("{WORKSPACE_SCOPE_TOKEN_PREFIX}{workspace}"),
+            format!("{PROJECT_SCOPE_TOKEN_PREFIX}{project}"),
+        ]
     }
 
     #[test]

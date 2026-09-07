@@ -50,7 +50,7 @@
     },
     {
       "path": "plugins/catalog.toml",
-      "sha256": "17db0f5aaa8219b7db02d44fbc03ec9b83f6b673f74f8826ad88d14205431a92"
+      "sha256": "5d2df569f71ceb5bbec18eaa6a09dcd8448d48f9a6ee259eebddfdeae5fcd0ff"
     },
     {
       "path": "verification/repository-truth.toml",
@@ -73,7 +73,7 @@
     },
     {
       "manifest_path": "crates/minco/Cargo.toml",
-      "manifest_sha256": "697cdd94e8768339b2134acbb8d844d272afb592d6032ca3893bbf8ca2bffba4",
+      "manifest_sha256": "440190de560ffaab261bf67a2128a85f37638148ee8cb540c2a0e81f4b0b072d",
       "name": "minco",
       "version": {
         "workspace": true
@@ -305,7 +305,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-ticketing/Cargo.toml",
-      "manifest_sha256": "0849fe3c58d226d9c0cb419ab4857b5abcf54de9224ff4e8fc8a4e469ca4fad8",
+      "manifest_sha256": "b244433fd13146692453ac9e9fa9f3498e86586ff7ae304c1ae4a63130d8ef93",
       "name": "minco-plugin-ticketing",
       "version": {
         "workspace": true
@@ -570,19 +570,9 @@
       "kind": "plugin",
       "plugin_version": "0.1.0",
       "stability": "beta"
-    },
-    {
-      "core_compatibility": "^1.12.0",
-      "crate": "minco-plugin-workspace",
-      "descriptor_path": "plugins/minco-plugin-workspace/minco-plugin.json",
-      "descriptor_sha256": "c06f7273dd1474d8db50a646578d9e48d9df7f90f8b3c6892044e021c6de2b1c",
-      "id": "workspace",
-      "kind": "plugin",
-      "plugin_version": "0.1.0",
-      "stability": "experimental"
     }
   ],
-  "projection_sha256": "cbf6f63900d74251a13e2ff54547e1f799ce8a63d9de5d5d5d928374e9970f66",
+  "projection_sha256": "9a1e8bd90fd8fbcf9100c1ef72e1f780399e6c9f88111efc7e030cb5fa99741e",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1"

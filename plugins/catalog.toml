@@ -209,13 +209,3 @@ id = "ticketing"
 kind = "plugin"
 path = "plugins/minco-plugin-ticketing"
 stability = "beta"
-
-[[plugin]]
-crate = "minco-plugin-workspace"
-default_enabled = false
-description = "Workspace, project and integration-profile isolation with deployment-bound provisioning and fail-closed scope resolution."
-feature = "plugin-workspace"
-id = "workspace"
-kind = "plugin"
-path = "plugins/minco-plugin-workspace"
-stability = "experimental"

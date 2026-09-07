@@ -43,7 +43,6 @@ minco-plugin-identity.workspace = true
 minco-plugin-notifications.workspace = true
 minco-plugin-object-storage.workspace = true
 minco-plugin-sessions.workspace = true
-minco-plugin-workspace.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true

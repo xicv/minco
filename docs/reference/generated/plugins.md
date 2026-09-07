@@ -38,7 +38,6 @@ This is pre-link distribution metadata. Enabling remains an explicit Cargo featu
 | `sqlx-sqlite` | `minco-sqlx-sqlite` | `adapter` | `sqlx-sqlite` | no | `beta` | SQLite pools with explicit durability constraints. | ["native","aws-lambda"] | ["sqlite"] | ["storage_only"] | [] | `c6764ce095b1` / `89f9c94b1c3c` |
 | `static-site` | `minco-plugin-static-site` | `plugin` | `plugin-static-site` | no | `beta` | Private static assets, CDN caching, SPA fallback, and optional custom-domain deployment intent. | ["native"] | [] | [] | [] | `532190c9fd62` / `0311c68c36c9` |
 | `ticketing` | `minco-plugin-ticketing` | `plugin` | `plugin-ticketing` | no | `beta` | Project-scoped support ticketing with atomic browser handoffs, conversation, and explicit SQLite persistence. | ["native"] | ["sqlite"] | [] | [] | `d0b7f30ad206` / `644604b510a0` |
-| `workspace` | `minco-plugin-workspace` | `plugin` | `plugin-workspace` | no | `experimental` | Workspace, project and integration-profile isolation with deployment-bound provisioning and fail-closed scope resolution. | ["native"] | ["sqlite"] | [] | [] | `949434f60344` / `dbdc0406c061` |
 
 ## Catalog fields
 
