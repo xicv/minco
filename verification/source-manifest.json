@@ -2584,13 +2584,13 @@
     },
     {
       "path": "docs/reference/generated/plugins.md",
-      "sha256": "65b9f618a9ed540b0974492f4db7bfc951bf6be273dd4de6cbf429956213241e",
+      "sha256": "5ee41258dd3bc48b484159f32bb1ed5d8482ce13fbc8897836fa5b559a3ff8eb",
       "size_bytes": 7526
     },
     {
       "path": "docs/reference/generated/schemas.md",
-      "sha256": "b27925b4fbb91f4f3ef5f87ddd640c32c8d33c5acdd4c30de3dcb453cf55ab28",
-      "size_bytes": 17812
+      "sha256": "c7c57ad4df73344a7446bcd1e3178389c8f2050e031082169be3a8eb7c97d54e",
+      "size_bytes": 18190
     },
     {
       "path": "docs/reference/http-request-boundary.md",
@@ -9399,8 +9399,8 @@
     },
     {
       "path": "tasks/M15/M15-T01-desk-isolation-foundation.md",
-      "sha256": "16093508cb569398cd58e80a878b551fce1ce1d065593a6b9992114ac29f4f12",
-      "size_bytes": 18214
+      "sha256": "f19d86f89a976e8f48e7fdec34a1fcbd0923256592491d776ef666280da33e1f",
+      "size_bytes": 21299
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9854,7 +9854,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "f26e770601d7d640b84ab834cf49ca2765213434ab6a414af66b7c12ca49a8f2",
-  "total_size_bytes": 15362319,
+  "source_tree_sha256": "31a77ddcea5a475e66cc347549a831279ff3e7d4d958dcff33b3d943f430c7c2",
+  "total_size_bytes": 15365782,
   "version": "1.12.0"
 }
