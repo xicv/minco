@@ -44,6 +44,61 @@ fn scratch_config(tag: &str) -> (tempfile::TempDir, DeskConfig) {
 }
 
 #[tokio::test]
+async fn a_whitespace_project_identifier_boots_and_serves_losslessly() {
+    // Round 1 finding 6: a historically valid project id containing
+    // whitespace must ride the principal scope claim losslessly. The desk
+    // provisions it verbatim, the bearer principal carries it percent-
+    // encoded, and ticketing's parser decodes it back for every use case.
+    let (_directory, mut config) = scratch_config("whitespace-project");
+    config.project_id = "legacy Prj".into();
+    let desk = build_desk(&config).await.expect("whitespace project boots");
+    assert!(desk.workspace_report.created);
+    let claim = desk
+        .agent_principal
+        .claims
+        .get(minco_http::PRINCIPAL_SCOPES_CLAIM)
+        .expect("scope claim present");
+    let tokens: Vec<&str> = claim.split_ascii_whitespace().collect();
+    assert_eq!(tokens.len(), 2, "exactly two scope tokens: {claim:?}");
+    assert!(
+        tokens.contains(&"project:legacy%20Prj"),
+        "the whitespace project id must be percent-encoded in one token: {claim:?}"
+    );
+    assert!(
+        tokens
+            .iter()
+            .any(|token| token.starts_with("workspace:ws-")),
+        "the workspace token must be present: {claim:?}"
+    );
+
+    let created = desk
+        .router
+        .clone()
+        .oneshot(
+            Request::post("/_minco/ticketing/tickets")
+                .extension(desk.agent_principal.clone())
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "project_id": "legacy Prj",
+                        "subject": "Whitespace project proof",
+                        "description": "The carrier must be lossless.",
+                        "requester": {"subject": "requester-1"},
+                        "channel": "portal"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let body = created.into_body().collect().await.unwrap().to_bytes();
+    let ticket: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(ticket["ticket"]["project_id"], "legacy Prj");
+}
+
+#[tokio::test]
 async fn upgrading_a_pre_isolation_database_preserves_data_checksums_and_ledgers() {
     // ISO-5: a populated database produced by the pre-isolation stack
     // (plugin storage + ticketing migrations, a real legacy writer, no

@@ -45,6 +45,23 @@ authentication.
    invariant; a separate scope crate is created only if the dependency graph
    proves a real need.
 
+   **Normative scope-token format (round 1, finding 6).** The canonical
+   carrier is the checked caller's scope set; tokens are
+   `workspace:<payload>` and `project:<payload>` where `<payload>` is the
+   identifier percent-encoded (bytes outside `A–Z a–z 0–9 - . _ ~` become
+   `%XX`), so every historically valid identifier — including those
+   containing whitespace — survives the whitespace-tokenized principal
+   scope claim losslessly. Resolution semantics are uniform across every
+   parser: exactly one token of each reserved prefix; a reserved-prefix
+   token whose payload is empty, undecodable, or not a valid identifier
+   denies resolution (it is never filtered away); duplicates deny;
+   unrelated scope vocabulary is ignored; workspace identifiers are
+   minted-form (no leading/trailing whitespace, ≤64 chars) and project
+   identifiers follow the ticketing rule (visible, ≤100 chars,
+   control-free). The conformance vectors are normative and live
+   identically in the workspace plugin's and ticketing's test suites;
+   both parsers must agree on every row.
+
 3. **Isolation is enforced now, inside use cases — not deferred.** Every
    exposed ticketing operation runs against an explicitly resolved
    workspace/project scope, keeps its existing action/ownership

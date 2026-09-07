@@ -2304,9 +2304,15 @@ impl TicketingService {
                 format!(
                     "{}{}",
                     WORKSPACE_SCOPE_TOKEN_PREFIX,
-                    self.config.workspace_id.as_deref().unwrap_or_default()
+                    encode_scope_identifier(
+                        self.config.workspace_id.as_deref().unwrap_or_default()
+                    )
                 ),
-                format!("{}{}", PROJECT_SCOPE_TOKEN_PREFIX, self.config.project_id),
+                format!(
+                    "{}{}",
+                    PROJECT_SCOPE_TOKEN_PREFIX,
+                    encode_scope_identifier(&self.config.project_id)
+                ),
             ])
         } else {
             BTreeSet::default()
@@ -2919,29 +2925,90 @@ fn authorize(principal: &Identity, permission: &str) -> Result<(), TicketingServ
 /// Canonical scope-token prefixes carried on a checked caller's scope
 /// set (ADR-0076). Only the trusted composition sets these — request
 /// input never reaches them. The format is shared with the workspace
-/// plugin's `ProjectScope::scope_tokens`; the desk proves the two agree
-/// end to end (the plugin-resolved bearer scope passes this check, and
-/// the isolation proofs assert foreign scopes fail).
+/// plugin's `ProjectScope::scope_tokens` (percent-encoded payloads; see
+/// the normative vectors in the plugin's tests and ADR-0076); the desk
+/// proves the two agree end to end.
 const WORKSPACE_SCOPE_TOKEN_PREFIX: &str = "workspace:";
 const PROJECT_SCOPE_TOKEN_PREFIX: &str = "project:";
 
 /// Parse a checked caller's scope set into its `(workspace, project)`
-/// pair. Exactly one token of each prefix must be present with a
-/// non-empty value; anything missing, duplicated, or malformed is
-/// rejected — never guessed at.
+/// pair. Exactly one token of each prefix must be present, percent-
+/// decodable, non-empty after decoding, and free of duplicates; missing,
+/// duplicated, empty, or undecodable reserved tokens are rejected —
+/// never filtered away or guessed at.
 fn parse_scope_tokens(scopes: &BTreeSet<String>) -> Option<(String, String)> {
-    let single = |prefix: &str| -> Option<String> {
-        let mut matches = scopes.iter().filter_map(|scope| {
-            let value = scope.strip_prefix(prefix)?;
-            (!value.is_empty()).then_some(value.to_owned())
-        });
-        let first = matches.next()?;
-        matches.next().is_none().then_some(first)
+    let single = |prefix: &str, minted: bool| -> Option<String> {
+        let reserved: Vec<Option<String>> = scopes
+            .iter()
+            .filter_map(|scope| scope.strip_prefix(prefix))
+            .map(|payload| decode_scope_identifier(payload).filter(|decoded| !decoded.is_empty()))
+            .collect();
+        // A reserved-prefix token that is empty or undecodable is
+        // malformed and denies resolution — it is never filtered away.
+        if reserved.iter().any(Option::is_none) {
+            return None;
+        }
+        let values: Vec<String> = reserved.into_iter().map(Option::unwrap).collect();
+        if values.len() != 1 {
+            return None;
+        }
+        let value = values.into_iter().next()?;
+        // Identifier validity mirrors the workspace plugin: visible,
+        // bounded, control-free, and — for minted workspace identifiers —
+        // free of leading/trailing whitespace. Invalid identifiers deny
+        // resolution rather than relying on later equality checks.
+        let maximum = if minted { 64 } else { 100 };
+        if value.trim().is_empty()
+            || value.chars().count() > maximum
+            || value.chars().any(char::is_control)
+            || (minted && value.trim() != value)
+        {
+            return None;
+        }
+        Some(value)
     };
     Some((
-        single(WORKSPACE_SCOPE_TOKEN_PREFIX)?,
-        single(PROJECT_SCOPE_TOKEN_PREFIX)?,
+        single(WORKSPACE_SCOPE_TOKEN_PREFIX, true)?,
+        single(PROJECT_SCOPE_TOKEN_PREFIX, false)?,
     ))
+}
+
+/// Percent-encode a scope identifier payload (mirror of the workspace
+/// plugin's codec; see the normative vectors).
+fn encode_scope_identifier(identifier: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::with_capacity(identifier.len());
+    for byte in identifier.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push('%');
+            encoded.push(HEX[(byte >> 4) as usize] as char);
+            encoded.push(HEX[(byte & 0x0f) as usize] as char);
+        }
+    }
+    encoded
+}
+
+/// Decode a percent-encoded scope identifier payload; `None` for
+/// malformed encodings (mirror of the workspace plugin's codec).
+fn decode_scope_identifier(encoded: &str) -> Option<String> {
+    let bytes = encoded.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let hex = bytes.get(index + 1..index + 3)?;
+            let high = (hex[0] as char).to_digit(16)?;
+            let low = (hex[1] as char).to_digit(16)?;
+            decoded.push(u8::try_from(high * 16 + low).ok()?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
 }
 
 /// The complete capability set a requester portal session may carry
@@ -3141,6 +3208,67 @@ mod tests {
             format!("{WORKSPACE_SCOPE_TOKEN_PREFIX}{workspace}"),
             format!("{PROJECT_SCOPE_TOKEN_PREFIX}{project}"),
         ]
+    }
+
+    /// The normative scope-token conformance vectors (round 1 finding 6):
+    /// the identical table lives in the workspace plugin's tests; both
+    /// parsers must agree on every row.
+    #[test]
+    fn normative_scope_token_vectors() {
+        let valid = |tokens: &[&str]| -> BTreeSet<String> {
+            tokens.iter().map(|token| (*token).to_owned()).collect()
+        };
+        // Positive vectors.
+        assert_eq!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:desk"])).expect("v1 resolves"),
+            ("ws-a".to_owned(), "desk".to_owned())
+        );
+        assert_eq!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:legacy%20Prj"]))
+                .expect("v2 resolves"),
+            ("ws-a".to_owned(), "legacy Prj".to_owned())
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["orders:read", "workspace:ws-a", "project:desk"]))
+                .is_some()
+        );
+        // Negative vectors — every one must deny.
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:", "workspace:ws-a", "project:desk"])).is_none()
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:desk%zz"])).is_none(),
+            "undecodable escape"
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:ws-a%", "project:desk"])).is_none(),
+            "truncated escape"
+        );
+        assert!(
+            parse_scope_tokens(&valid(&[
+                "workspace:ws-a",
+                "workspace:ws-b",
+                "project:desk"
+            ]))
+            .is_none()
+        );
+        assert!(parse_scope_tokens(&valid(&["project:desk"])).is_none());
+        assert!(parse_scope_tokens(&valid(&["workspace:ws-a"])).is_none());
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:%20ws-a", "project:desk"])).is_none(),
+            "leading-whitespace workspace identifier"
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:%00desk"])).is_none(),
+            "control byte in project identifier"
+        );
+        // Encoding mirrors the plugin: whitespace identifiers encode
+        // losslessly.
+        assert_eq!(encode_scope_identifier("legacy Prj"), "legacy%20Prj");
+        assert_eq!(
+            decode_scope_identifier("legacy%20Prj").as_deref(),
+            Some("legacy Prj")
+        );
     }
 
     #[test]

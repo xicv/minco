@@ -446,18 +446,30 @@ impl ProjectScope {
 
     /// The canonical scope tokens for a checked caller context. Only the
     /// composition sets these after resolving scope; request input never
-    /// reaches them.
+    /// reaches them. Identifier payloads are percent-encoded so every
+    /// historically valid identifier — including those containing
+    /// whitespace — survives the whitespace-tokenized principal scope
+    /// claim losslessly (round 1 finding 6).
     #[must_use]
     pub fn scope_tokens(&self) -> [String; 2] {
         [
-            format!("{}{}", Self::WORKSPACE_TOKEN_PREFIX, self.workspace),
-            format!("{}{}", Self::PROJECT_TOKEN_PREFIX, self.project),
+            format!(
+                "{}{}",
+                Self::WORKSPACE_TOKEN_PREFIX,
+                encode_scope_identifier(self.workspace.as_str())
+            ),
+            format!(
+                "{}{}",
+                Self::PROJECT_TOKEN_PREFIX,
+                encode_scope_identifier(self.project.as_str())
+            ),
         ]
     }
 
     /// Parse a checked caller's scope tokens back into a scope. Exactly one
-    /// workspace and one project token must be present; missing, duplicated,
-    /// or malformed tokens fail closed rather than guessing.
+    /// workspace and one project token must be present; missing,
+    /// duplicated, empty, undecodable, or invalid-identifier tokens fail
+    /// closed rather than being filtered away or guessed at.
     pub fn from_scope_tokens(scopes: &BTreeSet<String>) -> Result<Self, ScopeTokenError> {
         let workspace = single_token(scopes, Self::WORKSPACE_TOKEN_PREFIX)?;
         let project = single_token(scopes, Self::PROJECT_TOKEN_PREFIX)?;
@@ -470,23 +482,84 @@ impl ProjectScope {
 }
 
 fn single_token(scopes: &BTreeSet<String>, prefix: &str) -> Result<String, ScopeTokenError> {
-    let mut matches = scopes
-        .iter()
-        .filter(|scope| scope.starts_with(prefix))
-        .map(|scope| scope[prefix.len()..].to_owned());
-    let Some(first) = matches.next() else {
-        return Err(match prefix {
-            ProjectScope::WORKSPACE_TOKEN_PREFIX => ScopeTokenError::MissingWorkspace,
-            _ => ScopeTokenError::MissingProject,
-        });
+    let mut matches = scopes.iter().filter_map(|scope| {
+        // A reserved-prefix token is never ignorable: an empty or
+        // undecodable payload is malformed and denies resolution.
+        scope
+            .strip_prefix(prefix)
+            .map(|payload| match decode_scope_identifier(payload) {
+                Some(decoded) if !decoded.is_empty() => Ok(decoded),
+                _ => Err(()),
+            })
+    });
+    let first = match matches.next() {
+        Some(Ok(value)) => value,
+        Some(Err(())) => {
+            return Err(match prefix {
+                ProjectScope::WORKSPACE_TOKEN_PREFIX => ScopeTokenError::MalformedWorkspace,
+                _ => ScopeTokenError::MalformedProject,
+            });
+        }
+        None => {
+            return Err(match prefix {
+                ProjectScope::WORKSPACE_TOKEN_PREFIX => ScopeTokenError::MissingWorkspace,
+                _ => ScopeTokenError::MissingProject,
+            });
+        }
     };
-    if matches.next().is_some() {
-        return Err(match prefix {
+    match matches.next() {
+        Some(_) => Err(match prefix {
             ProjectScope::WORKSPACE_TOKEN_PREFIX => ScopeTokenError::AmbiguousWorkspace,
             _ => ScopeTokenError::AmbiguousProject,
-        });
+        }),
+        None => Ok(first),
     }
-    Ok(first)
+}
+
+/// Percent-encode a scope identifier payload for the carrier.
+///
+/// Every byte outside the unreserved set (alphanumerics and `-._~`)
+/// becomes `%XX`, so whitespace, `%`, and control bytes are always
+/// encoded: the token stays safe for the whitespace-tokenized principal
+/// scope claim and the encoding stays unambiguous.
+#[must_use]
+pub fn encode_scope_identifier(identifier: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::with_capacity(identifier.len());
+    for byte in identifier.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push('%');
+            encoded.push(HEX[(byte >> 4) as usize] as char);
+            encoded.push(HEX[(byte & 0x0f) as usize] as char);
+        }
+    }
+    encoded
+}
+
+/// Decode a percent-encoded scope identifier payload.
+///
+/// Returns `None` for malformed encodings (a `%` not followed by two hex
+/// digits or a byte sequence that is not valid UTF-8).
+#[must_use]
+pub fn decode_scope_identifier(encoded: &str) -> Option<String> {
+    let bytes = encoded.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let hex = bytes.get(index + 1..index + 3)?;
+            let high = (hex[0] as char).to_digit(16)?;
+            let low = (hex[1] as char).to_digit(16)?;
+            decoded.push(u8::try_from(high * 16 + low).ok()?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
 }
 
 /// A checked caller's scope tokens do not carry exactly one resolvable
@@ -497,10 +570,14 @@ pub enum ScopeTokenError {
     MissingWorkspace,
     #[error("no project scope token is present")]
     MissingProject,
-    #[error("more than one workspace scope token is present")]
+    #[error("more than one workspace or project scope token is present")]
     AmbiguousWorkspace,
     #[error("more than one project scope token is present")]
     AmbiguousProject,
+    #[error("the workspace scope token is empty, undecodable, or not a valid identifier")]
+    MalformedWorkspace,
+    #[error("the project scope token is empty, undecodable, or not a valid identifier")]
+    MalformedProject,
     #[error("the workspace scope token is not a valid identifier")]
     InvalidWorkspace(#[source] InvalidIdentifier),
     #[error("the project scope token is not a valid identifier")]
@@ -726,6 +803,15 @@ mod tests {
         let project = ProjectId::try_from("legacy Prj".to_owned()).expect("valid");
         let scope = ProjectScope { workspace, project };
         let tokens: BTreeSet<String> = scope.scope_tokens().into_iter().collect();
+        // Whitespace-bearing identifiers survive the whitespace-tokenized
+        // claim losslessly: the token itself contains no whitespace.
+        assert_eq!(
+            scope.scope_tokens(),
+            [
+                "workspace:ws-1".to_owned(),
+                "project:legacy%20Prj".to_owned()
+            ]
+        );
         assert_eq!(
             ProjectScope::from_scope_tokens(&tokens).expect("round trip"),
             scope
@@ -750,11 +836,89 @@ mod tests {
             ProjectScope::from_scope_tokens(&ambiguous),
             Err(ScopeTokenError::AmbiguousProject)
         );
+        // An empty reserved token is malformed, never a second workspace.
         let mut malformed = tokens;
         malformed.insert("workspace:".into());
-        assert!(matches!(
+        assert_eq!(
             ProjectScope::from_scope_tokens(&malformed),
-            Err(ScopeTokenError::AmbiguousWorkspace)
-        ));
+            Err(ScopeTokenError::MalformedWorkspace)
+        );
+    }
+
+    /// The normative scope-token conformance vectors (round 1 finding 6):
+    /// ticketing's independent parser implements the identical table. The
+    /// vectors live here and in ADR-0076; both parsers must agree on
+    /// every row.
+    #[test]
+    fn normative_scope_token_vectors() {
+        let valid = |tokens: &[&str]| -> BTreeSet<String> {
+            tokens.iter().map(|token| (*token).to_owned()).collect()
+        };
+        // Positive: a fully encoded pair resolves.
+        assert_eq!(
+            ProjectScope::from_scope_tokens(&valid(&["workspace:ws-a", "project:desk"]))
+                .expect("v1 resolves"),
+            ProjectScope {
+                workspace: WorkspaceId::try_from("ws-a".to_owned()).expect("valid"),
+                project: ProjectId::try_from("desk".to_owned()).expect("valid"),
+            }
+        );
+        // Positive: percent-encoded whitespace round-trips.
+        assert_eq!(
+            ProjectScope::from_scope_tokens(&valid(&["workspace:ws-a", "project:legacy%20Prj"]))
+                .expect("v2 resolves"),
+            ProjectScope {
+                workspace: WorkspaceId::try_from("ws-a".to_owned()).expect("valid"),
+                project: ProjectId::try_from("legacy Prj".to_owned()).expect("valid"),
+            }
+        );
+        // Positive: unrelated scopes are ignored.
+        assert!(
+            ProjectScope::from_scope_tokens(&valid(&[
+                "orders:read",
+                "workspace:ws-a",
+                "project:desk"
+            ]))
+            .is_ok()
+        );
+        // Negative: an empty reserved token is malformed, not ignorable.
+        assert!(
+            ProjectScope::from_scope_tokens(&valid(&[
+                "workspace:",
+                "workspace:ws-a",
+                "project:desk"
+            ]))
+            .is_err()
+        );
+        // Negative: an undecodable escape is malformed.
+        assert!(
+            ProjectScope::from_scope_tokens(&valid(&["workspace:ws-a", "project:desk%zz"]))
+                .is_err()
+        );
+        // Negative: a truncated escape is malformed.
+        assert!(
+            ProjectScope::from_scope_tokens(&valid(&["workspace:ws-a%", "project:desk"])).is_err()
+        );
+        // Negative: conflicting duplicates are ambiguous.
+        assert!(
+            ProjectScope::from_scope_tokens(&valid(&[
+                "workspace:ws-a",
+                "workspace:ws-b",
+                "project:desk"
+            ]))
+            .is_err()
+        );
+        // Negative: either token missing.
+        assert!(ProjectScope::from_scope_tokens(&valid(&["project:desk"])).is_err());
+        assert!(ProjectScope::from_scope_tokens(&valid(&["workspace:ws-a"])).is_err());
+        // Negative: invalid identifiers after decoding.
+        assert!(
+            ProjectScope::from_scope_tokens(&valid(&["workspace:%20ws-a", "project:desk"]))
+                .is_err()
+        );
+        assert!(
+            ProjectScope::from_scope_tokens(&valid(&["workspace:ws-a", "project:%00desk"]))
+                .is_err()
+        );
     }
 }
