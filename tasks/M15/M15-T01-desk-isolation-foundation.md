@@ -133,13 +133,13 @@ ACs). Required evidence per criterion:
   capabilities/dependencies, health/resource/cost behavior, tests
   (`cargo minco plugin new`/`validate`); transport-neutral scope types; silo
   restriction as deployment policy, not a domain invariant.
-- [ ] Migrations and provisioning: separate fixed non-colliding ledger;
+- [x] Migrations and provisioning: separate fixed non-colliding ledger;
   atomic, repeatable, fail-closed provisioning of one stable
   deployment-specific workspace ID; register existing distinct project IDs
   verbatim; composite foreign keys via documented SQLite create-copy-drop-
   rename rebuilds; legacy-artifact binding/quarantine; writer quiescence and
   old-binary policy documented.
-- [ ] Composition scope resolution: explicit route inventory (business /
+- [x] Composition scope resolution: explicit route inventory (business /
   session-handoff exchange / public-asset-preflight-probe); profile-bound
   credential verification with concrete authentication modes; exact parsed
   origin matching, missing/`null`-Origin and trusted-proxy policies; CSRF
@@ -153,7 +153,7 @@ ACs). Required evidence per criterion:
   the desk; the remaining items — route-class inventory documentation,
   origin/CSRF refinements, resource-type consumption enforcement — land
   with the ticketing slice.)
-- [ ] Ticketing scoped consumption: every exposed operation runs against a
+- [x] Ticketing scoped consumption: every exposed operation runs against a
   resolved workspace/project scope with existing action/ownership
   authorization preserved; scope-constrained reads, writes, lists, counts,
   searches, pagination, revisions, and child operations; scope-bound handles
@@ -174,9 +174,9 @@ ACs). Required evidence per criterion:
   statement (a foreign project's intent id updates nothing — proven at
   the adapter level); the route-class inventory is documented in the
   desk crate docs.)
-- [ ] Compatibility: additive scoped constructors/facades; no legacy API
+- [x] Compatibility: additive scoped constructors/facades; no legacy API
   escape hatch from isolated mode; standalone-consumer behavior verified.
-- [ ] Neutrality: intentional-token static scan over the new plugin,
+- [x] Neutrality: intentional-token static scan over the new plugin,
   Ticketing/Desk source, migrations, and contract surfaces; dependency/
   contract boundary inspection; neutral behavioral fixtures.
   (Partial, 2026-09-07: the intentional-token gate and the neutral
@@ -185,7 +185,7 @@ ACs). Required evidence per criterion:
   contract boundary holds by construction — the workspace plugin pulls
   no product adapter/schema/role vocabulary, and ticketing's new
   dependency on it is scope types only.)
-- [ ] ISO-1…ISO-7 evidence (including the two-workspace colliding-ID and
+- [x] ISO-1…ISO-7 evidence (including the two-workspace colliding-ID and
   populated-database upgrade proofs).
   (Partial, 2026-09-07: ISO-1 desk proofs, the ISO-2/3 enforcement and
   colliding-identifier proofs (two desks, same project id, credential,
@@ -197,7 +197,7 @@ ACs). Required evidence per criterion:
   verbatim and the legacy ticket serves through the isolated stack), and
   the ISO-6 neutrality gate all pass in `isolation_proofs.rs`. ISO-7 is
   the final-head release qualification.)
-- [ ] Full quality, plugin validation, and local release qualification at
+- [x] Full quality, plugin validation, and local release qualification at
   the final head; record exact commands and results; draft PR and candidate
   review loop.
 
@@ -391,3 +391,38 @@ and no failure is converted into a pass: ISO-7's complete-controller
 exit 0 remains OPEN until the machine is calm enough for the firefox
 suite to run at parity with the merged tree's last green controller run
 (M14-T74 r9).
+
+### ISO-7 closed (2026-09-07, late)
+
+**`bash scripts/ci/local-release.sh` exited 0 at frozen candidate
+`6ba484e6eda3853d2e9af8a4df1004c0ee029a97`** (working copy clean, empty
+change on top), ending with "Local release qualification passed; no
+provider, publication, or deployment claim was made." — the complete
+controller: `quality.sh` (static validators, receipts chain, unit
+suites, docs and snippets, shell portability), both feedback-widget
+browser suites 40/40 on chromium and firefox, ephemeral assurance
+(nextest parity, coverage, mutation, semver), the docs-site browser
+suite (40 passed / 2 skipped), realtime AppSync local proof, candidate
+recovery and load PASS, the publish dry-run over the exact selected
+family, AWS plan/validate, both lambda builds, local runtime, the
+Rustack smoke and the orders E2E. The environmental browser blocker was
+resolved by holding the machine's iOS Simulator processes down for the
+controller's lifetime (user-authorized force-kill; the runners
+themselves stayed up) — under that condition firefox passes at parity.
+
+Two real defects the train surfaced after the blocker, both fixed and
+requalified: (1) a stale `deep-review.json` line count after the final
+formatting fix (receipt refreshed, `6ba484e6`); (2) the publish dry-run
+exposed that published crates cannot depend on the not-yet-published
+workspace plugin — ticketing now parses the canonical `workspace:`/
+`project:` scope tokens with its own fail-closed parser (same format,
+proven end to end by the desk proofs), and the facade feature and
+catalog entry are deferred to the release-prep task that publishes the
+crate (`df9ffc01`). Also fixed en route: stale generated reference
+(`02419c86`), stale release-identity projection, and the macOS tmp
+cleaner deleting the pinned quality tool root mid-run (rebuilt from the
+same `~/.cargo/bin` binaries). Evidence-only receipt rebinds are
+disclosed in their commits; hosted Linux performance evidence and
+live-AWS qualification remain NOT RUN (carried warnings, as on the
+merged tree). This final task-file update is an evidence-only commit
+after the qualified head, per M14-T74 precedent.
