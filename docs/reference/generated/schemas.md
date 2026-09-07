@@ -98,6 +98,8 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | `plugins.ticketing.requester_session_ttl_seconds` | `integer` | no | no | 3600 | Requester portal session lifetime, at most 86400 seconds |
 | `plugins.ticketing.support_brand` | `string` | no | no | Support | Browser-safe support brand |
 | `plugins.ticketing.support_label` | `string` | no | no | Get support | Accessible launcher label |
+| `plugins.ticketing.workspace_id` | `string` | no | no | — | The provisioned workspace identity this service is bound to; required when workspace_isolation is enabled |
+| `plugins.ticketing.workspace_isolation` | `boolean` | no | no | no | Require every exposed operation to carry a resolved workspace/project scope matching the configured workspace and project (ADR-0076) |
 | `plugins.workspace.display_name` | `string` | no | no | Default workspace | Display name for the provisioned workspace; a label, never an authority identifier |
 | `plugins.workspace.grants` | `object` | no | no | — | Explicit principal-to-project grants seeded by configuration, keyed by subject with project lists |
 | `plugins.workspace.profiles` | `object` | no | no | — | Integration profiles seeded by configuration, keyed by profile id: kind, auth_mode, bound_project, service_subject, permission_ceiling, allowed_origins, resource_types, secret_reference (a name, never a value) |
