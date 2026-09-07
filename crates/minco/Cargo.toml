@@ -64,6 +64,10 @@ plugin-ticketing = [
   "http",
   "minco-plugin-ticketing/http",
 ]
+plugin-workspace = [
+  "dep:minco-plugin-workspace",
+  "plugin-health",
+]
 official-plugins = [
   "default-plugins",
   "plugin-payments-waffo",
@@ -76,6 +80,7 @@ official-plugins = [
   "plugin-audit",
   "plugin-feedback",
   "plugin-ticketing",
+  "plugin-workspace",
   "plugin-static-site",
   "plugin-realtime",
 ]
@@ -131,6 +136,7 @@ minco-plugin-notifications = { workspace = true, optional = true }
 minco-plugin-audit = { workspace = true, optional = true }
 minco-plugin-feedback = { workspace = true, optional = true }
 minco-plugin-ticketing = { workspace = true, optional = true }
+minco-plugin-workspace = { workspace = true, optional = true }
 minco-plugin-static-site = { workspace = true, optional = true }
 minco-plugin-realtime = { workspace = true, optional = true }
 minco-sqlx-postgres = { workspace = true, optional = true }

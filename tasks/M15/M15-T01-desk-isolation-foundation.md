@@ -14,9 +14,14 @@ owned_paths:
   - docs/reference/generated/features.md
   - docs/reference/generated/packages.md
   - docs/reference/generated/plugins.md
+  - docs/reference/generated/schemas.md
   - roadmap/roadmap.yaml
   - tasks/M14/M14-T74-desk-stabilization-merge-gate.md
   - tasks/M15/M15-T01-desk-isolation-foundation.md
+  - crates/minco/Cargo.toml
+  - crates/minco/src/lib.rs
+  - Cargo.toml
+  - Cargo.lock
   - plugins/catalog.toml
   - plugins/minco-plugin-workspace
   - plugins/minco-plugin-ticketing
@@ -117,14 +122,14 @@ ACs). Required evidence per criterion:
 
 ## Checklist
 
-- [ ] Record the exact starting state (checkout, `origin/main`, workspace,
+- [x] Record the exact starting state (checkout, `origin/main`, workspace,
   toolchain) before edits.
-- [ ] Ownership inventory: name every Desk business/security persistence
+- [x] Ownership inventory: name every Desk business/security persistence
   surface (ticketing rows, sessions, handoffs, receipts, jobs, activity/audit
   records, attachment access, external references) and its scope-binding
   mechanism; shared plugins use existing server-written attributes or
   namespace contracts without breaking unrelated consumers.
-- [ ] Workspace plugin: descriptor, typed services, explicit configuration,
+- [x] Workspace plugin: descriptor, typed services, explicit configuration,
   capabilities/dependencies, health/resource/cost behavior, tests
   (`cargo minco plugin new`/`validate`); transport-neutral scope types; silo
   restriction as deployment policy, not a domain invariant.
@@ -175,3 +180,60 @@ milestone, and this task are part of the starting commit. `M14-T74` is
 marked complete in the same commit as bookkeeping: PR #187 merged at the
 above SHA with all review rounds closed, so its merge gate is discharged —
 `M14` itself remains the active post-1.0 release train.
+
+### Ownership inventory (2026-09-07)
+
+Every Desk business/security persistence surface and its current
+scope-binding mechanism, from the merged tree at `d7939910`:
+
+| Surface | Persistence | Scope binding today |
+| --- | --- | --- |
+| Tickets/messages/attachments/followers/tags/source refs/resource refs | `ticketing_*` tables | composite `(project_id, id)` keys, FK cascades to `ticketing_tickets(project_id, id)` |
+| Handoffs | `ticketing_handoffs` | `digest` PK; `project_id` column, **no FK**; `portal_origin` checked at exchange |
+| Requester sessions | `minco_sessions` | project only inside JSON attributes (`ticketing.project`), enforced at `resolve_requester_session` |
+| Session exchange grants | `ticketing_session_exchange_grants` | `exchange_key` PK; `project_id` column, no FK |
+| Operation receipts | `ticketing_operation_receipts` | `idempotency_key` PK; `project_id`/`subject_digest` scope columns from 0017, not enforced at the port |
+| Queued jobs | `minco_jobs` (+ publications/locks) | **no project column**; scope only in envelope `partition = project_id` |
+| Activity/audit intents | `ticketing_activity_intents` | `id` PK; `project_id` column; dispatched by the worker with the deployment project |
+| Audit records | `minco_audit` | no project column (append-only evidence) |
+| Delivery evidence / send intents | `ticketing_delivery_evidence` / `ticketing_send_intents` | composite keys / `logical_send_id` PK with `project_id` column |
+| External identities | `ticketing_external_messages` | dedupe key `(project_id, provider, mailbox_scope, external_id)` — profile-locality not yet bound |
+| Attachment bytes | object store (memory in desk) | keys derived per ticket |
+| Retention erasure | `erase_tickets_resolved_before(project_id, …)` | project-scoped at the port; no service-level use case yet |
+
+Trust boundary today: bearer `DESK_AGENT_TOKEN` (constant-time compare,
+injects `Principal { subject: "desk-agent", … }`) and the requester session
+cookie (`minco_ticketing_session`, CSRF-bound); development headers are
+never trusted; `Identity.scopes` is never consulted by ticketing. Store
+methods that load globally (no project parameter): receipts, session
+exchange grants, send intents, `mark_*_published`. Job handlers
+`run_development_automation` and `deliver_public_notification` bypass
+`Identity` entirely; only `process_inbound_email` authorizes through the
+worker principal. These are the concrete enforcement targets for the
+composition and ticketing slices.
+
+### Workspace plugin slice (2026-09-07)
+
+`plugins/minco-plugin-workspace` v0.1.0 (experimental, unpublished): model
+(bounded identifiers preserving historical project spelling; reserved
+kind taxonomy with only `service_api`/`service_bearer_token`,
+`portal`/`portal_session`, `email`/`inbound_email` supported), provisioning
+service (atomic binding, idempotent convergence, fail-closed rebind/drift,
+orphans reported not deleted), grants and scope resolution (explicit grant
+required; session/project selectors validated against the registry; service
+principals bounded by the persisted ceiling), SQLite persistence under the
+exclusive `_minco_workspace_migrations` ledger with composite foreign keys
+(profiles/grants → registered projects), and the static plugin registration
+(catalog, root workspace, facade feature `plugin-workspace`,
+`official-plugins`, critical `workspace-store` health check, no HTTP
+module). Gates run: `cargo +1.97.1 test -p minco-plugin-workspace
+--all-features --offline` (26 tests), default-feature test (22 tests),
+clippy `-p minco-plugin-workspace -p minco --all-targets --all-features
+--offline` clean for the new code, rustfmt clean, `cargo minco plugin
+validate` (`[]`), `cargo minco plugin doctor` (`"status": "passed"`),
+`scripts/docs/generate-reference.sh` (7 files; features/plugins/schemas
+regenerated), `scripts/source_manifest.py` (1958 files,
+`ce1b7aba…f2085`), `scripts/validate_static.py` (ok, 0/0). Note: a
+pre-existing `unused async` warning surfaces in `minco-plugin-ticketing`
+only under facade `--all-features`; not introduced or modified by this
+task. `--locked` evidence runs after the updated `Cargo.lock` is committed.

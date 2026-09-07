@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1945,
+  "file_count": 1958,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -64,13 +64,13 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "cda95b7ed9cfecca34369e3186ebb3103041c61c7dde9393e15c4528dd39dc9b",
-      "size_bytes": 120617
+      "sha256": "91fabd6a6d957e2ef515a7c94da7d7b26d7ade829c289168c4c2510a2740cbc1",
+      "size_bytes": 120923
     },
     {
       "path": "Cargo.toml",
-      "sha256": "1e7707079fc040fd45899883c35d80b9a5aa54f4a62d813754177e0682ecc0ec",
-      "size_bytes": 11257
+      "sha256": "08bae31daade1123c54c71f15605238aee9e4c81ccc1b375338b93cd026d3ae8",
+      "size_bytes": 12903
     },
     {
       "path": "FEEDBACK_REVIEW_STATUS.md",
@@ -134,8 +134,8 @@
     },
     {
       "path": "crates/minco/Cargo.toml",
-      "sha256": "440190de560ffaab261bf67a2128a85f37638148ee8cb540c2a0e81f4b0b072d",
-      "size_bytes": 4881
+      "sha256": "697cdd94e8768339b2134acbb8d844d272afb592d6032ca3893bbf8ca2bffba4",
+      "size_bytes": 5040
     },
     {
       "path": "crates/minco/LICENSE-APACHE",
@@ -154,8 +154,8 @@
     },
     {
       "path": "crates/minco/src/lib.rs",
-      "sha256": "4837ef219fbc3e2fff27d8442f8db7274311c523c4049dee092e6566c0c4d3e0",
-      "size_bytes": 10167
+      "sha256": "ef31047bc7196ea85e627a18d49a6b1c43eeabc4c124bf18738a6ad3e0cf8756",
+      "size_bytes": 10416
     },
     {
       "path": "crates/minco-cli/Cargo.toml",
@@ -1754,8 +1754,8 @@
     },
     {
       "path": "docs/DECISIONS.md",
-      "sha256": "fd81551b84ceb421a1c7da678658d6b4cffe7f361145235f990725bc8c25eccc",
-      "size_bytes": 17368
+      "sha256": "ed98ae10abb651252593575d70284a3b2ee2f7c823c52574bd585855f3552a43",
+      "size_bytes": 17905
     },
     {
       "path": "docs/adoption/0.3.1-to-0.4.0.md",
@@ -2253,6 +2253,11 @@
       "size_bytes": 2135
     },
     {
+      "path": "docs/adrs/0076-workspace-project-integration-isolation.md",
+      "sha256": "310cd93fd930e9c09fcf71c86eb94a1f0f9dfcab481df467a330c6c5d7852a95",
+      "size_bytes": 13113
+    },
+    {
       "path": "docs/architecture/adoption-readiness-review.md",
       "sha256": "822329315f8554ffe5429bac7d31124e4cba2e8ddb0a818a106a0c6ebddd91d3",
       "size_bytes": 5091
@@ -2564,8 +2569,8 @@
     },
     {
       "path": "docs/reference/generated/features.md",
-      "sha256": "3b8dd0e90dd74df7bd47363c7e0a3aa90eaaeb7c0f5a751e47c80747ffc76254",
-      "size_bytes": 3400
+      "sha256": "77a716adf5518587a5a3c247103d9d55fd91d2340c85babb07f06cec9ec0348d",
+      "size_bytes": 3500
     },
     {
       "path": "docs/reference/generated/index.md",
@@ -2579,13 +2584,13 @@
     },
     {
       "path": "docs/reference/generated/plugins.md",
-      "sha256": "ebe68fad8007068b267019fd55d2402d491a7d2d23fb278e93448d1a86c10f0d",
-      "size_bytes": 7235
+      "sha256": "65b9f618a9ed540b0974492f4db7bfc951bf6be273dd4de6cbf429956213241e",
+      "size_bytes": 7526
     },
     {
       "path": "docs/reference/generated/schemas.md",
-      "sha256": "58861eae1d13168c8d1aad729155b30562576d856b146ef13d1b94959de758da",
-      "size_bytes": 16915
+      "sha256": "b27925b4fbb91f4f3ef5f87ddd640c32c8d33c5acdd4c30de3dcb453cf55ab28",
+      "size_bytes": 17812
     },
     {
       "path": "docs/reference/http-request-boundary.md",
@@ -2621,6 +2626,11 @@
       "path": "docs/research/aws-rust-capability-review-2026-08.md",
       "sha256": "bbd3b1cf6bfd51bc8354dcd26ab1753dc38bd3a8ecfbb5b0c4715d03a945c401",
       "size_bytes": 11211
+    },
+    {
+      "path": "docs/research/desk-isolation-design-review-2026-09.md",
+      "sha256": "319c96870d63824e4c0c582dfafff34cec3955947c53b53b9b7a9c20c28cc466",
+      "size_bytes": 24362
     },
     {
       "path": "docs/research/feedback-sources.md",
@@ -6959,8 +6969,8 @@
     },
     {
       "path": "plugins/catalog.toml",
-      "sha256": "793fab176b0de55a792158775717a8dbb0cb529a8180eeb085d624cbcc5d9f12",
-      "size_bytes": 5891
+      "sha256": "17db0f5aaa8219b7db02d44fbc03ec9b83f6b673f74f8826ad88d14205431a92",
+      "size_bytes": 6227
     },
     {
       "path": "plugins/minco-plugin-audit/Cargo.toml",
@@ -7918,6 +7928,56 @@
       "size_bytes": 128237
     },
     {
+      "path": "plugins/minco-plugin-workspace/Cargo.toml",
+      "sha256": "03ff05e265c9fe90dcdf7918605626bbe6eff483630d706e6c9d022ec337cdaf",
+      "size_bytes": 1013
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/README.md",
+      "sha256": "4c175010dbd4c39e7dc6a37aba32c3acd4fbf87a9fbec76fa69e490e9aa87389",
+      "size_bytes": 3642
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/migrations/sqlite/0001_workspace_isolation.sql",
+      "sha256": "f3c7f897ba06052c91420a4722205ecf980d31f3b66383a8a021c6b2bd2a9def",
+      "size_bytes": 2313
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/minco-plugin.json",
+      "sha256": "c06f7273dd1474d8db50a646578d9e48d9df7f90f8b3c6892044e021c6de2b1c",
+      "size_bytes": 2857
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/src/lib.rs",
+      "sha256": "7a382bedb917fa8ecd5db2af1ab8c0dcb992665e1c3ba70dc549f07c21fb8a10",
+      "size_bytes": 2376
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/src/model.rs",
+      "sha256": "03b2dd8ae3190020c7d4ccc1cd6486fc143cd3a54016e726c15567c1f7170bcb",
+      "size_bytes": 22993
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/src/persistence.rs",
+      "sha256": "97f698097b6e5e4d14f941ef65c9d788a6d7bbf658ef5a3777f38070035faf5f",
+      "size_bytes": 23738
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/src/plugin.rs",
+      "sha256": "4020964624636432c7e92b2ff394eb5111d433d6df6e2855ab3394369358696a",
+      "size_bytes": 10391
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/src/service.rs",
+      "sha256": "9e065ebedf7574b6894abcbff353f26d3dbe9324484201e8df0c11798b9b58f5",
+      "size_bytes": 32557
+    },
+    {
+      "path": "plugins/minco-plugin-workspace/src/store.rs",
+      "sha256": "9ddd0c8736eba855f18de16583f2e484c33e3a81bfcedd19923fd83cd0c5c076",
+      "size_bytes": 14901
+    },
+    {
       "path": "pricing/catalog.toml",
       "sha256": "6c6030e1fe7b1f3acf286a4a5925fcb64fe01ac2a7513bc3e87718cb836be324",
       "size_bytes": 903
@@ -8149,8 +8209,8 @@
     },
     {
       "path": "roadmap/roadmap.yaml",
-      "sha256": "bd515bec17885112399750072b8036576a2c19feec89c5d368612dd63c18e448",
-      "size_bytes": 8761
+      "sha256": "038c36807be055c7ab9f0155248115679c0962bcccf5af7f47fd854a266efb5c",
+      "size_bytes": 9799
     },
     {
       "path": "roadmap/tasks.mmd",
@@ -9329,8 +9389,13 @@
     },
     {
       "path": "tasks/M14/M14-T74-desk-stabilization-merge-gate.md",
-      "sha256": "cf883cee079ffd80cd403c1ea38e1349c61e27c726bc83da900e79f832ad3194",
-      "size_bytes": 52058
+      "sha256": "c1a46bfc2d13cc2938b2753a90f34efa675d97aa171046cec328fea2cd2acfc3",
+      "size_bytes": 52060
+    },
+    {
+      "path": "tasks/M15/M15-T01-desk-isolation-foundation.md",
+      "sha256": "c390822dff1d6cc0cb067e9dffcb27ba10a7700de6f9f32b8bac2465bc3b80a8",
+      "size_bytes": 9645
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9784,7 +9849,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "57a65dffdfee31414ee2a1bd2e34578f82fa05d5a11579d2782833f28d8e550f",
-  "total_size_bytes": 15125683,
+  "source_tree_sha256": "ce1b7aba2d009674aa5d2aca1892b2e79eecb339f78c8e4d59c2a5dd783f2085",
+  "total_size_bytes": 15295145,
   "version": "1.12.0"
 }

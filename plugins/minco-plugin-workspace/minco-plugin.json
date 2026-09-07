@@ -1,0 +1,111 @@
+{
+  "conformance": {
+    "evidence": [
+      "cargo test -p minco-plugin-workspace --all-features --locked"
+    ],
+    "profile": "minco-plugin-v1"
+  },
+  "core_compatibility": "^1.12.0",
+  "data_classes": [
+    "internal"
+  ],
+  "databases": [
+    "sqlite"
+  ],
+  "default_enabled": false,
+  "documentation": {
+    "reference": "https://docs.rs/minco-plugin-workspace"
+  },
+  "failure_policy": {
+    "description": "Unprovisioned deployments, conflicting bindings, drifted profiles, unknown or disabled profiles, missing grants, and unregistered projects all fail closed; no resolution path falls back to an ambient or default scope.",
+    "mode": "fail_closed"
+  },
+  "feature": "plugin-workspace",
+  "health_checks": [
+    {
+      "id": "workspace-store",
+      "critical": true
+    }
+  ],
+  "id": "workspace",
+  "kind": "plugin",
+  "plugin_dependencies": [
+    "health"
+  ],
+  "plugin_version": "0.1.0",
+  "provides": [
+    {
+      "name": "workspace.provisioning",
+      "version": "1.0.0"
+    },
+    {
+      "name": "workspace.scope-resolution",
+      "version": "1.0.0"
+    },
+    {
+      "name": "workspace.profiles",
+      "version": "1.0.0"
+    },
+    {
+      "name": "workspace.grants",
+      "version": "1.0.0"
+    }
+  ],
+  "requires": [
+    {
+      "name": "health.registry",
+      "version": "^1"
+    }
+  ],
+  "configuration": [
+    {
+      "key": "display_name",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Display name for the provisioned workspace; a label, never an authority identifier",
+      "default": "Default workspace"
+    },
+    {
+      "key": "workspace_id",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Optional pinned workspace identity; a bound database refuses a different identity"
+    },
+    {
+      "key": "projects",
+      "kind": "string_list",
+      "required": true,
+      "secret": false,
+      "description": "Projects registered under the workspace, with historical identifiers preserved verbatim"
+    },
+    {
+      "key": "profiles",
+      "kind": "object",
+      "required": false,
+      "secret": false,
+      "description": "Integration profiles seeded by configuration, keyed by profile id: kind, auth_mode, bound_project, service_subject, permission_ceiling, allowed_origins, resource_types, secret_reference (a name, never a value)"
+    },
+    {
+      "key": "grants",
+      "kind": "object",
+      "required": false,
+      "secret": false,
+      "description": "Explicit principal-to-project grants seeded by configuration, keyed by subject with project lists"
+    }
+  ],
+  "migrations": [
+    {
+      "id": "workspace-sqlite-v1",
+      "database": "sqlite",
+      "path": "migrations/sqlite"
+    }
+  ],
+  "retention": "none",
+  "runtimes": [
+    "native"
+  ],
+  "schema": 1,
+  "stability": "experimental"
+}

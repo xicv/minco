@@ -103,6 +103,10 @@ pub use minco_plugin_feedback as plugin_feedback;
 /// Official project-scoped support Ticketing plugin.
 pub use minco_plugin_ticketing as plugin_ticketing;
 
+#[cfg(feature = "plugin-workspace")]
+/// Official workspace/project isolation plugin.
+pub use minco_plugin_workspace as plugin_workspace;
+
 #[cfg(feature = "plugin-static-site")]
 /// Official provider-neutral static-site deployment plugin.
 pub use minco_plugin_static_site as plugin_static_site;
@@ -221,6 +225,9 @@ fn register_enabled_plugins(manager: &mut core::PluginManager) -> Result<(), cor
 
     #[cfg(feature = "plugin-ticketing")]
     manager.register(plugin_ticketing::TicketingPlugin::memory())?;
+
+    #[cfg(feature = "plugin-workspace")]
+    manager.register(plugin_workspace::WorkspacePlugin::memory())?;
 
     #[cfg(feature = "plugin-static-site")]
     manager.register(plugin_static_site::StaticSitePlugin::default())?;
