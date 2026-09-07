@@ -9399,8 +9399,8 @@
     },
     {
       "path": "tasks/M15/M15-T01-desk-isolation-foundation.md",
-      "sha256": "5f03d03b1a463cf3c23ac523ece38f8af6808822d8905d6f0b217656f8c5f3b5",
-      "size_bytes": 23351
+      "sha256": "f21ce1d5927783c486e4fc3de3136f1e895605c0fed1a2301cd49a9b087ed881",
+      "size_bytes": 25500
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9854,7 +9854,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "42d51e5e36b38b95ee9583d5a72ee1ee89dbaa9be1a4a0efe8bb5b0e52fa9f68",
-  "total_size_bytes": 15366661,
+  "source_tree_sha256": "fec0738701e4ead9061fea3ae84e77307f5e7cb5e7f4bc08b6edc86cc7be9b35",
+  "total_size_bytes": 15368810,
   "version": "1.12.0"
 }
