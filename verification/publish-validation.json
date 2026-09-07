@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": "ok",
   "errors": 0,
-  "warnings": 0,
+  "warnings": 1,
   "metrics": {
     "publish_order": [
       "minco-core",
@@ -60,9 +60,9 @@
       "minco-plugin-ticketing"
     ],
     "workspace_version": "1.12.0",
-    "workspace_packages": 43,
+    "workspace_packages": 44,
     "publishable_packages": 37,
-    "private_packages": 6,
+    "private_packages": 7,
     "publishable_names": [
       "cargo-minco",
       "minco",
@@ -104,6 +104,7 @@
     ],
     "private_names": [
       "minco-desk-example",
+      "minco-plugin-workspace",
       "orders-adapters",
       "orders-api",
       "orders-application",
@@ -116,7 +117,14 @@
     "expect_published": false,
     "require_registry": false
   },
-  "findings": [],
+  "findings": [
+    {
+      "code": "PUBLISH-010",
+      "severity": "warning",
+      "message": "non-example package minco-plugin-workspace is private; confirm this is intentional",
+      "path": "plugins/minco-plugin-workspace/Cargo.toml"
+    }
+  ],
   "limitations": [
     "This validator does not normalize Cargo manifests or compile packaged crates.",
     "Run cargo publish --dry-run for the complete selected package set before upload."

@@ -355,3 +355,39 @@ passed / 0 failed (ticketing 158, desk 24, workspace plugin 27); clippy
 and fmt clean; `plugin validate` `[]`; `source_manifest.py` (1959 files,
 `f26e7706…a8f2`); `validate_static.py` ok 0/0. Remaining for ISO-7: the
 full release-controller qualification at the frozen final head.
+
+### ISO-7 qualification status (2026-09-07, open)
+
+Three `bash scripts/ci/local-release.sh` runs against the task tree:
+
+1. Run 1 aborted in `quality.sh` at `generate-reference.sh --check`:
+   `docs/reference/generated/plugins.md` and `schemas.md` were stale
+   after the ticketing descriptor gained the isolation configuration
+   fields — regenerated and committed (`02419c86`). The gate caught a
+   real omission.
+2. Run 2 aborted at `RELEASE-IDENTITY-004` (stale projection). Fixed by
+   the disclosed evidence-only rebind chain (`e81066a1`, `61ea33b0`):
+   `release-identity.json` regenerated, `source-manifest.json` rewritten
+   (`86fb2bee…def4a0`), the 1.9 performance baseline's `source_tree_sha256`
+   rebound to that digest, and the operational-evidence receipt
+   regenerated to PASS. No new measurement, hosted run, or provider
+   contact is claimed — hosted Linux performance evidence and live-AWS
+   qualification remain NOT RUN (carried warnings, exactly as on the
+   merged tree).
+3. Run 3 passed every stage up to `scripts/test/feedback_browser.sh`
+   (the static validators, receipts chain, unit suites, docs, snippets
+   and shell portability all green) and aborted in the feedback widget's
+   firefox browser tests on 15-second locator timeouts.
+
+The browser failure is environmental, not a property of this tree:
+the identical suite fails identically on the merged `main` tree
+(`d7939910`, 20 failed / 20 passed), chromium passes 20/20 on this tree,
+and firefox failure counts tracked the machine load minute by minute
+(20 failures at load ~350, 3 at load ~72, 17 at load ~110) — the load
+comes from iOS Simulator processes of another project on this machine
+(`OKLens-CI…` device; one CoreSimulator process at ~780% CPU that
+reboots itself after `xcrun simctl shutdown all`). No gate was modified
+and no failure is converted into a pass: ISO-7's complete-controller
+exit 0 remains OPEN until the machine is calm enough for the firefox
+suite to run at parity with the merged tree's last green controller run
+(M14-T74 r9).
