@@ -1409,8 +1409,8 @@ impl TicketingStore for SqliteTicketingStore {
                 let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
                 let inserted = sqlx::query(
                     "INSERT INTO ticketing_session_exchange_grants
-                     (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at, generation, revoked_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+                     (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at, generation, revoked_at, workspace_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
                      ON CONFLICT(exchange_key) DO NOTHING",
                 )
                 .bind(&grant.exchange_key)
@@ -1421,6 +1421,7 @@ impl TicketingStore for SqliteTicketingStore {
                 .bind(&grant.portal_origin)
                 .bind(grant.expires_at.to_rfc3339())
                 .bind(grant.created_at.to_rfc3339())
+                .bind(&grant.workspace_id)
                 .execute(&mut *transaction)
                 .await
                 .map_err(infrastructure)?;
@@ -1455,7 +1456,7 @@ impl TicketingStore for SqliteTicketingStore {
                     sqlx::query(
                         "UPDATE ticketing_session_exchange_grants
                         SET session_id = ?, subject = ?, project_id = ?, permissions = ?,
-                            portal_origin = ?, generation = generation + 1
+                            portal_origin = ?, generation = generation + 1, workspace_id = ?
                       WHERE exchange_key = ? AND generation = ?
                         AND revoked_at IS NULL AND rotation_staged_session_id IS NULL",
                     )
@@ -1464,6 +1465,7 @@ impl TicketingStore for SqliteTicketingStore {
                     .bind(&grant.project_id)
                     .bind(grant.permissions.join(","))
                     .bind(&grant.portal_origin)
+                    .bind(&grant.workspace_id)
                     .bind(&grant.exchange_key)
                     .bind(i64::try_from(current.generation).map_err(|_| {
                         TicketStoreError::Infrastructure("generation overflow".into())
@@ -1543,7 +1545,7 @@ impl TicketingStore for SqliteTicketingStore {
         let row = sqlx::query(
             "SELECT exchange_key, session_id, subject, project_id, permissions,
                     portal_origin, expires_at, created_at, generation, revoked_at,
-                    rotation_staged_session_id
+                    rotation_staged_session_id, workspace_id
                FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
         )
         .bind(exchange_key)
@@ -2585,6 +2587,7 @@ fn parse_grant_row(
                 })
             })
             .transpose()?,
+        workspace_id: row.get("workspace_id"),
     })
 }
 
@@ -4377,6 +4380,7 @@ mod tests {
             created_at: Utc::now(),
             revoked_at: None,
             rotation_staged_session_id: None,
+            workspace_id: None,
         }
     }
 

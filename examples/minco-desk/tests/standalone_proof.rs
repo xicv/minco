@@ -283,7 +283,10 @@ async fn workspace_provisioning_binds_once_and_survives_rebuilds() {
             .fetch_one(&pool)
             .await
             .expect("workspace ledger row count");
-    assert_eq!(workspace_rows, 1, "the workspace ledger owns its migration");
+    assert_eq!(
+        workspace_rows, 2,
+        "the workspace ledger owns its migrations"
+    );
     let binding: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM workspace_deployment_binding")
         .fetch_one(&pool)
         .await

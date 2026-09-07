@@ -308,6 +308,13 @@ pub struct SessionExchangeGrant {
     /// cleared) instead of leaking a second live bearer. `None` outside
     /// an in-flight rotation.
     pub rotation_staged_session_id: Option<minco_plugin_sessions::SessionId>,
+    /// Authoritative workspace binding (round 1 finding 1): the workspace
+    /// identity this grant was issued under, persisted with the grant so
+    /// resolution and rotation validate against the artifact rather than
+    /// deriving authority from the receiving service's configuration.
+    /// `None` for legacy grants written before isolation; the upgrade
+    /// inventory binds them explicitly.
+    pub workspace_id: Option<String>,
 }
 
 /// One atomic pool-mode assignment request (exact-head review R7).
@@ -3501,6 +3508,7 @@ mod tests {
             created_at: Utc::now(),
             revoked_at: None,
             rotation_staged_session_id: None,
+            workspace_id: None,
         }
     }
 

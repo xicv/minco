@@ -2282,6 +2282,21 @@ impl TicketingService {
         if bound_project != &self.config.project_id {
             return Err(TicketingServiceError::SessionUnauthenticated);
         }
+        // Persisted workspace binding (round 1 finding 1): under
+        // isolation the session must carry the workspace attribute it was
+        // issued with, and it must equal this deployment's binding. A
+        // legacy session without the attribute is invalidated — the
+        // handoff grant (backfilled during the upgrade inventory) can
+        // mint a bound replacement.
+        if self.config.workspace_isolation {
+            let bound_workspace = record
+                .attributes
+                .get("ticketing.workspace")
+                .ok_or(TicketingServiceError::SessionUnauthenticated)?;
+            if Some(bound_workspace.as_str()) != self.config.workspace_id.as_deref() {
+                return Err(TicketingServiceError::SessionUnauthenticated);
+            }
+        }
         let permissions = record
             .attributes
             .get("ticketing.permissions")
@@ -2390,17 +2405,12 @@ impl TicketingService {
             .issue(minco_plugin_sessions::CreateSession {
                 subject: identity.requester_subject.clone(),
                 ttl: TimeDelta::seconds(self.config.requester_session_ttl_seconds),
-                attributes: BTreeMap::from([
-                    ("ticketing.project".into(), project_id),
-                    ("ticketing.portal_origin".into(), portal_origin.to_owned()),
-                    (
-                        "ticketing.permissions".into(),
-                        identity.requester_permissions.join(","),
-                    ),
-                    // The exchange key rides the session so logout can
-                    // revoke the replay authority (exact-head review R20).
-                    ("ticketing.exchange_key".into(), exchange_key.to_owned()),
-                ]),
+                attributes: self.session_attributes(
+                    project_id,
+                    portal_origin,
+                    &identity.requester_permissions,
+                    exchange_key,
+                ),
             })
             .await
             .map_err(|error| {
@@ -2425,6 +2435,58 @@ impl TicketingService {
     /// and revokes the replaced session — surfacing every failure. A
     /// stale worker that lost its lease observes a newer generation and
     /// leaves the winner's grant untouched.
+    /// Session attributes stamped at every issuance point (round 1
+    /// finding 1): project, portal origin, permissions, exchange key —
+    /// and, under isolation, the deployment's workspace identity so
+    /// resolution validates a persisted binding instead of deriving one
+    /// from the receiving service's configuration.
+    fn session_attributes(
+        &self,
+        project_id: String,
+        portal_origin: &str,
+        permissions: &[String],
+        exchange_key: &str,
+    ) -> BTreeMap<String, String> {
+        let mut attributes = BTreeMap::from([
+            ("ticketing.project".to_owned(), project_id),
+            (
+                "ticketing.portal_origin".to_owned(),
+                portal_origin.to_owned(),
+            ),
+            ("ticketing.permissions".to_owned(), permissions.join(",")),
+            ("ticketing.exchange_key".to_owned(), exchange_key.to_owned()),
+        ]);
+        if self.config.workspace_isolation
+            && let Some(workspace) = self.config.workspace_id.as_deref()
+        {
+            attributes.insert("ticketing.workspace".to_owned(), workspace.to_owned());
+        }
+        attributes
+    }
+
+    /// Session-exchange grants are scoped artifacts (round 1 finding 1):
+    /// before any effect — fenced write, rotation, revocation, removal,
+    /// or recovery — the loaded grant must belong to this service's
+    /// configured project, and under isolation its persisted workspace
+    /// binding must match. A foreign grant is denied and untouched.
+    fn require_grant_ownership(
+        &self,
+        grant: &crate::SessionExchangeGrant,
+    ) -> Result<(), TicketingServiceError> {
+        if grant.project_id != self.config.project_id {
+            return Err(TicketingServiceError::ProjectDenied);
+        }
+        if let (true, Some(expected), Some(bound)) = (
+            self.config.workspace_isolation,
+            self.config.workspace_id.as_deref(),
+            grant.workspace_id.as_deref(),
+        ) && bound != expected
+        {
+            return Err(TicketingServiceError::ScopeDenied);
+        }
+        Ok(())
+    }
+
     pub async fn record_session_exchange_grant(
         &self,
         exchange_key: &str,
@@ -2439,6 +2501,11 @@ impl TicketingService {
             .session_exchange_grant(exchange_key)
             .await
             .map_err(TicketingServiceError::from)?;
+        if let Some(grant) = &current {
+            // A foreign project's existing grant is never fenced-over
+            // by this service's exchange (round 1 finding 1).
+            self.require_grant_ownership(grant)?;
+        }
         let expected_generation = current.as_ref().map(|grant| grant.generation);
         let previous = current
             .filter(|grant| grant.session_id != session_id)
@@ -2458,6 +2525,7 @@ impl TicketingService {
                     created_at: Utc::now(),
                     revoked_at: None,
                     rotation_staged_session_id: None,
+                    workspace_id: self.config.workspace_id.clone(),
                 },
                 expected_generation,
             )
@@ -2507,6 +2575,10 @@ impl TicketingService {
             .await
             .map_err(TicketingServiceError::from)?
             .ok_or(TicketingServiceError::SessionUnauthenticated)?;
+        // Ownership precedes every effect (round 1 finding 1): a
+        // wrong-project or wrong-workspace service can neither rotate,
+        // revoke, nor recover another deployment's grant.
+        self.require_grant_ownership(&grant)?;
         // The FIXED replay deadline from the original exchange: rotations
         // never extend it (exact-head review R11); a revoked grant (logout)
         // can never mint another session (exact-head review R20).
@@ -2547,19 +2619,26 @@ impl TicketingService {
         // A mint failure leaves the grant pointing at the (now revoked)
         // previous session: safe — zero live bearers — and the next replay
         // recovers by minting a replacement.
+        let permissions = grant.permissions.clone();
         let issued = sessions
             .issue(minco_plugin_sessions::CreateSession {
                 subject: grant.subject.clone(),
                 ttl: TimeDelta::seconds(self.config.requester_session_ttl_seconds),
-                attributes: BTreeMap::from([
-                    ("ticketing.project".into(), grant.project_id.clone()),
-                    (
-                        "ticketing.portal_origin".into(),
-                        grant.portal_origin.clone(),
-                    ),
-                    ("ticketing.permissions".into(), grant.permissions.join(",")),
-                    ("ticketing.exchange_key".into(), grant.exchange_key.clone()),
-                ]),
+                attributes: {
+                    let mut attributes = self.session_attributes(
+                        grant.project_id.clone(),
+                        &grant.portal_origin,
+                        &permissions,
+                        &grant.exchange_key,
+                    );
+                    // The persisted grant's workspace binding wins over
+                    // configuration (round 1 finding 1): the artifact's
+                    // authority is what the next resolution validates.
+                    if let Some(bound) = grant.workspace_id.as_deref() {
+                        attributes.insert("ticketing.workspace".into(), bound.to_owned());
+                    }
+                    attributes
+                },
             })
             .await
             .map_err(|error| {
@@ -2654,6 +2733,16 @@ impl TicketingService {
         let Some(exchange_key) = attributes.get("ticketing.exchange_key") else {
             return Ok(());
         };
+        // Ownership precedes the revocation effect (round 1 finding 1):
+        // logout from this service can only revoke this project's grant.
+        if let Some(grant) = self
+            .store
+            .session_exchange_grant(exchange_key)
+            .await
+            .map_err(TicketingServiceError::from)?
+        {
+            self.require_grant_ownership(&grant)?;
+        }
         self.store
             .revoke_session_exchange(exchange_key, Utc::now())
             .await
@@ -2671,6 +2760,17 @@ impl TicketingService {
         exchange_key: &str,
         session_id: minco_plugin_sessions::SessionId,
     ) -> Result<(), TicketingServiceError> {
+        // Ownership precedes both effects (round 1 finding 1): a failed
+        // exchange in this service can never revoke another project's
+        // session or remove its grant.
+        if let Some(grant) = self
+            .store
+            .session_exchange_grant(exchange_key)
+            .await
+            .map_err(TicketingServiceError::from)?
+        {
+            self.require_grant_ownership(&grant)?;
+        }
         if let Some(sessions) = self.portal.sessions.as_ref() {
             sessions.revoke(session_id).await.map_err(|error| {
                 TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(

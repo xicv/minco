@@ -99,6 +99,125 @@ async fn a_whitespace_project_identifier_boots_and_serves_losslessly() {
 }
 
 #[tokio::test]
+async fn a_wrong_project_service_cannot_touch_another_projects_exchange_grant() {
+    // Round 1 finding 1: two project-bound services over the SAME real
+    // SQLite database and session store. A wrong-project (or
+    // wrong-workspace) service can neither rotate, revoke, abandon, nor
+    // fence-overwrite the other's exchange grant, and every affected
+    // record stays unchanged.
+    let directory = tempfile::tempdir().expect("temp dir");
+    let url = format!(
+        "sqlite://{}?mode=rwc",
+        directory.path().join("shared.sqlite").display()
+    );
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(4)
+        .connect(&url)
+        .await
+        .expect("shared pool");
+    minco_sqlx_sqlite::plugin_adapters::migrate_plugin_storage(&pool)
+        .await
+        .expect("plugin storage");
+    minco_plugin_ticketing::SqliteTicketingStore::new(pool.clone())
+        .migrate()
+        .await
+        .expect("ticketing migrations");
+    let store = minco_plugin_ticketing::TicketingStoreService::new(std::sync::Arc::new(
+        minco_plugin_ticketing::SqliteTicketingStore::new(pool.clone()),
+    ));
+    let sessions = std::sync::Arc::new(minco_plugin_sessions::SessionService::new(
+        std::sync::Arc::new(minco_sqlx_sqlite::plugin_adapters::SqliteSessionStore::new(
+            pool.clone(),
+        )),
+    ));
+    let csrf = std::sync::Arc::new(
+        minco_plugin_sessions::CsrfService::new("csrf-secret-of-sufficient-length!!")
+            .expect("csrf"),
+    );
+    let service = |project: &str, workspace: Option<&str>| {
+        minco_plugin_ticketing::TicketingService::new(
+            store.clone(),
+            minco_plugin_ticketing::TicketingConfig {
+                project_id: project.into(),
+                portal_origin: "https://support.example.test".into(),
+                workspace_isolation: workspace.is_some(),
+                workspace_id: workspace.map(str::to_owned),
+                ..minco_plugin_ticketing::TicketingConfig::default()
+            },
+        )
+        .expect("service")
+        .with_portal_services(minco_plugin_ticketing::TicketingPortalServices {
+            sessions: Some(sessions.clone()),
+            csrf: Some(csrf.clone()),
+            ..Default::default()
+        })
+    };
+    let a = service("project-a", Some("ws-shared"));
+    let b = service("project-b", Some("ws-shared"));
+    let c = service("project-a", Some("ws-other"));
+
+    // Project A records its grant for a freshly issued session.
+    let session_id = minco_plugin_sessions::SessionId(uuid::Uuid::new_v4());
+    a.record_session_exchange_grant(
+        "key-a",
+        session_id,
+        "requester-a",
+        "https://support.example.test",
+        vec!["ticketing.requester.read".into()],
+        chrono::Utc::now() + chrono::TimeDelta::minutes(10),
+    )
+    .await
+    .expect("A records its grant");
+
+    // B (wrong project) and C (wrong workspace) are denied on every
+    // effectful operation, before any effect.
+    let foreign_session = minco_plugin_sessions::SessionId(uuid::Uuid::new_v4());
+    assert!(b.rotate_session_exchange("key-a").await.is_err());
+    assert!(
+        b.record_session_exchange_grant(
+            "key-a",
+            foreign_session,
+            "attacker",
+            "https://evil.example.test",
+            vec!["ticketing.manage".into()],
+            chrono::Utc::now() + chrono::TimeDelta::minutes(10),
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        b.revoke_exchange_for_logout(&BTreeMap::from([(
+            "ticketing.exchange_key".to_owned(),
+            "key-a".to_owned(),
+        )]))
+        .await
+        .is_err()
+    );
+    assert!(
+        b.abandon_session_exchange(
+            "key-a",
+            minco_plugin_sessions::SessionId(uuid::Uuid::new_v4())
+        )
+        .await
+        .is_err()
+    );
+    assert!(c.rotate_session_exchange("key-a").await.is_err());
+
+    // The grant is unchanged: same session, generation, liveness, and
+    // workspace binding.
+    let grant = store
+        .session_exchange_grant("key-a")
+        .await
+        .expect("grant read")
+        .expect("grant exists");
+    assert_eq!(grant.session_id, session_id);
+    assert_eq!(grant.generation, 0);
+    assert!(grant.revoked_at.is_none());
+    assert_eq!(grant.project_id, "project-a");
+    assert_eq!(grant.workspace_id.as_deref(), Some("ws-shared"));
+}
+
+#[tokio::test]
 async fn upgrading_a_pre_isolation_database_preserves_data_checksums_and_ledgers() {
     // ISO-5: a populated database produced by the pre-isolation stack
     // (plugin storage + ticketing migrations, a real legacy writer, no
@@ -196,7 +315,10 @@ async fn upgrading_a_pre_isolation_database_preserves_data_checksums_and_ledgers
             .fetch_one(&pool)
             .await
             .expect("workspace ledger rows");
-    assert_eq!(workspace_rows, 1);
+    assert_eq!(
+        workspace_rows, 2,
+        "the workspace ledger owns its migrations"
+    );
     let registered: Vec<String> = sqlx::query_scalar("SELECT project_id FROM workspace_projects")
         .fetch_all(&pool)
         .await
