@@ -787,15 +787,19 @@ impl TicketingStore for SqliteTicketingStore {
 
     async fn mark_activity_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: chrono::DateTime<chrono::Utc>,
     ) -> Result<bool, TicketStoreError> {
+        // Project-bound statement (ADR-0076): a foreign project's intent
+        // id updates nothing.
         let result = sqlx::query(
             "UPDATE ticketing_activity_intents SET published_at = ?
-              WHERE id = ? AND published_at IS NULL",
+              WHERE id = ? AND project_id = ? AND published_at IS NULL",
         )
         .bind(at.to_rfc3339())
         .bind(intent_id.to_string())
+        .bind(project_id)
         .execute(&self.pool)
         .await
         .map_err(infrastructure)?;
@@ -824,15 +828,19 @@ impl TicketingStore for SqliteTicketingStore {
 
     async fn mark_audit_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: chrono::DateTime<chrono::Utc>,
     ) -> Result<bool, TicketStoreError> {
+        // Project-bound statement (ADR-0076): a foreign project's intent
+        // id updates nothing.
         let result = sqlx::query(
             "UPDATE ticketing_activity_intents SET audit_published_at = ?
-              WHERE id = ? AND audit_published_at IS NULL",
+              WHERE id = ? AND project_id = ? AND audit_published_at IS NULL",
         )
         .bind(at.to_rfc3339())
         .bind(intent_id.to_string())
+        .bind(project_id)
         .execute(&self.pool)
         .await
         .map_err(infrastructure)?;
@@ -4225,16 +4233,32 @@ mod tests {
 
         assert!(
             sqlite
-                .mark_activity_published(pending[0].id, now)
+                .mark_activity_published("project-a", pending[0].id, now)
                 .await
                 .unwrap()
         );
         // Idempotent mark: a second mark reports false.
         assert!(
             !sqlite
-                .mark_activity_published(pending[0].id, now)
+                .mark_activity_published("project-a", pending[0].id, now)
                 .await
                 .unwrap()
+        );
+        // A foreign project's mark is a no-op, never an escape (ADR-0076):
+        // the intent stays pending for its own project.
+        assert!(
+            !sqlite
+                .mark_audit_published("project-b", pending[0].id, now)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            sqlite
+                .pending_audit_intents("project-a", 10)
+                .await
+                .unwrap()
+                .len(),
+            1
         );
         assert!(
             sqlite

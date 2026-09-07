@@ -1,6 +1,6 @@
 {
   "artifact": "minco-cargo-ready-source",
-  "file_count": 1958,
+  "file_count": 1959,
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -6094,8 +6094,8 @@
     },
     {
       "path": "examples/minco-desk/src/lib.rs",
-      "sha256": "ed168833ee3783114ab240820ef094f375a4f09927c320418058c160607d7706",
-      "size_bytes": 52319
+      "sha256": "0c45a2ab1c84e6493f15edf83fcbc5bdb6e6a715d13059d868691f7389539786",
+      "size_bytes": 53668
     },
     {
       "path": "examples/minco-desk/tests/data_lifecycle_proofs.rs",
@@ -6106,6 +6106,11 @@
       "path": "examples/minco-desk/tests/desk_durability_proofs.rs",
       "sha256": "dca7915ef42b3dc9588ba7e51a9672468a046c5bebcf8df48c71f90ec773ccef",
       "size_bytes": 15237
+    },
+    {
+      "path": "examples/minco-desk/tests/isolation_proofs.rs",
+      "sha256": "416c5de69279c125f9d364ba8b4c2b6bbfa30ed336cc65f935fe7a1f0e092c23",
+      "size_bytes": 19691
     },
     {
       "path": "examples/minco-desk/tests/operational_readiness_proofs.rs",
@@ -7909,8 +7914,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "sha256": "7f9eed058f06f2682f60e587f17d4d4e8bae7e564712a4fafa2e0acb73b77103",
-      "size_bytes": 183042
+      "sha256": "7e0cd5f8a6c5d6bb40792a0c32fd30b6bf6f9ea561e25cb4ad87b03710957808",
+      "size_bytes": 183914
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/plugin.rs",
@@ -7919,13 +7924,13 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/service.rs",
-      "sha256": "29382d74a0cc3b08faeab9ecc58eab6549493bf7eacc3e389ef72ab3ed2cbdf4",
-      "size_bytes": 209209
+      "sha256": "05ea0118ea9f00a3c2104e74f6a70a29929a06c864bb6f6ae8dacebb4448cb2a",
+      "size_bytes": 209233
     },
     {
       "path": "plugins/minco-plugin-ticketing/src/store.rs",
-      "sha256": "f613dd09179590666bf4948e229cbe9d5695c5167127ea252f962bb1ee4225a4",
-      "size_bytes": 128237
+      "sha256": "09fad3d0a7cc00e42a3236a7a4b70cfe32898751386a62e2da00c708366c954b",
+      "size_bytes": 129210
     },
     {
       "path": "plugins/minco-plugin-workspace/Cargo.toml",
@@ -9394,8 +9399,8 @@
     },
     {
       "path": "tasks/M15/M15-T01-desk-isolation-foundation.md",
-      "sha256": "c1dfccc429a8360d8b60b7d510c9286d9b456ba80c367a2ed3523a4c0cfb5bda",
-      "size_bytes": 15950
+      "sha256": "16093508cb569398cd58e80a878b551fce1ce1d065593a6b9992114ac29f4f12",
+      "size_bytes": 18214
     },
     {
       "path": "tasks/M2/M2-T01-plugin-kernel.md",
@@ -9849,7 +9854,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "025dd9fb0a7874e7a34d591cd0b91f9ae6f7c52987bcd79fc5e07c9123d1c4bb",
-  "total_size_bytes": 15337146,
+  "source_tree_sha256": "f26e770601d7d640b84ab834cf49ca2765213434ab6a414af66b7c12ca49a8f2",
+  "total_size_bytes": 15362319,
   "version": "1.12.0"
 }

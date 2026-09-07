@@ -20,6 +20,30 @@
 //! project verbatim, and resolves the service-principal scope once —
 //! the bearer middleware then injects that checked, scope-carrying
 //! principal instead of minting one.
+//!
+//! # Route inventory (ADR-0076)
+//!
+//! Every route the desk serves falls into exactly one class:
+//!
+//! - **Business routes** (the ticketing agent, requester, ingest,
+//!   integrate, ai-context, console, search, views, macros,
+//!   clarifications, automation and management operations under
+//!   `/_minco/ticketing`) require a resolved scoped caller: the bearer
+//!   path injects the provisioned desk-agent principal, and requester
+//!   paths resolve a session whose bound project was validated against
+//!   the registry. Scopeless or foreign-scoped principals are denied
+//!   with `ticketing_scope_denied` before any business effect.
+//! - **Session/handoff exchange routes** (`POST /handoffs/exchange`,
+//!   `POST /tickets/from-handoff`, `POST /requester/sessions`,
+//!   `POST /integrations/handoffs`, `POST /requester/logout`) validate
+//!   their own bound grant or credential — a one-time handoff token, a
+//!   handoff-minted session, or the integration permission — and never
+//!   require the session they are creating.
+//! - **Public assets, preflight and operational probes**
+//!   (`/support-entry.js`, `/bootstrap`, `/agent` console assets,
+//!   CORS preflights, `/live`, `/ready`) carry explicit public or
+//!   deployment-operational policies; no fabricated authenticated
+//!   identity is ever injected for them.
 #![forbid(unsafe_code)]
 
 use anyhow::{Context as _, Result};

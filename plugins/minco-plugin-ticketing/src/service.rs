@@ -2196,7 +2196,7 @@ impl TicketingService {
                         .map_err(infrastructure)?;
                     let _ = self
                         .store
-                        .mark_activity_published(intent.id, Utc::now())
+                        .mark_activity_published(project_id, intent.id, Utc::now())
                         .await?;
                     published += 1;
                 }
@@ -2252,7 +2252,7 @@ impl TicketingService {
             })?;
             let _ = self
                 .store
-                .mark_audit_published(intent.id, Utc::now())
+                .mark_audit_published(project_id, intent.id, Utc::now())
                 .await?;
             delivered += 1;
         }

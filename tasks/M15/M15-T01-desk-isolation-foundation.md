@@ -169,13 +169,34 @@ ACs). Required evidence per criterion:
   desk enables isolation with the provisioned workspace id. Remaining:
   project parameters on the mark-published store methods and the
   route-class inventory documentation, landing with the ISO evidence.)
+  (2026-09-07, completed: `mark_activity_published`/`mark_audit_published`
+  are project-bound at the port, the memory store, and the SQLite
+  statement (a foreign project's intent id updates nothing — proven at
+  the adapter level); the route-class inventory is documented in the
+  desk crate docs.)
 - [ ] Compatibility: additive scoped constructors/facades; no legacy API
   escape hatch from isolated mode; standalone-consumer behavior verified.
 - [ ] Neutrality: intentional-token static scan over the new plugin,
   Ticketing/Desk source, migrations, and contract surfaces; dependency/
   contract boundary inspection; neutral behavioral fixtures.
+  (Partial, 2026-09-07: the intentional-token gate and the neutral
+  two-fixture proof are implemented in
+  `examples/minco-desk/tests/isolation_proofs.rs`; the dependency/
+  contract boundary holds by construction — the workspace plugin pulls
+  no product adapter/schema/role vocabulary, and ticketing's new
+  dependency on it is scope types only.)
 - [ ] ISO-1…ISO-7 evidence (including the two-workspace colliding-ID and
   populated-database upgrade proofs).
+  (Partial, 2026-09-07: ISO-1 desk proofs, the ISO-2/3 enforcement and
+  colliding-identifier proofs (two desks, same project id, credential,
+  requester and ticket subject — each sees only its own rows and the
+  foreign ticket 404s), the ISO-5 populated-database upgrade proof
+  (pre-isolation stack migrators + a real legacy writer; published
+  ticketing checksums byte-identical before/after; the workspace
+  registry arrives under its own ledger; the legacy project registers
+  verbatim and the legacy ticket serves through the isolated stack), and
+  the ISO-6 neutrality gate all pass in `isolation_proofs.rs`. ISO-7 is
+  the final-head release qualification.)
 - [ ] Full quality, plugin validation, and local release qualification at
   the final head; record exact commands and results; draft PR and candidate
   review loop.
@@ -306,3 +327,31 @@ business routes while the bearer path passes), workspace plugin 27;
 combined 205 passed / 0 failed; clippy and fmt clean; `plugin validate`
 `[]`; `plugin doctor` passed; `source_manifest.py` (`025dd9fb…c4bb`);
 `validate_static.py` ok 0/0.
+
+### Persistence binding and ISO evidence slice (2026-09-07)
+
+`mark_activity_published`/`mark_audit_published` are project-bound at
+the port, the memory store, and the SQLite statement — a foreign
+project's intent id updates nothing (adapter proof asserts the no-op and
+that the intent stays pending for its own project). The route-class
+inventory (business / session-handoff exchange / public-asset-probe) is
+documented in the desk crate docs. New
+`examples/minco-desk/tests/isolation_proofs.rs` carries the acceptance
+evidence: the ISO-5 upgrade proof (pre-isolation stack: both merged-tree
+migrators plus a real legacy isolation-off writer; the isolated desk
+then upgrades with published ticketing checksums byte-identical, the
+workspace registry arriving under its own ledger, the legacy project
+registered verbatim, and the legacy ticket serving through the isolated
+stack), the ISO-3 colliding-identifier proof (two desks with identical
+project id, credential, requester subject and ticket subject — distinct
+workspace identities, each listing exactly its own row, the foreign
+ticket 404), the ISO-6 neutral two-fixture proof (two fictional
+integrations in one workspace resolving distinct bounded scopes with
+per-project grants), and the ISO-6 product-neutrality gate
+(intentional-token scan over the workspace plugin, ticketing
+source/migrations, and desk source/tests; the gate's own token list is
+the single documented exception). Gates at this slice: combined 209
+passed / 0 failed (ticketing 158, desk 24, workspace plugin 27); clippy
+and fmt clean; `plugin validate` `[]`; `source_manifest.py` (1959 files,
+`f26e7706…a8f2`); `validate_static.py` ok 0/0. Remaining for ISO-7: the
+full release-controller qualification at the frozen final head.

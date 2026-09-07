@@ -467,9 +467,11 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
     ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
 
     /// Marks one intent published; `false` when it was already published
-    /// or is unknown.
+    /// or is unknown. The statement is project-bound (ADR-0076): a
+    /// foreign project's intent id is a no-op, never an escape.
     async fn mark_activity_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
@@ -483,9 +485,10 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
     ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
 
     /// Marks one intent's audit record delivered; `false` when it was
-    /// already delivered or is unknown.
+    /// already delivered or is unknown. Project-bound like its sibling.
     async fn mark_audit_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
@@ -956,18 +959,22 @@ impl TicketingStoreService {
 
     pub async fn mark_audit_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
-        self.0.mark_audit_published(intent_id, at).await
+        self.0.mark_audit_published(project_id, intent_id, at).await
     }
 
     pub async fn mark_activity_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
-        self.0.mark_activity_published(intent_id, at).await
+        self.0
+            .mark_activity_published(project_id, intent_id, at)
+            .await
     }
 
     pub async fn find_ticket_by_message_identity(
@@ -2216,19 +2223,40 @@ impl TicketingStore for MemoryTicketingStore {
 
     async fn mark_audit_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         _at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
         let mut state = self.state.lock().await;
+        // Project-bound (ADR-0076): only an intent of this project can be
+        // marked.
+        if !state
+            .activity_intents
+            .iter()
+            .any(|intent| intent.id == intent_id && intent.project_id == project_id)
+        {
+            return Ok(false);
+        }
         Ok(state.audit_published_intents.insert(intent_id))
     }
 
     async fn mark_activity_published(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         _at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
-        Ok(self.state.lock().await.published_intents.insert(intent_id))
+        let mut state = self.state.lock().await;
+        // Project-bound (ADR-0076): only an intent of this project can be
+        // marked.
+        if !state
+            .activity_intents
+            .iter()
+            .any(|intent| intent.id == intent_id && intent.project_id == project_id)
+        {
+            return Ok(false);
+        }
+        Ok(state.published_intents.insert(intent_id))
     }
 
     async fn find_ticket_by_message_identity(
