@@ -283,6 +283,21 @@ impl WorkspaceStore for SqliteWorkspaceStore {
             .execute(&mut *transaction)
             .await
             .map_err(database_error)?;
+            // Provision history is retained permanently (round 1
+            // finding 2): INSERT OR IGNORE keeps the first provisioning
+            // timestamp while tolerating re-seeds after explicit
+            // reconciliation.
+            sqlx::query(
+                "INSERT OR IGNORE INTO workspace_profile_history
+                 (profile_id, workspace_id, provisioned_at)
+                 VALUES (?, ?, ?)",
+            )
+            .bind(profile.id.as_str())
+            .bind(&workspace)
+            .bind(Utc::now().to_rfc3339())
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error)?;
         }
         for grant in &plan.grants {
             if grant.workspace.as_str() != workspace {
@@ -361,6 +376,21 @@ impl WorkspaceStore for SqliteWorkspaceStore {
         rows.into_iter().map(parse_profile).collect()
     }
 
+    async fn profile_history(
+        &self,
+        workspace: &WorkspaceId,
+    ) -> Result<std::collections::BTreeSet<String>, WorkspaceStoreError> {
+        let rows: Vec<String> = sqlx::query_scalar(
+            "SELECT profile_id FROM workspace_profile_history
+             WHERE workspace_id = ? ORDER BY profile_id",
+        )
+        .bind(workspace.as_str())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(database_error)?;
+        Ok(rows.into_iter().collect())
+    }
+
     async fn grants_for_subject(
         &self,
         workspace: &WorkspaceId,
@@ -436,7 +466,7 @@ mod tests {
     use super::*;
     use crate::{
         model::ProjectRegistration,
-        service::{ProfileSpec, WorkspaceConfig, WorkspaceService},
+        service::{ProfileSpec, WorkspaceConfig, WorkspaceError, WorkspaceService},
         store::WorkspaceStoreService,
     };
     use std::collections::BTreeSet;
@@ -608,5 +638,122 @@ mod tests {
             store.binding().await.expect("binding").is_none(),
             "the failed transaction must roll the binding back too"
         );
+    }
+
+    #[tokio::test]
+    async fn field_level_policy_drift_under_an_untouched_digest_fails_reconciliation() {
+        // Round 1 finding 2: tampering a persisted policy field while
+        // leaving the sealed digest unchanged must fail startup
+        // reconciliation, and resolution must never use the drifted
+        // values.
+        let (_directory, store) = store().await;
+        let service = WorkspaceService::new(WorkspaceStoreService::new(store.clone()), config())
+            .expect("valid configuration");
+        service.provision().await.expect("first provisioning");
+        sqlx::query(
+            "UPDATE workspace_profiles
+                SET permission_ceiling_json = '[\"ticketing.manage\"]'
+              WHERE profile_id = 'desk-agent'",
+        )
+        .execute(store.pool())
+        .await
+        .expect("tamper the persisted ceiling");
+        let error = service
+            .provision()
+            .await
+            .expect_err("drift must fail closed");
+        assert!(matches!(error, WorkspaceError::ReconciliationRequired(_)));
+        // Resolution is also denied for the drifted profile.
+        let resolution = service
+            .resolve_service_principal_scope(
+                &ProfileId::try_from("desk-agent".to_owned()).expect("valid"),
+            )
+            .await;
+        assert!(resolution.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_removed_profile_is_never_silently_recreated() {
+        // Round 1 finding 2: deleting a seeded profile row and restarting
+        // with the same configuration demands explicit reconciliation;
+        // the retained provision history distinguishes this from a
+        // genuinely new configuration seed.
+        let (_directory, store) = store().await;
+        let service = WorkspaceService::new(WorkspaceStoreService::new(store.clone()), config())
+            .expect("valid configuration");
+        service.provision().await.expect("first provisioning");
+        sqlx::query("DELETE FROM workspace_profiles WHERE profile_id = 'desk-agent'")
+            .execute(store.pool())
+            .await
+            .expect("remove the seeded profile");
+        let error = service
+            .provision()
+            .await
+            .expect_err("recreation must be refused");
+        let message = format!("{error}");
+        assert!(
+            matches!(error, WorkspaceError::ReconciliationRequired(_)),
+            "unexpected error: {message}"
+        );
+        assert!(message.contains("removed"), "message: {message}");
+        // A genuinely NEW configured profile still seeds cleanly.
+        let mut extended = config();
+        extended.profiles.insert(
+            ProfileId::try_from("desk-bff".to_owned()).expect("valid"),
+            ProfileSpec {
+                kind: ProfileKind::Portal,
+                auth_mode: ProfileAuthMode::PortalSession,
+                bound_project: ProjectId::try_from("desk".to_owned()).expect("valid"),
+                service_subject: "desk-portal".into(),
+                permission_ceiling: BTreeSet::new(),
+                allowed_origins: BTreeSet::new(),
+                resource_types: BTreeSet::new(),
+                secret_reference: None,
+            },
+        );
+        let grown = WorkspaceService::new(WorkspaceStoreService::new(store), extended)
+            .expect("valid configuration");
+        // Still refuses: the removed desk-agent remains configured.
+        assert!(grown.provision().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn an_unsupported_persisted_kind_fails_closed_on_load() {
+        // A persisted kind outside the supported taxonomy cannot resolve:
+        // tampering the kind also breaks the sealed digest, so
+        // reconciliation is demanded — fail closed either way.
+        let (_directory, store) = store().await;
+        let service = WorkspaceService::new(WorkspaceStoreService::new(store.clone()), config())
+            .expect("valid configuration");
+        service.provision().await.expect("first provisioning");
+        sqlx::query(
+            "UPDATE workspace_profiles SET kind = 'native_oidc' WHERE profile_id = 'desk-agent'",
+        )
+        .execute(store.pool())
+        .await
+        .expect("persist an unsupported kind");
+        let error = service
+            .resolve_service_principal_scope(
+                &ProfileId::try_from("desk-agent".to_owned()).expect("valid"),
+            )
+            .await
+            .expect_err("unsupported kind must fail closed");
+        assert!(
+            matches!(error, WorkspaceError::ReconciliationRequired(_)),
+            "{error}"
+        );
+        // A persisted kind with an UNKNOWN vocabulary word fails at the
+        // store parse itself.
+        sqlx::query(
+            "UPDATE workspace_profiles SET kind = 'not-a-kind' WHERE profile_id = 'desk-agent'",
+        )
+        .execute(store.pool())
+        .await
+        .expect("persist an unknown kind");
+        let error = service
+            .profile(&ProfileId::try_from("desk-agent".to_owned()).expect("valid"))
+            .await
+            .expect_err("unknown kind must fail the load");
+        assert!(matches!(error, WorkspaceError::Store(_)), "{error}");
     }
 }

@@ -330,6 +330,23 @@ impl WorkspaceService {
             .into_iter()
             .map(|profile| (profile.id.as_str().to_owned(), profile))
             .collect();
+        // Retained provisioning history (round 1 finding 2): a configured
+        // profile absent from the live registry but present in history
+        // was removed after provisioning and demands explicit
+        // reconciliation instead of silent recreation.
+        let profile_history = self.store.0.profile_history(&workspace_id).await?;
+        // Field-level integrity: the persisted policy fields must still
+        // match their own sealed digest. Drifted fields under an
+        // untouched digest tamper with authority and fail closed.
+        for (id, persisted) in &persisted_profiles {
+            if persisted.current_policy_digest() != persisted.policy_digest {
+                return Err(WorkspaceError::ReconciliationRequired(format!(
+                    "profile {id} persisted policy fields do not match its sealed digest \
+                     (field-level drift); restore the persisted policy or re-provision \
+                     explicitly"
+                )));
+            }
+        }
         let mut projects = Vec::new();
         for project in &self.config.projects {
             if !registered.contains(project.as_str()) {
@@ -344,6 +361,13 @@ impl WorkspaceService {
         for (id, spec) in &self.config.profiles {
             match persisted_profiles.get(id.as_str()) {
                 None => {
+                    if profile_history.contains(id.as_str()) {
+                        return Err(WorkspaceError::ReconciliationRequired(format!(
+                            "profile {id} was previously provisioned and has been removed; \
+                             restore the profile row or remove it from configuration \
+                             explicitly"
+                        )));
+                    }
                     profiles.push(Self::profile_from_spec(id, &workspace_id, spec));
                 }
                 Some(persisted) => Self::reconcile_profile(persisted, spec, id, &workspace_id)?,
@@ -482,12 +506,29 @@ impl WorkspaceService {
     /// Resolve the checked service-principal context for one profile. The
     /// composition calls this **after** verifying the profile's concrete
     /// credential; this method fails closed for unknown, foreign, or
-    /// disabled profiles and never widens the persisted ceiling.
+    /// disabled profiles, for persisted policy whose fields no longer
+    /// match their sealed digest, and for persisted kind/mode
+    /// combinations outside the supported taxonomy — it never widens
+    /// the persisted ceiling (round 1 finding 2).
     pub async fn resolve_service_principal_scope(
         &self,
         id: &ProfileId,
     ) -> Result<ServicePrincipalScope, WorkspaceError> {
         let profile = self.profile(id).await?;
+        if profile.current_policy_digest() != profile.policy_digest {
+            return Err(WorkspaceError::ReconciliationRequired(format!(
+                "profile {id} persisted policy fields do not match its sealed digest; \
+                 refusing to resolve drifted policy"
+            )));
+        }
+        if !profile.kind.supports(profile.auth_mode) {
+            return Err(WorkspaceError::ReconciliationRequired(format!(
+                "profile {id} persists an unsupported kind/mode combination \
+                 ({} / {}); reserved taxonomy fails closed",
+                profile.kind.as_str(),
+                profile.auth_mode.as_str()
+            )));
+        }
         if profile.status != ProfileStatus::Enabled {
             return Err(WorkspaceError::ProfileDisabled(id.clone()));
         }

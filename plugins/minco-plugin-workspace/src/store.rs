@@ -72,6 +72,15 @@ pub trait WorkspaceStore: Send + Sync + std::fmt::Debug {
         workspace: &WorkspaceId,
     ) -> Result<Vec<IntegrationProfile>, WorkspaceStoreError>;
 
+    /// Every profile id ever provisioned under one workspace (round 1
+    /// finding 2): retained history distinguishes a genuinely new
+    /// configuration seed from a previously provisioned profile that was
+    /// removed.
+    async fn profile_history(
+        &self,
+        workspace: &WorkspaceId,
+    ) -> Result<std::collections::BTreeSet<String>, WorkspaceStoreError>;
+
     /// Every grant one subject holds under a workspace.
     async fn grants_for_subject(
         &self,
@@ -113,6 +122,7 @@ struct MemoryState {
     projects: BTreeSet<(String, String)>,
     profiles: BTreeMap<String, IntegrationProfile>,
     grants: BTreeSet<(String, String, String)>,
+    profile_history: BTreeSet<(String, String)>,
 }
 
 /// Deterministic in-memory profile for application tests and the plugin's
@@ -223,6 +233,10 @@ impl WorkspaceStore for MemoryWorkspaceStore {
             state
                 .profiles
                 .insert(profile.id.as_str().to_owned(), profile.clone());
+            state.profile_history.insert((
+                workspace.as_str().to_owned(),
+                profile.id.as_str().to_owned(),
+            ));
         }
         for grant in &plan.grants {
             state.grants.insert((
@@ -273,6 +287,19 @@ impl WorkspaceStore for MemoryWorkspaceStore {
             .values()
             .filter(|profile| &profile.workspace == workspace)
             .cloned()
+            .collect())
+    }
+
+    async fn profile_history(
+        &self,
+        workspace: &WorkspaceId,
+    ) -> Result<std::collections::BTreeSet<String>, WorkspaceStoreError> {
+        let state = self.0.lock().expect("workspace store mutex");
+        Ok(state
+            .profile_history
+            .iter()
+            .filter(|(bound, _)| bound == workspace.as_str())
+            .map(|(_, profile)| profile.clone())
             .collect())
     }
 
