@@ -2620,6 +2620,7 @@ dependencies = [
  "minco-plugin-observability",
  "minco-plugin-sessions",
  "minco-plugin-ticketing",
+ "minco-plugin-workspace",
  "minco-sqlx-sqlite",
  "reqwest",
  "serde_json",

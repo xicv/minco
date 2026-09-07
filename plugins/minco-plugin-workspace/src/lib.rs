@@ -38,8 +38,8 @@ mod plugin;
 pub use model::{
     IntegrationProfile, InvalidIdentifier, InvalidOrigin, PROJECT_MAXIMUM, PrincipalGrant,
     ProfileAuthMode, ProfileId, ProfileKind, ProfileStatus, ProjectId, ProjectRegistration,
-    ProjectScope, ResolvedScope, ServicePrincipalScope, Workspace, WorkspaceId, WorkspaceScope,
-    validate_exact_origin,
+    ProjectScope, ResolvedScope, ScopeTokenError, ServicePrincipalScope, Workspace, WorkspaceId,
+    WorkspaceScope, validate_exact_origin,
 };
 #[cfg(feature = "sqlite")]
 pub use persistence::{SqliteWorkspaceStore, WORKSPACE_MIGRATION_LEDGER};

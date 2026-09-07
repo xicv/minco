@@ -438,6 +438,75 @@ pub enum ResolvedScope {
     Project(ProjectScope),
 }
 
+impl ProjectScope {
+    /// Scope-token prefix carrying the bound workspace identity.
+    pub const WORKSPACE_TOKEN_PREFIX: &'static str = "workspace:";
+    /// Scope-token prefix carrying the bound project identity.
+    pub const PROJECT_TOKEN_PREFIX: &'static str = "project:";
+
+    /// The canonical scope tokens for a checked caller context. Only the
+    /// composition sets these after resolving scope; request input never
+    /// reaches them.
+    #[must_use]
+    pub fn scope_tokens(&self) -> [String; 2] {
+        [
+            format!("{}{}", Self::WORKSPACE_TOKEN_PREFIX, self.workspace),
+            format!("{}{}", Self::PROJECT_TOKEN_PREFIX, self.project),
+        ]
+    }
+
+    /// Parse a checked caller's scope tokens back into a scope. Exactly one
+    /// workspace and one project token must be present; missing, duplicated,
+    /// or malformed tokens fail closed rather than guessing.
+    pub fn from_scope_tokens(scopes: &BTreeSet<String>) -> Result<Self, ScopeTokenError> {
+        let workspace = single_token(scopes, Self::WORKSPACE_TOKEN_PREFIX)?;
+        let project = single_token(scopes, Self::PROJECT_TOKEN_PREFIX)?;
+        Ok(Self {
+            workspace: WorkspaceId::try_from(workspace)
+                .map_err(ScopeTokenError::InvalidWorkspace)?,
+            project: ProjectId::try_from(project).map_err(ScopeTokenError::InvalidProject)?,
+        })
+    }
+}
+
+fn single_token(scopes: &BTreeSet<String>, prefix: &str) -> Result<String, ScopeTokenError> {
+    let mut matches = scopes
+        .iter()
+        .filter(|scope| scope.starts_with(prefix))
+        .map(|scope| scope[prefix.len()..].to_owned());
+    let Some(first) = matches.next() else {
+        return Err(match prefix {
+            ProjectScope::WORKSPACE_TOKEN_PREFIX => ScopeTokenError::MissingWorkspace,
+            _ => ScopeTokenError::MissingProject,
+        });
+    };
+    if matches.next().is_some() {
+        return Err(match prefix {
+            ProjectScope::WORKSPACE_TOKEN_PREFIX => ScopeTokenError::AmbiguousWorkspace,
+            _ => ScopeTokenError::AmbiguousProject,
+        });
+    }
+    Ok(first)
+}
+
+/// A checked caller's scope tokens do not carry exactly one resolvable
+/// workspace/project pair.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ScopeTokenError {
+    #[error("no workspace scope token is present")]
+    MissingWorkspace,
+    #[error("no project scope token is present")]
+    MissingProject,
+    #[error("more than one workspace scope token is present")]
+    AmbiguousWorkspace,
+    #[error("more than one project scope token is present")]
+    AmbiguousProject,
+    #[error("the workspace scope token is not a valid identifier")]
+    InvalidWorkspace(#[source] InvalidIdentifier),
+    #[error("the project scope token is not a valid identifier")]
+    InvalidProject(#[source] InvalidIdentifier),
+}
+
 impl ResolvedScope {
     #[must_use]
     pub const fn workspace(&self) -> &WorkspaceId {
@@ -649,5 +718,43 @@ mod tests {
         assert_eq!(workspace_scope.workspace(), &workspace);
         assert_eq!(project_scope.workspace(), &workspace);
         assert_ne!(workspace_scope, project_scope);
+    }
+
+    #[test]
+    fn scope_tokens_round_trip_and_ambiguous_sets_fail_closed() {
+        let workspace = WorkspaceId::try_from("ws-1".to_owned()).expect("valid");
+        let project = ProjectId::try_from("legacy Prj".to_owned()).expect("valid");
+        let scope = ProjectScope { workspace, project };
+        let tokens: BTreeSet<String> = scope.scope_tokens().into_iter().collect();
+        assert_eq!(
+            ProjectScope::from_scope_tokens(&tokens).expect("round trip"),
+            scope
+        );
+        // Foreign scope vocabulary is ignored, not rejected.
+        let mut extended = tokens.clone();
+        extended.insert("orders:read".into());
+        assert_eq!(
+            ProjectScope::from_scope_tokens(&extended).expect("foreign scopes ignored"),
+            scope
+        );
+        // Missing, duplicated, and malformed tokens all fail closed.
+        let mut missing = tokens.clone();
+        missing.remove("workspace:ws-1");
+        assert_eq!(
+            ProjectScope::from_scope_tokens(&missing),
+            Err(ScopeTokenError::MissingWorkspace)
+        );
+        let mut ambiguous = tokens.clone();
+        ambiguous.insert("project:other".into());
+        assert_eq!(
+            ProjectScope::from_scope_tokens(&ambiguous),
+            Err(ScopeTokenError::AmbiguousProject)
+        );
+        let mut malformed = tokens;
+        malformed.insert("workspace:".into());
+        assert!(matches!(
+            ProjectScope::from_scope_tokens(&malformed),
+            Err(ScopeTokenError::AmbiguousWorkspace)
+        ));
     }
 }

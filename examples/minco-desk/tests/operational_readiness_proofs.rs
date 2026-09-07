@@ -32,6 +32,8 @@ fn scratch_config(tag: &str, dir: &std::path::Path) -> DeskConfig {
         inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy::LocalTrusted,
         inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy::Local,
         inbound_authserv_id: "amazonses.com".into(),
+        workspace_id: None,
+        workspace_display_name: "Default workspace".into(),
     }
 }
 

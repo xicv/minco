@@ -147,6 +147,12 @@ ACs). Required evidence per criterion:
   resource-type allowlists enforced at consumption; profiles persist secret
   references, never raw credentials; idempotent seeding with explicit
   reconciliation and no silent broadening.
+  (Partial, 2026-09-07: startup provisioning, the scope-carrying bearer
+  principal, the scoped worker principal, the workspace ledger in the
+  bootstrap order, and the critical workspace health check are wired into
+  the desk; the remaining items — route-class inventory documentation,
+  origin/CSRF refinements, resource-type consumption enforcement — land
+  with the ticketing slice.)
 - [ ] Ticketing scoped consumption: every exposed operation runs against a
   resolved workspace/project scope with existing action/ownership
   authorization preserved; scope-constrained reads, writes, lists, counts,
@@ -237,3 +243,31 @@ regenerated), `scripts/source_manifest.py` (1958 files,
 pre-existing `unused async` warning surfaces in `minco-plugin-ticketing`
 only under facade `--all-features`; not introduced or modified by this
 task. `--locked` evidence runs after the updated `Cargo.lock` is committed.
+
+### Desk composition slice (2026-09-07)
+
+The desk is now an isolated deployment (ADR-0076): `migrate()` applies the
+workspace ledger after plugin storage and ticketing (bootstrap order:
+plugin storage → ticketing → workspace); `build_desk()` provisions the
+registry before serving — registering `DESK_PROJECT_ID` verbatim, seeding
+the `desk-agent` `service_api`/`service_bearer_token` profile with the
+9-permission agent ceiling and the portal origin, and refusing conflicting
+pins, drift, and second workspaces; the bearer middleware injects the
+principal resolved once from the provisioned profile (subject, ceiling,
+canonical `workspace:`/`project:` scope tokens) instead of minting one per
+request, with a startup round-trip check because the principal scope claim
+is whitespace-tokenized (identifiers containing whitespace fail closed
+with a precise error); the mail-worker principal carries the same
+validated project scope; a critical `workspace-store` health check
+covers the registry; `minco-desk-migrate` probes the binding; new env
+inputs `DESK_WORKSPACE_ID` (optional pin) and
+`DESK_WORKSPACE_DISPLAY_NAME`. `BuiltDesk` exposes the provisioning
+report and the resolved agent principal for proofs. Gates: desk suites
+19/19 (including the two new ISO-1 proofs: bind-once/rebuild-convergence
+with the principal-scope equality and the exclusive-ledger row count;
+conflicting-pin fail-closed), workspace plugin 27/27 all-features, clippy
+and fmt clean, `source_manifest.py` regenerated
+(`5b099bd5…e685e`), `validate_static.py` ok 0/0. The existing
+upgrade-from-v1 proof now also crosses the workspace bootstrap: a
+first-generation ticketing database gains the registry with its existing
+project registered verbatim.

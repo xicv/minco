@@ -36,6 +36,8 @@ fn scratch_config(tag: &str) -> (tempfile::TempDir, DeskConfig) {
         inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy::LocalTrusted,
         inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy::Local,
         inbound_authserv_id: "amazonses.com".into(),
+        workspace_id: None,
+        workspace_display_name: "Default workspace".into(),
     };
     (directory, config)
 }
@@ -236,4 +238,95 @@ async fn end_to_end_ticket_lifecycle_on_one_database() {
     let detail: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(detail["other_recent_viewers"].is_array());
     assert_eq!(detail["ticket"]["id"], ticket_id);
+}
+
+#[tokio::test]
+async fn workspace_provisioning_binds_once_and_survives_rebuilds() {
+    // ISO-1 on the real composition: fresh provisioning binds one identity,
+    // repeated builds over the same database converge without rebinding,
+    // and the agent principal carries the resolved workspace/project scope.
+    let (_directory, config) = scratch_config("workspace");
+    let first = build_desk(&config).await.expect("first build provisions");
+    assert!(first.workspace_report.created);
+    let second = build_desk(&config).await.expect("second build converges");
+    assert!(!second.workspace_report.created);
+    assert_eq!(
+        first.workspace_report.workspace, second.workspace_report.workspace,
+        "rebuilding over the same database preserves the bound identity"
+    );
+    assert!(second.workspace_report.orphaned_profiles.is_empty());
+    assert_eq!(second.workspace_report.retained_grants, 0);
+
+    // The desk-agent principal resolves from the provisioned profile and
+    // carries exactly the canonical scope tokens (ADR-0076), stored in the
+    // whitespace-tokenized principal scope claim.
+    let tokens: std::collections::BTreeSet<String> = std::iter::once(format!(
+        "workspace:{}",
+        first.workspace_report.workspace.as_str()
+    ))
+    .chain(std::iter::once("project:desk-proof".to_owned()))
+    .collect();
+    let resolved =
+        minco_plugin_workspace::ProjectScope::from_scope_tokens(&tokens).expect("tokens resolve");
+    let claim = first
+        .agent_principal
+        .claims
+        .get(minco_http::PRINCIPAL_SCOPES_CLAIM)
+        .expect("the scope claim is present");
+    let principal_tokens: std::collections::BTreeSet<String> =
+        claim.split_ascii_whitespace().map(str::to_owned).collect();
+    assert_eq!(
+        minco_plugin_workspace::ProjectScope::from_scope_tokens(&principal_tokens)
+            .expect("the agent principal carries a resolvable scope"),
+        resolved,
+        "the bearer principal's scope must equal the provisioned binding"
+    );
+    assert_eq!(first.agent_principal.subject, "desk-agent");
+    assert_eq!(
+        first.agent_principal.permissions.len(),
+        9,
+        "the profile ceiling bounds the injected capability set"
+    );
+
+    // The registry lives under its own exclusive ledger. The sqlx default
+    // ledger belongs to the ticketing stream; the workspace stream must own
+    // exactly one applied migration in its own table.
+    let pool = migrate(&config).await.expect("migrate again");
+    assert_eq!(
+        minco_plugin_workspace::WORKSPACE_MIGRATION_LEDGER,
+        "_minco_workspace_migrations"
+    );
+    let workspace_rows: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM _minco_workspace_migrations")
+            .fetch_one(&pool)
+            .await
+            .expect("workspace ledger row count");
+    assert_eq!(workspace_rows, 1, "the workspace ledger owns its migration");
+    let binding: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM workspace_deployment_binding")
+        .fetch_one(&pool)
+        .await
+        .expect("binding count");
+    assert_eq!(binding, 1, "exactly one deployment binding row");
+}
+
+#[tokio::test]
+async fn a_conflicting_workspace_pin_fails_closed_instead_of_rebinding() {
+    // ISO-1: an existing database cannot be silently rebound to a
+    // different pinned workspace identity.
+    let (_directory, mut config) = scratch_config("rebind");
+    config.workspace_id = Some("ws-first".into());
+    let first = build_desk(&config).await.expect("pinned first build");
+    assert_eq!(first.workspace_report.workspace.as_str(), "ws-first");
+    let mut rebound = config.clone();
+    rebound.workspace_id = Some("ws-second".into());
+    let error = build_desk(&rebound)
+        .await
+        .expect_err("a different pin must fail closed");
+    assert!(
+        format!("{error:#}").contains("refusing to rebind"),
+        "unexpected error: {error:#}"
+    );
+    // The same pin still converges.
+    let repeat = build_desk(&config).await.expect("same pin converges");
+    assert!(!repeat.workspace_report.created);
 }
