@@ -3,6 +3,7 @@ crates/*/target/
 /extensions/*/target/
 /plugins/*/target/
 /examples/*/target/
+node_modules/
 /.env
 /.env.*
 !/.env.example

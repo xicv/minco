@@ -60,9 +60,9 @@
       "minco-plugin-ticketing"
     ],
     "workspace_version": "1.12.0",
-    "workspace_packages": 42,
+    "workspace_packages": 43,
     "publishable_packages": 37,
-    "private_packages": 5,
+    "private_packages": 6,
     "publishable_names": [
       "cargo-minco",
       "minco",
@@ -103,6 +103,7 @@
       "minco-workbench"
     ],
     "private_names": [
+      "minco-desk-example",
       "orders-adapters",
       "orders-api",
       "orders-application",

@@ -1,23 +1,48 @@
 use crate::{
-    ConsumeHandoffRequest, ConsumedHandoff, CreateTicketInput, ExternalMessageIngestResult,
-    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, Ticket, TicketActivityIntent,
-    TicketId, TicketListFilter, TicketRequester, TicketStoreError, TicketingStore,
+    AgentMacro, AtomicAssignmentRequest, AutomationProposal, AutomationProposalState,
+    Clarification, ClarificationReason, ClarificationState, CompleteSendOutcome,
+    ConsumeHandoffRequest, ConsumeSessionRequest, ConsumedHandoff, ConsumedSessionIdentity,
+    CreateTicketInput, DeliveryFeedbackKind, ExternalMessageIdentity, ExternalMessageIngestResult,
+    IngestExternalMessageRequest, MAX_TICKET_LIST_FETCH_LIMIT, OperationReceipt,
+    OutboundDeliveryEvidence, OutboundEvidenceKind, SendIntent, SendIntentState,
+    SessionExchangeGrant, Ticket, TicketActivityIntent, TicketId, TicketListFilter,
+    TicketMessageId, TicketRequester, TicketStatus, TicketStoreError, TicketSummary,
+    TicketSummaryFilter, TicketingStore,
 };
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use minco_interaction::{SupportHandoff, SupportHandoffResult};
 use sqlx::{Row, Sqlite, SqlitePool, Transaction};
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use uuid::Uuid;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations/sqlite");
 
 #[derive(Debug, Clone)]
 pub struct SqliteTicketingStore {
     pool: SqlitePool,
+    #[cfg(feature = "jobs")]
+    job_enqueue: Option<Arc<dyn crate::TicketingJobEnqueue>>,
 }
 
 impl SqliteTicketingStore {
     #[must_use]
     pub const fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            #[cfg(feature = "jobs")]
+            job_enqueue: None,
+        }
+    }
+
+    /// Pattern A (ADR-0054): with an enqueue adapter sharing this pool,
+    /// job records attached to a mutation commit in its transaction.
+    #[must_use]
+    #[cfg(feature = "jobs")]
+    pub fn with_job_enqueue(mut self, enqueue: Arc<dyn crate::TicketingJobEnqueue>) -> Self {
+        self.job_enqueue = Some(enqueue);
+        self
     }
 
     pub async fn migrate(&self) -> Result<(), TicketStoreError> {
@@ -52,16 +77,8 @@ impl TicketingStore for SqliteTicketingStore {
         project_id: &str,
         id: TicketId,
     ) -> Result<Option<Ticket>, TicketStoreError> {
-        let row = sqlx::query(
-            "SELECT ticket_json FROM ticketing_tickets WHERE project_id = ? AND id = ?",
-        )
-        .bind(project_id)
-        .bind(id.to_string())
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(infrastructure)?;
-        row.map(|row| decode_ticket(row.get::<String, _>("ticket_json")))
-            .transpose()
+        let mut connection = self.pool.acquire().await.map_err(infrastructure)?;
+        load_ticket_row(&mut connection, project_id, &id.to_string()).await
     }
 
     async fn list(&self, filter: TicketListFilter) -> Result<Vec<Ticket>, TicketStoreError> {
@@ -81,7 +98,7 @@ impl TicketingStore for SqliteTicketingStore {
         let after_updated_at = filter.after_updated_at.map(|value| value.to_rfc3339());
         let after_id = filter.after_id.map(|value| value.to_string());
         let rows = sqlx::query(
-            "SELECT ticket_json FROM ticketing_tickets
+            "SELECT id FROM ticketing_tickets
              WHERE project_id = ?
                AND (? OR status IN (?, ?, ?, ?, ?, ?, ?))
                AND (? IS NULL OR queue_id = ?)
@@ -114,8 +131,279 @@ impl TicketingStore for SqliteTicketingStore {
         .fetch_all(&self.pool)
         .await
         .map_err(infrastructure)?;
+        let mut connection = self.pool.acquire().await.map_err(infrastructure)?;
+        let mut tickets = Vec::with_capacity(rows.len());
+        for row in rows {
+            let id = row.get::<String, _>("id");
+            tickets.push(
+                load_ticket_row(&mut connection, &filter.project_id, &id)
+                    .await?
+                    .ok_or_else(|| {
+                        TicketStoreError::Infrastructure(
+                            "ticket row disappeared during list reconstruction".into(),
+                        )
+                    })?,
+            );
+        }
+        Ok(tickets)
+    }
+
+    async fn list_summaries(
+        &self,
+        filter: TicketSummaryFilter,
+    ) -> Result<Vec<TicketSummary>, TicketStoreError> {
+        if !(1..=MAX_TICKET_LIST_FETCH_LIMIT).contains(&filter.limit) {
+            return Err(TicketStoreError::InvalidListLimit);
+        }
+        if filter.before_updated_at.is_some() != filter.before_id.is_some() {
+            return Err(TicketStoreError::InvalidListCursor);
+        }
+        let statuses = filter
+            .statuses
+            .iter()
+            .map(enum_json)
+            .collect::<Result<Vec<_>, _>>()?;
+        let no_status_filter = statuses.is_empty();
+        let status = |index: usize| statuses.get(index).map(String::as_str);
+        let before_updated_at = filter.before_updated_at.map(|value| value.to_rfc3339());
+        let before_id = filter.before_id.map(|value| value.to_string());
+        // Compact projection: projection columns and child-table counts only;
+        // this query must never read ticket_json.
+        let rows = sqlx::query(
+            "SELECT t.id, t.display_reference, t.subject, t.status, t.priority, t.ticket_type, t.first_response_deadline, t.resolution_deadline, t.queue_id,
+                    t.assignee_subject, t.requester_subject, t.created_at, t.updated_at, t.revision,
+                    (SELECT COUNT(*) FROM ticketing_messages m
+                      WHERE m.project_id = t.project_id AND m.ticket_id = t.id) AS message_count,
+                    (SELECT COUNT(*) FROM ticketing_attachments a
+                      WHERE a.project_id = t.project_id AND a.ticket_id = t.id) AS attachment_count,
+                    (SELECT MAX(m.created_at) FROM ticketing_messages m
+                      WHERE m.project_id = t.project_id AND m.ticket_id = t.id) AS last_activity_at
+             FROM ticketing_tickets t
+             WHERE t.project_id = ?
+               AND (? OR t.status IN (?, ?, ?, ?, ?, ?, ?))
+               AND (? IS NULL OR t.queue_id = ?)
+               AND (? IS NULL OR t.assignee_subject = ?)
+               AND (? IS NULL OR t.requester_subject = ?)
+               AND (? = 0 OR t.assignee_subject IS NULL)
+               AND (? IS NULL OR t.subject LIKE ? ESCAPE '\\' OR t.display_reference LIKE ? ESCAPE '\\' OR t.description LIKE ? ESCAPE '\\')
+               AND (? IS NULL OR t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))
+             ORDER BY t.updated_at DESC, t.id DESC
+             LIMIT ?",
+        )
+        .bind(&filter.project_id)
+        .bind(no_status_filter)
+        .bind(status(0))
+        .bind(status(1))
+        .bind(status(2))
+        .bind(status(3))
+        .bind(status(4))
+        .bind(status(5))
+        .bind(status(6))
+        .bind(filter.queue_id.as_deref())
+        .bind(filter.queue_id.as_deref())
+        .bind(filter.assignee_subject.as_deref())
+        .bind(filter.assignee_subject.as_deref())
+        .bind(filter.requester_subject.as_deref())
+        .bind(filter.requester_subject.as_deref())
+        .bind(i64::from(filter.unassigned))
+        .bind(filter.query.as_deref())
+        .bind(filter.query.as_deref().map(|value| format!("%{}%", escape_like(value))))
+        .bind(filter.query.as_deref().map(|value| format!("%{}%", escape_like(value))))
+        .bind(filter.query.as_deref().map(|value| format!("%{}%", escape_like(value))))
+        .bind(before_updated_at.as_deref())
+        .bind(before_updated_at.as_deref())
+        .bind(before_updated_at.as_deref())
+        .bind(before_id.as_deref())
+        .bind(i64::try_from(filter.limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
         rows.into_iter()
-            .map(|row| decode_ticket(row.get::<String, _>("ticket_json")))
+            .map(|row| {
+                let status = parse_enum("status", row.get::<String, _>("status"))?;
+                let priority = parse_enum("priority", row.get::<String, _>("priority"))?;
+                let updated_at = parse_timestamp(&row.get::<String, _>("updated_at"))?;
+                let created_at = parse_timestamp(&row.get::<String, _>("created_at"))?;
+                Ok(TicketSummary {
+                    id: TicketId(Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+                        TicketStoreError::Infrastructure("ticket id is not a UUID".into())
+                    })?),
+                    project_id: filter.project_id.clone(),
+                    display_reference: row.get("display_reference"),
+                    subject: row.get("subject"),
+                    requester_subject: row.get("requester_subject"),
+                    ticket_type: parse_enum("ticket_type", row.get::<String, _>("ticket_type"))?,
+                    first_response_deadline: row
+                        .get::<Option<String>, _>("first_response_deadline")
+                        .map(|value| parse_timestamp(&value))
+                        .transpose()?,
+                    resolution_deadline: row
+                        .get::<Option<String>, _>("resolution_deadline")
+                        .map(|value| parse_timestamp(&value))
+                        .transpose()?,
+                    status,
+                    clock_state: status.clock_state(),
+                    priority,
+                    queue_id: row.get("queue_id"),
+                    assignee_subject: row.get("assignee_subject"),
+                    message_count: usize::try_from(row.get::<i64, _>("message_count")).map_err(
+                        |_| TicketStoreError::Infrastructure("message count overflow".into()),
+                    )?,
+                    attachment_count: usize::try_from(row.get::<i64, _>("attachment_count"))
+                        .map_err(|_| {
+                            TicketStoreError::Infrastructure("attachment count overflow".into())
+                        })?,
+                    last_activity_at: row
+                        .get::<Option<String>, _>("last_activity_at")
+                        .map(|value| parse_timestamp(&value))
+                        .transpose()?,
+                    needs_attention: matches!(
+                        status,
+                        TicketStatus::New | TicketStatus::PendingInternal
+                    ),
+                    created_at,
+                    updated_at,
+                    revision: u64::try_from(row.get::<i64, _>("revision")).map_err(|_| {
+                        TicketStoreError::Infrastructure("revision overflow".into())
+                    })?,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }
+
+    async fn append_ticket_message(
+        &self,
+        request: crate::AppendTicketMessageRequest,
+    ) -> Result<(), TicketStoreError> {
+        #[cfg(feature = "jobs")]
+        if request.job_records.len() > crate::MAX_JOB_RECORDS_PER_MUTATION {
+            return Err(TicketStoreError::InvalidJobRecords);
+        }
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let updated = sqlx::query(
+            "UPDATE ticketing_tickets
+                SET status = ?, first_public_response_at = ?, waiting_since = ?,
+                    resolved_at = ?, updated_at = ?, revision = ?
+              WHERE project_id = ? AND id = ? AND revision = ?",
+        )
+        .bind(enum_json(&request.status)?)
+        .bind(request.first_public_response_at.map(|v| v.to_rfc3339()))
+        .bind(request.waiting_since.map(|v| v.to_rfc3339()))
+        .bind(request.resolved_at.map(|v| v.to_rfc3339()))
+        .bind(request.updated_at.to_rfc3339())
+        .bind(i64::try_from(request.expected_revision + 1).map_err(|_| {
+            TicketStoreError::Infrastructure("revision exceeds SQLite integer".into())
+        })?)
+        .bind(&request.project_id)
+        .bind(request.ticket_id.to_string())
+        .bind(i64::try_from(request.expected_revision).map_err(|_| {
+            TicketStoreError::Infrastructure("revision exceeds SQLite integer".into())
+        })?)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        if updated.rows_affected() == 0 {
+            let actual = sqlx::query(
+                "SELECT revision FROM ticketing_tickets WHERE project_id = ? AND id = ?",
+            )
+            .bind(&request.project_id)
+            .bind(request.ticket_id.to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(infrastructure)?;
+            return match actual {
+                Some(row) => Err(TicketStoreError::StaleRevision {
+                    expected: request.expected_revision,
+                    actual: u64::try_from(row.get::<i64, _>("revision")).map_err(|_| {
+                        TicketStoreError::Infrastructure("revision overflow".into())
+                    })?,
+                }),
+                None => Err(TicketStoreError::NotFound(request.ticket_id)),
+            };
+        }
+        sqlx::query(
+            "INSERT INTO ticketing_messages (project_id, ticket_id, id, created_at, message_json) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&request.project_id)
+        .bind(request.ticket_id.to_string())
+        .bind(request.message.id.to_string())
+        .bind(request.message.created_at.to_rfc3339())
+        .bind(serde_json::to_string(&request.message).map_err(encoding)?)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        insert_activity(&mut transaction, &request.intent).await?;
+        #[cfg(feature = "jobs")]
+        if !request.job_records.is_empty() {
+            let sink = self.job_enqueue.as_ref().ok_or_else(|| {
+                TicketStoreError::Infrastructure(
+                    "job records require a configured TicketingJobEnqueue adapter".into(),
+                )
+            })?;
+            for record in &request.job_records {
+                sink.enqueue_in(&mut transaction, record.clone()).await?;
+            }
+        }
+        // The idempotency receipt commits with the append in this
+        // transaction (exact-head review R2): a lost HTTP response can
+        // always be replayed from the authoritative row.
+        if let Some(receipt) = &request.receipt {
+            sqlx::query(
+                "INSERT INTO ticketing_operation_receipts
+                 (idempotency_key, fingerprint, response_json, created_at,
+                  operation, project_id, subject_digest, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&receipt.idempotency_key)
+            .bind(&receipt.fingerprint)
+            .bind(&receipt.response_json)
+            .bind(receipt.created_at.to_rfc3339())
+            .bind(&receipt.operation)
+            .bind(&receipt.project_id)
+            .bind(&receipt.subject_digest)
+            .bind(receipt.expires_at.map(|value| value.to_rfc3339()))
+            .execute(&mut *transaction)
+            .await
+            .map_err(infrastructure)?;
+        }
+        transaction.commit().await.map_err(infrastructure)
+    }
+
+    async fn list_ticket_messages(
+        &self,
+        filter: crate::MessageListFilter,
+    ) -> Result<Vec<crate::TicketMessage>, TicketStoreError> {
+        if !(1..=MAX_TICKET_LIST_FETCH_LIMIT).contains(&filter.limit) {
+            return Err(TicketStoreError::InvalidListLimit);
+        }
+        if filter.before_created_at.is_some() != filter.before_id.is_some() {
+            return Err(TicketStoreError::InvalidListCursor);
+        }
+        let before_created_at = filter.before_created_at.map(|value| value.to_rfc3339());
+        let before_id = filter.before_id.map(|value| value.to_string());
+        let rows = sqlx::query(
+            "SELECT message_json FROM ticketing_messages
+              WHERE project_id = ? AND ticket_id = ?
+                AND (? OR json_extract(message_json, '$.kind') <> 'internal_note')
+                AND (? IS NULL OR created_at < ? OR (created_at = ? AND id < ?))
+              ORDER BY created_at DESC, id DESC
+              LIMIT ?",
+        )
+        .bind(&filter.project_id)
+        .bind(filter.ticket_id.to_string())
+        .bind(filter.include_internal)
+        .bind(before_created_at.as_deref())
+        .bind(before_created_at.as_deref())
+        .bind(before_created_at.as_deref())
+        .bind(before_id.as_deref())
+        .bind(i64::try_from(filter.limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|row| {
+                serde_json::from_str(&row.get::<String, _>("message_json")).map_err(encoding)
+            })
             .collect::<Result<Vec<_>, _>>()
     }
 
@@ -230,11 +518,17 @@ impl TicketingStore for SqliteTicketingStore {
                 },
                 channel: request.input.channel,
                 priority: request.input.priority,
+                ticket_type: request.input.ticket_type,
+                form_answers: request.input.form_answers.clone(),
                 resource_references: handoff.context.resource_references.clone(),
             },
             format!("TKT-{}", &ticket_uuid.simple().to_string()[..12]),
             request.now,
         )?;
+        let ticket = ticket.with_deadlines(
+            request.input.first_response_deadline,
+            request.input.resolution_deadline,
+        );
         let result = SupportHandoffResult {
             ticket_id: ticket.id.0,
             requester_session_id: uuid::Uuid::now_v7(),
@@ -273,6 +567,80 @@ impl TicketingStore for SqliteTicketingStore {
             result,
             repeated: false,
         })
+    }
+
+    async fn consume_handoff_identity(
+        &self,
+        request: ConsumeSessionRequest,
+    ) -> Result<(ConsumedSessionIdentity, bool), TicketStoreError> {
+        let digest = request.token.digest();
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let claimed = sqlx::query(
+            "UPDATE ticketing_handoffs SET completed_identity_fingerprint = ? WHERE digest = ? AND consumed_identity_json IS NULL AND completed_identity_fingerprint IS NULL",
+        )
+        .bind(&request.request_fingerprint)
+        .bind(digest.as_str())
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let row = sqlx::query(
+            "SELECT handoff_json, consumed_identity_json, completed_identity_fingerprint FROM ticketing_handoffs WHERE digest = ?",
+        )
+        .bind(digest.as_str())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?
+        .ok_or(TicketStoreError::UnknownHandoff)?;
+        let handoff: SupportHandoff =
+            serde_json::from_str(&row.get::<String, _>("handoff_json")).map_err(encoding)?;
+        if !handoff.digest.matches_token(&request.token) {
+            return Err(TicketStoreError::UnknownHandoff);
+        }
+        if handoff.project_id != request.project_id {
+            return Err(TicketStoreError::WrongHandoffProject);
+        }
+        if handoff.portal_origin != request.portal_origin {
+            return Err(TicketStoreError::WrongHandoffPortal);
+        }
+        let identity = ConsumedSessionIdentity {
+            requester_subject: handoff.requester_subject.clone(),
+            requester_permissions: handoff.requester_permissions.clone(),
+            correlation_id: handoff.correlation_id,
+        };
+        let consumed: Option<String> = row.get("consumed_identity_json");
+        let completed_fingerprint: Option<String> = row.get("completed_identity_fingerprint");
+        if let Some(consumed) = consumed {
+            if completed_fingerprint.as_deref() != Some(&request.request_fingerprint) {
+                return Err(TicketStoreError::HandoffAlreadyConsumed);
+            }
+            let identity: ConsumedSessionIdentity =
+                serde_json::from_str(&consumed).map_err(encoding)?;
+            return Ok((identity, true));
+        }
+        if claimed.rows_affected() == 0 {
+            return Err(TicketStoreError::Infrastructure(
+                "session handoff claim completed without an authoritative identity".into(),
+            ));
+        }
+        if handoff.expires_at <= request.now {
+            return Err(TicketStoreError::ExpiredHandoff);
+        }
+        let completed = sqlx::query(
+            "UPDATE ticketing_handoffs SET consumed_identity_json = ? WHERE digest = ? AND completed_identity_fingerprint = ? AND consumed_identity_json IS NULL",
+        )
+        .bind(serde_json::to_string(&identity).map_err(encoding)?)
+        .bind(digest.as_str())
+        .bind(&request.request_fingerprint)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        if completed.rows_affected() != 1 {
+            return Err(TicketStoreError::Infrastructure(
+                "session handoff completion lost its atomic claim".into(),
+            ));
+        }
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok((identity, false))
     }
 
     async fn ingest_external_message(
@@ -344,12 +712,6 @@ impl TicketingStore for SqliteTicketingStore {
         )
         .await?
         .ok_or(TicketStoreError::NotFound(request.ticket_id))?;
-        if ticket.revision != request.expected_revision {
-            return Err(TicketStoreError::StaleRevision {
-                expected: request.expected_revision,
-                actual: ticket.revision,
-            });
-        }
         ticket.reply_as_requester(request.body, request.now)?;
         let intent = TicketActivityIntent::new(
             ticket.project_id.clone(),
@@ -359,7 +721,15 @@ impl TicketingStore for SqliteTicketingStore {
             serde_json::json!({ "ticket_id": ticket.id }),
             request.now,
         );
-        update_ticket(&mut transaction, &ticket, request.expected_revision).await?;
+        // The append rewrites against the revision just loaded inside this
+        // transaction (the domain mutation already bumped ticket.revision,
+        // so the compare-and-set base is one below it); a lost race is
+        // retriable with a fresh load and converges.
+        let loaded_revision = ticket
+            .revision
+            .checked_sub(1)
+            .ok_or_else(|| TicketStoreError::Infrastructure("ingress revision underflow".into()))?;
+        update_ticket(&mut transaction, &ticket, loaded_revision).await?;
         replace_children(&mut transaction, &ticket).await?;
         insert_activity(&mut transaction, &intent).await?;
         transaction.commit().await.map_err(infrastructure)?;
@@ -367,6 +737,1405 @@ impl TicketingStore for SqliteTicketingStore {
             ticket,
             repeated: false,
         })
+    }
+
+    async fn pending_activity_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, ticket_id, kind, correlation_id, payload_json, created_at
+               FROM ticketing_activity_intents
+              WHERE project_id = ? AND published_at IS NULL
+              ORDER BY created_at, id
+              LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(TicketActivityIntent {
+                    id: Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+                        TicketStoreError::Infrastructure("stored intent id is not a UUID".into())
+                    })?,
+                    project_id: row.get("project_id"),
+                    ticket_id: TicketId(
+                        Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                            TicketStoreError::Infrastructure(
+                                "stored intent ticket id is not a UUID".into(),
+                            )
+                        })?,
+                    ),
+                    kind: row.get("kind"),
+                    correlation_id: Uuid::parse_str(&row.get::<String, _>("correlation_id"))
+                        .map_err(|_| {
+                            TicketStoreError::Infrastructure(
+                                "stored correlation id is not a UUID".into(),
+                            )
+                        })?,
+                    payload: serde_json::from_str(&row.get::<String, _>("payload_json"))
+                        .map_err(encoding)?,
+                    created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+                })
+            })
+            .collect()
+    }
+
+    async fn mark_activity_published(
+        &self,
+        intent_id: Uuid,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_activity_intents SET published_at = ?
+              WHERE id = ? AND published_at IS NULL",
+        )
+        .bind(at.to_rfc3339())
+        .bind(intent_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    async fn pending_audit_intents(
+        &self,
+        project_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TicketActivityIntent>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, project_id, ticket_id, kind, correlation_id, payload_json, created_at
+               FROM ticketing_activity_intents
+              WHERE project_id = ? AND audit_published_at IS NULL
+              ORDER BY created_at, id
+              LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter().map(|row| parse_intent_row(&row)).collect()
+    }
+
+    async fn mark_audit_published(
+        &self,
+        intent_id: Uuid,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_activity_intents SET audit_published_at = ?
+              WHERE id = ? AND audit_published_at IS NULL",
+        )
+        .bind(at.to_rfc3339())
+        .bind(intent_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    async fn find_ticket_by_message_identity(
+        &self,
+        project_id: &str,
+        provider: &str,
+        internet_message_id: &str,
+    ) -> Result<Option<(TicketId, u64)>, TicketStoreError> {
+        // Exact match first, then the outbound-registration form: replies
+        // echo the rendered <id@from-domain> while the registration pins
+        // the deterministic local part (review finding 8).
+        let local_part = internet_message_id
+            .trim()
+            .trim_start_matches('<')
+            .split('@')
+            .next()
+            .unwrap_or_default()
+            .to_owned();
+        let row = sqlx::query(
+            "SELECT m.ticket_id, t.revision
+               FROM ticketing_external_messages m
+               JOIN ticketing_tickets t
+                 ON t.project_id = m.project_id AND t.id = m.ticket_id
+              WHERE m.project_id = ? AND m.provider = ?
+                AND (
+                  json_extract(m.identity_json, '$.internet_message_id') = ?
+                  OR (? != '' AND json_extract(m.identity_json, '$.internet_message_id')
+                      LIKE '<' || ? || '@%')
+                )
+              ORDER BY (json_extract(m.identity_json, '$.internet_message_id') = ?) DESC
+              LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(provider)
+        .bind(internet_message_id)
+        .bind(&local_part)
+        .bind(&local_part)
+        .bind(internet_message_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| {
+            Ok((
+                TicketId(
+                    Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                        TicketStoreError::Infrastructure(
+                            "stored external ticket id is not a UUID".into(),
+                        )
+                    })?,
+                ),
+                u64::try_from(row.get::<i64, _>("revision"))
+                    .map_err(|_| TicketStoreError::Infrastructure("revision overflow".into()))?,
+            ))
+        })
+        .transpose()
+    }
+
+    async fn register_outbound_identity(
+        &self,
+        project_id: &str,
+        identity: ExternalMessageIdentity,
+        ticket_id: TicketId,
+    ) -> Result<(), TicketStoreError> {
+        // INSERT OR IGNORE keeps re-registration idempotent on the
+        // provider-scoped external identity key.
+        sqlx::query(
+            "INSERT OR IGNORE INTO ticketing_external_messages
+             (project_id, provider, mailbox_scope, external_id, content_sha256, identity_json, ticket_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(&identity.provider)
+        .bind(&identity.mailbox_scope)
+        .bind(&identity.external_id)
+        .bind(&identity.content_sha256)
+        .bind(serde_json::to_string(&identity).map_err(encoding)?)
+        .bind(ticket_id.to_string())
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn operation_receipt(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<OperationReceipt>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT idempotency_key, fingerprint, response_json, created_at,
+                    operation, project_id, subject_digest, expires_at
+               FROM ticketing_operation_receipts WHERE idempotency_key = ?",
+        )
+        .bind(idempotency_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| {
+            Ok(OperationReceipt {
+                idempotency_key: row.get("idempotency_key"),
+                fingerprint: row.get("fingerprint"),
+                response_json: row.get("response_json"),
+                created_at: chrono::DateTime::parse_from_rfc3339(
+                    &row.get::<String, _>("created_at"),
+                )
+                .map_err(|_| {
+                    TicketStoreError::Infrastructure(
+                        "stored receipt timestamp is not RFC 3339".into(),
+                    )
+                })?
+                .with_timezone(&Utc),
+                operation: row.get("operation"),
+                project_id: row.get("project_id"),
+                subject_digest: row.get("subject_digest"),
+                expires_at: row
+                    .get::<Option<String>, _>("expires_at")
+                    .map(|value| parse_timestamp(&value))
+                    .transpose()?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn assign_ticket_atomically(
+        &self,
+        request: AtomicAssignmentRequest,
+    ) -> Result<Ticket, TicketStoreError> {
+        if request.pool.is_empty() {
+            return Err(TicketStoreError::Infrastructure(
+                "assignment_pool is not configured".into(),
+            ));
+        }
+        // BEGIN IMMEDIATE takes the database write lock before any read:
+        // revision check, cursor advance / workload evaluation, ticket
+        // update and intent append serialize inside one transaction
+        // (exact-head review R7).
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(infrastructure)?;
+        let mut ticket = load_ticket_tx(&mut transaction, &request.project_id, request.ticket_id)
+            .await?
+            .ok_or(TicketStoreError::NotFound(request.ticket_id))?;
+        if ticket.revision != request.expected_revision {
+            return Err(TicketStoreError::StaleRevision {
+                expected: request.expected_revision,
+                actual: ticket.revision,
+            });
+        }
+        let assignee = match request.mode {
+            crate::AssignmentMode::Manual => {
+                return Err(TicketStoreError::Infrastructure(
+                    "manual assignment is not a pool mode".into(),
+                ));
+            }
+            crate::AssignmentMode::RoundRobin => {
+                let row: Option<(i64,)> = sqlx::query_as(
+                    "SELECT next_index FROM ticketing_assignment_cursor WHERE project_id = ?",
+                )
+                .bind(&request.project_id)
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                let next = row.map_or(0, |(value,)| value);
+                let pool_len: i64 = i64::try_from(request.pool.len())
+                    .map_err(|_| TicketStoreError::Infrastructure("overflow".into()))?;
+                let index = usize::try_from(next % pool_len)
+                    .map_err(|_| TicketStoreError::Infrastructure("overflow".into()))?;
+                sqlx::query(
+                    "INSERT INTO ticketing_assignment_cursor (project_id, next_index)
+                     VALUES (?, ( ? + 1 ) % ?)
+                     ON CONFLICT (project_id) DO UPDATE SET next_index = ( ? + 1 ) % ?",
+                )
+                .bind(&request.project_id)
+                .bind(next)
+                .bind(pool_len)
+                .bind(next)
+                .bind(pool_len)
+                .execute(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                request.pool.get(index).cloned().unwrap_or_default()
+            }
+            crate::AssignmentMode::LeastWorkload => {
+                let rows: Vec<(String, i64)> = sqlx::query_as(
+                    "SELECT assignee_subject, COUNT(*) FROM ticketing_tickets
+                      WHERE project_id = ?
+                        AND assignee_subject IS NOT NULL
+                        AND status NOT IN ('resolved', 'closed')
+                      GROUP BY assignee_subject",
+                )
+                .bind(&request.project_id)
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                let workload: std::collections::BTreeMap<String, u64> = rows
+                    .into_iter()
+                    .map(|(subject, count)| (subject, u64::try_from(count).unwrap_or(0)))
+                    .collect();
+                request
+                    .pool
+                    .iter()
+                    .min_by_key(|subject| (workload.get(*subject).copied().unwrap_or(0), *subject))
+                    .cloned()
+                    .unwrap_or_default()
+            }
+        };
+        ticket
+            .assign(Some(assignee), request.now)
+            .map_err(TicketStoreError::Validation)?;
+        let intent = TicketActivityIntent::new(
+            ticket.project_id.clone(),
+            ticket.id,
+            "ticketing.assignment_changed",
+            request.correlation_id,
+            serde_json::json!({ "ticket_id": ticket.id }),
+            request.now,
+        );
+        update_ticket(&mut transaction, &ticket, request.expected_revision).await?;
+        insert_activity(&mut transaction, &intent).await?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(ticket)
+    }
+
+    async fn claim_send_intent(
+        &self,
+        intent: SendIntent,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        let existing = self.send_intent(&intent.logical_send_id).await?;
+        if existing.is_some() {
+            return Ok(existing);
+        }
+        sqlx::query(
+            "INSERT INTO ticketing_send_intents
+                 (logical_send_id, project_id, ticket_id, message_id, state, provider_message_id, updated_at, created_at)
+             VALUES (?, ?, ?, ?, 'sending', NULL, ?, ?)",
+        )
+        .bind(&intent.logical_send_id)
+        .bind(&intent.project_id)
+        .bind(intent.ticket_id.to_string())
+        .bind(intent.message_id.to_string())
+        .bind(intent.updated_at.to_rfc3339())
+        .bind(intent.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(None)
+    }
+
+    async fn claim_send_attempt(
+        &self,
+        logical_send_id: &str,
+        expected_state: SendIntentState,
+        now: DateTime<Utc>,
+    ) -> Result<Option<Uuid>, TicketStoreError> {
+        let attempt_id = Uuid::now_v7();
+        let lease = now + chrono::TimeDelta::seconds(120);
+        let updated = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = 'sending', updated_at = ?, attempt_id = ?,
+                    attempt_sequence = attempt_sequence + 1, lease_expires_at = ?
+              WHERE logical_send_id = ? AND state = ?",
+        )
+        .bind(now.to_rfc3339())
+        .bind(attempt_id.to_string())
+        .bind(lease.to_rfc3339())
+        .bind(logical_send_id)
+        .bind(send_intent_state_name(expected_state))
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok((updated.rows_affected() == 1).then_some(attempt_id))
+    }
+
+    async fn resolve_send_intent_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        to: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = ?, provider_message_id = ?, attempt_id = NULL,
+                    updated_at = ?
+              WHERE logical_send_id = ? AND state = 'sending' AND attempt_id = ?",
+        )
+        .bind(send_intent_state_name(to))
+        .bind(provider_message_id)
+        .bind(now.to_rfc3339())
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn complete_send_attempt(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        provider_message_id: &str,
+        evidence: OutboundDeliveryEvidence,
+        threading: ExternalMessageIdentity,
+        now: DateTime<Utc>,
+    ) -> Result<CompleteSendOutcome, TicketStoreError> {
+        // One SQLite transaction (exact-head review R29/P0-3): the
+        // fence check, sent transition, attempt-scoped evidence and
+        // threading identity commit together — `sent` can never exist
+        // without its evidence, and a stale attempt writes nothing.
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let sequence: Option<i64> = sqlx::query_scalar(
+            "SELECT attempt_sequence FROM ticketing_send_intents
+              WHERE logical_send_id = ? AND state = 'sending' AND attempt_id = ?",
+        )
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let Some(sequence) = sequence else {
+            transaction.rollback().await.map_err(infrastructure)?;
+            return Ok(CompleteSendOutcome::FenceLost);
+        };
+        let mut scoped = evidence;
+        scoped.attempt_id = Some(attempt_id);
+        scoped.attempt_sequence = Some(u64::try_from(sequence).unwrap_or(0));
+        let transitioned = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = 'sent', provider_message_id = ?, attempt_id = NULL,
+                    lease_expires_at = NULL, updated_at = ?
+              WHERE logical_send_id = ? AND state = 'sending' AND attempt_id = ?",
+        )
+        .bind(provider_message_id)
+        .bind(now.to_rfc3339())
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        if transitioned.rows_affected() != 1 {
+            transaction.rollback().await.map_err(infrastructure)?;
+            return Ok(CompleteSendOutcome::FenceLost);
+        }
+        insert_evidence_row(&mut *transaction, &scoped).await?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO ticketing_external_messages
+             (project_id, provider, mailbox_scope, external_id, content_sha256, identity_json, ticket_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&threading.project_id)
+        .bind(&threading.provider)
+        .bind(&threading.mailbox_scope)
+        .bind(&threading.external_id)
+        .bind(&threading.content_sha256)
+        .bind(serde_json::to_string(&threading).map_err(encoding)?)
+        .bind(scoped.ticket_id.to_string())
+        .bind(now.to_rfc3339())
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(CompleteSendOutcome::Completed)
+    }
+
+    async fn append_outbound_evidence_fenced(
+        &self,
+        logical_send_id: &str,
+        attempt_id: Uuid,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<bool, TicketStoreError> {
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let sequence: Option<i64> = sqlx::query_scalar(
+            "SELECT attempt_sequence FROM ticketing_send_intents
+              WHERE logical_send_id = ? AND attempt_id = ?",
+        )
+        .bind(logical_send_id)
+        .bind(attempt_id.to_string())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let Some(sequence) = sequence else {
+            transaction.rollback().await.map_err(infrastructure)?;
+            return Ok(false);
+        };
+        let mut scoped = evidence;
+        scoped.attempt_id = Some(attempt_id);
+        scoped.attempt_sequence = Some(u64::try_from(sequence).unwrap_or(0));
+        insert_evidence_row(&mut *transaction, &scoped).await?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(true)
+    }
+
+    async fn send_intent(
+        &self,
+        logical_send_id: &str,
+    ) -> Result<Option<SendIntent>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT logical_send_id, project_id, ticket_id, message_id, state,
+                    provider_message_id, updated_at, created_at,
+                    attempt_id, attempt_sequence, lease_expires_at
+               FROM ticketing_send_intents WHERE logical_send_id = ?",
+        )
+        .bind(logical_send_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| {
+            Ok(SendIntent {
+                logical_send_id: row.get("logical_send_id"),
+                project_id: row.get("project_id"),
+                ticket_id: TicketId(Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(
+                    |_| {
+                        TicketStoreError::Infrastructure(
+                            "stored send intent ticket id is not a UUID".into(),
+                        )
+                    },
+                )?),
+                message_id: TicketMessageId(
+                    Uuid::parse_str(&row.get::<String, _>("message_id")).map_err(|_| {
+                        TicketStoreError::Infrastructure(
+                            "stored send intent message id is not a UUID".into(),
+                        )
+                    })?,
+                ),
+                state: parse_send_intent_state(&row.get::<String, _>("state"))?,
+                provider_message_id: row.get("provider_message_id"),
+                updated_at: parse_timestamp(&row.get::<String, _>("updated_at"))?,
+                created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+                attempt_id: row
+                    .get::<Option<String>, _>("attempt_id")
+                    .map(|value| Uuid::parse_str(&value))
+                    .transpose()
+                    .map_err(|_| {
+                        TicketStoreError::Infrastructure("stored attempt id is not a UUID".into())
+                    })?,
+                attempt_sequence: row
+                    .get::<Option<i64>, _>("attempt_sequence")
+                    .and_then(|value| u64::try_from(value).ok())
+                    .unwrap_or(0),
+                lease_expires_at: row
+                    .get::<Option<String>, _>("lease_expires_at")
+                    .map(|value| parse_timestamp(&value))
+                    .transpose()?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn resolve_send_intent(
+        &self,
+        logical_send_id: &str,
+        state: SendIntentState,
+        provider_message_id: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_send_intents
+                SET state = ?, provider_message_id = ?, updated_at = ?
+              WHERE logical_send_id = ?",
+        )
+        .bind(send_intent_state_name(state))
+        .bind(provider_message_id)
+        .bind(now.to_rfc3339())
+        .bind(logical_send_id)
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() > 0)
+    }
+
+    async fn stage_rotation_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET rotation_staged_session_id = ?
+              WHERE exchange_key = ? AND session_id = ? AND revoked_at IS NULL
+                AND rotation_staged_session_id IS NULL",
+        )
+        .bind(staged_session_id.0.to_string())
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn complete_rotation_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET session_id = ?, generation = generation + 1, rotation_staged_session_id = NULL
+              WHERE exchange_key = ? AND session_id = ? AND rotation_staged_session_id = ?",
+        )
+        .bind(staged_session_id.0.to_string())
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .bind(staged_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn clear_rotation_staged_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+        staged_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET rotation_staged_session_id = NULL
+              WHERE exchange_key = ? AND session_id = ? AND rotation_staged_session_id = ?",
+        )
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .bind(staged_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn remove_session_exchange_grant_fenced(
+        &self,
+        exchange_key: &str,
+        expected_session_id: minco_plugin_sessions::SessionId,
+    ) -> Result<bool, TicketStoreError> {
+        let removed = sqlx::query(
+            "DELETE FROM ticketing_session_exchange_grants
+              WHERE exchange_key = ? AND session_id = ?",
+        )
+        .bind(exchange_key)
+        .bind(expected_session_id.0.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(removed.rows_affected() == 1)
+    }
+
+    async fn record_session_exchange_fenced(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        let existing = self.session_exchange_grant(&grant.exchange_key).await?;
+        match (existing, expected_generation) {
+            (None, None) => {
+                let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+                let inserted = sqlx::query(
+                    "INSERT INTO ticketing_session_exchange_grants
+                     (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at, generation, revoked_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+                     ON CONFLICT(exchange_key) DO NOTHING",
+                )
+                .bind(&grant.exchange_key)
+                .bind(grant.session_id.0.to_string())
+                .bind(&grant.subject)
+                .bind(&grant.project_id)
+                .bind(grant.permissions.join(","))
+                .bind(&grant.portal_origin)
+                .bind(grant.expires_at.to_rfc3339())
+                .bind(grant.created_at.to_rfc3339())
+                .execute(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                transaction.commit().await.map_err(infrastructure)?;
+                if inserted.rows_affected() == 0 {
+                    // Lost the initial-insert race (exact-head review
+                    // R28/P0-2): return the winner's grant so the loser
+                    // revokes its own session and never the winner's.
+                    let winner = self
+                        .session_exchange_grant(&grant.exchange_key)
+                        .await?
+                        .ok_or_else(|| {
+                            TicketStoreError::Infrastructure(
+                                "exchange grant vanished after insert race".into(),
+                            )
+                        })?;
+                    return Ok(winner);
+                }
+                Ok(grant)
+            }
+            // A takeover may only advance a live, unstaged grant: a
+            // revoked grant (logout) or an in-flight rotation can never
+            // be overwritten by a stale worker (R28/P0-2). The UPDATE's
+            // affected rows are the fence — 0 rows means this worker
+            // lost and must adopt whatever is actually stored.
+            (Some(current), Some(expected))
+                if current.generation == expected
+                    && current.revoked_at.is_none()
+                    && current.rotation_staged_session_id.is_none() =>
+            {
+                let updated =
+                    sqlx::query(
+                        "UPDATE ticketing_session_exchange_grants
+                        SET session_id = ?, subject = ?, project_id = ?, permissions = ?,
+                            portal_origin = ?, generation = generation + 1
+                      WHERE exchange_key = ? AND generation = ?
+                        AND revoked_at IS NULL AND rotation_staged_session_id IS NULL",
+                    )
+                    .bind(grant.session_id.0.to_string())
+                    .bind(&grant.subject)
+                    .bind(&grant.project_id)
+                    .bind(grant.permissions.join(","))
+                    .bind(&grant.portal_origin)
+                    .bind(&grant.exchange_key)
+                    .bind(i64::try_from(current.generation).map_err(|_| {
+                        TicketStoreError::Infrastructure("generation overflow".into())
+                    })?)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(infrastructure)?;
+                if updated.rows_affected() == 0 {
+                    let winner = self
+                        .session_exchange_grant(&grant.exchange_key)
+                        .await?
+                        .ok_or_else(|| {
+                            TicketStoreError::Infrastructure(
+                                "exchange grant vanished during takeover".into(),
+                            )
+                        })?;
+                    return Ok(winner);
+                }
+                let mut stored = grant;
+                stored.generation = current.generation + 1;
+                Ok(stored)
+            }
+            (Some(current), _) => Ok(current),
+            (None, Some(_)) => Err(TicketStoreError::Infrastructure(
+                "fenced exchange record expected an existing generation".into(),
+            )),
+        }
+    }
+
+    async fn revoke_session_exchange(
+        &self,
+        exchange_key: &str,
+        now: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let updated = sqlx::query(
+            "UPDATE ticketing_session_exchange_grants
+                SET revoked_at = ?
+              WHERE exchange_key = ? AND revoked_at IS NULL",
+        )
+        .bind(now.to_rfc3339())
+        .bind(exchange_key)
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(updated.rows_affected() == 1)
+    }
+
+    async fn put_session_exchange_grant(
+        &self,
+        grant: SessionExchangeGrant,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_session_exchange_grants
+                 (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(exchange_key) DO UPDATE SET
+                 session_id = excluded.session_id",
+        )
+        .bind(&grant.exchange_key)
+        .bind(grant.session_id.0.to_string())
+        .bind(&grant.subject)
+        .bind(&grant.project_id)
+        .bind(grant.permissions.join(","))
+        .bind(&grant.portal_origin)
+        .bind(grant.expires_at.to_rfc3339())
+        .bind(grant.created_at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<Option<SessionExchangeGrant>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT exchange_key, session_id, subject, project_id, permissions,
+                    portal_origin, expires_at, created_at, generation, revoked_at,
+                    rotation_staged_session_id
+               FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
+        )
+        .bind(exchange_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.map(|row| parse_grant_row(&row)).transpose()
+    }
+
+    async fn remove_session_exchange_grant(
+        &self,
+        exchange_key: &str,
+    ) -> Result<bool, TicketStoreError> {
+        let removed =
+            sqlx::query("DELETE FROM ticketing_session_exchange_grants WHERE exchange_key = ?")
+                .bind(exchange_key)
+                .execute(&self.pool)
+                .await
+                .map_err(infrastructure)?;
+        Ok(removed.rows_affected() > 0)
+    }
+
+    async fn create_ticket_from_external(
+        &self,
+        ticket: Ticket,
+        intent: TicketActivityIntent,
+        identity: ExternalMessageIdentity,
+    ) -> Result<ExternalMessageIngestResult, TicketStoreError> {
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let inserted = sqlx::query(
+            "INSERT OR IGNORE INTO ticketing_external_messages
+             (project_id, provider, mailbox_scope, external_id, content_sha256, identity_json, ticket_id, created_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?
+             WHERE NOT EXISTS (
+               SELECT 1 FROM ticketing_external_messages
+                WHERE project_id = ? AND provider = ? AND mailbox_scope = ? AND external_id = ?
+             )",
+        )
+        .bind(&identity.project_id)
+        .bind(&identity.provider)
+        .bind(&identity.mailbox_scope)
+        .bind(&identity.external_id)
+        .bind(&identity.content_sha256)
+        .bind(serde_json::to_string(&identity).map_err(encoding)?)
+        .bind(ticket.id.to_string())
+        .bind(Utc::now().to_rfc3339())
+        .bind(&identity.project_id)
+        .bind(&identity.provider)
+        .bind(&identity.mailbox_scope)
+        .bind(&identity.external_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        if inserted.rows_affected() == 0 {
+            let row = sqlx::query(
+                "SELECT content_sha256, ticket_id FROM ticketing_external_messages WHERE project_id = ? AND provider = ? AND mailbox_scope = ? AND external_id = ?",
+            )
+            .bind(&identity.project_id)
+            .bind(&identity.provider)
+            .bind(&identity.mailbox_scope)
+            .bind(&identity.external_id)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(infrastructure)?;
+            let Some(row) = row else {
+                return Err(TicketStoreError::NotFound(ticket.id));
+            };
+            transaction.commit().await.map_err(infrastructure)?;
+            return if row.get::<String, _>("content_sha256") == identity.content_sha256 {
+                let ticket_id = row
+                    .get::<String, _>("ticket_id")
+                    .parse::<TicketId>()
+                    .map_err(encoding)?;
+                let ticket = self
+                    .get(&identity.project_id, ticket_id)
+                    .await?
+                    .ok_or_else(|| {
+                        TicketStoreError::Infrastructure(
+                            "external message authoritative ticket is missing".into(),
+                        )
+                    })?;
+                Ok(ExternalMessageIngestResult {
+                    ticket,
+                    repeated: true,
+                })
+            } else {
+                Err(TicketStoreError::ExternalIdentityConflict)
+            };
+        }
+        insert_ticket(&mut transaction, &ticket).await?;
+        insert_activity(&mut transaction, &intent).await?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(ExternalMessageIngestResult {
+            ticket,
+            repeated: false,
+        })
+    }
+
+    async fn append_outbound_evidence(
+        &self,
+        evidence: OutboundDeliveryEvidence,
+    ) -> Result<(), TicketStoreError> {
+        insert_evidence_row(&self.pool, &evidence).await
+    }
+
+    async fn outbound_evidence(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        message_id: TicketMessageId,
+    ) -> Result<Vec<OutboundDeliveryEvidence>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT evidence_json FROM ticketing_delivery_evidence
+              WHERE project_id = ? AND ticket_id = ? AND message_id = ?
+              ORDER BY recorded_at, kind, provider_message_id",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .bind(message_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|row| {
+                serde_json::from_str(&row.get::<String, _>("evidence_json")).map_err(encoding)
+            })
+            .collect()
+    }
+
+    async fn record_ticket_view(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        subject: &str,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_ticket_views (project_id, ticket_id, subject, viewed_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT (project_id, ticket_id, subject) DO UPDATE SET viewed_at = excluded.viewed_at",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .bind(subject)
+        .bind(at.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|_| TicketStoreError::NotFound(ticket_id))?;
+        Ok(())
+    }
+
+    async fn recent_ticket_viewers(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+        excluding: &str,
+        within: chrono::TimeDelta,
+        now: chrono::DateTime<chrono::Utc>,
+        limit: usize,
+    ) -> Result<Vec<String>, TicketStoreError> {
+        let cutoff = (now - within).to_rfc3339();
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT subject FROM ticketing_ticket_views
+              WHERE project_id = ? AND ticket_id = ? AND subject != ? AND viewed_at >= ?
+              ORDER BY viewed_at DESC LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .bind(excluding)
+        .bind(cutoff)
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(rows.into_iter().map(|row| row.0).collect())
+    }
+
+    async fn list_macros(&self, project_id: &str) -> Result<Vec<AgentMacro>, TicketStoreError> {
+        let rows: Vec<(String, String, String, String, i64)> = sqlx::query_as(
+            "SELECT id, title, body, updated_at, revision FROM ticketing_macros
+              WHERE project_id = ? ORDER BY title, id",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.into_iter()
+            .map(|(id, title, body, updated_at, revision)| {
+                Ok(AgentMacro {
+                    id: Uuid::parse_str(&id).map_err(|_| {
+                        TicketStoreError::Infrastructure("stored macro id is not a UUID".into())
+                    })?,
+                    title,
+                    body,
+                    updated_at: parse_timestamp(&updated_at)?,
+                    revision: u64::try_from(revision).map_err(|_| {
+                        TicketStoreError::Infrastructure("stored macro revision is negative".into())
+                    })?,
+                })
+            })
+            .collect()
+    }
+
+    async fn insert_macro(
+        &self,
+        project_id: &str,
+        macro_: AgentMacro,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_macros (project_id, id, title, body, updated_at, revision)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(macro_.id.to_string())
+        .bind(&macro_.title)
+        .bind(&macro_.body)
+        .bind(macro_.updated_at.to_rfc3339())
+        .bind(i64::try_from(macro_.revision).map_err(infrastructure)?)
+        .execute(&self.pool)
+        .await
+        .map_err(|error| {
+            if is_unique(&error) {
+                TicketStoreError::DuplicateMacroTitle
+            } else {
+                infrastructure(error)
+            }
+        })?;
+        Ok(())
+    }
+
+    async fn update_macro(
+        &self,
+        project_id: &str,
+        id: Uuid,
+        expected_revision: u64,
+        title: &str,
+        body: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<AgentMacro, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_macros
+                SET title = ?, body = ?, updated_at = ?, revision = revision + 1
+              WHERE project_id = ? AND id = ? AND revision = ?",
+        )
+        .bind(title)
+        .bind(body)
+        .bind(now.to_rfc3339())
+        .bind(project_id)
+        .bind(id.to_string())
+        .bind(i64::try_from(expected_revision).map_err(infrastructure)?)
+        .execute(&self.pool)
+        .await
+        .map_err(|error| {
+            if is_unique(&error) {
+                TicketStoreError::DuplicateMacroTitle
+            } else {
+                infrastructure(error)
+            }
+        })?;
+        if result.rows_affected() == 0 {
+            let existing: Option<(i64,)> = sqlx::query_as(
+                "SELECT revision FROM ticketing_macros WHERE project_id = ? AND id = ?",
+            )
+            .bind(project_id)
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(infrastructure)?;
+            return match existing {
+                None => Err(TicketStoreError::MacroNotFound(id)),
+                Some((revision,)) => Err(TicketStoreError::StaleRevision {
+                    expected: expected_revision,
+                    actual: u64::try_from(revision).unwrap_or(0),
+                }),
+            };
+        }
+        let row: (String, String, String, String, i64) = sqlx::query_as(
+            "SELECT id, title, body, updated_at, revision FROM ticketing_macros
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(project_id)
+        .bind(id.to_string())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(AgentMacro {
+            id,
+            title: row.1,
+            body: row.2,
+            updated_at: parse_timestamp(&row.3)?,
+            revision: u64::try_from(row.4).map_err(|_| {
+                TicketStoreError::Infrastructure("stored macro revision is negative".into())
+            })?,
+        })
+    }
+
+    #[allow(clippy::significant_drop_tightening)]
+    async fn advance_assignment_cursor(
+        &self,
+        project_id: &str,
+        pool_len: usize,
+    ) -> Result<usize, TicketStoreError> {
+        if pool_len == 0 {
+            return Err(TicketStoreError::Infrastructure(
+                "assignment pool is empty".into(),
+            ));
+        }
+        let pool_len = i64::try_from(pool_len)
+            .map_err(|_| TicketStoreError::Infrastructure("overflow".into()))?;
+        let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+        let row: Option<(i64,)> = sqlx::query_as(
+            "SELECT next_index FROM ticketing_assignment_cursor WHERE project_id = ?",
+        )
+        .bind(project_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        let next = row.map_or(0, |(value,)| value);
+        let index = next % pool_len;
+        sqlx::query(
+            "INSERT INTO ticketing_assignment_cursor (project_id, next_index)
+             VALUES (?, ( ? + 1 ) % ?)
+             ON CONFLICT (project_id) DO UPDATE SET next_index = ( ? + 1 ) % ?",
+        )
+        .bind(project_id)
+        .bind(next)
+        .bind(pool_len)
+        .bind(next)
+        .bind(pool_len)
+        .execute(&mut *transaction)
+        .await
+        .map_err(infrastructure)?;
+        transaction.commit().await.map_err(infrastructure)?;
+        Ok(usize::try_from(index)
+            .map_err(|_| TicketStoreError::Infrastructure("cursor index is negative".into()))?)
+    }
+
+    async fn assignee_workload(
+        &self,
+        project_id: &str,
+        subjects: &[String],
+    ) -> Result<BTreeMap<String, u64>, TicketStoreError> {
+        let mut workload = subjects
+            .iter()
+            .map(|subject| (subject.clone(), 0u64))
+            .collect::<BTreeMap<_, _>>();
+        if subjects.is_empty() {
+            return Ok(workload);
+        }
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT assignee_subject, COUNT(*) FROM ticketing_tickets
+              WHERE project_id = ?
+                AND assignee_subject IS NOT NULL
+                AND status NOT IN ('resolved', 'closed')
+              GROUP BY assignee_subject",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        for (subject, count) in rows {
+            if let Some(entry) = workload.get_mut(&subject) {
+                *entry = u64::try_from(count).unwrap_or(0);
+            }
+        }
+        Ok(workload)
+    }
+
+    async fn insert_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_automation_proposals
+                 (project_id, id, ticket_id, summary, requested_actions_json, created_by, state, created_at, decided_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(proposal.id.to_string())
+        .bind(proposal.ticket_id.to_string())
+        .bind(&proposal.summary)
+        .bind(serde_json::to_string(&proposal.requested_actions).map_err(encoding)?)
+        .bind(&proposal.created_by)
+        .bind(match proposal.state {
+            AutomationProposalState::AwaitingReview => "awaiting_review",
+            AutomationProposalState::Accepted => "accepted",
+            AutomationProposalState::Rejected => "rejected",
+        })
+        .bind(proposal.created_at.to_rfc3339())
+        .bind(proposal.decided_at.map(|value| value.to_rfc3339()))
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn list_automation_proposals(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<AutomationProposal>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, ticket_id, summary, requested_actions_json, created_by, state, created_at, decided_at
+               FROM ticketing_automation_proposals
+              WHERE project_id = ? AND ticket_id = ?
+              ORDER BY created_at",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.iter().map(proposal_from_row).collect()
+    }
+
+    async fn get_automation_proposal(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<AutomationProposal>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT id, ticket_id, summary, requested_actions_json, created_by, state, created_at, decided_at
+               FROM ticketing_automation_proposals
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(project_id)
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.as_ref().map(proposal_from_row).transpose()
+    }
+
+    async fn update_automation_proposal(
+        &self,
+        project_id: &str,
+        proposal: AutomationProposal,
+    ) -> Result<(), TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_automation_proposals
+                SET state = ?, decided_at = ?
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(match proposal.state {
+            AutomationProposalState::AwaitingReview => "awaiting_review",
+            AutomationProposalState::Accepted => "accepted",
+            AutomationProposalState::Rejected => "rejected",
+        })
+        .bind(proposal.decided_at.map(|value| value.to_rfc3339()))
+        .bind(project_id)
+        .bind(proposal.id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        if result.rows_affected() == 0 {
+            return Err(TicketStoreError::MacroNotFound(proposal.id));
+        }
+        Ok(())
+    }
+
+    async fn insert_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        sqlx::query(
+            "INSERT INTO ticketing_clarifications
+                 (project_id, id, ticket_id, reason, questions_json, checkpoint, created_by, state, created_at, sent_at, answered_at, answers_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(project_id)
+        .bind(clarification.id.to_string())
+        .bind(clarification.ticket_id.to_string())
+        .bind(match clarification.reason {
+            ClarificationReason::MissingRequirement => "missing_requirement",
+            ClarificationReason::ContradictoryRequirement => "contradictory_requirement",
+        })
+        .bind(serde_json::to_string(&clarification.questions).map_err(encoding)?)
+        .bind(&clarification.checkpoint)
+        .bind(&clarification.created_by)
+        .bind(clarification_state_column(clarification.state))
+        .bind(clarification.created_at.to_rfc3339())
+        .bind(clarification.sent_at.map(|value| value.to_rfc3339()))
+        .bind(clarification.answered_at.map(|value| value.to_rfc3339()))
+        .bind(
+            clarification
+                .answers
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(encoding)?,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(())
+    }
+
+    async fn list_clarifications(
+        &self,
+        project_id: &str,
+        ticket_id: TicketId,
+    ) -> Result<Vec<Clarification>, TicketStoreError> {
+        let rows = sqlx::query(
+            "SELECT id, ticket_id, reason, questions_json, checkpoint, created_by, state, created_at, sent_at, answered_at, answers_json
+               FROM ticketing_clarifications
+              WHERE project_id = ? AND ticket_id = ?
+              ORDER BY created_at",
+        )
+        .bind(project_id)
+        .bind(ticket_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        rows.iter().map(clarification_from_row).collect()
+    }
+
+    async fn get_clarification(
+        &self,
+        project_id: &str,
+        id: Uuid,
+    ) -> Result<Option<Clarification>, TicketStoreError> {
+        let row = sqlx::query(
+            "SELECT id, ticket_id, reason, questions_json, checkpoint, created_by, state, created_at, sent_at, answered_at, answers_json
+               FROM ticketing_clarifications
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(project_id)
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        row.as_ref().map(clarification_from_row).transpose()
+    }
+
+    async fn update_clarification(
+        &self,
+        project_id: &str,
+        clarification: Clarification,
+    ) -> Result<(), TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_clarifications
+                SET state = ?, sent_at = ?, answered_at = ?, answers_json = ?
+              WHERE project_id = ? AND id = ?",
+        )
+        .bind(clarification_state_column(clarification.state))
+        .bind(clarification.sent_at.map(|value| value.to_rfc3339()))
+        .bind(clarification.answered_at.map(|value| value.to_rfc3339()))
+        .bind(
+            clarification
+                .answers
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(encoding)?,
+        )
+        .bind(project_id)
+        .bind(clarification.id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        if result.rows_affected() == 0 {
+            return Err(TicketStoreError::MacroNotFound(clarification.id));
+        }
+        Ok(())
+    }
+
+    async fn erase_tickets_resolved_before(
+        &self,
+        project_id: &str,
+        cutoff: chrono::DateTime<chrono::Utc>,
+        limit: usize,
+    ) -> Result<usize, TicketStoreError> {
+        // Child rows cascade via foreign keys; the query only ever
+        // deletes ticket rows it can name first.
+        let doomed: Vec<(String,)> = sqlx::query_as(
+            "SELECT id FROM ticketing_tickets
+              WHERE project_id = ?
+                AND status IN ('resolved', 'closed')
+                AND updated_at < ?
+              ORDER BY updated_at
+              LIMIT ?",
+        )
+        .bind(project_id)
+        .bind(cutoff.to_rfc3339())
+        .bind(i64::try_from(limit).map_err(infrastructure)?)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        let erased = doomed.len();
+        for (id,) in &doomed {
+            sqlx::query("DELETE FROM ticketing_tickets WHERE project_id = ? AND id = ?")
+                .bind(project_id)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .map_err(infrastructure)?;
+        }
+        Ok(erased)
     }
 
     async fn ready(&self) -> Result<(), TicketStoreError> {
@@ -383,17 +2152,39 @@ async fn insert_ticket(
     ticket: &Ticket,
 ) -> Result<(), TicketStoreError> {
     sqlx::query(
-        "INSERT INTO ticketing_tickets (project_id, id, display_reference, status, queue_id, assignee_subject, requester_subject, updated_at, revision, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO ticketing_tickets (project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, first_response_deadline, resolution_deadline, waiting_since, resolved_at, closed_at, resolution, close_reason, ticket_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&ticket.project_id)
     .bind(ticket.id.to_string())
     .bind(&ticket.display_reference)
+    .bind(&ticket.subject)
+    .bind(&ticket.description)
+    .bind(enum_json(&ticket.channel)?)
+    .bind(enum_json(&ticket.priority)?)
+    .bind(enum_json(&ticket.ticket_type)?)
+    .bind(serde_json::to_string(&ticket.form_answers).map_err(encoding)?)
     .bind(enum_json(&ticket.status)?)
     .bind(&ticket.queue_id)
     .bind(&ticket.assignee_subject)
     .bind(&ticket.requester.subject)
+    .bind(&ticket.requester.display_name)
+    .bind(&ticket.requester.email)
+    .bind(ticket.created_at.to_rfc3339())
     .bind(ticket.updated_at.to_rfc3339())
     .bind(i64::try_from(ticket.revision).map_err(|_| TicketStoreError::Infrastructure("revision exceeds SQLite integer".into()))?)
+    .bind(ticket.first_public_response_at.map(|v| v.to_rfc3339()))
+    .bind(ticket.first_response_deadline.map(|v| v.to_rfc3339()))
+    .bind(ticket.resolution_deadline.map(|v| v.to_rfc3339()))
+    .bind(ticket.waiting_since.map(|v| v.to_rfc3339()))
+    .bind(ticket.resolved_at.map(|v| v.to_rfc3339()))
+    .bind(ticket.closed_at.map(|v| v.to_rfc3339()))
+    .bind(&ticket.resolution)
+    .bind(&ticket.close_reason)
+    .bind(serde_json::to_string(&ticket.knowledge_links).map_err(encoding)?)
+    .bind(match &ticket.csat {
+        Some(csat) => Some(serde_json::to_string(csat).map_err(encoding)?),
+        None => None,
+    })
     .bind(serde_json::to_string(ticket).map_err(encoding)?)
     .execute(&mut **transaction)
     .await
@@ -413,14 +2204,36 @@ async fn update_ticket(
         });
     }
     let result = sqlx::query(
-        "UPDATE ticketing_tickets SET status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, updated_at = ?, revision = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
+        "UPDATE ticketing_tickets SET subject = ?, description = ?, channel = ?, priority = ?, ticket_type = ?, form_answers_json = ?, status = ?, queue_id = ?, assignee_subject = ?, requester_subject = ?, requester_display_name = ?, requester_email = ?, created_at = ?, updated_at = ?, revision = ?, first_public_response_at = ?, first_response_deadline = ?, resolution_deadline = ?, waiting_since = ?, resolved_at = ?, closed_at = ?, resolution = ?, close_reason = ?, knowledge_links_json = ?, csat_json = ?, ticket_json = ? WHERE project_id = ? AND id = ? AND revision = ?",
     )
+    .bind(&ticket.subject)
+    .bind(&ticket.description)
+    .bind(enum_json(&ticket.channel)?)
+    .bind(enum_json(&ticket.priority)?)
+    .bind(enum_json(&ticket.ticket_type)?)
+    .bind(serde_json::to_string(&ticket.form_answers).map_err(encoding)?)
     .bind(enum_json(&ticket.status)?)
     .bind(&ticket.queue_id)
     .bind(&ticket.assignee_subject)
     .bind(&ticket.requester.subject)
+    .bind(&ticket.requester.display_name)
+    .bind(&ticket.requester.email)
+    .bind(ticket.created_at.to_rfc3339())
     .bind(ticket.updated_at.to_rfc3339())
     .bind(i64::try_from(ticket.revision).map_err(|_| TicketStoreError::Infrastructure("revision exceeds SQLite integer".into()))?)
+    .bind(ticket.first_public_response_at.map(|v| v.to_rfc3339()))
+    .bind(ticket.first_response_deadline.map(|v| v.to_rfc3339()))
+    .bind(ticket.resolution_deadline.map(|v| v.to_rfc3339()))
+    .bind(ticket.waiting_since.map(|v| v.to_rfc3339()))
+    .bind(ticket.resolved_at.map(|v| v.to_rfc3339()))
+    .bind(ticket.closed_at.map(|v| v.to_rfc3339()))
+    .bind(&ticket.resolution)
+    .bind(&ticket.close_reason)
+    .bind(serde_json::to_string(&ticket.knowledge_links).map_err(encoding)?)
+    .bind(match &ticket.csat {
+        Some(csat) => Some(serde_json::to_string(csat).map_err(encoding)?),
+        None => None,
+    })
     .bind(serde_json::to_string(ticket).map_err(encoding)?)
     .bind(&ticket.project_id)
     .bind(ticket.id.to_string())
@@ -542,19 +2355,174 @@ async fn load_ticket_tx(
     project_id: &str,
     id: TicketId,
 ) -> Result<Option<Ticket>, TicketStoreError> {
-    sqlx::query("SELECT ticket_json FROM ticketing_tickets WHERE project_id = ? AND id = ?")
-        .bind(project_id)
-        .bind(id.to_string())
-        .fetch_optional(&mut **transaction)
-        .await
-        .map_err(infrastructure)?
-        .map(|row| decode_ticket(row.get::<String, _>("ticket_json")))
-        .transpose()
+    load_ticket_row(transaction, project_id, &id.to_string()).await
 }
 
-#[allow(clippy::needless_pass_by_value)]
-fn decode_ticket(value: String) -> Result<Ticket, TicketStoreError> {
-    serde_json::from_str(&value).map_err(encoding)
+/// Authoritative columnar read (ADR-0052): the aggregate is reconstructed
+/// from projection columns and child tables; `ticket_json` is never read.
+async fn load_ticket_row(
+    connection: &mut sqlx::SqliteConnection,
+    project_id: &str,
+    id: &str,
+) -> Result<Option<Ticket>, TicketStoreError> {
+    let Some(row) = sqlx::query(
+        "SELECT project_id, id, display_reference, subject, description, channel, priority, ticket_type, form_answers_json, status, queue_id, assignee_subject, requester_subject, requester_display_name, requester_email, created_at, updated_at, revision, first_public_response_at, first_response_deadline, resolution_deadline, waiting_since, resolved_at, closed_at, resolution, close_reason, knowledge_links_json, csat_json FROM ticketing_tickets WHERE project_id = ? AND id = ?",
+    )
+    .bind(project_id)
+    .bind(id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(infrastructure)?
+    else {
+        return Ok(None);
+    };
+    let messages = sqlx::query(
+        "SELECT message_json FROM ticketing_messages WHERE project_id = ? AND ticket_id = ? ORDER BY created_at, id",
+    )
+    .bind(project_id)
+    .bind(id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(infrastructure)?
+    .into_iter()
+    .map(|row| {
+        serde_json::from_str(&row.get::<String, _>("message_json")).map_err(encoding)
+    })
+    .collect::<Result<Vec<crate::TicketMessage>, _>>()?;
+    let attachments = sqlx::query(
+        "SELECT attachment_json FROM ticketing_attachments WHERE project_id = ? AND ticket_id = ? ORDER BY rowid",
+    )
+    .bind(project_id)
+    .bind(id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(infrastructure)?
+    .into_iter()
+    .map(|row| {
+        serde_json::from_str(&row.get::<String, _>("attachment_json")).map_err(encoding)
+    })
+    .collect::<Result<Vec<crate::TicketAttachment>, _>>()?;
+    let followers = sqlx::query(
+        "SELECT subject FROM ticketing_followers WHERE project_id = ? AND ticket_id = ?",
+    )
+    .bind(project_id)
+    .bind(id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(infrastructure)?
+    .into_iter()
+    .map(|row| row.get::<String, _>("subject"))
+    .collect::<std::collections::BTreeSet<_>>();
+    let tags = sqlx::query("SELECT tag FROM ticketing_tags WHERE project_id = ? AND ticket_id = ?")
+        .bind(project_id)
+        .bind(id)
+        .fetch_all(&mut *connection)
+        .await
+        .map_err(infrastructure)?
+        .into_iter()
+        .map(|row| row.get::<String, _>("tag"))
+        .collect::<std::collections::BTreeSet<_>>();
+    let source_references = sqlx::query(
+        "SELECT provider, scope, external_id FROM ticketing_source_references WHERE project_id = ? AND ticket_id = ?",
+    )
+    .bind(project_id)
+    .bind(id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(infrastructure)?
+    .into_iter()
+    .map(|row| crate::TicketSourceReference {
+        provider: row.get("provider"),
+        scope: row.get("scope"),
+        external_id: row.get("external_id"),
+    })
+    .collect::<Vec<_>>();
+    let resource_references = sqlx::query(
+        "SELECT system, resource_type, resource_id FROM ticketing_resource_references WHERE project_id = ? AND ticket_id = ?",
+    )
+    .bind(project_id)
+    .bind(id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(infrastructure)?
+    .into_iter()
+    .map(|row| minco_interaction::SupportResourceReference {
+        system: row.get("system"),
+        resource_type: row.get("resource_type"),
+        resource_id: row.get("resource_id"),
+    })
+    .collect::<Vec<_>>();
+
+    let status: TicketStatus = parse_enum("status", row.get::<String, _>("status"))?;
+    let channel: crate::TicketChannel = parse_enum("channel", row.get::<String, _>("channel"))?;
+    let priority: crate::TicketPriority = parse_enum("priority", row.get::<String, _>("priority"))?;
+    let optional_timestamp =
+        |column: &str| -> Result<Option<chrono::DateTime<chrono::Utc>>, TicketStoreError> {
+            row.get::<Option<String>, _>(column)
+                .map(|value| parse_timestamp(&value))
+                .transpose()
+        };
+    Ok(Some(Ticket {
+        id: TicketId(Uuid::parse_str(id).map_err(|_| {
+            TicketStoreError::Infrastructure("stored ticket id is not a UUID".into())
+        })?),
+        project_id: row.get("project_id"),
+        display_reference: row.get("display_reference"),
+        subject: row.get("subject"),
+        description: row.get("description"),
+        requester: crate::TicketRequester {
+            subject: row.get("requester_subject"),
+            display_name: row.get("requester_display_name"),
+            email: row.get("requester_email"),
+        },
+        channel,
+        priority,
+        ticket_type: parse_enum("ticket_type", row.get::<String, _>("ticket_type"))?,
+        form_answers: serde_json::from_str(&row.get::<String, _>("form_answers_json")).map_err(
+            |_| {
+                TicketStoreError::Infrastructure(
+                    "stored ticket form answers are not valid JSON".into(),
+                )
+            },
+        )?,
+        status,
+        clock_state: status.clock_state(),
+        queue_id: row.get("queue_id"),
+        assignee_subject: row.get("assignee_subject"),
+        followers,
+        category: None,
+        tags,
+        source_references,
+        resource_references,
+        messages,
+        attachments,
+        knowledge_links: serde_json::from_str(&row.get::<String, _>("knowledge_links_json"))
+            .map_err(|_| {
+                TicketStoreError::Infrastructure(
+                    "stored ticket knowledge links are not valid JSON".into(),
+                )
+            })?,
+        csat: row
+            .get::<Option<String>, _>("csat_json")
+            .map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(|_| {
+                TicketStoreError::Infrastructure("stored ticket csat is not valid JSON".into())
+            })?,
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+        updated_at: parse_timestamp(&row.get::<String, _>("updated_at"))?,
+        first_public_response_at: optional_timestamp("first_public_response_at")?,
+        first_response_deadline: optional_timestamp("first_response_deadline")?,
+        resolution_deadline: optional_timestamp("resolution_deadline")?,
+        waiting_since: optional_timestamp("waiting_since")?,
+        resolved_at: optional_timestamp("resolved_at")?,
+        closed_at: optional_timestamp("closed_at")?,
+        resolution: row.get("resolution"),
+        close_reason: row.get("close_reason"),
+        revision: u64::try_from(row.get::<i64, _>("revision")).map_err(|_| {
+            TicketStoreError::Infrastructure("stored ticket revision is negative".into())
+        })?,
+    }))
 }
 
 fn enum_json<T: serde::Serialize>(value: &T) -> Result<String, TicketStoreError> {
@@ -563,8 +2531,267 @@ fn enum_json<T: serde::Serialize>(value: &T) -> Result<String, TicketStoreError>
         .map_err(encoding)
 }
 
+fn parse_enum<T: serde::de::DeserializeOwned>(
+    field: &'static str,
+    value: String,
+) -> Result<T, TicketStoreError> {
+    serde_json::from_value(serde_json::Value::String(value)).map_err(|_| {
+        TicketStoreError::Infrastructure(format!("stored {field} is not a valid enum value"))
+    })
+}
+
+fn parse_grant_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<SessionExchangeGrant, TicketStoreError> {
+    Ok(SessionExchangeGrant {
+        exchange_key: row.get("exchange_key"),
+        session_id: minco_plugin_sessions::SessionId(
+            Uuid::parse_str(&row.get::<String, _>("session_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("stored grant session id is not a UUID".into())
+            })?,
+        ),
+        generation: u64::try_from(row.get::<i64, _>("generation")).unwrap_or(0),
+        subject: row.get("subject"),
+        project_id: row.get("project_id"),
+        permissions: row
+            .get::<String, _>("permissions")
+            .split(',')
+            .filter(|part| !part.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        portal_origin: row.get("portal_origin"),
+        expires_at: parse_timestamp(&row.get::<String, _>("expires_at"))?,
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+        revoked_at: row
+            .get::<Option<String>, _>("revoked_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+        rotation_staged_session_id: row
+            .get::<Option<String>, _>("rotation_staged_session_id")
+            .map(|value| Uuid::parse_str(&value).map(minco_plugin_sessions::SessionId))
+            .map(|parsed| {
+                parsed.map_err(|_| {
+                    TicketStoreError::Infrastructure(
+                        "stored staged rotation session id is not a UUID".into(),
+                    )
+                })
+            })
+            .transpose()?,
+    })
+}
+
+fn parse_intent_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<TicketActivityIntent, TicketStoreError> {
+    Ok(TicketActivityIntent {
+        id: Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+            TicketStoreError::Infrastructure("stored intent id is not a UUID".into())
+        })?,
+        project_id: row.get("project_id"),
+        ticket_id: TicketId(
+            Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("stored intent ticket id is not a UUID".into())
+            })?,
+        ),
+        kind: row.get("kind"),
+        correlation_id: Uuid::parse_str(&row.get::<String, _>("correlation_id")).map_err(|_| {
+            TicketStoreError::Infrastructure("stored correlation id is not a UUID".into())
+        })?,
+        payload: serde_json::from_str(&row.get::<String, _>("payload_json")).map_err(encoding)?,
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+    })
+}
+
+const fn send_intent_state_name(state: SendIntentState) -> &'static str {
+    match state {
+        SendIntentState::PendingSend => "pending_send",
+        SendIntentState::Sending => "sending",
+        SendIntentState::Sent => "sent",
+        SendIntentState::RecoveryRequired => "recovery_required",
+        SendIntentState::FailedNoSend => "failed_no_send",
+    }
+}
+
+fn parse_send_intent_state(value: &str) -> Result<SendIntentState, TicketStoreError> {
+    match value {
+        "pending_send" => Ok(SendIntentState::PendingSend),
+        "sending" => Ok(SendIntentState::Sending),
+        "sent" => Ok(SendIntentState::Sent),
+        "recovery_required" => Ok(SendIntentState::RecoveryRequired),
+        "failed_no_send" => Ok(SendIntentState::FailedNoSend),
+        other => Err(TicketStoreError::Infrastructure(format!(
+            "unknown send intent state {other:?}"
+        ))),
+    }
+}
+
+fn parse_timestamp(value: &str) -> Result<chrono::DateTime<chrono::Utc>, TicketStoreError> {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .map(|value| value.with_timezone(&chrono::Utc))
+        .map_err(|_| TicketStoreError::Infrastructure("stored timestamp is not RFC 3339".into()))
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+fn proposal_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<AutomationProposal, TicketStoreError> {
+    Ok(AutomationProposal {
+        id: Uuid::parse_str(&row.get::<String, _>("id"))
+            .map_err(|_| TicketStoreError::Infrastructure("proposal id is not a UUID".into()))?,
+        ticket_id: TicketId(
+            Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("proposal ticket id is not a UUID".into())
+            })?,
+        ),
+        summary: row.get("summary"),
+        requested_actions: serde_json::from_str(&row.get::<String, _>("requested_actions_json"))
+            .map_err(|_| {
+                TicketStoreError::Infrastructure("proposal actions are not valid JSON".into())
+            })?,
+        created_by: row.get("created_by"),
+        state: match row.get::<String, _>("state").as_str() {
+            "awaiting_review" => AutomationProposalState::AwaitingReview,
+            "accepted" => AutomationProposalState::Accepted,
+            "rejected" => AutomationProposalState::Rejected,
+            _ => {
+                return Err(TicketStoreError::Infrastructure(
+                    "proposal state is unknown".into(),
+                ));
+            }
+        },
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+        decided_at: row
+            .get::<Option<String>, _>("decided_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+    })
+}
+
+const fn clarification_state_column(state: ClarificationState) -> &'static str {
+    match state {
+        ClarificationState::Draft => "draft",
+        ClarificationState::Sent => "sent",
+        ClarificationState::Answered => "answered",
+        ClarificationState::Withdrawn => "withdrawn",
+    }
+}
+
+fn clarification_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<Clarification, TicketStoreError> {
+    Ok(Clarification {
+        id: Uuid::parse_str(&row.get::<String, _>("id")).map_err(|_| {
+            TicketStoreError::Infrastructure("clarification id is not a UUID".into())
+        })?,
+        ticket_id: TicketId(
+            Uuid::parse_str(&row.get::<String, _>("ticket_id")).map_err(|_| {
+                TicketStoreError::Infrastructure("clarification ticket id is not a UUID".into())
+            })?,
+        ),
+        reason: match row.get::<String, _>("reason").as_str() {
+            "missing_requirement" => ClarificationReason::MissingRequirement,
+            "contradictory_requirement" => ClarificationReason::ContradictoryRequirement,
+            _ => {
+                return Err(TicketStoreError::Infrastructure(
+                    "clarification reason is unknown".into(),
+                ));
+            }
+        },
+        questions: serde_json::from_str(&row.get::<String, _>("questions_json")).map_err(|_| {
+            TicketStoreError::Infrastructure("clarification questions are not valid JSON".into())
+        })?,
+        checkpoint: row.get("checkpoint"),
+        created_by: row.get("created_by"),
+        state: match row.get::<String, _>("state").as_str() {
+            "draft" => ClarificationState::Draft,
+            "sent" => ClarificationState::Sent,
+            "answered" => ClarificationState::Answered,
+            "withdrawn" => ClarificationState::Withdrawn,
+            _ => {
+                return Err(TicketStoreError::Infrastructure(
+                    "clarification state is unknown".into(),
+                ));
+            }
+        },
+        created_at: parse_timestamp(&row.get::<String, _>("created_at"))?,
+        sent_at: row
+            .get::<Option<String>, _>("sent_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+        answered_at: row
+            .get::<Option<String>, _>("answered_at")
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+        answers: row
+            .get::<Option<String>, _>("answers_json")
+            .map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(|_| {
+                TicketStoreError::Infrastructure("clarification answers are not valid JSON".into())
+            })?,
+    })
+}
+
 fn infrastructure(error: impl std::fmt::Display) -> TicketStoreError {
     TicketStoreError::Infrastructure(error.to_string())
+}
+
+/// Inserts one delivery-evidence row (idempotent on the natural key),
+/// binding the attempt scope columns (exact-head review R29/P0-3).
+/// Works against the pool or inside a transaction so
+/// `complete_send_attempt` commits evidence atomically with the state.
+async fn insert_evidence_row<'e, E>(
+    executor: E,
+    evidence: &OutboundDeliveryEvidence,
+) -> Result<(), TicketStoreError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    let kind = match evidence.kind {
+        OutboundEvidenceKind::Accepted => "accepted",
+        OutboundEvidenceKind::Ambiguous => "ambiguous",
+        OutboundEvidenceKind::PermanentFailure => "permanent_failure",
+        OutboundEvidenceKind::Feedback => "feedback",
+    };
+    let feedback = evidence.feedback.map(|feedback| match feedback {
+        DeliveryFeedbackKind::Bounce => "bounce",
+        DeliveryFeedbackKind::Complaint => "complaint",
+        DeliveryFeedbackKind::Delay => "delay",
+    });
+    sqlx::query(
+        "INSERT INTO ticketing_delivery_evidence
+             (project_id, ticket_id, message_id, kind, provider, provider_message_id,
+              feedback, failure_kind, recorded_at, attempt_id, attempt_sequence, evidence_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (project_id, ticket_id, message_id, recorded_at, kind, provider_message_id)
+             DO NOTHING",
+    )
+    .bind(&evidence.project_id)
+    .bind(evidence.ticket_id.to_string())
+    .bind(evidence.message_id.to_string())
+    .bind(kind)
+    .bind(&evidence.provider)
+    .bind(&evidence.provider_message_id)
+    .bind(feedback)
+    .bind(&evidence.failure_kind)
+    .bind(evidence.recorded_at.to_rfc3339())
+    .bind(evidence.attempt_id.map(|attempt| attempt.to_string()))
+    .bind(
+        evidence
+            .attempt_sequence
+            .map(|sequence| i64::try_from(sequence).unwrap_or(0)),
+    )
+    .bind(serde_json::to_string(evidence).map_err(encoding)?)
+    .execute(executor)
+    .await
+    .map_err(infrastructure)?;
+    Ok(())
 }
 
 fn encoding(error: impl std::fmt::Display) -> TicketStoreError {
@@ -650,6 +2877,11 @@ mod tests {
                 description: "Broken".into(),
                 channel: TicketChannel::Portal,
                 priority: TicketPriority::Normal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
+
+                first_response_deadline: None,
+                resolution_deadline: None,
             },
             now,
         )
@@ -675,7 +2907,6 @@ mod tests {
             },
             ticket_id,
             body: "External reply".into(),
-            expected_revision: 0,
             correlation_id: uuid::Uuid::now_v7(),
             now,
         }
@@ -732,6 +2963,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -773,6 +3006,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -834,6 +3069,8 @@ mod tests {
                     email: None,
                 },
                 channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
                 priority: TicketPriority::Normal,
                 resource_references: Vec::new(),
             },
@@ -923,6 +3160,8 @@ mod tests {
                         email: None,
                     },
                     channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
                     priority: TicketPriority::Normal,
                     resource_references: Vec::new(),
                 },
@@ -952,5 +3191,1454 @@ mod tests {
 
         assert_eq!(tickets.len(), 1);
         assert_eq!(tickets[0].id, expected_id.unwrap());
+    }
+
+    #[tokio::test]
+    async fn summary_list_matches_memory_projection_newest_first() {
+        let (_directory, sqlite) = store().await;
+        let memory = crate::MemoryTicketingStore::default();
+        let base = chrono::DateTime::from_timestamp(1_778_000_000, 0).unwrap();
+        let tied = base + TimeDelta::seconds(10);
+        for (index, (instant, reference)) in
+            [(base, "TKT-OLD"), (tied, "TKT-TIE-A"), (tied, "TKT-TIE-B")]
+                .into_iter()
+                .enumerate()
+        {
+            let mut ticket = crate::Ticket::create(
+                crate::CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: format!("Help {reference}"),
+                    description: "Broken".into(),
+                    requester: crate::TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    priority: if index == 1 {
+                        TicketPriority::High
+                    } else {
+                        TicketPriority::Normal
+                    },
+                    resource_references: Vec::new(),
+                },
+                reference,
+                instant,
+            )
+            .unwrap();
+            ticket.updated_at = instant;
+            if index == 2 {
+                ticket
+                    .add_internal_note("agent", "private note", instant + TimeDelta::seconds(1))
+                    .unwrap();
+            }
+            let intent = crate::TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                Uuid::now_v7(),
+                serde_json::json!({}),
+                instant,
+            );
+            sqlite.create(ticket.clone(), intent.clone()).await.unwrap();
+            memory.create(ticket, intent).await.unwrap();
+        }
+
+        let filter = |limit: usize| crate::TicketSummaryFilter {
+            project_id: "project-a".into(),
+            limit,
+            ..crate::TicketSummaryFilter::default()
+        };
+        let from_sqlite = sqlite.list_summaries(filter(10)).await.unwrap();
+        let from_memory = memory.list_summaries(filter(10)).await.unwrap();
+        assert_eq!(from_sqlite, from_memory);
+        assert_eq!(
+            from_sqlite
+                .iter()
+                .map(|summary| summary.display_reference.clone())
+                .collect::<Vec<_>>(),
+            vec!["TKT-TIE-B", "TKT-TIE-A", "TKT-OLD"]
+        );
+        assert_eq!(from_sqlite[0].message_count, 2);
+        assert!(from_sqlite[0].needs_attention);
+        assert_eq!(from_sqlite[0].status, TicketStatus::New);
+        assert!(from_sqlite[0].last_activity_at.is_some());
+
+        let mut paged = filter(10);
+        paged.before_updated_at = Some(from_sqlite[0].updated_at);
+        paged.before_id = Some(from_sqlite[0].id);
+        let rest = sqlite.list_summaries(paged).await.unwrap();
+        assert_eq!(
+            rest.iter()
+                .map(|summary| summary.display_reference.clone())
+                .collect::<Vec<_>>(),
+            vec!["TKT-TIE-A", "TKT-OLD"]
+        );
+    }
+
+    #[tokio::test]
+    async fn sqlite_session_handoff_identity_is_atomic_one_time_and_replayable() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let (handoff, token) = handoff(now);
+        sqlite.insert_handoff(handoff).await.unwrap();
+
+        let request = |fingerprint: &str| ConsumeSessionRequest {
+            token: token.clone(),
+            project_id: "project-a".into(),
+            portal_origin: "https://support.example.test".into(),
+            request_fingerprint: fingerprint.into(),
+            now,
+        };
+
+        let (first, repeated_flag) = sqlite
+            .consume_handoff_identity(request("fp-1"))
+            .await
+            .unwrap();
+        assert!(!repeated_flag);
+        assert_eq!(first.requester_subject, "user-1");
+        let (replayed, replay_flag) = sqlite
+            .consume_handoff_identity(request("fp-1"))
+            .await
+            .unwrap();
+        assert!(replay_flag);
+        assert_eq!(replayed, first);
+        assert!(matches!(
+            sqlite.consume_handoff_identity(request("fp-2")).await,
+            Err(TicketStoreError::HandoffAlreadyConsumed)
+        ));
+
+        // Ticket creation remains independently consumable exactly once.
+        let created = sqlite
+            .consume_and_create_ticket(consume(token, now))
+            .await
+            .unwrap();
+        assert!(!created.repeated);
+    }
+
+    fn seeded_conversation_ticket(now: chrono::DateTime<Utc>) -> Ticket {
+        let mut ticket = crate::Ticket::create(
+            crate::CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Conversation".into(),
+                description: "It broke and the requester needs help.".into(),
+                requester: crate::TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: Some("User One".into()),
+                    email: Some("user-1@example.test".into()),
+                },
+                channel: TicketChannel::Portal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
+                priority: TicketPriority::Normal,
+                resource_references: Vec::new(),
+            },
+            "TKT-CONV",
+            now,
+        )
+        .unwrap();
+        ticket.queue_id = Some("tier-1".into());
+        ticket.tags.insert("alpha".into());
+        ticket.tags.insert("beta".into());
+        ticket.followers.insert("watcher".into());
+        ticket.source_references.push(crate::TicketSourceReference {
+            provider: "mail".into(),
+            scope: "support@example.test".into(),
+            external_id: "ext-1".into(),
+        });
+        ticket
+    }
+
+    async fn append_all(
+        store: &SqliteTicketingStore,
+        ticket: &mut Ticket,
+        bodies: &[(&str, bool)],
+        now: chrono::DateTime<Utc>,
+    ) {
+        for (body, internal) in bodies {
+            let message = if *internal {
+                ticket.internal_note_message("agent-1", *body, now).unwrap()
+            } else {
+                ticket
+                    .reply_as_agent_message("agent-1", *body, now)
+                    .unwrap()
+            };
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "appended",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            store
+                .append_ticket_message(crate::AppendTicketMessageRequest {
+                    receipt: None,
+                    project_id: "project-a".into(),
+                    ticket_id: ticket.id,
+                    message,
+                    status: ticket.status,
+                    first_public_response_at: ticket.first_public_response_at,
+                    waiting_since: ticket.waiting_since,
+                    resolved_at: ticket.resolved_at,
+                    updated_at: ticket.updated_at,
+                    expected_revision: ticket.revision - 1,
+                    intent,
+                    #[cfg(feature = "jobs")]
+                    job_records: Vec::new(),
+                })
+                .await
+                .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn delivery_evidence_round_trips_and_reconciles_through_sqlite() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = seeded_conversation_ticket(now);
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let message_id = TicketMessageId::new();
+        sqlite
+            .append_outbound_evidence(OutboundDeliveryEvidence {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                message_id,
+                kind: OutboundEvidenceKind::Ambiguous,
+                provider: "scripted".into(),
+                provider_message_id: String::new(),
+                feedback: None,
+                failure_kind: Some("ambiguous".into()),
+                attempt_id: None,
+                attempt_sequence: None,
+                recorded_at: now,
+            })
+            .await
+            .unwrap();
+        let accepted = OutboundDeliveryEvidence {
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            message_id,
+            kind: OutboundEvidenceKind::Accepted,
+            provider: "scripted".into(),
+            provider_message_id: "provider-1".into(),
+            feedback: None,
+            failure_kind: None,
+            attempt_id: None,
+            attempt_sequence: None,
+            recorded_at: now + TimeDelta::seconds(1),
+        };
+        sqlite
+            .append_outbound_evidence(accepted.clone())
+            .await
+            .unwrap();
+        // The natural key makes a redelivered acceptance append idempotent.
+        sqlite.append_outbound_evidence(accepted).await.unwrap();
+
+        let rows = sqlite
+            .outbound_evidence("project-a", ticket.id, message_id)
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].kind, OutboundEvidenceKind::Ambiguous);
+        assert_eq!(rows[0].failure_kind.as_deref(), Some("ambiguous"));
+        assert_eq!(rows[1].kind, OutboundEvidenceKind::Accepted);
+        assert_eq!(rows[1].provider_message_id, "provider-1");
+        // Evidence is scoped to the exact message.
+        assert!(
+            sqlite
+                .outbound_evidence("project-a", ticket.id, TicketMessageId::new())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn ticket_type_and_form_answers_round_trip_columnar() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Typed".into(),
+                description: "Typed ticket".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: crate::TicketChannel::Portal,
+                priority: crate::TicketPriority::Normal,
+                ticket_type: crate::TicketType::Problem,
+                form_answers: vec![crate::TicketFormAnswer {
+                    field_id: "order-id".into(),
+                    kind: crate::TicketFormValueKind::Text,
+                    text_value: Some("ord-91".into()),
+                    number_value: None,
+                    boolean_value: None,
+                }],
+                resource_references: Vec::new(),
+            },
+            "TKT-TYPED",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let loaded = sqlite.get("project-a", ticket.id).await.unwrap().unwrap();
+        assert_eq!(loaded.ticket_type, crate::TicketType::Problem);
+        assert_eq!(loaded.form_answers, ticket.form_answers);
+        let summaries = sqlite
+            .list_summaries(crate::TicketSummaryFilter {
+                project_id: "project-a".into(),
+                limit: 10,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(
+            summaries
+                .iter()
+                .all(|summary| summary.ticket_type == crate::TicketType::Problem)
+        );
+    }
+
+    #[tokio::test]
+    async fn clarifications_round_trip_columnar_with_state_transitions() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Ambiguous".into(),
+                description: "Needs clarification".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: crate::TicketChannel::Portal,
+                priority: crate::TicketPriority::Normal,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
+                resource_references: Vec::new(),
+            },
+            "TKT-CLARIFY",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let mut clarification = crate::Clarification::new_draft(
+            ticket.id,
+            crate::ClarificationReason::ContradictoryRequirement,
+            vec![crate::ClarificationQuestion {
+                id: "q1".into(),
+                text: "Which is correct?".into(),
+            }],
+            "automation:step-1",
+            "agent-1",
+            now,
+        )
+        .unwrap();
+        sqlite
+            .insert_clarification("project-a", clarification.clone())
+            .await
+            .unwrap();
+        clarification.send(now).unwrap();
+        sqlite
+            .update_clarification("project-a", clarification.clone())
+            .await
+            .unwrap();
+        let mut loaded = sqlite
+            .get_clarification("project-a", clarification.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.state, crate::ClarificationState::Sent);
+        assert_eq!(loaded.questions.len(), 1);
+        assert_eq!(loaded.checkpoint, "automation:step-1");
+        loaded.reply(vec!["The second one".into()], now).unwrap();
+        sqlite
+            .update_clarification("project-a", loaded.clone())
+            .await
+            .unwrap();
+        let listed = sqlite
+            .list_clarifications("project-a", ticket.id)
+            .await
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].state, crate::ClarificationState::Answered);
+        assert_eq!(listed[0].answers.as_ref().map(Vec::len), Some(1));
+    }
+
+    #[tokio::test]
+    async fn sqlite_search_matches_and_escapes_like_wildcards() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        for (index, (subject, description)) in [
+            ("Checkout fails", "Payment rejected"),
+            ("Unrelated 100%", "Nothing"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let ticket = Ticket::create(
+                CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: subject.into(),
+                    description: description.into(),
+                    requester: TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: crate::TicketChannel::Portal,
+                    priority: crate::TicketPriority::Normal,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    resource_references: Vec::new(),
+                },
+                format!("TKT-SEARCH-{index}"),
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            sqlite.create(ticket, intent).await.unwrap();
+        }
+        for needle in ["checkout", "payment", "unrelated 100%"] {
+            let hits = sqlite
+                .list_summaries(crate::TicketSummaryFilter {
+                    project_id: "project-a".into(),
+                    query: Some(needle.into()),
+                    limit: 10,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(hits.len(), 1, "needle {needle}");
+        }
+        assert_eq!(
+            sqlite
+                .list_summaries(crate::TicketSummaryFilter {
+                    project_id: "project-a".into(),
+                    query: Some("checkout".into()),
+                    limit: 10,
+                    ..Default::default()
+                })
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn columnar_reads_reconstruct_every_field_and_appends_do_not_rewrite_ticket_json() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let mut ticket = seeded_conversation_ticket(now);
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+
+        // ticket_json snapshot after create has zero appended messages.
+        let snapshot_before: String = sqlx::query(
+            "SELECT ticket_json FROM ticketing_tickets WHERE project_id = ? AND id = ?",
+        )
+        .bind("project-a")
+        .bind(ticket.id.to_string())
+        .fetch_one(sqlite.pool())
+        .await
+        .unwrap()
+        .get("ticket_json");
+
+        append_all(
+            &sqlite,
+            &mut ticket,
+            &[
+                ("Public message 0", false),
+                ("private note body", true),
+                ("Public message 2", false),
+            ],
+            now,
+        )
+        .await;
+
+        // The append path must not rewrite the conversation snapshot.
+        let snapshot_after: String = sqlx::query(
+            "SELECT ticket_json FROM ticketing_tickets WHERE project_id = ? AND id = ?",
+        )
+        .bind("project-a")
+        .bind(ticket.id.to_string())
+        .fetch_one(sqlite.pool())
+        .await
+        .unwrap()
+        .get("ticket_json");
+        assert_eq!(snapshot_before, snapshot_after);
+
+        // Columnar read reconstructs every field, including appends.
+        let reconstructed = sqlite
+            .get("project-a", ticket.id)
+            .await
+            .unwrap()
+            .expect("ticket exists");
+        assert_eq!(reconstructed.subject, "Conversation");
+        assert_eq!(
+            reconstructed.description,
+            "It broke and the requester needs help."
+        );
+        assert_eq!(
+            reconstructed.requester.display_name.as_deref(),
+            Some("User One")
+        );
+        assert_eq!(
+            reconstructed.requester.email.as_deref(),
+            Some("user-1@example.test")
+        );
+        assert_eq!(reconstructed.channel, TicketChannel::Portal);
+        assert_eq!(reconstructed.queue_id.as_deref(), Some("tier-1"));
+        assert_eq!(reconstructed.tags, ticket.tags);
+        assert_eq!(reconstructed.followers, ticket.followers);
+        assert_eq!(reconstructed.source_references, ticket.source_references);
+        assert_eq!(reconstructed.messages.len(), 4);
+        assert_eq!(reconstructed.revision, ticket.revision);
+        assert_eq!(reconstructed.status, ticket.status);
+        assert_eq!(
+            reconstructed.first_public_response_at,
+            ticket.first_public_response_at
+        );
+    }
+
+    #[tokio::test]
+    async fn append_is_revision_checked_and_message_pagination_is_stable() {
+        let (_directory, sqlite) = store().await;
+        let memory = crate::MemoryTicketingStore::default();
+        let now = Utc::now();
+        let mut ticket = seeded_conversation_ticket(now);
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent.clone()).await.unwrap();
+        memory.create(ticket.clone(), intent).await.unwrap();
+
+        let message = ticket
+            .reply_as_agent_message("agent-1", "Latest message", now)
+            .unwrap();
+        let stale = crate::AppendTicketMessageRequest {
+            receipt: None,
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            message: message.clone(),
+            status: ticket.status,
+            first_public_response_at: ticket.first_public_response_at,
+            waiting_since: ticket.waiting_since,
+            resolved_at: ticket.resolved_at,
+            updated_at: ticket.updated_at,
+            expected_revision: ticket.revision + 5,
+            intent: TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "appended",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            ),
+            #[cfg(feature = "jobs")]
+            job_records: Vec::new(),
+        };
+        assert!(matches!(
+            sqlite.append_ticket_message(stale.clone()).await,
+            Err(TicketStoreError::StaleRevision { .. })
+        ));
+        assert!(matches!(
+            memory.append_ticket_message(stale).await,
+            Err(TicketStoreError::StaleRevision { .. })
+        ));
+        // Nothing was inserted by the rejected append.
+        assert_eq!(
+            sqlite
+                .list_ticket_messages(crate::MessageListFilter {
+                    project_id: "project-a".into(),
+                    ticket_id: ticket.id,
+                    include_internal: true,
+                    before_created_at: None,
+                    before_id: None,
+                    limit: 10,
+                })
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+
+        // Newest-first pagination across two pages, internal notes hidden
+        // from the public filter, memory and SQLite identical.
+        let public = crate::MessageListFilter {
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            include_internal: false,
+            before_created_at: None,
+            before_id: None,
+            limit: 10,
+        };
+        let sqlite_messages = sqlite.list_ticket_messages(public.clone()).await.unwrap();
+        let memory_messages = memory.list_ticket_messages(public).await.unwrap();
+        assert_eq!(sqlite_messages, memory_messages);
+        assert_eq!(sqlite_messages.len(), 1);
+
+        let mut conversation = seeded_conversation_ticket(now);
+        conversation.id = ticket.id;
+        append_all(
+            &sqlite,
+            &mut conversation,
+            &[
+                ("one", false),
+                ("private", true),
+                ("two", false),
+                ("three", false),
+            ],
+            now,
+        )
+        .await;
+        let page_one = sqlite
+            .list_ticket_messages(crate::MessageListFilter {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                include_internal: false,
+                before_created_at: None,
+                before_id: None,
+                limit: 2,
+            })
+            .await
+            .unwrap();
+        assert_eq!(page_one.len(), 2);
+        let second = sqlite
+            .list_ticket_messages(crate::MessageListFilter {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                include_internal: false,
+                before_created_at: Some(page_one[1].created_at),
+                before_id: Some(page_one[1].id),
+                limit: 10,
+            })
+            .await
+            .unwrap();
+        assert!(!second.is_empty());
+        let mut seen: Vec<String> = page_one
+            .iter()
+            .chain(second.iter())
+            .map(|message| message.id.to_string())
+            .collect();
+        seen.sort();
+        seen.dedup();
+        assert_eq!(seen.len(), page_one.len() + second.len());
+
+        assert!(matches!(
+            sqlite
+                .list_ticket_messages(crate::MessageListFilter {
+                    project_id: "project-a".into(),
+                    ticket_id: ticket.id,
+                    include_internal: false,
+                    before_created_at: Some(now),
+                    before_id: None,
+                    limit: 10,
+                })
+                .await,
+            Err(TicketStoreError::InvalidListCursor)
+        ));
+    }
+
+    #[cfg(all(feature = "jobs", feature = "sqlite"))]
+    mod jobs_bridge {
+        use super::*;
+        use crate::{
+            AppendTicketMessageRequest, MAX_JOB_RECORDS_PER_MUTATION, TicketActivityIntent,
+            TicketingJobEnqueue,
+        };
+        use async_trait::async_trait;
+        use minco_plugin_jobs::{JobEnvelope, JobRecord, pending_record};
+        use std::sync::Arc;
+
+        /// The real Pattern A adapter an application writes at the
+        /// composition root: the released `SqliteJobStore` behind the
+        /// ticketing-owned port, sharing one pool.
+        #[derive(Debug)]
+        struct SharedPoolEnqueue(Arc<minco_sqlx_sqlite::jobs::SqliteJobStore>);
+
+        #[async_trait]
+        impl TicketingJobEnqueue for SharedPoolEnqueue {
+            async fn enqueue_in(
+                &self,
+                transaction: &mut Transaction<'_, Sqlite>,
+                record: JobRecord,
+            ) -> Result<(), TicketStoreError> {
+                self.0
+                    .enqueue_in(transaction, record)
+                    .await
+                    .map(|_| ())
+                    .map_err(|error| TicketStoreError::Infrastructure(error.to_string()))
+            }
+        }
+
+        fn notification_record(project: &str, ticket_id: TicketId) -> JobRecord {
+            pending_record(
+                JobEnvelope::for_parts(
+                    "ticketing.deliver-public-notification",
+                    1,
+                    serde_json::json!({
+                        "project_id": project,
+                        "ticket_id": ticket_id.to_string(),
+                        "message_id": uuid::Uuid::new_v4().to_string(),
+                    }),
+                    "ticketing-mail",
+                    uuid::Uuid::now_v7(),
+                )
+                .unwrap(),
+            )
+        }
+
+        async fn bridged_store() -> (tempfile::TempDir, SqliteTicketingStore) {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().join("ticketing.sqlite");
+            let options = sqlx::sqlite::SqliteConnectOptions::from_str(path.to_str().unwrap())
+                .unwrap()
+                .create_if_missing(true)
+                .foreign_keys(true)
+                .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+            let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                .connect_with(options)
+                .await
+                .unwrap();
+            let ticketing = SqliteTicketingStore::new(pool.clone());
+            ticketing.migrate().await.unwrap();
+            minco_sqlx_sqlite::plugin_adapters::migrate_plugin_storage(&pool)
+                .await
+                .unwrap();
+            let jobs = Arc::new(minco_sqlx_sqlite::jobs::SqliteJobStore::new(pool.clone()));
+            let store = ticketing.with_job_enqueue(Arc::new(SharedPoolEnqueue(jobs)));
+            (directory, store)
+        }
+
+        #[tokio::test]
+        async fn operation_receipt_commits_with_the_append_and_reads_back() {
+            let (_directory, store) = store().await;
+            let now = Utc::now();
+            let mut ticket = Ticket::create(
+                CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "Help".into(),
+                    description: "Broken".into(),
+                    requester: TicketRequester {
+                        subject: "user".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    priority: TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                "TKT-RECEIPT",
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            store.create(ticket.clone(), intent).await.unwrap();
+            let receipt = OperationReceipt {
+                idempotency_key: "receipt-key-1".into(),
+                fingerprint: "f".repeat(64),
+                response_json: "{\"replayed\":true}".into(),
+                created_at: now,
+                operation: "requester_reply".into(),
+                project_id: "project-a".into(),
+                subject_digest: "a".repeat(64),
+                expires_at: None,
+            };
+            store
+                .append_ticket_message(AppendTicketMessageRequest {
+                    receipt: Some(receipt.clone()),
+                    ..append_request(
+                        &mut ticket,
+                        "The receipt must commit with this reply.",
+                        Vec::new(),
+                    )
+                })
+                .await
+                .unwrap();
+            let stored = store.operation_receipt("receipt-key-1").await.unwrap();
+            assert_eq!(stored.as_ref(), Some(&receipt));
+            assert!(store.operation_receipt("absent").await.unwrap().is_none());
+        }
+
+        fn append_request(
+            ticket: &mut Ticket,
+            body: &str,
+            jobs: Vec<JobRecord>,
+        ) -> AppendTicketMessageRequest {
+            let message = ticket
+                .reply_as_agent_message("agent-1", body, Utc::now())
+                .unwrap();
+            AppendTicketMessageRequest {
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                receipt: None,
+                message,
+                status: ticket.status,
+                first_public_response_at: ticket.first_public_response_at,
+                waiting_since: ticket.waiting_since,
+                resolved_at: ticket.resolved_at,
+                updated_at: ticket.updated_at,
+                expected_revision: ticket.revision - 1,
+                intent: TicketActivityIntent::new(
+                    "project-a",
+                    ticket.id,
+                    "appended",
+                    uuid::Uuid::now_v7(),
+                    serde_json::json!({}),
+                    Utc::now(),
+                ),
+                job_records: jobs,
+            }
+        }
+
+        #[tokio::test]
+        async fn job_records_commit_and_roll_back_with_the_ticket_mutation() {
+            let (_directory, store) = bridged_store().await;
+            let now = Utc::now();
+            let mut ticket = crate::Ticket::create(
+                crate::CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "Jobs".into(),
+                    description: "It broke and needs an agent.".into(),
+                    requester: crate::TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    priority: TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                "TKT-JOBS",
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            store.create(ticket.clone(), intent).await.unwrap();
+
+            // Successful append enqueues its job record in the same commit.
+            let first_jobs = vec![notification_record("project-a", ticket.id)];
+            store
+                .append_ticket_message(append_request(&mut ticket, "first reply", first_jobs))
+                .await
+                .unwrap();
+            let jobs: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM minco_jobs WHERE json_extract(envelope, '$.job_name') = 'ticketing.deliver-public-notification'",
+            )
+            .fetch_one(store.pool())
+            .await
+            .unwrap();
+            assert_eq!(jobs, 1, "the job row committed with the mutation");
+
+            // A stale append rolls the whole transaction back: no second
+            // job row, no second message.
+            let stale_jobs = vec![notification_record("project-a", ticket.id)];
+            let mut stale = append_request(&mut ticket, "stale reply", Vec::new());
+            stale.expected_revision += 10;
+            stale.job_records = stale_jobs;
+            assert!(matches!(
+                store.append_ticket_message(stale).await,
+                Err(TicketStoreError::StaleRevision { .. })
+            ));
+            let jobs: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM minco_jobs WHERE json_extract(envelope, '$.job_name') = 'ticketing.deliver-public-notification'",
+            )
+            .fetch_one(store.pool())
+            .await
+            .unwrap();
+            assert_eq!(jobs, 1, "the rolled-back append left no job row");
+
+            // Over the bound fails closed before anything commits.
+            let mut ticket = store
+                .get("project-a", ticket.id)
+                .await
+                .unwrap()
+                .expect("ticket survives the rolled-back attempt");
+            let over_ticket_id = ticket.id;
+            let over: Vec<JobRecord> = (0..=MAX_JOB_RECORDS_PER_MUTATION)
+                .map(|_| notification_record("project-a", over_ticket_id))
+                .collect();
+            assert!(matches!(
+                store
+                    .append_ticket_message(append_request(&mut ticket, "too many", over))
+                    .await,
+                Err(TicketStoreError::InvalidJobRecords)
+            ));
+        }
+
+        #[tokio::test]
+        async fn job_records_without_a_sink_fail_closed() {
+            let (_directory, pool_store) = store().await;
+            // `store()` builds a sink-less sqlite store on a fresh pool.
+            let now = Utc::now();
+            let mut ticket = crate::Ticket::create(
+                crate::CreateTicketInput {
+                    project_id: "project-a".into(),
+                    subject: "No sink".into(),
+                    description: "It broke and needs an agent.".into(),
+                    requester: crate::TicketRequester {
+                        subject: "user-1".into(),
+                        display_name: None,
+                        email: None,
+                    },
+                    channel: TicketChannel::Api,
+                    ticket_type: crate::TicketType::default(),
+                    form_answers: Vec::new(),
+                    priority: TicketPriority::Normal,
+                    resource_references: Vec::new(),
+                },
+                "TKT-NOSINK",
+                now,
+            )
+            .unwrap();
+            let intent = TicketActivityIntent::new(
+                "project-a",
+                ticket.id,
+                "created",
+                uuid::Uuid::now_v7(),
+                serde_json::json!({}),
+                now,
+            );
+            pool_store.create(ticket.clone(), intent).await.unwrap();
+            let reply_jobs = vec![notification_record("project-a", ticket.id)];
+            let request = append_request(&mut ticket, "reply", reply_jobs);
+            let error = pool_store.append_ticket_message(request).await;
+            assert!(matches!(
+                error,
+                Err(TicketStoreError::Infrastructure(ref detail))
+                    if detail.contains("TicketingJobEnqueue")
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn activity_intents_dispatch_lifecycle_matches_memory() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Events".into(),
+                description: "It broke and needs an agent.".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: TicketChannel::Api,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
+                priority: TicketPriority::Normal,
+                resource_references: Vec::new(),
+            },
+            "TKT-EVENTS",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "ticketing.created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({ "ticket_id": ticket.id.to_string() }),
+            now,
+        );
+        sqlite.create(ticket, intent).await.unwrap();
+
+        let pending = sqlite
+            .pending_activity_intents("project-a", 10)
+            .await
+            .unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].kind, "ticketing.created");
+
+        assert!(
+            sqlite
+                .mark_activity_published(pending[0].id, now)
+                .await
+                .unwrap()
+        );
+        // Idempotent mark: a second mark reports false.
+        assert!(
+            !sqlite
+                .mark_activity_published(pending[0].id, now)
+                .await
+                .unwrap()
+        );
+        assert!(
+            sqlite
+                .pending_activity_intents("project-a", 10)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+
+        let unpublished_row: Option<String> =
+            sqlx::query_scalar("SELECT published_at FROM ticketing_activity_intents WHERE id = ?")
+                .bind(pending[0].id.to_string())
+                .fetch_one(sqlite.pool())
+                .await
+                .unwrap();
+        assert!(unpublished_row.is_some(), "published_at is now recorded");
+    }
+
+    #[tokio::test]
+    async fn message_identity_resolution_matches_memory_semantics() {
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let ticket = Ticket::create(
+            CreateTicketInput {
+                project_id: "project-a".into(),
+                subject: "Thread".into(),
+                description: "It broke and needs an agent.".into(),
+                requester: TicketRequester {
+                    subject: "user-1".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: TicketChannel::Email,
+                ticket_type: crate::TicketType::default(),
+                form_answers: Vec::new(),
+                priority: TicketPriority::Normal,
+                resource_references: Vec::new(),
+            },
+            "TKT-THREAD",
+            now,
+        )
+        .unwrap();
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            uuid::Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let request = IngestExternalMessageRequest {
+            identity: crate::ExternalMessageIdentity {
+                project_id: "project-a".into(),
+                provider: "ses".into(),
+                mailbox_scope: "support@example.test".into(),
+                external_id: "original-1".into(),
+                content_sha256: "a".repeat(64),
+                raw_message_object_key: None,
+                internet_message_id: Some("<original-1@example.test>".into()),
+                in_reply_to: None,
+                references: Vec::new(),
+            },
+            ticket_id: ticket.id,
+            body: "Original external reply".into(),
+            correlation_id: uuid::Uuid::now_v7(),
+            now,
+        };
+        sqlite.ingest_external_message(request).await.unwrap();
+
+        let resolved = sqlite
+            .find_ticket_by_message_identity("project-a", "ses", "<original-1@example.test>")
+            .await
+            .unwrap()
+            .expect("threading identity resolves");
+        assert_eq!(resolved.0, ticket.id);
+        assert_eq!(resolved.1, 1);
+
+        // Unknown identity, foreign provider and foreign project all miss.
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity("project-a", "ses", "<unknown@example.test>")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity("project-a", "mail", "<original-1@example.test>")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity("project-b", "ses", "<original-1@example.test>")
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    fn sqlite_grant(exchange_key: &str, session: u8) -> SessionExchangeGrant {
+        SessionExchangeGrant {
+            exchange_key: exchange_key.to_owned(),
+            session_id: minco_plugin_sessions::SessionId(Uuid::new_v5(
+                &Uuid::NAMESPACE_OID,
+                &[session],
+            )),
+            generation: 0,
+            subject: "user-1".into(),
+            project_id: "project-a".into(),
+            permissions: vec!["ticketing.requester.read".into()],
+            portal_origin: "https://support.example.test".into(),
+            expires_at: Utc::now() + TimeDelta::minutes(10),
+            created_at: Utc::now(),
+            revoked_at: None,
+            rotation_staged_session_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn sqlite_fenced_exchange_record_checks_rows_affected() {
+        // Exact-head review R28/P0-2: the UPDATE fence must be the
+        // affected row count, not the caller's belief. Before R28 the
+        // update branch ignored rows_affected and a stale worker could
+        // believe it had won.
+        let (_directory, sqlite) = store().await;
+        let key = "sqlite-exchange-r28";
+
+        // Initial insert, then the insert race: the loser adopts the
+        // winner (ON CONFLICT DO NOTHING + rows_affected == 0).
+        let winner = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 1), None)
+            .await
+            .unwrap();
+        let loser = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 2), None)
+            .await
+            .unwrap();
+        assert_eq!(loser, winner);
+
+        // Current takeover advances; a stale worker (old generation)
+        // affects zero rows and adopts the stored winner.
+        sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 3), Some(0))
+            .await
+            .unwrap();
+        let stale = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 4), Some(0))
+            .await
+            .unwrap();
+        assert_eq!(stale.session_id, sqlite_grant(key, 3).session_id);
+        assert_eq!(stale.generation, 1);
+
+        // Revocation closes the grant: a takeover at the (now current)
+        // generation is refused by the revoked_at IS NULL fence.
+        assert!(
+            sqlite
+                .revoke_session_exchange(key, Utc::now())
+                .await
+                .unwrap()
+        );
+        let refused = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 5), Some(1))
+            .await
+            .unwrap();
+        assert!(refused.revoked_at.is_some());
+        assert_eq!(refused.session_id, sqlite_grant(key, 3).session_id);
+    }
+
+    #[tokio::test]
+    async fn sqlite_rotation_staging_is_fenced_and_recovers() {
+        // Exact-head review R28/P0-2: staging is exclusive, blocks
+        // takeovers, and completion/clearing require the staged pair.
+        let (_directory, sqlite) = store().await;
+        let key = "sqlite-rotation-r28";
+        let initial = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 1), None)
+            .await
+            .unwrap();
+
+        let staged = sqlite_grant(key, 9).session_id;
+        assert!(
+            sqlite
+                .stage_rotation_fenced(key, initial.session_id, staged)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !sqlite
+                .stage_rotation_fenced(key, initial.session_id, sqlite_grant(key, 10).session_id)
+                .await
+                .unwrap()
+        );
+        let during_rotation = sqlite
+            .record_session_exchange_fenced(sqlite_grant(key, 11), Some(0))
+            .await
+            .unwrap();
+        assert_eq!(during_rotation.rotation_staged_session_id, Some(staged));
+        assert_eq!(during_rotation.session_id, initial.session_id);
+
+        assert!(
+            !sqlite
+                .complete_rotation_fenced(key, initial.session_id, sqlite_grant(key, 12).session_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            sqlite
+                .complete_rotation_fenced(key, initial.session_id, staged)
+                .await
+                .unwrap()
+        );
+        let rotated = sqlite.session_exchange_grant(key).await.unwrap().unwrap();
+        assert_eq!(rotated.session_id, staged);
+        assert_eq!(rotated.generation, 1);
+        assert_eq!(rotated.rotation_staged_session_id, None);
+
+        sqlite
+            .stage_rotation_fenced(key, staged, sqlite_grant(key, 13).session_id)
+            .await
+            .unwrap();
+        assert!(
+            sqlite
+                .clear_rotation_staged_fenced(key, staged, sqlite_grant(key, 13).session_id)
+                .await
+                .unwrap()
+        );
+
+        // Fenced removal deletes only the caller's own grant.
+        assert!(
+            !sqlite
+                .remove_session_exchange_grant_fenced(key, sqlite_grant(key, 20).session_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            sqlite
+                .remove_session_exchange_grant_fenced(key, staged)
+                .await
+                .unwrap()
+        );
+        assert!(sqlite.session_exchange_grant(key).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn sqlite_send_completion_is_atomic_and_attempt_fenced() {
+        // Exact-head review R29/P0-3: on SQLite the sent transition, the
+        // attempt-scoped accepted evidence and the threading identity
+        // commit in ONE transaction; a stale attempt commits nothing.
+        let (_directory, sqlite) = store().await;
+        let now = Utc::now();
+        let mut ticket = seeded_conversation_ticket(now);
+        let intent = TicketActivityIntent::new(
+            "project-a",
+            ticket.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        sqlite.create(ticket.clone(), intent).await.unwrap();
+        let message = ticket
+            .reply_as_agent_message("agent-1", "Your fix is live.", now)
+            .unwrap();
+        let logical_send_id = format!(
+            "ticketing:public-reply:project-a:{}:{}",
+            ticket.id, message.id
+        );
+        // Seed a reconciled no-send: claim creates the intent in
+        // sending, the unfenced reconciliation resolver parks it in
+        // pending_send.
+        sqlite
+            .claim_send_intent(SendIntent {
+                logical_send_id: logical_send_id.clone(),
+                project_id: "project-a".into(),
+                ticket_id: ticket.id,
+                message_id: message.id,
+                state: SendIntentState::Sending,
+                provider_message_id: None,
+                updated_at: now,
+                created_at: now,
+                attempt_id: None,
+                attempt_sequence: 0,
+                lease_expires_at: None,
+            })
+            .await
+            .unwrap();
+        sqlite
+            .resolve_send_intent(&logical_send_id, SendIntentState::PendingSend, None, now)
+            .await
+            .unwrap();
+
+        // Worker A claims; the lease expires; worker B re-claims.
+        let stale_attempt = sqlite
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, now)
+            .await
+            .unwrap()
+            .unwrap();
+        sqlite
+            .resolve_send_intent(&logical_send_id, SendIntentState::PendingSend, None, now)
+            .await
+            .unwrap();
+        let current_attempt = sqlite
+            .claim_send_attempt(&logical_send_id, SendIntentState::PendingSend, now)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let accepted = || OutboundDeliveryEvidence {
+            project_id: "project-a".into(),
+            ticket_id: ticket.id,
+            message_id: message.id,
+            kind: OutboundEvidenceKind::Accepted,
+            provider: "scripted".into(),
+            provider_message_id: "provider-1".into(),
+            feedback: None,
+            failure_kind: None,
+            attempt_id: None,
+            attempt_sequence: None,
+            recorded_at: now,
+        };
+        let threading = || ExternalMessageIdentity {
+            project_id: "project-a".into(),
+            provider: "scripted".into(),
+            mailbox_scope: "outbound".into(),
+            external_id: "provider-1".into(),
+            content_sha256: "content".into(),
+            raw_message_object_key: None,
+            internet_message_id: Some("<stable@mail.example.test>".into()),
+            in_reply_to: None,
+            references: Vec::new(),
+        };
+
+        // The stale attempt's completion writes NOTHING.
+        assert_eq!(
+            sqlite
+                .complete_send_attempt(
+                    &logical_send_id,
+                    stale_attempt,
+                    "provider-1",
+                    accepted(),
+                    threading(),
+                    now,
+                )
+                .await
+                .unwrap(),
+            CompleteSendOutcome::FenceLost
+        );
+        assert!(
+            sqlite
+                .outbound_evidence("project-a", ticket.id, message.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            sqlite
+                .send_intent(&logical_send_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .state,
+            SendIntentState::Sending
+        );
+
+        // The current attempt completes atomically: state, evidence and
+        // threading all become visible together.
+        assert_eq!(
+            sqlite
+                .complete_send_attempt(
+                    &logical_send_id,
+                    current_attempt,
+                    "provider-1",
+                    accepted(),
+                    threading(),
+                    now,
+                )
+                .await
+                .unwrap(),
+            CompleteSendOutcome::Completed
+        );
+        let intent = sqlite.send_intent(&logical_send_id).await.unwrap().unwrap();
+        assert_eq!(intent.state, SendIntentState::Sent);
+        assert_eq!(intent.provider_message_id.as_deref(), Some("provider-1"));
+        let evidence = sqlite
+            .outbound_evidence("project-a", ticket.id, message.id)
+            .await
+            .unwrap();
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(evidence[0].attempt_id, Some(current_attempt));
+        assert_eq!(evidence[0].attempt_sequence, Some(2));
+        assert!(
+            sqlite
+                .find_ticket_by_message_identity(
+                    "project-a",
+                    "scripted",
+                    "<stable@mail.example.test>"
+                )
+                .await
+                .unwrap()
+                .is_some(),
+            "the threading identity committed in the same transaction"
+        );
     }
 }

@@ -7,85 +7,468 @@
   "stability": "stable",
   "default_enabled": false,
   "feature": "plugin-feedback",
-  "runtimes": ["native"],
-  "databases": ["postgres", "sqlite"],
-  "plugin_dependencies": ["health", "identity", "object-storage", "notifications", "audit", "events"],
+  "runtimes": [
+    "native"
+  ],
+  "databases": [
+    "postgres",
+    "sqlite"
+  ],
+  "plugin_dependencies": [
+    "health",
+    "identity",
+    "object-storage",
+    "notifications",
+    "audit",
+    "events"
+  ],
   "requires": [
-    { "name": "health.registry", "version": "^1" },
-    { "name": "identity.resolve", "version": "^1" },
-    { "name": "authorization.permissions", "version": "^1" },
-    { "name": "storage.object", "version": "^1" },
-    { "name": "notifications.send", "version": "^1" },
-    { "name": "audit.append", "version": "^1" },
-    { "name": "events.publish", "version": "^1" },
-    { "name": "events.outbox", "version": "^1" }
+    {
+      "name": "health.registry",
+      "version": "^1"
+    },
+    {
+      "name": "identity.resolve",
+      "version": "^1"
+    },
+    {
+      "name": "authorization.permissions",
+      "version": "^1"
+    },
+    {
+      "name": "storage.object",
+      "version": "^1"
+    },
+    {
+      "name": "notifications.send",
+      "version": "^1"
+    },
+    {
+      "name": "audit.append",
+      "version": "^1"
+    },
+    {
+      "name": "events.publish",
+      "version": "^1"
+    },
+    {
+      "name": "events.outbox",
+      "version": "^1"
+    }
   ],
   "provides": [
-    { "name": "feedback.submit", "version": "1.0.0" },
-    { "name": "feedback.conversation", "version": "1.0.0" },
-    { "name": "feedback.manage", "version": "1.0.0" },
-    { "name": "feedback.ai-context", "version": "1.0.0" },
-    { "name": "feedback.widget", "version": "1.0.0" }
+    {
+      "name": "feedback.submit",
+      "version": "1.0.0"
+    },
+    {
+      "name": "feedback.conversation",
+      "version": "1.0.0"
+    },
+    {
+      "name": "feedback.manage",
+      "version": "1.0.0"
+    },
+    {
+      "name": "feedback.ai-context",
+      "version": "1.0.0"
+    },
+    {
+      "name": "feedback.widget",
+      "version": "1.0.0"
+    }
   ],
   "configuration": [
-    { "key": "project_id", "kind": "string", "required": true, "secret": false, "description": "Stable product or application identifier" },
-    { "key": "widget_label", "kind": "string", "required": false, "secret": false, "description": "Accessible label shown on the feedback action", "default": "Share feedback" },
-    { "key": "widget_position", "kind": "string", "required": false, "secret": false, "description": "FAB position: top_left, top_right, bottom_left, or bottom_right", "default": "bottom_right" },
-    { "key": "offset_x_px", "kind": "integer", "required": false, "secret": false, "description": "Horizontal viewport offset in CSS pixels", "default": 24 },
-    { "key": "offset_y_px", "kind": "integer", "required": false, "secret": false, "description": "Vertical viewport offset in CSS pixels", "default": 24 },
-    { "key": "theme", "kind": "string", "required": false, "secret": false, "description": "Widget theme: light, dark, or auto", "default": "auto" },
-    { "key": "token_storage", "kind": "string", "required": false, "secret": false, "description": "Opaque client-token storage: session (default) or local", "default": "session" },
-    { "key": "max_http_body_bytes", "kind": "integer", "required": false, "secret": false, "description": "Maximum complete multipart request size for the default serverless HTTP path", "default": 7340032 },
-    { "key": "max_screenshot_bytes", "kind": "integer", "required": false, "secret": false, "description": "Maximum screenshot upload size", "default": 4194304 },
-    { "key": "max_audio_bytes", "kind": "integer", "required": false, "secret": false, "description": "Maximum voice recording upload size", "default": 5242880 },
-    { "key": "max_file_bytes", "kind": "integer", "required": false, "secret": false, "description": "Maximum general attachment upload size", "default": 5242880 },
-    { "key": "max_attachments", "kind": "integer", "required": false, "secret": false, "description": "Maximum screenshot, audio, and file attachments per submission; zero disables all attachments", "default": 3 },
-    { "key": "allow_anonymous", "kind": "boolean", "required": false, "secret": false, "description": "Explicitly allow unauthenticated feedback when neither identity nor a project key is available", "default": false },
-    { "key": "project_key", "kind": "string", "required": false, "secret": false, "description": "Optional browser-visible submission key used for basic abuse controls" },
-    { "key": "developer_token", "kind": "string", "required": false, "secret": true, "description": "Fallback bearer token for local/operator access; prefer an identity principal with feedback.manage" },
-    { "key": "developer_recipient", "kind": "string", "required": false, "secret": false, "description": "Recipient understood by the configured notification sink", "default": "developers" },
-    { "key": "developer_link_base", "kind": "string", "required": false, "secret": false, "description": "Optional base URL included in developer notifications" },
-    { "key": "notify_client_updates", "kind": "boolean", "required": false, "secret": false, "description": "Send in-app notifications for developer replies and status changes", "default": true },
-    { "key": "publish_events_inline", "kind": "boolean", "required": false, "secret": false, "description": "Publish outbox events on the request path instead of leaving them for a worker", "default": false },
-    { "key": "screenshot_enabled", "kind": "boolean", "required": false, "secret": false, "description": "Allow browser screen capture and image attachments", "default": true },
-    { "key": "voice_enabled", "kind": "boolean", "required": false, "secret": false, "description": "Allow microphone recording when the browser supports MediaRecorder", "default": false },
-    { "key": "max_recording_seconds", "kind": "integer", "required": false, "secret": false, "description": "Maximum browser voice-note recording duration", "default": 90 },
-    { "key": "include_url_query", "kind": "boolean", "required": false, "secret": false, "description": "Include URL query parameters in captured context after redaction", "default": false },
-    { "key": "redact_query_parameters", "kind": "string_list", "required": false, "secret": false, "description": "Case-insensitive query parameter names replaced with [REDACTED]", "default": ["access_token", "api_key", "code", "key", "password", "secret", "signature", "token"] },
-    { "key": "transcription_enabled", "kind": "boolean", "required": false, "secret": false, "description": "Expose voice transcription for authenticated feedback.create principals when a TranscriptionService is configured", "default": false },
-    { "key": "auto_transcribe_audio", "kind": "boolean", "required": false, "secret": false, "description": "Transcribe uploaded voice recordings automatically", "default": false },
-    { "key": "poll_interval_ms", "kind": "integer", "required": false, "secret": false, "description": "Client discussion refresh interval in milliseconds", "default": 15000 },
-    { "key": "privacy_notice", "kind": "string", "required": false, "secret": false, "description": "Optional client-visible privacy and retention notice" }
+    {
+      "key": "project_id",
+      "kind": "string",
+      "required": true,
+      "secret": false,
+      "description": "Stable product or application identifier"
+    },
+    {
+      "key": "widget_label",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Accessible label shown on the feedback action",
+      "default": "Share feedback"
+    },
+    {
+      "key": "widget_position",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "FAB position: top_left, top_right, bottom_left, or bottom_right",
+      "default": "bottom_right"
+    },
+    {
+      "key": "offset_x_px",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Horizontal viewport offset in CSS pixels",
+      "default": 24
+    },
+    {
+      "key": "offset_y_px",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Vertical viewport offset in CSS pixels",
+      "default": 24
+    },
+    {
+      "key": "theme",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Widget theme: light, dark, or auto",
+      "default": "auto"
+    },
+    {
+      "key": "token_storage",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Opaque client-token storage: session (default) or local",
+      "default": "session"
+    },
+    {
+      "key": "max_http_body_bytes",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Maximum complete multipart request size for the default serverless HTTP path",
+      "default": 7340032
+    },
+    {
+      "key": "max_screenshot_bytes",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Maximum screenshot upload size",
+      "default": 4194304
+    },
+    {
+      "key": "max_audio_bytes",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Maximum voice recording upload size",
+      "default": 5242880
+    },
+    {
+      "key": "max_file_bytes",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Maximum general attachment upload size",
+      "default": 5242880
+    },
+    {
+      "key": "max_attachments",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Maximum screenshot, audio, and file attachments per submission; zero disables all attachments",
+      "default": 3
+    },
+    {
+      "key": "allow_anonymous",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Explicitly allow unauthenticated feedback when neither identity nor a project key is available",
+      "default": false
+    },
+    {
+      "key": "project_key",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Optional browser-visible submission key used for basic abuse controls"
+    },
+    {
+      "key": "developer_token",
+      "kind": "string",
+      "required": false,
+      "secret": true,
+      "description": "Fallback bearer token for local/operator access; prefer an identity principal with feedback.manage"
+    },
+    {
+      "key": "developer_recipient",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Recipient understood by the configured notification sink",
+      "default": "developers"
+    },
+    {
+      "key": "developer_link_base",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Optional base URL included in developer notifications"
+    },
+    {
+      "key": "notify_client_updates",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Send in-app notifications for developer replies and status changes",
+      "default": true
+    },
+    {
+      "key": "publish_events_inline",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Publish outbox events on the request path instead of leaving them for a worker",
+      "default": false
+    },
+    {
+      "key": "screenshot_enabled",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Allow browser screen capture and image attachments",
+      "default": true
+    },
+    {
+      "key": "voice_enabled",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Allow microphone recording when the browser supports MediaRecorder",
+      "default": false
+    },
+    {
+      "key": "max_recording_seconds",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Maximum browser voice-note recording duration",
+      "default": 90
+    },
+    {
+      "key": "include_url_query",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Include URL query parameters in captured context after redaction",
+      "default": false
+    },
+    {
+      "key": "redact_query_parameters",
+      "kind": "string_list",
+      "required": false,
+      "secret": false,
+      "description": "Case-insensitive query parameter names replaced with [REDACTED]",
+      "default": [
+        "access_token",
+        "api_key",
+        "code",
+        "key",
+        "password",
+        "secret",
+        "signature",
+        "token"
+      ]
+    },
+    {
+      "key": "transcription_enabled",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Expose voice transcription for authenticated feedback.create principals when a TranscriptionService is configured",
+      "default": false
+    },
+    {
+      "key": "auto_transcribe_audio",
+      "kind": "boolean",
+      "required": false,
+      "secret": false,
+      "description": "Transcribe uploaded voice recordings automatically",
+      "default": false
+    },
+    {
+      "key": "poll_interval_ms",
+      "kind": "integer",
+      "required": false,
+      "secret": false,
+      "description": "Client discussion refresh interval in milliseconds",
+      "default": 15000
+    },
+    {
+      "key": "privacy_notice",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Optional client-visible privacy and retention notice"
+    }
   ],
   "operations": [
-    { "operation_id": "feedbackWidget", "method": "GET", "path": "/_minco/feedback/widget.js", "public": true, "idempotent": false },
-    { "operation_id": "getFeedbackWidgetConfig", "method": "GET", "path": "/_minco/feedback/widget-config", "public": true, "idempotent": false },
-    { "operation_id": "createFeedback", "method": "POST", "path": "/_minco/feedback/threads", "public": true, "idempotent": false, "headers": ["X-Minco-Feedback-Project-Key"] },
-    { "operation_id": "getClientFeedback", "method": "GET", "path": "/_minco/feedback/threads/{id}", "public": true, "idempotent": false, "headers": ["X-Minco-Feedback-Token"] },
-    { "operation_id": "replyToFeedback", "method": "POST", "path": "/_minco/feedback/threads/{id}/messages", "public": true, "idempotent": false, "headers": ["X-Minco-Feedback-Token"] },
-    { "operation_id": "getClientFeedbackAttachment", "method": "GET", "path": "/_minco/feedback/threads/{id}/attachments/{attachmentId}", "public": true, "idempotent": false, "headers": ["X-Minco-Feedback-Token"] },
-    { "operation_id": "transcribeFeedbackAudio", "method": "POST", "path": "/_minco/feedback/transcriptions", "public": true, "idempotent": false, "headers": ["X-Minco-Feedback-Project-Key"] },
-    { "operation_id": "listDeveloperFeedback", "method": "GET", "path": "/_minco/feedback/developer/threads", "public": false, "idempotent": false, "headers": ["Authorization"] },
-    { "operation_id": "getDeveloperFeedback", "method": "GET", "path": "/_minco/feedback/developer/threads/{id}", "public": false, "idempotent": false, "headers": ["Authorization"] },
-    { "operation_id": "developerReplyToFeedback", "method": "POST", "path": "/_minco/feedback/developer/threads/{id}/messages", "public": false, "idempotent": false, "headers": ["Authorization"] },
-    { "operation_id": "transitionFeedback", "method": "PATCH", "path": "/_minco/feedback/developer/threads/{id}/status", "public": false, "idempotent": false, "headers": ["Authorization"] },
-    { "operation_id": "getFeedbackAiContext", "method": "GET", "path": "/_minco/feedback/developer/threads/{id}/ai-context", "public": false, "idempotent": false, "headers": ["Authorization"] },
-    { "operation_id": "getDeveloperFeedbackAttachment", "method": "GET", "path": "/_minco/feedback/developer/threads/{id}/attachments/{attachmentId}", "public": false, "idempotent": false, "headers": ["Authorization"] }
+    {
+      "operation_id": "feedbackWidget",
+      "method": "GET",
+      "path": "/_minco/feedback/widget.js",
+      "public": true,
+      "idempotent": true
+    },
+    {
+      "operation_id": "getFeedbackWidgetConfig",
+      "method": "GET",
+      "path": "/_minco/feedback/widget-config",
+      "public": true,
+      "idempotent": true
+    },
+    {
+      "operation_id": "createFeedback",
+      "method": "POST",
+      "path": "/_minco/feedback/threads",
+      "public": true,
+      "idempotent": false,
+      "headers": [
+        "X-Minco-Feedback-Project-Key"
+      ]
+    },
+    {
+      "operation_id": "getClientFeedback",
+      "method": "GET",
+      "path": "/_minco/feedback/threads/{id}",
+      "public": true,
+      "idempotent": true,
+      "headers": [
+        "X-Minco-Feedback-Token"
+      ]
+    },
+    {
+      "operation_id": "replyToFeedback",
+      "method": "POST",
+      "path": "/_minco/feedback/threads/{id}/messages",
+      "public": true,
+      "idempotent": false,
+      "headers": [
+        "X-Minco-Feedback-Token"
+      ]
+    },
+    {
+      "operation_id": "getClientFeedbackAttachment",
+      "method": "GET",
+      "path": "/_minco/feedback/threads/{id}/attachments/{attachmentId}",
+      "public": true,
+      "idempotent": true,
+      "headers": [
+        "X-Minco-Feedback-Token"
+      ]
+    },
+    {
+      "operation_id": "transcribeFeedbackAudio",
+      "method": "POST",
+      "path": "/_minco/feedback/transcriptions",
+      "public": true,
+      "idempotent": false,
+      "headers": [
+        "X-Minco-Feedback-Project-Key"
+      ]
+    },
+    {
+      "operation_id": "listDeveloperFeedback",
+      "method": "GET",
+      "path": "/_minco/feedback/developer/threads",
+      "public": false,
+      "idempotent": true,
+      "headers": [
+        "Authorization"
+      ]
+    },
+    {
+      "operation_id": "getDeveloperFeedback",
+      "method": "GET",
+      "path": "/_minco/feedback/developer/threads/{id}",
+      "public": false,
+      "idempotent": true,
+      "headers": [
+        "Authorization"
+      ]
+    },
+    {
+      "operation_id": "developerReplyToFeedback",
+      "method": "POST",
+      "path": "/_minco/feedback/developer/threads/{id}/messages",
+      "public": false,
+      "idempotent": false,
+      "headers": [
+        "Authorization"
+      ]
+    },
+    {
+      "operation_id": "transitionFeedback",
+      "method": "PATCH",
+      "path": "/_minco/feedback/developer/threads/{id}/status",
+      "public": false,
+      "idempotent": false,
+      "headers": [
+        "Authorization"
+      ]
+    },
+    {
+      "operation_id": "getFeedbackAiContext",
+      "method": "GET",
+      "path": "/_minco/feedback/developer/threads/{id}/ai-context",
+      "public": false,
+      "idempotent": true,
+      "headers": [
+        "Authorization"
+      ]
+    },
+    {
+      "operation_id": "getDeveloperFeedbackAttachment",
+      "method": "GET",
+      "path": "/_minco/feedback/developer/threads/{id}/attachments/{attachmentId}",
+      "public": false,
+      "idempotent": true,
+      "headers": [
+        "Authorization"
+      ]
+    }
   ],
   "migrations": [
-    { "id": "feedback-postgres-v1", "database": "postgres", "path": "migrations/postgres" },
-    { "id": "feedback-sqlite-v1", "database": "sqlite", "path": "migrations/sqlite" }
+    {
+      "id": "feedback-postgres-v1",
+      "database": "postgres",
+      "path": "migrations/postgres"
+    },
+    {
+      "id": "feedback-sqlite-v1",
+      "database": "sqlite",
+      "path": "migrations/sqlite"
+    }
   ],
-  "health_checks": [{ "id": "feedback-store", "critical": true }],
-  "data_classes": ["customer_provided", "personal", "confidential"],
+  "health_checks": [
+    {
+      "id": "feedback-store",
+      "critical": true
+    }
+  ],
+  "data_classes": [
+    "customer_provided",
+    "personal",
+    "confidential"
+  ],
   "retention": "application_defined",
   "failure_policy": {
     "mode": "fail_closed",
     "description": "Authorization, persistence, and attachment validation failures reject the operation; feedback content is never silently accepted or exposed."
   },
-  "documentation": { "reference": "https://docs.rs/minco-plugin-feedback" },
+  "documentation": {
+    "reference": "https://docs.rs/minco-plugin-feedback"
+  },
   "conformance": {
     "profile": "minco-plugin-v1",
-    "evidence": ["cargo test -p minco-plugin-feedback --all-features --locked"]
+    "evidence": [
+      "cargo test -p minco-plugin-feedback --all-features --locked"
+    ]
   }
 }

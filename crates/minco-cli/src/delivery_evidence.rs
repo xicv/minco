@@ -96,6 +96,7 @@ const EXCLUDED_PARTS: &[&str] = &[
     "target",
     "node_modules",
     "__pycache__",
+    ".mimosa",
 ];
 const EXCLUDED_SUFFIXES: &[&str] = &["pyc", "zip", "db", "sqlite"];
 const FORBIDDEN_SECRET_PATTERNS: &[&str] = &[

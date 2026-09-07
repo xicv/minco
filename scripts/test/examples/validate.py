@@ -65,6 +65,13 @@ ALLOWED_WAKE_SOURCES = {
     "schedule",
 }
 CHECK_COMMANDS = {
+    "minco-desk-example": (
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "minco-desk-example",
+    ),
     "orders-contract": (
         "cargo",
         "run",

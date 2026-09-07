@@ -27,6 +27,22 @@ pub fn render_sam_with_code_uris(
     plan: &DeploymentPlan,
     code_uris: &BTreeMap<String, String>,
 ) -> Result<String, PlanError> {
+    render_sam_template(plan, code_uris, &[])
+}
+
+/// Renderer entry carrying the inbound-mail sidecar bindings
+/// explicitly (exact-head review 5060065907): the bindings live in
+/// [`crate::inbound_mail::InboundMailTopology`], never in the plan's
+/// public field set, so the worker IAM environment is scoped by the
+/// sidecar the caller applied. Not re-exported: this stays an internal
+/// detail of the private `sam` module behind the stable public
+/// rendering API.
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) fn render_sam_template(
+    plan: &DeploymentPlan,
+    code_uris: &BTreeMap<String, String>,
+    mail_bindings: &[crate::InboundMailBinding],
+) -> Result<String, PlanError> {
     if !matches!(&plan.runtime, RuntimePlan::LambdaZipArm64) {
         return Err(PlanError::UnsupportedDeployment(
             "SAM rendering requires lambda_zip_arm64".into(),
@@ -300,7 +316,7 @@ pub fn render_sam_with_code_uris(
         .iter()
         .filter(|function| matches!(function.role, FunctionRole::Worker))
     {
-        render_worker_function(&mut output, plan, worker, code_uris);
+        render_worker_function(&mut output, plan, worker, code_uris, mail_bindings);
     }
     output.push_str("  ApiLogGroup:\n");
     output.push_str("    Type: AWS::Logs::LogGroup\n");
@@ -1038,6 +1054,7 @@ fn render_worker_function(
     plan: &DeploymentPlan,
     function: &FunctionPlan,
     code_uris: &BTreeMap<String, String>,
+    mail_bindings: &[crate::InboundMailBinding],
 ) {
     let function_resource = format!("{}Function", sam_logical_id(&function.name));
     writeln!(output, "  {function_resource}:").expect("writing to String cannot fail");
@@ -1111,6 +1128,11 @@ fn render_worker_function(
             TriggerPlan::Sqs { function_id, .. } if function_id == &function.name
         )
     });
+    let mail_buckets = mail_bindings
+        .iter()
+        .filter(|binding| binding.worker_function_id == function.name)
+        .map(|binding| sam_logical_id(&binding.id))
+        .collect::<Vec<_>>();
     let uses_dynamodb = plan
         .database
         .dynamodb_table()
@@ -1118,7 +1140,11 @@ fn render_worker_function(
         || plan
             .dynamodb_audit_table()
             .is_some_and(|table| table.function_id == function.name);
-    if function.database_connections_per_instance > 0 || uses_dynamodb || has_sqs_trigger {
+    if function.database_connections_per_instance > 0
+        || uses_dynamodb
+        || has_sqs_trigger
+        || !mail_buckets.is_empty()
+    {
         output.push_str("      Policies:\n");
         output.push_str("        - Statement:\n");
         if function.database_connections_per_instance > 0 {
@@ -1161,6 +1187,18 @@ fn render_worker_function(
             )
             .expect("writing to String cannot fail");
         }
+    }
+    // Inbound-mail consumers read raw MIME objects (ADR-0065); write
+    // access is deliberately absent — SES is the only writer.
+    for bucket in &mail_buckets {
+        output.push_str("            - Effect: Allow\n");
+        output.push_str("              Action:\n");
+        output.push_str("                - s3:GetObject\n");
+        writeln!(
+            output,
+            "              Resource: !Sub '${{{bucket}RawMailBucket.Arn}}/*'"
+        )
+        .expect("writing to String cannot fail");
     }
     let triggers =
         plan.triggers

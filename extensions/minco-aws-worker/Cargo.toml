@@ -31,6 +31,12 @@ plugin = "minco-plugin.json"
 default = []
 events = ["dep:chrono", "dep:minco-plugin-events"]
 jobs = ["dep:chrono", "dep:minco-plugin-jobs", "dep:serde", "dep:serde_json", "dep:uuid"]
+ticketing-wake = [
+  "jobs",
+  "dep:minco-plugin-ticketing",
+  "dep:sha2",
+  "dep:hex",
+]
 
 [dependencies]
 async-trait.workspace = true
@@ -40,12 +46,34 @@ futures.workspace = true
 lambda_runtime.workspace = true
 minco-plugin-events = { workspace = true, optional = true }
 minco-plugin-jobs = { workspace = true, optional = true }
+minco-plugin-ticketing = { workspace = true, optional = true, features = ["jobs"] }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+aws-config.workspace = true
+aws-credential-types.workspace = true
+aws-sdk-s3.workspace = true
+aws-sdk-sqs.workspace = true
+chrono.workspace = true
+minco-aws-adapters = { workspace = true, features = ["s3"] }
+minco-plugin-identity.workspace = true
+minco-plugin-object-storage.workspace = true
+minco-plugin-ticketing = { workspace = true, features = ["sqlite", "jobs"] }
+minco-sqlx-sqlite.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+
+[[example]]
+name = "ticketing_mail_seam"
+required-features = ["ticketing-wake"]
 
 [package.metadata.docs.rs]
 all-features = true

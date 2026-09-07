@@ -1057,21 +1057,22 @@ fn decode_metadata(
                 ObjectStoreError::Store("S3 object creation time is unavailable".into())
             })?,
     };
-    let attributes = metadata
-        .get(META_ATTRIBUTES)
-        .ok_or_else(|| ObjectStoreError::Store("S3 object attributes metadata is missing".into()))
-        .and_then(|value| {
-            STANDARD
+    // Foreign-written objects (e.g. raw MIME dropped by an SES receiving
+    // rule) never carry Minco metadata; reads treat it as absent rather
+    // than failing, since integrity is verified from the body itself.
+    let attributes = match metadata.get(META_ATTRIBUTES) {
+        None => BTreeMap::new(),
+        Some(value) => {
+            let bytes = STANDARD
                 .decode(value)
-                .map_err(|error| ObjectStoreError::Store(error.to_string()))
-        })
-        .and_then(|bytes| {
+                .map_err(|error| ObjectStoreError::Store(error.to_string()))?;
             serde_json::from_slice(&bytes)
-                .map_err(|error| ObjectStoreError::Store(error.to_string()))
-        })?;
+                .map_err(|error| ObjectStoreError::Store(error.to_string()))?
+        }
+    };
     let content_type = content_type
         .filter(|value| !value.trim().is_empty())
-        .ok_or(ObjectStoreError::InvalidContentType)?
+        .unwrap_or("application/octet-stream")
         .to_owned();
     let size_bytes = content_length
         .ok_or_else(|| ObjectStoreError::Store("S3 object has no content length".into()))

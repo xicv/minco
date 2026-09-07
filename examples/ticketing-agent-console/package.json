@@ -1,0 +1,12 @@
+{
+  "name": "minco-ticketing-agent-console-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check ../../../plugins/minco-plugin-ticketing/assets/agent-console.js",
+    "test:browser": "playwright test --config playwright.config.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

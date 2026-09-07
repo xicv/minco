@@ -48,6 +48,14 @@ pub fn generate_rust(document: &ContractDocument) -> String {
     writeln!(output, "// Contract SHA-256: {}", document.sha256)
         .expect("writing to String cannot fail");
     output.push_str("// Do not edit manually; run `minco contract sync`.\n\n");
+    // Fields without contract assertions still emit a closure parameter,
+    // and a schema may legitimately declare several boolean flags; the
+    // module-level allows keep generated output lint-clean without
+    // constraining contract design. The rustfmt skip keeps the byte-exact
+    // output stable even when a parent module is formatted, since rustfmt
+    // follows child modules.
+    output.push_str("#![cfg_attr(rustfmt, rustfmt_skip)]\n");
+    output.push_str("#![allow(unused_variables, clippy::struct_excessive_bools)]\n");
     output.push_str("#[allow(unused_imports)]\nuse chrono::{DateTime, Utc};\n");
     if generated_authorization_alternatives {
         output.push_str("use minco_contract::ContractAuthorizationAlternative;\n");

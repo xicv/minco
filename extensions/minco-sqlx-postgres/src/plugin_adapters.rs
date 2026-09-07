@@ -10,6 +10,7 @@ use minco_plugin_sessions::{
     SessionError, SessionId, SessionRecord, SessionStore, SessionTokenHash,
 };
 use sqlx::{PgPool, Postgres, Row, Transaction};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -585,13 +586,15 @@ impl AuditSink for PostgresAuditSink {
         if event.action.trim().is_empty() || event.resource_id.trim().is_empty() {
             return Err(AuditError::InvalidEvent);
         }
-        let metadata = serde_json::to_value(event.metadata)
+        let fingerprint = minco_plugin_audit::event_fingerprint(&event);
+        let metadata = serde_json::to_value(&event.metadata)
             .map_err(|error| AuditError::Append(error.to_string()))?;
-        sqlx::query(
+        let inserted = sqlx::query(
             "INSERT INTO minco_audit
              (id, action, resource_type, resource_id, actor_subject, correlation_id,
-              occurred_at, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+              occurred_at, metadata, fingerprint)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             ON CONFLICT (id) DO NOTHING",
         )
         .bind(event.id)
         .bind(event.action)
@@ -600,10 +603,85 @@ impl AuditSink for PostgresAuditSink {
         .bind(event.actor_subject)
         .bind(event.correlation_id)
         .bind(event.occurred_at)
-        .bind(metadata)
+        .bind(&metadata)
+        .bind(&fingerprint)
         .execute(&self.pool)
         .await
         .map_err(|error| AuditError::Append(error.to_string()))?;
+        if inserted.rows_affected() == 0 {
+            // Same id: idempotent only when the semantic fingerprint
+            // matches — otherwise this is an integrity conflict
+            // (exact-head reviews R24, R27 and R31).
+            let existing: Option<(
+                String,
+                String,
+                String,
+                Option<String>,
+                uuid::Uuid,
+                DateTime<Utc>,
+                serde_json::Value,
+                Option<String>,
+            )> = sqlx::query_as(
+                "SELECT action, resource_type, resource_id, actor_subject, correlation_id,
+                        occurred_at, metadata, fingerprint
+                 FROM minco_audit WHERE id = $1",
+            )
+            .bind(event.id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|error| AuditError::Append(error.to_string()))?;
+            return match existing {
+                Some((_, _, _, _, _, _, _, Some(existing_fp))) if existing_fp == fingerprint => {
+                    Ok(())
+                }
+                Some((_, _, _, _, _, _, _, Some(_))) => {
+                    Err(minco_plugin_audit::audit_conflict_error())
+                }
+                // Pre-fingerprint row (written before the forward-only
+                // 0004 migration): content-verify against the incoming
+                // event and adopt the digest only on an exact semantic
+                // match — the safe backfill demanded by review R27.
+                Some((
+                    action,
+                    resource_type,
+                    resource_id,
+                    actor_subject,
+                    correlation_id,
+                    occurred_at,
+                    stored_metadata,
+                    None,
+                )) => {
+                    let canonical_metadata = minco_plugin_audit::canonical_metadata(
+                        &serde_json::from_value::<BTreeMap<String, serde_json::Value>>(
+                            stored_metadata,
+                        )
+                        .unwrap_or_default(),
+                    );
+                    let stored_fingerprint = minco_plugin_audit::fingerprint_from_parts(
+                        &action,
+                        &resource_type,
+                        &resource_id,
+                        actor_subject.as_deref(),
+                        &correlation_id.to_string(),
+                        &minco_plugin_audit::canonical_occurred_at(occurred_at),
+                        &canonical_metadata,
+                    );
+                    if stored_fingerprint != fingerprint {
+                        return Err(minco_plugin_audit::audit_conflict_error());
+                    }
+                    sqlx::query(
+                        "UPDATE minco_audit SET fingerprint = $1 WHERE id = $2 AND fingerprint IS NULL",
+                    )
+                    .bind(&fingerprint)
+                    .bind(event.id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(|error| AuditError::Append(error.to_string()))?;
+                    Ok(())
+                }
+                None => Ok(()),
+            };
+        }
         Ok(())
     }
 }
@@ -691,7 +769,7 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(migration_count, 3);
+        assert_eq!(migration_count, 4);
 
         let outbox = PostgresOutboxStore::new(pool.clone());
         let event = DomainEvent::new(
