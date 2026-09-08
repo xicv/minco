@@ -474,14 +474,31 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
     ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
 
     /// Marks one intent published; `false` when it was already published
-    /// or is unknown. The statement is project-bound (ADR-0076): a
-    /// foreign project's intent id is a no-op, never an escape.
+    /// or is unknown. This is the ORIGINAL entry point, retained verbatim
+    /// for pre-isolation consumers (round 1 finding 8): implementations
+    /// written against it keep compiling and working. Isolated
+    /// deployments use the project-bound override below — the service
+    /// never calls this method.
     async fn mark_activity_published(
         &self,
-        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
+
+    /// The project-bound mark (ADR-0076, round 1 finding 4): a foreign
+    /// project's intent id is a no-op, never an escape. Provided with a
+    /// legacy-delegating default so pre-isolation implementations keep
+    /// compiling; the `SQLite` and memory adapters override it with the
+    /// real project-bound statement, and an isolated deployment MUST
+    /// use an adapter that overrides it.
+    async fn mark_activity_published_scoped(
+        &self,
+        _project_id: &str,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.mark_activity_published(intent_id, at).await
+    }
 
     /// Oldest-first audit-undelivered activity intents for one project
     /// (exact-head review R5), bounded by `limit`.
@@ -492,13 +509,25 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
     ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
 
     /// Marks one intent's audit record delivered; `false` when it was
-    /// already delivered or is unknown. Project-bound like its sibling.
+    /// already delivered or is unknown. The ORIGINAL entry point,
+    /// retained verbatim for pre-isolation consumers (round 1 finding 8);
+    /// isolated deployments use the project-bound override below.
     async fn mark_audit_published(
         &self,
-        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
+
+    /// The project-bound audit mark; provided with a legacy-delegating
+    /// default (see `mark_activity_published_scoped`).
+    async fn mark_audit_published_scoped(
+        &self,
+        _project_id: &str,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.mark_audit_published(intent_id, at).await
+    }
 
     /// Resolves a ticket (and its current revision) from a previously
     /// ingested external message's `internet_message_id` (ADR-0058).
@@ -964,23 +993,29 @@ impl TicketingStoreService {
         self.0.pending_audit_intents(project_id, limit).await
     }
 
-    pub async fn mark_audit_published(
-        &self,
-        project_id: &str,
-        intent_id: Uuid,
-        at: DateTime<Utc>,
-    ) -> Result<bool, TicketStoreError> {
-        self.0.mark_audit_published(project_id, intent_id, at).await
-    }
-
-    pub async fn mark_activity_published(
+    /// The project-bound audit mark (ADR-0076): the service's only entry
+    /// point. The unscoped legacy mark remains on the port trait for
+    /// pre-isolation consumers.
+    pub async fn mark_audit_published_scoped(
         &self,
         project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
         self.0
-            .mark_activity_published(project_id, intent_id, at)
+            .mark_audit_published_scoped(project_id, intent_id, at)
+            .await
+    }
+
+    /// The project-bound activity mark (ADR-0076).
+    pub async fn mark_activity_published_scoped(
+        &self,
+        project_id: &str,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.0
+            .mark_activity_published_scoped(project_id, intent_id, at)
             .await
     }
 
@@ -2228,7 +2263,23 @@ impl TicketingStore for MemoryTicketingStore {
             .collect())
     }
 
+    // The legacy required marks stay unscoped (pre-isolation behavior);
+    // the scoped marks carry the project binding (ADR-0076). The service
+    // only ever calls the scoped ones.
     async fn mark_audit_published(
+        &self,
+        intent_id: Uuid,
+        _at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        Ok(self
+            .state
+            .lock()
+            .await
+            .audit_published_intents
+            .insert(intent_id))
+    }
+
+    async fn mark_audit_published_scoped(
         &self,
         project_id: &str,
         intent_id: Uuid,
@@ -2248,6 +2299,14 @@ impl TicketingStore for MemoryTicketingStore {
     }
 
     async fn mark_activity_published(
+        &self,
+        intent_id: Uuid,
+        _at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        Ok(self.state.lock().await.published_intents.insert(intent_id))
+    }
+
+    async fn mark_activity_published_scoped(
         &self,
         project_id: &str,
         intent_id: Uuid,

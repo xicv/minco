@@ -798,11 +798,26 @@ impl TicketingService {
     }
 
     /// Reads one committed operation receipt for idempotency recovery
-    /// (exact-head review R2).
-    /// Idempotency-receipt recovery (ADR-0076): scope-checked like every
-    /// other exposed operation, and under isolation a receipt recorded
-    /// for a foreign project never crosses the boundary.
+    /// (exact-head review R2). The ORIGINAL signature, restored verbatim
+    /// for pre-isolation consumers (round 1 finding 8) — and fail-closed
+    /// under isolation, where recovery may only go through the
+    /// scope-checked variant below: the legacy entry can never bypass
+    /// isolated mode.
     pub async fn operation_receipt(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<crate::OperationReceipt>, TicketingServiceError> {
+        if self.config.workspace_isolation {
+            return Err(TicketingServiceError::ScopeDenied);
+        }
+        Ok(self.store.operation_receipt(idempotency_key).await?)
+    }
+
+    /// Scope-checked receipt recovery (ADR-0076, round 1 findings 1 and
+    /// 8): the caller must carry the deployment's resolved scope, and
+    /// under isolation a receipt recorded for a foreign project never
+    /// crosses the boundary.
+    pub async fn operation_receipt_scoped(
         &self,
         principal: &Identity,
         idempotency_key: &str,
@@ -2219,7 +2234,7 @@ impl TicketingService {
                         .map_err(infrastructure)?;
                     let _ = self
                         .store
-                        .mark_activity_published(project_id, intent.id, Utc::now())
+                        .mark_activity_published_scoped(project_id, intent.id, Utc::now())
                         .await?;
                     published += 1;
                 }
@@ -2275,7 +2290,7 @@ impl TicketingService {
             })?;
             let _ = self
                 .store
-                .mark_audit_published(project_id, intent.id, Utc::now())
+                .mark_audit_published_scoped(project_id, intent.id, Utc::now())
                 .await?;
             delivered += 1;
         }
@@ -3507,17 +3522,12 @@ mod tests {
         ));
         // Receipt recovery is scope-checked like every other operation.
         assert!(matches!(
-            service
-                .operation_receipt(
-                    &identity("user-a", &["ticketing.requester.write"]),
-                    "idem-1"
-                )
-                .await,
+            service.operation_receipt("idem-1").await,
             Err(TicketingServiceError::ScopeDenied)
         ));
         assert!(
             service
-                .operation_receipt(&bound, "idem-1")
+                .operation_receipt_scoped(&bound, "idem-1")
                 .await
                 .expect("bound scope reads receipts")
                 .is_none()

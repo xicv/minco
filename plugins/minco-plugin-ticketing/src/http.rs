@@ -682,7 +682,7 @@ async fn requester_reply(
                 // match the current request.
                 if let Ok(Some(receipt)) = state
                     .service
-                    .operation_receipt(&principal, key.as_str())
+                    .operation_receipt_scoped(&principal, key.as_str())
                     .await
                     && receipt.operation == "requester_reply"
                     && receipt.project_id == state.service.config().project_id

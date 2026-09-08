@@ -957,14 +957,33 @@ impl TicketingStore for SqliteTicketingStore {
             .collect()
     }
 
+    /// The ORIGINAL unscoped mark, retained verbatim for pre-isolation
+    /// consumers (round 1 finding 8). The service never calls it.
     async fn mark_activity_published(
+        &self,
+        intent_id: Uuid,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_activity_intents SET published_at = ?
+              WHERE id = ? AND published_at IS NULL",
+        )
+        .bind(at.to_rfc3339())
+        .bind(intent_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// The project-bound mark (ADR-0076): a foreign project's intent id
+    /// updates nothing.
+    async fn mark_activity_published_scoped(
         &self,
         project_id: &str,
         intent_id: Uuid,
         at: chrono::DateTime<chrono::Utc>,
     ) -> Result<bool, TicketStoreError> {
-        // Project-bound statement (ADR-0076): a foreign project's intent
-        // id updates nothing.
         let result = sqlx::query(
             "UPDATE ticketing_activity_intents SET published_at = ?
               WHERE id = ? AND project_id = ? AND published_at IS NULL",
@@ -998,14 +1017,32 @@ impl TicketingStore for SqliteTicketingStore {
         rows.into_iter().map(|row| parse_intent_row(&row)).collect()
     }
 
+    /// The ORIGINAL unscoped audit mark, retained verbatim for
+    /// pre-isolation consumers (round 1 finding 8).
     async fn mark_audit_published(
+        &self,
+        intent_id: Uuid,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let result = sqlx::query(
+            "UPDATE ticketing_activity_intents SET audit_published_at = ?
+              WHERE id = ? AND audit_published_at IS NULL",
+        )
+        .bind(at.to_rfc3339())
+        .bind(intent_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// The project-bound audit mark (ADR-0076).
+    async fn mark_audit_published_scoped(
         &self,
         project_id: &str,
         intent_id: Uuid,
         at: chrono::DateTime<chrono::Utc>,
     ) -> Result<bool, TicketStoreError> {
-        // Project-bound statement (ADR-0076): a foreign project's intent
-        // id updates nothing.
         let result = sqlx::query(
             "UPDATE ticketing_activity_intents SET audit_published_at = ?
               WHERE id = ? AND project_id = ? AND audit_published_at IS NULL",
@@ -4408,14 +4445,14 @@ mod tests {
 
         assert!(
             sqlite
-                .mark_activity_published("project-a", pending[0].id, now)
+                .mark_activity_published_scoped("project-a", pending[0].id, now)
                 .await
                 .unwrap()
         );
         // Idempotent mark: a second mark reports false.
         assert!(
             !sqlite
-                .mark_activity_published("project-a", pending[0].id, now)
+                .mark_activity_published_scoped("project-a", pending[0].id, now)
                 .await
                 .unwrap()
         );
@@ -4423,7 +4460,7 @@ mod tests {
         // the intent stays pending for its own project.
         assert!(
             !sqlite
-                .mark_audit_published("project-b", pending[0].id, now)
+                .mark_audit_published_scoped("project-b", pending[0].id, now)
                 .await
                 .unwrap()
         );
