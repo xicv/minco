@@ -241,6 +241,14 @@ pub struct TicketingConfig {
     /// binding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
+    /// Resource-type policy consumed where references are accepted
+    /// (round 1 finding 3): when set, `create_ticket` rejects any
+    /// resource reference whose `resource_type` is outside the set.
+    /// The composition derives it from the resolved integration
+    /// profile's `resource_types` policy; `None` keeps the unrestricted
+    /// legacy behavior for standalone compositions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowed_resource_types: Option<std::collections::BTreeSet<String>>,
 }
 
 impl Default for TicketingConfig {
@@ -264,6 +272,7 @@ impl Default for TicketingConfig {
             automation: crate::AutomationConfig::default(),
             workspace_isolation: false,
             workspace_id: None,
+            allowed_resource_types: None,
         }
     }
 }
@@ -629,6 +638,17 @@ impl TicketingService {
             && !principal.has_permission("ticketing.manage")
         {
             return Err(TicketingServiceError::RequesterMismatch);
+        }
+        // Resource-type policy consumed where references are accepted
+        // (round 1 finding 3): a reference outside the resolved
+        // profile's policy is denied before the ticket exists.
+        if let Some(allowed) = &self.config.allowed_resource_types
+            && input
+                .resource_references
+                .iter()
+                .any(|reference| !allowed.contains(&reference.resource_type))
+        {
+            return Err(TicketingServiceError::ScopeDenied);
         }
         let id = Uuid::now_v7();
         // The full v7 suffix is required: the leading 12 hex characters are

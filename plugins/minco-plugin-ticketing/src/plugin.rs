@@ -645,6 +645,13 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             None,
             "The provisioned workspace identity this service is bound to; required when workspace_isolation is enabled",
         ),
+        field(
+            "allowed_resource_types",
+            ConfigurationValueKind::StringList,
+            false,
+            None,
+            "Resource-type policy consumed where references are accepted: create rejects any resource reference outside this set; unset keeps the unrestricted legacy behavior",
+        ),
     ]
 }
 

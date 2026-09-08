@@ -99,6 +99,96 @@ async fn a_whitespace_project_identifier_boots_and_serves_losslessly() {
 }
 
 #[tokio::test]
+async fn the_agent_profile_policies_are_enforced_end_to_end() {
+    // Round 1 finding 3: the persisted profile's origin restriction and
+    // resource-type policy are enforced at their consumption points —
+    // ingress for origins (a restriction on authenticated service
+    // calls, never an authentication factor), ticket creation for
+    // resource references.
+    let (_directory, config) = scratch_config("profile-policy");
+    let desk = build_desk(&config).await.expect("compose the desk");
+
+    // An authenticated bearer call with the ALLOWED origin succeeds;
+    // without any Origin header (non-browser service call) it also
+    // succeeds; with a foreign origin it is denied before any business
+    // handler — even though the credential itself is valid.
+    for (origin, expected) in [
+        (None, StatusCode::OK),
+        (Some("http://127.0.0.1:8090"), StatusCode::OK),
+        (Some("https://evil.example.test"), StatusCode::FORBIDDEN),
+    ] {
+        let mut request = Request::get("/_minco/ticketing/agent/bootstrap")
+            .header("authorization", format!("Bearer {}", config.agent_token));
+        if let Some(origin) = origin {
+            request = request.header("origin", origin);
+        }
+        let response = desk
+            .router
+            .clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected, "origin policy mismatch");
+    }
+
+    // The resource-type policy is empty for this profile, so a create
+    // carrying ANY resource reference is denied before the ticket
+    // exists; the same create without references succeeds.
+    let referenced = serde_json::json!({
+        "project_id": "desk-proof",
+        "subject": "Reference proof",
+        "description": "Denied at the consumption point.",
+        "requester": {"subject": "requester-1"},
+        "channel": "portal",
+        "resource_references": [
+            {"system": "orders", "resource_type": "order", "resource_id": "o-1"}
+        ]
+    });
+    let denied = desk
+        .router
+        .clone()
+        .oneshot(
+            Request::post("/_minco/ticketing/tickets")
+                .extension(desk.agent_principal.clone())
+                .header("content-type", "application/json")
+                .body(Body::from(referenced.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+    // No ticket row was created by the denied request.
+    let pool = migrate(&config).await.expect("migrate");
+    let tickets: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ticketing_tickets")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(tickets, 0, "the denied create must not persist a ticket");
+    pool.close().await;
+    // And the portal + email profiles were provisioned alongside the
+    // agent profile, bound to the same project and workspace.
+    let binding: String =
+        sqlx::query_scalar("SELECT workspace_id FROM workspace_deployment_binding")
+            .fetch_one(&migrate(&config).await.unwrap())
+            .await
+            .unwrap();
+    let profiles: Vec<(String, String)> =
+        sqlx::query_as("SELECT profile_id, kind FROM workspace_profiles ORDER BY profile_id")
+            .fetch_all(&migrate(&config).await.unwrap())
+            .await
+            .unwrap();
+    assert_eq!(
+        profiles,
+        vec![
+            ("desk-agent".to_owned(), "service_api".to_owned()),
+            ("desk-mail".to_owned(), "email".to_owned()),
+            ("desk-portal".to_owned(), "portal".to_owned()),
+        ]
+    );
+    assert!(binding.starts_with("ws-"));
+}
+
+#[tokio::test]
 async fn a_wrong_project_service_cannot_touch_another_projects_exchange_grant() {
     // Round 1 finding 1: two project-bound services over the SAME real
     // SQLite database and session store. A wrong-project (or
