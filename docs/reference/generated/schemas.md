@@ -89,6 +89,7 @@ Schema version: `1`. Secret fields expose names, kinds, and descriptions only; d
 | `plugins.static-site.price_class` | `string` | no | no | price_class100 | CloudFront price class: price_class100, price_class200, or price_class_all |
 | `plugins.static-site.source_directory` | `string` | no | no | dist | Directory containing the built static artifact |
 | `plugins.static-site.spa_fallback` | `boolean` | no | no | yes | Rewrite missing browser routes to the index document |
+| `plugins.ticketing.allowed_resource_types` | `string_list` | no | no | — | Resource-type policy consumed where references are accepted: create rejects any resource reference outside this set; unset keeps the unrestricted legacy behavior |
 | `plugins.ticketing.allowed_return_paths` | `object` | yes | no | — | Exact application origins mapped to allowed path prefixes |
 | `plugins.ticketing.handoff_ttl_seconds` | `integer` | no | no | 120 | One-time handoff lifetime, at most 900 seconds |
 | `plugins.ticketing.notify_requester_on_public_reply` | `boolean` | no | no | no | Requires the jobs feature and an enqueue adapter: enqueue a notification job with each public agent reply |
