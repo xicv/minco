@@ -188,6 +188,203 @@ async fn the_agent_profile_policies_are_enforced_end_to_end() {
     assert!(binding.starts_with("ws-"));
 }
 
+/// Rewrite one service-created ticket (and its child message) under
+/// FULLY deterministic record identifiers on a bound desk database: the
+/// columnar authority is the projection columns (reads never consult
+/// `ticket_json`), so the rows stay fully valid while their identifiers
+/// become byte-identical across databases (round 1 finding 7).
+async fn seed_identical_ticket(
+    desk: &minco_desk_example::BuiltDesk,
+    config: &DeskConfig,
+    ticket_id: &str,
+    message_id: &str,
+) {
+    // Create a real ticket through the service so every projection
+    // column is valid.
+    let created = desk
+        .router
+        .clone()
+        .oneshot(
+            Request::post("/_minco/ticketing/tickets")
+                .extension(desk.agent_principal.clone())
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "project_id": config.project_id,
+                        "subject": "Identical record",
+                        "description": "Deterministic identifiers.",
+                        "requester": {"subject": "same-requester"},
+                        "channel": "portal"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let pool = migrate(config).await.expect("migrate");
+    let template_id: String = sqlx::query_scalar("SELECT id FROM ticketing_tickets LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .expect("read the service-created row");
+    // The id rewrite spans the parent row and its child FKs at once, so
+    // it runs with foreign keys disabled on this connection (SQLite's
+    // documented procedure for identifier rewrites), re-enabled after.
+    let mut connection = pool.acquire().await.expect("connection");
+    sqlx::raw_sql(sqlx::AssertSqlSafe("PRAGMA foreign_keys = OFF"))
+        .execute(&mut *connection)
+        .await
+        .expect("disable foreign keys");
+    sqlx::query(
+        "UPDATE ticketing_tickets SET id = ?, display_reference = 'TKT-COLLIDING' WHERE id = ?",
+    )
+    .bind(ticket_id)
+    .bind(&template_id)
+    .execute(&mut *connection)
+    .await
+    .expect("rewrite the ticket under its deterministic id");
+    sqlx::query("UPDATE ticketing_messages SET id = ?, ticket_id = ? WHERE ticket_id = ?")
+        .bind(message_id)
+        .bind(ticket_id)
+        .bind(&template_id)
+        .execute(&mut *connection)
+        .await
+        .expect("rewrite the message under its deterministic ids");
+    sqlx::raw_sql(sqlx::AssertSqlSafe("PRAGMA foreign_keys = ON"))
+        .execute(&mut *connection)
+        .await
+        .expect("re-enable foreign keys");
+    drop(connection);
+    // A deterministic receipt for the same database, keyed identically
+    // in both worlds.
+    sqlx::query(
+        "INSERT OR REPLACE INTO ticketing_operation_receipts
+         (idempotency_key, fingerprint, response_json, created_at, operation, project_id, subject_digest, expires_at)
+         VALUES ('idem-identical', 'fp-identical', '{}', ?, 'requester_reply', ?, 'digest', NULL)",
+    )
+    .bind(chrono::Utc::now().to_rfc3339())
+    .bind(&config.project_id)
+    .execute(&pool)
+    .await
+    .expect("seed the identical receipt");
+    pool.close().await;
+}
+
+#[tokio::test]
+async fn identical_record_ids_across_workspaces_never_cross() {
+    // Round 1 finding 7: TWO databases whose ticketing rows carry
+    // BYTE-IDENTICAL record identifiers — same ticket id, same message
+    // id, same display reference, same requester subject. Crossed
+    // caller/execution contexts: each desk's own principal asks for the
+    // SAME id; reads, lists, and counts return only local rows, and no
+    // foreign mutation is possible.
+    let (_directory_a, config_a) = scratch_config("identical-a");
+    let (_directory_b, config_b) = scratch_config("identical-b");
+    let ticket_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    let message_id = "11111111-2222-3333-4444-555555555555";
+
+    let desk_a = build_desk(&config_a).await.expect("desk a");
+    let desk_b = build_desk(&config_b).await.expect("desk b");
+    assert_ne!(
+        desk_a.workspace_report.workspace,
+        desk_b.workspace_report.workspace
+    );
+    seed_identical_ticket(&desk_a, &config_a, ticket_id, message_id).await;
+    seed_identical_ticket(&desk_b, &config_b, ticket_id, message_id).await;
+
+    // Each desk's agent detail for the IDENTICAL id returns its own row.
+    for desk in [&desk_a, &desk_b] {
+        let detail = desk
+            .router
+            .clone()
+            .oneshot(
+                Request::get(format!("/_minco/ticketing/agent/tickets/{ticket_id}"))
+                    .extension(desk.agent_principal.clone())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(detail.status(), StatusCode::OK);
+        let body = detail.into_body().collect().await.unwrap().to_bytes();
+        let detail: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(detail["ticket"]["id"], ticket_id);
+        // Agent list sees exactly one row under the identical ids.
+        let listing = desk
+            .router
+            .clone()
+            .oneshot(
+                Request::get("/_minco/ticketing/agent/tickets?page[limit]=25")
+                    .extension(desk.agent_principal.clone())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(listing.status(), StatusCode::OK);
+        let body = listing.into_body().collect().await.unwrap().to_bytes();
+        let page: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(page["data"].as_array().map(Vec::len), Some(1));
+    }
+
+    // Requester reads are per-subject per-database: the SAME subject on
+    // desk A sees only A's ticket — never B's identical records.
+    let requester_scope: std::collections::BTreeSet<String> = desk_a
+        .agent_principal
+        .claims
+        .get(minco_http::PRINCIPAL_SCOPES_CLAIM)
+        .map(|value| value.split_ascii_whitespace().map(str::to_owned).collect())
+        .unwrap_or_default();
+    let requester = minco_http::Principal {
+        subject: "same-requester".into(),
+        permissions: std::iter::once("ticketing.requester.read".to_owned()).collect(),
+        claims: BTreeMap::default(),
+    }
+    .with_scopes(requester_scope);
+    let read = desk_a
+        .router
+        .clone()
+        .oneshot(
+            Request::get(format!("/_minco/ticketing/requester/tickets/{ticket_id}"))
+                .extension(requester)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.status(), StatusCode::OK);
+
+    // Each database holds exactly its own rows under the IDENTICAL
+    // record ids — ticket, child message, and receipt — no database ever
+    // sees two, and the bytes on disk stay separate.
+    for config in [&config_a, &config_b] {
+        let pool = migrate(config).await.unwrap();
+        let tickets: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM ticketing_tickets WHERE id = ?")
+                .bind(ticket_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(tickets, 1, "each database holds exactly its own ticket");
+        let messages: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM ticketing_messages WHERE id = ?")
+                .bind(message_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(messages, 1, "the identical child message id is local");
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM ticketing_operation_receipts WHERE idempotency_key = 'idem-identical'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(receipts, 1, "the identical receipt key is local");
+        pool.close().await;
+    }
+}
+
 #[tokio::test]
 async fn a_wrong_project_service_cannot_touch_another_projects_exchange_grant() {
     // Round 1 finding 1: two project-bound services over the SAME real
@@ -502,6 +699,210 @@ async fn the_upgrade_inventories_every_historical_project_and_binds_ownership() 
         .await
         .unwrap();
     assert_eq!(tickets, 2, "restart preserves every bound ticket");
+}
+
+#[tokio::test]
+async fn upgrading_a_base_tree_database_preserves_data_checksums_and_ledgers() {
+    // ISO-5 with a PROVENANCE-PINNED base writer (round 1 finding 7):
+    // the pre-isolation database is built from the BASE TREE'S OWN
+    // migration stream (fixtures/base-d7939910-ticketing-migrations,
+    // exported verbatim from d7939910), verified byte-identical to the
+    // base commit and to the candidate's unchanged 0001-0020, populated
+    // by the merged tree's real writer, then upgraded through the
+    // candidate. Published checksums for the shared files are identical
+    // by construction, so the ledger comparison is exact.
+    use sha2::Digest as _;
+    let fixture_dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/base-d7939910-ticketing-migrations"
+    );
+    let candidate_dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../plugins/minco-plugin-ticketing/migrations/sqlite"
+    );
+    let mut fixtures: Vec<(String, String)> = std::fs::read_dir(fixture_dir)
+        .expect("fixture directory")
+        .flatten()
+        .map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            (name, entry.path().display().to_string())
+        })
+        .filter(|(name, _)| {
+            std::path::Path::new(name)
+                .extension()
+                .is_some_and(|e| e == "sql")
+        })
+        .collect();
+    fixtures.sort();
+    assert_eq!(
+        fixtures.len(),
+        20,
+        "the base stream ships exactly twenty files"
+    );
+    // Candidate files 0001..=0020 must be byte-identical to the pinned
+    // base fixtures — the candidate's migration additions are strictly
+    // forward (0021, 0022).
+    for (name, path) in &fixtures {
+        let candidate = std::fs::read_to_string(format!("{candidate_dir}/{name}"))
+            .unwrap_or_else(|_| panic!("candidate counterpart of {name} is missing"));
+        let pinned = std::fs::read_to_string(path).expect("pinned fixture");
+        assert!(
+            pinned == candidate,
+            "{name} diverges from the pinned base stream"
+        );
+    }
+
+    let (_directory, config) = scratch_config("base-upgrade");
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(4)
+        .connect(&config.database_url)
+        .await
+        .expect("open the base database");
+    minco_sqlx_sqlite::plugin_adapters::migrate_plugin_storage(&pool)
+        .await
+        .expect("plugin storage (base)");
+    for (index, (name, path)) in fixtures.iter().enumerate() {
+        // The base tree's ledger table (sqlx default shape).
+        if index == 0 {
+            sqlx::raw_sql(sqlx::AssertSqlSafe(
+                "CREATE TABLE IF NOT EXISTS _sqlx_migrations (
+                    version BIGINT PRIMARY KEY,
+                    description TEXT NOT NULL,
+                    checksum BLOB NOT NULL,
+                    installed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    success BOOLEAN NOT NULL,
+                    execution_time BIGINT
+                )",
+            ))
+            .execute(&pool)
+            .await
+            .expect("create the base ledger table");
+        }
+        let sql = std::fs::read_to_string(path).expect("fixture sql");
+        sqlx::raw_sql(sqlx::AssertSqlSafe(sql.as_str()))
+            .execute(&pool)
+            .await
+            .expect("apply the base migration file");
+        // Record the base ledger row exactly as the base tree's sqlx
+        // migrator would: version from the filename position, checksum
+        // as the SHA-384 digest of the file's SQL text (sqlx's own
+        // `migration::checksum`).
+        let checksum = sha2::Sha384::digest(sql.as_str());
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations
+             (version, description, checksum, installed_on, success, execution_time)
+             VALUES (?, ?, ?, CURRENT_TIMESTAMP, 1, 0)",
+        )
+        .bind(i64::try_from(index + 1).expect("version"))
+        .bind(name.trim_end_matches(".sql"))
+        .bind(checksum.to_vec())
+        .execute(&pool)
+        .await
+        .expect("record the base ledger row");
+    }
+    let legacy = minco_plugin_ticketing::TicketingService::new(
+        minco_plugin_ticketing::TicketingStoreService::new(std::sync::Arc::new(
+            minco_plugin_ticketing::SqliteTicketingStore::new(pool.clone()),
+        )),
+        minco_plugin_ticketing::TicketingConfig {
+            project_id: config.project_id.clone(),
+            portal_origin: "https://support.example.test".into(),
+            ..minco_plugin_ticketing::TicketingConfig::default()
+        },
+    )
+    .expect("base writer service");
+    let legacy_identity = minco_plugin_identity::Identity {
+        subject: "legacy-agent".into(),
+        permissions: [
+            "ticketing.create",
+            "ticketing.agent.read",
+            "ticketing.manage",
+            "ticketing.reply",
+            "ticketing.agent-console",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect(),
+        scopes: std::collections::BTreeSet::new(),
+        claims: BTreeMap::new(),
+    };
+    let legacy_ticket = legacy
+        .create_ticket(
+            &legacy_identity,
+            minco_plugin_ticketing::CreateTicketInput {
+                project_id: config.project_id.clone(),
+                subject: "Base-tree ticket".into(),
+                description: "Written by the merged tree's real writer.".into(),
+                requester: minco_plugin_ticketing::TicketRequester {
+                    subject: "legacy-requester".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: minco_plugin_ticketing::TicketChannel::Api,
+                priority: minco_plugin_ticketing::TicketPriority::Normal,
+                ticket_type: minco_plugin_ticketing::TicketType::default(),
+                form_answers: Vec::new(),
+                resource_references: Vec::new(),
+            },
+            uuid::Uuid::now_v7(),
+            chrono::Utc::now(),
+        )
+        .await
+        .expect("base writer");
+    pool.close().await;
+
+    // The upgrade through the candidate: migrate() fills the candidate
+    // ledger (base rows recorded as applied by the candidate migrator's
+    // checksums of the identical files), then the isolated desk boots.
+    let desk = build_desk(&config).await.expect("upgrade build");
+    assert!(desk.workspace_report.created);
+    let pool = migrate(&config).await.expect("post-upgrade pool");
+    // Every ledger row's checksum matches the corresponding pinned base
+    // file's bytes — the published history is preserved exactly.
+    let ledger_rows =
+        sqlx::query("SELECT version, checksum FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        ledger_rows.len(),
+        22,
+        "base twenty plus the candidate's two"
+    );
+    for row in &ledger_rows {
+        let version: i64 = sqlx::Row::get(row, "version");
+        let checksum: Vec<u8> = sqlx::Row::get(row, "checksum");
+        let Ok(index) = usize::try_from(version) else {
+            panic!("ledger version {version} is not a valid index");
+        };
+        if (1..=20).contains(&index) {
+            let (_, path) = &fixtures[index - 1];
+            let pinned = std::fs::read_to_string(path).expect("pinned fixture");
+            let digest = sha2::Sha384::digest(pinned.as_str());
+            assert_eq!(
+                digest.as_slice(),
+                checksum.as_slice(),
+                "ledger row {version}"
+            );
+        }
+    }
+    pool.close().await;
+    // The base tree's ticket serves through the isolated stack.
+    let detail = desk
+        .router
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/_minco/ticketing/agent/tickets/{}",
+                legacy_ticket.ticket.id
+            ))
+            .extension(desk.agent_principal.clone())
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(detail.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -869,6 +1270,135 @@ fn two_fictional_integrations_resolve_distinct_bounded_scopes() {
                 .await
                 .is_err()
         );
+
+        // Round 1 finding 7: the neutral fixtures continue THROUGH
+        // TICKETING OPERATIONS — two isolated services in ONE workspace,
+        // one per fictional project, driven by their own scoped
+        // identities. Behavior differs only by configuration, never by
+        // product branches.
+        let ticketing = |project: &str| {
+            minco_plugin_ticketing::TicketingService::new(
+                minco_plugin_ticketing::TicketingStoreService::new(std::sync::Arc::new(
+                    minco_plugin_ticketing::MemoryTicketingStore::default(),
+                )),
+                minco_plugin_ticketing::TicketingConfig {
+                    project_id: project.into(),
+                    portal_origin: "https://support.example.test".into(),
+                    workspace_isolation: true,
+                    workspace_id: Some("ws-neutral".into()),
+                    ..minco_plugin_ticketing::TicketingConfig::default()
+                },
+            )
+            .expect("neutral ticketing service")
+        };
+        let acme_tickets = ticketing("acme-helpdesk");
+        let northwind_tickets = ticketing("northwind-portal");
+        let scoped =
+            |subject: &str, project: &str, permissions: &[&str]| minco_plugin_identity::Identity {
+                subject: subject.into(),
+                permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
+                scopes: [
+                    "workspace:ws-neutral".to_owned(),
+                    format!("project:{project}"),
+                ]
+                .into_iter()
+                .collect(),
+                claims: BTreeMap::default(),
+            };
+        let input = |project: &str| minco_plugin_ticketing::CreateTicketInput {
+            project_id: project.into(),
+            subject: "Neutral fixture ticket".into(),
+            description: "Same behavior, different configuration.".into(),
+            requester: minco_plugin_ticketing::TicketRequester {
+                subject: "requester@acme.example.test".into(),
+                display_name: None,
+                email: None,
+            },
+            channel: minco_plugin_ticketing::TicketChannel::Api,
+            priority: minco_plugin_ticketing::TicketPriority::Normal,
+            ticket_type: minco_plugin_ticketing::TicketType::default(),
+            form_answers: Vec::new(),
+            resource_references: Vec::new(),
+        };
+        let acme_created = acme_tickets
+            .create_ticket(
+                &scoped(
+                    "acme-service",
+                    "acme-helpdesk",
+                    &["ticketing.create", "ticketing.manage"],
+                ),
+                input("acme-helpdesk"),
+                uuid::Uuid::now_v7(),
+                chrono::Utc::now(),
+            )
+            .await
+            .expect("the acme fixture creates in its own project");
+        let northwind_created = northwind_tickets
+            .create_ticket(
+                &scoped(
+                    "northwind-portal",
+                    "northwind-portal",
+                    &["ticketing.create", "ticketing.manage"],
+                ),
+                input("northwind-portal"),
+                uuid::Uuid::now_v7(),
+                chrono::Utc::now(),
+            )
+            .await
+            .expect("the northwind fixture creates in its own project");
+        assert_eq!(acme_created.ticket.project_id, "acme-helpdesk");
+        assert_eq!(northwind_created.ticket.project_id, "northwind-portal");
+        // Cross-project reads are denied for both, identically: a
+        // foreign project id is an untrusted selector.
+        assert!(
+            acme_tickets
+                .get_ticket_for_agent(
+                    &scoped("acme-service", "acme-helpdesk", &["ticketing.agent.read"]),
+                    "northwind-portal",
+                    northwind_created.ticket.id,
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            northwind_tickets
+                .get_ticket_for_agent(
+                    &scoped(
+                        "northwind-portal",
+                        "northwind-portal",
+                        &["ticketing.agent.read"],
+                    ),
+                    "acme-helpdesk",
+                    acme_created.ticket.id,
+                )
+                .await
+                .is_err()
+        );
+        // And each reads its own ticket through the SAME code path.
+        assert!(
+            acme_tickets
+                .get_ticket_for_agent(
+                    &scoped("acme-service", "acme-helpdesk", &["ticketing.agent.read"]),
+                    "acme-helpdesk",
+                    acme_created.ticket.id,
+                )
+                .await
+                .is_ok()
+        );
+        assert!(
+            northwind_tickets
+                .get_ticket_for_agent(
+                    &scoped(
+                        "northwind-portal",
+                        "northwind-portal",
+                        &["ticketing.agent.read"],
+                    ),
+                    "northwind-portal",
+                    northwind_created.ticket.id,
+                )
+                .await
+                .is_ok()
+        );
     });
 }
 
@@ -895,14 +1425,24 @@ fn product_neutrality_gate_finds_no_product_tokens() {
     let mut offenders: Vec<String> = Vec::new();
     for surface in surfaces {
         for file in source_files(&surface) {
-            // The gate's own token list is the one documented exception.
+            let mut contents = std::fs::read_to_string(&file).expect("read source");
+            // The gate's own token DECLARATIONS are the one documented
+            // exception (round 1 finding 7): only the two declaration
+            // lines are exempt, never the whole file — any other
+            // occurrence anywhere, including this proof file, is an
+            // offender.
             if file
                 .file_name()
                 .is_some_and(|name| name == "isolation_proofs.rs")
             {
-                continue;
+                contents = contents
+                    .lines()
+                    .filter(|line| {
+                        !line.contains("const BANNED_PLAIN") && !line.contains("const BANNED_WORDS")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
             }
-            let contents = std::fs::read_to_string(&file).expect("read source");
             let display = file.display();
             for token in BANNED_PLAIN {
                 if contents.to_ascii_lowercase().contains(token) {
