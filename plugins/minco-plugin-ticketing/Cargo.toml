@@ -13,7 +13,7 @@ description = "Project-scoped support ticketing, atomic handoffs, conversation, 
 readme = "README.md"
 keywords = ["minco", "support", "ticketing", "workflow"]
 categories = ["web-programming", "development-tools"]
-include = ["src/**", "assets/**", "openapi/**", "migrations/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src/**", "assets/**", "openapi/**", "migrations/**", "tests/**", "Cargo.toml", "minco-plugin.json", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
 [package.metadata.minco]
 plugin = "minco-plugin.json"

@@ -7849,8 +7849,8 @@
     },
     {
       "path": "plugins/minco-plugin-ticketing/Cargo.toml",
-      "sha256": "b244433fd13146692453ac9e9fa9f3498e86586ff7ae304c1ae4a63130d8ef93",
-      "size_bytes": 2331
+      "sha256": "fef043d739db3765917fad592e3c6efae587756fbbae867707739631b54464e2",
+      "size_bytes": 2343
     },
     {
       "path": "plugins/minco-plugin-ticketing/LICENSE-APACHE",
@@ -9884,7 +9884,7 @@
     },
     {
       "path": "verification/release-identity.json",
-      "sha256": "dd9d2fbeda971dea4519cd8319edac534c67ada6288b838e2060b2923b07edfd",
+      "sha256": "66f0fe41cf9e970a1eaf22f87f41fb3855855d53297f569be381d4606021f288",
       "size_bytes": 19768
     },
     {
@@ -9984,7 +9984,7 @@
     "verification/source-manifest.json",
     "verification/static-validation.json"
   ],
-  "source_tree_sha256": "f5f0f1f0d04b068edfafa210fa9b53b34e89f86e9fe9eb3792856e992e071c2c",
-  "total_size_bytes": 15521823,
+  "source_tree_sha256": "b9da0631a3a8a70ce0b427a4f90a47779e981c76e2af223b511bc47660c5af10",
+  "total_size_bytes": 15521835,
   "version": "1.12.0"
 }
