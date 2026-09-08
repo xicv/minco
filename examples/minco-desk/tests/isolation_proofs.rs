@@ -308,6 +308,203 @@ async fn a_wrong_project_service_cannot_touch_another_projects_exchange_grant() 
 }
 
 #[tokio::test]
+async fn the_upgrade_inventories_every_historical_project_and_binds_ownership() {
+    // Round 1 finding 5: a populated pre-isolation database carries a
+    // live project (tickets) AND an artifact-only project (handoff,
+    // exchange grant, operation receipt — no ticket). The isolated desk
+    // registers BOTH verbatim, binds ticket ownership under the
+    // provisioned workspace with a composite foreign key (enforced on
+    // fresh pooled connections), backfills legacy grants, and a restart
+    // converges on the same binding.
+    let (_directory, config) = scratch_config("inventory");
+
+    // The pre-isolation stack.
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(4)
+        .connect(&config.database_url)
+        .await
+        .expect("open");
+    minco_sqlx_sqlite::plugin_adapters::migrate_plugin_storage(&pool)
+        .await
+        .expect("plugin storage");
+    minco_plugin_ticketing::SqliteTicketingStore::new(pool.clone())
+        .migrate()
+        .await
+        .expect("ticketing migrations");
+    let legacy = minco_plugin_ticketing::TicketingService::new(
+        minco_plugin_ticketing::TicketingStoreService::new(std::sync::Arc::new(
+            minco_plugin_ticketing::SqliteTicketingStore::new(pool.clone()),
+        )),
+        minco_plugin_ticketing::TicketingConfig {
+            project_id: "desk-proof".into(),
+            portal_origin: "https://support.example.test".into(),
+            ..minco_plugin_ticketing::TicketingConfig::default()
+        },
+    )
+    .expect("legacy service");
+    let legacy_identity = minco_plugin_identity::Identity {
+        subject: "legacy-agent".into(),
+        permissions: [
+            "ticketing.create",
+            "ticketing.agent.read",
+            "ticketing.manage",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect(),
+        scopes: std::collections::BTreeSet::new(),
+        claims: BTreeMap::new(),
+    };
+    legacy
+        .create_ticket(
+            &legacy_identity,
+            minco_plugin_ticketing::CreateTicketInput {
+                project_id: "desk-proof".into(),
+                subject: "Live project".into(),
+                description: "Ticketed history.".into(),
+                requester: minco_plugin_ticketing::TicketRequester {
+                    subject: "legacy-requester".into(),
+                    display_name: None,
+                    email: None,
+                },
+                channel: minco_plugin_ticketing::TicketChannel::Api,
+                priority: minco_plugin_ticketing::TicketPriority::Normal,
+                ticket_type: minco_plugin_ticketing::TicketType::default(),
+                form_answers: Vec::new(),
+                resource_references: Vec::new(),
+            },
+            uuid::Uuid::now_v7(),
+            chrono::Utc::now(),
+        )
+        .await
+        .expect("legacy ticket");
+    // An artifact-only project: security artifacts with NO ticket row.
+    let now = chrono::Utc::now().to_rfc3339();
+    let future = (chrono::Utc::now() + chrono::TimeDelta::hours(1)).to_rfc3339();
+    sqlx::query(
+        "INSERT INTO ticketing_handoffs
+         (digest, handoff_id, project_id, portal_origin, expires_at, handoff_json)
+         VALUES ('digest-b', 'handoff-b', 'legacy Prj',
+                 'https://support.example.test', ?, '{}')",
+    )
+    .bind(&future)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO ticketing_session_exchange_grants
+         (exchange_key, session_id, subject, project_id, permissions, portal_origin,
+          expires_at, created_at, generation, revoked_at, rotation_staged_session_id, workspace_id)
+         VALUES ('key-b', ?, 'requester-b', 'legacy Prj', 'ticketing.requester.read',
+                 'https://support.example.test', ?, ?, 0, NULL, NULL, NULL)",
+    )
+    .bind(uuid::Uuid::new_v4().to_string())
+    .bind(&future)
+    .bind(&now)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO ticketing_operation_receipts
+         (idempotency_key, fingerprint, response_json, created_at, operation, project_id, subject_digest, expires_at)
+         VALUES ('idem-b', 'fp', '{}', ?, 'requester_reply', 'legacy Prj', 'digest', ?)",
+    )
+    .bind(&now)
+    .bind(&future)
+    .execute(&pool)
+    .await
+    .unwrap();
+    pool.close().await;
+
+    // The upgrade: inventory registers both projects verbatim.
+    let desk = build_desk(&config).await.expect("upgrade build");
+    let pool = migrate(&config).await.expect("post-upgrade pool");
+    let registered: Vec<String> =
+        sqlx::query_scalar("SELECT project_id FROM workspace_projects ORDER BY project_id")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        registered,
+        vec!["desk-proof".to_owned(), "legacy Prj".to_owned()],
+        "every historical project registers verbatim — including the artifact-only one"
+    );
+    // Ticket ownership is bound with the workspace default.
+    let ticket_binding: Vec<(String, String)> =
+        sqlx::query_as("SELECT workspace_id, project_id FROM ticketing_tickets")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(ticket_binding.len(), 1);
+    assert_eq!(
+        ticket_binding[0].0,
+        desk.workspace_report.workspace.as_str()
+    );
+    assert_eq!(ticket_binding[0].1, "desk-proof");
+    // The legacy grant was backfilled.
+    let grant_workspace: Option<String> = sqlx::query_scalar(
+        "SELECT workspace_id FROM ticketing_session_exchange_grants WHERE exchange_key = 'key-b'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        grant_workspace.as_deref(),
+        Some(desk.workspace_report.workspace.as_str())
+    );
+    // The composite FK holds on FRESH pooled connections: a ticket for
+    // the bound project inherits the workspace default; a ticket with a
+    // foreign workspace is rejected; an unregistered project is
+    // rejected.
+    let inserted = sqlx::query(
+        "INSERT INTO ticketing_tickets (project_id, id, display_reference, status, requester_subject, updated_at, revision, ticket_json)
+         VALUES ('desk-proof', '11111111-1111-1111-1111-111111111111', 'TKT-FK-1', 'new', 'r', ?, 0, '{}')",
+    )
+    .bind(now.clone())
+    .execute(&pool)
+    .await;
+    assert!(
+        inserted.is_ok(),
+        "the default workspace anchors local inserts"
+    );
+    let foreign = sqlx::query(
+        "INSERT INTO ticketing_tickets (workspace_id, project_id, id, display_reference, status, requester_subject, updated_at, revision, ticket_json)
+         VALUES ('ws-foreign', 'desk-proof', '22222222-2222-2222-2222-222222222222', 'TKT-FK-2', 'new', 'r', ?, 0, '{}')",
+    )
+    .bind(&now)
+    .execute(&pool)
+    .await;
+    assert!(
+        foreign.is_err(),
+        "the composite FK must reject a foreign workspace"
+    );
+    let unregistered = sqlx::query(
+        "INSERT INTO ticketing_tickets (workspace_id, project_id, id, display_reference, status, requester_subject, updated_at, revision, ticket_json)
+         VALUES (?, 'never-registered', '33333333-3333-3333-3333-333333333333', 'TKT-FK-3', 'new', 'r', ?, 0, '{}')",
+    )
+    .bind(desk.workspace_report.workspace.as_str())
+    .bind(&now)
+    .execute(&pool)
+    .await;
+    assert!(
+        unregistered.is_err(),
+        "the composite FK must reject an unregistered project"
+    );
+    // Interruption/restart: a second build converges on the same
+    // binding without touching the data.
+    let rebuilt = build_desk(&config).await.expect("restart converges");
+    assert_eq!(
+        rebuilt.workspace_report.workspace,
+        desk.workspace_report.workspace
+    );
+    let tickets: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ticketing_tickets")
+        .fetch_one(&migrate(&config).await.unwrap())
+        .await
+        .unwrap();
+    assert_eq!(tickets, 2, "restart preserves every bound ticket");
+}
+
+#[tokio::test]
 async fn upgrading_a_pre_isolation_database_preserves_data_checksums_and_ledgers() {
     // ISO-5: a populated database produced by the pre-isolation stack
     // (plugin storage + ticketing migrations, a real legacy writer, no

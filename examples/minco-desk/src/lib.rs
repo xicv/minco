@@ -502,6 +502,36 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     // here — before any service serves a request.
     let desk_project = minco_plugin_workspace::ProjectId::try_from(config.project_id.clone())
         .context("DESK_PROJECT_ID is not a registrable project identifier")?;
+    // Upgrade inventory (round 1 finding 5): every project identity that
+    // exists in this database — live tickets AND durable security
+    // artifacts (handoffs, exchange grants, external messages, activity
+    // intents, operation receipts) — registers verbatim alongside the
+    // configured project, so a populated database never ends up with a
+    // registry that omits its own history.
+    let mut inventoried: BTreeSet<String> = BTreeSet::from_iter([desk_project.as_str().to_owned()]);
+    for table in [
+        "ticketing_tickets",
+        "ticketing_handoffs",
+        "ticketing_session_exchange_grants",
+        "ticketing_external_messages",
+        "ticketing_activity_intents",
+        "ticketing_operation_receipts",
+    ] {
+        let projects: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(
+            format!("SELECT DISTINCT project_id FROM {table}").as_str(),
+        ))
+        .fetch_all(&pool)
+        .await
+        .with_context(|| format!("inventory {table} for the workspace registry"))?;
+        inventoried.extend(projects);
+    }
+    let registered_projects: Vec<minco_plugin_workspace::ProjectId> = inventoried
+        .into_iter()
+        .map(|project| {
+            minco_plugin_workspace::ProjectId::try_from(project)
+                .context("an inventoried project identifier is not registrable")
+        })
+        .collect::<Result<Vec<_>>>()?;
     let pinned_workspace = match &config.workspace_id {
         Some(pin) => Some(
             minco_plugin_workspace::WorkspaceId::try_from(pin.clone())
@@ -518,7 +548,7 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
             minco_plugin_workspace::WorkspaceConfig {
                 display_name: config.workspace_display_name.clone(),
                 workspace_id: pinned_workspace,
-                projects: vec![desk_project.clone()],
+                projects: registered_projects,
                 profiles: [
                     (
                         desk_agent_profile_id(),
@@ -594,6 +624,25 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
         .provision()
         .await
         .context("provision the workspace isolation registry")?;
+    // Ownership binding (round 1 finding 5), in the same explicit
+    // startup phase with writers not yet serving: every inventoried
+    // project is now registered under the provisioned workspace, so the
+    // ticket table can take the composite ownership constraint; legacy
+    // exchange grants (issued before isolation) are deterministically
+    // bound to the provisioned workspace. Interruption before this
+    // point leaves the un-bound (default '') schema in place and the
+    // next startup redoes the whole phase idempotently.
+    SqliteTicketingStore::new(pool.clone())
+        .bind_workspace_ownership(workspace_report.workspace.as_str())
+        .await
+        .context("bind ticket ownership to the provisioned workspace")?;
+    sqlx::query(
+        "UPDATE ticketing_session_exchange_grants SET workspace_id = ? WHERE workspace_id IS NULL",
+    )
+    .bind(workspace_report.workspace.as_str())
+    .execute(&pool)
+    .await
+    .context("bind legacy session-exchange grants to the provisioned workspace")?;
     // The service-principal scope is resolved once and served through this
     // explicit local context (ADR-0076: no per-request discovery); the
     // bearer middleware injects the resulting checked principal.

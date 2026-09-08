@@ -52,6 +52,178 @@ impl SqliteTicketingStore {
             .map_err(|error| TicketStoreError::Infrastructure(error.to_string()))
     }
 
+    /// The full column list of `ticketing_tickets` after every
+    /// published migration, in insert order. The ownership rebuild
+    /// copies every column verbatim.
+    const TICKET_COLUMNS: &'static str = "project_id, id, display_reference, subject, \
+         description, channel, priority, ticket_type, form_answers_json, status, queue_id, \
+         assignee_subject, requester_subject, requester_display_name, requester_email, \
+         created_at, updated_at, revision, first_public_response_at, first_response_deadline, \
+         resolution_deadline, waiting_since, resolved_at, closed_at, resolution, close_reason, \
+         ticket_json, knowledge_links_json, csat_json";
+
+    /// Bind ticket ownership to the provisioned workspace (round 1
+    /// finding 5, ADR-0076 §6): a create-copy-drop-rename rebuild gives
+    /// `ticketing_tickets` a `workspace_id` anchored to `workspace_id`
+    /// (with the bound identity as its DEFAULT so ordinary inserts
+    /// inherit it) and a composite foreign key to
+    /// `workspace_projects(workspace_id, project_id)` — a ticket can
+    /// only exist for a project registered under the bound workspace.
+    ///
+    /// Prerequisites (the caller's explicit provisioning phase): every
+    /// existing project is already registered under this workspace, and
+    /// writers are quiesced (this runs before the desk serves traffic).
+    /// The rebuild follows `SQLite`'s documented procedure — foreign keys
+    /// disabled on the rebuilding connection outside any transaction,
+    /// one transaction for the whole rebuild, indexes recreated after
+    /// the rename. Idempotent: re-binding the same workspace is a
+    /// no-op; a different workspace is an explicit integrity error.
+    pub async fn bind_workspace_ownership(
+        &self,
+        workspace_id: &str,
+    ) -> Result<(), TicketStoreError> {
+        // Guard the identifier that is interpolated into DDL as a
+        // DEFAULT literal: minted workspace identifiers are visible,
+        // bounded, ASCII, and whitespace-free.
+        if workspace_id.is_empty()
+            || workspace_id.len() > 64
+            || !workspace_id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        {
+            return Err(TicketStoreError::Infrastructure(
+                "workspace_id must be a minted workspace identifier".into(),
+            ));
+        }
+        let mut connection = self
+            .pool
+            .acquire()
+            .await
+            .map_err(|error| TicketStoreError::Infrastructure(error.to_string()))?;
+        let bound: String =
+            sqlx::query_scalar("SELECT workspace_id FROM ticketing_tickets LIMIT 1")
+                .fetch_optional(&mut *connection)
+                .await
+                .map_err(infrastructure)?
+                .unwrap_or_else(|| workspace_id.to_owned());
+        if bound == workspace_id {
+            // Already bound (or empty table): still ensure every row
+            // carries the binding — the empty-table case needs the
+            // rebuild so the schema itself carries the constraint.
+        } else if bound.is_empty() {
+            // First bind of a populated table: proceed with the rebuild.
+        } else {
+            return Err(TicketStoreError::Infrastructure(format!(
+                "ticketing_tickets is already bound to workspace {bound}; refusing to rebind"
+            )));
+        }
+        sqlx::raw_sql(sqlx::AssertSqlSafe("PRAGMA foreign_keys = OFF"))
+            .execute(&mut *connection)
+            .await
+            .map_err(infrastructure)?;
+        let rebuild = async {
+            sqlx::raw_sql(sqlx::AssertSqlSafe("BEGIN"))
+                .execute(&mut *connection)
+                .await
+                .map_err(infrastructure)?;
+            sqlx::raw_sql(sqlx::AssertSqlSafe(
+                format!(
+                    "CREATE TABLE ticketing_tickets_bound (
+                    workspace_id TEXT NOT NULL DEFAULT '{workspace_id}',
+                    project_id TEXT NOT NULL,
+                    id TEXT NOT NULL,
+                    display_reference TEXT NOT NULL,
+                    subject TEXT NOT NULL DEFAULT '',
+                    description TEXT NOT NULL DEFAULT '',
+                    channel TEXT NOT NULL DEFAULT 'api',
+                    priority TEXT NOT NULL DEFAULT 'normal',
+                    ticket_type TEXT NOT NULL DEFAULT 'question',
+                    form_answers_json TEXT NOT NULL DEFAULT '[]',
+                    status TEXT NOT NULL,
+                    queue_id TEXT,
+                    assignee_subject TEXT,
+                    requester_subject TEXT NOT NULL,
+                    requester_display_name TEXT,
+                    requester_email TEXT,
+                    created_at TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL,
+                    revision INTEGER NOT NULL CHECK (revision >= 0),
+                    first_public_response_at TEXT,
+                    first_response_deadline TEXT,
+                    resolution_deadline TEXT,
+                    waiting_since TEXT,
+                    resolved_at TEXT,
+                    closed_at TEXT,
+                    resolution TEXT,
+                    close_reason TEXT,
+                    ticket_json TEXT NOT NULL,
+                    knowledge_links_json TEXT NOT NULL DEFAULT '[]',
+                    csat_json TEXT,
+                    PRIMARY KEY (project_id, id),
+                    UNIQUE (project_id, display_reference),
+                    FOREIGN KEY (workspace_id, project_id)
+                        REFERENCES workspace_projects (workspace_id, project_id)
+                )"
+                )
+                .as_str(),
+            ))
+            .execute(&mut *connection)
+            .await
+            .map_err(infrastructure)?;
+            sqlx::raw_sql(sqlx::AssertSqlSafe(
+                format!(
+                    "INSERT INTO ticketing_tickets_bound (workspace_id, {columns})
+                 SELECT '{workspace_id}', {columns} FROM ticketing_tickets",
+                    columns = Self::TICKET_COLUMNS
+                )
+                .as_str(),
+            ))
+            .execute(&mut *connection)
+            .await
+            .map_err(infrastructure)?;
+            sqlx::query("DROP TABLE ticketing_tickets")
+                .execute(&mut *connection)
+                .await
+                .map_err(infrastructure)?;
+            sqlx::query("ALTER TABLE ticketing_tickets_bound RENAME TO ticketing_tickets")
+                .execute(&mut *connection)
+                .await
+                .map_err(infrastructure)?;
+            for index in [
+                "CREATE INDEX ticketing_tickets_project_status_updated_idx
+                    ON ticketing_tickets(project_id, status, updated_at, id)",
+                "CREATE INDEX ticketing_tickets_queue_status_idx
+                    ON ticketing_tickets(project_id, queue_id, status, updated_at)",
+                "CREATE INDEX ticketing_tickets_assignee_status_idx
+                    ON ticketing_tickets(project_id, assignee_subject, status, updated_at)",
+                "CREATE INDEX ticketing_tickets_requester_idx
+                    ON ticketing_tickets(project_id, requester_subject, updated_at)",
+                "CREATE INDEX ticketing_tickets_summary_order_idx
+                    ON ticketing_tickets(project_id, updated_at DESC, id DESC)",
+            ] {
+                sqlx::query(index)
+                    .execute(&mut *connection)
+                    .await
+                    .map_err(infrastructure)?;
+            }
+            sqlx::raw_sql(sqlx::AssertSqlSafe("COMMIT"))
+                .execute(&mut *connection)
+                .await
+                .map_err(infrastructure)?;
+            Ok(())
+        }
+        .await;
+        sqlx::raw_sql(sqlx::AssertSqlSafe("PRAGMA foreign_keys = ON"))
+            .execute(&mut *connection)
+            .await
+            .map_err(|error| {
+                TicketStoreError::Infrastructure(format!(
+                    "re-enabling foreign keys failed: {error}"
+                ))
+            })?;
+        rebuild
+    }
+
     #[must_use]
     pub const fn pool(&self) -> &SqlitePool {
         &self.pool
