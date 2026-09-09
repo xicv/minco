@@ -308,13 +308,23 @@ pub struct SessionExchangeGrant {
     /// cleared) instead of leaking a second live bearer. `None` outside
     /// an in-flight rotation.
     pub rotation_staged_session_id: Option<minco_plugin_sessions::SessionId>,
-    /// Authoritative workspace binding (round 1 finding 1): the workspace
-    /// identity this grant was issued under, persisted with the grant so
-    /// resolution and rotation validate against the artifact rather than
-    /// deriving authority from the receiving service's configuration.
-    /// `None` for legacy grants written before isolation; the upgrade
-    /// inventory binds them explicitly.
-    pub workspace_id: Option<String>,
+}
+
+/// The authoritative workspace binding of a session-exchange grant
+/// (round 1 finding 1).
+///
+/// The binding lives beside the grant in durable storage — not on the
+/// public grant struct, whose shape is part of the crate's source
+/// compatibility surface — so resolution and rotation validate against
+/// the persisted artifact rather than deriving authority from the
+/// receiving service's configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExchangeGrantWorkspaceBinding {
+    /// The grant predates isolation; the upgrade inventory binds such
+    /// grants explicitly and isolated resolution rejects them until then.
+    LegacyUnbound,
+    /// The workspace identity the grant was issued under.
+    Bound(String),
 }
 
 /// One atomic pool-mode assignment request (exact-head review R7).
@@ -568,6 +578,31 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         grant: SessionExchangeGrant,
         expected_generation: Option<u64>,
     ) -> Result<SessionExchangeGrant, TicketStoreError>;
+
+    /// Reads the persisted workspace binding of one session-exchange
+    /// grant (round 1 finding 1). Adapters that predate isolation keep
+    /// this legacy default: every grant reads back unbound, and isolated
+    /// resolution rejects unbound grants instead of guessing.
+    async fn exchange_grant_workspace_binding(
+        &self,
+        _exchange_key: &str,
+    ) -> Result<ExchangeGrantWorkspaceBinding, TicketStoreError> {
+        Ok(ExchangeGrantWorkspaceBinding::LegacyUnbound)
+    }
+
+    /// Fenced grant record that also persists the authoritative
+    /// workspace binding (round 1 finding 1). The default delegates to
+    /// [`TicketingStore::record_session_exchange_fenced`], leaving the
+    /// binding unset — legacy semantics for pre-isolation adapters.
+    async fn record_session_exchange_fenced_scoped(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        _workspace_id: &str,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        self.record_session_exchange_fenced(grant, expected_generation)
+            .await
+    }
 
     /// Revokes a replay grant (logout): replays after this fail closed.
     async fn revoke_session_exchange(
@@ -1158,6 +1193,24 @@ impl TicketingStoreService {
             .await
     }
 
+    pub async fn exchange_grant_workspace_binding(
+        &self,
+        exchange_key: &str,
+    ) -> Result<ExchangeGrantWorkspaceBinding, TicketStoreError> {
+        self.0.exchange_grant_workspace_binding(exchange_key).await
+    }
+
+    pub async fn record_session_exchange_fenced_scoped(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        workspace_id: &str,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        self.0
+            .record_session_exchange_fenced_scoped(grant, expected_generation, workspace_id)
+            .await
+    }
+
     pub async fn revoke_session_exchange(
         &self,
         exchange_key: &str,
@@ -1423,6 +1476,9 @@ struct MemoryState {
     clarifications: BTreeMap<(String, Uuid), Clarification>,
     operation_receipts: BTreeMap<String, OperationReceipt>,
     session_exchange_grants: BTreeMap<String, SessionExchangeGrant>,
+    /// Persisted workspace bindings beside the grants (round 1 finding
+    /// 1): `None` = legacy unbound, mirroring the SQL column.
+    grant_workspace_bindings: BTreeMap<String, Option<String>>,
     send_intents: BTreeMap<String, SendIntent>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
@@ -1513,6 +1569,51 @@ impl MemoryTicketingStore {
             .handoffs
             .get(digest)
             .is_some_and(|entry| entry.handoff.consumed_result.is_some())
+    }
+    /// The fenced write both trait entry points share; `binding`
+    /// records the authoritative workspace identity beside the grant.
+    async fn record_session_exchange_fenced_binding(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        binding: Option<String>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        match state.session_exchange_grants.get(&grant.exchange_key) {
+            None if expected_generation.is_none() => {
+                state
+                    .grant_workspace_bindings
+                    .insert(grant.exchange_key.clone(), binding);
+                state
+                    .session_exchange_grants
+                    .insert(grant.exchange_key.clone(), grant.clone());
+                drop(state);
+                Ok(grant)
+            }
+            // A takeover may only advance a live grant: a revoked grant
+            // (logout) can never be re-recorded by a stale worker
+            // (exact-head review R28/P0-2).
+            Some(existing)
+                if Some(existing.generation) == expected_generation
+                    && existing.revoked_at.is_none()
+                    && existing.rotation_staged_session_id.is_none() =>
+            {
+                let mut next = grant;
+                next.generation = existing.generation + 1;
+                state
+                    .grant_workspace_bindings
+                    .insert(next.exchange_key.clone(), binding);
+                state
+                    .session_exchange_grants
+                    .insert(next.exchange_key.clone(), next.clone());
+                drop(state);
+                Ok(next)
+            }
+            Some(existing) => Ok(existing.clone()),
+            None => Err(TicketStoreError::Infrastructure(
+                "fenced exchange record expected an existing generation".into(),
+            )),
+        }
     }
 }
 
@@ -2482,36 +2583,36 @@ impl TicketingStore for MemoryTicketingStore {
         grant: SessionExchangeGrant,
         expected_generation: Option<u64>,
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
-        let mut state = self.state.lock().await;
-        match state.session_exchange_grants.get(&grant.exchange_key) {
-            None if expected_generation.is_none() => {
-                state
-                    .session_exchange_grants
-                    .insert(grant.exchange_key.clone(), grant.clone());
-                drop(state);
-                Ok(grant)
+        // Legacy writer: no workspace binding (round 1 finding 1).
+        self.record_session_exchange_fenced_binding(grant, expected_generation, None)
+            .await
+    }
+
+    async fn record_session_exchange_fenced_scoped(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        workspace_id: &str,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        self.record_session_exchange_fenced_binding(
+            grant,
+            expected_generation,
+            Some(workspace_id.to_owned()),
+        )
+        .await
+    }
+
+    async fn exchange_grant_workspace_binding(
+        &self,
+        exchange_key: &str,
+    ) -> Result<ExchangeGrantWorkspaceBinding, TicketStoreError> {
+        let state = self.state.lock().await;
+        Ok(match state.grant_workspace_bindings.get(exchange_key) {
+            Some(Some(workspace)) if !workspace.is_empty() => {
+                ExchangeGrantWorkspaceBinding::Bound(workspace.clone())
             }
-            // A takeover may only advance a live grant: a revoked grant
-            // (logout) can never be re-recorded by a stale worker
-            // (exact-head review R28/P0-2).
-            Some(existing)
-                if Some(existing.generation) == expected_generation
-                    && existing.revoked_at.is_none()
-                    && existing.rotation_staged_session_id.is_none() =>
-            {
-                let mut next = grant;
-                next.generation = existing.generation + 1;
-                state
-                    .session_exchange_grants
-                    .insert(next.exchange_key.clone(), next.clone());
-                drop(state);
-                Ok(next)
-            }
-            Some(existing) => Ok(existing.clone()),
-            None => Err(TicketStoreError::Infrastructure(
-                "fenced exchange record expected an existing generation".into(),
-            )),
-        }
+            _ => ExchangeGrantWorkspaceBinding::LegacyUnbound,
+        })
     }
 
     async fn revoke_session_exchange(
@@ -3567,7 +3668,6 @@ mod tests {
             created_at: Utc::now(),
             revoked_at: None,
             rotation_staged_session_id: None,
-            workspace_id: None,
         }
     }
 

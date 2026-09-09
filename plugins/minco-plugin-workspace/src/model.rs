@@ -605,6 +605,27 @@ pub struct ServicePrincipalScope {
     pub resource_types: BTreeSet<String>,
 }
 
+impl ServicePrincipalScope {
+    /// The full claim-token set this resolved profile carries on a
+    /// principal: the workspace/project identity tokens plus one
+    /// `resources:` policy token per permitted resource type (round 1
+    /// finding 3 of the M15-T01 review — the effective caller's
+    /// resource policy travels with the caller, never as a
+    /// service-global allowlist). Payloads use the same percent-encoded
+    /// identifier codec as the identity tokens.
+    pub fn claim_tokens(&self) -> Vec<String> {
+        let mut tokens = Vec::with_capacity(2 + self.resource_types.len());
+        tokens.extend(self.scope.scope_tokens());
+        for resource_type in &self.resource_types {
+            tokens.push(format!(
+                "resources:{}",
+                encode_scope_identifier(resource_type)
+            ));
+        }
+        tokens
+    }
+}
+
 /// Validate an exact canonical origin: `scheme://host[:port]` and nothing
 /// else.
 ///
@@ -795,6 +816,45 @@ mod tests {
         assert_eq!(workspace_scope.workspace(), &workspace);
         assert_eq!(project_scope.workspace(), &workspace);
         assert_ne!(workspace_scope, project_scope);
+    }
+
+    #[test]
+    fn claim_tokens_carry_the_profiles_own_resource_policy() {
+        // Round 2 / P1-3: the resolved scope's claim set carries one
+        // `resources:` token per permitted type, percent-encoded with
+        // the same codec as the identity tokens — the per-caller policy
+        // carrier, never a service-global allowlist.
+        let scope = ServicePrincipalScope {
+            scope: ProjectScope {
+                workspace: WorkspaceId::try_from("ws-1".to_owned()).expect("valid"),
+                project: ProjectId::try_from("legacy Prj".to_owned()).expect("valid"),
+            },
+            service_subject: "desk-agent".into(),
+            permission_ceiling: BTreeSet::new(),
+            allowed_origins: BTreeSet::new(),
+            resource_types: BTreeSet::from(["order-board".to_owned(), "customer note".to_owned()]),
+        };
+        assert_eq!(
+            scope.claim_tokens(),
+            vec![
+                "workspace:ws-1".to_owned(),
+                "project:legacy%20Prj".to_owned(),
+                "resources:customer%20note".to_owned(),
+                "resources:order-board".to_owned(),
+            ]
+        );
+        // A profile without resource types carries identity tokens only.
+        let bare = ServicePrincipalScope {
+            resource_types: BTreeSet::new(),
+            ..scope
+        };
+        assert_eq!(
+            bare.claim_tokens(),
+            vec![
+                "workspace:ws-1".to_owned(),
+                "project:legacy%20Prj".to_owned()
+            ]
+        );
     }
 
     #[test]

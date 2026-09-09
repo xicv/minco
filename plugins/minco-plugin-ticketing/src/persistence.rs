@@ -228,6 +228,107 @@ impl SqliteTicketingStore {
     pub const fn pool(&self) -> &SqlitePool {
         &self.pool
     }
+    /// The fenced grant write shared by the legacy and scoped trait
+    /// entry points: `binding` persists the authoritative workspace
+    /// identity beside the grant (`None` writes the legacy unbound
+    /// state).
+    async fn record_session_exchange_fenced_with_binding(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        binding: Option<&str>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        let existing = self.session_exchange_grant(&grant.exchange_key).await?;
+        match (existing, expected_generation) {
+            (None, None) => {
+                let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
+                let inserted = sqlx::query(
+                    "INSERT INTO ticketing_session_exchange_grants
+                     (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at, generation, revoked_at, workspace_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
+                     ON CONFLICT(exchange_key) DO NOTHING",
+                )
+                .bind(&grant.exchange_key)
+                .bind(grant.session_id.0.to_string())
+                .bind(&grant.subject)
+                .bind(&grant.project_id)
+                .bind(grant.permissions.join(","))
+                .bind(&grant.portal_origin)
+                .bind(grant.expires_at.to_rfc3339())
+                .bind(grant.created_at.to_rfc3339())
+                .bind(binding)
+                .execute(&mut *transaction)
+                .await
+                .map_err(infrastructure)?;
+                transaction.commit().await.map_err(infrastructure)?;
+                if inserted.rows_affected() == 0 {
+                    // Lost the initial-insert race (exact-head review
+                    // R28/P0-2): return the winner's grant so the loser
+                    // revokes its own session and never the winner's.
+                    let winner = self
+                        .session_exchange_grant(&grant.exchange_key)
+                        .await?
+                        .ok_or_else(|| {
+                            TicketStoreError::Infrastructure(
+                                "exchange grant vanished after insert race".into(),
+                            )
+                        })?;
+                    return Ok(winner);
+                }
+                Ok(grant)
+            }
+            // A takeover may only advance a live, unstaged grant: a
+            // revoked grant (logout) or an in-flight rotation can never
+            // be overwritten by a stale worker (R28/P0-2). The UPDATE's
+            // affected rows are the fence — 0 rows means this worker
+            // lost and must adopt whatever is actually stored.
+            (Some(current), Some(expected))
+                if current.generation == expected
+                    && current.revoked_at.is_none()
+                    && current.rotation_staged_session_id.is_none() =>
+            {
+                let updated =
+                    sqlx::query(
+                        "UPDATE ticketing_session_exchange_grants
+                        SET session_id = ?, subject = ?, project_id = ?, permissions = ?,
+                            portal_origin = ?, generation = generation + 1, workspace_id = ?
+                      WHERE exchange_key = ? AND generation = ?
+                        AND revoked_at IS NULL AND rotation_staged_session_id IS NULL",
+                    )
+                    .bind(grant.session_id.0.to_string())
+                    .bind(&grant.subject)
+                    .bind(&grant.project_id)
+                    .bind(grant.permissions.join(","))
+                    .bind(&grant.portal_origin)
+                    .bind(binding)
+                    .bind(&grant.exchange_key)
+                    .bind(i64::try_from(current.generation).map_err(|_| {
+                        TicketStoreError::Infrastructure("generation overflow".into())
+                    })?)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(infrastructure)?;
+                if updated.rows_affected() == 0 {
+                    let winner = self
+                        .session_exchange_grant(&grant.exchange_key)
+                        .await?
+                        .ok_or_else(|| {
+                            TicketStoreError::Infrastructure(
+                                "exchange grant vanished during takeover".into(),
+                            )
+                        })?;
+                    return Ok(winner);
+                }
+                let mut stored = grant;
+                stored.generation = current.generation + 1;
+                Ok(stored)
+            }
+            (Some(current), _) => Ok(current),
+            (None, Some(_)) => Err(TicketStoreError::Infrastructure(
+                "fenced exchange record expected an existing generation".into(),
+            )),
+        }
+    }
 }
 
 #[async_trait]
@@ -1612,96 +1713,44 @@ impl TicketingStore for SqliteTicketingStore {
         grant: SessionExchangeGrant,
         expected_generation: Option<u64>,
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
-        let existing = self.session_exchange_grant(&grant.exchange_key).await?;
-        match (existing, expected_generation) {
-            (None, None) => {
-                let mut transaction = self.pool.begin().await.map_err(infrastructure)?;
-                let inserted = sqlx::query(
-                    "INSERT INTO ticketing_session_exchange_grants
-                     (exchange_key, session_id, subject, project_id, permissions, portal_origin, expires_at, created_at, generation, revoked_at, workspace_id)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
-                     ON CONFLICT(exchange_key) DO NOTHING",
-                )
-                .bind(&grant.exchange_key)
-                .bind(grant.session_id.0.to_string())
-                .bind(&grant.subject)
-                .bind(&grant.project_id)
-                .bind(grant.permissions.join(","))
-                .bind(&grant.portal_origin)
-                .bind(grant.expires_at.to_rfc3339())
-                .bind(grant.created_at.to_rfc3339())
-                .bind(&grant.workspace_id)
-                .execute(&mut *transaction)
-                .await
-                .map_err(infrastructure)?;
-                transaction.commit().await.map_err(infrastructure)?;
-                if inserted.rows_affected() == 0 {
-                    // Lost the initial-insert race (exact-head review
-                    // R28/P0-2): return the winner's grant so the loser
-                    // revokes its own session and never the winner's.
-                    let winner = self
-                        .session_exchange_grant(&grant.exchange_key)
-                        .await?
-                        .ok_or_else(|| {
-                            TicketStoreError::Infrastructure(
-                                "exchange grant vanished after insert race".into(),
-                            )
-                        })?;
-                    return Ok(winner);
-                }
-                Ok(grant)
+        // Legacy writer: no workspace binding — isolated resolution
+        // rejects grants persisted this way until the upgrade inventory
+        // binds them (round 1 finding 1).
+        self.record_session_exchange_fenced_with_binding(grant, expected_generation, None)
+            .await
+    }
+
+    async fn record_session_exchange_fenced_scoped(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        workspace_id: &str,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        self.record_session_exchange_fenced_with_binding(
+            grant,
+            expected_generation,
+            Some(workspace_id),
+        )
+        .await
+    }
+
+    async fn exchange_grant_workspace_binding(
+        &self,
+        exchange_key: &str,
+    ) -> Result<crate::ExchangeGrantWorkspaceBinding, TicketStoreError> {
+        let bound: Option<Option<String>> = sqlx::query_scalar(
+            "SELECT workspace_id FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
+        )
+        .bind(exchange_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        Ok(match bound.flatten() {
+            Some(workspace) if !workspace.is_empty() => {
+                crate::ExchangeGrantWorkspaceBinding::Bound(workspace)
             }
-            // A takeover may only advance a live, unstaged grant: a
-            // revoked grant (logout) or an in-flight rotation can never
-            // be overwritten by a stale worker (R28/P0-2). The UPDATE's
-            // affected rows are the fence — 0 rows means this worker
-            // lost and must adopt whatever is actually stored.
-            (Some(current), Some(expected))
-                if current.generation == expected
-                    && current.revoked_at.is_none()
-                    && current.rotation_staged_session_id.is_none() =>
-            {
-                let updated =
-                    sqlx::query(
-                        "UPDATE ticketing_session_exchange_grants
-                        SET session_id = ?, subject = ?, project_id = ?, permissions = ?,
-                            portal_origin = ?, generation = generation + 1, workspace_id = ?
-                      WHERE exchange_key = ? AND generation = ?
-                        AND revoked_at IS NULL AND rotation_staged_session_id IS NULL",
-                    )
-                    .bind(grant.session_id.0.to_string())
-                    .bind(&grant.subject)
-                    .bind(&grant.project_id)
-                    .bind(grant.permissions.join(","))
-                    .bind(&grant.portal_origin)
-                    .bind(&grant.workspace_id)
-                    .bind(&grant.exchange_key)
-                    .bind(i64::try_from(current.generation).map_err(|_| {
-                        TicketStoreError::Infrastructure("generation overflow".into())
-                    })?)
-                    .execute(&self.pool)
-                    .await
-                    .map_err(infrastructure)?;
-                if updated.rows_affected() == 0 {
-                    let winner = self
-                        .session_exchange_grant(&grant.exchange_key)
-                        .await?
-                        .ok_or_else(|| {
-                            TicketStoreError::Infrastructure(
-                                "exchange grant vanished during takeover".into(),
-                            )
-                        })?;
-                    return Ok(winner);
-                }
-                let mut stored = grant;
-                stored.generation = current.generation + 1;
-                Ok(stored)
-            }
-            (Some(current), _) => Ok(current),
-            (None, Some(_)) => Err(TicketStoreError::Infrastructure(
-                "fenced exchange record expected an existing generation".into(),
-            )),
-        }
+            _ => crate::ExchangeGrantWorkspaceBinding::LegacyUnbound,
+        })
     }
 
     async fn revoke_session_exchange(
@@ -1754,7 +1803,7 @@ impl TicketingStore for SqliteTicketingStore {
         let row = sqlx::query(
             "SELECT exchange_key, session_id, subject, project_id, permissions,
                     portal_origin, expires_at, created_at, generation, revoked_at,
-                    rotation_staged_session_id, workspace_id
+                    rotation_staged_session_id
                FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
         )
         .bind(exchange_key)
@@ -2796,7 +2845,6 @@ fn parse_grant_row(
                 })
             })
             .transpose()?,
-        workspace_id: row.get("workspace_id"),
     })
 }
 
@@ -4589,7 +4637,6 @@ mod tests {
             created_at: Utc::now(),
             revoked_at: None,
             rotation_staged_session_id: None,
-            workspace_id: None,
         }
     }
 

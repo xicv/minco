@@ -427,12 +427,15 @@ async fn a_wrong_project_service_cannot_touch_another_projects_exchange_grant() 
             minco_plugin_ticketing::TicketingConfig {
                 project_id: project.into(),
                 portal_origin: "https://support.example.test".into(),
-                workspace_isolation: workspace.is_some(),
-                workspace_id: workspace.map(str::to_owned),
                 ..minco_plugin_ticketing::TicketingConfig::default()
             },
         )
         .expect("service")
+        .with_isolation(minco_plugin_ticketing::TicketingIsolationConfig {
+            workspace_id: workspace.map(str::to_owned),
+            ..minco_plugin_ticketing::TicketingIsolationConfig::default()
+        })
+        .expect("isolation")
         .with_portal_services(minco_plugin_ticketing::TicketingPortalServices {
             sessions: Some(sessions.clone()),
             csrf: Some(csrf.clone()),
@@ -491,7 +494,7 @@ async fn a_wrong_project_service_cannot_touch_another_projects_exchange_grant() 
     assert!(c.rotate_session_exchange("key-a").await.is_err());
 
     // The grant is unchanged: same session, generation, liveness, and
-    // workspace binding.
+    // persisted workspace binding.
     let grant = store
         .session_exchange_grant("key-a")
         .await
@@ -501,7 +504,149 @@ async fn a_wrong_project_service_cannot_touch_another_projects_exchange_grant() 
     assert_eq!(grant.generation, 0);
     assert!(grant.revoked_at.is_none());
     assert_eq!(grant.project_id, "project-a");
-    assert_eq!(grant.workspace_id.as_deref(), Some("ws-shared"));
+    assert_eq!(
+        store
+            .exchange_grant_workspace_binding("key-a")
+            .await
+            .unwrap(),
+        minco_plugin_ticketing::ExchangeGrantWorkspaceBinding::Bound("ws-shared".into())
+    );
+}
+
+#[tokio::test]
+async fn resource_policy_belongs_to_the_effective_caller_not_the_service() {
+    // Round 2 / P1-3 counterexample, both directions: the agent profile
+    // permits resource type `order-board` while the portal profile
+    // denies it; the portal profile permits `deploy-board` while the
+    // agent profile denies it. The policy deciding a reference-bearing
+    // create is the effective caller's own `resources:` scope tokens —
+    // never a service-global allowlist — so neither caller can inherit
+    // the other profile's policy, and a caller with no resource tokens
+    // can carry no references at all.
+    let store = minco_plugin_ticketing::TicketingStoreService::new(std::sync::Arc::new(
+        minco_plugin_ticketing::MemoryTicketingStore::default(),
+    ));
+    let service = minco_plugin_ticketing::TicketingService::new(
+        store,
+        minco_plugin_ticketing::TicketingConfig {
+            project_id: "project-r3".into(),
+            portal_origin: "https://support.example.test".into(),
+            ..minco_plugin_ticketing::TicketingConfig::default()
+        },
+    )
+    .expect("service")
+    .with_isolation(minco_plugin_ticketing::TicketingIsolationConfig {
+        workspace_id: Some("ws-r3".into()),
+        // The portal profile's resolved policy (round 1 finding 3).
+        portal_resource_types: std::iter::once("deploy-board").map(str::to_owned).collect(),
+    })
+    .expect("isolation");
+
+    let caller = |subject: &str, resources: &[&str]| minco_plugin_identity::Identity {
+        subject: subject.into(),
+        permissions: std::iter::once("ticketing.create").map(str::to_owned).collect(),
+        scopes: {
+            let mut tokens = std::collections::BTreeSet::from([
+                "workspace:ws-r3".to_owned(),
+                "project:project-r3".to_owned(),
+            ]);
+            for resource in resources {
+                tokens.insert(format!("resources:{resource}"));
+            }
+            tokens
+        },
+        claims: BTreeMap::new(),
+    };
+    // The agent profile permits only `order-board`; the portal-minted
+    // requester carries only the portal policy (`deploy-board`).
+    let agent = caller("agent-1", &["order-board"]);
+    let portal_requester = caller("requester-1", &["deploy-board"]);
+    let bare_agent = caller("agent-2", &[]);
+
+    let input = |resource_type: &str, subject: &str| minco_plugin_ticketing::CreateTicketInput {
+        project_id: "project-r3".into(),
+        subject: "Reference-bearing create".into(),
+        description: "Carries one resource reference.".into(),
+        requester: minco_plugin_ticketing::TicketRequester {
+            subject: subject.into(),
+            display_name: None,
+            email: None,
+        },
+        channel: minco_plugin_ticketing::TicketChannel::Api,
+        priority: minco_plugin_ticketing::TicketPriority::Normal,
+        ticket_type: minco_plugin_ticketing::TicketType::default(),
+        form_answers: Vec::new(),
+        resource_references: vec![minco_plugin_ticketing::SupportResourceReference {
+            system: "internal".into(),
+            resource_type: resource_type.into(),
+            resource_id: "K-1".into(),
+        }],
+    };
+
+    // Agent direction: its own policy admits `order-board` …
+    service
+        .create_ticket(
+            &agent,
+            input("order-board", "agent-1"),
+            uuid::Uuid::now_v7(),
+            chrono::Utc::now(),
+        )
+        .await
+        .expect("the agent's own resource policy admits its references");
+    // … and denies the portal-only type — no inheritance of the
+    // portal's broader set, and no restrictive global intersection.
+    let denied = service
+        .create_ticket(
+            &agent,
+            input("deploy-board", "agent-1"),
+            uuid::Uuid::now_v7(),
+            chrono::Utc::now(),
+        )
+        .await
+        .expect_err("the agent cannot use the portal profile's resource type");
+    assert!(matches!(
+        denied,
+        minco_plugin_ticketing::TicketingServiceError::ScopeDenied
+    ));
+    // Portal direction: the portal-minted requester's own policy admits
+    // `deploy-board` …
+    service
+        .create_ticket(
+            &portal_requester,
+            input("deploy-board", "requester-1"),
+            uuid::Uuid::now_v7(),
+            chrono::Utc::now(),
+        )
+        .await
+        .expect("the portal caller's own resource policy admits its references");
+    // … and the agent-only type stays out of the portal's reach.
+    let denied = service
+        .create_ticket(
+            &portal_requester,
+            input("order-board", "requester-1"),
+            uuid::Uuid::now_v7(),
+            chrono::Utc::now(),
+        )
+        .await
+        .expect_err("the portal caller cannot use the agent profile's resource type");
+    assert!(matches!(
+        denied,
+        minco_plugin_ticketing::TicketingServiceError::ScopeDenied
+    ));
+    // A caller with no resource tokens carries no references at all.
+    let denied = service
+        .create_ticket(
+            &bare_agent,
+            input("order-board", "agent-2"),
+            uuid::Uuid::now_v7(),
+            chrono::Utc::now(),
+        )
+        .await
+        .expect_err("no resource tokens means no reference-bearing creates");
+    assert!(matches!(
+        denied,
+        minco_plugin_ticketing::TicketingServiceError::ScopeDenied
+    ));
 }
 
 #[tokio::test]
@@ -1284,12 +1429,15 @@ fn two_fictional_integrations_resolve_distinct_bounded_scopes() {
                 minco_plugin_ticketing::TicketingConfig {
                     project_id: project.into(),
                     portal_origin: "https://support.example.test".into(),
-                    workspace_isolation: true,
-                    workspace_id: Some("ws-neutral".into()),
                     ..minco_plugin_ticketing::TicketingConfig::default()
                 },
             )
             .expect("neutral ticketing service")
+            .with_isolation(minco_plugin_ticketing::TicketingIsolationConfig {
+                workspace_id: Some("ws-neutral".into()),
+                ..minco_plugin_ticketing::TicketingIsolationConfig::default()
+            })
+            .expect("neutral isolation")
         };
         let acme_tickets = ticketing("acme-helpdesk");
         let northwind_tickets = ticketing("northwind-portal");

@@ -214,7 +214,6 @@ async fn pending_jobs_survive_a_process_restart_and_recover() {
                     requested_by: format!("agent-{index}"),
                     // Legacy (pre-isolation) command: this fixture drives
                     // the raw job machinery without an isolated service.
-                    workspace_id: String::new(),
                 },
                 uuid::Uuid::now_v7(),
                 chrono::Utc::now(),

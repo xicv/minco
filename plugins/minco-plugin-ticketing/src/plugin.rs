@@ -631,27 +631,6 @@ fn configuration_fields() -> Vec<ConfigurationField> {
             Some(serde_json::json!(false)),
             "Requires the jobs feature and an enqueue adapter: enqueue a notification job with each public agent reply",
         ),
-        field(
-            "workspace_isolation",
-            ConfigurationValueKind::Boolean,
-            false,
-            Some(serde_json::json!(false)),
-            "Require every exposed operation to carry a resolved workspace/project scope matching the configured workspace and project (ADR-0076)",
-        ),
-        field(
-            "workspace_id",
-            ConfigurationValueKind::String,
-            false,
-            None,
-            "The provisioned workspace identity this service is bound to; required when workspace_isolation is enabled",
-        ),
-        field(
-            "allowed_resource_types",
-            ConfigurationValueKind::StringList,
-            false,
-            None,
-            "Resource-type policy consumed where references are accepted: create rejects any resource reference outside this set; unset keeps the unrestricted legacy behavior",
-        ),
     ]
 }
 

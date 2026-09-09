@@ -31,3 +31,7 @@ pub use persistence::*;
 pub use plugin::TicketingPlugin;
 pub use service::*;
 pub use store::*;
+
+/// The resource-reference record carried by public create inputs; a
+/// convenience re-export of the interaction crate's public type.
+pub use minco_interaction::SupportResourceReference;

@@ -227,28 +227,53 @@ pub struct TicketingConfig {
     /// application gets automation by surprise.
     #[serde(default)]
     pub automation: crate::AutomationConfig,
-    /// Workspace isolation (ADR-0076): when true, every exposed
-    /// operation additionally requires the caller's resolved
-    /// workspace/project scope to match this service's configured
-    /// workspace and project — effective authority stays an
-    /// intersection. Off by default: standalone compositions without a
-    /// workspace binding keep the pre-isolation behavior.
-    #[serde(default)]
-    pub workspace_isolation: bool,
-    /// The workspace identity this service is bound to when
-    /// `workspace_isolation` is enabled. Required and validated in that
-    /// mode; the composition sets it from the provisioned deployment
-    /// binding.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+}
+
+/// The ADR-0076 isolation policy of one ticketing deployment (round 1
+/// findings 1, 3 and 4).
+///
+/// Applied additively through [`TicketingService::with_isolation`]; a
+/// service built without it keeps the exact pre-isolation behavior and
+/// public surface.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TicketingIsolationConfig {
+    /// The workspace identity this service is bound to. `Some` enables
+    /// isolation; the composition sets it from the provisioned
+    /// deployment binding and every checked caller's resolved scope
+    /// must intersect it exactly.
     pub workspace_id: Option<String>,
-    /// Resource-type policy consumed where references are accepted
-    /// (round 1 finding 3): when set, `create_ticket` rejects any
-    /// resource reference whose `resource_type` is outside the set.
-    /// The composition derives it from the resolved integration
-    /// profile's `resource_types` policy; `None` keeps the unrestricted
-    /// legacy behavior for standalone compositions.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allowed_resource_types: Option<std::collections::BTreeSet<String>>,
+    /// Resource types the PORTAL profile permits (round 1 finding 3):
+    /// stamped onto requester identities minted at session exchange so
+    /// a portal caller can never inherit the agent profile's broader
+    /// resource policy. Derived from the persisted portal profile by
+    /// the composition; empty denies every resource reference.
+    pub portal_resource_types: std::collections::BTreeSet<String>,
+}
+
+impl TicketingIsolationConfig {
+    fn enabled_workspace(&self) -> Option<&str> {
+        self.workspace_id.as_deref().filter(|id| !id.is_empty())
+    }
+
+    fn validate(&self) -> Result<(), TicketingServiceError> {
+        if let Some(workspace) = self.enabled_workspace() {
+            // Isolation cannot run without its bound workspace identity
+            // (ADR-0076): fail closed at configuration time, not at the
+            // first denied request. The identifier is validated as a
+            // bounded visible string; enforcement compares it for
+            // equality against the resolved scope token.
+            validate_text("workspace_id", workspace, 64)?;
+            if workspace.trim() != workspace {
+                return Err(TicketingServiceError::Configuration(
+                    "workspace_id must not carry leading or trailing whitespace".into(),
+                ));
+            }
+        }
+        for resource_type in &self.portal_resource_types {
+            validate_text("portal_resource_types", resource_type, 100)?;
+        }
+        Ok(())
+    }
 }
 
 impl Default for TicketingConfig {
@@ -270,9 +295,6 @@ impl Default for TicketingConfig {
             inbound_authserv_id: default_inbound_authserv_id(),
             inbound_scan_verdicts: crate::ScanVerdictPolicy::default(),
             automation: crate::AutomationConfig::default(),
-            workspace_isolation: false,
-            workspace_id: None,
-            allowed_resource_types: None,
         }
     }
 }
@@ -330,28 +352,6 @@ impl TicketingConfig {
                 "automation review may not be disabled: trusted verification is not available"
                     .into(),
             ));
-        }
-        if self.workspace_isolation {
-            // Isolation cannot run without its bound workspace identity
-            // (ADR-0076): fail closed at configuration time, not at the
-            // first denied request. The identifier is validated as a
-            // bounded visible string; enforcement compares it for
-            // equality against the resolved scope token.
-            match &self.workspace_id {
-                Some(workspace) => {
-                    validate_text("workspace_id", workspace, 64)?;
-                    if workspace.trim() != workspace {
-                        return Err(TicketingServiceError::Configuration(
-                            "workspace_id must not carry leading or trailing whitespace".into(),
-                        ));
-                    }
-                }
-                None => {
-                    return Err(TicketingServiceError::Configuration(
-                        "workspace_id is required when workspace_isolation is enabled".into(),
-                    ));
-                }
-            }
         }
         self.location_policy().validate()?;
         Ok(())
@@ -485,6 +485,7 @@ pub struct RequesterTicketResult {
 pub struct TicketingService {
     store: TicketingStoreService,
     config: TicketingConfig,
+    isolation: Option<TicketingIsolationConfig>,
     pub(crate) portal: TicketingPortalServices,
 }
 
@@ -493,6 +494,7 @@ impl fmt::Debug for TicketingService {
         formatter
             .debug_struct("TicketingService")
             .field("config", &self.config)
+            .field("isolation", &self.isolation)
             .field("portal", &self.portal)
             .finish_non_exhaustive()
     }
@@ -515,8 +517,35 @@ impl TicketingService {
         Ok(Self {
             store,
             config,
+            isolation: None,
             portal: TicketingPortalServices::default(),
         })
+    }
+
+    /// Applies the ADR-0076 isolation policy additively (round 1
+    /// findings 1, 3 and 4): a service built without it keeps the exact
+    /// pre-isolation behavior, public configuration shape included.
+    /// Setting a workspace identity enables scope enforcement on every
+    /// exposed operation; `portal_resource_types` is the resource policy
+    /// minted onto requester identities (round 1 finding 3).
+    pub fn with_isolation(
+        mut self,
+        isolation: TicketingIsolationConfig,
+    ) -> Result<Self, TicketingServiceError> {
+        isolation.validate()?;
+        self.isolation = Some(isolation);
+        Ok(self)
+    }
+
+    #[must_use]
+    pub const fn isolation(&self) -> Option<&TicketingIsolationConfig> {
+        self.isolation.as_ref()
+    }
+
+    /// The workspace identity enforcement compares against, when
+    /// isolation is enabled.
+    fn isolation_workspace(&self) -> Option<&str> {
+        self.isolation.as_ref()?.enabled_workspace()
     }
 
     #[must_use]
@@ -639,17 +668,11 @@ impl TicketingService {
         {
             return Err(TicketingServiceError::RequesterMismatch);
         }
-        // Resource-type policy consumed where references are accepted
-        // (round 1 finding 3): a reference outside the resolved
-        // profile's policy is denied before the ticket exists.
-        if let Some(allowed) = &self.config.allowed_resource_types
-            && input
-                .resource_references
-                .iter()
-                .any(|reference| !allowed.contains(&reference.resource_type))
-        {
-            return Err(TicketingServiceError::ScopeDenied);
-        }
+        // Resource-type policy enforced where references are accepted
+        // (round 1 finding 3): the effective caller's own profile
+        // policy decides — a reference outside it is denied before the
+        // ticket exists.
+        self.authorize_resource_references(principal, &input.resource_references)?;
         let id = Uuid::now_v7();
         // The full v7 suffix is required: the leading 12 hex characters are
         // only the millisecond timestamp, so two tickets created within the
@@ -807,7 +830,7 @@ impl TicketingService {
         &self,
         idempotency_key: &str,
     ) -> Result<Option<crate::OperationReceipt>, TicketingServiceError> {
-        if self.config.workspace_isolation {
+        if self.isolation_workspace().is_some() {
             return Err(TicketingServiceError::ScopeDenied);
         }
         Ok(self.store.operation_receipt(idempotency_key).await?)
@@ -825,7 +848,9 @@ impl TicketingService {
         self.require_scope(principal)?;
         match self.store.operation_receipt(idempotency_key).await? {
             Some(receipt) => {
-                if self.config.workspace_isolation && receipt.project_id != self.config.project_id {
+                if self.isolation_workspace().is_some()
+                    && receipt.project_id != self.config.project_id
+                {
                     Err(TicketingServiceError::ScopeDenied)
                 } else {
                     Ok(Some(receipt))
@@ -1576,12 +1601,12 @@ impl TicketingService {
                     bound_context_digest: Some(context_digest),
                     bound_policy_digest,
                     run_id,
-                    workspace_id: self.config.workspace_id.clone().unwrap_or_default(),
                 },
                 correlation,
                 now,
             )
             .map_err(|_| TicketingServiceError::JobsUnavailable)?;
+            let envelope = crate::stamp_workspace_binding(envelope, self.isolation_workspace());
             jobs.submit_durable(envelope)
                 .await
                 .map_err(|_| TicketingServiceError::JobsUnavailable)?;
@@ -2141,7 +2166,6 @@ impl TicketingService {
                 in_reply_to: in_reply_to.map(str::to_owned),
                 references: references.to_vec(),
                 subject: subject.map(str::to_owned),
-                workspace_id: self.config.workspace_id.clone().unwrap_or_default(),
             },
             correlation_id,
             arrived_at,
@@ -2151,6 +2175,7 @@ impl TicketingService {
                 "inbound email envelope could not be built: {error}"
             ))
         })?;
+        let envelope = crate::stamp_workspace_binding(envelope, self.isolation_workspace());
         let submission = jobs.submit_durable(envelope).await.map_err(|error| {
             TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
         })?;
@@ -2325,12 +2350,12 @@ impl TicketingService {
         // legacy session without the attribute is invalidated — the
         // handoff grant (backfilled during the upgrade inventory) can
         // mint a bound replacement.
-        if self.config.workspace_isolation {
+        if self.isolation_workspace().is_some() {
             let bound_workspace = record
                 .attributes
                 .get("ticketing.workspace")
                 .ok_or(TicketingServiceError::SessionUnauthenticated)?;
-            if Some(bound_workspace.as_str()) != self.config.workspace_id.as_deref() {
+            if Some(bound_workspace.as_str()) != self.isolation_workspace() {
                 return Err(TicketingServiceError::SessionUnauthenticated);
             }
         }
@@ -2350,22 +2375,30 @@ impl TicketingService {
         // deployment's canonical scope tokens so every subsequent use case
         // passes the scope check (ADR-0076). The session's own grant was
         // validated where the credential was issued — no new authority is
-        // minted here.
-        let scopes = if self.config.workspace_isolation {
-            BTreeSet::from([
+        // minted here. Resource policy rides the PORTAL profile's
+        // resolved set (round 1 finding 3): a portal caller never
+        // inherits the agent profile's broader resource types.
+        let scopes = if let Some(isolation) = self.isolation.as_ref() {
+            let mut tokens = BTreeSet::from([
                 format!(
                     "{}{}",
                     WORKSPACE_SCOPE_TOKEN_PREFIX,
-                    encode_scope_identifier(
-                        self.config.workspace_id.as_deref().unwrap_or_default()
-                    )
+                    encode_scope_identifier(isolation.workspace_id.as_deref().unwrap_or_default())
                 ),
                 format!(
                     "{}{}",
                     PROJECT_SCOPE_TOKEN_PREFIX,
                     encode_scope_identifier(&self.config.project_id)
                 ),
-            ])
+            ]);
+            for resource_type in &isolation.portal_resource_types {
+                tokens.insert(format!(
+                    "{}{}",
+                    RESOURCE_SCOPE_TOKEN_PREFIX,
+                    encode_scope_identifier(resource_type)
+                ));
+            }
+            tokens
         } else {
             BTreeSet::default()
         };
@@ -2493,9 +2526,7 @@ impl TicketingService {
             ("ticketing.permissions".to_owned(), permissions.join(",")),
             ("ticketing.exchange_key".to_owned(), exchange_key.to_owned()),
         ]);
-        if self.config.workspace_isolation
-            && let Some(workspace) = self.config.workspace_id.as_deref()
-        {
+        if let Some(workspace) = self.isolation_workspace() {
             attributes.insert("ticketing.workspace".to_owned(), workspace.to_owned());
         }
         attributes
@@ -2506,20 +2537,26 @@ impl TicketingService {
     /// or recovery — the loaded grant must belong to this service's
     /// configured project, and under isolation its persisted workspace
     /// binding must match. A foreign grant is denied and untouched.
-    fn require_grant_ownership(
+    async fn require_grant_ownership(
         &self,
+        exchange_key: &str,
         grant: &crate::SessionExchangeGrant,
     ) -> Result<(), TicketingServiceError> {
         if grant.project_id != self.config.project_id {
             return Err(TicketingServiceError::ProjectDenied);
         }
-        if let (true, Some(expected), Some(bound)) = (
-            self.config.workspace_isolation,
-            self.config.workspace_id.as_deref(),
-            grant.workspace_id.as_deref(),
-        ) && bound != expected
-        {
-            return Err(TicketingServiceError::ScopeDenied);
+        if let Some(expected) = self.isolation_workspace() {
+            let binding = self
+                .store
+                .exchange_grant_workspace_binding(exchange_key)
+                .await
+                .map_err(TicketingServiceError::from)?;
+            if binding != crate::ExchangeGrantWorkspaceBinding::Bound(expected.to_owned()) {
+                // An unbound legacy grant or a grant issued under a
+                // foreign workspace is not this deployment's artifact
+                // (round 1 finding 1): denied before any effect.
+                return Err(TicketingServiceError::ScopeDenied);
+            }
         }
         Ok(())
     }
@@ -2541,33 +2578,41 @@ impl TicketingService {
         if let Some(grant) = &current {
             // A foreign project's existing grant is never fenced-over
             // by this service's exchange (round 1 finding 1).
-            self.require_grant_ownership(grant)?;
+            self.require_grant_ownership(exchange_key, grant).await?;
         }
         let expected_generation = current.as_ref().map(|grant| grant.generation);
         let previous = current
             .filter(|grant| grant.session_id != session_id)
             .map(|grant| grant.session_id);
-        let stored = self
-            .store
-            .record_session_exchange_fenced(
-                crate::SessionExchangeGrant {
-                    exchange_key: exchange_key.to_owned(),
-                    session_id,
-                    generation: expected_generation.unwrap_or(0),
-                    subject: subject.to_owned(),
-                    project_id: self.config.project_id.clone(),
-                    permissions,
-                    portal_origin: portal_origin.to_owned(),
-                    expires_at: replay_deadline,
-                    created_at: Utc::now(),
-                    revoked_at: None,
-                    rotation_staged_session_id: None,
-                    workspace_id: self.config.workspace_id.clone(),
-                },
-                expected_generation,
-            )
-            .await
-            .map_err(TicketingServiceError::from)?;
+        let grant = crate::SessionExchangeGrant {
+            exchange_key: exchange_key.to_owned(),
+            session_id,
+            generation: expected_generation.unwrap_or(0),
+            subject: subject.to_owned(),
+            project_id: self.config.project_id.clone(),
+            permissions,
+            portal_origin: portal_origin.to_owned(),
+            expires_at: replay_deadline,
+            created_at: Utc::now(),
+            revoked_at: None,
+            rotation_staged_session_id: None,
+        };
+        let stored = match self.isolation_workspace() {
+            // The persisted workspace binding is authoritative (round 1
+            // finding 1): a scoped write carries it; a legacy write
+            // leaves the grant unbound.
+            Some(workspace) => {
+                self.store
+                    .record_session_exchange_fenced_scoped(grant, expected_generation, workspace)
+                    .await
+            }
+            None => {
+                self.store
+                    .record_session_exchange_fenced(grant, expected_generation)
+                    .await
+            }
+        }
+        .map_err(TicketingServiceError::from)?;
         if stored.session_id != session_id {
             // A newer exchange won the race: this worker's session must
             // die and the winner's grant stays.
@@ -2615,7 +2660,7 @@ impl TicketingService {
         // Ownership precedes every effect (round 1 finding 1): a
         // wrong-project or wrong-workspace service can neither rotate,
         // revoke, nor recover another deployment's grant.
-        self.require_grant_ownership(&grant)?;
+        self.require_grant_ownership(exchange_key, &grant).await?;
         // The FIXED replay deadline from the original exchange: rotations
         // never extend it (exact-head review R11); a revoked grant (logout)
         // can never mint another session (exact-head review R20).
@@ -2671,8 +2716,13 @@ impl TicketingService {
                     // The persisted grant's workspace binding wins over
                     // configuration (round 1 finding 1): the artifact's
                     // authority is what the next resolution validates.
-                    if let Some(bound) = grant.workspace_id.as_deref() {
-                        attributes.insert("ticketing.workspace".into(), bound.to_owned());
+                    if let crate::ExchangeGrantWorkspaceBinding::Bound(bound) = self
+                        .store
+                        .exchange_grant_workspace_binding(exchange_key)
+                        .await
+                        .map_err(TicketingServiceError::from)?
+                    {
+                        attributes.insert("ticketing.workspace".into(), bound);
                     }
                     attributes
                 },
@@ -2778,7 +2828,7 @@ impl TicketingService {
             .await
             .map_err(TicketingServiceError::from)?
         {
-            self.require_grant_ownership(&grant)?;
+            self.require_grant_ownership(exchange_key, &grant).await?;
         }
         self.store
             .revoke_session_exchange(exchange_key, Utc::now())
@@ -2806,7 +2856,7 @@ impl TicketingService {
             .await
             .map_err(TicketingServiceError::from)?
         {
-            self.require_grant_ownership(&grant)?;
+            self.require_grant_ownership(exchange_key, &grant).await?;
         }
         if let Some(sessions) = self.portal.sessions.as_ref() {
             sessions.revoke(session_id).await.map_err(|error| {
@@ -2914,7 +2964,7 @@ impl TicketingService {
             &ticket.project_id,
             ticket.id,
             message.id,
-            self.config.workspace_id.as_deref().unwrap_or_default(),
+            self.isolation_workspace().unwrap_or_default(),
             correlation_id,
             now,
         )
@@ -3006,19 +3056,46 @@ impl TicketingService {
     }
 
     /// Resolve and enforce the caller's workspace/project scope
-    /// (ADR-0076). Active only when `workspace_isolation` is configured:
+    /// (ADR-0076). Active only when an isolation binding is configured:
     /// the caller must carry exactly one resolvable workspace and one
     /// project scope token, both matching this service's binding. No
     /// scope, an ambiguous scope, or a foreign scope denies the
     /// operation — there is no ambient fallback.
     fn require_scope(&self, principal: &Identity) -> Result<(), TicketingServiceError> {
-        if !self.config.workspace_isolation {
+        if self.isolation_workspace().is_none() {
             return Ok(());
         }
         let (workspace, project) =
             parse_scope_tokens(&principal.scopes).ok_or(TicketingServiceError::ScopeDenied)?;
         if project != self.config.project_id
-            || Some(workspace.as_str()) != self.config.workspace_id.as_deref()
+            || Some(workspace.as_str()) != self.isolation_workspace()
+        {
+            return Err(TicketingServiceError::ScopeDenied);
+        }
+        Ok(())
+    }
+
+    /// Enforce the effective caller's resource-type policy where
+    /// references are accepted (round 1 finding 3). Under isolation the
+    /// policy belongs to the CALLER — carried as `resources:` scope
+    /// tokens minted from the caller's resolved integration profile —
+    /// never to a service-global allowlist: a portal caller cannot
+    /// inherit the agent profile's broader resource types, and an agent
+    /// cannot inherit the portal's. Any malformed `resources:` token
+    /// denies the operation; an empty set denies every reference.
+    fn authorize_resource_references(
+        &self,
+        principal: &Identity,
+        input_references: &[minco_interaction::SupportResourceReference],
+    ) -> Result<(), TicketingServiceError> {
+        if self.isolation_workspace().is_none() || input_references.is_empty() {
+            return Ok(());
+        }
+        let allowed = parse_resource_type_tokens(&principal.scopes)
+            .ok_or(TicketingServiceError::ScopeDenied)?;
+        if input_references
+            .iter()
+            .any(|reference| !allowed.contains(&reference.resource_type))
         {
             return Err(TicketingServiceError::ScopeDenied);
         }
@@ -3068,6 +3145,39 @@ fn authorize(principal: &Identity, permission: &str) -> Result<(), TicketingServ
 /// proves the two agree end to end.
 const WORKSPACE_SCOPE_TOKEN_PREFIX: &str = "workspace:";
 const PROJECT_SCOPE_TOKEN_PREFIX: &str = "project:";
+/// Per-caller resource-type policy carrier (round 1 finding 3): one
+/// token per resource type the caller's resolved integration profile
+/// permits, percent-encoded with the same codec. Foreign parsers ignore
+/// the prefix (the grammar is additive), while a malformed or duplicated
+/// `resources:` token denies the carrying operation.
+const RESOURCE_SCOPE_TOKEN_PREFIX: &str = "resources:";
+
+/// Parse a checked caller's effective resource-type policy from their
+/// scope set (round 1 finding 3). Every `resources:` token must decode
+/// to a non-empty bounded value; a duplicated decoded value — including
+/// via different encoded spellings — denies the operation rather than
+/// being merged. `None` denies; an empty set permits no references.
+fn parse_resource_type_tokens(scopes: &BTreeSet<String>) -> Option<BTreeSet<String>> {
+    let mut allowed = BTreeSet::new();
+    for scope in scopes {
+        let Some(payload) = scope.strip_prefix(RESOURCE_SCOPE_TOKEN_PREFIX) else {
+            continue;
+        };
+        let decoded = decode_scope_identifier(payload)?;
+        if decoded.trim().is_empty()
+            || decoded.chars().count() > 100
+            || decoded.chars().any(char::is_control)
+        {
+            return None;
+        }
+        if !allowed.insert(decoded) {
+            // Duplicated resource type (even via a different encoded
+            // spelling): ambiguous policy denies the operation.
+            return None;
+        }
+    }
+    Some(allowed)
+}
 
 /// Parse a checked caller's scope set into its `(workspace, project)`
 /// pair. Exactly one token of each prefix must be present, percent-
@@ -3326,10 +3436,13 @@ mod tests {
     }
 
     fn isolated_config() -> TicketingConfig {
-        TicketingConfig {
-            workspace_isolation: true,
+        test_config()
+    }
+
+    fn isolation() -> TicketingIsolationConfig {
+        TicketingIsolationConfig {
             workspace_id: Some("ws-isolated".into()),
-            ..test_config()
+            ..TicketingIsolationConfig::default()
         }
     }
 
@@ -3339,6 +3452,8 @@ mod tests {
             isolated_config(),
         )
         .unwrap()
+        .with_isolation(isolation())
+        .unwrap()
     }
 
     fn scope_tokens(workspace: &str, project: &str) -> Vec<String> {
@@ -3346,6 +3461,45 @@ mod tests {
             format!("{WORKSPACE_SCOPE_TOKEN_PREFIX}{workspace}"),
             format!("{PROJECT_SCOPE_TOKEN_PREFIX}{project}"),
         ]
+    }
+
+    /// The normative `resources:` policy-token vectors (round 1 finding
+    /// 3, round 2): the effective caller's own policy set, decoded with
+    /// the shared codec — malformed, empty, and duplicated-after-decode
+    /// values deny the operation instead of being filtered away.
+    #[test]
+    fn normative_resource_policy_token_vectors() {
+        let valid = |tokens: &[&str]| -> BTreeSet<String> {
+            tokens.iter().map(|token| (*token).to_owned()).collect()
+        };
+        // Positive vectors: plain, encoded, and mixed sets.
+        assert_eq!(
+            parse_resource_type_tokens(&valid(&["resources:order-board"])).expect("v1 resolves"),
+            BTreeSet::from(["order-board".to_owned()])
+        );
+        assert_eq!(
+            parse_resource_type_tokens(&valid(&["resources:customer%20note", "resources:x"]))
+                .expect("v2 resolves"),
+            BTreeSet::from(["customer note".to_owned(), "x".to_owned()])
+        );
+        // Identity tokens never leak into the policy set.
+        assert_eq!(
+            parse_resource_type_tokens(&valid(&["workspace:ws-a", "project:desk"]))
+                .expect("identity tokens are ignored"),
+            BTreeSet::new()
+        );
+        // An absent policy set is empty (permits no references).
+        assert_eq!(
+            parse_resource_type_tokens(&BTreeSet::new()).expect("empty scope set"),
+            BTreeSet::new()
+        );
+        // Negative vectors: malformed, empty-after-decode, and
+        // duplicated-after-decode deny. (A literal `+` is legal and
+        // decodes verbatim — only broken escapes deny.)
+        assert!(parse_resource_type_tokens(&valid(&["resources:order%ZZboard"])).is_none());
+        assert!(parse_resource_type_tokens(&valid(&["resources:order%2"])).is_none());
+        assert!(parse_resource_type_tokens(&valid(&["resources:%20%20"])).is_none());
+        assert!(parse_resource_type_tokens(&valid(&["resources:x", "resources:%78"])).is_none());
     }
 
     /// The normative scope-token conformance vectors (round 1 finding 6):
@@ -3410,25 +3564,30 @@ mod tests {
     }
 
     #[test]
-    fn isolation_requires_a_bound_workspace_identity_at_configuration_time() {
-        let mut config = isolated_config();
-        config.workspace_id = None;
-        assert!(matches!(
+    fn isolation_requires_a_well_formed_workspace_identity() {
+        let base = || {
             TicketingService::new(
                 TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
-                config,
-            ),
-            Err(TicketingServiceError::Configuration(_))
-        ));
-        let mut invalid = isolated_config();
-        invalid.workspace_id = Some(" padded ".into());
+                isolated_config(),
+            )
+            .unwrap()
+        };
+        // `workspace_id: None` IS the off switch — isolation-on without
+        // a bound identity is unrepresentable, not a runtime failure.
+        assert!(
+            base()
+                .with_isolation(TicketingIsolationConfig::default())
+                .is_ok()
+        );
+        let padded = TicketingIsolationConfig {
+            workspace_id: Some(" padded ".into()),
+            ..TicketingIsolationConfig::default()
+        };
         assert!(matches!(
-            TicketingService::new(
-                TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
-                invalid,
-            ),
+            base().with_isolation(padded),
             Err(TicketingServiceError::Configuration(_))
         ));
+        assert!(base().with_isolation(isolation()).is_ok());
     }
 
     #[tokio::test]

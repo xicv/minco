@@ -655,7 +655,7 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
         permissions: agent_scope.permission_ceiling.iter().cloned().collect(),
         claims: BTreeMap::default(),
     }
-    .with_scopes(agent_scope.scope.scope_tokens());
+    .with_scopes(agent_scope.claim_tokens());
     // The principal scope claim is whitespace-tokenized (`minco-http`), so
     // identifiers containing whitespace cannot ride it. Verify the round
     // trip once at startup and fail closed with a precise error instead of
@@ -681,7 +681,9 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     // The portal profile's persisted policy must still match this
     // composition's portal configuration (round 1 finding 3): sessions
     // are minted only through the handoff exchange, whose origin this
-    // profile records — startup fails closed on drift.
+    // profile records — startup fails closed on drift. The portal
+    // profile's resource types become the requester-session policy: a
+    // portal caller never inherits the agent profile's broader set.
     let portal_scope = workspace_service
         .resolve_service_principal_scope(&desk_portal_profile_id())
         .await
@@ -778,18 +780,18 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
                 inbound_auth_policy: config.inbound_auth_policy,
                 inbound_scan_verdicts: config.inbound_scan_verdicts,
                 inbound_authserv_id: config.inbound_authserv_id.clone(),
-                // Isolation (ADR-0076): the desk binds ticketing to the
-                // provisioned workspace — every exposed operation then
-                // requires the caller's resolved scope to match.
-                workspace_isolation: true,
-                workspace_id: Some(workspace_report.workspace.as_str().to_owned()),
-                // Resource-type policy propagated from the resolved
-                // agent profile (round 1 finding 3): consumed where
-                // ticket creation accepts resource references.
-                allowed_resource_types: Some(agent_scope.resource_types.clone()),
                 ..TicketingConfig::default()
             },
         )?
+        // Isolation (ADR-0076) is additive: the desk binds ticketing to
+        // the provisioned workspace — every exposed operation then
+        // requires the caller's resolved scope to match — and carries
+        // the PORTAL profile's resource policy for requester sessions
+        // (round 1 findings 1 and 3).
+        .with_isolation(minco_plugin_ticketing::TicketingIsolationConfig {
+            workspace_id: Some(workspace_report.workspace.as_str().to_owned()),
+            portal_resource_types: portal_scope.resource_types.clone(),
+        })?
         .with_portal_services(TicketingPortalServices {
             sessions: Some(sessions),
             csrf: Some(csrf),
@@ -815,7 +817,7 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     let worker = minco_plugin_identity::Identity {
         subject: worker_scope.service_subject.clone(),
         permissions: worker_scope.permission_ceiling.iter().cloned().collect(),
-        scopes: worker_scope.scope.scope_tokens().into_iter().collect(),
+        scopes: worker_scope.claim_tokens().into_iter().collect(),
         claims: BTreeMap::default(),
     };
     register_ticketing_jobs(

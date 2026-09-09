@@ -62,6 +62,27 @@ authentication.
    identically in the workspace plugin's and ticketing's test suites;
    both parsers must agree on every row.
 
+   **Resource-policy tokens and the durable job binding (round 2,
+   finding 3).** The same carrier transports each caller's effective
+   resource-type policy: the resolved profile's `claim_tokens()` emits
+   one additional `resources:<payload>` token per permitted resource
+   type, percent-encoded with the identical codec. The policy that
+   decides a reference-bearing operation is always the effective
+   caller's own token set — never a service-global allowlist — so an
+   agent profile and a portal profile with deliberately different
+   resource policies can neither widen nor narrow each other's callers
+   (the desk's isolation proof exercises both directions). Parsers
+   treat `resources:` like the identity prefixes: malformed, empty, or
+   duplicated-after-decode payloads deny the carrying operation, and a
+   caller with no `resources:` tokens may not create references at
+   all. Legacy parsers ignore the prefix (the grammar is additive).
+   Durable job commands carry the authoritative workspace binding in
+   the job envelope's metadata under the reserved `ticketing.workspace`
+   key rather than as a payload field: the public command structs keep
+   their pre-isolation shape, legacy unbound records fail closed with
+   their own code, and execution validates the binding against the
+   deployment before any effect.
+
 3. **Isolation is enforced now, inside use cases — not deferred.** Every
    exposed ticketing operation runs against an explicitly resolved
    workspace/project scope, keeps its existing action/ownership

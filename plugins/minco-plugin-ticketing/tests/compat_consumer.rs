@@ -614,11 +614,61 @@ async fn a_pre_isolation_consumer_keeps_compiling_and_working() {
         TicketingConfig {
             project_id: "consumer".into(),
             portal_origin: "https://support.example.test".into(),
-            workspace_isolation: true,
-            workspace_id: Some("ws-consumer".into()),
             ..TicketingConfig::default()
         },
     )
+    .unwrap()
+    .with_isolation(minco_plugin_ticketing::TicketingIsolationConfig {
+        workspace_id: Some("ws-consumer".into()),
+        ..minco_plugin_ticketing::TicketingIsolationConfig::default()
+    })
     .unwrap();
     assert!(isolated.operation_receipt("any-key").await.is_err());
+}
+
+/// Round 1 finding 8 (round 2 reopening): the pre-isolation public
+/// shapes must remain constructible exactly as the merged base allowed.
+/// A field added to any of these public structs would break every
+/// downstream exhaustive struct literal — this witness compiles the
+/// base-style constructions verbatim.
+#[test]
+fn pre_isolation_public_shapes_stay_constructible_verbatim() {
+    use minco_plugin_ticketing::{SessionExchangeGrant, TicketingConfig};
+
+    // TicketingConfig: exactly the base field set, no isolation fields.
+    let _config = TicketingConfig {
+        project_id: "consumer".into(),
+        portal_origin: "https://support.example.test".into(),
+        allowed_return_paths: BTreeMap::new(),
+        handoff_ttl_seconds: 900,
+        support_label: "Support".into(),
+        support_brand: "Brand".into(),
+        privacy_notice: "Privacy".into(),
+        requester_session_ttl_seconds: 3600,
+        assignment_pool: Vec::new(),
+        sla: None,
+        notify_requester_on_public_reply: false,
+        inbound_email_first_contact: false,
+        inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy::default(),
+        inbound_authserv_id: String::default(),
+        inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy::default(),
+        automation: minco_plugin_ticketing::AutomationConfig::default(),
+    };
+
+    // SessionExchangeGrant: exactly the base field set — the workspace
+    // binding lives in durable storage beside the grant, never as an
+    // added struct field.
+    let _grant = SessionExchangeGrant {
+        exchange_key: "exchange-key".into(),
+        session_id: minco_plugin_sessions::SessionId(uuid::Uuid::new_v4()),
+        generation: 0,
+        subject: "user-1".into(),
+        project_id: "consumer".into(),
+        permissions: vec!["ticketing.requester.read".into()],
+        portal_origin: "https://support.example.test".into(),
+        expires_at: Utc::now(),
+        created_at: Utc::now(),
+        revoked_at: None,
+        rotation_staged_session_id: None,
+    };
 }
