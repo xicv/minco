@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "status": "failed",
-  "errors": 1,
+  "status": "ok",
+  "errors": 0,
   "warnings": 1,
   "metrics": {
     "publish_order": [
@@ -118,12 +118,6 @@
     "require_registry": false
   },
   "findings": [
-    {
-      "code": "PUBLISH-021",
-      "severity": "error",
-      "message": "minco-plugin-ticketing package.include omits integration test sources: ['tests/compat_consumer.rs']",
-      "path": "plugins/minco-plugin-ticketing/Cargo.toml"
-    },
     {
       "code": "PUBLISH-010",
       "severity": "warning",

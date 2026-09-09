@@ -18,10 +18,10 @@
       "plugins": 21,
       "milestones": 16,
       "tasks": 155,
-      "rust_files": 279,
+      "rust_files": 280,
       "python_files": 43,
       "shell_files": 83,
-      "implementation_files_scanned": 595
+      "implementation_files_scanned": 619
     },
     "findings": [],
     "limitations": [
@@ -30,11 +30,11 @@
     ]
   },
   "metrics": {
-    "rust_files": 279,
-    "rust_lines": 174535,
+    "rust_files": 280,
+    "rust_lines": 177392,
     "unsafe_tokens": 22,
-    "production_unwrap_expect": 341,
-    "sql_files": 47
+    "production_unwrap_expect": 345,
+    "sql_files": 70
   },
   "findings": [
     {
@@ -89,7 +89,7 @@
       "severity": "warning",
       "code": "REVIEW-RUST-001",
       "path": "plugins/minco-plugin-workspace/src/store.rs",
-      "message": "12 unwrap/expect calls before test code"
+      "message": "13 unwrap/expect calls before test code"
     },
     {
       "severity": "warning",
