@@ -544,7 +544,9 @@ async fn resource_policy_belongs_to_the_effective_caller_not_the_service() {
 
     let caller = |subject: &str, resources: &[&str]| minco_plugin_identity::Identity {
         subject: subject.into(),
-        permissions: std::iter::once("ticketing.create").map(str::to_owned).collect(),
+        permissions: std::iter::once("ticketing.create")
+            .map(str::to_owned)
+            .collect(),
         scopes: {
             let mut tokens = std::collections::BTreeSet::from([
                 "workspace:ws-r3".to_owned(),
@@ -697,7 +699,7 @@ async fn the_upgrade_inventories_every_historical_project_and_binds_ownership() 
         scopes: std::collections::BTreeSet::new(),
         claims: BTreeMap::new(),
     };
-    legacy
+    let legacy_ticket = legacy
         .create_ticket(
             &legacy_identity,
             minco_plugin_ticketing::CreateTicketInput {
@@ -783,6 +785,24 @@ async fn the_upgrade_inventories_every_historical_project_and_binds_ownership() 
         desk.workspace_report.workspace.as_str()
     );
     assert_eq!(ticket_binding[0].1, "desk-proof");
+    // Child preservation through the ownership rebuild (round 2
+    // review): the create-copy-drop-rename may not lose child content —
+    // the legacy ticket's committed activity rows survive verbatim,
+    // which an empty foreign_key_check alone could never prove.
+    let activity: Vec<(String, String)> = sqlx::query_as(
+        "SELECT kind, ticket_id FROM ticketing_activity_intents WHERE project_id = 'desk-proof'",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        activity,
+        vec![(
+            "ticketing.created".to_owned(),
+            legacy_ticket.ticket.id.to_string()
+        )],
+        "the rebuild preserves populated child content verbatim"
+    );
     // The legacy grant was backfilled.
     let grant_workspace: Option<String> = sqlx::query_scalar(
         "SELECT workspace_id FROM ticketing_session_exchange_grants WHERE exchange_key = 'key-b'",
