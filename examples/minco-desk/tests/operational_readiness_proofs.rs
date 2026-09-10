@@ -32,45 +32,39 @@ fn scratch_config(tag: &str, dir: &std::path::Path) -> DeskConfig {
         inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy::LocalTrusted,
         inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy::Local,
         inbound_authserv_id: "amazonses.com".into(),
+        workspace_id: None,
+        workspace_display_name: "Default workspace".into(),
     }
 }
 
-fn agent_principal() -> minco_http::Principal {
-    minco_http::Principal {
-        subject: "agent-proof".into(),
-        permissions: [
-            "ticketing.create",
-            "ticketing.manage",
-            "ticketing.agent-console",
-            "ticketing.agent.read",
-            "ticketing.agent.manage",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect(),
-        claims: std::collections::BTreeMap::default(),
-    }
-}
-
-fn bff_principal() -> minco_http::Principal {
+fn bff_principal(desk: &minco_desk_example::BuiltDesk) -> minco_http::Principal {
     // A BFF calls with its own service identity holding read authority
-    // for proxying — never the end user's browser session.
-    minco_http::Principal {
-        subject: "peopleplanner-bff".into(),
+    // for proxying — never the end user's browser session. Permissions
+    // narrow; the deployment's resolved scope stays bound (ADR-0076).
+    let mut principal = minco_http::Principal {
+        subject: "desk-bff".into(),
         permissions: ["ticketing.agent.read", "ticketing.agent-console"]
             .into_iter()
             .map(str::to_owned)
             .collect(),
         claims: std::collections::BTreeMap::default(),
+    };
+    if let Some(scopes) = desk
+        .agent_principal
+        .claims
+        .get(minco_http::PRINCIPAL_SCOPES_CLAIM)
+    {
+        principal = principal.with_scopes(scopes.split_ascii_whitespace());
     }
+    principal
 }
 
-async fn create_ticket(router: &axum::Router, subject: &str) {
+async fn create_ticket(router: &axum::Router, agent: minco_http::Principal, subject: &str) {
     let response = router
         .clone()
         .oneshot(
             Request::post("/_minco/ticketing/tickets")
-                .extension(agent_principal())
+                .extension(agent)
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -89,12 +83,16 @@ async fn create_ticket(router: &axum::Router, subject: &str) {
     assert_eq!(response.status(), StatusCode::CREATED, "{subject}");
 }
 
-async fn agent_list(router: &axum::Router, query: &str) -> serde_json::Value {
+async fn agent_list(
+    router: &axum::Router,
+    agent: minco_http::Principal,
+    query: &str,
+) -> serde_json::Value {
     let response = router
         .clone()
         .oneshot(
             Request::get(format!("/_minco/ticketing/agent/tickets{query}"))
-                .extension(agent_principal())
+                .extension(agent)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -116,11 +114,21 @@ async fn bounded_load_creates_and_lists_at_volume_with_correct_pagination() {
     let total = 100;
     let started = Instant::now();
     for index in 0..total {
-        create_ticket(&desk.router, &format!("Load ticket {index}")).await;
+        create_ticket(
+            &desk.router,
+            desk.agent_principal.clone(),
+            &format!("Load ticket {index}"),
+        )
+        .await;
         if index % 25 == 24 {
             // Interleaved listing proves pagination stays correct while
             // the corpus grows.
-            let page = agent_list(&desk.router, "?page[limit]=10").await;
+            let page = agent_list(
+                &desk.router,
+                desk.agent_principal.clone(),
+                "?page[limit]=10",
+            )
+            .await;
             assert!(
                 page["data"].as_array().unwrap().len() <= 10,
                 "pagination bound holds during load"
@@ -138,7 +146,7 @@ async fn bounded_load_creates_and_lists_at_volume_with_correct_pagination() {
             Some(value) => format!("?page[limit]=25&page[after]={value}"),
             None => "?page[limit]=25".into(),
         };
-        let page = agent_list(&desk.router, &query).await;
+        let page = agent_list(&desk.router, desk.agent_principal.clone(), &query).await;
         for item in page["data"].as_array().unwrap() {
             seen.insert(item["id"].as_str().unwrap().to_owned());
         }
@@ -194,7 +202,7 @@ async fn desk_is_bff_callable_and_rejects_foreign_browser_origins() {
     let directory = tempfile::tempdir().unwrap();
     let config = scratch_config("bff", directory.path());
     let desk = build_desk(&config).await.unwrap();
-    create_ticket(&desk.router, "BFF ticket").await;
+    create_ticket(&desk.router, desk.agent_principal.clone(), "BFF ticket").await;
 
     // A BFF calls with its own service identity and reads the agent
     // surface — the desk never sees the browser origin, only the BFF.
@@ -203,7 +211,7 @@ async fn desk_is_bff_callable_and_rejects_foreign_browser_origins() {
         .clone()
         .oneshot(
             Request::get("/_minco/ticketing/agent/tickets?page[limit]=10")
-                .extension(bff_principal())
+                .extension(bff_principal(&desk))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -226,7 +234,7 @@ async fn desk_is_bff_callable_and_rejects_foreign_browser_origins() {
                 .header(header::ORIGIN, "https://evil.example.test")
                 .header("access-control-request-method", "GET")
                 .header("access-control-request-headers", "content-type")
-                .extension(bff_principal())
+                .extension(bff_principal(&desk))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -258,7 +266,12 @@ async fn database_identity_is_separate_from_release_identity() {
     );
 
     let first = build_desk(&first_config).await.unwrap();
-    create_ticket(&first.router, "First desk only").await;
+    create_ticket(
+        &first.router,
+        first.agent_principal.clone(),
+        "First desk only",
+    )
+    .await;
 
     let second = build_desk(&second_config).await.unwrap();
     let second_listing = second
@@ -266,7 +279,7 @@ async fn database_identity_is_separate_from_release_identity() {
         .clone()
         .oneshot(
             Request::get("/_minco/ticketing/agent/tickets")
-                .extension(agent_principal())
+                .extension(second.agent_principal.clone())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -286,6 +299,6 @@ async fn database_identity_is_separate_from_release_identity() {
     );
 
     // And the first desk still sees its own ticket.
-    let first_listing = agent_list(&first.router, "").await;
+    let first_listing = agent_list(&first.router, first.agent_principal.clone(), "").await;
     assert_eq!(first_listing["data"].as_array().unwrap().len(), 1);
 }

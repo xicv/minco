@@ -2,7 +2,7 @@
 id: M14-T74
 title: Desk stabilization merge gate — close independent review blockers
 milestone: M14
-status: active
+status: complete
 priority: critical
 area: desk/stabilization
 depends_on: [M14-T73]

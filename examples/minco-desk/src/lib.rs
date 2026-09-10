@@ -13,6 +13,37 @@
 //! durable session cookies; every other ticketing route requires the
 //! loopback service bearer token (`DESK_AGENT_TOKEN`) and the
 //! development identity headers are not trusted.
+//!
+//! The desk is an isolated deployment (ADR-0076): startup provisions
+//! exactly one workspace identity into this database (under the
+//! workspace plugin's own migration ledger), registers the configured
+//! project verbatim, and resolves the service-principal scope once —
+//! the bearer middleware then injects that checked, scope-carrying
+//! principal instead of minting one.
+//!
+//! # Route inventory (ADR-0076)
+//!
+//! Every route the desk serves falls into exactly one class:
+//!
+//! - **Business routes** (the ticketing agent, requester, ingest,
+//!   integrate, ai-context, console, search, views, macros,
+//!   clarifications, automation and management operations under
+//!   `/_minco/ticketing`) require a resolved scoped caller: the bearer
+//!   path injects the provisioned desk-agent principal, and requester
+//!   paths resolve a session whose bound project was validated against
+//!   the registry. Scopeless or foreign-scoped principals are denied
+//!   with `ticketing_scope_denied` before any business effect.
+//! - **Session/handoff exchange routes** (`POST /handoffs/exchange`,
+//!   `POST /tickets/from-handoff`, `POST /requester/sessions`,
+//!   `POST /integrations/handoffs`, `POST /requester/logout`) validate
+//!   their own bound grant or credential — a one-time handoff token, a
+//!   handoff-minted session, or the integration permission — and never
+//!   require the session they are creating.
+//! - **Public assets, preflight and operational probes**
+//!   (`/support-entry.js`, `/bootstrap`, `/agent` console assets,
+//!   CORS preflights, `/live`, `/ready`) carry explicit public or
+//!   deployment-operational policies; no fabricated authenticated
+//!   identity is ever injected for them.
 #![forbid(unsafe_code)]
 
 use anyhow::{Context as _, Result};
@@ -62,6 +93,15 @@ pub struct DeskConfig {
     /// The authserv-id the receiving provider stamps, loaded from
     /// `DESK_INBOUND_AUTHSERV_ID` (default `amazonses.com`).
     pub inbound_authserv_id: String,
+    /// Optional pinned workspace identity (ADR-0076), loaded from
+    /// `DESK_WORKSPACE_ID`. When set it must equal the identity already
+    /// bound to this database on every later startup; a different pin
+    /// fails closed instead of rebinding. When unset, first provisioning
+    /// mints an identity and every restart reuses the persisted binding.
+    pub workspace_id: Option<String>,
+    /// Workspace display name (a label, never an authority identifier),
+    /// loaded from `DESK_WORKSPACE_DISPLAY_NAME`.
+    pub workspace_display_name: String,
 }
 
 impl DeskConfig {
@@ -203,6 +243,16 @@ impl DeskConfig {
             },
             inbound_authserv_id: std::env::var("DESK_INBOUND_AUTHSERV_ID")
                 .unwrap_or_else(|_| "amazonses.com".into()),
+            workspace_id: match std::env::var("DESK_WORKSPACE_ID") {
+                Ok(value) if !value.trim().is_empty() => {
+                    minco_plugin_workspace::WorkspaceId::try_from(value.clone())
+                        .map_err(|error| anyhow::anyhow!("DESK_WORKSPACE_ID: {error}"))?;
+                    Some(value)
+                }
+                _ => None,
+            },
+            workspace_display_name: std::env::var("DESK_WORKSPACE_DISPLAY_NAME")
+                .unwrap_or_else(|_| "Default workspace".into()),
         })
     }
 }
@@ -315,6 +365,13 @@ pub struct BuiltDesk {
     pub router: axum::Router,
     pub worker: DeskWorker,
     pub health_report: serde_json::Value,
+    /// The workspace provisioning outcome (ADR-0076): the bound identity
+    /// and whether this build created the deployment binding.
+    pub workspace_report: minco_plugin_workspace::ProvisionReport,
+    /// The checked, scope-carrying principal the bearer middleware
+    /// injects — resolved once from the provisioned desk-agent profile,
+    /// never minted per request.
+    pub agent_principal: minco_http::Principal,
 }
 
 /// The desk's explicit jobs worker: one bounded dispatch pass per call.
@@ -413,6 +470,13 @@ pub async fn migrate(config: &DeskConfig) -> Result<sqlx::SqlitePool> {
         .migrate()
         .await
         .context("apply ticketing migrations")?;
+    // The workspace isolation registry (ADR-0076) under its own ledger —
+    // bootstrap order: plugin storage, ticketing, workspace. It never
+    // runs under the sqlx default ledger or another plugin's ledger.
+    minco_plugin_workspace::SqliteWorkspaceStore::new(pool.clone())
+        .migrate()
+        .await
+        .context("apply workspace-isolation migrations")?;
     Ok(pool)
 }
 
@@ -430,6 +494,206 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     };
 
     let pool = migrate(config).await?;
+
+    // Workspace isolation (ADR-0076): provisioning is an explicit startup
+    // phase that binds one workspace identity to this database, registers
+    // the configured project verbatim, and seeds the desk-agent profile.
+    // Conflicting pins, drifted policy, and second workspaces fail closed
+    // here — before any service serves a request.
+    let desk_project = minco_plugin_workspace::ProjectId::try_from(config.project_id.clone())
+        .context("DESK_PROJECT_ID is not a registrable project identifier")?;
+    // Upgrade inventory (round 1 finding 5): every project identity that
+    // exists in this database — live tickets AND durable security
+    // artifacts (handoffs, exchange grants, external messages, activity
+    // intents, operation receipts) — registers verbatim alongside the
+    // configured project, so a populated database never ends up with a
+    // registry that omits its own history.
+    let mut inventoried: BTreeSet<String> = BTreeSet::from_iter([desk_project.as_str().to_owned()]);
+    for table in [
+        "ticketing_tickets",
+        "ticketing_handoffs",
+        "ticketing_session_exchange_grants",
+        "ticketing_external_messages",
+        "ticketing_activity_intents",
+        "ticketing_operation_receipts",
+    ] {
+        let projects: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(
+            format!("SELECT DISTINCT project_id FROM {table}").as_str(),
+        ))
+        .fetch_all(&pool)
+        .await
+        .with_context(|| format!("inventory {table} for the workspace registry"))?;
+        inventoried.extend(projects);
+    }
+    let registered_projects: Vec<minco_plugin_workspace::ProjectId> = inventoried
+        .into_iter()
+        .map(|project| {
+            minco_plugin_workspace::ProjectId::try_from(project)
+                .context("an inventoried project identifier is not registrable")
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let pinned_workspace = match &config.workspace_id {
+        Some(pin) => Some(
+            minco_plugin_workspace::WorkspaceId::try_from(pin.clone())
+                .context("the pinned DESK_WORKSPACE_ID is invalid")?,
+        ),
+        None => None,
+    };
+    let workspace_store = Arc::new(minco_plugin_workspace::SqliteWorkspaceStore::new(
+        pool.clone(),
+    ));
+    let workspace_service = Arc::new(
+        minco_plugin_workspace::WorkspaceService::new(
+            minco_plugin_workspace::WorkspaceStoreService::new(workspace_store.clone()),
+            minco_plugin_workspace::WorkspaceConfig {
+                display_name: config.workspace_display_name.clone(),
+                workspace_id: pinned_workspace,
+                projects: registered_projects,
+                profiles: [
+                    (
+                        desk_agent_profile_id(),
+                        minco_plugin_workspace::ProfileSpec {
+                            kind: minco_plugin_workspace::ProfileKind::ServiceApi,
+                            auth_mode: minco_plugin_workspace::ProfileAuthMode::ServiceBearerToken,
+                            bound_project: desk_project.clone(),
+                            service_subject: "desk-agent".into(),
+                            permission_ceiling: DESK_AGENT_PERMISSIONS
+                                .iter()
+                                .map(|permission| (*permission).to_owned())
+                                .collect(),
+                            allowed_origins: std::iter::once(config.portal_origin.clone())
+                                .collect(),
+                            resource_types: BTreeSet::new(),
+                            secret_reference: Some("DESK_AGENT_TOKEN".into()),
+                        },
+                    ),
+                    // The requester portal's persisted profile (round 1
+                    // finding 3): cookie sessions are minted only through
+                    // the handoff exchange, whose origin policy this
+                    // profile records. The startup check below proves the
+                    // composition's portal configuration still matches it.
+                    (
+                        desk_portal_profile_id(),
+                        minco_plugin_workspace::ProfileSpec {
+                            kind: minco_plugin_workspace::ProfileKind::Portal,
+                            auth_mode: minco_plugin_workspace::ProfileAuthMode::PortalSession,
+                            bound_project: desk_project.clone(),
+                            service_subject: "desk-portal".into(),
+                            permission_ceiling: [
+                                "ticketing.requester.read",
+                                "ticketing.requester.write",
+                            ]
+                            .map(str::to_owned)
+                            .into_iter()
+                            .collect(),
+                            allowed_origins: std::iter::once(config.portal_origin.clone())
+                                .collect(),
+                            resource_types: BTreeSet::new(),
+                            secret_reference: None,
+                        },
+                    ),
+                    // The inbound-mail worker's persisted profile (round 1
+                    // finding 3): the worker principal below resolves
+                    // through this profile, never an anonymous
+                    // configuration default.
+                    (
+                        desk_mail_profile_id(),
+                        minco_plugin_workspace::ProfileSpec {
+                            kind: minco_plugin_workspace::ProfileKind::Email,
+                            auth_mode: minco_plugin_workspace::ProfileAuthMode::InboundEmail,
+                            bound_project: desk_project.clone(),
+                            service_subject: "desk-mail-worker".into(),
+                            permission_ceiling: ["ticketing.ingest"]
+                                .map(str::to_owned)
+                                .into_iter()
+                                .collect(),
+                            allowed_origins: BTreeSet::new(),
+                            resource_types: BTreeSet::new(),
+                            secret_reference: None,
+                        },
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+                grants: BTreeMap::new(),
+            },
+        )
+        .context("compose the workspace isolation service")?,
+    );
+    let workspace_report = workspace_service
+        .provision()
+        .await
+        .context("provision the workspace isolation registry")?;
+    // Ownership binding (round 1 finding 5), in the same explicit
+    // startup phase with writers not yet serving: every inventoried
+    // project is now registered under the provisioned workspace, so the
+    // ticket table can take the composite ownership constraint; legacy
+    // exchange grants (issued before isolation) are deterministically
+    // bound to the provisioned workspace. Interruption before this
+    // point leaves the un-bound (default '') schema in place and the
+    // next startup redoes the whole phase idempotently.
+    SqliteTicketingStore::new(pool.clone())
+        .bind_workspace_ownership(workspace_report.workspace.as_str())
+        .await
+        .context("bind ticket ownership to the provisioned workspace")?;
+    sqlx::query(
+        "UPDATE ticketing_session_exchange_grants SET workspace_id = ? WHERE workspace_id IS NULL",
+    )
+    .bind(workspace_report.workspace.as_str())
+    .execute(&pool)
+    .await
+    .context("bind legacy session-exchange grants to the provisioned workspace")?;
+    // The service-principal scope is resolved once and served through this
+    // explicit local context (ADR-0076: no per-request discovery); the
+    // bearer middleware injects the resulting checked principal.
+    let agent_scope = workspace_service
+        .resolve_service_principal_scope(&desk_agent_profile_id())
+        .await
+        .context("resolve the desk-agent service principal scope")?;
+    let agent_principal = minco_http::Principal {
+        subject: agent_scope.service_subject.clone(),
+        permissions: agent_scope.permission_ceiling.iter().cloned().collect(),
+        claims: BTreeMap::default(),
+    }
+    .with_scopes(agent_scope.claim_tokens());
+    // The principal scope claim is whitespace-tokenized (`minco-http`), so
+    // identifiers containing whitespace cannot ride it. Verify the round
+    // trip once at startup and fail closed with a precise error instead of
+    // silently dropping a scope token.
+    minco_plugin_workspace::ProjectScope::from_scope_tokens(
+        &agent_principal
+            .claims
+            .get(minco_http::PRINCIPAL_SCOPES_CLAIM)
+            .map(|value| {
+                value
+                    .split_ascii_whitespace()
+                    .map(str::to_owned)
+                    .collect::<BTreeSet<_>>()
+            })
+            .unwrap_or_default(),
+    )
+    .context(
+        "the resolved workspace/project scope cannot be carried through the \
+         principal scope claim: identifiers containing whitespace are not \
+         representable on this boundary",
+    )?;
+
+    // The portal profile's persisted policy must still match this
+    // composition's portal configuration (round 1 finding 3): sessions
+    // are minted only through the handoff exchange, whose origin this
+    // profile records — startup fails closed on drift. The portal
+    // profile's resource types become the requester-session policy: a
+    // portal caller never inherits the agent profile's broader set.
+    let portal_scope = workspace_service
+        .resolve_service_principal_scope(&desk_portal_profile_id())
+        .await
+        .context("resolve the desk-portal profile")?;
+    if !portal_scope.allowed_origins.contains(&config.portal_origin) {
+        anyhow::bail!(
+            "the persisted desk-portal profile no longer allows the configured \
+             portal origin; explicit reconciliation is required"
+        );
+    }
 
     // Concrete adapter selection lives here and nowhere else.
     let jobs_store = Arc::new(minco_sqlx_sqlite::jobs::SqliteJobStore::new(pool.clone()));
@@ -519,6 +783,15 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
                 ..TicketingConfig::default()
             },
         )?
+        // Isolation (ADR-0076) is additive: the desk binds ticketing to
+        // the provisioned workspace — every exposed operation then
+        // requires the caller's resolved scope to match — and carries
+        // the PORTAL profile's resource policy for requester sessions
+        // (round 1 findings 1 and 3).
+        .with_isolation(minco_plugin_ticketing::TicketingIsolationConfig {
+            workspace_id: Some(workspace_report.workspace.as_str().to_owned()),
+            portal_resource_types: portal_scope.resource_types.clone(),
+        })?
         .with_portal_services(TicketingPortalServices {
             sessions: Some(sessions),
             csrf: Some(csrf),
@@ -529,11 +802,22 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
             objects: Some(objects.clone()),
         }),
     );
-    // The durable worker principal holds only ingest authority.
+    // The durable worker principal holds only ingest authority, bound to
+    // the provisioned workspace/project scope (ADR-0076): worker execution
+    // cannot adopt a scope broader than the deployment's registered
+    // project.
+    // The durable worker principal resolves through the persisted email
+    // profile (round 1 finding 3): subject, ingest ceiling, and scope
+    // all come from the profile — never an anonymous configuration
+    // default — so misrouted execution cannot adopt a broader identity.
+    let worker_scope = workspace_service
+        .resolve_service_principal_scope(&desk_mail_profile_id())
+        .await
+        .context("resolve the desk-mail worker profile")?;
     let worker = minco_plugin_identity::Identity {
-        subject: "desk-mail-worker".into(),
-        permissions: BTreeSet::from(["ticketing.ingest".into()]),
-        scopes: BTreeSet::new(),
+        subject: worker_scope.service_subject.clone(),
+        permissions: worker_scope.permission_ceiling.iter().cloned().collect(),
+        scopes: worker_scope.claim_tokens().into_iter().collect(),
         claims: BTreeMap::default(),
     };
     register_ticketing_jobs(
@@ -624,6 +908,11 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
     health.register(Arc::new(ObjectStorageHealth {
         objects: Arc::clone(&objects),
     }));
+    // The isolation registry is critical: a desk whose workspace binding
+    // is unreachable cannot safely resolve scope for any caller.
+    health.register(Arc::new(WorkspaceStoreHealth {
+        service: Arc::clone(&workspace_service),
+    }));
     let health_report =
         serde_json::to_value(&composed.graph).unwrap_or_else(|_| serde_json::json!({}));
 
@@ -660,7 +949,11 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
         .route("/live", axum::routing::get(liveness))
         .route("/ready", axum::routing::get(readiness))
         .layer(axum::middleware::from_fn_with_state(
-            config.agent_token.clone(),
+            DeskAgentAuth {
+                token: config.agent_token.clone(),
+                principal: agent_principal.clone(),
+                allowed_origins: agent_scope.allowed_origins.clone(),
+            },
             desk_agent_identity,
         ));
     // Development identity headers are deliberately NOT allowed: the
@@ -686,6 +979,8 @@ pub async fn build_desk(config: &DeskConfig) -> Result<BuiltDesk> {
             project_id: config.project_id.clone(),
         },
         health_report,
+        workspace_report,
+        agent_principal,
     })
 }
 
@@ -790,13 +1085,28 @@ impl minco_plugin_jobs::JobDispatcher for DurableJobDispatcher {
     }
 }
 
+/// The bearer-checked desk-agent state: the shared secret, the
+/// scope-carrying principal resolved once at startup from the provisioned
+/// desk-agent profile, and the profile's exact-origin restriction
+/// enforced at ingress (ADR-0076, round 1 finding 3). Origins are a
+/// restriction on the authenticated service call — never an
+/// authentication factor.
+#[cfg(feature = "sqlite")]
+#[derive(Clone)]
+struct DeskAgentAuth {
+    token: String,
+    principal: minco_http::Principal,
+    allowed_origins: BTreeSet<String>,
+}
+
 /// The desk trust boundary: `Authorization: Bearer <agent token>` maps to
-/// the loopback service principal (full agent capability set) and every
-/// other request stays anonymous until a requester session cookie
-/// resolves. Forged development headers are never trusted.
+/// the loopback service principal (the profile's bounded capability
+/// ceiling plus its resolved workspace/project scope) and every other
+/// request stays anonymous until a requester session cookie resolves.
+/// Forged development headers are never trusted.
 #[cfg(feature = "sqlite")]
 async fn desk_agent_identity(
-    axum::extract::State(agent_token): axum::extract::State<String>,
+    axum::extract::State(auth): axum::extract::State<DeskAgentAuth>,
     mut request: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
@@ -805,34 +1115,99 @@ async fn desk_agent_identity(
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
-        .is_some_and(|token| constant_time_eq(token.as_bytes(), agent_token.as_bytes()));
-    if authorized
-        && request
-            .extensions()
-            .get::<minco_http::Principal>()
-            .is_none()
+        .is_some_and(|token| constant_time_eq(token.as_bytes(), auth.token.as_bytes()));
+    if !authorized {
+        return next.run(request).await;
+    }
+    // Profile origin restriction (round 1 finding 3): an authenticated
+    // service call carrying an Origin header must carry one of the
+    // profile's exact origins. Origin never authenticates — a missing
+    // Origin (non-browser service call) is unrestricted, a present
+    // Origin outside the profile is denied before any business handler.
+    if let Some(origin) = request
+        .headers()
+        .get(axum::http::header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+        && !auth.allowed_origins.contains(origin)
     {
-        request.extensions_mut().insert(minco_http::Principal {
-            subject: "desk-agent".into(),
-            permissions: [
-                "ticketing.create",
-                "ticketing.reply",
-                "ticketing.manage",
-                "ticketing.ingest",
-                "ticketing.integrate",
-                "ticketing.ai-context",
-                "ticketing.agent-console",
-                "ticketing.agent.read",
-                "ticketing.agent.manage",
-            ]
-            .into_iter()
-            .map(str::to_owned)
-            .collect(),
-            claims: BTreeMap::default(),
-        });
+        return origin_denied(origin);
+    }
+    if request
+        .extensions()
+        .get::<minco_http::Principal>()
+        .is_none()
+    {
+        request.extensions_mut().insert(auth.principal.clone());
     }
     next.run(request).await
 }
+
+/// The origin-restriction denial: a stable problem response, never a
+/// hint about which origins are allowed.
+#[cfg(feature = "sqlite")]
+fn origin_denied(origin: &str) -> axum::response::Response {
+    if origin.is_ascii() && origin.len() <= 256 {
+        tracing::warn!(
+            origin,
+            "desk-agent profile origin restriction denied a request"
+        );
+    } else {
+        tracing::warn!("desk-agent profile origin restriction denied a malformed origin");
+    }
+    axum::http::Response::builder()
+        .status(axum::http::StatusCode::FORBIDDEN)
+        .header(axum::http::header::CONTENT_TYPE, "application/problem+json")
+        .body(axum::body::Body::from(
+            serde_json::json!({
+                "type": "about:blank",
+                "title": "Origin not permitted for this integration profile",
+                "status": 403,
+                "detail": "The request's origin is outside this profile's policy.",
+            })
+            .to_string(),
+        ))
+        .expect("static problem response")
+}
+
+/// The desk-agent integration profile identifier provisioned by this
+/// composition.
+#[cfg(feature = "sqlite")]
+fn desk_agent_profile_id() -> minco_plugin_workspace::ProfileId {
+    minco_plugin_workspace::ProfileId::try_from("desk-agent".to_owned())
+        .expect("static profile identifier")
+}
+
+/// The requester-portal profile identifier provisioned by this
+/// composition (round 1 finding 3).
+#[cfg(feature = "sqlite")]
+fn desk_portal_profile_id() -> minco_plugin_workspace::ProfileId {
+    minco_plugin_workspace::ProfileId::try_from("desk-portal".to_owned())
+        .expect("static profile identifier")
+}
+
+/// The inbound-mail worker profile identifier provisioned by this
+/// composition (round 1 finding 3).
+#[cfg(feature = "sqlite")]
+fn desk_mail_profile_id() -> minco_plugin_workspace::ProfileId {
+    minco_plugin_workspace::ProfileId::try_from("desk-mail".to_owned())
+        .expect("static profile identifier")
+}
+
+/// The desk-agent permission ceiling: the full agent capability set the
+/// provisioned profile may ever contribute (ADR-0076 — a ceiling that is
+/// intersected, never unioned into a human identity).
+#[cfg(feature = "sqlite")]
+const DESK_AGENT_PERMISSIONS: [&str; 9] = [
+    "ticketing.create",
+    "ticketing.reply",
+    "ticketing.manage",
+    "ticketing.ingest",
+    "ticketing.integrate",
+    "ticketing.ai-context",
+    "ticketing.agent-console",
+    "ticketing.agent.read",
+    "ticketing.agent.manage",
+];
 
 /// Constant-time byte-slice comparison for bearer token checks.
 #[cfg(feature = "sqlite")]
@@ -1079,6 +1454,38 @@ impl minco_plugin_health::HealthCheck for ObjectStorageHealth {
             ready,
             critical: false,
             detail: (!ready).then(|| "object storage is not writable".into()),
+        }
+    }
+}
+
+/// Workspace isolation registry readiness (ADR-0076): the provisioned
+/// registry must be reachable for the deployment to resolve scope.
+#[cfg(feature = "sqlite")]
+struct WorkspaceStoreHealth {
+    service: Arc<minco_plugin_workspace::WorkspaceService>,
+}
+
+#[cfg(feature = "sqlite")]
+impl std::fmt::Debug for WorkspaceStoreHealth {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("WorkspaceStoreHealth").finish()
+    }
+}
+
+#[cfg(feature = "sqlite")]
+#[async_trait::async_trait]
+impl minco_plugin_health::HealthCheck for WorkspaceStoreHealth {
+    fn id(&self) -> &'static str {
+        "workspace-store"
+    }
+
+    async fn check(&self) -> minco_plugin_health::HealthResult {
+        let ready = self.service.store_ready().await.is_ok();
+        minco_plugin_health::HealthResult {
+            id: "workspace-store".into(),
+            ready,
+            critical: true,
+            detail: (!ready).then(|| "workspace isolation registry is not ready".into()),
         }
     }
 }

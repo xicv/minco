@@ -34,7 +34,7 @@
   "inputs": [
     {
       "path": "Cargo.toml",
-      "sha256": "1e7707079fc040fd45899883c35d80b9a5aa54f4a62d813754177e0682ecc0ec"
+      "sha256": "08bae31daade1123c54c71f15605238aee9e4c81ccc1b375338b93cd026d3ae8"
     },
     {
       "path": "CHANGELOG.md",
@@ -50,7 +50,7 @@
     },
     {
       "path": "plugins/catalog.toml",
-      "sha256": "793fab176b0de55a792158775717a8dbb0cb529a8180eeb085d624cbcc5d9f12"
+      "sha256": "5d2df569f71ceb5bbec18eaa6a09dcd8448d48f9a6ee259eebddfdeae5fcd0ff"
     },
     {
       "path": "verification/repository-truth.toml",
@@ -305,7 +305,7 @@
     },
     {
       "manifest_path": "plugins/minco-plugin-ticketing/Cargo.toml",
-      "manifest_sha256": "b244433fd13146692453ac9e9fa9f3498e86586ff7ae304c1ae4a63130d8ef93",
+      "manifest_sha256": "fef043d739db3765917fad592e3c6efae587756fbbae867707739631b54464e2",
       "name": "minco-plugin-ticketing",
       "version": {
         "workspace": true
@@ -572,7 +572,7 @@
       "stability": "beta"
     }
   ],
-  "projection_sha256": "0594d27d62560c8e045fd03281252cb48f204a87b5afa795dcfb3b03ceb54b5f",
+  "projection_sha256": "59811388f887c3d3b4d6d088e51e24a6e7eeb9edbca98a117a8fc18b8e793382",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1"

@@ -31,32 +31,42 @@ fn scratch_config(tag: &str, dir: &std::path::Path) -> DeskConfig {
         inbound_auth_policy: minco_plugin_ticketing::InboundAuthPolicy::LocalTrusted,
         inbound_scan_verdicts: minco_plugin_ticketing::ScanVerdictPolicy::Local,
         inbound_authserv_id: "amazonses.com".into(),
+        workspace_id: None,
+        workspace_display_name: "Default workspace".into(),
     }
 }
 
-fn agent_principal() -> minco_http::Principal {
-    minco_http::Principal {
-        subject: "agent-proof".into(),
-        permissions: [
-            "ticketing.create",
-            "ticketing.manage",
-            "ticketing.agent-console",
-            "ticketing.agent.read",
-            "ticketing.agent.manage",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect(),
-        claims: std::collections::BTreeMap::default(),
-    }
-}
-
-fn requester_principal(subject: &str) -> minco_http::Principal {
-    minco_http::Principal {
+/// The injected principals carry the deployment's resolved scope so the
+/// in-process proof paths pass isolation exactly like the real bearer
+/// and session paths do (ADR-0076).
+fn scoped(
+    desk: &minco_desk_example::BuiltDesk,
+    subject: &str,
+    permissions: &[&str],
+) -> minco_http::Principal {
+    let mut principal = minco_http::Principal {
         subject: subject.into(),
-        permissions: std::iter::once("ticketing.read".to_owned()).collect(),
+        permissions: permissions
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect(),
         claims: std::collections::BTreeMap::default(),
+    };
+    if let Some(scopes) = desk
+        .agent_principal
+        .claims
+        .get(minco_http::PRINCIPAL_SCOPES_CLAIM)
+    {
+        principal = principal.with_scopes(scopes.split_ascii_whitespace());
     }
+    principal
+}
+
+fn requester_principal(
+    desk: &minco_desk_example::BuiltDesk,
+    subject: &str,
+) -> minco_http::Principal {
+    scoped(desk, subject, &["ticketing.read"])
 }
 
 #[tokio::test]
@@ -135,7 +145,7 @@ async fn every_public_surface_is_hardened() {
         .clone()
         .oneshot(
             Request::get("/_minco/ticketing/agent/bootstrap")
-                .extension(agent_principal())
+                .extension(desk.agent_principal.clone())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -172,20 +182,17 @@ async fn requesters_are_isolated_and_unauthenticated_access_is_refused() {
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 
     // A requester cannot read another requester's ticket.
-    let requester_a = requester_principal("requester-a");
+    let requester_a = requester_principal(&desk, "requester-a");
     let created = desk
         .router
         .clone()
         .oneshot(
             Request::post("/_minco/ticketing/tickets")
-                .extension(minco_http::Principal {
-                    subject: "requester-a".into(),
-                    permissions: ["ticketing.create", "ticketing.read"]
-                        .into_iter()
-                        .map(str::to_owned)
-                        .collect(),
-                    claims: std::collections::BTreeMap::default(),
-                })
+                .extension(scoped(
+                    &desk,
+                    "requester-a",
+                    &["ticketing.create", "ticketing.read"],
+                ))
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -211,7 +218,7 @@ async fn requesters_are_isolated_and_unauthenticated_access_is_refused() {
         .clone()
         .oneshot(
             Request::get(format!("/_minco/ticketing/requester/tickets/{ticket_id}"))
-                .extension(requester_principal("requester-b"))
+                .extension(requester_principal(&desk, "requester-b"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -342,7 +349,7 @@ async fn upgrade_from_an_earlier_schema_preserves_every_ticket() {
         .clone()
         .oneshot(
             Request::get("/_minco/ticketing/agent/views/new-unassigned")
-                .extension(agent_principal())
+                .extension(desk.agent_principal.clone())
                 .body(Body::empty())
                 .unwrap(),
         )

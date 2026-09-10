@@ -229,6 +229,64 @@ pub struct TicketingConfig {
     pub automation: crate::AutomationConfig,
 }
 
+/// The ADR-0076 isolation policy of one ticketing deployment (round 1
+/// findings 1, 3 and 4).
+///
+/// Applied additively through [`TicketingService::with_isolation`]; a
+/// service built without it keeps the exact pre-isolation behavior and
+/// public surface.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TicketingIsolationConfig {
+    /// The workspace identity this service is bound to. `Some` enables
+    /// isolation; the composition sets it from the provisioned
+    /// deployment binding and every checked caller's resolved scope
+    /// must intersect it exactly.
+    pub workspace_id: Option<String>,
+    /// Resource types the PORTAL profile permits (round 1 finding 3):
+    /// stamped onto requester identities minted at session exchange so
+    /// a portal caller can never inherit the agent profile's broader
+    /// resource policy. Derived from the persisted portal profile by
+    /// the composition; empty denies every resource reference.
+    pub portal_resource_types: std::collections::BTreeSet<String>,
+}
+
+impl TicketingIsolationConfig {
+    fn enabled_workspace(&self) -> Option<&str> {
+        // `Some` is always a requested binding — an invalid one (empty,
+        // whitespace-padded, over-long) is rejected at validation time,
+        // never quietly interpreted as "isolation off" (round 2c
+        // review).
+        self.workspace_id.as_deref()
+    }
+
+    fn validate(&self) -> Result<(), TicketingServiceError> {
+        if let Some(workspace) = self.enabled_workspace() {
+            if workspace.is_empty() {
+                return Err(TicketingServiceError::Configuration(
+                    "workspace_id must be a minted workspace identifier, not an empty string; \
+                     use None to disable isolation"
+                        .into(),
+                ));
+            }
+            // Isolation cannot run without its bound workspace identity
+            // (ADR-0076): fail closed at configuration time, not at the
+            // first denied request. The identifier is validated as a
+            // bounded visible string; enforcement compares it for
+            // equality against the resolved scope token.
+            validate_text("workspace_id", workspace, 64)?;
+            if workspace.trim() != workspace {
+                return Err(TicketingServiceError::Configuration(
+                    "workspace_id must not carry leading or trailing whitespace".into(),
+                ));
+            }
+        }
+        for resource_type in &self.portal_resource_types {
+            validate_text("portal_resource_types", resource_type, 100)?;
+        }
+        Ok(())
+    }
+}
+
 impl Default for TicketingConfig {
     fn default() -> Self {
         Self {
@@ -438,6 +496,7 @@ pub struct RequesterTicketResult {
 pub struct TicketingService {
     store: TicketingStoreService,
     config: TicketingConfig,
+    isolation: Option<TicketingIsolationConfig>,
     pub(crate) portal: TicketingPortalServices,
 }
 
@@ -446,6 +505,7 @@ impl fmt::Debug for TicketingService {
         formatter
             .debug_struct("TicketingService")
             .field("config", &self.config)
+            .field("isolation", &self.isolation)
             .field("portal", &self.portal)
             .finish_non_exhaustive()
     }
@@ -468,8 +528,35 @@ impl TicketingService {
         Ok(Self {
             store,
             config,
+            isolation: None,
             portal: TicketingPortalServices::default(),
         })
+    }
+
+    /// Applies the ADR-0076 isolation policy additively (round 1
+    /// findings 1, 3 and 4): a service built without it keeps the exact
+    /// pre-isolation behavior, public configuration shape included.
+    /// Setting a workspace identity enables scope enforcement on every
+    /// exposed operation; `portal_resource_types` is the resource policy
+    /// minted onto requester identities (round 1 finding 3).
+    pub fn with_isolation(
+        mut self,
+        isolation: TicketingIsolationConfig,
+    ) -> Result<Self, TicketingServiceError> {
+        isolation.validate()?;
+        self.isolation = Some(isolation);
+        Ok(self)
+    }
+
+    #[must_use]
+    pub const fn isolation(&self) -> Option<&TicketingIsolationConfig> {
+        self.isolation.as_ref()
+    }
+
+    /// The workspace identity enforcement compares against, when
+    /// isolation is enabled.
+    fn isolation_workspace(&self) -> Option<&str> {
+        self.isolation.as_ref()?.enabled_workspace()
     }
 
     #[must_use]
@@ -510,7 +597,7 @@ impl TicketingService {
         mut input: IssueTicketingHandoffInput,
         now: DateTime<Utc>,
     ) -> Result<SupportHandoffGrant, TicketingServiceError> {
-        authorize(principal, "ticketing.integrate")?;
+        self.authorize_scoped(principal, "ticketing.integrate")?;
         self.require_project(&input.project_id)?;
         // Handoffs mint requester portal sessions; the granted set is
         // constrained to the requester portal capabilities and can never
@@ -585,13 +672,18 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.create")?;
+        self.authorize_scoped(principal, "ticketing.create")?;
         self.require_project(&input.project_id)?;
         if input.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
         {
             return Err(TicketingServiceError::RequesterMismatch);
         }
+        // Resource-type policy enforced where references are accepted
+        // (round 1 finding 3): the effective caller's own profile
+        // policy decides — a reference outside it is denied before the
+        // ticket exists.
+        self.authorize_resource_references(principal, &input.resource_references)?;
         let id = Uuid::now_v7();
         // The full v7 suffix is required: the leading 12 hex characters are
         // only the millisecond timestamp, so two tickets created within the
@@ -610,7 +702,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<RequesterTicket, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
@@ -626,7 +718,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<Ticket, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.load(project_id, id).await
     }
 
@@ -635,7 +727,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketListFilter,
     ) -> Result<Vec<Ticket>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(&filter.project_id)?;
         Ok(self.store.list(filter).await?)
     }
@@ -651,7 +743,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<RequesterTicketResult, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
             return Err(TicketingServiceError::RequesterMismatch);
@@ -691,7 +783,7 @@ impl TicketingService {
         idempotency_key: &str,
         fingerprint: &str,
     ) -> Result<RequesterTicketResult, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
             return Err(TicketingServiceError::RequesterMismatch);
@@ -740,12 +832,43 @@ impl TicketingService {
     }
 
     /// Reads one committed operation receipt for idempotency recovery
-    /// (exact-head review R2).
+    /// (exact-head review R2). The ORIGINAL signature, restored verbatim
+    /// for pre-isolation consumers (round 1 finding 8) — and fail-closed
+    /// under isolation, where recovery may only go through the
+    /// scope-checked variant below: the legacy entry can never bypass
+    /// isolated mode.
     pub async fn operation_receipt(
         &self,
         idempotency_key: &str,
     ) -> Result<Option<crate::OperationReceipt>, TicketingServiceError> {
+        if self.isolation_workspace().is_some() {
+            return Err(TicketingServiceError::ScopeDenied);
+        }
         Ok(self.store.operation_receipt(idempotency_key).await?)
+    }
+
+    /// Scope-checked receipt recovery (ADR-0076, round 1 findings 1 and
+    /// 8): the caller must carry the deployment's resolved scope, and
+    /// under isolation a receipt recorded for a foreign project never
+    /// crosses the boundary.
+    pub async fn operation_receipt_scoped(
+        &self,
+        principal: &Identity,
+        idempotency_key: &str,
+    ) -> Result<Option<crate::OperationReceipt>, TicketingServiceError> {
+        self.require_scope(principal)?;
+        match self.store.operation_receipt(idempotency_key).await? {
+            Some(receipt) => {
+                if self.isolation_workspace().is_some()
+                    && receipt.project_id != self.config.project_id
+                {
+                    Err(TicketingServiceError::ScopeDenied)
+                } else {
+                    Ok(Some(receipt))
+                }
+            }
+            None => Ok(None),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -759,7 +882,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.reply")?;
+        self.authorize_scoped(principal, "ticketing.reply")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         let message = ticket.reply_as_agent_message(&principal.subject, body, now)?;
@@ -813,7 +936,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         let message = ticket.internal_note_message(&principal.subject, body, now)?;
@@ -897,7 +1020,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         match mode {
             crate::AssignmentMode::Manual => {
@@ -952,7 +1075,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.assign(assignee, now)?;
@@ -978,7 +1101,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.transfer_queue(queue_id, now)?;
@@ -1004,7 +1127,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.change_priority(priority, now);
@@ -1032,7 +1155,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.change_status(status, resolution, close_reason, now)?;
@@ -1058,7 +1181,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         ticket.add_attachment(TicketAttachment::from(attachment), now);
@@ -1083,7 +1206,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(&identity.project_id)?;
         validate_sha256(&identity.content_sha256)?;
         identity.content_sha256.make_ascii_lowercase();
@@ -1139,7 +1262,7 @@ impl TicketingService {
         provider_message_id: &str,
         now: DateTime<Utc>,
     ) -> Result<(), TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(project_id)?;
         if !valid_external_text(provider, 100)
             || !valid_external_text(provider_message_id, 500)
@@ -1189,7 +1312,7 @@ impl TicketingService {
         provider_message_id: &str,
         now: DateTime<Utc>,
     ) -> Result<(), TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(project_id)?;
         if !valid_external_text(provider, 100)
             || !valid_external_text(provider_message_id, 500)
@@ -1253,7 +1376,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<TicketAiContext, TicketingServiceError> {
-        authorize(principal, "ticketing.ai-context")?;
+        self.authorize_scoped(principal, "ticketing.ai-context")?;
         Ok(self.load(project_id, id).await?.export_ai_context())
     }
 
@@ -1261,7 +1384,7 @@ impl TicketingService {
         &self,
         principal: &Identity,
     ) -> Result<AgentConsoleBootstrap, TicketingServiceError> {
-        authorize(principal, "ticketing.agent-console")?;
+        self.authorize_scoped(principal, "ticketing.agent-console")?;
         Ok(AgentConsoleBootstrap {
             schema_version: 1,
             project_id: self.config.project_id.clone(),
@@ -1282,7 +1405,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketSummaryFilter,
     ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(&filter.project_id)?;
         Ok(self.store.list_summaries(filter).await?)
     }
@@ -1297,7 +1420,7 @@ impl TicketingService {
         draft: ClarificationDraftInput,
         now: DateTime<Utc>,
     ) -> Result<crate::Clarification, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         // The ticket must exist: clarifications anchor to a real ticket.
         let _ = self.load(project_id, ticket_id).await?;
@@ -1324,7 +1447,7 @@ impl TicketingService {
         id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<crate::Clarification, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         let mut clarification = self
             .store
@@ -1345,7 +1468,7 @@ impl TicketingService {
         project_id: &str,
         ticket_id: TicketId,
     ) -> Result<Vec<crate::Clarification>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(project_id)?;
         Ok(self
             .store
@@ -1358,7 +1481,7 @@ impl TicketingService {
         &self,
         principal: &Identity,
     ) -> Result<Vec<crate::RequesterClarification>, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let project_id = self.config().project_id.clone();
         let tickets = self
             .store
@@ -1408,7 +1531,7 @@ impl TicketingService {
         answers: Vec<String>,
         now: DateTime<Utc>,
     ) -> Result<crate::RequesterClarification, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         self.require_project(project_id)?;
         let mut clarification = self
             .store
@@ -1442,7 +1565,7 @@ impl TicketingService {
         client_operation_id: Option<&str>,
         now: DateTime<Utc>,
     ) -> Result<Uuid, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         if self.config().automation.profile == crate::AutomationProfile::Off {
             return Err(TicketingServiceError::Configuration(
@@ -1494,6 +1617,7 @@ impl TicketingService {
                 now,
             )
             .map_err(|_| TicketingServiceError::JobsUnavailable)?;
+            let envelope = crate::stamp_workspace_binding(envelope, self.isolation_workspace());
             jobs.submit_durable(envelope)
                 .await
                 .map_err(|_| TicketingServiceError::JobsUnavailable)?;
@@ -1514,7 +1638,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<Vec<crate::AutomationProposal>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(project_id)?;
         Ok(self.store.list_automation_proposals(project_id, id).await?)
     }
@@ -1530,7 +1654,7 @@ impl TicketingService {
         accept: bool,
         now: DateTime<Utc>,
     ) -> Result<crate::AutomationProposal, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         let mut proposal = self
             .store
@@ -1553,7 +1677,7 @@ impl TicketingService {
         limit: usize,
         before: Option<(DateTime<Utc>, TicketId)>,
     ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         let trimmed = query.trim();
         if trimmed.chars().count() < 2
             || trimmed.chars().count() > 200
@@ -1591,7 +1715,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         self.require_project(project_id)?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
@@ -1618,7 +1742,7 @@ impl TicketingService {
         comment: Option<String>,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.write")?;
+        self.authorize_scoped(principal, "ticketing.requester.write")?;
         self.require_project(project_id)?;
         let mut ticket = self.load(project_id, id).await?;
         if ticket.requester.subject != principal.subject {
@@ -1645,7 +1769,7 @@ impl TicketingService {
         limit: usize,
         before: Option<(DateTime<Utc>, TicketId)>,
     ) -> Result<Vec<TicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         let mut statuses = BTreeSet::new();
         let mut assignee_subject = None;
         let mut unassigned = false;
@@ -1693,7 +1817,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<(Ticket, Vec<String>), TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.require_project(project_id)?;
         let ticket = self.load(project_id, id).await?;
         let now = Utc::now();
@@ -1719,7 +1843,7 @@ impl TicketingService {
         &self,
         principal: &Identity,
     ) -> Result<Vec<crate::AgentMacro>, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         Ok(self
             .store
             .list_macros(&self.config().project_id.clone())
@@ -1735,7 +1859,7 @@ impl TicketingService {
         body: &str,
         now: DateTime<Utc>,
     ) -> Result<crate::AgentMacro, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         let macro_ = crate::AgentMacro::new_decision(Uuid::now_v7(), title, body, now)?;
         self.store
             .insert_macro(&self.config().project_id.clone(), macro_.clone())
@@ -1755,7 +1879,7 @@ impl TicketingService {
         body: &str,
         now: DateTime<Utc>,
     ) -> Result<crate::AgentMacro, TicketingServiceError> {
-        authorize(principal, "ticketing.manage")?;
+        self.authorize_scoped(principal, "ticketing.manage")?;
         crate::AgentMacro::validate_decision(title, body)?;
         Ok(self
             .store
@@ -1778,7 +1902,7 @@ impl TicketingService {
         principal: &Identity,
         filter: TicketSummaryFilter,
     ) -> Result<Vec<PublicTicketSummary>, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let own = TicketSummaryFilter {
             requester_subject: Some(principal.subject.clone()),
             assignee_subject: None,
@@ -1800,7 +1924,7 @@ impl TicketingService {
         project_id: &str,
         id: TicketId,
     ) -> Result<Ticket, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.read")?;
+        self.authorize_scoped(principal, "ticketing.agent.read")?;
         self.load(project_id, id).await
     }
 
@@ -1815,7 +1939,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.agent.manage")?;
+        self.authorize_scoped(principal, "ticketing.agent.manage")?;
         let mut ticket = self.load(project_id, id).await?;
         require_revision(&ticket, expected_revision)?;
         if input.assignee_subject.is_some() && input.clear_assignee {
@@ -1947,7 +2071,7 @@ impl TicketingService {
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<TicketingMutationResult, TicketingServiceError> {
-        authorize(principal, "ticketing.ingest")?;
+        self.authorize_scoped(principal, "ticketing.ingest")?;
         self.require_project(&identity.project_id)?;
         if !valid_external_text(&sender_email, 320) || !sender_email.contains('@') {
             return Err(TicketingServiceError::InvalidExternalIdentity);
@@ -2062,6 +2186,7 @@ impl TicketingService {
                 "inbound email envelope could not be built: {error}"
             ))
         })?;
+        let envelope = crate::stamp_workspace_binding(envelope, self.isolation_workspace());
         let submission = jobs.submit_durable(envelope).await.map_err(|error| {
             TicketingServiceError::Store(TicketStoreError::Infrastructure(error.to_string()))
         })?;
@@ -2145,7 +2270,7 @@ impl TicketingService {
                         .map_err(infrastructure)?;
                     let _ = self
                         .store
-                        .mark_activity_published(intent.id, Utc::now())
+                        .mark_activity_published_scoped(project_id, intent.id, Utc::now())
                         .await?;
                     published += 1;
                 }
@@ -2201,7 +2326,7 @@ impl TicketingService {
             })?;
             let _ = self
                 .store
-                .mark_audit_published(intent.id, Utc::now())
+                .mark_audit_published_scoped(project_id, intent.id, Utc::now())
                 .await?;
             delivered += 1;
         }
@@ -2230,6 +2355,21 @@ impl TicketingService {
         if bound_project != &self.config.project_id {
             return Err(TicketingServiceError::SessionUnauthenticated);
         }
+        // Persisted workspace binding (round 1 finding 1): under
+        // isolation the session must carry the workspace attribute it was
+        // issued with, and it must equal this deployment's binding. A
+        // legacy session without the attribute is invalidated — the
+        // handoff grant (backfilled during the upgrade inventory) can
+        // mint a bound replacement.
+        if self.isolation_workspace().is_some() {
+            let bound_workspace = record
+                .attributes
+                .get("ticketing.workspace")
+                .ok_or(TicketingServiceError::SessionUnauthenticated)?;
+            if Some(bound_workspace.as_str()) != self.isolation_workspace() {
+                return Err(TicketingServiceError::SessionUnauthenticated);
+            }
+        }
         let permissions = record
             .attributes
             .get("ticketing.permissions")
@@ -2241,10 +2381,42 @@ impl TicketingService {
                     .collect()
             })
             .unwrap_or_default();
+        // The session's bound project was validated against the configured
+        // project above; under isolation the rebuilt identity carries the
+        // deployment's canonical scope tokens so every subsequent use case
+        // passes the scope check (ADR-0076). The session's own grant was
+        // validated where the credential was issued — no new authority is
+        // minted here. Resource policy rides the PORTAL profile's
+        // resolved set (round 1 finding 3): a portal caller never
+        // inherits the agent profile's broader resource types.
+        let scopes = if let Some(isolation) = self.isolation.as_ref() {
+            let mut tokens = BTreeSet::from([
+                format!(
+                    "{}{}",
+                    WORKSPACE_SCOPE_TOKEN_PREFIX,
+                    encode_scope_identifier(isolation.workspace_id.as_deref().unwrap_or_default())
+                ),
+                format!(
+                    "{}{}",
+                    PROJECT_SCOPE_TOKEN_PREFIX,
+                    encode_scope_identifier(&self.config.project_id)
+                ),
+            ]);
+            for resource_type in &isolation.portal_resource_types {
+                tokens.insert(format!(
+                    "{}{}",
+                    RESOURCE_SCOPE_TOKEN_PREFIX,
+                    encode_scope_identifier(resource_type)
+                ));
+            }
+            tokens
+        } else {
+            BTreeSet::default()
+        };
         let identity = Identity {
             subject: record.subject.clone(),
             permissions,
-            scopes: BTreeSet::default(),
+            scopes,
             claims: BTreeMap::new(),
         };
         Ok((record, identity))
@@ -2314,17 +2486,12 @@ impl TicketingService {
             .issue(minco_plugin_sessions::CreateSession {
                 subject: identity.requester_subject.clone(),
                 ttl: TimeDelta::seconds(self.config.requester_session_ttl_seconds),
-                attributes: BTreeMap::from([
-                    ("ticketing.project".into(), project_id),
-                    ("ticketing.portal_origin".into(), portal_origin.to_owned()),
-                    (
-                        "ticketing.permissions".into(),
-                        identity.requester_permissions.join(","),
-                    ),
-                    // The exchange key rides the session so logout can
-                    // revoke the replay authority (exact-head review R20).
-                    ("ticketing.exchange_key".into(), exchange_key.to_owned()),
-                ]),
+                attributes: self.session_attributes(
+                    project_id,
+                    portal_origin,
+                    &identity.requester_permissions,
+                    exchange_key,
+                ),
             })
             .await
             .map_err(|error| {
@@ -2349,6 +2516,62 @@ impl TicketingService {
     /// and revokes the replaced session — surfacing every failure. A
     /// stale worker that lost its lease observes a newer generation and
     /// leaves the winner's grant untouched.
+    /// Session attributes stamped at every issuance point (round 1
+    /// finding 1): project, portal origin, permissions, exchange key —
+    /// and, under isolation, the deployment's workspace identity so
+    /// resolution validates a persisted binding instead of deriving one
+    /// from the receiving service's configuration.
+    fn session_attributes(
+        &self,
+        project_id: String,
+        portal_origin: &str,
+        permissions: &[String],
+        exchange_key: &str,
+    ) -> BTreeMap<String, String> {
+        let mut attributes = BTreeMap::from([
+            ("ticketing.project".to_owned(), project_id),
+            (
+                "ticketing.portal_origin".to_owned(),
+                portal_origin.to_owned(),
+            ),
+            ("ticketing.permissions".to_owned(), permissions.join(",")),
+            ("ticketing.exchange_key".to_owned(), exchange_key.to_owned()),
+        ]);
+        if let Some(workspace) = self.isolation_workspace() {
+            attributes.insert("ticketing.workspace".to_owned(), workspace.to_owned());
+        }
+        attributes
+    }
+
+    /// Session-exchange grants are scoped artifacts (round 1 finding 1):
+    /// before any effect — fenced write, rotation, revocation, removal,
+    /// or recovery — the loaded grant must belong to this service's
+    /// configured project, and under isolation its persisted workspace
+    /// binding must match. A foreign grant is denied and untouched.
+    async fn require_grant_ownership(
+        &self,
+        exchange_key: &str,
+        grant: &crate::SessionExchangeGrant,
+    ) -> Result<(), TicketingServiceError> {
+        if grant.project_id != self.config.project_id {
+            return Err(TicketingServiceError::ProjectDenied);
+        }
+        if let Some(expected) = self.isolation_workspace() {
+            let binding = self
+                .store
+                .exchange_grant_workspace_binding(exchange_key)
+                .await
+                .map_err(TicketingServiceError::from)?;
+            if binding != crate::ExchangeGrantWorkspaceBinding::Bound(expected.to_owned()) {
+                // An unbound legacy grant or a grant issued under a
+                // foreign workspace is not this deployment's artifact
+                // (round 1 finding 1): denied before any effect.
+                return Err(TicketingServiceError::ScopeDenied);
+            }
+        }
+        Ok(())
+    }
+
     pub async fn record_session_exchange_grant(
         &self,
         exchange_key: &str,
@@ -2363,30 +2586,44 @@ impl TicketingService {
             .session_exchange_grant(exchange_key)
             .await
             .map_err(TicketingServiceError::from)?;
+        if let Some(grant) = &current {
+            // A foreign project's existing grant is never fenced-over
+            // by this service's exchange (round 1 finding 1).
+            self.require_grant_ownership(exchange_key, grant).await?;
+        }
         let expected_generation = current.as_ref().map(|grant| grant.generation);
         let previous = current
             .filter(|grant| grant.session_id != session_id)
             .map(|grant| grant.session_id);
-        let stored = self
-            .store
-            .record_session_exchange_fenced(
-                crate::SessionExchangeGrant {
-                    exchange_key: exchange_key.to_owned(),
-                    session_id,
-                    generation: expected_generation.unwrap_or(0),
-                    subject: subject.to_owned(),
-                    project_id: self.config.project_id.clone(),
-                    permissions,
-                    portal_origin: portal_origin.to_owned(),
-                    expires_at: replay_deadline,
-                    created_at: Utc::now(),
-                    revoked_at: None,
-                    rotation_staged_session_id: None,
-                },
-                expected_generation,
-            )
-            .await
-            .map_err(TicketingServiceError::from)?;
+        let grant = crate::SessionExchangeGrant {
+            exchange_key: exchange_key.to_owned(),
+            session_id,
+            generation: expected_generation.unwrap_or(0),
+            subject: subject.to_owned(),
+            project_id: self.config.project_id.clone(),
+            permissions,
+            portal_origin: portal_origin.to_owned(),
+            expires_at: replay_deadline,
+            created_at: Utc::now(),
+            revoked_at: None,
+            rotation_staged_session_id: None,
+        };
+        let stored = match self.isolation_workspace() {
+            // The persisted workspace binding is authoritative (round 1
+            // finding 1): a scoped write carries it; a legacy write
+            // leaves the grant unbound.
+            Some(workspace) => {
+                self.store
+                    .record_session_exchange_fenced_scoped(grant, expected_generation, workspace)
+                    .await
+            }
+            None => {
+                self.store
+                    .record_session_exchange_fenced(grant, expected_generation)
+                    .await
+            }
+        }
+        .map_err(TicketingServiceError::from)?;
         if stored.session_id != session_id {
             // A newer exchange won the race: this worker's session must
             // die and the winner's grant stays.
@@ -2431,6 +2668,10 @@ impl TicketingService {
             .await
             .map_err(TicketingServiceError::from)?
             .ok_or(TicketingServiceError::SessionUnauthenticated)?;
+        // Ownership precedes every effect (round 1 finding 1): a
+        // wrong-project or wrong-workspace service can neither rotate,
+        // revoke, nor recover another deployment's grant.
+        self.require_grant_ownership(exchange_key, &grant).await?;
         // The FIXED replay deadline from the original exchange: rotations
         // never extend it (exact-head review R11); a revoked grant (logout)
         // can never mint another session (exact-head review R20).
@@ -2471,19 +2712,31 @@ impl TicketingService {
         // A mint failure leaves the grant pointing at the (now revoked)
         // previous session: safe — zero live bearers — and the next replay
         // recovers by minting a replacement.
+        let permissions = grant.permissions.clone();
         let issued = sessions
             .issue(minco_plugin_sessions::CreateSession {
                 subject: grant.subject.clone(),
                 ttl: TimeDelta::seconds(self.config.requester_session_ttl_seconds),
-                attributes: BTreeMap::from([
-                    ("ticketing.project".into(), grant.project_id.clone()),
-                    (
-                        "ticketing.portal_origin".into(),
-                        grant.portal_origin.clone(),
-                    ),
-                    ("ticketing.permissions".into(), grant.permissions.join(",")),
-                    ("ticketing.exchange_key".into(), grant.exchange_key.clone()),
-                ]),
+                attributes: {
+                    let mut attributes = self.session_attributes(
+                        grant.project_id.clone(),
+                        &grant.portal_origin,
+                        &permissions,
+                        &grant.exchange_key,
+                    );
+                    // The persisted grant's workspace binding wins over
+                    // configuration (round 1 finding 1): the artifact's
+                    // authority is what the next resolution validates.
+                    if let crate::ExchangeGrantWorkspaceBinding::Bound(bound) = self
+                        .store
+                        .exchange_grant_workspace_binding(exchange_key)
+                        .await
+                        .map_err(TicketingServiceError::from)?
+                    {
+                        attributes.insert("ticketing.workspace".into(), bound);
+                    }
+                    attributes
+                },
             })
             .await
             .map_err(|error| {
@@ -2578,6 +2831,16 @@ impl TicketingService {
         let Some(exchange_key) = attributes.get("ticketing.exchange_key") else {
             return Ok(());
         };
+        // Ownership precedes the revocation effect (round 1 finding 1):
+        // logout from this service can only revoke this project's grant.
+        if let Some(grant) = self
+            .store
+            .session_exchange_grant(exchange_key)
+            .await
+            .map_err(TicketingServiceError::from)?
+        {
+            self.require_grant_ownership(exchange_key, &grant).await?;
+        }
         self.store
             .revoke_session_exchange(exchange_key, Utc::now())
             .await
@@ -2595,6 +2858,17 @@ impl TicketingService {
         exchange_key: &str,
         session_id: minco_plugin_sessions::SessionId,
     ) -> Result<(), TicketingServiceError> {
+        // Ownership precedes both effects (round 1 finding 1): a failed
+        // exchange in this service can never revoke another project's
+        // session or remove its grant.
+        if let Some(grant) = self
+            .store
+            .session_exchange_grant(exchange_key)
+            .await
+            .map_err(TicketingServiceError::from)?
+        {
+            self.require_grant_ownership(exchange_key, &grant).await?;
+        }
         if let Some(sessions) = self.portal.sessions.as_ref() {
             sessions.revoke(session_id).await.map_err(|error| {
                 TicketingServiceError::Store(TicketStoreError::Infrastructure(format!(
@@ -2701,6 +2975,7 @@ impl TicketingService {
             &ticket.project_id,
             ticket.id,
             message.id,
+            self.isolation_workspace().unwrap_or_default(),
             correlation_id,
             now,
         )
@@ -2759,7 +3034,7 @@ impl TicketingService {
         before: Option<(DateTime<Utc>, TicketMessageId)>,
         limit: usize,
     ) -> Result<Vec<PublicTicketMessage>, TicketingServiceError> {
-        authorize(principal, "ticketing.requester.read")?;
+        self.authorize_scoped(principal, "ticketing.requester.read")?;
         let ticket = self.load(project_id, ticket_id).await?;
         if ticket.requester.subject != principal.subject
             && !principal.has_permission("ticketing.manage")
@@ -2790,6 +3065,64 @@ impl TicketingService {
             Err(TicketingServiceError::ProjectDenied)
         }
     }
+
+    /// Resolve and enforce the caller's workspace/project scope
+    /// (ADR-0076). Active only when an isolation binding is configured:
+    /// the caller must carry exactly one resolvable workspace and one
+    /// project scope token, both matching this service's binding. No
+    /// scope, an ambiguous scope, or a foreign scope denies the
+    /// operation — there is no ambient fallback.
+    fn require_scope(&self, principal: &Identity) -> Result<(), TicketingServiceError> {
+        if self.isolation_workspace().is_none() {
+            return Ok(());
+        }
+        let (workspace, project) =
+            parse_scope_tokens(&principal.scopes).ok_or(TicketingServiceError::ScopeDenied)?;
+        if project != self.config.project_id
+            || Some(workspace.as_str()) != self.isolation_workspace()
+        {
+            return Err(TicketingServiceError::ScopeDenied);
+        }
+        Ok(())
+    }
+
+    /// Enforce the effective caller's resource-type policy where
+    /// references are accepted (round 1 finding 3). Under isolation the
+    /// policy belongs to the CALLER — carried as `resources:` scope
+    /// tokens minted from the caller's resolved integration profile —
+    /// never to a service-global allowlist: a portal caller cannot
+    /// inherit the agent profile's broader resource types, and an agent
+    /// cannot inherit the portal's. Any malformed `resources:` token
+    /// denies the operation; an empty set denies every reference.
+    fn authorize_resource_references(
+        &self,
+        principal: &Identity,
+        input_references: &[minco_interaction::SupportResourceReference],
+    ) -> Result<(), TicketingServiceError> {
+        if self.isolation_workspace().is_none() || input_references.is_empty() {
+            return Ok(());
+        }
+        let allowed = parse_resource_type_tokens(&principal.scopes)
+            .ok_or(TicketingServiceError::ScopeDenied)?;
+        if input_references
+            .iter()
+            .any(|reference| !allowed.contains(&reference.resource_type))
+        {
+            return Err(TicketingServiceError::ScopeDenied);
+        }
+        Ok(())
+    }
+
+    /// Permission check preceded by the scope check, so every authorized
+    /// use case is scope-checked through one shared boundary (ADR-0076).
+    fn authorize_scoped(
+        &self,
+        principal: &Identity,
+        permission: &str,
+    ) -> Result<(), TicketingServiceError> {
+        self.require_scope(principal)?;
+        authorize(principal, permission)
+    }
 }
 
 fn activity(
@@ -2813,6 +3146,128 @@ fn authorize(principal: &Identity, permission: &str) -> Result<(), TicketingServ
         .has_permission(permission)
         .then_some(())
         .ok_or_else(|| TicketingServiceError::PermissionDenied(permission.into()))
+}
+
+/// Canonical scope-token prefixes carried on a checked caller's scope
+/// set (ADR-0076). Only the trusted composition sets these — request
+/// input never reaches them. The format is shared with the workspace
+/// plugin's `ProjectScope::scope_tokens` (percent-encoded payloads; see
+/// the normative vectors in the plugin's tests and ADR-0076); the desk
+/// proves the two agree end to end.
+const WORKSPACE_SCOPE_TOKEN_PREFIX: &str = "workspace:";
+const PROJECT_SCOPE_TOKEN_PREFIX: &str = "project:";
+/// Per-caller resource-type policy carrier (round 1 finding 3): one
+/// token per resource type the caller's resolved integration profile
+/// permits, percent-encoded with the same codec. Foreign parsers ignore
+/// the prefix (the grammar is additive), while a malformed or duplicated
+/// `resources:` token denies the carrying operation.
+const RESOURCE_SCOPE_TOKEN_PREFIX: &str = "resources:";
+
+/// Parse a checked caller's effective resource-type policy from their
+/// scope set (round 1 finding 3). Every `resources:` token must decode
+/// to a non-empty bounded value; a duplicated decoded value — including
+/// via different encoded spellings — denies the operation rather than
+/// being merged. `None` denies; an empty set permits no references.
+fn parse_resource_type_tokens(scopes: &BTreeSet<String>) -> Option<BTreeSet<String>> {
+    let mut allowed = BTreeSet::new();
+    for scope in scopes {
+        let Some(payload) = scope.strip_prefix(RESOURCE_SCOPE_TOKEN_PREFIX) else {
+            continue;
+        };
+        let decoded = decode_scope_identifier(payload)?;
+        if decoded.trim().is_empty()
+            || decoded.chars().count() > 100
+            || decoded.chars().any(char::is_control)
+        {
+            return None;
+        }
+        if !allowed.insert(decoded) {
+            // Duplicated resource type (even via a different encoded
+            // spelling): ambiguous policy denies the operation.
+            return None;
+        }
+    }
+    Some(allowed)
+}
+
+/// Parse a checked caller's scope set into its `(workspace, project)`
+/// pair. Exactly one token of each prefix must be present, percent-
+/// decodable, non-empty after decoding, and free of duplicates; missing,
+/// duplicated, empty, or undecodable reserved tokens are rejected —
+/// never filtered away or guessed at.
+fn parse_scope_tokens(scopes: &BTreeSet<String>) -> Option<(String, String)> {
+    let single = |prefix: &str, minted: bool| -> Option<String> {
+        let reserved: Vec<Option<String>> = scopes
+            .iter()
+            .filter_map(|scope| scope.strip_prefix(prefix))
+            .map(|payload| decode_scope_identifier(payload).filter(|decoded| !decoded.is_empty()))
+            .collect();
+        // A reserved-prefix token that is empty or undecodable is
+        // malformed and denies resolution — it is never filtered away.
+        if reserved.iter().any(Option::is_none) {
+            return None;
+        }
+        let values: Vec<String> = reserved.into_iter().map(Option::unwrap).collect();
+        if values.len() != 1 {
+            return None;
+        }
+        let value = values.into_iter().next()?;
+        // Identifier validity mirrors the workspace plugin: visible,
+        // bounded, control-free, and — for minted workspace identifiers —
+        // free of leading/trailing whitespace. Invalid identifiers deny
+        // resolution rather than relying on later equality checks.
+        let maximum = if minted { 64 } else { 100 };
+        if value.trim().is_empty()
+            || value.chars().count() > maximum
+            || value.chars().any(char::is_control)
+            || (minted && value.trim() != value)
+        {
+            return None;
+        }
+        Some(value)
+    };
+    Some((
+        single(WORKSPACE_SCOPE_TOKEN_PREFIX, true)?,
+        single(PROJECT_SCOPE_TOKEN_PREFIX, false)?,
+    ))
+}
+
+/// Percent-encode a scope identifier payload (mirror of the workspace
+/// plugin's codec; see the normative vectors).
+fn encode_scope_identifier(identifier: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::with_capacity(identifier.len());
+    for byte in identifier.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push('%');
+            encoded.push(HEX[(byte >> 4) as usize] as char);
+            encoded.push(HEX[(byte & 0x0f) as usize] as char);
+        }
+    }
+    encoded
+}
+
+/// Decode a percent-encoded scope identifier payload; `None` for
+/// malformed encodings (mirror of the workspace plugin's codec).
+fn decode_scope_identifier(encoded: &str) -> Option<String> {
+    let bytes = encoded.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let hex = bytes.get(index + 1..index + 3)?;
+            let high = (hex[0] as char).to_digit(16)?;
+            let low = (hex[1] as char).to_digit(16)?;
+            decoded.push(u8::try_from(high * 16 + low).ok()?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
 }
 
 /// The complete capability set a requester portal session may carry
@@ -2894,6 +3349,8 @@ fn default_privacy_notice() -> String {
 pub enum TicketingServiceError {
     #[error("permission denied: {0}")]
     PermissionDenied(String),
+    #[error("the caller's workspace/project scope is not bound to this deployment")]
+    ScopeDenied,
     #[error("ticketing project is not available to this operation")]
     ProjectDenied,
     #[error("the requester does not match the authenticated subject")]
@@ -2980,6 +3437,288 @@ mod tests {
             )]),
             ..TicketingConfig::default()
         }
+    }
+
+    fn scoped_identity(subject: &str, permissions: &[&str], tokens: &[String]) -> Identity {
+        Identity {
+            scopes: tokens.iter().cloned().collect(),
+            ..identity(subject, permissions)
+        }
+    }
+
+    fn isolated_config() -> TicketingConfig {
+        test_config()
+    }
+
+    fn isolation() -> TicketingIsolationConfig {
+        TicketingIsolationConfig {
+            workspace_id: Some("ws-isolated".into()),
+            ..TicketingIsolationConfig::default()
+        }
+    }
+
+    fn isolated_service() -> TicketingService {
+        TicketingService::new(
+            TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+            isolated_config(),
+        )
+        .unwrap()
+        .with_isolation(isolation())
+        .unwrap()
+    }
+
+    fn scope_tokens(workspace: &str, project: &str) -> Vec<String> {
+        vec![
+            format!("{WORKSPACE_SCOPE_TOKEN_PREFIX}{workspace}"),
+            format!("{PROJECT_SCOPE_TOKEN_PREFIX}{project}"),
+        ]
+    }
+
+    /// The normative `resources:` policy-token vectors (round 1 finding
+    /// 3, round 2): the effective caller's own policy set, decoded with
+    /// the shared codec — malformed, empty, and duplicated-after-decode
+    /// values deny the operation instead of being filtered away.
+    #[test]
+    fn normative_resource_policy_token_vectors() {
+        let valid = |tokens: &[&str]| -> BTreeSet<String> {
+            tokens.iter().map(|token| (*token).to_owned()).collect()
+        };
+        // Positive vectors: plain, encoded, and mixed sets.
+        assert_eq!(
+            parse_resource_type_tokens(&valid(&["resources:order-board"])).expect("v1 resolves"),
+            BTreeSet::from(["order-board".to_owned()])
+        );
+        assert_eq!(
+            parse_resource_type_tokens(&valid(&["resources:customer%20note", "resources:x"]))
+                .expect("v2 resolves"),
+            BTreeSet::from(["customer note".to_owned(), "x".to_owned()])
+        );
+        // Identity tokens never leak into the policy set.
+        assert_eq!(
+            parse_resource_type_tokens(&valid(&["workspace:ws-a", "project:desk"]))
+                .expect("identity tokens are ignored"),
+            BTreeSet::new()
+        );
+        // An absent policy set is empty (permits no references).
+        assert_eq!(
+            parse_resource_type_tokens(&BTreeSet::new()).expect("empty scope set"),
+            BTreeSet::new()
+        );
+        // Negative vectors: malformed, empty-after-decode, and
+        // duplicated-after-decode deny. (A literal `+` is legal and
+        // decodes verbatim — only broken escapes deny.)
+        assert!(parse_resource_type_tokens(&valid(&["resources:order%ZZboard"])).is_none());
+        assert!(parse_resource_type_tokens(&valid(&["resources:order%2"])).is_none());
+        assert!(parse_resource_type_tokens(&valid(&["resources:%20%20"])).is_none());
+        assert!(parse_resource_type_tokens(&valid(&["resources:x", "resources:%78"])).is_none());
+    }
+
+    /// The normative scope-token conformance vectors (round 1 finding 6):
+    /// the identical table lives in the workspace plugin's tests; both
+    /// parsers must agree on every row.
+    #[test]
+    fn normative_scope_token_vectors() {
+        let valid = |tokens: &[&str]| -> BTreeSet<String> {
+            tokens.iter().map(|token| (*token).to_owned()).collect()
+        };
+        // Positive vectors.
+        assert_eq!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:desk"])).expect("v1 resolves"),
+            ("ws-a".to_owned(), "desk".to_owned())
+        );
+        assert_eq!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:legacy%20Prj"]))
+                .expect("v2 resolves"),
+            ("ws-a".to_owned(), "legacy Prj".to_owned())
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["orders:read", "workspace:ws-a", "project:desk"]))
+                .is_some()
+        );
+        // Negative vectors — every one must deny.
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:", "workspace:ws-a", "project:desk"])).is_none()
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:desk%zz"])).is_none(),
+            "undecodable escape"
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:ws-a%", "project:desk"])).is_none(),
+            "truncated escape"
+        );
+        assert!(
+            parse_scope_tokens(&valid(&[
+                "workspace:ws-a",
+                "workspace:ws-b",
+                "project:desk"
+            ]))
+            .is_none()
+        );
+        assert!(parse_scope_tokens(&valid(&["project:desk"])).is_none());
+        assert!(parse_scope_tokens(&valid(&["workspace:ws-a"])).is_none());
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:%20ws-a", "project:desk"])).is_none(),
+            "leading-whitespace workspace identifier"
+        );
+        assert!(
+            parse_scope_tokens(&valid(&["workspace:ws-a", "project:%00desk"])).is_none(),
+            "control byte in project identifier"
+        );
+        // Encoding mirrors the plugin: whitespace identifiers encode
+        // losslessly.
+        assert_eq!(encode_scope_identifier("legacy Prj"), "legacy%20Prj");
+        assert_eq!(
+            decode_scope_identifier("legacy%20Prj").as_deref(),
+            Some("legacy Prj")
+        );
+    }
+
+    #[test]
+    fn isolation_requires_a_well_formed_workspace_identity() {
+        let base = || {
+            TicketingService::new(
+                TicketingStoreService::new(Arc::new(MemoryTicketingStore::default())),
+                isolated_config(),
+            )
+            .unwrap()
+        };
+        // `workspace_id: None` IS the off switch — isolation-on without
+        // a bound identity is unrepresentable, not a runtime failure.
+        assert!(
+            base()
+                .with_isolation(TicketingIsolationConfig::default())
+                .is_ok()
+        );
+        let padded = TicketingIsolationConfig {
+            workspace_id: Some(" padded ".into()),
+            ..TicketingIsolationConfig::default()
+        };
+        assert!(matches!(
+            base().with_isolation(padded),
+            Err(TicketingServiceError::Configuration(_))
+        ));
+        assert!(base().with_isolation(isolation()).is_ok());
+    }
+
+    #[tokio::test]
+    async fn isolation_denies_scopeless_foreign_and_ambiguous_callers() {
+        let service = isolated_service();
+        // No scope tokens at all: denied even with the right permission.
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &identity("user-a", &["ticketing.create"]),
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // A foreign project token never mints authority.
+        let foreign_project = scoped_identity(
+            "user-a",
+            &["ticketing.create"],
+            &scope_tokens("ws-isolated", "project-b"),
+        );
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &foreign_project,
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // A foreign workspace never matches the bound deployment.
+        let foreign_workspace = scoped_identity(
+            "user-a",
+            &["ticketing.create"],
+            &scope_tokens("ws-other", "project-a"),
+        );
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &foreign_workspace,
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // Duplicated tokens are ambiguous and fail closed.
+        let mut ambiguous = scoped_identity(
+            "user-a",
+            &["ticketing.create"],
+            &scope_tokens("ws-isolated", "project-a"),
+        );
+        ambiguous.scopes.insert("project:project-b".into());
+        assert!(matches!(
+            service
+                .create_ticket(
+                    &ambiguous,
+                    create_input("user-a"),
+                    Uuid::now_v7(),
+                    Utc::now()
+                )
+                .await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        // The bound scope passes and requester reads stay isolated per
+        // subject exactly as before.
+        let bound = scoped_identity(
+            "user-a",
+            &["ticketing.create", "ticketing.requester.read"],
+            &scope_tokens("ws-isolated", "project-a"),
+        );
+        let created = service
+            .create_ticket(&bound, create_input("user-a"), Uuid::now_v7(), Utc::now())
+            .await
+            .expect("the bound scope authorizes");
+        let stranger = scoped_identity(
+            "user-b",
+            &["ticketing.requester.read"],
+            &scope_tokens("ws-isolated", "project-a"),
+        );
+        assert!(matches!(
+            service
+                .get_ticket_for_requester(&stranger, "project-a", created.ticket.id)
+                .await,
+            Err(TicketingServiceError::RequesterMismatch)
+        ));
+        // Receipt recovery is scope-checked like every other operation.
+        assert!(matches!(
+            service.operation_receipt("idem-1").await,
+            Err(TicketingServiceError::ScopeDenied)
+        ));
+        assert!(
+            service
+                .operation_receipt_scoped(&bound, "idem-1")
+                .await
+                .expect("bound scope reads receipts")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn isolation_off_keeps_the_pre_isolation_behavior() {
+        // The same scopeless identities keep working when the composition
+        // has not opted into isolation (compatibility, ADR-0076).
+        let service = service();
+        let created = service
+            .create_ticket(
+                &identity("user-a", &["ticketing.create"]),
+                create_input("user-a"),
+                Uuid::now_v7(),
+                Utc::now(),
+            )
+            .await
+            .expect("legacy compositions are unaffected");
+        assert_eq!(created.ticket.project_id, "project-a");
     }
 
     #[tokio::test]
@@ -5068,6 +5807,100 @@ mod tests {
                     objects: None,
                 });
         (Arc::new(service), store, sessions)
+    }
+
+    #[tokio::test]
+    async fn requester_resolution_and_rotation_preserve_the_portal_resource_policy() {
+        // Round 2c review (P1-3 propagation): the portal profile's
+        // resource policy must survive the whole session path — minted
+        // at exchange, preserved through rotation — rather than being
+        // substituted by the agent's policy or lost. The resolved
+        // requester identity carries exactly the portal profile's
+        // `resources:` tokens.
+        use minco_plugin_sessions::MemorySessionStore;
+        let store = Arc::new(MemoryTicketingStore::default());
+        let sessions = Arc::new(SessionService::new(Arc::new(MemorySessionStore::default())));
+        let service = TicketingService::new(
+            TicketingStoreService::new(store.clone()),
+            TicketingConfig {
+                project_id: "project-a".into(),
+                ..test_config()
+            },
+        )
+        .unwrap()
+        .with_isolation(TicketingIsolationConfig {
+            workspace_id: Some("ws-prop".into()),
+            portal_resource_types: BTreeSet::from(["deploy-board".to_owned()]),
+        })
+        .unwrap()
+        .with_portal_services(crate::TicketingPortalServices {
+            sessions: Some(sessions.clone()),
+            csrf: Some(Arc::new(
+                minco_plugin_sessions::CsrfService::new(
+                    b"test-csrf-secret-0123456789abcdef".to_vec(),
+                )
+                .unwrap(),
+            )),
+            idempotency: None,
+            events: None,
+            audit: None,
+            #[cfg(feature = "jobs")]
+            jobs: None,
+            objects: None,
+        });
+        // The exchange-side grant, written through the real scoped path.
+        let first = minco_plugin_sessions::SessionId(Uuid::new_v4());
+        service
+            .record_session_exchange_grant(
+                "key-prop",
+                first,
+                "requester-prop",
+                "https://support.example.test",
+                vec!["ticketing.requester.read".into()],
+                Utc::now() + chrono::TimeDelta::minutes(10),
+            )
+            .await
+            .unwrap();
+        // A session stamped exactly as the exchange issues them.
+        let issued = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "requester-prop".into(),
+                ttl: chrono::TimeDelta::minutes(10),
+                attributes: BTreeMap::from([
+                    ("ticketing.project".to_owned(), "project-a".to_owned()),
+                    (
+                        "ticketing.portal_origin".to_owned(),
+                        "https://support.example.test".to_owned(),
+                    ),
+                    (
+                        "ticketing.permissions".to_owned(),
+                        "ticketing.requester.read".to_owned(),
+                    ),
+                    ("ticketing.exchange_key".to_owned(), "key-prop".to_owned()),
+                    ("ticketing.workspace".to_owned(), "ws-prop".to_owned()),
+                ]),
+            })
+            .await
+            .unwrap();
+        let expected_tokens = BTreeSet::from([
+            "workspace:ws-prop".to_owned(),
+            "project:project-a".to_owned(),
+            "resources:deploy-board".to_owned(),
+        ]);
+        let (_record, identity) = service
+            .resolve_requester_session(&issued.token)
+            .await
+            .expect("resolution succeeds");
+        assert_eq!(identity.scopes, expected_tokens);
+
+        // Rotation mints a replacement; resolving it yields the same
+        // portal-derived policy, never an agent-shaped or empty set.
+        let rotated = service.rotate_session_exchange("key-prop").await.unwrap();
+        let (_record, rotated_identity) = service
+            .resolve_requester_session(&rotated.token)
+            .await
+            .expect("rotated session resolves");
+        assert_eq!(rotated_identity.scopes, expected_tokens);
     }
 
     #[tokio::test]

@@ -1,0 +1,39 @@
+[package]
+name = "minco-plugin-workspace"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Transport-neutral workspace, project and integration-profile scope model with deployment-bound provisioning for Minco"
+readme = "README.md"
+include = ["src/**", "migrations/**", "Cargo.toml", "minco-plugin.json", "README.md"]
+
+[package.metadata.minco]
+plugin = "minco-plugin.json"
+
+[features]
+default = []
+sqlite = ["dep:sqlx", "sqlx/sqlite"]
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+minco-core.workspace = true
+minco-plugin-health.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx = { workspace = true, optional = true, features = ["macros"] }
+thiserror.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+minco-test.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

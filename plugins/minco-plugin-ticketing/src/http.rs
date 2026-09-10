@@ -680,7 +680,10 @@ async fn requester_reply(
                 // receipt is the authority — but ONLY after operation,
                 // project, subject-digest, fingerprint AND expiry all
                 // match the current request.
-                if let Ok(Some(receipt)) = state.service.operation_receipt(key.as_str()).await
+                if let Ok(Some(receipt)) = state
+                    .service
+                    .operation_receipt_scoped(&principal, key.as_str())
+                    .await
                     && receipt.operation == "requester_reply"
                     && receipt.project_id == state.service.config().project_id
                     && receipt.subject_digest == effective_subject_digest(&principal.subject)
@@ -2396,10 +2399,19 @@ fn identity_required(request_id: &str) -> ApiFailure {
 }
 
 fn identity(principal: minco_http::Principal) -> Identity {
+    // Scope tokens survive the boundary (ADR-0076): the principal scope
+    // claim is the carrier for the composition-resolved workspace/project
+    // scope, so the service's isolation check sees exactly what the
+    // trusted middleware inserted — never a request-supplied value.
+    let scopes = principal
+        .claims
+        .get(minco_http::PRINCIPAL_SCOPES_CLAIM)
+        .map(|value| value.split_ascii_whitespace().map(str::to_owned).collect())
+        .unwrap_or_default();
     Identity {
         subject: principal.subject,
         permissions: principal.permissions,
-        scopes: BTreeSet::new(),
+        scopes,
         claims: principal.claims,
     }
 }
@@ -2432,6 +2444,13 @@ fn map_error(error: TicketingServiceError, request_id: &str) -> ApiFailure {
             "ticketing_permission_denied",
             "Permission denied",
             "The authenticated principal cannot perform this ticketing operation.",
+            request_id,
+        ),
+        TicketingServiceError::ScopeDenied => ApiFailure::new(
+            StatusCode::FORBIDDEN,
+            "ticketing_scope_denied",
+            "Scope denied",
+            "The caller's workspace/project scope is not bound to this deployment.",
             request_id,
         ),
         TicketingServiceError::ProjectDenied

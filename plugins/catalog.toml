@@ -1,211 +1,211 @@
 schema = 1
 
 [[plugin]]
-id = "audit"
 crate = "minco-plugin-audit"
-path = "plugins/minco-plugin-audit"
-kind = "plugin"
-feature = "plugin-audit"
 default_enabled = false
-stability = "beta"
 description = "Append-only audit history independent of operational logs."
+feature = "plugin-audit"
+id = "audit"
+kind = "plugin"
+path = "plugins/minco-plugin-audit"
+stability = "beta"
 
 [[plugin]]
-id = "aws-adapters"
 crate = "minco-aws-adapters"
-path = "extensions/minco-aws-adapters"
-kind = "adapter"
-feature = "aws-adapters"
 default_enabled = false
-stability = "beta"
 description = "Explicit opt-in AWS service adapters; the facade full feature is never enabled by default."
+feature = "aws-adapters"
+id = "aws-adapters"
+kind = "adapter"
+path = "extensions/minco-aws-adapters"
+stability = "beta"
 
 [[plugin]]
-id = "aws-dynamodb"
 crate = "minco-aws-dynamodb"
-path = "extensions/minco-aws-dynamodb"
-kind = "adapter"
-feature = "aws-dynamodb"
 default_enabled = false
-stability = "beta"
 description = "Validated DynamoDB provider primitives for explicit application-owned access models."
+feature = "aws-dynamodb"
+id = "aws-dynamodb"
+kind = "adapter"
+path = "extensions/minco-aws-dynamodb"
+stability = "beta"
 
 [[plugin]]
-id = "aws-lambda"
 crate = "minco-aws-lambda"
-path = "extensions/minco-aws-lambda"
-kind = "runtime"
-feature = "aws-lambda"
 default_enabled = false
-stability = "beta"
 description = "Native Lambda HTTP runtime and SSM configuration loading."
-
-[[plugin]]
-id = "aws-worker"
-crate = "minco-aws-worker"
-path = "extensions/minco-aws-worker"
+feature = "aws-lambda"
+id = "aws-lambda"
 kind = "runtime"
-feature = "aws-worker"
-default_enabled = false
+path = "extensions/minco-aws-lambda"
 stability = "beta"
+
+[[plugin]]
+crate = "minco-aws-worker"
+default_enabled = false
 description = "Explicit SQS Lambda partial-batch worker runtime without hidden schedules."
-
-[[plugin]]
-id = "jobs"
-crate = "minco-plugin-jobs"
-path = "plugins/minco-plugin-jobs"
-kind = "plugin"
-feature = "plugin-jobs"
-default_enabled = false
+feature = "aws-worker"
+id = "aws-worker"
+kind = "runtime"
+path = "extensions/minco-aws-worker"
 stability = "beta"
-description = "Durable typed jobs with at-least-once delivery, lease-based execution and explicit scheduling."
 
 [[plugin]]
-id = "events"
 crate = "minco-plugin-events"
-path = "plugins/minco-plugin-events"
-kind = "plugin"
-feature = "plugin-events"
 default_enabled = false
-stability = "beta"
 description = "Domain events and explicit transactional-outbox ports without hidden schedules."
+feature = "plugin-events"
+id = "events"
+kind = "plugin"
+path = "plugins/minco-plugin-events"
+stability = "beta"
 
 [[plugin]]
-id = "feedback"
 crate = "minco-plugin-feedback"
-path = "plugins/minco-plugin-feedback"
-kind = "plugin"
-feature = "plugin-feedback"
 default_enabled = false
-stability = "stable"
 description = "Client feedback widget, screenshots, voice transcription, discussion and AI handoff."
+feature = "plugin-feedback"
+id = "feedback"
+kind = "plugin"
+path = "plugins/minco-plugin-feedback"
+stability = "stable"
 
 [[plugin]]
-id = "health"
 crate = "minco-plugin-health"
-path = "plugins/minco-plugin-health"
-kind = "plugin"
-feature = "plugin-health"
 default_enabled = true
-stability = "stable"
 description = "Liveness, readiness and dependency health registry."
+feature = "plugin-health"
+id = "health"
+kind = "plugin"
+path = "plugins/minco-plugin-health"
+stability = "stable"
 
 [[plugin]]
-id = "idempotency"
 crate = "minco-plugin-idempotency"
-path = "plugins/minco-plugin-idempotency"
-kind = "plugin"
-feature = "plugin-idempotency"
 default_enabled = true
-stability = "stable"
 description = "Idempotency keys, request fingerprints and a storage port."
-
-[[plugin]]
-id = "payments-waffo"
-crate = "minco-plugin-payments-waffo"
-path = "plugins/minco-plugin-payments-waffo"
+feature = "plugin-idempotency"
+id = "idempotency"
 kind = "plugin"
-feature = "plugin-payments-waffo"
-default_enabled = false
-stability = "beta"
-description = "Signed Waffo Pancake checkout, payment queries, webhook automation and raw-body verification."
-
-[[plugin]]
-id = "identity"
-crate = "minco-plugin-identity"
-path = "plugins/minco-plugin-identity"
-kind = "plugin"
-feature = "plugin-identity"
-default_enabled = false
-stability = "beta"
-description = "Verified claims, provider-neutral identities, scopes and permission mapping."
-
-[[plugin]]
-id = "notifications"
-crate = "minco-plugin-notifications"
-path = "plugins/minco-plugin-notifications"
-kind = "plugin"
-feature = "plugin-notifications"
-default_enabled = false
-stability = "beta"
-description = "Provider-neutral email, webhook, in-app and developer notifications."
-
-[[plugin]]
-id = "object-storage"
-crate = "minco-plugin-object-storage"
-path = "plugins/minco-plugin-object-storage"
-kind = "plugin"
-feature = "plugin-object-storage"
-default_enabled = false
-stability = "beta"
-description = "Provider-neutral object storage for uploads, exports and feedback attachments."
-
-[[plugin]]
-id = "observability"
-crate = "minco-plugin-observability"
-path = "plugins/minco-plugin-observability"
-kind = "plugin"
-feature = "plugin-observability"
-default_enabled = true
+path = "plugins/minco-plugin-idempotency"
 stability = "stable"
+
+[[plugin]]
+crate = "minco-plugin-identity"
+default_enabled = false
+description = "Verified claims, provider-neutral identities, scopes and permission mapping."
+feature = "plugin-identity"
+id = "identity"
+kind = "plugin"
+path = "plugins/minco-plugin-identity"
+stability = "beta"
+
+[[plugin]]
+crate = "minco-plugin-jobs"
+default_enabled = false
+description = "Durable typed jobs with at-least-once delivery, lease-based execution and explicit scheduling."
+feature = "plugin-jobs"
+id = "jobs"
+kind = "plugin"
+path = "plugins/minco-plugin-jobs"
+stability = "beta"
+
+[[plugin]]
+crate = "minco-plugin-notifications"
+default_enabled = false
+description = "Provider-neutral email, webhook, in-app and developer notifications."
+feature = "plugin-notifications"
+id = "notifications"
+kind = "plugin"
+path = "plugins/minco-plugin-notifications"
+stability = "beta"
+
+[[plugin]]
+crate = "minco-plugin-object-storage"
+default_enabled = false
+description = "Provider-neutral object storage for uploads, exports and feedback attachments."
+feature = "plugin-object-storage"
+id = "object-storage"
+kind = "plugin"
+path = "plugins/minco-plugin-object-storage"
+stability = "beta"
+
+[[plugin]]
+crate = "minco-plugin-observability"
+default_enabled = true
 description = "Structured tracing and CloudWatch-compatible logging."
-
-[[plugin]]
-id = "sessions"
-crate = "minco-plugin-sessions"
-path = "plugins/minco-plugin-sessions"
+feature = "plugin-observability"
+id = "observability"
 kind = "plugin"
-feature = "plugin-sessions"
-default_enabled = false
-stability = "beta"
-description = "Provider-neutral session issuance, lookup, expiry, and revocation."
+path = "plugins/minco-plugin-observability"
+stability = "stable"
 
 [[plugin]]
-id = "realtime"
+crate = "minco-plugin-payments-waffo"
+default_enabled = false
+description = "Signed Waffo Pancake checkout, payment queries, webhook automation and raw-body verification."
+feature = "plugin-payments-waffo"
+id = "payments-waffo"
+kind = "plugin"
+path = "plugins/minco-plugin-payments-waffo"
+stability = "beta"
+
+[[plugin]]
 crate = "minco-plugin-realtime"
-path = "plugins/minco-plugin-realtime"
-kind = "plugin"
-feature = "plugin-realtime"
 default_enabled = false
-stability = "beta"
 description = "Subscriber-only realtime invalidation with backend-owned publication and HTTP resynchronization."
+feature = "plugin-realtime"
+id = "realtime"
+kind = "plugin"
+path = "plugins/minco-plugin-realtime"
+stability = "beta"
 
 [[plugin]]
-id = "sqlx-postgres"
+crate = "minco-plugin-sessions"
+default_enabled = false
+description = "Provider-neutral session issuance, lookup, expiry, and revocation."
+feature = "plugin-sessions"
+id = "sessions"
+kind = "plugin"
+path = "plugins/minco-plugin-sessions"
+stability = "beta"
+
+[[plugin]]
 crate = "minco-sqlx-postgres"
-path = "extensions/minco-sqlx-postgres"
-kind = "adapter"
-feature = "sqlx-postgres"
 default_enabled = false
-stability = "beta"
 description = "Bounded PostgreSQL pools and explicit migrations."
-
-[[plugin]]
-id = "sqlx-sqlite"
-crate = "minco-sqlx-sqlite"
-path = "extensions/minco-sqlx-sqlite"
+feature = "sqlx-postgres"
+id = "sqlx-postgres"
 kind = "adapter"
-feature = "sqlx-sqlite"
-default_enabled = false
+path = "extensions/minco-sqlx-postgres"
 stability = "beta"
+
+[[plugin]]
+crate = "minco-sqlx-sqlite"
+default_enabled = false
 description = "SQLite pools with explicit durability constraints."
+feature = "sqlx-sqlite"
+id = "sqlx-sqlite"
+kind = "adapter"
+path = "extensions/minco-sqlx-sqlite"
+stability = "beta"
 
 [[plugin]]
-id = "static-site"
 crate = "minco-plugin-static-site"
-path = "plugins/minco-plugin-static-site"
-kind = "plugin"
-feature = "plugin-static-site"
 default_enabled = false
-stability = "beta"
 description = "Private static assets, CDN caching, SPA fallback, and optional custom-domain deployment intent."
+feature = "plugin-static-site"
+id = "static-site"
+kind = "plugin"
+path = "plugins/minco-plugin-static-site"
+stability = "beta"
 
 [[plugin]]
-id = "ticketing"
 crate = "minco-plugin-ticketing"
-path = "plugins/minco-plugin-ticketing"
-kind = "plugin"
-feature = "plugin-ticketing"
 default_enabled = false
-stability = "beta"
 description = "Project-scoped support ticketing with atomic browser handoffs, conversation, and explicit SQLite persistence."
+feature = "plugin-ticketing"
+id = "ticketing"
+kind = "plugin"
+path = "plugins/minco-plugin-ticketing"
+stability = "beta"

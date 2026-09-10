@@ -310,6 +310,23 @@ pub struct SessionExchangeGrant {
     pub rotation_staged_session_id: Option<minco_plugin_sessions::SessionId>,
 }
 
+/// The authoritative workspace binding of a session-exchange grant
+/// (round 1 finding 1).
+///
+/// The binding lives beside the grant in durable storage — not on the
+/// public grant struct, whose shape is part of the crate's source
+/// compatibility surface — so resolution and rotation validate against
+/// the persisted artifact rather than deriving authority from the
+/// receiving service's configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExchangeGrantWorkspaceBinding {
+    /// The grant predates isolation; the upgrade inventory binds such
+    /// grants explicitly and isolated resolution rejects them until then.
+    LegacyUnbound,
+    /// The workspace identity the grant was issued under.
+    Bound(String),
+}
+
 /// One atomic pool-mode assignment request (exact-head review R7).
 ///
 /// The store verifies the revision, selects the assignee (advancing the
@@ -467,12 +484,31 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
     ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
 
     /// Marks one intent published; `false` when it was already published
-    /// or is unknown.
+    /// or is unknown. This is the ORIGINAL entry point, retained verbatim
+    /// for pre-isolation consumers (round 1 finding 8): implementations
+    /// written against it keep compiling and working. Isolated
+    /// deployments use the project-bound override below — the service
+    /// never calls this method.
     async fn mark_activity_published(
         &self,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
+
+    /// The project-bound mark (ADR-0076, round 1 finding 4): a foreign
+    /// project's intent id is a no-op, never an escape. Provided with a
+    /// legacy-delegating default so pre-isolation implementations keep
+    /// compiling; the `SQLite` and memory adapters override it with the
+    /// real project-bound statement, and an isolated deployment MUST
+    /// use an adapter that overrides it.
+    async fn mark_activity_published_scoped(
+        &self,
+        _project_id: &str,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.mark_activity_published(intent_id, at).await
+    }
 
     /// Oldest-first audit-undelivered activity intents for one project
     /// (exact-head review R5), bounded by `limit`.
@@ -483,12 +519,25 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
     ) -> Result<Vec<TicketActivityIntent>, TicketStoreError>;
 
     /// Marks one intent's audit record delivered; `false` when it was
-    /// already delivered or is unknown.
+    /// already delivered or is unknown. The ORIGINAL entry point,
+    /// retained verbatim for pre-isolation consumers (round 1 finding 8);
+    /// isolated deployments use the project-bound override below.
     async fn mark_audit_published(
         &self,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError>;
+
+    /// The project-bound audit mark; provided with a legacy-delegating
+    /// default (see `mark_activity_published_scoped`).
+    async fn mark_audit_published_scoped(
+        &self,
+        _project_id: &str,
+        intent_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        self.mark_audit_published(intent_id, at).await
+    }
 
     /// Resolves a ticket (and its current revision) from a previously
     /// ingested external message's `internet_message_id` (ADR-0058).
@@ -529,6 +578,35 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
         grant: SessionExchangeGrant,
         expected_generation: Option<u64>,
     ) -> Result<SessionExchangeGrant, TicketStoreError>;
+
+    /// Reads the persisted workspace binding of one session-exchange
+    /// grant (round 1 finding 1). Adapters that predate isolation keep
+    /// this legacy default: every grant reads back unbound, and isolated
+    /// resolution rejects unbound grants instead of guessing.
+    async fn exchange_grant_workspace_binding(
+        &self,
+        _exchange_key: &str,
+    ) -> Result<ExchangeGrantWorkspaceBinding, TicketStoreError> {
+        Ok(ExchangeGrantWorkspaceBinding::LegacyUnbound)
+    }
+
+    /// Fenced grant record that also persists the authoritative
+    /// workspace binding (round 1 finding 1, round 2c review): a
+    /// REQUESTED binding is established atomically with the grant or
+    /// the write fails without effect — it is never silently dropped.
+    /// Adapters that predate isolation keep this erroring default, so
+    /// an isolated service over a legacy adapter cannot commit an
+    /// unbound grant and discover the gap only at a later read.
+    async fn record_session_exchange_fenced_scoped(
+        &self,
+        _grant: SessionExchangeGrant,
+        _expected_generation: Option<u64>,
+        _workspace_id: &str,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        Err(TicketStoreError::Infrastructure(
+            "this store adapter does not support workspace-scoped exchange writes".into(),
+        ))
+    }
 
     /// Revokes a replay grant (logout): replays after this fail closed.
     async fn revoke_session_exchange(
@@ -954,20 +1032,30 @@ impl TicketingStoreService {
         self.0.pending_audit_intents(project_id, limit).await
     }
 
-    pub async fn mark_audit_published(
+    /// The project-bound audit mark (ADR-0076): the service's only entry
+    /// point. The unscoped legacy mark remains on the port trait for
+    /// pre-isolation consumers.
+    pub async fn mark_audit_published_scoped(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
-        self.0.mark_audit_published(intent_id, at).await
+        self.0
+            .mark_audit_published_scoped(project_id, intent_id, at)
+            .await
     }
 
-    pub async fn mark_activity_published(
+    /// The project-bound activity mark (ADR-0076).
+    pub async fn mark_activity_published_scoped(
         &self,
+        project_id: &str,
         intent_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
-        self.0.mark_activity_published(intent_id, at).await
+        self.0
+            .mark_activity_published_scoped(project_id, intent_id, at)
+            .await
     }
 
     pub async fn find_ticket_by_message_identity(
@@ -1106,6 +1194,24 @@ impl TicketingStoreService {
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
         self.0
             .record_session_exchange_fenced(grant, expected_generation)
+            .await
+    }
+
+    pub async fn exchange_grant_workspace_binding(
+        &self,
+        exchange_key: &str,
+    ) -> Result<ExchangeGrantWorkspaceBinding, TicketStoreError> {
+        self.0.exchange_grant_workspace_binding(exchange_key).await
+    }
+
+    pub async fn record_session_exchange_fenced_scoped(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        workspace_id: &str,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        self.0
+            .record_session_exchange_fenced_scoped(grant, expected_generation, workspace_id)
             .await
     }
 
@@ -1374,6 +1480,9 @@ struct MemoryState {
     clarifications: BTreeMap<(String, Uuid), Clarification>,
     operation_receipts: BTreeMap<String, OperationReceipt>,
     session_exchange_grants: BTreeMap<String, SessionExchangeGrant>,
+    /// Persisted workspace bindings beside the grants (round 1 finding
+    /// 1): `None` = legacy unbound, mirroring the SQL column.
+    grant_workspace_bindings: BTreeMap<String, Option<String>>,
     send_intents: BTreeMap<String, SendIntent>,
     #[cfg(feature = "jobs")]
     enqueued_job_records: Vec<minco_plugin_jobs::JobRecord>,
@@ -1464,6 +1573,61 @@ impl MemoryTicketingStore {
             .handoffs
             .get(digest)
             .is_some_and(|entry| entry.handoff.consumed_result.is_some())
+    }
+    /// The fenced write both trait entry points share; `binding`
+    /// records the authoritative workspace identity beside the grant.
+    async fn record_session_exchange_fenced_binding(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        binding: Option<String>,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        // A persisted binding is immutable (round 2c review): once an
+        // exchange key is bound to a workspace, no later write — scoped
+        // or legacy — may rebind or unbind it.
+        if let Some(Some(bound)) = state.grant_workspace_bindings.get(&grant.exchange_key)
+            && binding.as_deref() != Some(bound.as_str())
+        {
+            return Err(TicketStoreError::Infrastructure(format!(
+                "exchange grant is already bound to workspace {bound}; refusing to rebind"
+            )));
+        }
+        match state.session_exchange_grants.get(&grant.exchange_key) {
+            None if expected_generation.is_none() => {
+                state
+                    .grant_workspace_bindings
+                    .insert(grant.exchange_key.clone(), binding);
+                state
+                    .session_exchange_grants
+                    .insert(grant.exchange_key.clone(), grant.clone());
+                drop(state);
+                Ok(grant)
+            }
+            // A takeover may only advance a live grant: a revoked grant
+            // (logout) can never be re-recorded by a stale worker
+            // (exact-head review R28/P0-2).
+            Some(existing)
+                if Some(existing.generation) == expected_generation
+                    && existing.revoked_at.is_none()
+                    && existing.rotation_staged_session_id.is_none() =>
+            {
+                let mut next = grant;
+                next.generation = existing.generation + 1;
+                state
+                    .grant_workspace_bindings
+                    .insert(next.exchange_key.clone(), binding);
+                state
+                    .session_exchange_grants
+                    .insert(next.exchange_key.clone(), next.clone());
+                drop(state);
+                Ok(next)
+            }
+            Some(existing) => Ok(existing.clone()),
+            None => Err(TicketStoreError::Infrastructure(
+                "fenced exchange record expected an existing generation".into(),
+            )),
+        }
     }
 }
 
@@ -2214,12 +2378,38 @@ impl TicketingStore for MemoryTicketingStore {
             .collect())
     }
 
+    // The legacy required marks stay unscoped (pre-isolation behavior);
+    // the scoped marks carry the project binding (ADR-0076). The service
+    // only ever calls the scoped ones.
     async fn mark_audit_published(
         &self,
         intent_id: Uuid,
         _at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
+        Ok(self
+            .state
+            .lock()
+            .await
+            .audit_published_intents
+            .insert(intent_id))
+    }
+
+    async fn mark_audit_published_scoped(
+        &self,
+        project_id: &str,
+        intent_id: Uuid,
+        _at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
         let mut state = self.state.lock().await;
+        // Project-bound (ADR-0076): only an intent of this project can be
+        // marked.
+        if !state
+            .activity_intents
+            .iter()
+            .any(|intent| intent.id == intent_id && intent.project_id == project_id)
+        {
+            return Ok(false);
+        }
         Ok(state.audit_published_intents.insert(intent_id))
     }
 
@@ -2229,6 +2419,25 @@ impl TicketingStore for MemoryTicketingStore {
         _at: DateTime<Utc>,
     ) -> Result<bool, TicketStoreError> {
         Ok(self.state.lock().await.published_intents.insert(intent_id))
+    }
+
+    async fn mark_activity_published_scoped(
+        &self,
+        project_id: &str,
+        intent_id: Uuid,
+        _at: DateTime<Utc>,
+    ) -> Result<bool, TicketStoreError> {
+        let mut state = self.state.lock().await;
+        // Project-bound (ADR-0076): only an intent of this project can be
+        // marked.
+        if !state
+            .activity_intents
+            .iter()
+            .any(|intent| intent.id == intent_id && intent.project_id == project_id)
+        {
+            return Ok(false);
+        }
+        Ok(state.published_intents.insert(intent_id))
     }
 
     async fn find_ticket_by_message_identity(
@@ -2388,36 +2597,36 @@ impl TicketingStore for MemoryTicketingStore {
         grant: SessionExchangeGrant,
         expected_generation: Option<u64>,
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
-        let mut state = self.state.lock().await;
-        match state.session_exchange_grants.get(&grant.exchange_key) {
-            None if expected_generation.is_none() => {
-                state
-                    .session_exchange_grants
-                    .insert(grant.exchange_key.clone(), grant.clone());
-                drop(state);
-                Ok(grant)
+        // Legacy writer: no workspace binding (round 1 finding 1).
+        self.record_session_exchange_fenced_binding(grant, expected_generation, None)
+            .await
+    }
+
+    async fn record_session_exchange_fenced_scoped(
+        &self,
+        grant: SessionExchangeGrant,
+        expected_generation: Option<u64>,
+        workspace_id: &str,
+    ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        self.record_session_exchange_fenced_binding(
+            grant,
+            expected_generation,
+            Some(workspace_id.to_owned()),
+        )
+        .await
+    }
+
+    async fn exchange_grant_workspace_binding(
+        &self,
+        exchange_key: &str,
+    ) -> Result<ExchangeGrantWorkspaceBinding, TicketStoreError> {
+        let state = self.state.lock().await;
+        Ok(match state.grant_workspace_bindings.get(exchange_key) {
+            Some(Some(workspace)) if !workspace.is_empty() => {
+                ExchangeGrantWorkspaceBinding::Bound(workspace.clone())
             }
-            // A takeover may only advance a live grant: a revoked grant
-            // (logout) can never be re-recorded by a stale worker
-            // (exact-head review R28/P0-2).
-            Some(existing)
-                if Some(existing.generation) == expected_generation
-                    && existing.revoked_at.is_none()
-                    && existing.rotation_staged_session_id.is_none() =>
-            {
-                let mut next = grant;
-                next.generation = existing.generation + 1;
-                state
-                    .session_exchange_grants
-                    .insert(next.exchange_key.clone(), next.clone());
-                drop(state);
-                Ok(next)
-            }
-            Some(existing) => Ok(existing.clone()),
-            None => Err(TicketStoreError::Infrastructure(
-                "fenced exchange record expected an existing generation".into(),
-            )),
-        }
+            _ => ExchangeGrantWorkspaceBinding::LegacyUnbound,
+        })
     }
 
     async fn revoke_session_exchange(

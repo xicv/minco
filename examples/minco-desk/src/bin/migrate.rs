@@ -15,8 +15,12 @@ async fn main() -> Result<()> {
         .execute(&pool)
         .await?
         .rows_affected();
+    let workspace = sqlx::query("SELECT COUNT(*) FROM workspace_deployment_binding")
+        .execute(&pool)
+        .await?
+        .rows_affected();
     println!(
-        "{{\"migrated\":true,\"ticketing_table_ready\":{ticketing},\"jobs_table_ready\":{jobs}}}"
+        "{{\"migrated\":true,\"ticketing_table_ready\":{ticketing},\"jobs_table_ready\":{jobs},\"workspace_registry_ready\":{workspace}}}"
     );
     Ok(())
 }
