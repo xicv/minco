@@ -426,3 +426,53 @@ disclosed in their commits; hosted Linux performance evidence and
 live-AWS qualification remain NOT RUN (carried warnings, as on the
 merged tree). This final task-file update is an evidence-only commit
 after the qualified head, per M14-T74 precedent.
+
+### Round 2: review convergence and requalification (2026-09-10)
+
+The round-1 candidate (`c5b65977`, published PR head) drew REQUEST
+CHANGES (6×P1, 2×P2, archived at `docs/research/m15-t01-candidate-review-r1.md`).
+Round 2 closed all eight findings (`832d6132`, `b34860eb`, `7dff7d67`,
+`8d4d4d4b`, `b3b91b0d`, `1dae22d1`, `60d24b34`, `70387fa6`), then a
+four-exchange packet review on the unpushed heads (bindings
+`minco-m15-t01-review` / `minco-m15-t01-r2`) converged to SETTLED:
+
+- **2b (`a9b1e6e6`)** — the reviewer reopened P1-3 and P2-8: resource
+  policy must belong to the effective caller, and the round-2 fields
+  broke pre-isolation public struct shapes. Fixed additively: profiles
+  emit per-caller `resources:` scope tokens (normative vectors both
+  plugins, ADR-0076 grammar); `TicketingConfig`, `SessionExchangeGrant`
+  and the three job command structs returned to base shape; isolation
+  rides `TicketingIsolationConfig` + `with_isolation`; the grant
+  binding persists beside the grant through defaulted store methods;
+  job bindings ride envelope metadata under `ticketing.workspace`.
+- **2c (`1caae8ef`)** — the scoped-write default now fails without
+  writing (legacy adapters can never commit unbound grants), persisted
+  bindings are immutable, the rebuild connection restores FK
+  enforcement on every path, and `Some("")` is a configuration error.
+- **2d (`fcf0c652`)** — cancellation safety by construction
+  (`close_on_drop` at acquisition; deterministic destructor-state
+  regression) and write-predicate binding enforcement (`AND
+  workspace_id IS ?` + `confirm_binding` on every return path; direct
+  regression is a **direct-drop destructor regression**, not an
+  end-to-end task-abort harness). Source review settled at `fcf0c652`
+  (tree `e697ba87…`) with zero open blockers; 231 tests, clippy clean.
+
+**ISO-7 closed (2026-09-10).** The complete controller exited 0 at
+`8f3001632b718bfbe4e24417f2dd10912822f5dd` — the settled source
+`fcf0c652` plus two disclosed evidence-only commits (receipt rebind
+`859cb49f`, deterministic deep-review regeneration `8f300163`); the
+executed working copy was clean after the run and unchanged
+throughout. The qualification history is recorded honestly: runs 1–5
+failed on environment, not code — a stale receipt chain (fixed by the
+rebind), a self-hosted CI job landing on the firefox window after the
+runners were briefly restored (user re-authorized stopping them), a
+wedged then-restarted Docker VM (clock drift), and this session's own
+renderer footprint (mitigated by closing the ego browser and renicing;
+the passing run executed at 1-minute load ~2.5). The firefox widget
+suite passed 40/40 in the green run; the local-runtime Docker stage,
+Rustack smoke, and orders E2E all passed. The earlier timeout runs
+remain failed attempts in the record; the exit-0 run qualifies its
+own frozen candidate. Hosted Linux performance evidence and live-AWS
+qualification remain NOT RUN (carried warnings, as before). This
+task-file update is an evidence-only commit after the qualified head,
+per precedent.
