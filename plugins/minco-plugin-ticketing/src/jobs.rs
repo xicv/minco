@@ -2059,6 +2059,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_registered_isolated_executor_validates_the_envelope_binding_end_to_end() {
+        // Round 2c review (round 1 finding 4): the carrier proof runs
+        // enqueue → persisted envelope → executor-built JobContext →
+        // handler. A foreign workspace with the SAME project spelling
+        // fails permanently before any mail effect; the matching
+        // binding delivers through the identical registered path.
+        let now = Utc::now();
+        let mut owned = ticket(now);
+        let foreign_message = owned
+            .reply_as_agent_message("agent-1", "Foreign probe.", now)
+            .unwrap();
+        let local_message = owned
+            .reply_as_agent_message("agent-1", "Local delivery.", now)
+            .unwrap();
+        let store = Arc::new(MemoryTicketingStore::default());
+        let intent = crate::TicketActivityIntent::new(
+            "project-a",
+            owned.id,
+            "created",
+            Uuid::now_v7(),
+            serde_json::json!({}),
+            now,
+        );
+        store.create(owned.clone(), intent).await.unwrap();
+        let transport = ScriptedMailTransport::new(vec![]);
+        let mail = Arc::new(
+            MailService::single(
+                transport.clone(),
+                Arc::new(minco_plugin_notifications::NoopMailObserver),
+            )
+            .unwrap(),
+        );
+        let notifications = Arc::new(NotificationService::new(Arc::new(
+            MemoryNotificationSink::default(),
+        )));
+        let service = crate::TicketingService::new(
+            TicketingStoreService::new(store.clone()),
+            crate::TicketingConfig {
+                project_id: "project-a".into(),
+                ..crate::TicketingConfig::default()
+            },
+        )
+        .unwrap()
+        .with_isolation(crate::TicketingIsolationConfig {
+            workspace_id: Some("ws-local".into()),
+            ..crate::TicketingIsolationConfig::default()
+        })
+        .unwrap();
+        let registry = Arc::new(JobHandlerRegistry::new());
+        register_ticketing_jobs(
+            &registry,
+            &TicketingStoreService::new(store.clone()),
+            TicketingJobsDeps {
+                service,
+                notifications,
+                mail: Some(mail),
+                objects: Arc::new(ObjectStoreService::new(Arc::new(
+                    minco_plugin_object_storage::MemoryObjectStore::default(),
+                ))),
+                worker: worker_identity(),
+            },
+        )
+        .unwrap();
+        let services = minco_plugin_jobs::JobsServices::memory(registry).0;
+
+        // Foreign binding, deliberately colliding project spelling.
+        let foreign = stamp_workspace_binding(
+            deliver_envelope(&owned, &foreign_message),
+            Some("ws-foreign"),
+        );
+        let rejected = services
+            .submit_inline(foreign)
+            .await
+            .expect_err("the executor must reject the foreign binding permanently");
+        assert_eq!(rejected.code(), "ticketing.job_scope_denied");
+        assert_eq!(transport.submit_count().await, 0);
+        assert!(store.all_outbound_evidence().await.is_empty());
+
+        // Matching binding through the identical registered path.
+        let local =
+            stamp_workspace_binding(deliver_envelope(&owned, &local_message), Some("ws-local"));
+        services.submit_inline(local).await.unwrap();
+        assert_eq!(transport.submit_count().await, 1);
+    }
+
+    #[tokio::test]
     async fn email_reply_records_acceptance_and_never_claims_delivery() {
         let (services, transport, store, ticket, message) = mail_setup(vec![]).await;
         services

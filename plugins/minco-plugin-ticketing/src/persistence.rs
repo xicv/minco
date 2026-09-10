@@ -121,7 +121,7 @@ impl SqliteTicketingStore {
             .execute(&mut *connection)
             .await
             .map_err(infrastructure)?;
-        let rebuild = async {
+        let rebuild: Result<(), TicketStoreError> = async {
             sqlx::raw_sql(sqlx::AssertSqlSafe("BEGIN"))
                 .execute(&mut *connection)
                 .await
@@ -213,15 +213,43 @@ impl SqliteTicketingStore {
             Ok(())
         }
         .await;
-        sqlx::raw_sql(sqlx::AssertSqlSafe("PRAGMA foreign_keys = ON"))
+        // The FK-disabled connection must never leak back into the pool
+        // (round 2c review): roll back any open rebuild transaction on
+        // failure, restore foreign-key enforcement on EVERY path, and
+        // detach the connection entirely when restoration cannot be
+        // confirmed — a detached connection closes instead of being
+        // recycled.
+        let rollback = if rebuild.is_err() {
+            sqlx::raw_sql(sqlx::AssertSqlSafe("ROLLBACK"))
+                .execute(&mut *connection)
+                .await
+                .map(|_| ())
+                .map_err(|error| {
+                    TicketStoreError::Infrastructure(format!(
+                        "rolling back the failed ownership rebuild failed: {error}"
+                    ))
+                })
+        } else {
+            Ok(())
+        };
+        let restored = sqlx::raw_sql(sqlx::AssertSqlSafe("PRAGMA foreign_keys = ON"))
             .execute(&mut *connection)
             .await
+            .map(|_| ())
             .map_err(|error| {
                 TicketStoreError::Infrastructure(format!(
                     "re-enabling foreign keys failed: {error}"
                 ))
-            })?;
-        rebuild
+            });
+        if restored.is_err() || rollback.is_err() {
+            // Unsafe to recycle: detach the connection so it closes on
+            // drop instead of returning to the pool.
+            drop(connection.detach());
+        }
+        rebuild?;
+        rollback?;
+        restored?;
+        Ok(())
     }
 
     #[must_use]
@@ -238,6 +266,23 @@ impl SqliteTicketingStore {
         expected_generation: Option<u64>,
         binding: Option<&str>,
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
+        // A persisted binding is immutable (round 2c review): once an
+        // exchange key is bound to a workspace, no later write — scoped
+        // or legacy — may rebind or unbind it.
+        let bound: Option<Option<String>> = sqlx::query_scalar(
+            "SELECT workspace_id FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
+        )
+        .bind(&grant.exchange_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(infrastructure)?;
+        if let Some(Some(existing_binding)) = bound
+            && binding != Some(existing_binding.as_str())
+        {
+            return Err(TicketStoreError::Infrastructure(format!(
+                "exchange grant is already bound to workspace {existing_binding}; refusing to rebind"
+            )));
+        }
         let existing = self.session_exchange_grant(&grant.exchange_key).await?;
         match (existing, expected_generation) {
             (None, None) => {

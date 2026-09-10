@@ -591,17 +591,21 @@ pub trait TicketingStore: Send + Sync + fmt::Debug {
     }
 
     /// Fenced grant record that also persists the authoritative
-    /// workspace binding (round 1 finding 1). The default delegates to
-    /// [`TicketingStore::record_session_exchange_fenced`], leaving the
-    /// binding unset — legacy semantics for pre-isolation adapters.
+    /// workspace binding (round 1 finding 1, round 2c review): a
+    /// REQUESTED binding is established atomically with the grant or
+    /// the write fails without effect — it is never silently dropped.
+    /// Adapters that predate isolation keep this erroring default, so
+    /// an isolated service over a legacy adapter cannot commit an
+    /// unbound grant and discover the gap only at a later read.
     async fn record_session_exchange_fenced_scoped(
         &self,
-        grant: SessionExchangeGrant,
-        expected_generation: Option<u64>,
+        _grant: SessionExchangeGrant,
+        _expected_generation: Option<u64>,
         _workspace_id: &str,
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
-        self.record_session_exchange_fenced(grant, expected_generation)
-            .await
+        Err(TicketStoreError::Infrastructure(
+            "this store adapter does not support workspace-scoped exchange writes".into(),
+        ))
     }
 
     /// Revokes a replay grant (logout): replays after this fail closed.
@@ -1579,6 +1583,16 @@ impl MemoryTicketingStore {
         binding: Option<String>,
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
         let mut state = self.state.lock().await;
+        // A persisted binding is immutable (round 2c review): once an
+        // exchange key is bound to a workspace, no later write — scoped
+        // or legacy — may rebind or unbind it.
+        if let Some(Some(bound)) = state.grant_workspace_bindings.get(&grant.exchange_key)
+            && binding.as_deref() != Some(bound.as_str())
+        {
+            return Err(TicketStoreError::Infrastructure(format!(
+                "exchange grant is already bound to workspace {bound}; refusing to rebind"
+            )));
+        }
         match state.session_exchange_grants.get(&grant.exchange_key) {
             None if expected_generation.is_none() => {
                 state

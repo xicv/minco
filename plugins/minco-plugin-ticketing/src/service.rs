@@ -252,11 +252,22 @@ pub struct TicketingIsolationConfig {
 
 impl TicketingIsolationConfig {
     fn enabled_workspace(&self) -> Option<&str> {
-        self.workspace_id.as_deref().filter(|id| !id.is_empty())
+        // `Some` is always a requested binding — an invalid one (empty,
+        // whitespace-padded, over-long) is rejected at validation time,
+        // never quietly interpreted as "isolation off" (round 2c
+        // review).
+        self.workspace_id.as_deref()
     }
 
     fn validate(&self) -> Result<(), TicketingServiceError> {
         if let Some(workspace) = self.enabled_workspace() {
+            if workspace.is_empty() {
+                return Err(TicketingServiceError::Configuration(
+                    "workspace_id must be a minted workspace identifier, not an empty string; \
+                     use None to disable isolation"
+                        .into(),
+                ));
+            }
             // Isolation cannot run without its bound workspace identity
             // (ADR-0076): fail closed at configuration time, not at the
             // first denied request. The identifier is validated as a
@@ -5796,6 +5807,100 @@ mod tests {
                     objects: None,
                 });
         (Arc::new(service), store, sessions)
+    }
+
+    #[tokio::test]
+    async fn requester_resolution_and_rotation_preserve_the_portal_resource_policy() {
+        // Round 2c review (P1-3 propagation): the portal profile's
+        // resource policy must survive the whole session path — minted
+        // at exchange, preserved through rotation — rather than being
+        // substituted by the agent's policy or lost. The resolved
+        // requester identity carries exactly the portal profile's
+        // `resources:` tokens.
+        use minco_plugin_sessions::MemorySessionStore;
+        let store = Arc::new(MemoryTicketingStore::default());
+        let sessions = Arc::new(SessionService::new(Arc::new(MemorySessionStore::default())));
+        let service = TicketingService::new(
+            TicketingStoreService::new(store.clone()),
+            TicketingConfig {
+                project_id: "project-a".into(),
+                ..test_config()
+            },
+        )
+        .unwrap()
+        .with_isolation(TicketingIsolationConfig {
+            workspace_id: Some("ws-prop".into()),
+            portal_resource_types: BTreeSet::from(["deploy-board".to_owned()]),
+        })
+        .unwrap()
+        .with_portal_services(crate::TicketingPortalServices {
+            sessions: Some(sessions.clone()),
+            csrf: Some(Arc::new(
+                minco_plugin_sessions::CsrfService::new(
+                    b"test-csrf-secret-0123456789abcdef".to_vec(),
+                )
+                .unwrap(),
+            )),
+            idempotency: None,
+            events: None,
+            audit: None,
+            #[cfg(feature = "jobs")]
+            jobs: None,
+            objects: None,
+        });
+        // The exchange-side grant, written through the real scoped path.
+        let first = minco_plugin_sessions::SessionId(Uuid::new_v4());
+        service
+            .record_session_exchange_grant(
+                "key-prop",
+                first,
+                "requester-prop",
+                "https://support.example.test",
+                vec!["ticketing.requester.read".into()],
+                Utc::now() + chrono::TimeDelta::minutes(10),
+            )
+            .await
+            .unwrap();
+        // A session stamped exactly as the exchange issues them.
+        let issued = sessions
+            .issue(minco_plugin_sessions::CreateSession {
+                subject: "requester-prop".into(),
+                ttl: chrono::TimeDelta::minutes(10),
+                attributes: BTreeMap::from([
+                    ("ticketing.project".to_owned(), "project-a".to_owned()),
+                    (
+                        "ticketing.portal_origin".to_owned(),
+                        "https://support.example.test".to_owned(),
+                    ),
+                    (
+                        "ticketing.permissions".to_owned(),
+                        "ticketing.requester.read".to_owned(),
+                    ),
+                    ("ticketing.exchange_key".to_owned(), "key-prop".to_owned()),
+                    ("ticketing.workspace".to_owned(), "ws-prop".to_owned()),
+                ]),
+            })
+            .await
+            .unwrap();
+        let expected_tokens = BTreeSet::from([
+            "workspace:ws-prop".to_owned(),
+            "project:project-a".to_owned(),
+            "resources:deploy-board".to_owned(),
+        ]);
+        let (_record, identity) = service
+            .resolve_requester_session(&issued.token)
+            .await
+            .expect("resolution succeeds");
+        assert_eq!(identity.scopes, expected_tokens);
+
+        // Rotation mints a replacement; resolving it yields the same
+        // portal-derived policy, never an agent-shaped or empty set.
+        let rotated = service.rotate_session_exchange("key-prop").await.unwrap();
+        let (_record, rotated_identity) = service
+            .resolve_requester_session(&rotated.token)
+            .await
+            .expect("rotated session resolves");
+        assert_eq!(rotated_identity.scopes, expected_tokens);
     }
 
     #[tokio::test]

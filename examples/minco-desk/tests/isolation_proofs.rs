@@ -758,6 +758,17 @@ async fn the_upgrade_inventories_every_historical_project_and_binds_ownership() 
     .execute(&pool)
     .await
     .unwrap();
+    // Snapshot the legacy ticket's full child row before the rebuild —
+    // every column, so verbatim survival is provable, not inferred from
+    // a (kind, ticket_id) projection (round 2c review).
+    let activity_before: Vec<(String, String, String, String, String, String, String)> =
+        sqlx::query_as(
+            "SELECT id, kind, correlation_id, payload_json, created_at, project_id, ticket_id
+             FROM ticketing_activity_intents ORDER BY id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
     pool.close().await;
 
     // The upgrade: inventory registers both projects verbatim.
@@ -785,23 +796,32 @@ async fn the_upgrade_inventories_every_historical_project_and_binds_ownership() 
         desk.workspace_report.workspace.as_str()
     );
     assert_eq!(ticket_binding[0].1, "desk-proof");
-    // Child preservation through the ownership rebuild (round 2
-    // review): the create-copy-drop-rename may not lose child content —
-    // the legacy ticket's committed activity rows survive verbatim,
+    // Child preservation through the ownership rebuild (round 2c
+    // review): the create-copy-drop-rename may not lose child content.
+    // The full-row snapshot matches the pre-rebuild capture on every
+    // column — id, kind, correlation, payload, timestamps, scope —
     // which an empty foreign_key_check alone could never prove.
-    let activity: Vec<(String, String)> = sqlx::query_as(
-        "SELECT kind, ticket_id FROM ticketing_activity_intents WHERE project_id = 'desk-proof'",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    assert_eq!(activity_before.len(), 1);
     assert_eq!(
-        activity,
-        vec![(
-            "ticketing.created".to_owned(),
-            legacy_ticket.ticket.id.to_string()
-        )],
-        "the rebuild preserves populated child content verbatim"
+        activity_before[0].1, "ticketing.created",
+        "the snapshot captured the legacy creation intent"
+    );
+    assert_eq!(
+        activity_before[0].6,
+        legacy_ticket.ticket.id.to_string(),
+        "the snapshot belongs to the legacy ticket"
+    );
+    let activity_after: Vec<(String, String, String, String, String, String, String)> =
+        sqlx::query_as(
+            "SELECT id, kind, correlation_id, payload_json, created_at, project_id, ticket_id
+             FROM ticketing_activity_intents ORDER BY id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        activity_after, activity_before,
+        "the rebuild preserves populated child rows verbatim, every column"
     );
     // The legacy grant was backfilled.
     let grant_workspace: Option<String> = sqlx::query_scalar(

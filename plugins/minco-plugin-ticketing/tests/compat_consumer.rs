@@ -672,3 +672,108 @@ fn pre_isolation_public_shapes_stay_constructible_verbatim() {
         rotation_staged_session_id: None,
     };
 }
+
+#[tokio::test]
+async fn an_isolated_service_over_a_legacy_adapter_never_writes_unbound_grants() {
+    // Round 2c review (P1-1): over a store that implements only the
+    // pre-isolation surface, an isolated service can neither commit a
+    // NEW grant (the scoped write's provided default fails without
+    // effect) nor act on an EXISTING unbound grant (ownership reads the
+    // persisted binding and denies). Nothing is stored, and the legacy
+    // grant survives untouched — generation, liveness and binding.
+    let inner = Arc::new(MemoryTicketingStore::default());
+    let seeded_session = minco_plugin_sessions::SessionId(uuid::Uuid::new_v4());
+    inner
+        .record_session_exchange_fenced(
+            SessionExchangeGrant {
+                exchange_key: "seeded-key".into(),
+                session_id: seeded_session,
+                generation: 0,
+                subject: "user-1".into(),
+                project_id: "consumer".into(),
+                permissions: vec!["ticketing.requester.read".into()],
+                portal_origin: "https://support.example.test".into(),
+                expires_at: Utc::now() + chrono::TimeDelta::minutes(10),
+                created_at: Utc::now(),
+                revoked_at: None,
+                rotation_staged_session_id: None,
+            },
+            None,
+        )
+        .await
+        .expect("the consumer's original write path keeps working");
+
+    let isolated = TicketingService::new(
+        TicketingStoreService::new(Arc::new(PreIsolationStore(inner.clone()))),
+        TicketingConfig {
+            project_id: "consumer".into(),
+            portal_origin: "https://support.example.test".into(),
+            ..TicketingConfig::default()
+        },
+    )
+    .unwrap()
+    .with_isolation(minco_plugin_ticketing::TicketingIsolationConfig {
+        workspace_id: Some("ws-consumer".into()),
+        ..minco_plugin_ticketing::TicketingIsolationConfig::default()
+    })
+    .unwrap()
+    .with_portal_services(minco_plugin_ticketing::TicketingPortalServices {
+        sessions: Some(Arc::new(minco_plugin_sessions::SessionService::new(
+            Arc::new(minco_plugin_sessions::MemorySessionStore::default()),
+        ))),
+        csrf: Some(Arc::new(
+            minco_plugin_sessions::CsrfService::new(
+                "legacy-adapter-csrf-secret-of-sufficient-length",
+            )
+            .expect("csrf"),
+        )),
+        ..Default::default()
+    });
+
+    // A new exchange cannot commit its grant: the legacy adapter cannot
+    // establish the requested binding, so the scoped write fails without
+    // writing — no unbound grant to reject only at a later read.
+    let denied = isolated
+        .record_session_exchange_grant(
+            "fresh-key",
+            minco_plugin_sessions::SessionId(uuid::Uuid::new_v4()),
+            "user-2",
+            "https://support.example.test",
+            vec!["ticketing.requester.read".into()],
+            Utc::now() + chrono::TimeDelta::minutes(10),
+        )
+        .await
+        .expect_err("a legacy adapter cannot serve an isolated scoped write");
+    assert!(matches!(
+        denied,
+        minco_plugin_ticketing::TicketingServiceError::Store(_)
+    ));
+    assert!(
+        inner
+            .session_exchange_grant("fresh-key")
+            .await
+            .unwrap()
+            .is_none(),
+        "nothing was committed for the denied exchange"
+    );
+
+    // The pre-existing unbound grant is untouchable: rotation is denied
+    // on ownership before any effect, and the grant survives verbatim.
+    let denied = isolated
+        .rotate_session_exchange("seeded-key")
+        .await
+        .expect_err("rotation of a legacy-unbound grant must deny");
+    assert!(matches!(
+        denied,
+        minco_plugin_ticketing::TicketingServiceError::ScopeDenied
+    ));
+    let surviving = inner
+        .session_exchange_grant("seeded-key")
+        .await
+        .unwrap()
+        .expect("the legacy grant survives the denial untouched");
+    assert_eq!(surviving.session_id, seeded_session);
+    assert_eq!(surviving.generation, 0);
+    assert!(surviving.revoked_at.is_none());
+    assert!(surviving.rotation_staged_session_id.is_none());
+}
