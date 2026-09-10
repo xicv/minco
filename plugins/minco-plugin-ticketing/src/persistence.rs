@@ -100,6 +100,14 @@ impl SqliteTicketingStore {
             .acquire()
             .await
             .map_err(|error| TicketStoreError::Infrastructure(error.to_string()))?;
+        // Cancellation safety (round 2d review): this connection CLOSES
+        // on drop instead of returning to the pool, from acquisition on.
+        // If the rebuild future is dropped at any await point — task
+        // abort, timeout, caller cancellation — the FK-disabled
+        // connection can never be recycled; the open transaction rolls
+        // back as the connection closes. The explicit tail below still
+        // handles normal completion and error reporting.
+        connection.close_on_drop();
         let bound: String =
             sqlx::query_scalar("SELECT workspace_id FROM ticketing_tickets LIMIT 1")
                 .fetch_optional(&mut *connection)
@@ -260,28 +268,47 @@ impl SqliteTicketingStore {
     /// entry points: `binding` persists the authoritative workspace
     /// identity beside the grant (`None` writes the legacy unbound
     /// state).
+    ///
+    /// Binding immutability is enforced by the WRITE PREDICATES, not by
+    /// a preceding lookup (round 2d review): an initial insert that
+    /// loses its race may only adopt the winner when the winner carries
+    /// the SAME requested binding; a takeover UPDATE only matches a row
+    /// whose persisted binding still equals the requested one; and a
+    /// stale re-record may only return the stored grant when its
+    /// binding matches. An intervening writer with a different
+    /// workspace therefore always surfaces as an explicit refusal —
+    /// never as a silently adopted foreign grant.
     async fn record_session_exchange_fenced_with_binding(
         &self,
         grant: SessionExchangeGrant,
         expected_generation: Option<u64>,
         binding: Option<&str>,
     ) -> Result<SessionExchangeGrant, TicketStoreError> {
-        // A persisted binding is immutable (round 2c review): once an
-        // exchange key is bound to a workspace, no later write — scoped
-        // or legacy — may rebind or unbind it.
-        let bound: Option<Option<String>> = sqlx::query_scalar(
-            "SELECT workspace_id FROM ticketing_session_exchange_grants WHERE exchange_key = ?",
-        )
-        .bind(&grant.exchange_key)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(infrastructure)?;
-        if let Some(Some(existing_binding)) = bound
-            && binding != Some(existing_binding.as_str())
-        {
-            return Err(TicketStoreError::Infrastructure(format!(
-                "exchange grant is already bound to workspace {existing_binding}; refusing to rebind"
-            )));
+        // Validates that the PERSISTED binding still matches the
+        // requested one after a lost write race; a mismatch is a rebind
+        // attempt against an intervening writer and is refused.
+        async fn confirm_binding(
+            store: &SqliteTicketingStore,
+            exchange_key: &str,
+            binding: Option<&str>,
+            stored: SessionExchangeGrant,
+        ) -> Result<SessionExchangeGrant, TicketStoreError> {
+            let persisted = store.exchange_grant_workspace_binding(exchange_key).await?;
+            let matches = match (&persisted, binding) {
+                (crate::ExchangeGrantWorkspaceBinding::Bound(existing), Some(requested)) => {
+                    existing == requested
+                }
+                (crate::ExchangeGrantWorkspaceBinding::LegacyUnbound, None) => true,
+                _ => false,
+            };
+            if matches {
+                Ok(stored)
+            } else {
+                Err(TicketStoreError::Infrastructure(
+                    "exchange grant is already bound to a different workspace; refusing to rebind"
+                        .to_owned(),
+                ))
+            }
         }
         let existing = self.session_exchange_grant(&grant.exchange_key).await?;
         match (existing, expected_generation) {
@@ -308,8 +335,8 @@ impl SqliteTicketingStore {
                 transaction.commit().await.map_err(infrastructure)?;
                 if inserted.rows_affected() == 0 {
                     // Lost the initial-insert race (exact-head review
-                    // R28/P0-2): return the winner's grant so the loser
-                    // revokes its own session and never the winner's.
+                    // R28/P0-2): the winner's grant is adoptable only
+                    // when it carries this writer's requested binding.
                     let winner = self
                         .session_exchange_grant(&grant.exchange_key)
                         .await?
@@ -318,7 +345,7 @@ impl SqliteTicketingStore {
                                 "exchange grant vanished after insert race".into(),
                             )
                         })?;
-                    return Ok(winner);
+                    return confirm_binding(self, &grant.exchange_key, binding, winner).await;
                 }
                 Ok(grant)
             }
@@ -326,7 +353,10 @@ impl SqliteTicketingStore {
             // revoked grant (logout) or an in-flight rotation can never
             // be overwritten by a stale worker (R28/P0-2). The UPDATE's
             // affected rows are the fence — 0 rows means this worker
-            // lost and must adopt whatever is actually stored.
+            // lost and must adopt whatever is actually stored. The
+            // binding predicate makes the fence two-dimensional: the
+            // row must ALSO still carry the requested binding
+            // (`workspace_id IS ?` matches NULL to NULL in SQLite).
             (Some(current), Some(expected))
                 if current.generation == expected
                     && current.revoked_at.is_none()
@@ -338,7 +368,8 @@ impl SqliteTicketingStore {
                         SET session_id = ?, subject = ?, project_id = ?, permissions = ?,
                             portal_origin = ?, generation = generation + 1, workspace_id = ?
                       WHERE exchange_key = ? AND generation = ?
-                        AND revoked_at IS NULL AND rotation_staged_session_id IS NULL",
+                        AND revoked_at IS NULL AND rotation_staged_session_id IS NULL
+                        AND workspace_id IS ?",
                     )
                     .bind(grant.session_id.0.to_string())
                     .bind(&grant.subject)
@@ -350,6 +381,7 @@ impl SqliteTicketingStore {
                     .bind(i64::try_from(current.generation).map_err(|_| {
                         TicketStoreError::Infrastructure("generation overflow".into())
                     })?)
+                    .bind(binding)
                     .execute(&self.pool)
                     .await
                     .map_err(infrastructure)?;
@@ -362,13 +394,15 @@ impl SqliteTicketingStore {
                                 "exchange grant vanished during takeover".into(),
                             )
                         })?;
-                    return Ok(winner);
+                    return confirm_binding(self, &grant.exchange_key, binding, winner).await;
                 }
                 let mut stored = grant;
                 stored.generation = current.generation + 1;
                 Ok(stored)
             }
-            (Some(current), _) => Ok(current),
+            (Some(current), _) => {
+                confirm_binding(self, &grant.exchange_key, binding, current).await
+            }
             (None, Some(_)) => Err(TicketStoreError::Infrastructure(
                 "fenced exchange record expected an existing generation".into(),
             )),
@@ -4683,6 +4717,185 @@ mod tests {
             revoked_at: None,
             rotation_staged_session_id: None,
         }
+    }
+
+    #[tokio::test]
+    async fn sqlite_binding_immutability_is_enforced_by_the_write_predicates() {
+        // Round 2d review (P1-1): the fenced write itself — not a
+        // preceding lookup — must refuse a different workspace. Three
+        // distinct boundaries: the stale re-record arm, the fenced
+        // takeover predicate, and the initial-insert conflict loser.
+        let (_directory, sqlite) = store().await;
+        let key = "sqlite-binding-2d";
+
+        // Workspace A establishes the grant.
+        let winner = sqlite
+            .record_session_exchange_fenced_scoped(sqlite_grant(key, 1), None, "ws-a")
+            .await
+            .unwrap();
+        assert_eq!(
+            sqlite.exchange_grant_workspace_binding(key).await.unwrap(),
+            crate::ExchangeGrantWorkspaceBinding::Bound("ws-a".into())
+        );
+
+        // Boundary 1 — stale re-record with a different workspace: the
+        // stored grant may only come back for the SAME binding.
+        let denied = sqlite
+            .record_session_exchange_fenced_scoped(sqlite_grant(key, 2), None, "ws-b")
+            .await
+            .expect_err("a different workspace may never re-record over a bound grant");
+        assert!(denied.to_string().contains("refusing to rebind"));
+
+        // Boundary 2 — fenced takeover with the right generation but a
+        // different workspace: the UPDATE predicate refuses the row.
+        let denied = sqlite
+            .record_session_exchange_fenced_scoped(
+                sqlite_grant(key, 3),
+                Some(winner.generation),
+                "ws-b",
+            )
+            .await
+            .expect_err("the fenced takeover must refuse a foreign binding");
+        assert!(denied.to_string().contains("refusing to rebind"));
+
+        // The same takeover under the ORIGINAL binding advances.
+        let advanced = sqlite
+            .record_session_exchange_fenced_scoped(
+                sqlite_grant(key, 4),
+                Some(winner.generation),
+                "ws-a",
+            )
+            .await
+            .unwrap();
+        assert_eq!(advanced.generation, winner.generation + 1);
+
+        // Boundary 3 — the initial-insert conflict loser: both writers
+        // raced with different workspaces, the stored row is ws-a; a
+        // ws-b initial insert must NOT adopt the foreign winner.
+        let denied = sqlite
+            .record_session_exchange_fenced_scoped(sqlite_grant("sqlite-race-2d", 5), None, "ws-a")
+            .await
+            .unwrap();
+        let raced = sqlite
+            .record_session_exchange_fenced_scoped(sqlite_grant("sqlite-race-2d", 6), None, "ws-b")
+            .await
+            .expect_err("the conflict loser may not adopt a foreign-bound winner");
+        assert!(raced.to_string().contains("refusing to rebind"));
+        let _ = denied;
+    }
+
+    #[tokio::test]
+    async fn sqlite_fk_disabled_rebuild_connections_never_return_to_the_pool() {
+        // Round 2d review (P1-5): the rebuild connection is
+        // close-on-drop from acquisition. Cancellation at ANY await
+        // point cannot recycle a foreign-key-disabled connection: drop
+        // one mid-rebuild (exactly what task abort does — the destructor
+        // runs, the tail does not), then prove the next pooled
+        // connection enforces foreign keys and the original data is
+        // intact.
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cancel.sqlite");
+        let options = SqliteConnectOptions::from_str(path.to_str().unwrap())
+            .unwrap()
+            .create_if_missing(true)
+            .foreign_keys(true)
+            .journal_mode(SqliteJournalMode::Wal);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .unwrap();
+        let sqlite = SqliteTicketingStore::new(pool.clone());
+        sqlite.migrate().await.unwrap();
+        // The workspace registry the composite FK targets.
+        sqlx::query(
+            "CREATE TABLE workspace_projects (workspace_id TEXT NOT NULL, project_id TEXT NOT NULL,
+             PRIMARY KEY (workspace_id, project_id))",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO workspace_projects VALUES ('ws-c', 'project-a')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT INTO ticketing_tickets (project_id, id, display_reference, status, requester_subject, updated_at, revision, ticket_json)
+             VALUES ('project-a', '44444444-4444-4444-4444-444444444444', 'TKT-C-1', 'new', 'r', ?, 0, '{}')",
+        )
+        .bind(&now)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ticketing_tickets")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(before, 1);
+
+        // A FIRST successful bind gives the table its composite foreign
+        // key, so the post-abort assertions can observe enforcement.
+        sqlite.bind_workspace_ownership("ws-c").await.unwrap();
+
+        // Simulate task abort mid-rebuild: the connection is acquired
+        // and close-on-drop'd by the method; here the equivalent state —
+        // FK disabled, transaction open, no cleanup executed — is
+        // dropped directly, which is precisely the destructor path an
+        // abort takes.
+        {
+            let mut connection = pool.acquire().await.unwrap();
+            connection.close_on_drop();
+            sqlx::raw_sql(sqlx::AssertSqlSafe("PRAGMA foreign_keys = OFF"))
+                .execute(&mut *connection)
+                .await
+                .unwrap();
+            sqlx::raw_sql(sqlx::AssertSqlSafe("BEGIN"))
+                .execute(&mut *connection)
+                .await
+                .unwrap();
+            sqlx::raw_sql(sqlx::AssertSqlSafe(
+                "UPDATE ticketing_tickets SET ticket_json = '{\"aborted\":true}' WHERE id = '44444444-4444-4444-4444-444444444444'",
+            ))
+            .execute(&mut *connection)
+            .await
+            .unwrap();
+            // No COMMIT, no ROLLBACK, no PRAGMA ON — drop here.
+        }
+
+        // The pool stays usable; the next connection enforces foreign
+        // keys (close-on-drop closed the disabled one rather than
+        // recycling it) and an invalid foreign-key insert is rejected.
+        let fk_enabled: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            fk_enabled, 1,
+            "pooled connections must enforce foreign keys"
+        );
+        let invalid = sqlx::query(
+            "INSERT INTO ticketing_tickets (workspace_id, project_id, id, display_reference, status, requester_subject, updated_at, revision, ticket_json)
+             VALUES ('ws-elsewhere', 'project-a', '55555555-5555-5555-5555-555555555555', 'TKT-C-2', 'new', 'r', ?, 0, '{}')",
+        )
+        .bind(&now)
+        .execute(&pool)
+        .await;
+        assert!(
+            invalid.is_err(),
+            "the composite FK is enforced after the abort"
+        );
+        // The open transaction rolled back with the closed connection.
+        let ticket_json: String = sqlx::query_scalar(
+            "SELECT ticket_json FROM ticketing_tickets WHERE id = '44444444-4444-4444-4444-444444444444'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            ticket_json, "{}",
+            "the cancelled rebuild left no partial mutation"
+        );
     }
 
     #[tokio::test]
