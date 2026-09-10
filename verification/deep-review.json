@@ -31,7 +31,7 @@
   },
   "metrics": {
     "rust_files": 280,
-    "rust_lines": 177392,
+    "rust_lines": 178633,
     "unsafe_tokens": 22,
     "production_unwrap_expect": 345,
     "sql_files": 70
@@ -83,7 +83,7 @@
       "severity": "warning",
       "code": "REVIEW-RUST-002",
       "path": "plugins/minco-plugin-ticketing/src/persistence.rs",
-      "message": "36 lines exceed 120 columns"
+      "message": "40 lines exceed 120 columns"
     },
     {
       "severity": "warning",
