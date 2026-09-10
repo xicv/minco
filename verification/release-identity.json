@@ -565,14 +565,14 @@
       "core_compatibility": "^1.12.0",
       "crate": "minco-plugin-ticketing",
       "descriptor_path": "plugins/minco-plugin-ticketing/minco-plugin.json",
-      "descriptor_sha256": "5053d1ce5d02aedc91c4b78859a9b6c0606a6cb82ff8b7d3c93dee223450d953",
+      "descriptor_sha256": "69dddd3b5d35250d11c58cba851224c0ce8590b966b1d07291c164980fe9f6b7",
       "id": "ticketing",
       "kind": "plugin",
       "plugin_version": "0.1.0",
       "stability": "beta"
     }
   ],
-  "projection_sha256": "8550f8c7291e3b4f4f0e404b201ae3d97f3c1c1e2d3d96464b2236331528cd84",
+  "projection_sha256": "59811388f887c3d3b4d6d088e51e24a6e7eeb9edbca98a117a8fc18b8e793382",
   "repository_truth": {
     "path": "verification/repository-truth.toml",
     "sha256": "c47ceaddac1caed2b9d1b49c26036e9cec57d4bdcc011151748648667cef05f1"
